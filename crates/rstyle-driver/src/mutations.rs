@@ -99,7 +99,10 @@ fn is_local_reborrow(place: &Place<'_>) -> bool {
         return false;
     };
     last.kind == ProjectionKind::Deref
-        && place.ty().ty_adt_def().is_some_and(|adt| adt.did().is_local())
+        && place
+            .ty()
+            .ty_adt_def()
+            .is_some_and(|adt| adt.did().is_local())
 }
 
 fn field_name(ty: Ty<'_>, index: usize, variant: usize) -> String {

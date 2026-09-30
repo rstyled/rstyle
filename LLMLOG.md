@@ -59,3 +59,10 @@
 
 - Added `.gitignore` (target dirs, fixture lockfiles, insta pending snapshots, profiling output, editor/OS files).
 - Added `README.md` (layout, requirements, usage, config table, suppression, dev workflow).
+
+## 2026-09-30 (Gitea + CI)
+
+- Created remote `gitea-origin` (ssh://hermes-agent@100.106.213.77:2222/zcstarr/rstyle.git; repo created by user since the tea token lacks `write:user`), pushed `main`.
+- Work continues on branch `ci-and-call-graph` with incremental commits.
+- Added `.gitea/workflows/ci.yml` (PRs + pushes to main): fmt check, clippy `-D warnings`, `cargo test --workspace`, rstyle self-check (JSON report uploaded as artifact). Installs rustup if missing; pinned nightly comes from `rust-toolchain.toml`.
+- Ran `cargo fmt` (one let-chain in `mutations.rs`).
