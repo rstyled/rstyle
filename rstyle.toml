@@ -1,0 +1,38 @@
+# rstyle configuration. Every key is optional; these are the defaults.
+# Unknown keys are errors, so typos never silently disable a rule.
+
+exclude = ["target/**"]
+
+[fn_length]
+max_lines = 50            # code lines: blank, `//` and `/* */` lines are not counted
+
+[fn_params]
+max_params = 4
+count_self = false        # `self` is the object, not an argument
+
+[mutation_budget]
+max_mutations_per_target = 3   # writes / `&mut` borrows of one root (local, param, self)
+max_mutated_targets = 3        # distinct roots mutated in one function
+granularity = "root"           # "field" keys targets as `self.a`, `self.b` instead of `self`
+
+[side_effects]
+# density_milli = 1000 * sum(weights of effects) / statements. Flagged above the max.
+max_density_milli = 500
+min_statements = 3
+min_lines = 10            # functions with fewer code lines than this skip the density rule
+
+[side_effects.weights]
+mutation = 1   # only writes that escape the function (through `&mut`), not owned locals
+io = 3
+network = 3
+global = 2     # `static mut`
+unsafe = 4
+time = 1
+random = 1
+panic = 0
+unknown = 1    # calls through dyn / fn pointers / generic callables
+
+# Callee path prefixes (longest match wins). Setting a list REPLACES its default.
+# [side_effects.paths]
+# io = ["std::fs::", "std::io::"]
+# network = ["std::net::", "reqwest::"]

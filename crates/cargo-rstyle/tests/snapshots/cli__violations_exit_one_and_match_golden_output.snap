@@ -1,0 +1,16 @@
+---
+source: crates/cargo-rstyle/tests/cli.rs
+assertion_line: 123
+expression: stdout(&output)
+---
+src/lib.rs:12:5: mutation_per_target: function `Account::churn` mutates one target too many times (actual 4, limit 3)
+src/lib.rs:12:5: side_effect_density: function `Account::churn` has a high side-effect density (actual 750, limit 500)
+src/lib.rs:24:1: fn_params: function `too_many` has too many parameters (actual 5, limit 4)
+src/lib.rs:28:1: mutated_targets: function `spread` mutates too many distinct targets (actual 4, limit 3)
+src/lib.rs:28:1: side_effect_density: function `spread` has a high side-effect density (actual 1000, limit 500)
+src/lib.rs:35:1: side_effect_density: function `noisy` has a high side-effect density (actual 3000, limit 500)
+src/lib.rs:43:1: side_effect_density: function `dirty` has a high side-effect density (actual 1600, limit 500)
+src/lib.rs:58:1: fn_params: function `missing_reason` has too many parameters (actual 5, limit 4)
+src/lib.rs:58:1: invalid_suppression: function `missing_reason`: rstyle-allow requires a reason after `:` (actual 1, limit 0)
+src/lib.rs:72:1: fn_length: function `very_long` is too long (actual 54, limit 50)
+rstyle: 11 functions, 10 violations, mean density 668, max density 3000

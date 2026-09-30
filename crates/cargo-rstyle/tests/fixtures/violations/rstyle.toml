@@ -1,0 +1,3 @@
+# Fixture functions are tiny on purpose; disable the small-function exemption.
+[side_effects]
+min_lines = 0

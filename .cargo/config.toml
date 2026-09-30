@@ -1,0 +1,3 @@
+[alias]
+# Needs the driver built next to it: run `cargo build --workspace` once (or use scripts/style.sh).
+style = "run -q --bin cargo-rstyle -- rstyle"

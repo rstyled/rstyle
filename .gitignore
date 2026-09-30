@@ -1,0 +1,23 @@
+# Build output (also covers fixture workspaces and rstyle's own facts cache)
+target/
+**/target/
+
+# Fixture crates are standalone; don't commit their lockfiles
+crates/cargo-rstyle/tests/fixtures/*/Cargo.lock
+
+# Test artifacts
+*.snap.new
+*.pending-snap
+
+# Profiling / debug
+*.profraw
+*.profdata
+flamegraph.svg
+perf.data*
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+SIDE_EFFECTS.md

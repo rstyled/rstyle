@@ -1,0 +1,36 @@
+---
+source: crates/rstyle-core/src/report.rs
+expression: json(&report).unwrap()
+---
+{
+  "diagnostics": [
+    {
+      "path": "a.rs",
+      "line": 1,
+      "column": 1,
+      "rule_id": "x",
+      "message": "message",
+      "actual": 2,
+      "limit": 1,
+      "details": [
+        {
+          "label": "self",
+          "count": 4,
+          "lines": [
+            3,
+            4,
+            5,
+            6
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "functions": 1,
+    "violations": 1,
+    "mean_density_milli": 0,
+    "max_density_milli": 0,
+    "effect_counts": {}
+  }
+}

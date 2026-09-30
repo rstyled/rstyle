@@ -1,0 +1,6 @@
+[toolchain]
+# Pinned on purpose: rustc-internal APIs used by rstyle-driver change between
+# nightlies. Bump deliberately and re-run the fixture tests.
+channel = "nightly-2026-09-30"
+profile = "minimal"
+components = ["rustc-dev", "llvm-tools-preview", "rust-src", "clippy", "rustfmt"]
