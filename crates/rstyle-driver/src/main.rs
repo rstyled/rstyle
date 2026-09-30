@@ -14,6 +14,7 @@ extern crate rustc_span;
 
 mod effects;
 mod extract;
+mod ids;
 mod mutations;
 
 use rustc_driver::{Callbacks, Compilation};

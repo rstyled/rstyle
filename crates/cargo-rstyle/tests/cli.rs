@@ -263,3 +263,55 @@ fn unknown_package_exits_two() {
     let output = rstyle(dir.path(), &["-p", "nope"]);
     assert_eq!(output.status.code(), Some(2));
 }
+
+fn facts_for(dir: &Path, file: &str) -> Vec<Value> {
+    let path = dir.join("target/rstyle/facts").join(file);
+    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+}
+
+fn fact<'a>(facts: &'a [Value], name: &str) -> &'a Value {
+    facts
+        .iter()
+        .find(|f| f["name"].as_str().unwrap().ends_with(name))
+        .unwrap_or_else(|| panic!("no fn {name}"))
+}
+
+fn strings(value: &Value) -> Vec<&str> {
+    value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect()
+}
+
+#[test]
+fn facts_record_call_graph_ids_and_mutated_types() {
+    let dir = fixture("graph");
+    assert!(rstyle(dir.path(), &[]).status.success());
+    let facts = facts_for(dir.path(), "graph-lib.json");
+
+    let direct = fact(&facts, "direct");
+    assert_eq!(direct["id"], "graph::direct");
+    let edges: Vec<&str> = direct["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["callee"].as_str().unwrap())
+        .collect();
+    // Same-crate callee and the trait method; no std calls like `Vec::new`.
+    assert_eq!(edges, ["graph::side", "graph::Shape::area"]);
+    assert_eq!(strings(&direct["mutated_types"]), ["graph::Counter"]);
+
+    // Trait impl methods point back at the trait method they implement.
+    let area = facts
+        .iter()
+        .find(|f| f["implements"] == "graph::Shape::area")
+        .expect("impl of Shape::area");
+    assert_eq!(area["edges"][0]["callee"], "graph::side");
+
+    // `dyn` calls are flagged, with the trait method as target.
+    let total = fact(&facts, "total");
+    assert_eq!(total["edges"][0]["callee"], "graph::Shape::area");
+    assert_eq!(total["edges"][0]["dynamic"], true);
+}

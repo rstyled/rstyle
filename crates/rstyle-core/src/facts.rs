@@ -64,8 +64,28 @@ pub struct EffectEvent {
     pub line: usize,
 }
 
+/// A call into workspace code (same crate or a sibling crate), by stable fn id.
+/// Unlike `CallEvent` this includes same-crate callees; it is what the call graph is built from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Edge {
+    /// Stable id of the callee (see `FnFacts::id`). For trait-method calls this
+    /// is the trait method, not an impl: resolve via `FnFacts::implements`.
+    pub callee: String,
+    pub line: usize,
+    /// Dispatched through `dyn`: the concrete impl is unknown.
+    #[serde(default)]
+    pub dynamic: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FnFacts {
+    /// Stable id: `<crate>::<def path>` with impl disambiguators (`{impl#0}`).
+    /// Identical across lib/test targets, unlike the display `name`.
+    #[serde(default)]
+    pub id: String,
+    /// For a trait-impl method, the id of the trait method it implements.
+    #[serde(default)]
+    pub implements: Option<String>,
     /// Workspace-relative path with `/` separators.
     pub path: String,
     pub line: usize,
@@ -82,6 +102,12 @@ pub struct FnFacts {
     pub mutations: Vec<MutationEvent>,
     pub calls: Vec<CallEvent>,
     pub effects: Vec<EffectEvent>,
+    /// Calls into workspace functions, in source order.
+    #[serde(default)]
+    pub edges: Vec<Edge>,
+    /// Ids of workspace types this function writes through (sorted, deduplicated).
+    #[serde(default)]
+    pub mutated_types: Vec<String>,
 }
 
 impl FnFacts {
@@ -101,6 +127,8 @@ pub fn merge(mut facts: Vec<FnFacts>) -> Vec<FnFacts> {
 #[cfg(test)]
 pub fn sample(name: &str) -> FnFacts {
     FnFacts {
+        id: format!("krate::{name}"),
+        implements: None,
         path: "src/lib.rs".into(),
         line: 1,
         column: 1,
@@ -113,6 +141,8 @@ pub fn sample(name: &str) -> FnFacts {
         mutations: vec![],
         calls: vec![],
         effects: vec![],
+        edges: vec![],
+        mutated_types: vec![],
     }
 }
 

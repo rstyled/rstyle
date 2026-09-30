@@ -1,0 +1,25 @@
+//! Stable ids and workspace membership for definitions.
+
+use crate::extract::display_path;
+use rustc_hir::def_id::DefId;
+use rustc_middle::ty::TyCtxt;
+use std::path::Path;
+
+/// `<crate>::<def path>`, e.g. `rstyle_core::rules::fn_length` or
+/// `rstyle_core::config::{impl#3}::default`. Unlike `def_path_str` it does not
+/// depend on re-exports or visibility, so caller and callee always agree.
+pub fn def_id_str(tcx: TyCtxt<'_>, def_id: DefId) -> String {
+    let krate = tcx.crate_name(def_id.krate);
+    format!(
+        "{krate}{}",
+        tcx.def_path(def_id).to_string_no_crate_verbose()
+    )
+}
+
+/// True when the definition's source lives under the workspace root
+/// (a member crate, not a registry or std dependency).
+pub fn in_workspace(tcx: TyCtxt<'_>, def_id: DefId, root: &Path) -> bool {
+    let source_map = tcx.sess.source_map();
+    let file = source_map.lookup_source_file(tcx.def_span(def_id).lo());
+    display_path(&file, root).is_some()
+}
