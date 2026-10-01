@@ -8,6 +8,7 @@ pub mod lines;
 pub mod paths;
 pub mod report;
 pub mod rules;
+pub mod stacking;
 pub mod suppress;
 
 use config::Config;

@@ -13,6 +13,7 @@ use crate::config::Config;
 use crate::facts::FnFacts;
 use crate::graph::Graph;
 use crate::report::{Diagnostic, FixGroup, GroupFunction, Hint};
+use crate::stacking;
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_HINTS: usize = 5;
@@ -235,14 +236,17 @@ pub fn build(
         .enumerate()
         .flat_map(|(g, members)| members.iter().map(move |&m| (m, g)))
         .collect();
-    groups
+    let ordered: Vec<Vec<usize>> = groups.iter().map(|m| stack_order(m, graph)).collect();
+    let plans = stacking::plans(&ordered, &rules, facts, graph);
+    ordered
         .iter()
+        .zip(plans)
         .enumerate()
-        .map(|(g, members)| FixGroup {
+        .map(|(g, (members, plan))| FixGroup {
             id: g + 1,
-            functions: stack_order(members, graph)
-                .into_iter()
-                .map(|m| GroupFunction {
+            functions: members
+                .iter()
+                .map(|&m| GroupFunction {
                     path: facts[m].path.clone(),
                     line: facts[m].line,
                     name: facts[m].name.clone(),
@@ -250,6 +254,7 @@ pub fn build(
                 })
                 .collect(),
             hints: hints_for(g, &softs, &owner, facts),
+            plan,
         })
         .collect()
 }

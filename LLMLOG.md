@@ -114,3 +114,10 @@
 - Driver: new `args.rs` (`classify`: peels `&`/`&mut`/`*`, resolves `Res::Local` against a param-binding index; literals/consts/statics/ctors = `const`; field chains rooted at a local = `field`). `effects.rs` counts mentions of each param (`param_uses`) and records args per edge (UFCS calls drop the receiver). `extract.rs::param_list` reads names from patterns and types from the written signature.
 - Fixture `params` + e2e `facts_record_params_and_argument_provenance`.
 - Tests all green; self-check 133 fns, 0 violations.
+
+## 2026-09-30 (param stacking, steps 2-3: detection + plan emission)
+
+- New pure module `rstyle-core::stacking`. Units: `all_sites` (every caller/target call with arg provenance), `forwards` (caller-param -> callee-param pairs), `closed_sets` (itemsets >=2 with support, only closed ones; candidates = site sets + pairwise intersections), `bundles` (params forwarded together, keyed by callee `(name, type)`), `pass_through` (params whose every mention is a forward into a re-signed fn), `Ctx::plan`/`plans` (call sites computed once for all groups).
+- Plan per group with a `fn_params` member: steps = re-signed functions callee-first (`signature: true`), then callers whose call sites must follow (`signature: false`); each with `incoming_sites`, `outgoing_sites`, `pass_through`; plus `bundles` (params-struct candidates, with site counts and carrier functions).
+- `report.rs`: `ParamRef`, `Bundle`, `PlanStep`, `StackPlan`, `FixGroup.plan` (omitted from JSON when absent). Text output prints a group if it has several functions or a plan with caller edits, with its plan lines.
+- 14 stacking unit tests + 1 report test. Workspace tests green; self-check 144 fns, 0 violations.
