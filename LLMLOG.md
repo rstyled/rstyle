@@ -121,3 +121,7 @@
 - Plan per group with a `fn_params` member: steps = re-signed functions callee-first (`signature: true`), then callers whose call sites must follow (`signature: false`); each with `incoming_sites`, `outgoing_sites`, `pass_through`; plus `bundles` (params-struct candidates, with site counts and carrier functions).
 - `report.rs`: `ParamRef`, `Bundle`, `PlanStep`, `StackPlan`, `FixGroup.plan` (omitted from JSON when absent). Text output prints a group if it has several functions or a plan with caller edits, with its plan lines.
 - 14 stacking unit tests + 1 report test. Workspace tests green; self-check 144 fns, 0 violations.
+
+## 2026-09-30 (param stacking, step 4: e2e)
+
+- e2e `param_plan_orders_callee_then_callers_with_bundle_and_pass_through` on fixture `params` (leaf re-signed, `mid` call-site step with 3 pass-through params, one 3-param bundle; text output checked).

@@ -418,3 +418,41 @@ fn fix_groups_stack_signature_changes_and_leave_the_rest_independent() {
     );
     assert!(text.contains("group 1 (2 functions"), "{text}");
 }
+
+#[test]
+fn param_plan_orders_callee_then_callers_with_bundle_and_pass_through() {
+    let dir = fixture("params");
+    let report = json(dir.path());
+    let group = &report["fix_groups"][0];
+    let plan = &group["plan"];
+    let steps: Vec<(&str, bool, u64)> = plan["steps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            (
+                s["name"].as_str().unwrap(),
+                s["signature"].as_bool().unwrap(),
+                s["incoming_sites"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    // `mid` (4 params, not a violation) must follow `leaf`; `top_a`/`top_b` call `mid`, not `leaf`.
+    assert_eq!(steps, [("leaf", true, 1), ("mid", false, 2)], "{plan}");
+    assert_eq!(
+        strings(&plan["steps"][1]["pass_through"]),
+        ["root", "verbose", "depth"]
+    );
+    let bundle = &plan["bundles"][0];
+    assert_eq!(bundle["sites"], 1);
+    assert_eq!(
+        bundle["params"][0],
+        serde_json::json!({"name": "depth", "type": "u32"})
+    );
+    assert_eq!(bundle["params"].as_array().unwrap().len(), 3);
+
+    let text = stdout(&rstyle(dir.path(), &[]));
+    assert!(text.contains("1. signature leaf"), "{text}");
+    assert!(text.contains("2. call sites mid"), "{text}");
+    assert!(text.contains("bundle (1 sites)"), "{text}");
+}
