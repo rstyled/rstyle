@@ -13,4 +13,5 @@ src/lib.rs:43:1: side_effect_density: function `dirty` has a high side-effect de
 src/lib.rs:58:1: fn_params: function `missing_reason` has too many parameters (actual 5, limit 4)
 src/lib.rs:58:1: invalid_suppression: function `missing_reason`: rstyle-allow requires a reason after `:` (actual 1, limit 0)
 src/lib.rs:72:1: fn_length: function `very_long` is too long (actual 54, limit 50)
+fix groups: 7 (0 stacked, 7 independent)
 rstyle: 11 functions, 10 violations, mean density 690, max density 3000

@@ -12,6 +12,7 @@ extern crate rustc_lint;
 extern crate rustc_middle;
 extern crate rustc_span;
 
+mod args;
 mod effects;
 mod extract;
 mod ids;

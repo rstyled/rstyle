@@ -9,6 +9,7 @@ pub struct Config {
     pub fn_params: FnParamsConfig,
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
+    pub grouping: GroupingConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -185,7 +186,14 @@ impl Default for EffectPaths {
     fn default() -> Self {
         Self {
             io: strings(DEFAULT_IO),
-            network: strings(&["std::net::", "reqwest::", "tokio::net::", "hyper::"]),
+            network: strings(&[
+                "std::net::TcpStream::",
+                "std::net::TcpListener::",
+                "std::net::UdpSocket::",
+                "reqwest::",
+                "tokio::net::",
+                "hyper::",
+            ]),
             time: strings(&["std::time::SystemTime::now", "std::time::Instant::now"]),
             random: strings(&["rand::"]),
             panic: strings(&["core::panicking::", "std::panicking::"]),
@@ -212,6 +220,46 @@ impl EffectPaths {
     }
 }
 
+/// Rule ids, validated on load so a typo never silently changes grouping.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(try_from = "Vec<String>")]
+pub struct RuleList(pub Vec<String>);
+
+impl TryFrom<Vec<String>> for RuleList {
+    type Error = String;
+
+    fn try_from(rules: Vec<String>) -> Result<Self, String> {
+        match rules
+            .iter()
+            .find(|r| !crate::suppress::RULE_IDS.contains(&r.as_str()))
+        {
+            Some(unknown) => Err(format!("unknown rule `{unknown}`")),
+            None => Ok(Self(rules)),
+        }
+    }
+}
+
+/// Which violations must be fixed together (see `groups`). A fix's footprint is the
+/// function itself plus, for `caller_rules`, the functions that call it.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct GroupingConfig {
+    /// Rules whose fix edits the callers too (a signature change). Other rules only
+    /// touch the function itself; their callers show up as soft hints.
+    pub caller_rules: RuleList,
+    /// How many caller hops a `caller_rules` fix reaches. Wider values create hub groups.
+    pub caller_hops: usize,
+}
+
+impl Default for GroupingConfig {
+    fn default() -> Self {
+        Self {
+            caller_rules: RuleList(vec!["fn_params".into()]),
+            caller_hops: 1,
+        }
+    }
+}
+
 impl Config {
     pub fn parse(input: &str) -> Result<Self, toml::de::Error> {
         toml::from_str(input)
@@ -228,6 +276,15 @@ mod tests {
         assert_eq!(config.fn_length.max_lines, 50);
         assert_eq!(config.fn_params.max_params, 4);
         assert_eq!(config.side_effects.weights.io, 3);
+    }
+
+    #[test]
+    fn grouping_rules_are_validated() {
+        assert!(Config::parse("[grouping]\ncaller_rules = [\"fn_param\"]").is_err());
+        let ok =
+            Config::parse("[grouping]\ncaller_rules = [\"fn_length\"]\ncaller_hops = 2").unwrap();
+        assert_eq!(ok.grouping.caller_rules.0, ["fn_length"]);
+        assert_eq!(Config::default().grouping.caller_hops, 1);
     }
 
     #[test]
@@ -262,6 +319,12 @@ mod tests {
             Some(EffectKind::Io)
         );
         assert_eq!(paths.classify("std::process::Command::env"), None);
+        // Address getters are not network IO; sockets are.
+        assert_eq!(paths.classify("std::net::SocketAddr::ip"), None);
+        assert_eq!(
+            paths.classify("std::net::UdpSocket::send_to"),
+            Some(EffectKind::Network)
+        );
     }
 
     #[test]

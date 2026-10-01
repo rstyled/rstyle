@@ -69,6 +69,33 @@ pub struct EffectEvent {
     pub line: usize,
 }
 
+/// Where a call-site argument comes from, as far as the driver can tell cheaply.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArgSource {
+    /// The caller's own parameter (0-based, `self` excluded), possibly behind `&`, `&mut` or `*`.
+    Param(usize),
+    /// A literal, `const`, `static` or enum/unit constructor path.
+    Const,
+    /// A field projection rooted at a local, parameter or `self` (`self.opts.verbose`).
+    Field,
+    Other,
+}
+
+/// A parameter of a function (`self` excluded).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ParamFacts {
+    /// Binding name, `_` for destructuring patterns.
+    pub name: String,
+    /// Declared type as written, whitespace-collapsed.
+    #[serde(rename = "type")]
+    pub ty: String,
+    /// Number of times the body mentions the binding. A parameter whose uses are all
+    /// forwards to workspace callees is a pure pass-through.
+    #[serde(default)]
+    pub uses: usize,
+}
+
 /// A call into workspace code (same crate or a sibling crate), by stable fn id.
 /// Unlike `CallEvent` this includes same-crate callees; it is what the call graph is built from.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +107,9 @@ pub struct Edge {
     /// Dispatched through `dyn`: the concrete impl is unknown.
     #[serde(default)]
     pub dynamic: bool,
+    /// One entry per callee parameter (`self` excluded), in order.
+    #[serde(default)]
+    pub args: Vec<ArgSource>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -98,6 +128,9 @@ pub struct FnFacts {
     pub name: String,
     /// Parameter count excluding `self`.
     pub params: usize,
+    /// Name, type and use count of each parameter (`self` excluded).
+    #[serde(default)]
+    pub param_list: Vec<ParamFacts>,
     pub has_self: bool,
     pub statements: usize,
     /// Source text from the `fn` signature through the closing brace.
@@ -139,6 +172,7 @@ pub fn sample(name: &str) -> FnFacts {
         column: 1,
         name: name.into(),
         params: 0,
+        param_list: vec![],
         has_self: false,
         statements: 1,
         source: format!("fn {name}() {{}}"),
