@@ -317,6 +317,52 @@ fn facts_record_call_graph_ids_and_mutated_types() {
 }
 
 #[test]
+fn facts_record_params_and_argument_provenance() {
+    let dir = fixture("params");
+    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    let facts = facts_for(dir.path(), "params-lib.json");
+
+    let leaf = fact(&facts, "leaf");
+    let named: Vec<(&str, &str)> = leaf["param_list"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| (p["name"].as_str().unwrap(), p["type"].as_str().unwrap()))
+        .collect();
+    assert_eq!(
+        named,
+        [
+            ("root", "&str"),
+            ("verbose", "bool"),
+            ("depth", "u32"),
+            ("tag", "u8"),
+            ("extra", "u8")
+        ]
+    );
+
+    // `mid` only forwards its first three parameters; it also reads `opts`.
+    let mid = fact(&facts, "mid");
+    let uses: Vec<u64> = mid["param_list"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["uses"].as_u64().unwrap())
+        .collect();
+    assert_eq!(uses, [1, 1, 1, 1]);
+    let args = &mid["edges"][0]["args"];
+    assert_eq!(
+        args,
+        &serde_json::json!([{"param": 0}, {"param": 1}, {"param": 2}, "const", "field"])
+    );
+
+    let top_a = fact(&facts, "top_a");
+    assert_eq!(
+        top_a["edges"][0]["args"],
+        serde_json::json!(["const", "const", "const", {"param": 0}])
+    );
+}
+
+#[test]
 fn effects_propagate_through_calls_and_stop_at_boundaries() {
     let dir = fixture("transitive");
     let report = json(dir.path());

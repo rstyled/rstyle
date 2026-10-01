@@ -107,3 +107,10 @@
 
 - Next task (not started): record parameter names/types and call-site argument provenance in facts; detect parameters that travel together across a fix group (shared params-struct hint) and pass-through parameters; emit an ordered stacking plan per `fn_params` group. Validate on rust-lang/cargo (220 `fn_params` violations). Calibration clones and scripts live in /tmp/real (run.sh, analyze.py, pct.py, groups.py) and may be gone.
 - Open PRs: #2 (calibration fixes, base main), #3 (fix groups, base next).
+
+## 2026-09-30 (param stacking, step 1: driver facts)
+
+- `facts.rs`: new `ParamFacts {name, type, uses}` (`FnFacts::param_list`, `self` excluded), `ArgSource {param(i) | const | field | other}`, `Edge::args` (one per callee param). All `#[serde(default)]`, additive. `graph::Callee` carries `args` too.
+- Driver: new `args.rs` (`classify`: peels `&`/`&mut`/`*`, resolves `Res::Local` against a param-binding index; literals/consts/statics/ctors = `const`; field chains rooted at a local = `field`). `effects.rs` counts mentions of each param (`param_uses`) and records args per edge (UFCS calls drop the receiver). `extract.rs::param_list` reads names from patterns and types from the written signature.
+- Fixture `params` + e2e `facts_record_params_and_argument_provenance`.
+- Tests all green; self-check 133 fns, 0 violations.

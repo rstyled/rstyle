@@ -1,10 +1,11 @@
 //! Turns every local function body into a plain `FnFacts` record.
 
 use crate::{effects, ids, mutations};
-use rstyle_core::facts::FnFacts;
+use rstyle_core::facts::{FnFacts, ParamFacts};
 use rstyle_core::lines::preceding_comment_line;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{Body, FnSig, PatKind};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{FileName, SourceFile};
 use std::path::Path;
@@ -53,6 +54,7 @@ fn function_facts(tcx: TyCtxt<'_>, def_id: LocalDefId, root: &Path) -> Option<Fn
         column: start.col.0 + 1,
         name: tcx.def_path_str(def_id.to_def_id()),
         params: sig.decl.inputs.len() - usize::from(has_self),
+        param_list: param_list(tcx, sig, body, &body_facts.param_uses),
         has_self,
         statements: body_facts.statements,
         source,
@@ -63,6 +65,35 @@ fn function_facts(tcx: TyCtxt<'_>, def_id: LocalDefId, root: &Path) -> Option<Fn
         edges: body_facts.edges,
         mutated_types,
     })
+}
+
+/// Name, written type and use count of each parameter, `self` excluded.
+fn param_list(
+    tcx: TyCtxt<'_>,
+    sig: &FnSig<'_>,
+    body: &Body<'_>,
+    uses: &[usize],
+) -> Vec<ParamFacts> {
+    let skip = usize::from(sig.decl.implicit_self().has_implicit_self());
+    let source_map = tcx.sess.source_map();
+    sig.decl
+        .inputs
+        .iter()
+        .zip(body.params)
+        .skip(skip)
+        .enumerate()
+        .map(|(index, (ty, param))| ParamFacts {
+            name: match param.pat.kind {
+                PatKind::Binding(_, _, ident, _) => ident.name.to_string(),
+                _ => "_".into(),
+            },
+            ty: source_map
+                .span_to_snippet(ty.span)
+                .map(|text| text.split_whitespace().collect::<Vec<_>>().join(" "))
+                .unwrap_or_default(),
+            uses: uses.get(index).copied().unwrap_or(0),
+        })
+        .collect()
 }
 
 fn lines_above(file: &SourceFile, line: usize) -> String {

@@ -269,6 +269,7 @@ mod tests {
                 callee: format!("krate::{c}"),
                 line: line + 1,
                 dynamic: false,
+                args: vec![],
             })
             .collect();
         f
