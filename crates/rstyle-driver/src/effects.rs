@@ -1,7 +1,8 @@
 //! One HIR walk per function: statement count, resolved calls, and effects
 //! that need no config (`unsafe`, `static mut`, indirect calls).
 
-use rstyle_core::facts::{CallEvent, EffectEvent, EffectKind};
+use crate::ids;
+use rstyle_core::facts::{CallEvent, Edge, EffectEvent, EffectKind};
 use rstyle_core::paths::strip_generics;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -10,18 +11,26 @@ use rustc_hir::{BlockCheckMode, Body, Expr, ExprKind, QPath, Stmt, UnsafeSource}
 use rustc_middle::hir::nested_filter::OnlyBodies;
 use rustc_middle::ty::{self, TyCtxt, TypeckResults};
 use rustc_span::Span;
+use std::path::{Path, PathBuf};
 
 #[derive(Default)]
 pub struct BodyFacts {
     pub statements: usize,
     pub calls: Vec<CallEvent>,
     pub effects: Vec<EffectEvent>,
+    pub edges: Vec<Edge>,
 }
 
-pub fn collect<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId, body: &'tcx Body<'tcx>) -> BodyFacts {
+pub fn collect<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
+    body: &'tcx Body<'tcx>,
+    root: &Path,
+) -> BodyFacts {
     let mut walker = Walker {
         tcx,
         typeck: tcx.typeck(def_id),
+        root: root.to_path_buf(),
         out: BodyFacts::default(),
         generated_depth: 0,
         unsafe_depth: 0,
@@ -33,6 +42,7 @@ pub fn collect<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId, body: &'tcx Body<'tc
 struct Walker<'tcx> {
     tcx: TyCtxt<'tcx>,
     typeck: &'tcx TypeckResults<'tcx>,
+    root: PathBuf,
     out: BodyFacts,
     /// Nonzero while inside macro/desugaring-generated code. Generated statements
     /// are counted once (the outermost), user-written ones always.
@@ -60,7 +70,11 @@ impl<'tcx> Walker<'tcx> {
     }
 
     fn call(&mut self, def_id: DefId, dynamic: bool, expr: &Expr<'tcx>) {
-        if def_id.is_local() || !is_fn(self.tcx, def_id) {
+        if !is_fn(self.tcx, def_id) {
+            return;
+        }
+        self.edge(def_id, dynamic, expr);
+        if def_id.is_local() {
             return;
         }
         let callee = strip_generics(&self.tcx.def_path_str(def_id));
@@ -73,6 +87,20 @@ impl<'tcx> Walker<'tcx> {
             );
         }
         self.out.calls.push(CallEvent {
+            callee,
+            line,
+            dynamic,
+        });
+    }
+
+    /// Records a call into workspace code (same crate included) for the call graph.
+    fn edge(&mut self, def_id: DefId, dynamic: bool, expr: &Expr<'tcx>) {
+        if !ids::in_workspace(self.tcx, def_id, &self.root) {
+            return;
+        }
+        let line = self.line(expr.span);
+        let callee = ids::def_id_str(self.tcx, def_id);
+        self.out.edges.push(Edge {
             callee,
             line,
             dynamic,

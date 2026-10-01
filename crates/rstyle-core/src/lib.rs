@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod facts;
+pub mod graph;
 pub mod lines;
 pub mod paths;
 pub mod report;
@@ -24,11 +25,11 @@ fn exclude_set(patterns: &[String]) -> Result<GlobSet, String> {
     builder.build().map_err(|e| e.to_string())
 }
 
-fn rule_diagnostics(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {
     let mut out = rules::fn_length(f, cfg);
     out.extend(rules::fn_params(f, cfg));
     out.extend(rules::mutation_budget(f, &cfg.mutation_budget));
-    out.extend(rules::side_effect_density(f, cfg));
+    out.extend(rules::side_effect_density(f, effects, cfg));
     out
 }
 
@@ -45,19 +46,14 @@ fn invalid_suppression(f: &FnFacts, message: String) -> Diagnostic {
     }
 }
 
-fn function_diagnostics(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    let mut out = rule_diagnostics(f, cfg);
+fn function_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {
+    let mut out = rule_diagnostics(f, effects, cfg);
     match suppress::parse(&f.preceding_line) {
         Suppression::None => {}
         Suppression::Allow(rules) => out.retain(|d| !rules.contains(&d.rule_id)),
         Suppression::Invalid(message) => out.push(invalid_suppression(f, message)),
     }
     out
-}
-
-fn score(f: &FnFacts, cfg: &Config) -> (usize, Vec<rules::Effect>) {
-    let effects = rules::effects_of(f, cfg);
-    (rules::density_milli(f, &effects, cfg), effects)
 }
 
 fn effect_counts<'a>(effects: impl Iterator<Item = &'a rules::Effect>) -> BTreeMap<String, usize> {
@@ -68,16 +64,39 @@ fn effect_counts<'a>(effects: impl Iterator<Item = &'a rules::Effect>) -> BTreeM
     counts
 }
 
-fn summarize(facts: &[FnFacts], cfg: &Config, violations: usize) -> Summary {
-    let scored: Vec<_> = facts.iter().map(|f| score(f, cfg)).collect();
-    let densities = scored.iter().map(|(density, _)| *density);
+fn summarize(
+    facts: &[FnFacts],
+    effects: &[Vec<rules::Effect>],
+    cfg: &Config,
+    violations: usize,
+) -> Summary {
+    let densities: Vec<usize> = facts
+        .iter()
+        .zip(effects)
+        .map(|(f, e)| rules::density_milli(f, e, cfg))
+        .collect();
+    let densities = densities.into_iter();
     Summary {
         functions: facts.len(),
         violations,
         mean_density_milli: densities.clone().sum::<usize>() / facts.len().max(1),
         max_density_milli: densities.max().unwrap_or(0),
-        effect_counts: effect_counts(scored.iter().flat_map(|(_, effects)| effects)),
+        effect_counts: effect_counts(effects.iter().flatten()),
     }
+}
+
+/// Direct effects of every function plus what it inherits through the call graph.
+fn all_effects(facts: &[FnFacts], cfg: &Config) -> Vec<Vec<rules::Effect>> {
+    let direct: Vec<_> = facts.iter().map(|f| rules::effects_of(f, cfg)).collect();
+    let graph = graph::build(facts);
+    let boundary = graph::boundaries(facts);
+    let inputs = graph::Inputs {
+        facts,
+        graph: &graph,
+        direct: &direct,
+        boundary: &boundary,
+    };
+    graph::propagate(&inputs, cfg.side_effects.transitive_depth)
 }
 
 /// Evaluates all rules. Input order does not matter: facts are merged first.
@@ -87,12 +106,14 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
         .into_iter()
         .filter(|f| !excluded.is_match(&f.path))
         .collect();
+    let effects = all_effects(&facts, cfg);
     let mut diagnostics: Vec<Diagnostic> = facts
         .iter()
-        .flat_map(|f| function_diagnostics(f, cfg))
+        .zip(&effects)
+        .flat_map(|(f, e)| function_diagnostics(f, e, cfg))
         .collect();
     report::sort(&mut diagnostics);
-    let summary = summarize(&facts, cfg, diagnostics.len());
+    let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     Ok(Report {
         diagnostics,
         summary,
@@ -121,6 +142,7 @@ mod tests {
                 field_path: String::new(),
                 line,
                 escapes: true,
+                delegated: false,
             })
             .collect();
         let report = evaluate(vec![f], &Config::default()).unwrap();

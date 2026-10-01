@@ -8,8 +8,17 @@ use rustc_hir_typeck::expr_use_visitor::{Delegate, ExprUseVisitor};
 use rustc_lint::LateContext;
 use rustc_middle::hir::place::{Place, PlaceBase, PlaceWithHirId, ProjectionKind};
 use rustc_middle::ty::{self, BorrowKind, Ty, TyCtxt};
+use std::collections::BTreeSet;
+use std::path::Path;
 
-pub fn collect<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Vec<MutationEvent> {
+use crate::ids;
+
+/// Mutation events plus the sorted ids of workspace types written through.
+pub fn collect<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
+    root: &Path,
+) -> (Vec<MutationEvent>, Vec<String>) {
     let body_id = tcx
         .hir_node_by_def_id(def_id)
         .body_id()
@@ -26,23 +35,28 @@ pub fn collect<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Vec<MutationEvent
     };
     let mut collector = Collector {
         tcx,
+        root,
         events: Vec::new(),
+        types: BTreeSet::new(),
     };
     let visitor = ExprUseVisitor::for_clippy(&cx, def_id, &mut collector);
     let _ = visitor.consume_body(tcx.hir_body(body_id));
-    collector.events
+    (collector.events, collector.types.into_iter().collect())
 }
 
-struct Collector<'tcx> {
+struct Collector<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
+    root: &'a Path,
     events: Vec<MutationEvent>,
+    types: BTreeSet<String>,
 }
 
-impl<'tcx> Collector<'tcx> {
+impl<'tcx> Collector<'_, 'tcx> {
     fn record(&mut self, place: &PlaceWithHirId<'tcx>, at: HirId, is_helper_call: bool) {
         let Some(root) = self.root_name(&place.place) else {
             return;
         };
+        self.note_type(place.place.base_ty);
         let span = self.tcx.hir_span(at);
         let line = self
             .tcx
@@ -51,13 +65,40 @@ impl<'tcx> Collector<'tcx> {
             .lookup_char_pos(span.source_callsite().lo())
             .line;
         let (field_path, escapes) = self.describe(&place.place);
-        let escapes = escapes && !(is_helper_call && is_local_reborrow(&place.place));
+        let delegated = escapes && is_helper_call && self.is_workspace_reborrow(&place.place);
+        let escapes = escapes && !delegated;
         self.events.push(MutationEvent {
             root,
             field_path,
             line,
             escapes,
+            delegated,
         });
+    }
+
+    /// `&mut *r` of a whole workspace object (e.g. autoref for `self.helper()`).
+    /// The callee's writes are attributed to the callee (and inherited through
+    /// the call graph), so this is not an escaping write of the caller itself.
+    fn is_workspace_reborrow(&self, place: &Place<'tcx>) -> bool {
+        place
+            .projections
+            .last()
+            .is_some_and(|last| last.kind == ProjectionKind::Deref)
+            && place
+                .ty()
+                .ty_adt_def()
+                .is_some_and(|adt| ids::in_workspace(self.tcx, adt.did(), self.root))
+    }
+
+    /// Remembers the workspace type behind the written root (`&mut T`, `Box<T>` peeled).
+    fn note_type(&mut self, base: Ty<'tcx>) {
+        let peeled = base.peel_refs();
+        let peeled = peeled.boxed_ty().unwrap_or(peeled);
+        if let Some(adt) = peeled.ty_adt_def()
+            && ids::in_workspace(self.tcx, adt.did(), self.root)
+        {
+            self.types.insert(ids::def_id_str(self.tcx, adt.did()));
+        }
     }
 
     /// Statics are reported as `global` effects by the expression visitor instead.
@@ -91,17 +132,6 @@ impl<'tcx> Collector<'tcx> {
     }
 }
 
-/// `&mut *r` of a whole crate-local object (e.g. autoref for `self.helper()`).
-/// The callee's writes are attributed to the callee, so they don't count as
-/// escaping side effects of the caller (they still count toward the budget).
-fn is_local_reborrow(place: &Place<'_>) -> bool {
-    let Some(last) = place.projections.last() else {
-        return false;
-    };
-    last.kind == ProjectionKind::Deref
-        && place.ty().ty_adt_def().is_some_and(|adt| adt.did().is_local())
-}
-
 fn field_name(ty: Ty<'_>, index: usize, variant: usize) -> String {
     match ty.kind() {
         ty::Adt(def, _) => {
@@ -114,7 +144,7 @@ fn field_name(ty: Ty<'_>, index: usize, variant: usize) -> String {
     }
 }
 
-impl<'tcx> Delegate<'tcx> for Collector<'tcx> {
+impl<'tcx> Delegate<'tcx> for Collector<'_, 'tcx> {
     fn consume(&mut self, _: &PlaceWithHirId<'tcx>, _: HirId) {}
 
     fn use_cloned(&mut self, _: &PlaceWithHirId<'tcx>, _: HirId) {}

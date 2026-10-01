@@ -35,6 +35,11 @@ pub fn parse(comment_line: &str) -> Suppression {
     }
 }
 
+/// True when the comment is a valid suppression that names `rule`.
+pub fn allows(comment_line: &str, rule: &str) -> bool {
+    matches!(parse(comment_line), Suppression::Allow(rules) if rules.iter().any(|r| r == rule))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

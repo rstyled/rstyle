@@ -1,6 +1,6 @@
 //! Turns every local function body into a plain `FnFacts` record.
 
-use crate::{effects, mutations};
+use crate::{effects, ids, mutations};
 use rstyle_core::facts::FnFacts;
 use rstyle_core::lines::preceding_comment_line;
 use rustc_hir::def::DefKind;
@@ -39,8 +39,15 @@ fn function_facts(tcx: TyCtxt<'_>, def_id: LocalDefId, root: &Path) -> Option<Fn
         .span_to_snippet(sig.span.to(body.value.span))
         .ok()?;
     let has_self = sig.decl.implicit_self().has_implicit_self();
-    let body_facts = effects::collect(tcx, def_id, body);
+    let body_facts = effects::collect(tcx, def_id, body, root);
+    let (mutations, mutated_types) = mutations::collect(tcx, def_id, root);
+    let implements = tcx
+        .opt_associated_item(def_id.to_def_id())
+        .and_then(|item| item.trait_item_def_id())
+        .map(|trait_fn| ids::def_id_str(tcx, trait_fn));
     Some(FnFacts {
+        id: ids::def_id_str(tcx, def_id.to_def_id()),
+        implements,
         path: display_path(&start.file, root)?,
         line: start.line,
         column: start.col.0 + 1,
@@ -50,9 +57,11 @@ fn function_facts(tcx: TyCtxt<'_>, def_id: LocalDefId, root: &Path) -> Option<Fn
         statements: body_facts.statements,
         source,
         preceding_line: lines_above(&start.file, start.line),
-        mutations: mutations::collect(tcx, def_id),
+        mutations,
         calls: body_facts.calls,
         effects: body_facts.effects,
+        edges: body_facts.edges,
+        mutated_types,
     })
 }
 
@@ -66,7 +75,7 @@ fn lines_above(file: &SourceFile, line: usize) -> String {
 }
 
 /// Workspace-relative, `/`-separated. `None` for files outside the workspace root.
-fn display_path(file: &SourceFile, root: &Path) -> Option<String> {
+pub(crate) fn display_path(file: &SourceFile, root: &Path) -> Option<String> {
     let FileName::Real(real) = &file.name else {
         return None;
     };

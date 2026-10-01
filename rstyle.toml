@@ -20,6 +20,7 @@ granularity = "root"           # "field" keys targets as `self.a`, `self.b` inst
 max_density_milli = 500
 min_statements = 3
 min_lines = 10            # functions with fewer code lines than this skip the density rule
+transitive_depth = 3      # call hops an effect travels up (io/network/global/time/random, delegated &mut writes); 0 = direct only
 
 [side_effects.weights]
 mutation = 1   # only writes that escape the function (through `&mut`), not owned locals
