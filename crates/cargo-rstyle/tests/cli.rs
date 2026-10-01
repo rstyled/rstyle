@@ -315,3 +315,31 @@ fn facts_record_call_graph_ids_and_mutated_types() {
     assert_eq!(total["edges"][0]["callee"], "graph::Shape::area");
     assert_eq!(total["edges"][0]["dynamic"], true);
 }
+
+#[test]
+fn effects_propagate_through_calls_and_stop_at_boundaries() {
+    let dir = fixture("transitive");
+    let report = json(dir.path());
+    let top = diagnostics_for(&report, "top");
+    assert_eq!(top.len(), 1, "{report}");
+    assert_eq!(top[0]["actual"], 750); // 3 (io, two hops up) * 1000 / 4 statements
+    let label = top[0]["details"][0]["label"].as_str().unwrap();
+    assert_eq!(label, "io: std::fs::read_to_string (via mid)");
+    // `leaf` and `mid` are direct/one hop IO, `via_boundary` sits behind a declared boundary.
+    assert!(!rules_for(&report, "leaf").is_empty());
+    assert!(!rules_for(&report, "mid").is_empty());
+    assert!(rules_for(&report, "via_boundary").is_empty(), "{report}");
+    assert!(rules_for(&report, "boundary").is_empty());
+
+    let off = dir.path().join("rstyle.toml");
+    std::fs::write(
+        &off,
+        "[side_effects]\nmin_lines = 0\nmin_statements = 1\ntransitive_depth = 0\n",
+    )
+    .unwrap();
+    let report = json(dir.path());
+    assert!(
+        rules_for(&report, "top").is_empty(),
+        "depth 0 disables propagation"
+    );
+}

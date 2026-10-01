@@ -43,6 +43,11 @@ pub struct MutationEvent {
     /// reference or raw pointer (`self`, `&mut` params). Mutating an owned
     /// local is state change for the mutation budget, but not a side effect.
     pub escapes: bool,
+    /// Whole-object `&mut` reborrow of a workspace type (e.g. `self.helper()`):
+    /// the callee performs the writes, so `escapes` is cleared and the call graph
+    /// decides whether the caller inherits them.
+    #[serde(default)]
+    pub delegated: bool,
 }
 
 /// A call to a non-local function. Classified against the config by core, so

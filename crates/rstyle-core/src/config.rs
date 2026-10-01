@@ -82,6 +82,8 @@ pub struct SideEffectsConfig {
     pub min_statements: usize,
     /// Functions with fewer code lines than this are exempt from the density rule.
     pub min_lines: usize,
+    /// How many call hops an effect propagates up the call graph (0 disables).
+    pub transitive_depth: usize,
     pub weights: Weights,
     pub paths: EffectPaths,
 }
@@ -92,6 +94,7 @@ impl Default for SideEffectsConfig {
             max_density_milli: 500,
             min_statements: 3,
             min_lines: 10,
+            transitive_depth: 3,
             weights: Weights::default(),
             paths: EffectPaths::default(),
         }

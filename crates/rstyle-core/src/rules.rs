@@ -112,6 +112,8 @@ pub struct Effect {
     pub kind: EffectKind,
     pub label: String,
     pub line: usize,
+    /// Set when inherited from a callee (the immediate callee's name).
+    pub via: Option<String>,
 }
 
 /// All effects of a function: mutations, classified calls, and driver-decided effects.
@@ -124,6 +126,7 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
             format!("{}.{}", m.root, m.field_path)
         },
         line: m.line,
+        via: None,
     });
     let calls = f.calls.iter().filter_map(|c| {
         let classified = cfg.side_effects.paths.classify(&c.callee);
@@ -132,12 +135,14 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
             kind,
             label: c.callee.clone(),
             line: c.line,
+            via: None,
         })
     });
     let intrinsic = f.effects.iter().map(|e| Effect {
         kind: e.kind,
         label: e.detail.clone(),
         line: e.line,
+        via: None,
     });
     mutations.chain(calls).chain(intrinsic).collect()
 }
@@ -157,17 +162,21 @@ fn effect_details(effects: &[Effect], cfg: &Config) -> Vec<Detail> {
         .iter()
         .filter(|e| cfg.side_effects.weights.of(e.kind) > 0)
     {
+        let via = e
+            .via
+            .as_ref()
+            .map_or(String::new(), |v| format!(" (via {v})"));
         groups
-            .entry(format!("{}: {}", e.kind.name(), e.label))
+            .entry(format!("{}: {}{via}", e.kind.name(), e.label))
             .or_default()
             .push(e.line);
     }
     to_details(&groups)
 }
 
-pub fn side_effect_density(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    let effects = effects_of(f, cfg);
-    let actual = density_milli(f, &effects, cfg);
+/// `effects` is the function's full effect list (direct plus inherited, see `graph`).
+pub fn side_effect_density(f: &FnFacts, effects: &[Effect], cfg: &Config) -> Vec<Diagnostic> {
+    let actual = density_milli(f, effects, cfg);
     let limit = cfg.side_effects.max_density_milli;
     let small = f.statements < cfg.side_effects.min_statements
         || code_lines(&f.source) < cfg.side_effects.min_lines;
@@ -175,7 +184,7 @@ pub fn side_effect_density(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
         return Vec::new();
     }
     let message = format!("function `{}` has a high side-effect density", f.name);
-    let details = effect_details(&effects, cfg);
+    let details = effect_details(effects, cfg);
     vec![Diagnostic {
         details,
         ..diagnostic(f, "side_effect_density", message, Measure { actual, limit })
@@ -193,7 +202,12 @@ mod tests {
             field_path: field.into(),
             line,
             escapes: true,
+            delegated: false,
         }
+    }
+
+    fn density_diags(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+        side_effect_density(f, &effects_of(f, cfg), cfg)
     }
 
     fn body_of(lines: usize) -> String {
@@ -335,7 +349,7 @@ mod tests {
         let mut f = sample("f");
         f.statements = 2;
         f.calls = vec![call("std::fs::write")];
-        assert!(side_effect_density(&f, &Config::default()).is_empty());
+        assert!(density_diags(&f, &Config::default()).is_empty());
     }
 
     #[test]
@@ -353,11 +367,11 @@ mod tests {
         f.calls = vec![call("std::fs::write")];
         let mut cfg = Config::default();
         cfg.side_effects.min_lines = 0; // `sample` source is tiny
-        let out = side_effect_density(&f, &cfg); // 3 * 1000 / 4 = 750 > 500
+        let out = density_diags(&f, &cfg); // 3 * 1000 / 4 = 750 > 500
         assert_eq!(out[0].actual, 750);
         assert_eq!(out[0].details[0].label, "io: std::fs::write");
         cfg.side_effects.weights.io = 1; // 250
-        assert!(side_effect_density(&f, &cfg).is_empty());
+        assert!(density_diags(&f, &cfg).is_empty());
     }
 
     #[test]
@@ -367,11 +381,11 @@ mod tests {
         f.calls = vec![call("std::fs::write")];
         f.source = body_of(7); // 9 code lines < 10
         let mut cfg = Config::default();
-        assert!(side_effect_density(&f, &cfg).is_empty());
+        assert!(density_diags(&f, &cfg).is_empty());
         f.source = body_of(8); // 10 code lines: exactly at the threshold is checked
-        assert_eq!(side_effect_density(&f, &cfg).len(), 1);
+        assert_eq!(density_diags(&f, &cfg).len(), 1);
         f.source = body_of(7);
         cfg.side_effects.min_lines = 0;
-        assert_eq!(side_effect_density(&f, &cfg).len(), 1);
+        assert_eq!(density_diags(&f, &cfg).len(), 1);
     }
 }

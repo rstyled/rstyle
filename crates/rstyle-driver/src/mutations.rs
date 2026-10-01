@@ -65,13 +65,29 @@ impl<'tcx> Collector<'_, 'tcx> {
             .lookup_char_pos(span.source_callsite().lo())
             .line;
         let (field_path, escapes) = self.describe(&place.place);
-        let escapes = escapes && !(is_helper_call && is_local_reborrow(&place.place));
+        let delegated = escapes && is_helper_call && self.is_workspace_reborrow(&place.place);
+        let escapes = escapes && !delegated;
         self.events.push(MutationEvent {
             root,
             field_path,
             line,
             escapes,
+            delegated,
         });
+    }
+
+    /// `&mut *r` of a whole workspace object (e.g. autoref for `self.helper()`).
+    /// The callee's writes are attributed to the callee (and inherited through
+    /// the call graph), so this is not an escaping write of the caller itself.
+    fn is_workspace_reborrow(&self, place: &Place<'tcx>) -> bool {
+        place
+            .projections
+            .last()
+            .is_some_and(|last| last.kind == ProjectionKind::Deref)
+            && place
+                .ty()
+                .ty_adt_def()
+                .is_some_and(|adt| ids::in_workspace(self.tcx, adt.did(), self.root))
     }
 
     /// Remembers the workspace type behind the written root (`&mut T`, `Box<T>` peeled).
@@ -114,20 +130,6 @@ impl<'tcx> Collector<'_, 'tcx> {
         });
         (names.join("."), escapes)
     }
-}
-
-/// `&mut *r` of a whole crate-local object (e.g. autoref for `self.helper()`).
-/// The callee's writes are attributed to the callee, so they don't count as
-/// escaping side effects of the caller (they still count toward the budget).
-fn is_local_reborrow(place: &Place<'_>) -> bool {
-    let Some(last) = place.projections.last() else {
-        return false;
-    };
-    last.kind == ProjectionKind::Deref
-        && place
-            .ty()
-            .ty_adt_def()
-            .is_some_and(|adt| adt.did().is_local())
 }
 
 fn field_name(ty: Ty<'_>, index: usize, variant: usize) -> String {
