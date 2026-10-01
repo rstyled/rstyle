@@ -76,3 +76,7 @@
 ## 2026-09-30 (commit hygiene)
 
 - Stripped `Co-authored-by: Cursor` trailers from the two earlier commits (history rewritten, branch force-pushed) and added a local `.git/hooks/commit-msg` that deletes that trailer. Agent commits use `-c commit.gpgsign=false` (gpg pinentry cannot prompt headless).
+
+## 2026-09-30 (CI verified)
+
+- PR #1 opened with `tea`; Gitea Actions ran on both the PR (run 13) and the merge to `main` (run 14): fmt, clippy, tests, rstyle self-check and report upload all green on the `anon99-macos` runner (label `ubuntu-latest`). PR #1 was merged into `main`.
