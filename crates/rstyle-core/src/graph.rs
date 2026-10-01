@@ -15,7 +15,7 @@
 //! - Effects go at most `depth` hops up. Rounds are synchronous, so cycles terminate and
 //!   the result does not depend on iteration order.
 
-use crate::facts::{EffectKind, FnFacts};
+use crate::facts::{ArgSource, EffectKind, FnFacts};
 use crate::rules::Effect;
 use crate::suppress;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,12 +26,27 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct Callee {
     pub line: usize,
     pub targets: Vec<usize>,
+    /// Provenance of each argument (see `Edge::args`).
+    pub args: Vec<ArgSource>,
 }
 
 /// `callees[i]` are the resolved calls out of `facts[i]`, sorted by (line, target).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Graph {
     pub callees: Vec<Vec<Callee>>,
+}
+
+impl Graph {
+    /// `callers()[i]`: the functions with a resolved call into `facts[i]`, sorted.
+    pub fn callers(&self) -> Vec<Vec<usize>> {
+        let mut out: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); self.callees.len()];
+        for (caller, calls) in self.callees.iter().enumerate() {
+            for target in calls.iter().flat_map(|c| &c.targets) {
+                out[*target].insert(caller);
+            }
+        }
+        out.into_iter().map(|s| s.into_iter().collect()).collect()
+    }
 }
 
 pub fn build(facts: &[FnFacts]) -> Graph {
@@ -56,6 +71,7 @@ pub fn build(facts: &[FnFacts]) -> Graph {
                     (!targets.is_empty()).then(|| Callee {
                         line: edge.line,
                         targets: targets.into_iter().collect(),
+                        args: edge.args.clone(),
                     })
                 })
                 .collect();
@@ -213,6 +229,7 @@ mod tests {
             callee: callee.into(),
             line,
             dynamic: false,
+            args: vec![],
         }
     }
 

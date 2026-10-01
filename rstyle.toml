@@ -37,3 +37,11 @@ unknown = 1    # calls through dyn / fn pointers / generic callables
 # [side_effects.paths]
 # io = ["std::fs::", "std::io::"]
 # network = ["std::net::", "reqwest::"]
+
+[grouping]
+# Which violations must be fixed together. A fix's footprint is the function itself plus,
+# for these rules, its callers (a signature change edits every call site). Violations with
+# overlapping footprints form one group: land them in one PR or stack them, callees first.
+# Everything else is independent. Wider footprints (e.g. density) create hub groups.
+caller_rules = ["fn_params"]
+caller_hops = 1

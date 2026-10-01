@@ -94,3 +94,41 @@
 - Threshold check (argh + tarpc + rustfix + cargo, 4886 fns): current defaults flag lines>50 8.0%, params>4 4.6%, per-target mutations>3 7.9%, mutated targets>3 6.8%. Treated as the right "aspirational outlier" band; thresholds unchanged. Percentiles: lines p90=44 p95=66; params p95=4; per_target p95=5; targets p95=4.
 - Known noise left: `tokio::net::*::local_addr` style getters count as network; `writeln!` to stdout/&mut Write counts as IO per call (legit IO functions, use `rstyle-allow` boundaries).
 - Fix-grouping prototype on cargo data (python, in /tmp/real/groups.py, not in repo): footprint = fn + callers for `fn_params` only -> 693 groups, largest 89, 93% singletons. Adding density callers or mutated types creates hubs (largest group 373-519 of 908). Decision for the grouping step: footprint v1 = fn identity + direct callers for `fn_params`; mutated types and density callers only as soft "related" hints, not must-stack.
+
+## 2026-09-30 (fix groups)
+
+- New pure module `rstyle-core::groups`: footprint = function + callers (up to `grouping.caller_hops`, default 1) for `grouping.caller_rules` (default `["fn_params"]`); union-find over overlapping footprints gives `Report.fix_groups` (ids by source order, members callees-first, cycles by source order). Soft `hints` (`shared_type`, `shared_caller`, max 5, never merge groups).
+- `Graph::callers()`; config `[grouping]` (rule ids validated via `RuleList`, unknown id is an error); `Report.fix_groups` (JSON always present) and a `fix groups: N (S stacked, I independent)` line plus stacked groups in text output.
+- Dog-fooding caught `groups::components` (4 mutated targets); split into `roots` + `components`.
+- Tests: 9 groups unit tests (independence, callee-first order, rule scoping + config, shared non-violating caller links two fixes, hop widening, cycles, hints, empty), config validation, e2e fixture `groups` (callee/caller stack, lonely independent). Golden + JSON snapshots updated for the new field/line.
+- README has a "Fix groups" section.
+
+## 2026-09-30 (handoff)
+
+- Next task (not started): record parameter names/types and call-site argument provenance in facts; detect parameters that travel together across a fix group (shared params-struct hint) and pass-through parameters; emit an ordered stacking plan per `fn_params` group. Validate on rust-lang/cargo (220 `fn_params` violations). Calibration clones and scripts live in /tmp/real (run.sh, analyze.py, pct.py, groups.py) and may be gone.
+- Open PRs: #2 (calibration fixes, base main), #3 (fix groups, base next).
+
+## 2026-09-30 (param stacking, step 1: driver facts)
+
+- `facts.rs`: new `ParamFacts {name, type, uses}` (`FnFacts::param_list`, `self` excluded), `ArgSource {param(i) | const | field | other}`, `Edge::args` (one per callee param). All `#[serde(default)]`, additive. `graph::Callee` carries `args` too.
+- Driver: new `args.rs` (`classify`: peels `&`/`&mut`/`*`, resolves `Res::Local` against a param-binding index; literals/consts/statics/ctors = `const`; field chains rooted at a local = `field`). `effects.rs` counts mentions of each param (`param_uses`) and records args per edge (UFCS calls drop the receiver). `extract.rs::param_list` reads names from patterns and types from the written signature.
+- Fixture `params` + e2e `facts_record_params_and_argument_provenance`.
+- Tests all green; self-check 133 fns, 0 violations.
+
+## 2026-09-30 (param stacking, steps 2-3: detection + plan emission)
+
+- New pure module `rstyle-core::stacking`. Units: `all_sites` (every caller/target call with arg provenance), `forwards` (caller-param -> callee-param pairs), `closed_sets` (itemsets >=2 with support, only closed ones; candidates = site sets + pairwise intersections), `bundles` (params forwarded together, keyed by callee `(name, type)`), `pass_through` (params whose every mention is a forward into a re-signed fn), `Ctx::plan`/`plans` (call sites computed once for all groups).
+- Plan per group with a `fn_params` member: steps = re-signed functions callee-first (`signature: true`), then callers whose call sites must follow (`signature: false`); each with `incoming_sites`, `outgoing_sites`, `pass_through`; plus `bundles` (params-struct candidates, with site counts and carrier functions).
+- `report.rs`: `ParamRef`, `Bundle`, `PlanStep`, `StackPlan`, `FixGroup.plan` (omitted from JSON when absent). Text output prints a group if it has several functions or a plan with caller edits, with its plan lines.
+- 14 stacking unit tests + 1 report test. Workspace tests green; self-check 144 fns, 0 violations.
+
+## 2026-09-30 (param stacking, step 4: e2e)
+
+- e2e `param_plan_orders_callee_then_callers_with_bundle_and_pass_through` on fixture `params` (leaf re-signed, `mid` call-site step with 3 pass-through params, one 3-param bundle; text output checked).
+
+## 2026-09-30 (param stacking, step 5: validation + docs)
+
+- Validated on rust-lang/cargo (4426 fns, 28 s): 220 `fn_params` violations -> all 220 appear as `signature` steps in 81 plan groups (65 with caller edits, 42 with bundles). 151 bundles (sizes 2: 55, 3: 42, 4: 24, 5+: 30), 268 pass-through params across 43 groups, 356 call sites into re-signed fns. Largest plan: 105 steps (hub group 112 via `workspace::parser`/`unit_dependencies` helpers); next 16.
+- README gained a "Parameter refactor plans" section.
+- Known limits: bundles only come from direct forwards (renames across `Into`/`.clone()`/`&*x` wrappers beyond `&`/`*` count as `other`); destructured params count as `_` and are never pass-through; method-call receivers are not parameters; hub groups still exist because `fn_params` footprints share popular callers.
+- Clippy fix: driver `Target {def_id, dynamic, args}` replaces 5-arg `call`/`edge`; `DefKind::Const`/`AssocConst` patterns simplified.

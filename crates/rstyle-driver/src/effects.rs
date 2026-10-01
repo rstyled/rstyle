@@ -1,13 +1,14 @@
 //! One HIR walk per function: statement count, resolved calls, and effects
 //! that need no config (`unsafe`, `static mut`, indirect calls).
 
+use crate::args::{self, ParamIndex};
 use crate::ids;
-use rstyle_core::facts::{CallEvent, Edge, EffectEvent, EffectKind};
+use rstyle_core::facts::{ArgSource, CallEvent, Edge, EffectEvent, EffectKind};
 use rstyle_core::paths::strip_generics;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::intravisit::{self, Visitor};
-use rustc_hir::{BlockCheckMode, Body, Expr, ExprKind, QPath, Stmt, UnsafeSource};
+use rustc_hir::{BlockCheckMode, Body, Expr, ExprKind, PatKind, QPath, Stmt, UnsafeSource};
 use rustc_middle::hir::nested_filter::OnlyBodies;
 use rustc_middle::ty::{self, TyCtxt, TypeckResults};
 use rustc_span::Span;
@@ -19,6 +20,22 @@ pub struct BodyFacts {
     pub calls: Vec<CallEvent>,
     pub effects: Vec<EffectEvent>,
     pub edges: Vec<Edge>,
+    /// Mentions of each parameter (`self` excluded) in the body.
+    pub param_uses: Vec<usize>,
+}
+
+/// Index of each simple-binding parameter, `self` excluded.
+fn param_index(tcx: TyCtxt<'_>, def_id: LocalDefId, body: &Body<'_>) -> ParamIndex {
+    let skip = tcx.hir_node_by_def_id(def_id).fn_sig().map_or(0, |sig| {
+        usize::from(sig.decl.implicit_self().has_implicit_self())
+    });
+    body.params
+        .iter()
+        .skip(skip)
+        .enumerate()
+        .filter(|(_, param)| matches!(param.pat.kind, PatKind::Binding(..)))
+        .map(|(index, param)| (param.pat.hir_id, index))
+        .collect()
 }
 
 pub fn collect<'tcx>(
@@ -27,11 +44,17 @@ pub fn collect<'tcx>(
     body: &'tcx Body<'tcx>,
     root: &Path,
 ) -> BodyFacts {
+    let params = param_index(tcx, def_id, body);
+    let out = BodyFacts {
+        param_uses: vec![0; body.params.len()],
+        ..BodyFacts::default()
+    };
     let mut walker = Walker {
         tcx,
         typeck: tcx.typeck(def_id),
         root: root.to_path_buf(),
-        out: BodyFacts::default(),
+        params,
+        out,
         generated_depth: 0,
         unsafe_depth: 0,
     };
@@ -39,10 +62,18 @@ pub fn collect<'tcx>(
     walker.out
 }
 
+/// A resolved call target and what was passed to it.
+struct Target {
+    def_id: DefId,
+    dynamic: bool,
+    args: Vec<ArgSource>,
+}
+
 struct Walker<'tcx> {
     tcx: TyCtxt<'tcx>,
     typeck: &'tcx TypeckResults<'tcx>,
     root: PathBuf,
+    params: ParamIndex,
     out: BodyFacts,
     /// Nonzero while inside macro/desugaring-generated code. Generated statements
     /// are counted once (the outermost), user-written ones always.
@@ -69,11 +100,14 @@ impl<'tcx> Walker<'tcx> {
         !span.from_expansion() || self.generated_depth == 0
     }
 
-    fn call(&mut self, def_id: DefId, dynamic: bool, expr: &Expr<'tcx>) {
+    fn call(&mut self, target: Target, expr: &Expr<'tcx>) {
+        let Target {
+            def_id, dynamic, ..
+        } = target;
         if !is_fn(self.tcx, def_id) {
             return;
         }
-        self.edge(def_id, dynamic, expr);
+        self.edge(target, expr);
         if def_id.is_local() {
             return;
         }
@@ -94,7 +128,12 @@ impl<'tcx> Walker<'tcx> {
     }
 
     /// Records a call into workspace code (same crate included) for the call graph.
-    fn edge(&mut self, def_id: DefId, dynamic: bool, expr: &Expr<'tcx>) {
+    fn edge(&mut self, target: Target, expr: &Expr<'tcx>) {
+        let Target {
+            def_id,
+            dynamic,
+            args,
+        } = target;
         if !ids::in_workspace(self.tcx, def_id, &self.root) {
             return;
         }
@@ -104,6 +143,7 @@ impl<'tcx> Walker<'tcx> {
             callee,
             line,
             dynamic,
+            args,
         });
     }
 
@@ -116,25 +156,42 @@ impl<'tcx> Walker<'tcx> {
         });
     }
 
-    fn on_call(&mut self, expr: &Expr<'tcx>, callee: &Expr<'tcx>) {
+    fn sources(&self, args: &[Expr<'tcx>]) -> Vec<ArgSource> {
+        args.iter()
+            .map(|arg| args::classify(self.typeck, &self.params, arg))
+            .collect()
+    }
+
+    fn on_call(&mut self, expr: &Expr<'tcx>, callee: &Expr<'tcx>, args: &[Expr<'tcx>]) {
         match self.typeck.expr_ty(callee).kind() {
-            ty::FnDef(def_id, _) => self.call(*def_id, false, expr),
+            ty::FnDef(def_id, _) => {
+                // `Type::method(recv, ..)`: the receiver is not a parameter in `FnFacts`.
+                let skip = usize::from(has_self(self.tcx, *def_id));
+                let sources = self.sources(args.get(skip..).unwrap_or_default());
+                self.call(target(*def_id, false, sources), expr);
+            }
             ty::Closure(..) | ty::CoroutineClosure(..) => {}
             ty::FnPtr(..) => self.indirect("<fn pointer>", expr),
             _ => self.indirect("<indirect callable>", expr),
         }
     }
 
-    fn on_method(&mut self, expr: &Expr<'tcx>, receiver: &Expr<'tcx>) {
+    fn on_method(&mut self, expr: &Expr<'tcx>, receiver: &Expr<'tcx>, args: &[Expr<'tcx>]) {
         let Some(def_id) = self.typeck.type_dependent_def_id(expr.hir_id) else {
             return;
         };
         let receiver_ty = self.typeck.expr_ty_adjusted(receiver).peel_refs();
         let dynamic = matches!(receiver_ty.kind(), ty::Dynamic(..));
-        self.call(def_id, dynamic, expr);
+        let sources = self.sources(args);
+        self.call(target(def_id, dynamic, sources), expr);
     }
 
     fn on_path(&mut self, expr: &Expr<'tcx>, qpath: &QPath<'tcx>) {
+        if let Res::Local(id) = self.typeck.qpath_res(qpath, expr.hir_id)
+            && let Some(&index) = self.params.get(&id)
+        {
+            self.out.param_uses[index] += 1;
+        }
         if let Res::Def(DefKind::Static { mutability, .. }, def_id) =
             self.typeck.qpath_res(qpath, expr.hir_id)
             && mutability.is_mut()
@@ -143,6 +200,19 @@ impl<'tcx> Walker<'tcx> {
             self.effect(EffectKind::Global, format!("static mut {name}"), expr.span);
         }
     }
+}
+
+fn target(def_id: DefId, dynamic: bool, args: Vec<ArgSource>) -> Target {
+    Target {
+        def_id,
+        dynamic,
+        args,
+    }
+}
+
+fn has_self(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
+    tcx.opt_associated_item(def_id)
+        .is_some_and(|item| item.is_method())
 }
 
 fn is_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
@@ -178,8 +248,8 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
         let generated = expr.span.from_expansion();
         self.generated_depth += usize::from(generated);
         match expr.kind {
-            ExprKind::Call(callee, _) => self.on_call(expr, callee),
-            ExprKind::MethodCall(_, receiver, ..) => self.on_method(expr, receiver),
+            ExprKind::Call(callee, args) => self.on_call(expr, callee, args),
+            ExprKind::MethodCall(_, receiver, args, _) => self.on_method(expr, receiver, args),
             ExprKind::Path(ref qpath) => self.on_path(expr, qpath),
             _ => {}
         }

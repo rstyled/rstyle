@@ -317,6 +317,52 @@ fn facts_record_call_graph_ids_and_mutated_types() {
 }
 
 #[test]
+fn facts_record_params_and_argument_provenance() {
+    let dir = fixture("params");
+    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    let facts = facts_for(dir.path(), "params-lib.json");
+
+    let leaf = fact(&facts, "leaf");
+    let named: Vec<(&str, &str)> = leaf["param_list"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| (p["name"].as_str().unwrap(), p["type"].as_str().unwrap()))
+        .collect();
+    assert_eq!(
+        named,
+        [
+            ("root", "&str"),
+            ("verbose", "bool"),
+            ("depth", "u32"),
+            ("tag", "u8"),
+            ("extra", "u8")
+        ]
+    );
+
+    // `mid` only forwards its first three parameters; it also reads `opts`.
+    let mid = fact(&facts, "mid");
+    let uses: Vec<u64> = mid["param_list"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["uses"].as_u64().unwrap())
+        .collect();
+    assert_eq!(uses, [1, 1, 1, 1]);
+    let args = &mid["edges"][0]["args"];
+    assert_eq!(
+        args,
+        &serde_json::json!([{"param": 0}, {"param": 1}, {"param": 2}, "const", "field"])
+    );
+
+    let top_a = fact(&facts, "top_a");
+    assert_eq!(
+        top_a["edges"][0]["args"],
+        serde_json::json!(["const", "const", "const", {"param": 0}])
+    );
+}
+
+#[test]
 fn effects_propagate_through_calls_and_stop_at_boundaries() {
     let dir = fixture("transitive");
     let report = json(dir.path());
@@ -342,4 +388,71 @@ fn effects_propagate_through_calls_and_stop_at_boundaries() {
         rules_for(&report, "top").is_empty(),
         "depth 0 disables propagation"
     );
+}
+
+#[test]
+fn fix_groups_stack_signature_changes_and_leave_the_rest_independent() {
+    let dir = fixture("groups");
+    let report = json(dir.path());
+    let groups = report["fix_groups"].as_array().unwrap();
+    assert_eq!(groups.len(), 2, "{report}");
+
+    // `caller` calls `callee`, so changing `callee`'s signature edits `caller`:
+    // one group, callee first. `lonely` has no callers and stands alone.
+    let names = |g: &Value| -> Vec<String> {
+        g["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f["name"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(names(&groups[0]), ["callee", "caller"]);
+    assert_eq!(names(&groups[1]), ["lonely"]);
+    assert_eq!(groups[0]["functions"][0]["rules"][0], "fn_params");
+
+    let text = stdout(&rstyle(dir.path(), &[]));
+    assert!(
+        text.contains("fix groups: 2 (1 stacked, 1 independent)"),
+        "{text}"
+    );
+    assert!(text.contains("group 1 (2 functions"), "{text}");
+}
+
+#[test]
+fn param_plan_orders_callee_then_callers_with_bundle_and_pass_through() {
+    let dir = fixture("params");
+    let report = json(dir.path());
+    let group = &report["fix_groups"][0];
+    let plan = &group["plan"];
+    let steps: Vec<(&str, bool, u64)> = plan["steps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            (
+                s["name"].as_str().unwrap(),
+                s["signature"].as_bool().unwrap(),
+                s["incoming_sites"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    // `mid` (4 params, not a violation) must follow `leaf`; `top_a`/`top_b` call `mid`, not `leaf`.
+    assert_eq!(steps, [("leaf", true, 1), ("mid", false, 2)], "{plan}");
+    assert_eq!(
+        strings(&plan["steps"][1]["pass_through"]),
+        ["root", "verbose", "depth"]
+    );
+    let bundle = &plan["bundles"][0];
+    assert_eq!(bundle["sites"], 1);
+    assert_eq!(
+        bundle["params"][0],
+        serde_json::json!({"name": "depth", "type": "u32"})
+    );
+    assert_eq!(bundle["params"].as_array().unwrap().len(), 3);
+
+    let text = stdout(&rstyle(dir.path(), &[]));
+    assert!(text.contains("1. signature leaf"), "{text}");
+    assert!(text.contains("2. call sites mid"), "{text}");
+    assert!(text.contains("bundle (1 sites)"), "{text}");
 }
