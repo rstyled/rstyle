@@ -132,3 +132,6 @@
 - README gained a "Parameter refactor plans" section.
 - Known limits: bundles only come from direct forwards (renames across `Into`/`.clone()`/`&*x` wrappers beyond `&`/`*` count as `other`); destructured params count as `_` and are never pass-through; method-call receivers are not parameters; hub groups still exist because `fn_params` footprints share popular callers.
 - Clippy fix: driver `Target {def_id, dynamic, args}` replaces 5-arg `call`/`edge`; `DefKind::Const`/`AssocConst` patterns simplified.
+
+## 2026-10-01 merge
+- Merged PR #3 (fix-groups -> next) then PR #2 (next -> main) via tea, merge style. CI was down (runner issue); local cargo test --workspace passed.
