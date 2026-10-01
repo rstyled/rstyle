@@ -102,3 +102,8 @@
 - Dog-fooding caught `groups::components` (4 mutated targets); split into `roots` + `components`.
 - Tests: 9 groups unit tests (independence, callee-first order, rule scoping + config, shared non-violating caller links two fixes, hop widening, cycles, hints, empty), config validation, e2e fixture `groups` (callee/caller stack, lonely independent). Golden + JSON snapshots updated for the new field/line.
 - README has a "Fix groups" section.
+
+## 2026-09-30 (handoff)
+
+- Next task (not started): record parameter names/types and call-site argument provenance in facts; detect parameters that travel together across a fix group (shared params-struct hint) and pass-through parameters; emit an ordered stacking plan per `fn_params` group. Validate on rust-lang/cargo (220 `fn_params` violations). Calibration clones and scripts live in /tmp/real (run.sh, analyze.py, pct.py, groups.py) and may be gone.
+- Open PRs: #2 (calibration fixes, base main), #3 (fix groups, base next).
