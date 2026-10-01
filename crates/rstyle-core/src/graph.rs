@@ -10,6 +10,8 @@
 //!   boundary: it absorbs its effects and callers do not inherit them.
 //! - Trait-method calls resolve to every impl (and the default body); the caller inherits only
 //!   what *every* possible target does, so one expensive impl does not taint all generic callers.
+//! - A callee's effects are collapsed to one per kind ("io: open +3 more"), so a caller's
+//!   score reflects how many effectful callees it has, not how deep their bodies are.
 //! - Effects go at most `depth` hops up. Rounds are synchronous, so cycles terminate and
 //!   the result does not depend on iteration order.
 
@@ -83,15 +85,40 @@ fn outward(kind: EffectKind) -> bool {
 }
 
 /// What one `target` hands to a caller that calls it at `line` (`delegated`: a `&mut self`-style call).
+/// `"std::fs::open +3 more"` -> (`"std::fs::open"`, 3); labels without a suffix -> (label, 0).
+fn split_more(label: &str) -> (&str, usize) {
+    label
+        .rsplit_once(" +")
+        .and_then(|(base, tail)| {
+            let count = tail.strip_suffix(" more")?.parse().ok()?;
+            Some((base, count))
+        })
+        .unwrap_or((label, 0))
+}
+
 fn exported_by(target: &FnFacts, theirs: &[Effect], line: usize, delegated: bool) -> Vec<Effect> {
     let via = Some(target.name.clone());
-    let mut out: Vec<Effect> = theirs
-        .iter()
-        .filter(|e| outward(e.kind))
-        .map(|e| Effect {
-            line,
-            via: via.clone(),
-            ..e.clone()
+    // One effect per kind: a callee that opens twenty files is one unit of IO for its
+    // caller, otherwise orchestrators would score by how deep the call tree is.
+    let mut by_kind: BTreeMap<EffectKind, Vec<&Effect>> = BTreeMap::new();
+    for effect in theirs.iter().filter(|e| outward(e.kind)) {
+        by_kind.entry(effect.kind).or_default().push(effect);
+    }
+    let mut out: Vec<Effect> = by_kind
+        .into_iter()
+        .map(|(kind, group)| {
+            let (base, _) = split_more(&group[0].label);
+            let total: usize = group.iter().map(|e| 1 + split_more(&e.label).1).sum();
+            let label = match total - 1 {
+                0 => base.to_string(),
+                more => format!("{base} +{more} more"),
+            };
+            Effect {
+                kind,
+                label,
+                line,
+                via: via.clone(),
+            }
         })
         .collect();
     if delegated && theirs.iter().any(|e| e.kind == EffectKind::Mutation) {
@@ -320,5 +347,49 @@ mod tests {
         let out = run(&[a, b, c], &direct, &[false; 3], 1);
         assert_eq!(out[0].len(), 1, "only the call to `b` brings a write");
         assert_eq!(out[0][0].line, 4);
+    }
+
+    #[test]
+    fn a_callee_exports_one_effect_per_kind() {
+        let (mut a, b) = (sample("a"), sample("b"));
+        a.edges = vec![edge("krate::b", 3)];
+        let open = |label: &str| Effect {
+            label: label.into(),
+            ..io(1)
+        };
+        let direct = vec![
+            vec![],
+            vec![
+                open("std::fs::open"),
+                open("std::fs::read"),
+                open("std::fs::write"),
+            ],
+        ];
+        let out = run(&[a, b], &direct, &[false; 2], 1);
+        assert_eq!(out[0].len(), 1, "three io effects collapse to one");
+        assert_eq!(out[0][0].label, "std::fs::open +2 more");
+    }
+
+    #[test]
+    fn collapsed_labels_accumulate_counts_across_hops() {
+        assert_eq!(split_more("a::b +3 more"), ("a::b", 3));
+        assert_eq!(split_more("a::b"), ("a::b", 0));
+        let (mut a, mut b, c) = (sample("a"), sample("b"), sample("c"));
+        a.edges = vec![edge("krate::b", 1)];
+        b.edges = vec![edge("krate::c", 2)];
+        let open = |label: &str| Effect {
+            label: label.into(),
+            ..io(1)
+        };
+        let direct = vec![
+            vec![],
+            vec![open("x::read")],
+            vec![open("x::open"), open("x::stat")],
+        ];
+        let out = run(&[a, b, c], &direct, &[false; 3], 2);
+        // b: own read + inherited "open +1 more" (distinct labels, both kept).
+        assert_eq!(out[1].len(), 2);
+        // a: b's two io effects collapse to one: 1 + (1 + 1) = 3 total -> "+2 more".
+        assert_eq!(out[0][0].label, "x::read +2 more");
     }
 }
