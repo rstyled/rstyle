@@ -185,7 +185,14 @@ impl Default for EffectPaths {
     fn default() -> Self {
         Self {
             io: strings(DEFAULT_IO),
-            network: strings(&["std::net::", "reqwest::", "tokio::net::", "hyper::"]),
+            network: strings(&[
+                "std::net::TcpStream::",
+                "std::net::TcpListener::",
+                "std::net::UdpSocket::",
+                "reqwest::",
+                "tokio::net::",
+                "hyper::",
+            ]),
             time: strings(&["std::time::SystemTime::now", "std::time::Instant::now"]),
             random: strings(&["rand::"]),
             panic: strings(&["core::panicking::", "std::panicking::"]),
@@ -262,6 +269,12 @@ mod tests {
             Some(EffectKind::Io)
         );
         assert_eq!(paths.classify("std::process::Command::env"), None);
+        // Address getters are not network IO; sockets are.
+        assert_eq!(paths.classify("std::net::SocketAddr::ip"), None);
+        assert_eq!(
+            paths.classify("std::net::UdpSocket::send_to"),
+            Some(EffectKind::Network)
+        );
     }
 
     #[test]

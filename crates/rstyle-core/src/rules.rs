@@ -118,16 +118,23 @@ pub struct Effect {
 
 /// All effects of a function: mutations, classified calls, and driver-decided effects.
 pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
-    let mutations = f.mutations.iter().filter(|m| m.escapes).map(|m| Effect {
-        kind: EffectKind::Mutation,
-        label: if m.field_path.is_empty() {
-            m.root.clone()
-        } else {
-            format!("{}.{}", m.root, m.field_path)
-        },
-        line: m.line,
-        via: None,
-    });
+    // One effect per written target: repeated writes are `mutation_per_target`'s business.
+    let mut written = std::collections::BTreeSet::new();
+    let mutations = f
+        .mutations
+        .iter()
+        .filter(|m| m.escapes)
+        .filter(|m| written.insert((&m.root, &m.field_path)))
+        .map(|m| Effect {
+            kind: EffectKind::Mutation,
+            label: if m.field_path.is_empty() {
+                m.root.clone()
+            } else {
+                format!("{}.{}", m.root, m.field_path)
+            },
+            line: m.line,
+            via: None,
+        });
     let calls = f.calls.iter().filter_map(|c| {
         let classified = cfg.side_effects.paths.classify(&c.callee);
         let kind = classified.or(c.dynamic.then_some(EffectKind::Unknown))?;
@@ -387,5 +394,20 @@ mod tests {
         f.source = body_of(7);
         cfg.side_effects.min_lines = 0;
         assert_eq!(density_diags(&f, &cfg).len(), 1);
+    }
+
+    #[test]
+    fn repeated_writes_to_one_target_count_once_for_density() {
+        let mut f = sample("f");
+        f.statements = 10;
+        f.mutations = vec![
+            mutation("out", "", 1),
+            mutation("out", "", 2),
+            mutation("out", "", 3),
+        ];
+        let effects = effects_of(&f, &Config::default());
+        assert_eq!(effects.len(), 1);
+        // The budget rule still sees all three writes.
+        assert_eq!(mutation_groups(&f, Granularity::Root)["out"].len(), 3);
     }
 }

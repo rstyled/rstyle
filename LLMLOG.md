@@ -80,3 +80,9 @@
 ## 2026-09-30 (CI verified)
 
 - PR #1 opened with `tea`; Gitea Actions ran on both the PR (run 13) and the merge to `main` (run 14): fmt, clippy, tests, rstyle self-check and report upload all green on the `anon99-macos` runner (label `ubuntu-latest`). PR #1 was merged into `main`.
+
+## 2026-09-30 (calibration round 1: argh, rustfix, tarpc)
+
+- Ran rstyle on google/argh, google/tarpc, rust-lang/rustfix (clones in /tmp/real). All compile with the pinned nightly.
+- Found and fixed three noise sources: (1) trait-method calls inherited the effects of *any* impl, so generic callers of `Stub::call` got `rand`/`Instant::now` from an unrelated impl; `graph::Callee` now has `targets` and a caller inherits only effects present in *every* target. (2) default network prefix `std::net::` matched getters like `SocketAddr::ip`; narrowed to `TcpStream`/`TcpListener`/`UdpSocket` (+ reqwest, tokio::net, hyper). (3) repeated writes to one `&mut` target counted N times in density; `effects_of` now counts a written target once (the budget rule still counts every write).
+- Result: argh density violations 10 -> 5, tarpc 19 -> 14. Tests: graph test for intersection semantics, rules test for mutation dedupe, config test for net getters.
