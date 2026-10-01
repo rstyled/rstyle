@@ -33,6 +33,22 @@ fix groups: 693 (92 stacked, 601 independent)
 - `--format json` has the full `fix_groups` array. Groups carry soft `hints` (`shared_type`, `shared_caller`): other groups that touch the same mutated type or the same caller. They are not reasons to stack. Regroup after each merge; fixes change the graph.
 - Why not widen the footprint? On rust-lang/cargo, counting density callers and mutated types turned 519 of 908 violating functions into one group. `fn_params`-only gives 693 groups, largest 89.
 
+### Parameter refactor plans
+
+Groups with a `fn_params` member carry a `plan` (JSON `fix_groups[].plan`, and under the group in text output):
+
+```
+  group 172 (...)
+      1. signature Dependency::from_toml (src/.../dependency.rs:224; 5 incoming, 0 outgoing sites)
+      2. call sites find_workspace_dep (src/.../mod.rs:1372; 3 incoming, 1 outgoing sites; pass-through: unstable_features)
+      bundle (1 sites): key: &str, unstable_features: &Features
+```
+
+- Steps: re-signed functions callee-first, then the callers whose call sites must follow. `incoming` = call sites into the function, `outgoing` = its call sites into re-signed functions.
+- `pass-through`: parameters whose every mention is a forward into a re-signed function. The caller doesn't need them; fix in the callee or an upper layer and drop them from the caller.
+- `bundle`: parameters forwarded together (same callee `name: type`, 2+) at N call sites: a params-struct candidate. Only closed sets are reported (a subset with the same support as a superset is dropped).
+- Argument provenance (`param(i)`, `const`, `field`, `other`) and each parameter's name/type/use count are in the facts files (`param_list`, `edges[].args`).
+
 ## Usage
 
 Run on this workspace:

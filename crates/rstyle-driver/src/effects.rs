@@ -62,6 +62,13 @@ pub fn collect<'tcx>(
     walker.out
 }
 
+/// A resolved call target and what was passed to it.
+struct Target {
+    def_id: DefId,
+    dynamic: bool,
+    args: Vec<ArgSource>,
+}
+
 struct Walker<'tcx> {
     tcx: TyCtxt<'tcx>,
     typeck: &'tcx TypeckResults<'tcx>,
@@ -93,11 +100,14 @@ impl<'tcx> Walker<'tcx> {
         !span.from_expansion() || self.generated_depth == 0
     }
 
-    fn call(&mut self, def_id: DefId, dynamic: bool, expr: &Expr<'tcx>, args: Vec<ArgSource>) {
+    fn call(&mut self, target: Target, expr: &Expr<'tcx>) {
+        let Target {
+            def_id, dynamic, ..
+        } = target;
         if !is_fn(self.tcx, def_id) {
             return;
         }
-        self.edge(def_id, dynamic, expr, args);
+        self.edge(target, expr);
         if def_id.is_local() {
             return;
         }
@@ -118,7 +128,12 @@ impl<'tcx> Walker<'tcx> {
     }
 
     /// Records a call into workspace code (same crate included) for the call graph.
-    fn edge(&mut self, def_id: DefId, dynamic: bool, expr: &Expr<'tcx>, args: Vec<ArgSource>) {
+    fn edge(&mut self, target: Target, expr: &Expr<'tcx>) {
+        let Target {
+            def_id,
+            dynamic,
+            args,
+        } = target;
         if !ids::in_workspace(self.tcx, def_id, &self.root) {
             return;
         }
@@ -153,7 +168,7 @@ impl<'tcx> Walker<'tcx> {
                 // `Type::method(recv, ..)`: the receiver is not a parameter in `FnFacts`.
                 let skip = usize::from(has_self(self.tcx, *def_id));
                 let sources = self.sources(args.get(skip..).unwrap_or_default());
-                self.call(*def_id, false, expr, sources);
+                self.call(target(*def_id, false, sources), expr);
             }
             ty::Closure(..) | ty::CoroutineClosure(..) => {}
             ty::FnPtr(..) => self.indirect("<fn pointer>", expr),
@@ -168,7 +183,7 @@ impl<'tcx> Walker<'tcx> {
         let receiver_ty = self.typeck.expr_ty_adjusted(receiver).peel_refs();
         let dynamic = matches!(receiver_ty.kind(), ty::Dynamic(..));
         let sources = self.sources(args);
-        self.call(def_id, dynamic, expr, sources);
+        self.call(target(def_id, dynamic, sources), expr);
     }
 
     fn on_path(&mut self, expr: &Expr<'tcx>, qpath: &QPath<'tcx>) {
@@ -184,6 +199,14 @@ impl<'tcx> Walker<'tcx> {
             let name = strip_generics(&self.tcx.def_path_str(def_id));
             self.effect(EffectKind::Global, format!("static mut {name}"), expr.span);
         }
+    }
+}
+
+fn target(def_id: DefId, dynamic: bool, args: Vec<ArgSource>) -> Target {
+    Target {
+        def_id,
+        dynamic,
+        args,
     }
 }
 

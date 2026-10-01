@@ -125,3 +125,10 @@
 ## 2026-09-30 (param stacking, step 4: e2e)
 
 - e2e `param_plan_orders_callee_then_callers_with_bundle_and_pass_through` on fixture `params` (leaf re-signed, `mid` call-site step with 3 pass-through params, one 3-param bundle; text output checked).
+
+## 2026-09-30 (param stacking, step 5: validation + docs)
+
+- Validated on rust-lang/cargo (4426 fns, 28 s): 220 `fn_params` violations -> all 220 appear as `signature` steps in 81 plan groups (65 with caller edits, 42 with bundles). 151 bundles (sizes 2: 55, 3: 42, 4: 24, 5+: 30), 268 pass-through params across 43 groups, 356 call sites into re-signed fns. Largest plan: 105 steps (hub group 112 via `workspace::parser`/`unit_dependencies` helpers); next 16.
+- README gained a "Parameter refactor plans" section.
+- Known limits: bundles only come from direct forwards (renames across `Into`/`.clone()`/`&*x` wrappers beyond `&`/`*` count as `other`); destructured params count as `_` and are never pass-through; method-call receivers are not parameters; hub groups still exist because `fn_params` footprints share popular callers.
+- Clippy fix: driver `Target {def_id, dynamic, args}` replaces 5-arg `call`/`edge`; `DefKind::Const`/`AssocConst` patterns simplified.

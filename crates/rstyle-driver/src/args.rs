@@ -35,8 +35,8 @@ fn is_constant(typeck: &TypeckResults<'_>, qpath: &QPath<'_>, expr: &Expr<'_>) -
     matches!(
         typeck.qpath_res(qpath, expr.hir_id),
         Res::Def(
-            DefKind::Const { .. }
-                | DefKind::AssocConst { .. }
+            DefKind::Const
+                | DefKind::AssocConst
                 | DefKind::ConstParam
                 | DefKind::Static { .. }
                 | DefKind::Ctor(..),
