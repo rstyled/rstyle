@@ -3,6 +3,7 @@
 pub mod config;
 pub mod facts;
 pub mod graph;
+pub mod groups;
 pub mod lines;
 pub mod paths;
 pub mod report;
@@ -86,13 +87,12 @@ fn summarize(
 }
 
 /// Direct effects of every function plus what it inherits through the call graph.
-fn all_effects(facts: &[FnFacts], cfg: &Config) -> Vec<Vec<rules::Effect>> {
+fn all_effects(facts: &[FnFacts], graph: &graph::Graph, cfg: &Config) -> Vec<Vec<rules::Effect>> {
     let direct: Vec<_> = facts.iter().map(|f| rules::effects_of(f, cfg)).collect();
-    let graph = graph::build(facts);
     let boundary = graph::boundaries(facts);
     let inputs = graph::Inputs {
         facts,
-        graph: &graph,
+        graph,
         direct: &direct,
         boundary: &boundary,
     };
@@ -106,7 +106,8 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
         .into_iter()
         .filter(|f| !excluded.is_match(&f.path))
         .collect();
-    let effects = all_effects(&facts, cfg);
+    let graph = graph::build(&facts);
+    let effects = all_effects(&facts, &graph, cfg);
     let mut diagnostics: Vec<Diagnostic> = facts
         .iter()
         .zip(&effects)
@@ -114,9 +115,11 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
         .collect();
     report::sort(&mut diagnostics);
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
+    let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
     Ok(Report {
         diagnostics,
         summary,
+        fix_groups,
     })
 }
 

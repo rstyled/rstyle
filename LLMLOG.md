@@ -94,3 +94,11 @@
 - Threshold check (argh + tarpc + rustfix + cargo, 4886 fns): current defaults flag lines>50 8.0%, params>4 4.6%, per-target mutations>3 7.9%, mutated targets>3 6.8%. Treated as the right "aspirational outlier" band; thresholds unchanged. Percentiles: lines p90=44 p95=66; params p95=4; per_target p95=5; targets p95=4.
 - Known noise left: `tokio::net::*::local_addr` style getters count as network; `writeln!` to stdout/&mut Write counts as IO per call (legit IO functions, use `rstyle-allow` boundaries).
 - Fix-grouping prototype on cargo data (python, in /tmp/real/groups.py, not in repo): footprint = fn + callers for `fn_params` only -> 693 groups, largest 89, 93% singletons. Adding density callers or mutated types creates hubs (largest group 373-519 of 908). Decision for the grouping step: footprint v1 = fn identity + direct callers for `fn_params`; mutated types and density callers only as soft "related" hints, not must-stack.
+
+## 2026-09-30 (fix groups)
+
+- New pure module `rstyle-core::groups`: footprint = function + callers (up to `grouping.caller_hops`, default 1) for `grouping.caller_rules` (default `["fn_params"]`); union-find over overlapping footprints gives `Report.fix_groups` (ids by source order, members callees-first, cycles by source order). Soft `hints` (`shared_type`, `shared_caller`, max 5, never merge groups).
+- `Graph::callers()`; config `[grouping]` (rule ids validated via `RuleList`, unknown id is an error); `Report.fix_groups` (JSON always present) and a `fix groups: N (S stacked, I independent)` line plus stacked groups in text output.
+- Dog-fooding caught `groups::components` (4 mutated targets); split into `roots` + `components`.
+- Tests: 9 groups unit tests (independence, callee-first order, rule scoping + config, shared non-violating caller links two fixes, hop widening, cycles, hints, empty), config validation, e2e fixture `groups` (callee/caller stack, lonely independent). Golden + JSON snapshots updated for the new field/line.
+- README has a "Fix groups" section.

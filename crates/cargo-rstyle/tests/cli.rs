@@ -343,3 +343,32 @@ fn effects_propagate_through_calls_and_stop_at_boundaries() {
         "depth 0 disables propagation"
     );
 }
+
+#[test]
+fn fix_groups_stack_signature_changes_and_leave_the_rest_independent() {
+    let dir = fixture("groups");
+    let report = json(dir.path());
+    let groups = report["fix_groups"].as_array().unwrap();
+    assert_eq!(groups.len(), 2, "{report}");
+
+    // `caller` calls `callee`, so changing `callee`'s signature edits `caller`:
+    // one group, callee first. `lonely` has no callers and stands alone.
+    let names = |g: &Value| -> Vec<String> {
+        g["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f["name"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(names(&groups[0]), ["callee", "caller"]);
+    assert_eq!(names(&groups[1]), ["lonely"]);
+    assert_eq!(groups[0]["functions"][0]["rules"][0], "fn_params");
+
+    let text = stdout(&rstyle(dir.path(), &[]));
+    assert!(
+        text.contains("fix groups: 2 (1 stacked, 1 independent)"),
+        "{text}"
+    );
+    assert!(text.contains("group 1 (2 functions"), "{text}");
+}

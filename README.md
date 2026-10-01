@@ -17,6 +17,22 @@ See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
 - `rustup`. The pinned nightly (`nightly-2026-09-30`, with `rustc-dev`, `llvm-tools-preview`, `rust-src`, `clippy`, `rustfmt`) installs automatically from `rust-toolchain.toml`.
 - The toolchain is pinned because rustc-internal APIs change between nightlies. Bump deliberately and re-run the tests.
 
+## Fix groups
+
+`cargo rstyle` also tells you which violations can be fixed independently:
+
+```
+fix groups: 693 (92 stacked, 601 independent)
+  group 4 (2 functions; land together or stack in this order):
+    src/a.rs:10 a::callee [fn_params]
+    src/b.rs:42 b::caller [fn_length]
+```
+
+- A group is a set of violations whose fixes overlap. Put them in one PR, or stack the PRs in the listed order (callees first). Different groups never conflict, so they can go in parallel.
+- The overlap model: a fix edits the function itself, and for `grouping.caller_rules` (default `fn_params`) also its callers, up to `grouping.caller_hops` (default 1). The call graph resolves trait-method calls to every impl.
+- `--format json` has the full `fix_groups` array. Groups carry soft `hints` (`shared_type`, `shared_caller`): other groups that touch the same mutated type or the same caller. They are not reasons to stack. Regroup after each merge; fixes change the graph.
+- Why not widen the footprint? On rust-lang/cargo, counting density callers and mutated types turned 519 of 908 violating functions into one group. `fn_params`-only gives 693 groups, largest 89.
+
 ## Usage
 
 Run on this workspace:

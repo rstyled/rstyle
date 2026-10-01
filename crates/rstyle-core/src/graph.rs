@@ -34,6 +34,19 @@ pub struct Graph {
     pub callees: Vec<Vec<Callee>>,
 }
 
+impl Graph {
+    /// `callers()[i]`: the functions with a resolved call into `facts[i]`, sorted.
+    pub fn callers(&self) -> Vec<Vec<usize>> {
+        let mut out: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); self.callees.len()];
+        for (caller, calls) in self.callees.iter().enumerate() {
+            for target in calls.iter().flat_map(|c| &c.targets) {
+                out[*target].insert(caller);
+            }
+        }
+        out.into_iter().map(|s| s.into_iter().collect()).collect()
+    }
+}
+
 pub fn build(facts: &[FnFacts]) -> Graph {
     let mut by_id: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for (index, f) in facts.iter().enumerate() {
