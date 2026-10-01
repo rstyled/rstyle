@@ -72,3 +72,7 @@
 - `FnFacts` gained (all `#[serde(default)]`, additive): `id` (stable `<crate>::<def path>`), `implements` (trait-method id for trait-impl fns), `edges: Vec<Edge>` (calls into workspace code incl. same-crate callees, with `dynamic`), `mutated_types` (workspace ADTs written through, sorted).
 - Driver: new `ids.rs` (`def_id_str`, `in_workspace` = definition's file lives under the workspace root). `effects.rs` records edges before the local-callee early return (classification of effects still skips local callees). `mutations::collect` also returns the mutated workspace types.
 - New fixture `graph` + e2e test `facts_record_call_graph_ids_and_mutated_types` (same-crate edge, trait method edge, `implements`, dyn flag, no std edges).
+
+## 2026-09-30 (commit hygiene)
+
+- Stripped `Co-authored-by: Cursor` trailers from the two earlier commits (history rewritten, branch force-pushed) and added a local `.git/hooks/commit-msg` that deletes that trailer. Agent commits use `-c commit.gpgsign=false` (gpg pinentry cannot prompt headless).
