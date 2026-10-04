@@ -12,39 +12,89 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
+    container:
+      image: docker.gitea.com/runner-images:ubuntu-latest
+      # Dedicated named volumes: persistent toolchain + compiled output.
+      # Allowlist both in the runner's container.valid_volumes; keep runner capacity at 1
+      # (jobs share and mutate these volumes).
+      volumes:
+        - rstyle-target-linux-amd64:/ci-target
+        - rstyle-toolchain-linux-amd64:/ci-toolchain
+    env:
+      CARGO_TARGET_DIR: /ci-target
+      CARGO_HOME: /ci-toolchain/cargo
+      RUSTUP_HOME: /ci-toolchain/rustup
     steps:
       - uses: actions/checkout@v4
 
-      # The pinned nightly (+ rustc-dev etc.) comes from rust-toolchain.toml.
-      - name: Install rustup
+      - name: Install Rust
         run: |
-          if ! command -v rustup >/dev/null; then
-            curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+          set -eu
+          if ! mountpoint -q /ci-toolchain; then
+            echo "Missing toolchain volume: allowlist rstyle-toolchain-linux-amd64 in runner container.valid_volumes."
+            exit 1
           fi
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-      - name: Install pinned toolchain
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
+          if [ ! -x /ci-toolchain/bin/rustup ]; then
+            curl -sSf --retry 3 https://sh.rustup.rs -o "$RUNNER_TEMP/rustup-init.sh"
+            CARGO_HOME=/ci-toolchain sh "$RUNNER_TEMP/rustup-init.sh" \
+              -y --no-modify-path --profile minimal --default-toolchain none
+          fi
+          export PATH="/ci-toolchain/bin:$PATH"
+          echo "/ci-toolchain/bin" >> "$GITHUB_PATH"
+          # Installs the nightly + components pinned in rust-toolchain.toml (no-op when present).
           rustup show active-toolchain || rustup toolchain install
           rustc --version
+          cargo --version
 
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+      # Wipe compiled output only when the compiler changes; otherwise incremental reuse.
+      - name: Prepare build cache
+        run: |
+          set -eu
+          cache_key="$(rustc -vV; cargo -V)"
+          marker="$CARGO_TARGET_DIR/.rstyle-cache-key"
+          if [ ! -f "$marker" ] || [ "$(cat "$marker")" != "$cache_key" ]; then
+            echo "Toolchain changed: resetting compiled output."
+            rm -rf -- "$CARGO_TARGET_DIR/debug" "$CARGO_TARGET_DIR/release"
+            rm -f -- "$CARGO_TARGET_DIR/.rustc_info.json"
+            printf '%s\n' "$cache_key" > "$marker"
+          fi
+
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+
+      - name: Install pinned nextest
+        run: |
+          set -eu
+          dir=/ci-toolchain/nextest/0.9.146
+          if [ ! -x "$dir/cargo-nextest" ]; then
+            curl -fLsS --retry 3 \
+              https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.146/cargo-nextest-0.9.146-x86_64-unknown-linux-gnu.tar.gz \
+              -o "$RUNNER_TEMP/nextest.tar.gz"
+            printf '%s  %s\n' \
+              682c21b777c333e96fd532e114d3a5a894e0729ab88d94c0a9f20f8419695428 \
+              "$RUNNER_TEMP/nextest.tar.gz" | sha256sum -c -
+            mkdir -p "$RUNNER_TEMP/nextest" "$dir"
+            tar -xzf "$RUNNER_TEMP/nextest.tar.gz" -C "$RUNNER_TEMP/nextest" cargo-nextest
+            install -m 755 "$RUNNER_TEMP/nextest/cargo-nextest" "$dir/cargo-nextest"
+          fi
+          "$dir/cargo-nextest" --version
+          echo "$dir" >> "$GITHUB_PATH"
 
       - name: Format
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Compile test targets
+        run: cargo test --workspace --locked --no-run
 
       - name: Tests
-        run: cargo test --workspace --locked
+        run: cargo nextest run --workspace --locked --profile ci
+
+      # Nextest does not run doctests.
+      - name: Doctests
+        run: cargo test --workspace --locked --doc
 
       # Dog-food: rstyle on its own workspace. Exit 1 = violations, 2 = tool error.
       - name: rstyle self-check

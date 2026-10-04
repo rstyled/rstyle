@@ -56,6 +56,9 @@ fn rstyle(dir: &Path, args: &[&str]) -> Output {
         .args(args)
         .current_dir(dir)
         .env("RSTYLE_DRIVER", driver())
+        // Fixtures assert on `<fixture>/target/rstyle/facts`; a shared/inherited
+        // CARGO_TARGET_DIR (worktree cache, CI volume) would move it.
+        .env_remove("CARGO_TARGET_DIR")
         .output()
         .unwrap()
 }
