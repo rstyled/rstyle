@@ -4,6 +4,7 @@
 //! dumps per-function facts as JSON into `$RSTYLE_OUT_DIR`.
 
 extern crate rustc_abi;
+extern crate rustc_ast;
 extern crate rustc_driver;
 extern crate rustc_hir;
 extern crate rustc_hir_typeck;
@@ -17,6 +18,8 @@ mod effects;
 mod extract;
 mod ids;
 mod mutations;
+mod pdg;
+mod sig;
 
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::interface::Compiler;
@@ -73,12 +76,14 @@ fn with_sysroot(mut args: Vec<String>) -> Vec<String> {
 struct Extract {
     out_file: PathBuf,
     root: PathBuf,
+    /// Also record dependence graphs (`RSTYLE_PDG` set by `cargo rstyle patterns`).
+    pdg: bool,
 }
 
 impl Callbacks for Extract {
     // rstyle-allow(side_effect_density): IO boundary: writes the facts file
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        let facts = extract::crate_facts(tcx, &self.root);
+        let facts = extract::crate_facts(tcx, &self.root, self.pdg);
         let json = serde_json::to_string_pretty(&facts).expect("facts serialize");
         std::fs::write(&self.out_file, json).expect("write facts file");
         Compilation::Continue
@@ -96,6 +101,7 @@ fn main() -> ExitCode {
         root: std::env::var_os("RSTYLE_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(|| std::env::current_dir().expect("cwd")),
+        pdg: std::env::var_os("RSTYLE_PDG").is_some(),
     });
     rustc_driver::catch_with_exit_code(|| match extract {
         Some(mut callbacks) => rustc_driver::run_compiler(&args, &mut callbacks),

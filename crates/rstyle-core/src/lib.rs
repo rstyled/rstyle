@@ -1,15 +1,29 @@
 //! Pure evaluation of style rules over facts extracted by `rstyle-driver`.
 
+pub mod align;
+pub mod candidates;
+pub mod clip;
+pub mod cluster;
 pub mod config;
+pub mod dispatch;
 pub mod facts;
 pub mod graph;
 pub mod groups;
 pub mod lines;
+pub mod normalize;
 pub mod paths;
+pub mod patterns_report;
+#[cfg(test)]
+mod pdgtest;
+pub mod prep;
 pub mod report;
 pub mod rules;
+pub mod shape;
+pub mod sigmine;
 pub mod stacking;
 pub mod suppress;
+pub mod wl;
+pub mod wl_trace;
 
 use config::Config;
 use facts::FnFacts;

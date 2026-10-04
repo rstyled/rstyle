@@ -1,0 +1,28 @@
+selector,tp_labeled,pos_labeled,decoys_flagged,examples_flagged,tarpc_flagged,mundane_flagged,argh_flagged
+wl>=800,0,6,0,0,1566,157,53
+wl>=600,1,6,0,1,1591,224,105
+wl>=500,1,6,0,2,1751,268,186
+cov[baseline]>=600,3,6,0,4,2387,556,260
+wl>=600 or cov[baseline]>=600,3,6,0,4,2387,556,266
+cov[baseline]>=700,1,6,0,2,1866,306,187
+wl>=600 or cov[baseline]>=700,1,6,0,2,1867,346,197
+cov[baseline]>=800,0,6,0,1,1785,224,130
+wl>=600 or cov[baseline]>=800,1,6,0,2,1792,289,148
+cov[baseline]>=900,0,6,0,0,1708,135,84
+wl>=600 or cov[baseline]>=900,1,6,0,1,1722,244,113
+cov[coarse_to_fine]>=600,3,6,0,4,2392,557,265
+wl>=600 or cov[coarse_to_fine]>=600,3,6,0,4,2392,557,267
+cov[coarse_to_fine]>=700,1,6,0,2,1870,308,189
+wl>=600 or cov[coarse_to_fine]>=700,1,6,0,2,1870,347,197
+cov[coarse_to_fine]>=800,0,6,0,1,1785,227,130
+wl>=600 or cov[coarse_to_fine]>=800,1,6,0,2,1792,290,148
+cov[coarse_to_fine]>=900,0,6,0,0,1708,137,84
+wl>=600 or cov[coarse_to_fine]>=900,1,6,0,1,1722,245,113
+cov[combined]>=600,3,6,0,4,2392,557,266
+wl>=600 or cov[combined]>=600,3,6,0,4,2392,557,268
+cov[combined]>=700,1,6,0,2,1870,308,189
+wl>=600 or cov[combined]>=700,1,6,0,2,1870,347,197
+cov[combined]>=800,0,6,0,1,1785,227,130
+wl>=600 or cov[combined]>=800,1,6,0,2,1792,290,148
+cov[combined]>=900,0,6,0,0,1708,137,84
+wl>=600 or cov[combined]>=900,1,6,0,1,1722,245,113

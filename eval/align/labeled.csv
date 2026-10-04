@@ -1,0 +1,8 @@
+label,want,wl,cov_baseline,cov_labels_only,cov_no_final_prune,cov_complete_checked,cov_coarse_to_fine,cov_combined,holes_baseline,holes_labels_only,holes_no_final_prune,holes_complete_checked,holes_coarse_to_fine,holes_combined
+B1,yes,637,750,750,875,750,750,750,0,0,2,0,0,0
+B2,yes,428,666,666,666,666,666,666,0,0,0,0,0,0
+Q1,yes,300,500,500,500,500,500,500,5,5,5,5,5,5
+Q2,yes,433,666,666,666,666,666,666,2,2,2,2,2,2
+T1,yes,295,476,476,476,476,476,476,0,0,0,0,0,0
+T2,maybe,211,444,444,444,444,444,444,0,0,0,0,0,0
+T4,no,206,333,333,400,333,333,333,3,3,3,2,3,2

@@ -1,6 +1,7 @@
 //! Runs `cargo check` with `rstyle-driver` wrapped around rustc for workspace crates.
 
 use serde::Deserialize;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -42,9 +43,11 @@ pub fn driver_path() -> Result<PathBuf, String> {
 
 /// Cargo does not hash the wrapper's contents, so a rebuilt driver would keep
 /// serving stale facts. Feeding a driver fingerprint into RUSTFLAGS changes
-/// cargo's own fingerprint exactly when the driver changes.
+/// cargo's own fingerprint exactly when the driver changes. The semantic (PDG) mode
+/// adds a suffix, so style and `patterns` runs keep separate cargo fingerprints and
+/// never serve each other's cached (PDG-less or PDG-bearing) facts.
 // rstyle-allow(side_effect_density): IO boundary: stats the driver binary
-fn driver_fingerprint(driver: &Path) -> String {
+fn driver_fingerprint(driver: &Path, pdg: bool) -> String {
     let meta = std::fs::metadata(driver).ok();
     let modified = meta
         .as_ref()
@@ -52,7 +55,7 @@ fn driver_fingerprint(driver: &Path) -> String {
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
         .map_or(0, |d| d.as_secs());
     let len = meta.map_or(0, |m| m.len());
-    format!("rstyle{modified}x{len}")
+    format!("rstyle{modified}x{len}{}", if pdg { "p" } else { "" })
 }
 
 pub struct Paths<'a> {
@@ -60,6 +63,8 @@ pub struct Paths<'a> {
     pub root: &'a Path,
     pub target_dir: &'a Path,
     pub out_dir: &'a Path,
+    /// Ask the driver for dependence graphs (`patterns`); style runs leave this off.
+    pub pdg: bool,
 }
 
 pub struct Selection<'a> {
@@ -89,20 +94,33 @@ fn cargo_args(selection: &Selection<'_>) -> Vec<String> {
 
 fn command(paths: &Paths<'_>, selection: &Selection<'_>) -> Command {
     let existing = std::env::var("RUSTFLAGS").unwrap_or_default();
-    let flags = format!("{existing} -Cmetadata={}", driver_fingerprint(paths.driver));
+    let flags = format!(
+        "{existing} -Cmetadata={}",
+        driver_fingerprint(paths.driver, paths.pdg)
+    );
+    let manifest = selection
+        .manifest
+        .into_iter()
+        .flat_map(|path| [OsStr::new("--manifest-path"), path.as_os_str()]);
+    let toolchain = pinned_toolchain();
+    let envs: [(&str, &OsStr); 6] = [
+        ("RUSTUP_TOOLCHAIN", OsStr::new(&toolchain)),
+        ("RUSTC_WORKSPACE_WRAPPER", paths.driver.as_os_str()),
+        ("RUSTC_WRAPPER", OsStr::new("")),
+        ("RUSTFLAGS", OsStr::new(flags.trim())),
+        ("CARGO_TARGET_DIR", paths.target_dir.as_os_str()),
+        ("RSTYLE_OUT_DIR", paths.out_dir.as_os_str()),
+    ];
+    // Only `patterns` asks for dependence graphs; a stale value must never leak into style runs.
+    let pdg = paths.pdg.then_some(("RSTYLE_PDG", OsStr::new("1")));
     let mut cmd = Command::new("cargo");
-    cmd.args(cargo_args(selection));
-    if let Some(manifest) = selection.manifest {
-        cmd.arg("--manifest-path").arg(manifest);
-    }
-    cmd.env("RUSTUP_TOOLCHAIN", pinned_toolchain())
-        .env("RUSTC_WORKSPACE_WRAPPER", paths.driver)
-        .env("RUSTC_WRAPPER", "")
+    cmd.args(cargo_args(selection))
+        .args(manifest)
+        .envs(envs)
+        .env("RSTYLE_ROOT", paths.root)
         .env_remove("RUSTC")
-        .env("RUSTFLAGS", flags.trim())
-        .env("CARGO_TARGET_DIR", paths.target_dir)
-        .env("RSTYLE_OUT_DIR", paths.out_dir)
-        .env("RSTYLE_ROOT", paths.root);
+        .env_remove("RSTYLE_PDG")
+        .envs(pdg);
     cmd
 }
 

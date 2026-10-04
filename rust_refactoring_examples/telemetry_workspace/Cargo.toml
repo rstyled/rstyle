@@ -1,0 +1,3 @@
+[workspace]
+members = ["telemetry-core", "file-agent", "http-agent"]
+resolver = "2"

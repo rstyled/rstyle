@@ -112,6 +112,202 @@ pub struct Edge {
     pub args: Vec<ArgSource>,
 }
 
+/// Structural shape of a type as written in a signature. Raw: nothing is
+/// normalized here (no `Self` substitution, no positional variables); see `shape`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TyShape {
+    /// Struct/enum/union by stable id (see `FnFacts::id`) with its type arguments.
+    Adt {
+        id: String,
+        args: Vec<TyShape>,
+    },
+    Ref {
+        mutable: bool,
+        inner: Box<TyShape>,
+    },
+    Tuple(Vec<TyShape>),
+    Slice(Box<TyShape>),
+    Array(Box<TyShape>),
+    /// bool, char, integers, floats, `str`, `!`.
+    Prim(String),
+    /// Generic parameter by index.
+    Param(usize),
+    FnPtr,
+    /// `dyn Trait`, by principal trait id when there is one.
+    Dyn(String),
+    Opaque,
+    Other,
+}
+
+/// How a method takes `self`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Receiver {
+    /// Associated function without `self`.
+    None,
+    /// `self` / `mut self`.
+    Value,
+    /// `&self`.
+    Ref,
+    /// `&mut self`.
+    RefMut,
+    /// `self: Box<Self>`, `Rc<Self>`, `Pin<&mut Self>`, ...
+    Other,
+}
+
+/// Raw signature facts of a function that lives in an `impl` block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SigFacts {
+    /// Id of the ADT the enclosing `impl` is for (`None` for free fns and non-ADT impls).
+    #[serde(default)]
+    pub self_ty: Option<String>,
+    /// Type arguments of the impl's self type (`Transport<TcpStream>` -> `[TcpStream]`).
+    #[serde(default)]
+    pub self_args: Vec<TyShape>,
+    pub receiver: Receiver,
+    /// Parameter types, `self` excluded.
+    #[serde(default)]
+    pub params: Vec<TyShape>,
+    pub ret: TyShape,
+    #[serde(default)]
+    pub is_async: bool,
+    #[serde(default)]
+    pub is_unsafe: bool,
+    #[serde(default)]
+    pub is_const: bool,
+    /// Number of the function's own generic type parameters.
+    #[serde(default)]
+    pub generics: usize,
+}
+
+impl TyShape {
+    /// Stable, distinct text for a type (not for display: ids are full paths).
+    fn render(&self) -> String {
+        let list = |items: &[TyShape]| {
+            items
+                .iter()
+                .map(TyShape::render)
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        match self {
+            TyShape::Adt { id, args } if args.is_empty() => id.clone(),
+            TyShape::Adt { id, args } => format!("{id}<{}>", list(args)),
+            TyShape::Ref { mutable, inner } => {
+                format!("&{}{}", if *mutable { "mut " } else { "" }, inner.render())
+            }
+            TyShape::Tuple(items) => format!("({})", list(items)),
+            TyShape::Slice(inner) => format!("[{}]", inner.render()),
+            TyShape::Array(inner) => format!("[{}; _]", inner.render()),
+            TyShape::Prim(name) => name.clone(),
+            TyShape::Param(index) => format!("T{index}"),
+            TyShape::Dyn(id) => format!("dyn {id}"),
+            TyShape::FnPtr => "fn".into(),
+            TyShape::Opaque | TyShape::Other => "_".into(),
+        }
+    }
+}
+
+impl SigFacts {
+    /// The type that owns the method: `self_ty` plus its concrete (non-`Param`) type arguments,
+    /// so `impl Transport<TcpStream>` and `impl Transport<UnixStream>` are different owners.
+    pub fn owner(&self) -> Option<String> {
+        let id = self.self_ty.as_deref()?;
+        let concrete: Vec<String> = self
+            .self_args
+            .iter()
+            .filter(|a| !matches!(a, TyShape::Param(_)))
+            .map(TyShape::render)
+            .collect();
+        Some(if concrete.is_empty() {
+            id.to_string()
+        } else {
+            format!("{id}<{}>", concrete.join(", "))
+        })
+    }
+}
+
+/// Kind of a program-dependence-graph node. Front-end neutral: a MIR emitter could
+/// produce the same kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeKind {
+    Param,
+    /// Destructuring `let` / `if let` (simple `let x = e` is transparent: `x` is `e`'s node).
+    Let,
+    Call,
+    Macro,
+    Field,
+    Lit,
+    Branch,
+    Match,
+    /// `for` loops and `Iterator::for_each` closures: the same abstract iteration.
+    Iterate,
+    /// `while` and `loop`.
+    Loop,
+    Return,
+    Try,
+    /// Opaque: the body is not descended into.
+    Closure,
+    Cast,
+    /// Operators, struct/tuple/array construction, indexing, assignment (see `detail`).
+    Op,
+    /// Canonical value construction (`normalize`): `Err(E::Bad("x"))`, `None`, `Ok(())` as one node.
+    /// Never emitted by the driver.
+    Ctor,
+    /// Canonical decision (`normalize`): `if`, `else if`, `if let` and `match` as one node.
+    Case,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EdgeKind {
+    Data,
+    Ctrl,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PdgNode {
+    pub kind: NodeKind,
+    /// Raw type of the value this node produces, when known.
+    #[serde(default)]
+    pub ty: Option<TyShape>,
+    /// Stable id of the called function (`Call`, and `Lit` for fn items). Kept for hole detection.
+    #[serde(default)]
+    pub callee_id: Option<String>,
+    /// Raw signature of the callee; core normalizes it into the node label (signature class).
+    #[serde(default)]
+    pub callee_sig: Option<SigFacts>,
+    #[serde(default)]
+    pub macro_name: Option<String>,
+    #[serde(default)]
+    pub lit_kind: Option<String>,
+    /// Operator, field name or literal text; never part of the label.
+    #[serde(default)]
+    pub detail: String,
+    #[serde(default)]
+    pub line: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PdgEdge {
+    pub from: usize,
+    pub to: usize,
+    pub kind: EdgeKind,
+    /// Operand position for data edges (receiver is 0), arm index for control edges.
+    #[serde(default)]
+    pub arg_pos: usize,
+}
+
+/// Dependence graph of one function body. No execution-order edges, so
+/// reordering independent statements does not change it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Pdg {
+    pub nodes: Vec<PdgNode>,
+    pub edges: Vec<PdgEdge>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FnFacts {
     /// Stable id: `<crate>::<def path>` with impl disambiguators (`{impl#0}`).
@@ -146,6 +342,12 @@ pub struct FnFacts {
     /// Ids of workspace types this function writes through (sorted, deduplicated).
     #[serde(default)]
     pub mutated_types: Vec<String>,
+    /// Signature shape; `None` for free functions and facts from older runs.
+    #[serde(default)]
+    pub sig: Option<SigFacts>,
+    /// Dependence graph; only present when the driver ran in semantic (`patterns`) mode.
+    #[serde(default)]
+    pub pdg: Option<Pdg>,
 }
 
 impl FnFacts {
@@ -182,6 +384,8 @@ pub fn sample(name: &str) -> FnFacts {
         effects: vec![],
         edges: vec![],
         mutated_types: vec![],
+        sig: None,
+        pdg: None,
     }
 }
 
@@ -197,6 +401,46 @@ mod tests {
         assert_eq!(merged.len(), 2);
         assert_eq!(merged[0].name, "a");
         assert_eq!(merged[1].path, "src/z.rs");
+    }
+
+    #[test]
+    fn old_facts_without_sig_still_parse() {
+        let mut value = serde_json::to_value(sample("a")).unwrap();
+        value.as_object_mut().unwrap().remove("sig");
+        let back: FnFacts = serde_json::from_value(value).unwrap();
+        assert_eq!(back.sig, None);
+    }
+
+    #[test]
+    fn pdg_is_optional_and_round_trips() {
+        let mut f = sample("a");
+        assert_eq!(
+            serde_json::to_value(&f).unwrap()["pdg"],
+            serde_json::Value::Null
+        );
+        f.pdg = Some(Pdg {
+            nodes: vec![PdgNode {
+                kind: NodeKind::Call,
+                ty: None,
+                callee_id: Some("k::x".into()),
+                callee_sig: None,
+                macro_name: None,
+                lit_kind: None,
+                detail: String::new(),
+                line: 3,
+            }],
+            edges: vec![PdgEdge {
+                from: 0,
+                to: 0,
+                kind: EdgeKind::Ctrl,
+                arg_pos: 2,
+            }],
+        });
+        let back: FnFacts = serde_json::from_str(&serde_json::to_string(&f).unwrap()).unwrap();
+        assert_eq!(back, f);
+        // Sparse nodes from older or leaner emitters parse thanks to `serde(default)`.
+        let sparse: PdgNode = serde_json::from_str(r#"{"kind":"lit"}"#).unwrap();
+        assert_eq!(sparse.line, 0);
     }
 
     #[test]

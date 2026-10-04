@@ -456,3 +456,279 @@ fn param_plan_orders_callee_then_callers_with_bundle_and_pass_through() {
     assert!(text.contains("2. call sites mid"), "{text}");
     assert!(text.contains("bundle (1 sites)"), "{text}");
 }
+
+fn sig_of<'a>(facts: &'a [Value], name: &str) -> &'a Value {
+    &fact(facts, name)["sig"]
+}
+
+#[test]
+fn facts_record_sig() {
+    let dir = fixture("animals");
+    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    let facts = facts_for(dir.path(), "animals-lib.json");
+
+    let bark = sig_of(&facts, "Dog::bark");
+    assert_eq!(bark["self_ty"], "animals::Dog");
+    assert_eq!(bark["receiver"], "ref");
+    assert_eq!(bark["ret"]["adt"]["id"], "alloc::string::String");
+
+    // `Dog::chase(&self, &Cat) -> Dog`: raw shapes, no normalization in the driver.
+    let chase = sig_of(&facts, "Dog::chase");
+    assert_eq!(
+        chase["params"][0]["ref"]["inner"]["adt"]["id"],
+        "animals::Cat"
+    );
+    assert_eq!(chase["ret"]["adt"]["id"], "animals::Dog");
+
+    assert_eq!(sig_of(&facts, "Dog::new")["receiver"], "none");
+    assert_eq!(
+        sig_of(&facts, "Dog::name")["ret"]["ref"]["inner"],
+        serde_json::json!({"prim": "str"})
+    );
+    // Trait impls keep their self type and link to the trait method.
+    assert_eq!(
+        sig_of(&facts, "<Cow as Speak>::speak")["self_ty"],
+        "animals::Cow"
+    );
+    assert!(fact(&facts, "<Cow as Speak>::speak")["implements"].is_string());
+    // Free functions have no signature facts.
+    assert!(fact(&facts, "emit_dogs")["sig"].is_null());
+}
+
+#[test]
+fn patterns_lists_signature_groups_with_spans() {
+    let dir = fixture("animals");
+    let output = rstyle(dir.path(), &["patterns", "--format", "json"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let groups = report["signature_groups"].as_array().unwrap();
+    let find = |key: &str| {
+        groups
+            .iter()
+            .find(|g| g["key"] == key)
+            .unwrap_or_else(|| panic!("no group {key}"))
+    };
+
+    let strings = find("fn(&Self) -> String");
+    let names: Vec<&str> = strings["members"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        names,
+        ["Dog::bark", "Cat::meow", "Rock::label", "Pebble::tag"]
+    );
+    assert_eq!(strings["traited"].as_array().unwrap().len(), 2);
+    assert!(strings["members"][0]["line"].as_u64().unwrap() > 0);
+
+    assert_eq!(find("fn(&Self) -> &str")["same_name"], true);
+    assert_eq!(find("fn(&Self, &A) -> Self")["self_types"], 2);
+
+    let text = stdout(&rstyle(dir.path(), &["patterns"]));
+    assert!(text.contains("fn(&Self) -> String"), "{text}");
+    assert!(text.contains("src/lib.rs:"), "{text}");
+}
+
+#[test]
+fn patterns_group_impls_that_differ_only_in_concrete_type_arguments() {
+    let dir = fixture("animals");
+    let report = patterns_json(dir.path(), &["--min-score", "0"]);
+    let groups = report["signature_groups"].as_array().unwrap();
+    let g = groups
+        .iter()
+        .find(|g| g["key"] == "fn(&Self) -> u32")
+        .expect("Wrapper<u8> / Wrapper<u16> group");
+    assert_eq!(g["self_types"], 2);
+    assert_eq!(g["members"].as_array().unwrap().len(), 2);
+}
+
+fn patterns_json(dir: &Path, extra: &[&str]) -> Value {
+    let mut args = vec!["patterns", "--format", "json"];
+    args.extend(extra);
+    let output = rstyle(dir, &args);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+fn site_names(item: &Value, field: &str) -> Vec<String> {
+    let sites = item[field].as_array().unwrap();
+    sites
+        .iter()
+        .map(|s| s["name"].as_str().unwrap().to_string())
+        .collect()
+}
+
+/// The candidate that has a caller named `caller` among its sites.
+fn candidate_at<'a>(report: &'a Value, caller: &str) -> Option<&'a Value> {
+    let all = report["candidates"].as_array().unwrap();
+    all.iter()
+        .find(|c| site_names(c, "sites").iter().any(|n| n == caller))
+}
+
+#[test]
+fn patterns_for_loops_and_for_each_form_one_trait_candidate() {
+    let dir = fixture("animals");
+    let report = patterns_json(dir.path(), &[]);
+    let c = candidate_at(&report, "emit_dogs").expect("dog/cat loop candidate");
+    assert_eq!(c["kind"], "trait_method");
+    // `for` loops and the `iter().for_each` variant align into one cluster.
+    assert_eq!(
+        site_names(c, "sites"),
+        ["emit_dogs", "emit_cats", "emit_cats_each"]
+    );
+    assert_eq!(site_names(c, "definitions"), ["Dog::bark", "Cat::meow"]);
+    assert_eq!(c["breakdown"]["support"], 3);
+    assert_eq!(c["breakdown"]["coverage_milli"], 1000);
+    assert!(
+        c["observation"]
+            .as_str()
+            .unwrap()
+            .contains("M0 = Dog::bark | Cat::meow")
+    );
+    assert!(c["sites"][0]["line"].as_u64().unwrap() > 0);
+}
+
+fn observation_of(report: &Value, caller: &str) -> String {
+    let c = candidate_at(report, caller).expect("candidate");
+    c["observation"].as_str().unwrap().to_string()
+}
+
+#[test]
+fn patterns_literal_holes_show_whole_values() {
+    let dir = fixture("literals");
+    let report = patterns_json(dir.path(), &[]);
+    let seen = observation_of(&report, "tag_dog");
+    assert!(seen.contains(r#"L0 = "alpha" | "beta""#), "{seen}");
+}
+
+#[test]
+fn patterns_macro_literals_never_show_partial_tokens() {
+    let dir = fixture("literals");
+    let report = patterns_json(dir.path(), &[]);
+    let seen = observation_of(&report, "fmt_dog");
+    // Inside macros the span covers the call: such holes must be absent, not garbled.
+    assert!(!seen.contains("format!"), "{seen}");
+    assert!(!seen.contains("L0 = "), "{seen}");
+}
+
+#[test]
+fn patterns_enum_dispatch_is_a_candidate() {
+    let dir = fixture("animals");
+    let report = patterns_json(dir.path(), &[]);
+    let c = candidate_at(&report, "pet_sound").expect("dispatch candidate");
+    assert_eq!(c["kind"], "enum_dispatch");
+    assert_eq!(site_names(c, "definitions"), ["Dog::bark", "Cat::meow"]);
+}
+
+#[test]
+fn patterns_getters_never_become_candidates_and_fall_below_min_score() {
+    let dir = fixture("animals");
+    let report = patterns_json(dir.path(), &[]);
+    for c in report["candidates"].as_array().unwrap() {
+        let touched = [site_names(c, "sites"), site_names(c, "definitions")].concat();
+        for getter in ["Rock::label", "Pebble::tag", "Dog::name", "Cat::name"] {
+            assert!(!touched.iter().any(|n| n == getter), "{getter} in {c}");
+        }
+    }
+    // The shared `(&Self) -> String` signature is common, so its group scores low.
+    let strict = patterns_json(dir.path(), &["--min-score", "1.0"]);
+    let keys: Vec<&str> = strict["signature_groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|g| g["key"].as_str().unwrap())
+        .collect();
+    assert!(!keys.contains(&"fn(&Self) -> String"), "{keys:?}");
+    assert!(candidate_at(&strict, "emit_dogs").is_some());
+}
+
+#[test]
+fn patterns_already_behind_a_trait_is_suppressed_not_proposed() {
+    let dir = fixture("animals");
+    let report = patterns_json(dir.path(), &[]);
+    assert!(candidate_at(&report, "emit_cow").is_none());
+    let hidden = report["suppressed"].as_array().unwrap();
+    assert_eq!(hidden.len(), 1);
+    assert_eq!(site_names(&hidden[0], "sites"), ["emit_cow", "emit_hen"]);
+    assert!(
+        hidden[0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("Speak::speak")
+    );
+}
+
+#[test]
+fn patterns_hide_implements_recovers_the_trait_as_a_candidate() {
+    let dir = fixture("animals");
+    let report = patterns_json(dir.path(), &["--hide-implements", "Speak"]);
+    let c = candidate_at(&report, "emit_cow").expect("oracle recovers Speak");
+    assert_eq!(site_names(c, "sites"), ["emit_cow", "emit_hen"]);
+    assert!(report["suppressed"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn patterns_text_golden() {
+    let dir = fixture("animals");
+    let output = rstyle(dir.path(), &["patterns"]);
+    assert_eq!(output.status.code(), Some(0));
+    insta::assert_snapshot!(stdout(&output));
+}
+
+#[test]
+fn patterns_output_is_byte_identical_across_runs_and_copies() {
+    let (one, two) = (fixture("animals"), fixture("animals"));
+    let first = stdout(&rstyle(one.path(), &["patterns", "--format", "json"]));
+    let again = stdout(&rstyle(one.path(), &["patterns", "--format", "json"]));
+    let fresh = stdout(&rstyle(two.path(), &["patterns", "--format", "json"]));
+    assert!(first.contains("\"candidates\""));
+    assert_eq!(first, again);
+    assert_eq!(first, fresh);
+}
+
+#[test]
+fn pdg_is_only_recorded_for_patterns_and_modes_do_not_clobber() {
+    let dir = fixture("animals");
+    let style_facts = |dir: &Path| facts_for(dir, "animals-lib.json");
+    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    assert!(style_facts(dir.path()).iter().all(|f| f["pdg"].is_null()));
+
+    patterns_json(dir.path(), &[]);
+    let sem = dir.path().join("target/rstyle/facts-sem/animals-lib.json");
+    let sem: Vec<Value> = serde_json::from_slice(&std::fs::read(sem).unwrap()).unwrap();
+    let dogs = fact(&sem, "emit_dogs");
+    assert!(dogs["pdg"]["nodes"].as_array().unwrap().len() >= 4);
+    let kinds: Vec<&str> = dogs["pdg"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|n| n["kind"].as_str().unwrap())
+        .collect();
+    assert!(
+        kinds.contains(&"iterate") && kinds.contains(&"call"),
+        "{kinds:?}"
+    );
+
+    // Style facts stay PDG-free after a patterns run, and a second style run still works.
+    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    assert!(style_facts(dir.path()).iter().all(|f| f["pdg"].is_null()));
+    assert!(
+        patterns_json(dir.path(), &[])["candidates"]
+            .as_array()
+            .unwrap()
+            .len()
+            >= 2
+    );
+}

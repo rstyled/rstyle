@@ -21,3 +21,22 @@ perf.data*
 *.swp
 .DS_Store
 SIDE_EFFECTS.md
+# Example projects are standalone; do not commit their lockfiles
+rust_refactoring_examples/*/Cargo.lock
+eval/align/pairs.jsonl
+__pycache__/
+
+# CodeNet samples (generated crates and results)
+eval/codenet/
+rust_package/
+
+# Local planning notes / LLM log (never pushed)
+.plans/
+LLMLOG.md
+PATCHES_PATTERNS.md
+RESULTS_AND_NEXT_STEPS.md
+WL_VIZ_PLAN.md
+CODENET_PLAN.md
+HANDOFF.md
+Project_CodeNet/
+Project_CodeNet.tar.gz

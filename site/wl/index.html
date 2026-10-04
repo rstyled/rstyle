@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WL score walkthrough</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>WL score walkthrough</h1>
+  <label>Pair <select id="pair" aria-label="Function pair"></select></label>
+  <div id="score" aria-live="polite"></div>
+  <div id="chips"></div>
+  <p id="note"></p>
+  <div id="error" role="alert" hidden></div>
+</header>
+<main>
+  <section id="levelbar" aria-label="Refinement level">
+    <label>Level <input id="level" type="range" min="0" max="3" step="1"></label>
+    <span id="levelinfo"></span>
+    <button id="why" type="button">Why is this level lower?</button>
+  </section>
+  <section class="panes" aria-label="Source and graphs">
+    <div class="pane" id="pane0"></div>
+    <div class="pane" id="pane1"></div>
+  </section>
+  <section id="recipe" aria-live="polite"><h2>Node recipe</h2><div id="recipebody">Hover or focus a node or source line.</div></section>
+  <section><h2>Histograms</h2><div id="table"></div><div id="formula"></div></section>
+  <section id="align" aria-label="Alignment walkthrough">
+    <h2>Alignment: how the miner pairs nodes (<code>align.rs</code>)</h2>
+    <p class="mut">WL says how alike two graphs look. Alignment builds an explicit one-to-one node matching, so one different node only costs that node. Step through the pipeline; the final stage is what the coverage score and the holes come from.</p>
+    <div id="stages" role="group" aria-label="Alignment steps"></div>
+    <p id="stageinfo" aria-live="polite"></p>
+    <div class="panes"><div class="pane" id="apane0"></div><div class="pane" id="apane1"></div></div>
+    <div id="pairs"></div>
+    <div id="holes"></div>
+  </section>
+  <section><h2>Other scorers</h2><div id="variants"></div></section>
+</main>
+<div id="tip" role="tooltip" hidden></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
