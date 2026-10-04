@@ -1,0 +1,7 @@
+variant,pairs,differs_from_baseline,mean_cov,cov_ge_600,cov_ge_800
+baseline,57178,0,167,3207,2140
+labels_only,57178,1935,155,2929,601
+no_final_prune,57178,1633,170,3412,2193
+complete_checked,57178,158,167,3211,2140
+coarse_to_fine,57178,673,169,3218,2143
+combined,57178,802,169,3219,2143

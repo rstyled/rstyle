@@ -1,6 +1,6 @@
 //! Turns every local function body into a plain `FnFacts` record.
 
-use crate::{effects, ids, mutations};
+use crate::{effects, ids, mutations, pdg, sig};
 use rstyle_core::facts::{FnFacts, ParamFacts};
 use rstyle_core::lines::preceding_comment_line;
 use rustc_hir::def::DefKind;
@@ -13,10 +13,10 @@ use std::path::Path;
 /// How many lines above a function we look for an `rstyle-allow` comment.
 const LOOKBACK_LINES: usize = 40;
 
-pub fn crate_facts(tcx: TyCtxt<'_>, root: &Path) -> Vec<FnFacts> {
+pub fn crate_facts(tcx: TyCtxt<'_>, root: &Path, with_pdg: bool) -> Vec<FnFacts> {
     let mut facts: Vec<FnFacts> = tcx
         .hir_body_owners()
-        .filter_map(|def_id| function_facts(tcx, def_id, root))
+        .filter_map(|def_id| function_facts(tcx, def_id, root, with_pdg))
         .collect();
     facts.sort_by(|a, b| {
         (&a.path, a.line, a.column, &a.name).cmp(&(&b.path, b.line, b.column, &b.name))
@@ -24,7 +24,12 @@ pub fn crate_facts(tcx: TyCtxt<'_>, root: &Path) -> Vec<FnFacts> {
     facts
 }
 
-fn function_facts(tcx: TyCtxt<'_>, def_id: LocalDefId, root: &Path) -> Option<FnFacts> {
+fn function_facts(
+    tcx: TyCtxt<'_>,
+    def_id: LocalDefId,
+    root: &Path,
+    with_pdg: bool,
+) -> Option<FnFacts> {
     if !matches!(tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
         return None;
     }
@@ -64,6 +69,8 @@ fn function_facts(tcx: TyCtxt<'_>, def_id: LocalDefId, root: &Path) -> Option<Fn
         effects: body_facts.effects,
         edges: body_facts.edges,
         mutated_types,
+        sig: sig::sig_facts(tcx, def_id, sig),
+        pdg: with_pdg.then(|| pdg::pdg_of(tcx, def_id, body, root)),
     })
 }
 

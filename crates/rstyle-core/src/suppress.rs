@@ -6,6 +6,7 @@ pub const RULE_IDS: &[&str] = &[
     "mutation_per_target",
     "mutated_targets",
     "side_effect_density",
+    "abstraction",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,6 +61,15 @@ mod tests {
             parse("  // rstyle-allow(fn_params, fn_length): generated"),
             Suppression::Allow(vec!["fn_params".into(), "fn_length".into()])
         );
+    }
+
+    #[test]
+    fn abstraction_is_a_known_rule_for_the_patterns_miner() {
+        assert!(allows(
+            "// rstyle-allow(abstraction): deliberately parallel",
+            "abstraction"
+        ));
+        assert!(!allows("// rstyle-allow(abstraction): why", "fn_length"));
     }
 
     #[test]

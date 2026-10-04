@@ -1,0 +1,5 @@
+held_out,thr,cov,train_p,train_r,train_f1,test_tp,test_fp,test_fn,test_p,test_r,test_f1,oracle_thr,oracle_cov,oracle_f1
+telemetry_workspace,400,600,0.667,0.222,0.333,0,0,2,0.0,0.0,0.0,200,400,0.667
+backup_sync,200,400,0.5,0.125,0.2,2,0,1,1.0,0.667,0.8,400,600,0.8
+queue_worker,200,400,0.75,0.375,0.5,0,0,3,0.0,0.0,0.0,900,800,0.0
+feature_gate,200,400,1.0,0.375,0.545,0,1,3,0.0,0.0,0.0,900,800,0.0
