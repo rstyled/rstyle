@@ -1,0 +1,26 @@
+#!/bin/sh
+# Mirrors the CI lint gates: rustfmt, clippy, rstyle self-check.
+# Install with scripts/install-hooks.sh. Bypass in emergencies: git commit --no-verify.
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+
+# Skip when nothing Rust-related is staged.
+if ! git diff --cached --name-only --diff-filter=ACMR \
+  | grep -qE '\.rs$|(^|/)Cargo\.(toml|lock)$|^rust-toolchain\.toml$|^clippy\.toml$|^rstyle\.toml$'; then
+  exit 0
+fi
+
+# Hooks can inherit GIT_* vars that break cargo's git handling.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE
+
+step() { printf '\n==> %s\n' "$1"; }
+fail() { printf '\npre-commit: %s failed. Fix it or use --no-verify.\n' "$1" >&2; exit 1; }
+
+step "cargo fmt --check"
+cargo fmt --all -- --check || fail "rustfmt (run: cargo fmt --all)"
+
+step "cargo clippy"
+cargo clippy --workspace --all-targets -- -D warnings || fail "clippy"
+
+step "rstyle"
+./scripts/style.sh || fail "rstyle"

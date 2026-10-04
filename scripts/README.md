@@ -7,6 +7,7 @@ All run from anywhere (they `cd` to the repo root). Python is stdlib only. Outpu
 | Script | Usage |
 | --- | --- |
 | `style.sh` | `scripts/style.sh [args]` builds driver + CLI, runs rstyle on this workspace. Must report 0 violations. |
+| `install-hooks.sh` | Run once per clone. Sets `core.hooksPath=.githooks` so `pre-commit` runs `cargo fmt --check`, clippy (`-D warnings`) and rstyle. Skips when no Rust files are staged; bypass with `--no-verify`. |
 | `test_codenet.py` | `python3 scripts/test_codenet.py` tests `codenet_sample.py` on a fake package (needs cargo). |
 | `wl_site.sh` | `scripts/wl_site.sh [--serve]` regenerates `site/wl/data/*.json`; `--serve` hosts it on `:8765`. |
 
