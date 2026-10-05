@@ -69,6 +69,7 @@ fn key(f: &FnFacts, index: usize) -> Key {
 /// the inputs and their pairwise intersections (one round; enough for plan-sized inputs).
 fn closed_sets(inputs: &[BTreeSet<Key>]) -> Vec<(BTreeSet<Key>, usize)> {
     let mut candidates: BTreeSet<BTreeSet<Key>> = inputs.iter().cloned().collect();
+
     for (i, a) in inputs.iter().enumerate() {
         for b in &inputs[i + 1..] {
             candidates.insert(a.intersection(b).cloned().collect());
@@ -194,6 +195,7 @@ impl Ctx<'_> {
             .copied()
             .filter(|m| violators[m].contains(RULE))
             .collect();
+
         if changed.is_empty() {
             return None;
         }
