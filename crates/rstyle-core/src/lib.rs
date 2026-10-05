@@ -131,6 +131,7 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
         .zip(&effects)
         .flat_map(|(f, e)| function_diagnostics(f, e, cfg))
         .collect();
+
     report::sort(&mut diagnostics);
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
