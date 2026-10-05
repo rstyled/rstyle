@@ -119,6 +119,7 @@ Opt a function out of mining with `// rstyle-allow(abstraction): reason` on the 
 cargo rstyle ignore <id> [--allow-growth] [--reason TEXT]   # writes rstyle-ignore.toml
 cargo rstyle patterns --show-ignored                        # list what the ledger hid
 cargo rstyle patterns --no-ignore                           # one-off full view
+cargo rstyle patterns --fail-on-candidates                  # CI gate: exit 1 if any candidate is left
 cargo rstyle ignore --status [<id>]                         # where each entry's functions are now
 cargo rstyle ignore --prune [--dry-run]                     # drop entries that match nothing
 ```

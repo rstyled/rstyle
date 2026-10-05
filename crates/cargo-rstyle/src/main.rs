@@ -64,6 +64,9 @@ struct PatternsArgs {
     /// List the candidates the ignore ledger hid.
     #[arg(long)]
     show_ignored: bool,
+    /// Exit 1 when any candidate is left after the ignore ledger (for CI).
+    #[arg(long)]
+    fail_on_candidates: bool,
     #[command(flatten)]
     mine: MineArgs,
 }
@@ -206,7 +209,11 @@ fn mine_options(mine: &MineArgs) -> patterns_report::Options {
     }
 }
 
-fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<String, String> {
+/// Exit code 1: the run found something to act on (violations, or candidates under
+/// `--fail-on-candidates`).
+const FOUND: u8 = 1;
+
+fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<(String, u8), String> {
     let (facts, root) = gather(cli, SEMANTIC_FACTS, true)?;
     let ledger = match args.no_ignore {
         true => None,
@@ -222,11 +229,13 @@ fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<String, String> {
         ..mine_options(&args.mine)
     };
     let report = patterns_report::run(&facts, &options);
+    let code = u8::from(args.fail_on_candidates && !report.candidates.is_empty()) * FOUND;
+    let output = match cli.format {
+        Format::Text => patterns_text(&report, args.show_ignored),
+        Format::Json => patterns_report::json(&report).map_err(|e| e.to_string())?,
+    };
 
-    match cli.format {
-        Format::Text => Ok(patterns_text(&report, args.show_ignored)),
-        Format::Json => patterns_report::json(&report).map_err(|e| e.to_string()),
-    }
+    Ok((output, code))
 }
 
 fn patterns_text(report: &patterns_report::PatternsReport, show_ignored: bool) -> String {
@@ -307,11 +316,11 @@ fn render(report: &report::Report, format: Format) -> Result<String, String> {
 }
 
 // rstyle-allow(side_effect_density): process boundary: prints the output and sets the exit code
-fn exit_with(result: Result<String, String>) -> ExitCode {
+fn exit_with(result: Result<(String, u8), String>) -> ExitCode {
     match result {
-        Ok(output) => {
+        Ok((output, code)) => {
             println!("{output}");
-            ExitCode::SUCCESS
+            ExitCode::from(code)
         }
         Err(message) => {
             eprintln!("{message}");
@@ -333,7 +342,9 @@ fn main() -> ExitCode {
     }
     match &cli.command {
         Some(Command::Patterns(args)) => return exit_with(patterns(&cli, args)),
-        Some(Command::Ignore(args)) => return exit_with(ignore_cmd(&cli, args)),
+        Some(Command::Ignore(args)) => {
+            return exit_with(ignore_cmd(&cli, args).map(|output| (output, 0)));
+        }
         None => {}
     }
     let result = analyze(&cli).and_then(|report| Ok((render(&report, cli.format)?, report)));

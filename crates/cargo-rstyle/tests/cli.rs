@@ -870,3 +870,30 @@ fn ignore_keeps_hand_written_comments_when_it_rewrites_the_file() {
     );
     assert!(after.contains(&format!("[ignore.{second}]")), "{after}");
 }
+
+#[test]
+fn fail_on_candidates_exits_one_until_every_candidate_is_dismissed() {
+    let dir = fixture("animals");
+    let all = patterns_json(dir.path(), &[]);
+    let ids: Vec<String> = all["candidates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["id"].as_str().unwrap().to_string())
+        .collect();
+    let gate = |dir: &Path| rstyle(dir, &["patterns", "--fail-on-candidates"]);
+
+    let failing = gate(dir.path());
+    assert_eq!(failing.status.code(), Some(1));
+    assert!(
+        stdout(&failing).contains("candidates"),
+        "output is still printed"
+    );
+
+    ids.iter().for_each(|id| {
+        ignore_ok(dir.path(), &[id]);
+    });
+    let clean = gate(dir.path());
+    assert_eq!(clean.status.code(), Some(0), "{}", stdout(&clean));
+    assert_eq!(rstyle(dir.path(), &["patterns"]).status.code(), Some(0));
+}
