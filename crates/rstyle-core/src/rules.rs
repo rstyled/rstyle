@@ -47,14 +47,16 @@ pub fn fn_params(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Flags fns with `min_lines`+ code lines and no blank line anywhere. Reported as
+/// Flags fns with `min_lines`+ code lines, two or more top-level statements and no blank
+/// line anywhere. A single-statement body is one phase and needs none. Reported as
 /// `actual > limit` with `limit = min_lines - 1`, like the other threshold rules.
 pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let min_lines = cfg.fn_spacing.min_lines;
     let actual = code_lines(&f.source);
     let message = format!("function `{}` has no blank line between its phases", f.name);
     let limit = min_lines.saturating_sub(1);
-    let flagged = min_lines > 0 && actual >= min_lines && !has_blank_line(&f.source);
+    let phases = f.top_statements >= 2;
+    let flagged = min_lines > 0 && actual >= min_lines && phases && !has_blank_line(&f.source);
 
     flagged
         .then(|| diagnostic(f, "fn_spacing", message, Measure { actual, limit }))
@@ -256,6 +258,16 @@ mod tests {
         assert_eq!((out[0].actual, out[0].limit), (6, 5));
         f.source = "fn f() {\nx();\nx();\nx();\n\nx();\n}".into();
         assert!(fn_spacing(&f, &cfg).is_empty());
+    }
+
+    #[test]
+    fn single_statement_body_is_one_phase() {
+        let mut f = sample("f");
+        f.source = body_of(20);
+        f.top_statements = 1;
+        assert!(fn_spacing(&f, &Config::default()).is_empty());
+        f.top_statements = 0; // facts from older runs
+        assert!(fn_spacing(&f, &Config::default()).is_empty());
     }
 
     #[test]

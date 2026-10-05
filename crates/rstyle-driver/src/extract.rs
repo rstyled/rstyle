@@ -5,7 +5,7 @@ use rstyle_core::facts::{FnFacts, ParamFacts};
 use rstyle_core::lines::preceding_comment_line;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
-use rustc_hir::{Body, FnSig, PatKind};
+use rustc_hir::{Body, ExprKind, FnSig, PatKind};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{FileName, SourceFile, Span};
 use std::path::Path;
@@ -70,6 +70,7 @@ fn function_facts(
         param_list: param_list(tcx, sig, body, &body_facts.param_uses),
         has_self,
         statements: body_facts.statements,
+        top_statements: top_statements(body),
         source,
         preceding_line: lines_above(&start.file, start.line),
         mutations,
@@ -80,6 +81,14 @@ fn function_facts(
         sig: sig::sig_facts(tcx, def_id, sig),
         pdg: with_pdg.then(|| pdg::pdg_of(tcx, def_id, body, root)),
     })
+}
+
+/// Statements plus the tail expression directly in the body block: its "phases".
+fn top_statements(body: &Body<'_>) -> usize {
+    match body.value.kind {
+        ExprKind::Block(block, _) => block.stmts.len() + usize::from(block.expr.is_some()),
+        _ => 1,
+    }
 }
 
 /// Name, written type and use count of each parameter, `self` excluded.
