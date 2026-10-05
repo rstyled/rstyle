@@ -59,6 +59,7 @@ fn function_facts(
         .opt_associated_item(def_id.to_def_id())
         .and_then(|item| item.trait_item_def_id())
         .map(|trait_fn| ids::def_id_str(tcx, trait_fn));
+
     Some(FnFacts {
         id: ids::def_id_str(tcx, def_id.to_def_id()),
         implements,
