@@ -26,14 +26,10 @@ disable-model-invocation: true
 
 5. Verify: `cargo test -q -p rstyle-core && cargo clippy -q -p rstyle-core`. Re-run `rstyle patterns` and confirm the candidate is gone.
 
-6. Commit with a semantic (Conventional Commits) message:
-   ```
-   refactor(<module>): <what changed, imperative, <=72 chars>
-
-   <Which functions were duplicates, which one survives, and the rstyle
-   evidence: candidate kind, support, holes.> No behavior change.
-   ```
-   Type: `refactor` for dedupe; scope is the module that lost code. The subject describes the change, not the tool.
+6. Commit with a plain-text Conventional Commits message. No markdown (no backticks, bullets, or headings):
+   - Subject: `type(scope): imperative summary`, 72 chars max. Type is `refactor` for a dedupe. Scope is the module or crate that lost the duplicate code.
+   - Body (wrapped at about 72): motivation first (what was duplicated and why that costs something), then what the change does, then "No behavior change." when true.
+   - Do not mention rstyle or its scores unless the tool itself is what changed. The reader cares about the code, not how it was found.
    If GPG signing fails (no tty), ask the user before using `--no-gpg-sign`.
 
 7. Push and open the PR against `main` with `tea`:
@@ -49,12 +45,11 @@ disable-model-invocation: true
 ## Example
 
 ```
-refactor(sigmine): reuse shape::short instead of a duplicate path-tail helper
+refactor(driver): share one span-to-line helper across fact collectors
 
-`sigmine::short_name` was an exact clone of `shape::short`: both return the
-last `::` segment of a path. `rstyle patterns` flagged it as the top
-parameterize candidate (support 3, zero holes).
+effects, pdg and mutations each carried their own copy of the same
+span-to-line lookup (outermost macro call site, 1-based line). A change
+to how lines are resolved had to be made in three places.
 
-Drop `short_name`, widen `shape::short` to `pub(crate)`, and call it from
-`shared_name_types`. No behavior change.
+Add extract::line_of and call it from all three. No behavior change.
 ```
