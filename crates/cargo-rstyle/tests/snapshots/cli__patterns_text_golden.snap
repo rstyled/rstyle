@@ -30,7 +30,7 @@ fn(&Self) -> String  [4 types, score 0.85]
 
 2 candidates
 
-#1 trait_method  score 1.95  [support 3, lift 0.85, holes 2, coverage 1.00]
+#1 trait_method  id 40b2ac243d79  score 1.95  [support 3, lift 0.85, holes 2, coverage 1.00]
   observation: 3 functions share one dependence structure and differ only at T0 = Dog | Cat; M0 = Dog::bark | Cat::meow
   inference: Cat, Dog are used interchangeably through methods of identical signature: an implicit interface.
   possible refactor: trait Shared { fn method(&self) -> String; } implemented by Cat, Dog; make the sites generic over it
@@ -42,7 +42,7 @@ fn(&Self) -> String  [4 types, score 0.85]
     src/lib.rs:15  Dog::bark
     src/lib.rs:30  Cat::meow
 
-#2 enum_dispatch  score 1.54  [support 2, lift 0.85, holes 1, coverage 1.00]
+#2 enum_dispatch  id 74b21ef714d8  score 1.54  [support 2, lift 0.85, holes 1, coverage 1.00]
   observation: `pet_sound` matches on an enum and calls analogous methods per arm: M0 = Dog::bark | Cat::meow
   inference: Cat, Dog are used interchangeably through methods of identical signature: an implicit interface.
   possible refactor: trait Shared { fn method(&self) -> String; } implemented by Cat, Dog; make the sites generic over it

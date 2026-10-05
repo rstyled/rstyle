@@ -162,6 +162,7 @@ fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<String, String> {
         top: args.top,
         hide_implements: args.hide_implements.clone(),
         params: cluster_params(args),
+        ledger: None,
     };
     let report = patterns_report::run(&facts, &options);
     match cli.format {
