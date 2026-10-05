@@ -59,6 +59,7 @@ pub fn collect<'tcx>(
         generated_depth: 0,
         unsafe_depth: 0,
     };
+
     walker.visit_body(body);
     walker.out
 }
@@ -101,6 +102,7 @@ impl<'tcx> Walker<'tcx> {
         let Target {
             def_id, dynamic, ..
         } = target;
+
         if !is_fn(self.tcx, def_id) {
             return;
         }
@@ -131,6 +133,7 @@ impl<'tcx> Walker<'tcx> {
             dynamic,
             args,
         } = target;
+
         if !ids::in_workspace(self.tcx, def_id, &self.root) {
             return;
         }
@@ -180,6 +183,7 @@ impl<'tcx> Walker<'tcx> {
         let receiver_ty = self.typeck.expr_ty_adjusted(receiver).peel_refs();
         let dynamic = matches!(receiver_ty.kind(), ty::Dynamic(..));
         let sources = self.sources(args);
+
         self.call(target(def_id, dynamic, sources), expr);
     }
 
@@ -237,12 +241,14 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
         let generated = stmt.span.from_expansion();
         self.generated_depth += usize::from(generated);
         intravisit::walk_stmt(self, stmt);
+
         self.generated_depth -= usize::from(generated);
     }
 
     // rstyle-allow(mutation_per_target, side_effect_density): visitor accumulates results in self by design
     fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
         let generated = expr.span.from_expansion();
+
         self.generated_depth += usize::from(generated);
         match expr.kind {
             ExprKind::Call(callee, args) => self.on_call(expr, callee, args),
