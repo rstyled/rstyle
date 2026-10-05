@@ -7,10 +7,11 @@ use crate::dispatch::{Dispatch, find};
 use crate::facts::{EdgeKind, FnFacts, NodeKind, Pdg, Receiver};
 use crate::shape::{normalize, short};
 use crate::sigmine::SigGroup;
-use serde::Serialize;
+use crate::{ledger, locator, wl};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CandidateKind {
     TraitMethod,
@@ -21,12 +22,32 @@ pub enum CandidateKind {
     Parameterize,
 }
 
+impl CandidateKind {
+    /// The snake_case name used in reports and the ignore ledger.
+    pub fn name(self) -> &'static str {
+        match self {
+            CandidateKind::TraitMethod => "trait_method",
+            CandidateKind::CapabilitySet => "capability_set",
+            CandidateKind::EnumDispatch => "enum_dispatch",
+            CandidateKind::GenericFn => "generic_fn",
+            CandidateKind::FnParam => "fn_param",
+            CandidateKind::Parameterize => "parameterize",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Site {
     pub path: String,
     pub line: usize,
     pub id: String,
     pub name: String,
+    /// Stable name for the ignore ledger (see `locator`); unlike `id` it survives impl-block
+    /// renumbering.
+    pub locator: String,
+    /// Hex `wl::shape_hash` of the body's dependence graph; absent without a graph.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shape: Option<String>,
 }
 
 /// The score, split so each signal stays visible (support and lift are not summed blindly).
@@ -43,6 +64,8 @@ pub struct Breakdown {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Candidate {
+    /// Stable fingerprint (see `ledger::candidate_id`); what `cargo rstyle ignore` takes.
+    pub id: String,
     pub kind: CandidateKind,
     pub score_milli: u32,
     pub breakdown: Breakdown,
@@ -140,6 +163,11 @@ fn site(f: &FnFacts) -> Site {
         line: f.line,
         id: f.id.clone(),
         name: f.name.clone(),
+        locator: locator::base(f),
+        shape: f
+            .pdg
+            .as_ref()
+            .map(|p| format!("{:016x}", wl::shape_hash(p))),
     }
 }
 
@@ -375,6 +403,7 @@ fn finish(ev: Evidence<'_>) -> Candidate {
     let (inference, possible_refactor) = trait_text(&ev);
     let definitions: BTreeSet<Site> = all_defs.iter().map(|f| site(f)).collect();
     Candidate {
+        id: String::new(),
         kind: ev.kind,
         score_milli: score_milli(&ev.breakdown, !mismatch.is_empty()),
         breakdown: ev.breakdown,
@@ -561,6 +590,7 @@ fn generic_fn(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option<C
     let breakdown = breakdown_of(sites, cluster, 0);
 
     Some(Candidate {
+        id: String::new(),
         kind: CandidateKind::GenericFn,
         score_milli: score_milli(&breakdown, false) / 2,
         breakdown,
@@ -614,6 +644,7 @@ fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option
     };
 
     Some(Candidate {
+        id: String::new(),
         kind: CandidateKind::Parameterize,
         score_milli: score_milli(&breakdown, false) / 3,
         breakdown,
@@ -724,7 +755,42 @@ fn from_dispatch<'a>(ix: &Index<'a>, f: &'a FnFacts, d: &Dispatch) -> Outcome<'a
     }
 }
 
+impl Site {
+    /// This site with its corpus-wide locator (duplicates numbered), keyed by fn id.
+    fn named(self, names: &BTreeMap<String, String>) -> Site {
+        let locator = names.get(&self.id).cloned().unwrap_or(self.locator);
+
+        Site { locator, ..self }
+    }
+}
+
 impl Mined {
+    /// Final locators for every site, then every candidate's id (which hashes them).
+    fn identified(self, names: &BTreeMap<String, String>) -> Mined {
+        let rename =
+            |sites: Vec<Site>| -> Vec<Site> { sites.into_iter().map(|s| s.named(names)).collect() };
+        let candidates = self.candidates.into_iter().map(|c| {
+            let (sites, definitions) = (rename(c.sites), rename(c.definitions));
+            let id = ledger::candidate_id(c.kind, &sites, &definitions);
+
+            Candidate {
+                id,
+                sites,
+                definitions,
+                ..c
+            }
+        });
+        let suppressed = self.suppressed.into_iter().map(|s| Suppressed {
+            sites: rename(s.sites),
+            ..s
+        });
+
+        Mined {
+            candidates: candidates.collect(),
+            suppressed: suppressed.collect(),
+        }
+    }
+
     fn with(mut self, outcome: Outcome<'_>) -> Mined {
         match outcome {
             Outcome::Found(ev) => self.candidates.push(finish(ev)),
@@ -766,7 +832,7 @@ pub fn mine(facts: &[FnFacts], groups: &[SigGroup], params: &Params) -> Mined {
     for (f, pdg) in fns.iter().zip(&pdgs) {
         outcomes.extend(find(pdg).iter().map(|d| from_dispatch(&ix, f, d)));
     }
-    collect(outcomes)
+    collect(outcomes).identified(&locator::assign(facts))
 }
 
 #[cfg(test)]

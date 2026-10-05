@@ -16,7 +16,7 @@ fn trait_of(method_id: &str) -> &str {
 
 /// Locator before duplicate numbering: the fn id for free fns, `Owner::name` for inherent
 /// methods and `<Owner as Trait>::name` for trait-impl methods.
-fn base(f: &FnFacts) -> String {
+pub fn base(f: &FnFacts) -> String {
     let segments: Vec<&str> = f.id.split("::").collect();
     let at = segments.iter().position(|s| s.starts_with(IMPL_SEGMENT));
     let owner = f.sig.as_ref().and_then(|s| s.owner());

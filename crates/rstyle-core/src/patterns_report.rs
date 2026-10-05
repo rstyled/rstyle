@@ -236,6 +236,22 @@ mod tests {
     }
 
     #[test]
+    fn candidates_carry_a_stable_id_and_site_shapes() {
+        let once = run(&corpus(), &Options::default());
+        let reversed: Vec<FnFacts> = corpus().into_iter().rev().collect();
+        let again = run(&reversed, &Options::default());
+        let c = &once.candidates[0];
+
+        assert_eq!(c.id.len(), 12);
+        assert_eq!(c.id, again.candidates[0].id);
+        assert!(
+            c.sites
+                .iter()
+                .all(|s| s.shape.is_some() && !s.locator.is_empty())
+        );
+    }
+
+    #[test]
     fn params_option_controls_clustering() {
         let strict = Options {
             params: Params {
