@@ -24,6 +24,7 @@ pub struct Target {
 
 pub fn load(manifest: Option<&Path>) -> Result<Metadata, String> {
     let mut cmd = Command::new("cargo");
+
     cmd.args(["metadata", "--format-version", "1", "--no-deps"]);
     if let Some(path) = manifest {
         cmd.arg("--manifest-path").arg(path);
