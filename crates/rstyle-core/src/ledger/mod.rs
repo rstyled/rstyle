@@ -3,6 +3,7 @@
 //! It is a final filter on reported candidates. Analysis never sees it.
 
 mod matching;
+pub mod status;
 
 pub use matching::{Applied, Hidden, Matched, Opts, add, apply, matches, prune};
 
