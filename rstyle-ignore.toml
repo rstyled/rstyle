@@ -1,0 +1,71 @@
+# rstyle ignore ledger: merge candidates a human reviewed and dismissed.
+# Commit it. Delete it (or an entry) to re-review. Rewritten by `cargo rstyle ignore`:
+# comments directly above an entry, or inside it, are kept; others are dropped.
+
+version = 1
+
+[ignore.114994040aee]
+kind = "parameterize"
+reason = "thin mirrored wrappers over one shared helper after #10 (#11)"
+fns = [
+  "rstyle_core::align::evidence",
+  "rstyle_core::align::reverse_conflicts",
+]
+
+[ignore.28ac5efc1baa]
+kind = "parameterize"
+reason = "filter(seen.insert) over different iterator types; two lines each (#11)"
+fns = [
+  "rstyle_core::candidates::distinct_in_order",
+  "rstyle_core::normalize::dedup",
+]
+
+[ignore.3fff85bb6c1b]
+kind = "parameterize"
+reason = "iterator one-liners (map/filter + collect) over unrelated types; coincidental shape (#11)"
+fns = [
+  "rstyle_core::graph::boundaries",
+  "rstyle_core::ledger::status::current",
+  "rstyle_driver::effects::Walker::sources",
+]
+
+[ignore.60e8af5f467a]
+kind = "parameterize"
+reason = "map/collect/join with a different separator over different types; not worth a helper (#11)"
+fns = [
+  "rstyle_core::candidates::columns_text_of",
+  "rstyle_core::shape::Namer::list",
+]
+
+[ignore.8758139492e7]
+kind = "parameterize"
+reason = "lists of passes (function composition), not duplicated logic (#11)"
+fns = [
+  "rstyle_core::normalize::counter_loops",
+  "rstyle_core::normalize::unify_case",
+]
+
+[ignore.a6512f630b9a]
+kind = "parameterize"
+reason = "three filter/map/collect one-liners returning different collections; no shared logic (#11)"
+fns = [
+  "rstyle_core::cluster::classes_of",
+  "rstyle_core::normalize::data_consumers",
+  "rstyle_core::normalize::data_producers",
+]
+
+[ignore.bd6ed2f06436]
+kind = "parameterize"
+reason = "recursive all() checks with different leaf rules; a shared helper would just take the predicate (#11)"
+fns = [
+  "rstyle_core::normalize::constant_tree",
+  "rstyle_core::normalize::predicate_tree",
+]
+
+[ignore.fdb66ce83259]
+kind = "parameterize"
+reason = "different finder logic (closures) around a shared tail, already extracted (#11)"
+fns = [
+  "rstyle_core::normalize::loop_guards",
+  "rstyle_core::normalize::manual_counters",
+]
