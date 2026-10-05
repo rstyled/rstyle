@@ -183,7 +183,7 @@ pub struct SigFacts {
 
 impl TyShape {
     /// Stable, distinct text for a type (not for display: ids are full paths).
-    fn render(&self) -> String {
+    pub fn render(&self) -> String {
         let list = |items: &[TyShape]| {
             items
                 .iter()

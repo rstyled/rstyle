@@ -3,8 +3,10 @@
 //! The driver's id for an impl method is `<crate>::<module>::{impl#N}::<name>`, where `N` is the
 //! position of the impl block in its module: adding an impl block above renumbers the method.
 //! A locator names the method by its owner type (and trait) instead, so unrelated edits keep it.
+//! Trait-impl methods also carry their parameter and return types, which is what tells
+//! `impl From<A> for X` from `impl From<B> for X` without depending on source order.
 
-use crate::facts::FnFacts;
+use crate::facts::{FnFacts, SigFacts, TyShape};
 use std::collections::{BTreeMap, BTreeSet};
 
 const IMPL_SEGMENT: &str = "{impl#";
@@ -14,25 +16,37 @@ fn trait_of(method_id: &str) -> &str {
     method_id.rsplit_once("::").map_or(method_id, |(t, _)| t)
 }
 
+/// `(P1, P2) -> R` of a method, as written in its signature.
+fn signature_text(sig: &SigFacts) -> String {
+    let params: Vec<String> = sig.params.iter().map(TyShape::render).collect();
+
+    format!("({}) -> {}", params.join(", "), sig.ret.render())
+}
+
 /// Locator before duplicate numbering: the fn id for free fns, `Owner::name` for inherent
-/// methods and `<Owner as Trait>::name` for trait-impl methods.
+/// methods and `<Owner as Trait>::name(P) -> R` for trait-impl methods.
 pub fn base(f: &FnFacts) -> String {
     let segments: Vec<&str> = f.id.split("::").collect();
     let at = segments.iter().position(|s| s.starts_with(IMPL_SEGMENT));
-    let owner = f.sig.as_ref().and_then(|s| s.owner());
-    let (Some(at), Some(owner)) = (at, owner) else {
+    let owner = f.sig.as_ref().and_then(SigFacts::owner);
+    let (Some(at), Some(owner), Some(sig)) = (at, owner, f.sig.as_ref()) else {
         return f.id.clone();
     };
     let name = segments[at + 1..].join("::");
 
     match f.implements.as_deref() {
-        Some(method) => format!("<{owner} as {}>::{name}", trait_of(method)),
+        Some(method) => format!(
+            "<{owner} as {}>::{name}{}",
+            trait_of(method),
+            signature_text(sig)
+        ),
         None => format!("{owner}::{name}"),
     }
 }
 
-/// Locator of every function, keyed by fn id. Functions that still share one (for example
-/// `impl From<A> for X` and `impl From<B> for X`) get `#2`, `#3`, ... in source order.
+/// Locator of every function, keyed by fn id. Functions that still share one (trait impls
+/// whose methods differ only in a trait argument the signature does not mention) get `#2`,
+/// `#3`, ... in source order. That is a last resort and the only order-dependent case.
 pub fn assign(facts: &[FnFacts]) -> BTreeMap<String, String> {
     let mut order: Vec<&FnFacts> = facts.iter().collect();
     order.sort_by(|a, b| (&a.path, a.line, &a.id).cmp(&(&b.path, b.line, &b.id)));
@@ -95,7 +109,10 @@ mod tests {
         );
         let debug = method_fn("k::{impl#1}::fmt", "k::Dog", Some("core::fmt::Debug::fmt"));
 
-        assert_eq!(locator_of(&display), "<k::Dog as core::fmt::Display>::fmt");
+        assert_eq!(
+            locator_of(&display),
+            "<k::Dog as core::fmt::Display>::fmt() -> alloc::string::String"
+        );
         assert_ne!(locator_of(&display), locator_of(&debug));
     }
 
@@ -109,24 +126,44 @@ mod tests {
         assert_ne!(locator_of(&tcp), locator_of(&unix));
     }
 
+    fn from_impl(id: &str, param: &str, line: usize) -> FnFacts {
+        let mut f = method_fn(id, "k::X", Some("core::convert::From::from"));
+        f.sig.as_mut().unwrap().params = vec![crate::shape::fixtures::adt(param)];
+        f.line = line;
+        f
+    }
+
     #[test]
-    fn remaining_duplicates_are_numbered_in_source_order() {
-        let mut first = method_fn(
-            "k::{impl#0}::from",
-            "k::X",
-            Some("core::convert::From::from"),
+    fn trait_impls_are_told_apart_by_signature_not_source_order() {
+        let from_a = from_impl("k::{impl#0}::from", "k::A", 10);
+        let from_b = from_impl("k::{impl#1}::from", "k::B", 20);
+        let swapped_a = FnFacts {
+            line: 20,
+            ..from_a.clone()
+        };
+        let swapped_b = FnFacts {
+            line: 10,
+            ..from_b.clone()
+        };
+        let before = assign(&[from_a.clone(), from_b.clone()]);
+        let after = assign(&[swapped_a, swapped_b]);
+
+        assert_eq!(
+            before[&from_a.id],
+            "<k::X as core::convert::From>::from(k::A) -> alloc::string::String"
         );
-        let mut second = method_fn(
-            "k::{impl#1}::from",
-            "k::X",
-            Some("core::convert::From::from"),
-        );
-        first.line = 10;
-        second.line = 20;
+        assert_ne!(before[&from_a.id], before[&from_b.id]);
+        assert_eq!(before, after);
+    }
+
+    #[test]
+    fn identical_signatures_fall_back_to_numbering_in_source_order() {
+        let first = from_impl("k::{impl#0}::from", "k::A", 10);
+        let second = from_impl("k::{impl#1}::from", "k::A", 20);
         let named = assign(&[second.clone(), first.clone()]);
 
-        assert_eq!(named[&first.id], "<k::X as core::convert::From>::from");
-        assert_eq!(named[&second.id], "<k::X as core::convert::From>::from#2");
+        assert!(!named[&first.id].ends_with("#2"));
+        assert!(named[&second.id].ends_with("#2"));
     }
 
     #[test]
