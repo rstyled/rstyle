@@ -3,6 +3,7 @@
 pub const RULE_IDS: &[&str] = &[
     "fn_length",
     "fn_params",
+    "fn_spacing",
     "mutation_per_target",
     "mutated_targets",
     "side_effect_density",

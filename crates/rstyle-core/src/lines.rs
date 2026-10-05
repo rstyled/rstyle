@@ -10,6 +10,12 @@ pub fn code_lines(source: &str) -> usize {
         .count()
 }
 
+/// True when any line is empty or whitespace-only. For fn source this is the
+/// signature plus body, so a blank line anywhere in it counts as spacing.
+pub fn has_blank_line(source: &str) -> bool {
+    source.lines().any(|line| line.trim().is_empty())
+}
+
 fn line_has_code(line: &str, depth: &mut usize) -> bool {
     let bytes = line.as_bytes();
     let mut index = 0;
@@ -52,6 +58,13 @@ mod tests {
     fn counts_only_code_lines() {
         let source = "fn f() {\n\n    // note\n    /* a\n       b */\n    x();\n}";
         assert_eq!(code_lines(source), 3);
+    }
+
+    #[test]
+    fn blank_line_detection() {
+        assert!(has_blank_line("fn f() {\n    a();\n\n    b();\n}"));
+        assert!(has_blank_line("a();\n   \nb();"));
+        assert!(!has_blank_line("fn f() {\n    a();\n    // c\n    b();\n}"));
     }
 
     #[test]

@@ -7,6 +7,7 @@ pub struct Config {
     pub exclude: Excludes,
     pub fn_length: FnLengthConfig,
     pub fn_params: FnParamsConfig,
+    pub fn_spacing: FnSpacingConfig,
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
     pub grouping: GroupingConfig,
@@ -31,6 +32,20 @@ pub struct FnLengthConfig {
 impl Default for FnLengthConfig {
     fn default() -> Self {
         Self { max_lines: 50 }
+    }
+}
+
+/// Functions with at least `min_lines` code lines need a blank line between phases.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FnSpacingConfig {
+    /// Code lines at which the rule starts to apply. 0 disables the rule.
+    pub min_lines: usize,
+}
+
+impl Default for FnSpacingConfig {
+    fn default() -> Self {
+        Self { min_lines: 6 }
     }
 }
 
@@ -275,6 +290,7 @@ mod tests {
         let config = Config::parse("").unwrap();
         assert_eq!(config.fn_length.max_lines, 50);
         assert_eq!(config.fn_params.max_params, 4);
+        assert_eq!(config.fn_spacing.min_lines, 6);
         assert_eq!(config.side_effects.weights.io, 3);
     }
 

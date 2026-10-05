@@ -10,6 +10,12 @@ max_lines = 50            # code lines: blank, `//` and `/* */` lines are not co
 max_params = 4
 count_self = false        # `self` is the object, not an argument
 
+[fn_spacing]
+# Default is 6: fns with this many code lines need a blank line between phases; 0 disables.
+# Off for this repo until the existing ~330 dense fns are backfilled (the Cursor rule
+# .cursor/rules/blank-lines-in-fns.mdc already applies to new code).
+min_lines = 0
+
 [mutation_budget]
 max_mutations_per_target = 3   # writes / `&mut` borrows of one root (local, param, self)
 max_mutated_targets = 3        # distinct roots mutated in one function

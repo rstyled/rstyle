@@ -2,7 +2,7 @@
 
 use crate::config::{Config, Granularity, MutationBudgetConfig};
 use crate::facts::{EffectKind, FnFacts};
-use crate::lines::code_lines;
+use crate::lines::{code_lines, has_blank_line};
 use crate::report::{Detail, Diagnostic};
 use std::collections::BTreeMap;
 
@@ -43,6 +43,21 @@ pub fn fn_params(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let message = format!("function `{}` has too many parameters", f.name);
     (actual > limit)
         .then(|| diagnostic(f, "fn_params", message, Measure { actual, limit }))
+        .into_iter()
+        .collect()
+}
+
+/// Flags fns with `min_lines`+ code lines and no blank line anywhere. Reported as
+/// `actual > limit` with `limit = min_lines - 1`, like the other threshold rules.
+pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    let min_lines = cfg.fn_spacing.min_lines;
+    let actual = code_lines(&f.source);
+    let message = format!("function `{}` has no blank line between its phases", f.name);
+    let limit = min_lines.saturating_sub(1);
+    let flagged = min_lines > 0 && actual >= min_lines && !has_blank_line(&f.source);
+
+    flagged
+        .then(|| diagnostic(f, "fn_spacing", message, Measure { actual, limit }))
         .into_iter()
         .collect()
 }
@@ -228,6 +243,30 @@ mod tests {
         assert!(fn_length(&f, &Config::default()).is_empty());
         f.source = body_of(49);
         assert_eq!(fn_length(&f, &Config::default())[0].actual, 51);
+    }
+
+    #[test]
+    fn spacing_boundary_and_blank_line() {
+        let mut f = sample("f");
+        let cfg = Config::default();
+        f.source = body_of(3); // 5 code lines: below 6
+        assert!(fn_spacing(&f, &cfg).is_empty());
+        f.source = body_of(4); // 6 code lines: checked
+        let out = fn_spacing(&f, &cfg);
+        assert_eq!((out[0].actual, out[0].limit), (6, 5));
+        f.source = "fn f() {\nx();\nx();\nx();\n\nx();\n}".into();
+        assert!(fn_spacing(&f, &cfg).is_empty());
+    }
+
+    #[test]
+    fn spacing_zero_disables() {
+        let mut f = sample("f");
+        f.source = body_of(20);
+        let mut cfg = Config::default();
+        cfg.fn_spacing.min_lines = 0;
+        assert!(fn_spacing(&f, &cfg).is_empty());
+        cfg.fn_spacing.min_lines = 10;
+        assert_eq!(fn_spacing(&f, &cfg).len(), 1);
     }
 
     #[test]
