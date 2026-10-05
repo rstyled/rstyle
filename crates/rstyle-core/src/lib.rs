@@ -10,6 +10,7 @@ pub mod facts;
 pub mod graph;
 pub mod groups;
 pub mod lines;
+pub mod locator;
 pub mod normalize;
 pub mod paths;
 pub mod patterns_report;
