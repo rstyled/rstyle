@@ -7,11 +7,19 @@ use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{Body, FnSig, PatKind};
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{FileName, SourceFile};
+use rustc_span::{FileName, SourceFile, Span};
 use std::path::Path;
 
 /// How many lines above a function we look for an `rstyle-allow` comment.
 const LOOKBACK_LINES: usize = 40;
+
+/// 1-based line of a span's outermost macro call site, so expanded code maps to user source.
+pub fn line_of(tcx: TyCtxt<'_>, span: Span) -> usize {
+    tcx.sess
+        .source_map()
+        .lookup_char_pos(span.source_callsite().lo())
+        .line
+}
 
 pub fn crate_facts(tcx: TyCtxt<'_>, root: &Path, with_pdg: bool) -> Vec<FnFacts> {
     let mut facts: Vec<FnFacts> = tcx
