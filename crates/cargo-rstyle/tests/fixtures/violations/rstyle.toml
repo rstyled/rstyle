@@ -3,4 +3,4 @@
 min_lines = 0
 
 [fn_spacing]
-min_lines = 0
+min_statements = 0

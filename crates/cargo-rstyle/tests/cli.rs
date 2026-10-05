@@ -218,7 +218,7 @@ fn fn_spacing_is_configurable() {
     assert!(!rules_for(&off, "noisy").contains(&"fn_spacing".to_string()));
     std::fs::write(
         dir.path().join("rstyle.toml"),
-        "[fn_spacing]\nmin_lines = 3\n",
+        "[fn_spacing]\nmin_statements = 3\n",
     )
     .unwrap();
     let on = json(dir.path());
@@ -397,7 +397,7 @@ fn effects_propagate_through_calls_and_stop_at_boundaries() {
     let off = dir.path().join("rstyle.toml");
     std::fs::write(
         &off,
-        "[fn_spacing]\nmin_lines = 0\n[side_effects]\nmin_lines = 0\nmin_statements = 1\ntransitive_depth = 0\n",
+        "[fn_spacing]\nmin_statements = 0\n[side_effects]\nmin_lines = 0\nmin_statements = 1\ntransitive_depth = 0\n",
     )
     .unwrap();
     let report = json(dir.path());

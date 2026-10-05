@@ -35,17 +35,19 @@ impl Default for FnLengthConfig {
     }
 }
 
-/// Functions with at least `min_lines` code lines need a blank line between phases.
+/// Bodies with at least `min_statements` top-level statements need a blank line between phases.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FnSpacingConfig {
-    /// Code lines at which the rule starts to apply. 0 disables the rule.
-    pub min_lines: usize,
+    /// Top-level statements (tail expression included) at which the rule starts to
+    /// apply. Counted in statements, not lines, so long initializers don't trigger it.
+    /// 0 disables the rule.
+    pub min_statements: usize,
 }
 
 impl Default for FnSpacingConfig {
     fn default() -> Self {
-        Self { min_lines: 6 }
+        Self { min_statements: 5 }
     }
 }
 
@@ -290,7 +292,7 @@ mod tests {
         let config = Config::parse("").unwrap();
         assert_eq!(config.fn_length.max_lines, 50);
         assert_eq!(config.fn_params.max_params, 4);
-        assert_eq!(config.fn_spacing.min_lines, 6);
+        assert_eq!(config.fn_spacing.min_statements, 5);
         assert_eq!(config.side_effects.weights.io, 3);
     }
 

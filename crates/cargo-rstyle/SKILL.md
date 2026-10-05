@@ -42,7 +42,7 @@ JSON top level: `diagnostics`, `summary`, `fix_groups`.
 ## Fix hints per rule
 
 - `fn_length`: extract cohesive blocks into named helpers. Do not just compress lines.
-- `fn_spacing`: add one blank line between logical phases (bindings, work, result). Do not split a fn just to dodge it.
+- `fn_spacing`: add a blank line where the body changes phase (setup, work, result).
 - `fn_params`: introduce a params struct or move state into a type. Do not hide arguments in tuples.
 - `mutation_per_target` / `mutated_targets`: return new values instead of writing through `&mut`; split functions by the thing they mutate.
 - `side_effect_density`: separate pure computation from IO/network/time/random/unsafe. Keep effects in a thin outer function.

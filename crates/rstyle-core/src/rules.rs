@@ -47,16 +47,15 @@ pub fn fn_params(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Flags fns with `min_lines`+ code lines, two or more top-level statements and no blank
-/// line anywhere. A single-statement body is one phase and needs none. Reported as
-/// `actual > limit` with `limit = min_lines - 1`, like the other threshold rules.
+/// Flags fns with `min_statements`+ top-level statements and no blank line anywhere.
+/// Statements, not lines: a long initializer is still one thing to read. Reported as
+/// `actual > limit` with `limit = min_statements - 1`, like the other threshold rules.
 pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    let min_lines = cfg.fn_spacing.min_lines;
-    let actual = code_lines(&f.source);
+    let min = cfg.fn_spacing.min_statements;
+    let actual = f.top_statements;
+    let limit = min.saturating_sub(1);
     let message = format!("function `{}` has no blank line between its phases", f.name);
-    let limit = min_lines.saturating_sub(1);
-    let phases = f.top_statements >= 2;
-    let flagged = min_lines > 0 && actual >= min_lines && phases && !has_blank_line(&f.source);
+    let flagged = min > 0 && actual >= min && !has_blank_line(&f.source);
 
     flagged
         .then(|| diagnostic(f, "fn_spacing", message, Measure { actual, limit }))
@@ -251,20 +250,20 @@ mod tests {
     fn spacing_boundary_and_blank_line() {
         let mut f = sample("f");
         let cfg = Config::default();
-        f.source = body_of(3); // 5 code lines: below 6
+        f.top_statements = 4;
         assert!(fn_spacing(&f, &cfg).is_empty());
-        f.source = body_of(4); // 6 code lines: checked
+        f.top_statements = 5;
         let out = fn_spacing(&f, &cfg);
-        assert_eq!((out[0].actual, out[0].limit), (6, 5));
-        f.source = "fn f() {\nx();\nx();\nx();\n\nx();\n}".into();
+        assert_eq!((out[0].actual, out[0].limit), (5, 4));
+        f.source = "fn f() {\nx();\n\nx();\n}".into();
         assert!(fn_spacing(&f, &cfg).is_empty());
     }
 
     #[test]
-    fn single_statement_body_is_one_phase() {
+    fn long_initializers_do_not_count() {
         let mut f = sample("f");
-        f.source = body_of(20);
-        f.top_statements = 1;
+        f.source = body_of(40);
+        f.top_statements = 3;
         assert!(fn_spacing(&f, &Config::default()).is_empty());
         f.top_statements = 0; // facts from older runs
         assert!(fn_spacing(&f, &Config::default()).is_empty());
@@ -273,11 +272,11 @@ mod tests {
     #[test]
     fn spacing_zero_disables() {
         let mut f = sample("f");
-        f.source = body_of(20);
+        f.top_statements = 20;
         let mut cfg = Config::default();
-        cfg.fn_spacing.min_lines = 0;
+        cfg.fn_spacing.min_statements = 0;
         assert!(fn_spacing(&f, &cfg).is_empty());
-        cfg.fn_spacing.min_lines = 10;
+        cfg.fn_spacing.min_statements = 10;
         assert_eq!(fn_spacing(&f, &cfg).len(), 1);
     }
 

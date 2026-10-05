@@ -129,7 +129,7 @@ Drop an `rstyle.toml` in the project root (see the one in this repo for every ke
 | --- | --- | --- |
 | `fn_length.max_lines` | 50 | Code lines per fn (blank and comment lines excluded) |
 | `fn_params.max_params` | 4 | Params per fn (`self` not counted by default) |
-| `fn_spacing.min_lines` | 6 | Fns with this many code lines need a blank line somewhere in the body (0 disables) |
+| `fn_spacing.min_statements` | 5 | Bodies with this many top-level statements need a blank line somewhere (0 disables) |
 | `mutation_budget.max_mutations_per_target` | 3 | Writes / `&mut` borrows of one root |
 | `mutation_budget.max_mutated_targets` | 3 | Distinct roots mutated in one fn |
 | `side_effects.max_density_milli` | 500 | `1000 * sum(effect weights) / statements` |
