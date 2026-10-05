@@ -2,6 +2,7 @@
 //! that need no config (`unsafe`, `static mut`, indirect calls).
 
 use crate::args::{self, ParamIndex};
+use crate::extract::line_of;
 use crate::ids;
 use rstyle_core::facts::{ArgSource, CallEvent, Edge, EffectEvent, EffectKind};
 use rstyle_core::paths::strip_generics;
@@ -84,11 +85,7 @@ struct Walker<'tcx> {
 
 impl<'tcx> Walker<'tcx> {
     fn line(&self, span: Span) -> usize {
-        self.tcx
-            .sess
-            .source_map()
-            .lookup_char_pos(span.source_callsite().lo())
-            .line
+        line_of(self.tcx, span)
     }
 
     fn effect(&mut self, kind: EffectKind, detail: String, span: Span) {

@@ -6,6 +6,7 @@
 //! `Iterator::for_each`, which is treated like a `for` body so both forms align.
 //! No policy lives here: labels and thresholds are applied by `rstyle-core`.
 
+use crate::extract::line_of;
 use crate::{ids, sig};
 use rstyle_core::clip::clip;
 use rstyle_core::facts::{EdgeKind, NodeKind, Pdg, PdgEdge, PdgNode, TyShape};
@@ -223,8 +224,7 @@ impl<'tcx> Builder<'tcx> {
     }
 
     fn line(&self, span: Span) -> usize {
-        let source_map = self.tcx.sess.source_map();
-        source_map.lookup_char_pos(span.source_callsite().lo()).line
+        line_of(self.tcx, span)
     }
 
     fn snippet(&self, span: Span) -> String {

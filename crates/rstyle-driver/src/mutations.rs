@@ -11,6 +11,7 @@ use rustc_middle::ty::{self, BorrowKind, Ty, TyCtxt};
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use crate::extract::line_of;
 use crate::ids;
 
 /// Mutation events plus the sorted ids of workspace types written through.
@@ -58,12 +59,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         };
         self.note_type(place.place.base_ty);
         let span = self.tcx.hir_span(at);
-        let line = self
-            .tcx
-            .sess
-            .source_map()
-            .lookup_char_pos(span.source_callsite().lo())
-            .line;
+        let line = line_of(self.tcx, span);
         let (field_path, escapes) = self.describe(&place.place);
         let delegated = escapes && is_helper_call && self.is_workspace_reborrow(&place.place);
         let escapes = escapes && !delegated;
