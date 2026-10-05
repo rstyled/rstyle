@@ -140,6 +140,7 @@ fn histogram(colors: &[u64]) -> Vec<(u64, usize)> {
 /// Longest shortest path from `start`, by breadth-first levels.
 fn eccentricity(g: &Graph, start: usize) -> usize {
     let mut seen = vec![false; g.labels.len()];
+
     seen[start] = true;
     let mut frontier = vec![start];
     let mut depth = 0;
@@ -250,6 +251,7 @@ pub fn similarity_milli(a: &Wl, b: &Wl) -> u32 {
         .map(|i| weights[i] * intersection(&a.hists[i], &b.hists[i]) as u64)
         .sum();
     let den: u64 = weights.iter().map(|w| w * denom_nodes).sum();
+
     (num * 1000).checked_div(den).unwrap_or(0) as u32
 }
 
