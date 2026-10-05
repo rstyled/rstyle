@@ -114,6 +114,7 @@ fn split_more(label: &str) -> (&str, usize) {
 
 fn exported_by(target: &FnFacts, theirs: &[Effect], line: usize, delegated: bool) -> Vec<Effect> {
     let via = Some(target.name.clone());
+
     // One effect per kind: a callee that opens twenty files is one unit of IO for its
     // caller, otherwise orchestrators would score by how deep the call tree is.
     let mut by_kind: BTreeMap<EffectKind, Vec<&Effect>> = BTreeMap::new();
@@ -167,6 +168,7 @@ fn exported(
     });
     let first = per_target.next().unwrap_or_default();
     let rest: Vec<Vec<Effect>> = per_target.collect();
+
     first
         .into_iter()
         .filter(|e| {
@@ -196,6 +198,7 @@ fn round(inputs: &Inputs, index: usize, current: &[Vec<Effect>]) -> Vec<Effect> 
     let inherited = inputs.graph.callees[index]
         .iter()
         .flat_map(|callee| exported(inputs, &inputs.facts[index], callee, current));
+
     for effect in inherited {
         if seen.insert((effect.kind, effect.label.clone())) {
             out.push(effect);
