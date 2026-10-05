@@ -844,3 +844,29 @@ fn ignore_rejects_unknown_ids_and_missing_modes() {
     assert_eq!(nothing.status.code(), Some(2));
     assert!(!dir.path().join("rstyle-ignore.toml").exists());
 }
+
+#[test]
+fn ignore_keeps_hand_written_comments_when_it_rewrites_the_file() {
+    let dir = fixture("animals");
+    let all = patterns_json(dir.path(), &[]);
+    let (first, second) = (&all["candidates"][0]["id"], &all["candidates"][1]["id"]);
+    let (first, second) = (first.as_str().unwrap(), second.as_str().unwrap());
+    ignore_ok(dir.path(), &[first]);
+    let path = dir.path().join("rstyle-ignore.toml");
+    let header = format!("[ignore.{first}]");
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(
+        &path,
+        text.replace(&header, &format!("# loops differ by closure\n{header}")),
+    )
+    .unwrap();
+
+    ignore_ok(dir.path(), &[second]);
+    let after = std::fs::read_to_string(&path).unwrap();
+
+    assert!(
+        after.contains(&format!("# loops differ by closure\n{header}")),
+        "{after}"
+    );
+    assert!(after.contains(&format!("[ignore.{second}]")), "{after}");
+}

@@ -127,6 +127,7 @@ fn entry_for(c: &Candidate, opts: Opts) -> Entry {
         kind: c.kind,
         allow_growth: opts.allow_growth,
         reason: opts.reason,
+        notes: vec![],
         fns,
         sites,
         definitions,
@@ -135,7 +136,12 @@ fn entry_for(c: &Candidate, opts: Opts) -> Entry {
 
 /// `ledger` plus an entry dismissing `c` (replacing any entry for the same id).
 pub fn add(mut ledger: Ledger, c: &Candidate, opts: Opts) -> Ledger {
-    ledger.entries.insert(c.id.clone(), entry_for(c, opts));
+    let notes = ledger.entries.get(&c.id).map(|e| e.notes.clone());
+    let entry = Entry {
+        notes: notes.unwrap_or_default(),
+        ..entry_for(c, opts)
+    };
+    ledger.entries.insert(c.id.clone(), entry);
 
     ledger
 }
@@ -311,6 +317,15 @@ mod tests {
 
             assert_eq!(hidden_count(&reread, pair()), 1);
         }
+    }
+
+    #[test]
+    fn dismissing_again_keeps_the_entrys_notes() {
+        let mut ledger = dismissed(&pair(), false);
+        ledger.entries.get_mut(&pair().id).unwrap().notes = vec!["see PR 12".into()];
+        let again = add(ledger, &pair(), Opts::default());
+
+        assert_eq!(again.entries[&pair().id].notes, ["see PR 12"]);
     }
 
     #[test]

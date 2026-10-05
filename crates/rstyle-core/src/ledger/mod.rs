@@ -16,8 +16,8 @@ use std::collections::BTreeMap;
 pub const VERSION: u32 = 1;
 
 const HEADER: &str = "# rstyle ignore ledger: merge candidates a human reviewed and dismissed.\n\
-# Commit it. Delete it (or an entry) to re-review. Rewritten by `cargo rstyle ignore`,\n\
-# which does not keep comments; use `reason` for notes.";
+# Commit it. Delete it (or an entry) to re-review. Rewritten by `cargo rstyle ignore`:\n\
+# comments directly above an entry, or inside it, are kept; others are dropped.";
 
 /// One dismissed candidate. Strict entries (the default) match by id alone and keep `fns` as a
 /// human hint; `allow_growth` entries keep the members the subset check needs.
@@ -29,6 +29,9 @@ pub struct Entry {
     pub allow_growth: bool,
     #[serde(default)]
     pub reason: Option<String>,
+    /// Comment lines (without the `#`) that were directly above or inside the entry.
+    #[serde(skip)]
+    pub notes: Vec<String>,
     /// Locators of the dismissed functions. A hint, never matched on.
     #[serde(default)]
     pub fns: Vec<String>,
@@ -68,6 +71,50 @@ fn check(id: &str, entry: &Entry) -> Result<(), String> {
     }
 }
 
+fn header_id(line: &str) -> Option<&str> {
+    line.trim().strip_prefix("[ignore.")?.strip_suffix(']')
+}
+
+fn comment(line: &str) -> Option<&str> {
+    line.trim().strip_prefix('#').map(str::trim)
+}
+
+/// First index of the run of comment lines that ends right before `at`.
+fn comment_run_start(lines: &[&str], at: usize) -> usize {
+    (0..at)
+        .rev()
+        .take_while(|&i| comment(lines[i]).is_some())
+        .last()
+        .unwrap_or(at)
+}
+
+/// Comments per entry id: the run right above its header, then any inside its body (up to the
+/// run above the next header, which belongs to that one). Other comments are not kept.
+fn notes_by_id(text: &str) -> BTreeMap<String, Vec<String>> {
+    let lines: Vec<&str> = text.lines().collect();
+    let headers: Vec<(usize, &str)> = lines
+        .iter()
+        .enumerate()
+        .filter_map(|(i, l)| Some((i, header_id(l)?)))
+        .collect();
+    let notes_in = |from: usize, to: usize| lines[from..to].iter().filter_map(|l| comment(l));
+
+    headers
+        .iter()
+        .enumerate()
+        .map(|(k, &(at, id))| {
+            let end = headers
+                .get(k + 1)
+                .map_or(lines.len(), |&(n, _)| comment_run_start(&lines, n));
+            let notes = notes_in(comment_run_start(&lines, at), at)
+                .chain(notes_in(at + 1, end.max(at + 1)))
+                .map(str::to_string);
+
+            (id.to_string(), notes.collect())
+        })
+        .collect()
+}
+
 /// Parses `rstyle-ignore.toml`. Unknown keys, a duplicate id, a malformed id and an
 /// `allow_growth` entry without `sites` are errors.
 pub fn parse(text: &str) -> Result<Ledger, String> {
@@ -79,9 +126,14 @@ pub fn parse(text: &str) -> Result<Ledger, String> {
         ));
     }
     file.ignore.iter().try_for_each(|(id, e)| check(id, e))?;
+    let mut notes = notes_by_id(text);
+    let entries = file.ignore.into_iter().map(|(id, e)| {
+        let notes = notes.remove(&id).unwrap_or_default();
+        (id, Entry { notes, ..e })
+    });
 
     Ok(Ledger {
-        entries: file.ignore,
+        entries: entries.collect(),
     })
 }
 
@@ -108,9 +160,16 @@ fn entry_text(id: &str, e: &Entry) -> String {
         list("sites", &e.sites),
         list("definitions", &e.definitions),
     ];
-    let body: Vec<String> = fields.into_iter().flatten().collect();
+    let notes = e
+        .notes
+        .iter()
+        .map(|n| format!("# {n}").trim_end().to_string());
+    let body: Vec<String> = notes
+        .chain([format!("[ignore.{id}]")])
+        .chain(fields.into_iter().flatten())
+        .collect();
 
-    format!("[ignore.{id}]\n{}", body.join("\n"))
+    body.join("\n")
 }
 
 /// Deterministic text: entries by kind then id, members sorted, defaults omitted.
@@ -287,6 +346,50 @@ fns = ["k::a", "k::b"]
         ledger.entries.get_mut("a1b2c3d4e5f6").unwrap().reason = Some("say \"no\" \\ ok".into());
 
         assert_eq!(parse(&render(&ledger)).unwrap(), ledger);
+    }
+
+    const NOTED: &str = r#"# generated header, dropped
+version = 1
+
+# discussed in PR 12: loops differ by closure
+# keep until #11 lands
+[ignore.a1b2c3d4e5f6]
+kind = "generic_fn"
+# these three are coincidence
+fns = ["k::a"]
+
+# floating comment, not kept
+[ignore.7e90bb214c8d]
+kind = "generic_fn"
+"#;
+
+    #[test]
+    fn comments_above_and_inside_an_entry_are_kept() {
+        let ledger = parse(NOTED).unwrap();
+        let notes = &ledger.entries["a1b2c3d4e5f6"].notes;
+
+        assert_eq!(
+            notes,
+            &[
+                "discussed in PR 12: loops differ by closure",
+                "keep until #11 lands",
+                "these three are coincidence"
+            ]
+        );
+        assert_eq!(
+            ledger.entries["7e90bb214c8d"].notes,
+            ["floating comment, not kept"]
+        );
+    }
+
+    #[test]
+    fn comments_survive_a_rewrite_and_do_not_move_again() {
+        let once = render(&parse(NOTED).unwrap());
+        let twice = render(&parse(&once).unwrap());
+
+        assert!(once.contains("# these three are coincidence\n[ignore.a1b2c3d4e5f6]"));
+        assert!(!once.contains("generated header, dropped"));
+        assert_eq!(once, twice);
     }
 
     #[test]

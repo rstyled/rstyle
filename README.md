@@ -123,7 +123,7 @@ cargo rstyle ignore --status [<id>]                         # where each entry's
 cargo rstyle ignore --prune [--dry-run]                     # drop entries that match nothing
 ```
 
-`rstyle-ignore.toml` (workspace root, or `--ignore-file`) is meant to be committed, like a lockfile. It is a final filter on the reported candidates; mining never reads it, and `--top` / `--min-score` apply after it. Delete the file, or an entry, to re-review.
+`rstyle-ignore.toml` (workspace root, or `--ignore-file`) is meant to be committed, like a lockfile. It is a final filter on the reported candidates; mining never reads it, and `--top` / `--min-score` apply after it. Delete the file, or an entry, to re-review. Comments directly above an entry, or inside it, are kept when `ignore` rewrites the file (other comments are dropped), so notes like "discussed in PR 12" survive; `--reason` is the structured version.
 
 A dismissal holds while the candidate is the same: same kind, same functions, same dependence-graph shape of each site. Moving a function (new line numbers) or adding an impl block above it does not matter; editing its structure does. Growth resurfaces it by default: if two more functions join a dismissed candidate, it is a new candidate. `--allow-growth` records the members instead, and the candidate stays hidden as long as they are all still in it. Pruning is manual; stale entries are harmless, they just never match. Pass the same clustering flags to `ignore` as to `patterns`, since they decide which candidates (and ids) exist. Limits: shape comes from the dependence graph, so edits inside closures or that only swap one callee for another of the same signature are not seen.
 
