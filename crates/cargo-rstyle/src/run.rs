@@ -111,6 +111,7 @@ fn command(paths: &Paths<'_>, selection: &Selection<'_>) -> Command {
         ("CARGO_TARGET_DIR", paths.target_dir.as_os_str()),
         ("RSTYLE_OUT_DIR", paths.out_dir.as_os_str()),
     ];
+
     // Only `patterns` asks for dependence graphs; a stale value must never leak into style runs.
     let pdg = paths.pdg.then_some(("RSTYLE_PDG", OsStr::new("1")));
     let mut cmd = Command::new("cargo");
