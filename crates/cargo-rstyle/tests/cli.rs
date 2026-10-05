@@ -749,3 +749,98 @@ fn pdg_is_only_recorded_for_patterns_and_modes_do_not_clobber() {
             >= 2
     );
 }
+
+fn first_candidate_id(dir: &Path) -> String {
+    let report = patterns_json(dir, &[]);
+
+    report["candidates"][0]["id"].as_str().unwrap().to_string()
+}
+
+fn ignore_ok(dir: &Path, args: &[&str]) -> String {
+    let mut all = vec!["ignore"];
+    all.extend(args);
+    let output = rstyle(dir, &all);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    stdout(&output)
+}
+
+#[test]
+fn ignore_hides_a_candidate_and_patterns_says_so() {
+    let dir = fixture("animals");
+    let before = patterns_json(dir.path(), &[]);
+    let id = first_candidate_id(dir.path());
+    let count = before["candidates"].as_array().unwrap().len();
+
+    let said = ignore_ok(dir.path(), &[&id, "--reason", "reviewed, coincidence"]);
+    assert!(said.contains(&id), "{said}");
+    let file = std::fs::read_to_string(dir.path().join("rstyle-ignore.toml")).unwrap();
+    assert!(file.contains(&format!("[ignore.{id}]")), "{file}");
+
+    let after = patterns_json(dir.path(), &[]);
+    assert_eq!(after["candidates"].as_array().unwrap().len(), count - 1);
+    assert_eq!(after["ignored_count"], 1);
+    assert_eq!(after["ignored"][0]["id"], id.as_str());
+    assert_eq!(after["ignored"][0]["reason"], "reviewed, coincidence");
+
+    let text = stdout(&rstyle(dir.path(), &["patterns", "--show-ignored"]));
+    assert!(
+        text.contains("1 candidates hidden by the ignore ledger"),
+        "{text}"
+    );
+    assert!(text.contains("\"reviewed, coincidence\""), "{text}");
+
+    let full = patterns_json(dir.path(), &["--no-ignore"]);
+    assert_eq!(full["candidates"].as_array().unwrap().len(), count);
+}
+
+#[test]
+fn ignore_status_and_prune_manage_stale_entries() {
+    let dir = fixture("animals");
+    let id = first_candidate_id(dir.path());
+    ignore_ok(dir.path(), &[&id, "--allow-growth"]);
+    let path = dir.path().join("rstyle-ignore.toml");
+    let live = std::fs::read_to_string(&path).unwrap();
+    let stale = "\n[ignore.deadbeef0000]\nkind = \"generic_fn\"\nfns = [\"k::gone\"]\n";
+    std::fs::write(&path, format!("{live}{stale}")).unwrap();
+
+    let status = ignore_ok(dir.path(), &["--status"]);
+    assert!(
+        status.contains(&id) && status.contains("active"),
+        "{status}"
+    );
+    assert!(
+        status.contains("deadbeef0000") && status.contains("stale"),
+        "{status}"
+    );
+
+    let dry = ignore_ok(dir.path(), &["--prune", "--dry-run"]);
+    assert!(dry.contains("would remove deadbeef0000"), "{dry}");
+    assert!(
+        std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("deadbeef0000")
+    );
+
+    ignore_ok(dir.path(), &["--prune"]);
+    let kept = std::fs::read_to_string(&path).unwrap();
+    assert!(!kept.contains("deadbeef0000"), "{kept}");
+    assert!(kept.contains(&format!("[ignore.{id}]")), "{kept}");
+}
+
+#[test]
+fn ignore_rejects_unknown_ids_and_missing_modes() {
+    let dir = fixture("animals");
+    let unknown = rstyle(dir.path(), &["ignore", "ffff"]);
+    let nothing = rstyle(dir.path(), &["ignore"]);
+
+    assert_eq!(unknown.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("no candidate"));
+    assert_eq!(nothing.status.code(), Some(2));
+    assert!(!dir.path().join("rstyle-ignore.toml").exists());
+}
