@@ -41,6 +41,7 @@ pub fn fn_params(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let actual = f.params + counted_self;
     let limit = cfg.fn_params.max_params;
     let message = format!("function `{}` has too many parameters", f.name);
+
     (actual > limit)
         .then(|| diagnostic(f, "fn_params", message, Measure { actual, limit }))
         .into_iter()
@@ -96,6 +97,7 @@ pub fn mutation_budget(f: &FnFacts, cfg: &MutationBudgetConfig) -> Vec<Diagnosti
         .map(|(label, lines)| (label.clone(), lines.clone()))
         .collect();
     let mut out = Vec::new();
+
     if !over.is_empty() {
         let actual = over.values().map(Vec::len).max().unwrap_or(0);
         let measure = Measure {
@@ -167,6 +169,7 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
         line: e.line,
         via: None,
     });
+
     mutations.chain(calls).chain(intrinsic).collect()
 }
 
@@ -203,6 +206,7 @@ pub fn side_effect_density(f: &FnFacts, effects: &[Effect], cfg: &Config) -> Vec
     let limit = cfg.side_effects.max_density_milli;
     let small = f.statements < cfg.side_effects.min_statements
         || code_lines(&f.source) < cfg.side_effects.min_lines;
+
     if small || actual <= limit {
         return Vec::new();
     }
