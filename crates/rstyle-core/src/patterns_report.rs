@@ -1,8 +1,9 @@
 //! Output of `cargo rstyle patterns`: text and JSON.
 
-use crate::candidates::{self, Candidate, Site, Suppressed};
+use crate::candidates::{self, Candidate, CandidateKind, Site, Suppressed};
 use crate::cluster::Params;
 use crate::facts::FnFacts;
+use crate::ledger::{self, Hidden, Ledger, Matched};
 use crate::prep;
 use crate::sigmine::{self, Member, SigGroup};
 use serde::Serialize;
@@ -17,6 +18,22 @@ pub struct PatternsReport {
     /// Patterns that look like candidates but are already abstracted.
     #[serde(default)]
     pub suppressed: Vec<Suppressed>,
+    /// Candidates the ignore ledger hid, with the entry responsible.
+    #[serde(default)]
+    pub ignored: Vec<Ignored>,
+    #[serde(default)]
+    pub ignored_count: usize,
+}
+
+/// A candidate hidden by a ledger entry.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Ignored {
+    pub id: String,
+    pub kind: CandidateKind,
+    pub entry_id: String,
+    pub matched_by: Matched,
+    pub reason: Option<String>,
+    pub sites: Vec<Site>,
 }
 
 /// What to show and what to pretend.
@@ -28,6 +45,8 @@ pub struct Options {
     pub hide_implements: Vec<String>,
     /// Clustering thresholds; the defaults are `Params::default()`.
     pub params: Params,
+    /// Reviewed candidates to hide, applied before `min_score_milli` and `top`.
+    pub ledger: Option<Ledger>,
 }
 
 /// Keeps groups at or above `min_score_milli`, then the first `top` (all when `None`).
@@ -41,26 +60,62 @@ pub fn build(groups: Vec<SigGroup>, min_score_milli: u32, top: Option<usize>) ->
         signature_groups: kept,
         candidates: vec![],
         suppressed: vec![],
+        ignored: vec![],
+        ignored_count: 0,
     }
 }
 
-/// Full pipeline over driver facts: prepare, layer 1, layer 2, then filter and rank.
-pub fn run(facts: &[FnFacts], options: &Options) -> PatternsReport {
+/// Layers 1 and 2 over driver facts, before any display filter or the ignore ledger.
+fn mine_all(facts: &[FnFacts], options: &Options) -> (Vec<SigGroup>, candidates::Mined) {
     // Lib and test targets compile the same functions: dedupe like the style path does.
     let facts = crate::facts::merge(facts.to_vec());
     let prepared = prep::hide_implements(prep::prepare(&facts), &options.hide_implements);
     let groups = sigmine::mine(&prepared);
     let mined = candidates::mine(&prepared, &groups, &options.params);
-    let candidates = mined
-        .candidates
+
+    (groups, mined)
+}
+
+/// Every candidate, unfiltered: what `ignore` resolves ids against and `--prune` compares to.
+pub fn all_candidates(facts: &[FnFacts], options: &Options) -> Vec<Candidate> {
+    mine_all(facts, options).1.candidates
+}
+
+fn ignored_entry(ledger: &Ledger, hidden: Hidden) -> Ignored {
+    let c = hidden.candidate;
+
+    Ignored {
+        reason: ledger.entries[&hidden.entry_id].reason.clone(),
+        id: c.id,
+        kind: c.kind,
+        entry_id: hidden.entry_id,
+        matched_by: hidden.matched,
+        sites: c.sites,
+    }
+}
+
+/// Full pipeline over driver facts: layers 1 and 2, the ignore ledger, then filter and rank.
+pub fn run(facts: &[FnFacts], options: &Options) -> PatternsReport {
+    let (groups, mined) = mine_all(facts, options);
+    let ledger = options.ledger.clone().unwrap_or_default();
+    let applied = ledger::apply(&ledger, mined.candidates);
+    let candidates = applied
+        .kept
         .into_iter()
         .filter(|c| c.score_milli >= options.min_score_milli)
         .take(options.top.unwrap_or(usize::MAX))
+        .collect();
+    let ignored: Vec<Ignored> = applied
+        .hidden
+        .into_iter()
+        .map(|h| ignored_entry(&ledger, h))
         .collect();
 
     PatternsReport {
         candidates,
         suppressed: mined.suppressed,
+        ignored_count: ignored.len(),
+        ignored,
         ..build(groups, options.min_score_milli, options.top)
     }
 }
@@ -96,11 +151,12 @@ fn headline(index: usize, c: &Candidate) -> String {
     let kind = serde_json::to_value(c.kind).ok();
     let b = &c.breakdown;
     format!(
-        "#{} {}  score {}  [support {}, lift {}, holes {}, coverage {}]",
+        "#{} {}  id {}  score {}  [support {}, lift {}, holes {}, coverage {}]",
         index + 1,
         kind.as_ref()
             .and_then(|k| k.as_str())
             .unwrap_or("candidate"),
+        c.id,
         milli(c.score_milli),
         b.support,
         milli(b.lift_milli),
@@ -171,7 +227,43 @@ pub fn text(report: &PatternsReport) -> String {
             lines.join("\n")
         ));
     }
+    if report.ignored_count > 0 {
+        parts.push(format!(
+            "{} candidates hidden by the ignore ledger (--show-ignored to list)",
+            report.ignored_count
+        ));
+    }
     parts.join("\n\n")
+}
+
+fn how(m: Matched) -> String {
+    match m {
+        Matched::Exact => "unchanged".to_string(),
+        Matched::Growth { added } => format!("grew by {added} members"),
+    }
+}
+
+fn ignored_text(i: &Ignored) -> String {
+    let reason = i.reason.as_ref().map(|r| format!("  \"{r}\""));
+    let head = format!(
+        "{} {}  ({}){}",
+        i.kind.name(),
+        i.id,
+        how(i.matched_by),
+        reason.unwrap_or_default()
+    );
+
+    std::iter::once(head)
+        .chain(i.sites.iter().map(site_line))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Candidates the ledger hid, for `--show-ignored`.
+pub fn show_ignored(report: &PatternsReport) -> String {
+    let body: Vec<String> = report.ignored.iter().map(ignored_text).collect();
+
+    section(format!("{} ignored candidates", body.len()), body)
 }
 
 pub fn json(report: &PatternsReport) -> Result<String, serde_json::Error> {
@@ -216,6 +308,8 @@ mod tests {
             signature_groups: vec![g],
             candidates: vec![],
             suppressed: vec![],
+            ignored: vec![],
+            ignored_count: 0,
         });
         assert!(out.starts_with("1 signature groups"));
         assert!(out.contains("score 1.50"));
@@ -233,6 +327,82 @@ mod tests {
         let ids: std::collections::BTreeSet<_> =
             c.sites.iter().map(|s| (&s.path, s.line, &s.id)).collect();
         assert_eq!(ids.len(), c.sites.len());
+    }
+
+    #[test]
+    fn candidates_carry_a_stable_id_and_site_shapes() {
+        let once = run(&corpus(), &Options::default());
+        let reversed: Vec<FnFacts> = corpus().into_iter().rev().collect();
+        let again = run(&reversed, &Options::default());
+        let c = &once.candidates[0];
+
+        assert_eq!(c.id.len(), 12);
+        assert_eq!(c.id, again.candidates[0].id);
+        assert!(
+            c.sites
+                .iter()
+                .all(|s| s.shape.is_some() && !s.locator.is_empty())
+        );
+    }
+
+    fn dismissing(c: &Candidate, allow_growth: bool) -> Options {
+        let opts = ledger::Opts {
+            allow_growth,
+            reason: Some("coincidence".into()),
+        };
+
+        Options {
+            ledger: Some(ledger::add(Ledger::default(), c, opts)),
+            ..Options::default()
+        }
+    }
+
+    #[test]
+    fn ledger_hides_a_dismissed_candidate_and_says_why() {
+        let first = run(&corpus(), &Options::default());
+        let c = &first.candidates[0];
+        let report = run(&corpus(), &dismissing(c, false));
+
+        assert!(report.candidates.is_empty());
+        assert_eq!(report.ignored_count, 1);
+        assert_eq!(report.ignored[0].id, c.id);
+        assert_eq!(report.ignored[0].reason.as_deref(), Some("coincidence"));
+        assert_eq!(report.ignored[0].matched_by, Matched::Exact);
+    }
+
+    #[test]
+    fn ledger_hides_before_min_score_and_top() {
+        let c = run(&corpus(), &Options::default()).candidates[0].clone();
+        let options = Options {
+            top: Some(1),
+            ..dismissing(&c, true)
+        };
+
+        assert!(run(&corpus(), &options).candidates.is_empty());
+    }
+
+    #[test]
+    fn all_candidates_ignores_the_ledger_and_display_filters() {
+        let c = run(&corpus(), &Options::default()).candidates[0].clone();
+        let options = Options {
+            min_score_milli: u32::MAX,
+            ..dismissing(&c, false)
+        };
+
+        assert_eq!(all_candidates(&corpus(), &options), vec![c]);
+    }
+
+    #[test]
+    fn text_shows_ids_and_the_hidden_count() {
+        let c = run(&corpus(), &Options::default()).candidates[0].clone();
+        let shown = text(&run(&corpus(), &Options::default()));
+        let hidden = run(&corpus(), &dismissing(&c, false));
+
+        assert!(shown.contains(&format!("id {}", c.id)));
+        assert!(!shown.contains("hidden by the ignore ledger"));
+        assert!(text(&hidden).contains("1 candidates hidden by the ignore ledger"));
+        assert!(show_ignored(&hidden).contains(&c.id));
+        assert!(show_ignored(&hidden).contains("\"coincidence\""));
     }
 
     #[test]

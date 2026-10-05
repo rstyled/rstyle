@@ -6,7 +6,7 @@ All run from anywhere (they `cd` to the repo root). Python is stdlib only. Outpu
 
 | Script | Usage |
 | --- | --- |
-| `style.sh` | `scripts/style.sh [args]` builds driver + CLI, runs rstyle on this workspace. Must report 0 violations. |
+| `style.sh` | `scripts/style.sh [args]` builds driver + CLI, runs rstyle on this workspace. Must report 0 violations. `scripts/style.sh patterns --fail-on-candidates` is the CI merge-candidate gate: every candidate must be fixed or dismissed in `rstyle-ignore.toml`. |
 | `install-hooks.sh` | Run once per clone. Sets `core.hooksPath=.githooks` so `pre-commit` runs `cargo fmt --check`, clippy (`-D warnings`) and rstyle. Skips when no Rust files are staged; bypass with `--no-verify`. |
 | `test.sh` | `scripts/test.sh [cargo test args]` runs `cargo test --workspace --locked` against a shared `CARGO_TARGET_DIR` (default `~/.cache/rstyle/target`) so worktrees don't rebuild dependencies. |
 | `test_codenet.py` | `python3 scripts/test_codenet.py` tests `codenet_sample.py` on a fake package (needs cargo). |

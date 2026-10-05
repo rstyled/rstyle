@@ -3,12 +3,14 @@
 //! Exit codes: 0 clean, 1 violations found, 2 tool/config/compile error.
 
 mod collect;
+mod ignore;
 mod run;
 mod workspace;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use rstyle_core::config::Config;
 use rstyle_core::facts::FnFacts;
+use rstyle_core::ledger::{self, Opts};
 use rstyle_core::normalize::Rules;
 use rstyle_core::{cluster, patterns_report, report};
 use std::path::{Path, PathBuf};
@@ -32,6 +34,9 @@ struct Cli {
     config: Option<PathBuf>,
     #[arg(long, global = true)]
     manifest_path: Option<PathBuf>,
+    /// Ignore ledger (default: <workspace root>/rstyle-ignore.toml).
+    #[arg(long, global = true)]
+    ignore_file: Option<PathBuf>,
     /// Print an agent skill (SKILL.md) describing how to use rstyle, then exit.
     #[arg(long)]
     skill: bool,
@@ -41,6 +46,8 @@ struct Cli {
 enum Command {
     /// Mine the workspace for latent shared abstractions (signature groups).
     Patterns(PatternsArgs),
+    /// Dismiss a merge candidate you reviewed, list the ledger, or prune dead entries.
+    Ignore(IgnoreArgs),
 }
 
 #[derive(Args)]
@@ -51,6 +58,45 @@ struct PatternsArgs {
     /// Show only the best N groups and candidates.
     #[arg(long)]
     top: Option<usize>,
+    /// Report every candidate, ignoring the ignore ledger for this run.
+    #[arg(long)]
+    no_ignore: bool,
+    /// List the candidates the ignore ledger hid.
+    #[arg(long)]
+    show_ignored: bool,
+    /// Exit 1 when any candidate is left after the ignore ledger (for CI).
+    #[arg(long)]
+    fail_on_candidates: bool,
+    #[command(flatten)]
+    mine: MineArgs,
+}
+
+#[derive(Args)]
+struct IgnoreArgs {
+    /// Candidate id (or a unique prefix of at least 4 digits) from `cargo rstyle patterns`.
+    id: Option<String>,
+    /// Keep hiding the candidate when more functions join it.
+    #[arg(long, requires = "id", conflicts_with_all = ["status", "prune"])]
+    allow_growth: bool,
+    /// Why it was dismissed; shown when the candidate is listed or the entry is pruned.
+    #[arg(long, requires = "id", conflicts_with_all = ["status", "prune"])]
+    reason: Option<String>,
+    /// List ledger entries with the current location and state of each function.
+    #[arg(long, conflicts_with = "prune")]
+    status: bool,
+    /// Remove entries that match no current candidate.
+    #[arg(long, conflicts_with = "id")]
+    prune: bool,
+    /// With --prune: report what would be removed without writing.
+    #[arg(long, requires = "prune")]
+    dry_run: bool,
+    #[command(flatten)]
+    mine: MineArgs,
+}
+
+/// Flags that change what `patterns` mines; `ignore` takes them too so ids line up.
+#[derive(Args)]
+struct MineArgs {
     /// Evaluation oracle: ignore trait-impl links whose trait method id contains this text
     /// (repeatable; `*` hides all), so existing traits look like undiscovered abstractions.
     #[arg(long = "hide-implements")]
@@ -143,7 +189,7 @@ fn analyze(cli: &Cli) -> Result<report::Report, String> {
     rstyle_core::evaluate(facts, &config)
 }
 
-fn cluster_params(args: &PatternsArgs) -> cluster::Params {
+fn cluster_params(args: &MineArgs) -> cluster::Params {
     let default = cluster::Params::default();
     cluster::Params {
         threshold_milli: args.threshold.unwrap_or(default.threshold_milli),
@@ -155,18 +201,110 @@ fn cluster_params(args: &PatternsArgs) -> cluster::Params {
     }
 }
 
-fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<String, String> {
-    let (facts, _) = gather(cli, SEMANTIC_FACTS, true)?;
+fn mine_options(mine: &MineArgs) -> patterns_report::Options {
+    patterns_report::Options {
+        hide_implements: mine.hide_implements.clone(),
+        params: cluster_params(mine),
+        ..patterns_report::Options::default()
+    }
+}
+
+/// Exit code 1: the run found something to act on (violations, or candidates under
+/// `--fail-on-candidates`).
+const FOUND: u8 = 1;
+
+fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<(String, u8), String> {
+    let (facts, root) = gather(cli, SEMANTIC_FACTS, true)?;
+    let ledger = match args.no_ignore {
+        true => None,
+        false => Some(ignore::load(&ignore::ledger_path(
+            cli.ignore_file.as_deref(),
+            &root,
+        ))?),
+    };
     let options = patterns_report::Options {
         min_score_milli: (args.min_score.max(0.0) * 1000.0).round() as u32,
         top: args.top,
-        hide_implements: args.hide_implements.clone(),
-        params: cluster_params(args),
+        ledger,
+        ..mine_options(&args.mine)
     };
     let report = patterns_report::run(&facts, &options);
-    match cli.format {
-        Format::Text => Ok(patterns_report::text(&report)),
-        Format::Json => patterns_report::json(&report).map_err(|e| e.to_string()),
+    let code = u8::from(args.fail_on_candidates && !report.candidates.is_empty()) * FOUND;
+    let output = match cli.format {
+        Format::Text => patterns_text(&report, args.show_ignored),
+        Format::Json => patterns_report::json(&report).map_err(|e| e.to_string())?,
+    };
+
+    Ok((output, code))
+}
+
+fn patterns_text(report: &patterns_report::PatternsReport, show_ignored: bool) -> String {
+    let listing =
+        (show_ignored && report.ignored_count > 0).then(|| patterns_report::show_ignored(report));
+
+    std::iter::once(patterns_report::text(report))
+        .chain(listing)
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// What `ignore` works on: the ledger on disk and the current, unfiltered candidates.
+struct Session {
+    path: PathBuf,
+    ledger: ledger::Ledger,
+    candidates: Vec<rstyle_core::candidates::Candidate>,
+    facts: Vec<FnFacts>,
+}
+
+fn session(cli: &Cli, args: &IgnoreArgs) -> Result<Session, String> {
+    let (facts, root) = gather(cli, SEMANTIC_FACTS, true)?;
+    let path = ignore::ledger_path(cli.ignore_file.as_deref(), &root);
+    let ledger = ignore::load(&path)?;
+    let candidates = patterns_report::all_candidates(&facts, &mine_options(&args.mine));
+
+    Ok(Session {
+        path,
+        ledger,
+        candidates,
+        facts,
+    })
+}
+
+fn ignore_status(s: &Session, filter: Option<&str>) -> String {
+    let mut statuses = ledger::status::status(&s.ledger, &s.candidates, &s.facts);
+    statuses.retain(|st| filter.is_none_or(|id| st.id.starts_with(id)));
+
+    ledger::status::text(&statuses)
+}
+
+fn ignore_prune(s: Session, dry_run: bool) -> Result<String, String> {
+    let (ledger, report) = ignore::prune(s.ledger, &s.candidates, dry_run);
+    if !dry_run {
+        ignore::save(&s.path, &ledger)?;
+    }
+
+    Ok(report)
+}
+
+fn ignore_dismiss(s: Session, id: &str, opts: Opts) -> Result<String, String> {
+    let (ledger, message) = ignore::dismiss(s.ledger, &s.candidates, id, opts)?;
+    ignore::save(&s.path, &ledger)?;
+
+    Ok(message)
+}
+
+fn ignore_cmd(cli: &Cli, args: &IgnoreArgs) -> Result<String, String> {
+    let s = session(cli, args)?;
+    let opts = Opts {
+        allow_growth: args.allow_growth,
+        reason: args.reason.clone(),
+    };
+
+    match (&args.id, args.status, args.prune) {
+        (id, true, _) => Ok(ignore_status(&s, id.as_deref())),
+        (_, _, true) => ignore_prune(s, args.dry_run),
+        (Some(id), _, _) => ignore_dismiss(s, id, opts),
+        _ => Err("give a candidate id, --status or --prune".into()),
     }
 }
 
@@ -174,6 +312,20 @@ fn render(report: &report::Report, format: Format) -> Result<String, String> {
     match format {
         Format::Text => Ok(report::text(report)),
         Format::Json => report::json(report).map_err(|e| e.to_string()),
+    }
+}
+
+// rstyle-allow(side_effect_density): process boundary: prints the output and sets the exit code
+fn exit_with(result: Result<(String, u8), String>) -> ExitCode {
+    match result {
+        Ok((output, code)) => {
+            println!("{output}");
+            ExitCode::from(code)
+        }
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::from(2)
+        }
     }
 }
 
@@ -188,17 +340,12 @@ fn main() -> ExitCode {
         print!("{SKILL}");
         return ExitCode::SUCCESS;
     }
-    if let Some(Command::Patterns(args)) = &cli.command {
-        return match patterns(&cli, args) {
-            Ok(output) => {
-                println!("{output}");
-                ExitCode::SUCCESS
-            }
-            Err(message) => {
-                eprintln!("{message}");
-                ExitCode::from(2)
-            }
-        };
+    match &cli.command {
+        Some(Command::Patterns(args)) => return exit_with(patterns(&cli, args)),
+        Some(Command::Ignore(args)) => {
+            return exit_with(ignore_cmd(&cli, args).map(|output| (output, 0)));
+        }
+        None => {}
     }
     let result = analyze(&cli).and_then(|report| Ok((render(&report, cli.format)?, report)));
 

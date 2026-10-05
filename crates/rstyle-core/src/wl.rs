@@ -217,6 +217,18 @@ impl Wl {
     }
 }
 
+/// Stable fingerprint of a graph's structure: its deepest color histogram, hashed. Node
+/// order, lines and names do not matter (names are not in the labels); a change to the
+/// dependence structure does.
+pub fn shape_hash(pdg: &Pdg) -> u64 {
+    let wl = Wl::new(pdg);
+    let deepest = wl.hists.last().map_or(&[][..], Vec::as_slice);
+
+    deepest.iter().fold(FNV_OFFSET, |acc, (color, count)| {
+        combine(combine(acc, *color), *count as u64)
+    })
+}
+
 pub fn levels(a: &Wl, b: &Wl) -> usize {
     (a.diameter.min(b.diameter) + 1).clamp(1, MAX_LEVELS)
 }
@@ -293,6 +305,36 @@ mod tests {
         assert_eq!(
             label(&getter_call("Dog", "bark")),
             "call:fn(&Self) -> String"
+        );
+    }
+
+    #[test]
+    fn shape_hash_ignores_names_and_node_order() {
+        let dogs = emit_loop("Dog", "bark");
+        let cats = emit_loop("Cat", "meow");
+
+        assert_eq!(shape_hash(&dogs), shape_hash(&cats));
+        for shift in 1..dogs.nodes.len() {
+            assert_eq!(shape_hash(&dogs), shape_hash(&permuted(&dogs, shift)));
+        }
+    }
+
+    #[test]
+    fn shape_hash_changes_with_structure() {
+        let base = emit_loop("Dog", "bark");
+        let mut extra = base.clone();
+        extra.nodes.push(getter_call("Dog", "bark"));
+        extra.edges.push(data(2, 6, 0));
+
+        assert_ne!(shape_hash(&base), shape_hash(&extra));
+    }
+
+    #[test]
+    fn shape_hash_is_pinned() {
+        // Golden: a change here invalidates every committed rstyle-ignore.toml.
+        assert_eq!(
+            format!("{:016x}", shape_hash(&emit_loop("Dog", "bark"))),
+            "f440c2186883aa43"
         );
     }
 
