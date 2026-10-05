@@ -11,7 +11,7 @@ max_params = 4
 count_self = false        # `self` is the object, not an argument
 
 [fn_spacing]
-min_statements = 0         # TEMP off during backfill (default 5)
+min_statements = 5
 
 [mutation_budget]
 max_mutations_per_target = 3   # writes / `&mut` borrows of one root (local, param, self)
