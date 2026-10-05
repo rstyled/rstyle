@@ -113,6 +113,20 @@ Dependence graphs are about 10x bigger than the style facts, so only `patterns` 
 
 Opt a function out of mining with `// rstyle-allow(abstraction): reason` on the line above it.
 
+**Reviewed candidates (the ignore ledger).** Every candidate prints an `id`. After you review one and decide not to merge it, dismiss it:
+
+```
+cargo rstyle ignore <id> [--allow-growth] [--reason TEXT]   # writes rstyle-ignore.toml
+cargo rstyle patterns --show-ignored                        # list what the ledger hid
+cargo rstyle patterns --no-ignore                           # one-off full view
+cargo rstyle ignore --status [<id>]                         # where each entry's functions are now
+cargo rstyle ignore --prune [--dry-run]                     # drop entries that match nothing
+```
+
+`rstyle-ignore.toml` (workspace root, or `--ignore-file`) is meant to be committed, like a lockfile. It is a final filter on the reported candidates; mining never reads it, and `--top` / `--min-score` apply after it. Delete the file, or an entry, to re-review.
+
+A dismissal holds while the candidate is the same: same kind, same functions, same dependence-graph shape of each site. Moving a function (new line numbers) or adding an impl block above it does not matter; editing its structure does. Growth resurfaces it by default: if two more functions join a dismissed candidate, it is a new candidate. `--allow-growth` records the members instead, and the candidate stays hidden as long as they are all still in it. Pruning is manual; stale entries are harmless, they just never match. Pass the same clustering flags to `ignore` as to `patterns`, since they decide which candidates (and ids) exist. Limits: shape comes from the dependence graph, so edits inside closures or that only swap one callee for another of the same signature are not seen.
+
 **Reading the score.** `score = (ln(support) + lift) * coverage`, divided by `holes / 3` when there are more than 3 holes, halved on effect mismatch (natural-log units; a ranking, not a probability). `support` is the number of functions in the cluster, `lift` is how rare the shared signature is (`ln(methods in the workspace / methods sharing it)`; about 0 for getters, with up to +50% when the types share the method name), `coverage` is the mean share of each body that aligns, `holes` is the number of differing columns. `generic_fn` is halved and `parameterize` divided by 3 and both have lift 0, so compare scores within a kind. For the trait kinds a score under about 0.7, or the counter-evidence "signature is common in this codebase", is noise. These cutoffs come from the formula and from reading output, they are not calibrated on labeled data.
 
 **Experiments (off by default).** `--normalize all|ctor,pred,case,exit,counter,cmp,try` canonicalizes graphs before comparing, `--pair-coverage N` clusters pairs by alignment coverage even below the WL threshold, `--max-holes N` raises the `parameterize` hole cap, `--single-call-guard` admits single-call bodies that do more than forward parameters, `--threshold N` and `--min-coverage N` move the clustering thresholds (defaults 600 and 600). On a held-out CodeNet sample none of them is clearly better than the defaults: the rules shrink graphs by about one node per pair and `case` does nearly all of it; `--pair-coverage 650 --max-holes 4` flags more pairs of strangers and more cross-problem pairs (see [`eval/README.md`](eval/README.md)).
