@@ -10,6 +10,9 @@ max_lines = 50            # code lines: blank, `//` and `/* */` lines are not co
 max_params = 4
 count_self = false        # `self` is the object, not an argument
 
+[fn_spacing]
+min_statements = 5
+
 [mutation_budget]
 max_mutations_per_target = 3   # writes / `&mut` borrows of one root (local, param, self)
 max_mutated_targets = 3        # distinct roots mutated in one function

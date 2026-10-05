@@ -42,6 +42,7 @@ pub fn collect<'tcx>(
     };
     let visitor = ExprUseVisitor::for_clippy(&cx, def_id, &mut collector);
     let _ = visitor.consume_body(tcx.hir_body(body_id));
+
     (collector.events, collector.types.into_iter().collect())
 }
 
@@ -57,6 +58,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         let Some(root) = self.root_name(&place.place) else {
             return;
         };
+
         self.note_type(place.place.base_ty);
         let span = self.tcx.hir_span(at);
         let line = line_of(self.tcx, span);
@@ -124,6 +126,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         let escapes = steps.iter().any(|(ty, p)| {
             p.kind == ProjectionKind::Deref && matches!(ty.kind(), ty::Ref(..) | ty::RawPtr(..))
         });
+
         (names.join("."), escapes)
     }
 }

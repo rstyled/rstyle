@@ -3,6 +3,7 @@
 pub const RULE_IDS: &[&str] = &[
     "fn_length",
     "fn_params",
+    "fn_spacing",
     "mutation_per_target",
     "mutated_targets",
     "side_effect_density",
@@ -26,6 +27,7 @@ pub fn parse(comment_line: &str) -> Suppression {
         return Suppression::Invalid("malformed rstyle-allow comment".into());
     };
     let reason = tail.strip_prefix(':').map_or("", str::trim);
+
     if reason.is_empty() {
         return Suppression::Invalid("rstyle-allow requires a reason after `:`".into());
     }

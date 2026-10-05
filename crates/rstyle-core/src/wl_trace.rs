@@ -301,6 +301,7 @@ pub fn trace(a: &Side<'_>, b: &Side<'_>, threshold_milli: u32) -> Trace {
         .sum();
     let denominator = weights.iter().sum::<u64>() * wa.nodes().max(wb.nodes()) as u64;
     let (al, stages) = align::align_staged(&Ctx::new(a.pdg, &wa, b.pdg, &wb));
+
     Trace {
         version: TRACE_VERSION,
         threshold_milli,

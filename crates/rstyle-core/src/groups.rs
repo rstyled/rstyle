@@ -25,6 +25,7 @@ struct Dsu(Vec<usize>);
 impl Dsu {
     fn find(&mut self, x: usize) -> usize {
         let parent = self.0[x];
+
         if parent == x {
             return x;
         }
@@ -93,6 +94,7 @@ fn stack_order(members: &[usize], graph: &Graph) -> Vec<usize> {
     let set: BTreeSet<usize> = members.iter().copied().collect();
     let mut remaining = set.clone();
     let mut out = Vec::with_capacity(members.len());
+
     while !remaining.is_empty() {
         let ready = remaining.iter().copied().find(|&m| {
             graph.callees[m]
@@ -172,6 +174,7 @@ fn hints_for(
         })
     });
     let mut hints: Vec<Hint> = type_hints.chain(caller_hints).collect();
+
     hints.sort_by(|a, b| {
         (std::cmp::Reverse(a.other_groups), &a.kind, &a.item).cmp(&(
             std::cmp::Reverse(b.other_groups),
@@ -210,6 +213,7 @@ fn components(
     size: usize,
 ) -> Vec<Vec<usize>> {
     let mut by_root: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+
     for (index, root) in roots(rules, callers, cfg, size) {
         by_root.entry(root).or_default().push(index);
     }
@@ -238,6 +242,7 @@ pub fn build(
         .collect();
     let ordered: Vec<Vec<usize>> = groups.iter().map(|m| stack_order(m, graph)).collect();
     let plans = stacking::plans(&ordered, &rules, facts, graph);
+
     ordered
         .iter()
         .zip(plans)

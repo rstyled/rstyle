@@ -49,6 +49,7 @@ fn flag_value(args: &[String], flag: &str) -> Option<String> {
 fn target_of(args: &[String]) -> Option<Target> {
     let is_probe = args.iter().any(|arg| arg.starts_with("--print"));
     let crate_name = flag_value(args, "--crate-name")?;
+
     if is_probe || crate_name == "build_script_build" {
         return None;
     }
@@ -103,6 +104,7 @@ fn main() -> ExitCode {
             .unwrap_or_else(|| std::env::current_dir().expect("cwd")),
         pdg: std::env::var_os("RSTYLE_PDG").is_some(),
     });
+
     rustc_driver::catch_with_exit_code(|| match extract {
         Some(mut callbacks) => rustc_driver::run_compiler(&args, &mut callbacks),
         None => rustc_driver::run_compiler(&args, &mut NoOp),

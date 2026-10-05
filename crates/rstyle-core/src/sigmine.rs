@@ -69,6 +69,7 @@ fn build(key: String, all: Vec<(Member, bool)>, total: usize) -> Option<SigGroup
     let members = sorted(inherent.into_iter().map(|(m, _)| m).collect());
     let traited = sorted(traited.into_iter().map(|(m, _)| m).collect());
     let types: BTreeSet<&str> = members.iter().map(|m| m.self_ty.as_str()).collect();
+
     if types.len() < 2 {
         return None;
     }
@@ -119,6 +120,7 @@ pub fn mine(facts: &[FnFacts]) -> Vec<SigGroup> {
         .into_iter()
         .filter_map(|(key, all)| build(key, all, total))
         .collect();
+
     groups.sort_by(|a, b| b.score_milli.cmp(&a.score_milli).then(a.key.cmp(&b.key)));
     groups
 }

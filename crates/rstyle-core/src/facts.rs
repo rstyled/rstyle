@@ -329,6 +329,10 @@ pub struct FnFacts {
     pub param_list: Vec<ParamFacts>,
     pub has_self: bool,
     pub statements: usize,
+    /// Statements (plus the tail expression) directly in the body block; 1 for a
+    /// non-block body. 0 in facts from older runs, which `fn_spacing` skips.
+    #[serde(default)]
+    pub top_statements: usize,
     /// Source text from the `fn` signature through the closing brace.
     pub source: String,
     /// The comment line directly above the function (attributes skipped), if any.
@@ -377,6 +381,7 @@ pub fn sample(name: &str) -> FnFacts {
         param_list: vec![],
         has_self: false,
         statements: 1,
+        top_statements: 2,
         source: format!("fn {name}() {{}}"),
         preceding_line: String::new(),
         mutations: vec![],

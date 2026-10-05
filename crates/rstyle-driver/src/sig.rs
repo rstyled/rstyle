@@ -97,6 +97,7 @@ pub fn sig_facts<'tcx>(
         _ => Receiver::None,
     };
     let generics = tcx.generics_of(def_id);
+
     Some(SigFacts {
         self_ty,
         self_args,
@@ -140,6 +141,7 @@ pub fn callee_sig(tcx: TyCtxt<'_>, def_id: DefId) -> Option<SigFacts> {
         (true, Some(first)) => shape_receiver(*first),
         _ => Receiver::None,
     };
+
     Some(SigFacts {
         self_ty,
         self_args,

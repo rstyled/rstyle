@@ -7,6 +7,7 @@ pub struct Config {
     pub exclude: Excludes,
     pub fn_length: FnLengthConfig,
     pub fn_params: FnParamsConfig,
+    pub fn_spacing: FnSpacingConfig,
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
     pub grouping: GroupingConfig,
@@ -31,6 +32,22 @@ pub struct FnLengthConfig {
 impl Default for FnLengthConfig {
     fn default() -> Self {
         Self { max_lines: 50 }
+    }
+}
+
+/// Bodies with at least `min_statements` top-level statements need a blank line between phases.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FnSpacingConfig {
+    /// Top-level statements (tail expression included) at which the rule starts to
+    /// apply. Counted in statements, not lines, so long initializers don't trigger it.
+    /// 0 disables the rule.
+    pub min_statements: usize,
+}
+
+impl Default for FnSpacingConfig {
+    fn default() -> Self {
+        Self { min_statements: 5 }
     }
 }
 
@@ -275,6 +292,7 @@ mod tests {
         let config = Config::parse("").unwrap();
         assert_eq!(config.fn_length.max_lines, 50);
         assert_eq!(config.fn_params.max_params, 4);
+        assert_eq!(config.fn_spacing.min_statements, 5);
         assert_eq!(config.side_effects.weights.io, 3);
     }
 

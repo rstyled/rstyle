@@ -225,6 +225,7 @@ fn fold_ctors(pdg: Pdg) -> Pdg {
         })
         .collect();
     let dead: BTreeSet<usize> = owned.iter().map(|(n, _)| *n).collect();
+
     // Control that reached an absorbed node now reaches the folded value.
     let moved = pdg.edges.iter().filter_map(|e| {
         let (_, root) = owned.iter().find(|(n, _)| *n == e.to)?;
@@ -264,6 +265,7 @@ fn splice_nested(pdg: Pdg) -> Pdg {
             is_ctor(n) && parents.len() == 1 && parents.iter().all(|&p| is_ctor(p))
         })
         .collect();
+
     // Outermost ctor above `n` (chains of nested ctors merge all the way up).
     let parent_of = |n: usize| {
         let mut at = n;
@@ -371,6 +373,7 @@ fn collapse_preds(pdg: Pdg) -> Pdg {
             .collect::<Vec<_>>()
     });
     let edges = dedup(pdg.edges.iter().copied().chain(rewired).collect());
+
     without(Pdg { nodes, edges }, &trees)
 }
 
@@ -405,6 +408,7 @@ fn contract_lets(pdg: Pdg) -> Pdg {
         });
     let dead = pairs.iter().map(|(l, _)| *l).collect();
     let edges = dedup(moved.collect());
+
     without(Pdg { edges, ..pdg }, &dead)
 }
 
@@ -440,6 +444,7 @@ fn literal_scrutinees(pdg: Pdg) -> Pdg {
         arg_pos: 0,
     });
     let edges = dedup(pdg.edges.iter().copied().chain(scrutinee).collect());
+
     without(Pdg { edges, ..pdg }, &dead)
 }
 
@@ -489,6 +494,7 @@ fn flatten_else_if(pdg: Pdg) -> Pdg {
         });
     let edges = dedup(kept.chain(lifted).collect());
     let merged = without(Pdg { edges, ..pdg }, &BTreeSet::from([child]));
+
     flatten_else_if(merged)
 }
 
@@ -687,6 +693,7 @@ fn manual_counter(pdg: &Pdg, step: usize) -> Option<(usize, usize, usize)> {
         && is_int_lit(&pdg.nodes[init])
         && owned_by(pdg, amount, step)
         && data_consumers(pdg, step).is_empty();
+
     ok.then_some((init, amount, looped))
 }
 
@@ -716,6 +723,7 @@ fn manual_counters(pdg: Pdg) -> Pdg {
         })
         .collect();
     let dead = found.iter().flat_map(|&(s, i, a, _)| [s, i, a]).collect();
+
     rewire(pdg, reads, &dead)
 }
 
@@ -758,6 +766,7 @@ fn loop_guards(pdg: Pdg) -> Pdg {
         })
         .collect();
     let dead = found.iter().flat_map(|&(g, _, op, b)| [g, op, b]).collect();
+
     rewire(pdg, body, &dead)
 }
 

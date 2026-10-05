@@ -203,6 +203,7 @@ fn groups_text(groups: &[FixGroup]) -> Vec<String> {
 pub fn text(report: &Report) -> String {
     let s = &report.summary;
     let mut lines: Vec<String> = report.diagnostics.iter().map(diagnostic_line).collect();
+
     if !report.fix_groups.is_empty() {
         lines.extend(groups_text(&report.fix_groups));
     }

@@ -42,11 +42,14 @@ fn exclude_set(patterns: &[String]) -> Result<GlobSet, String> {
 }
 
 fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {
-    let mut out = rules::fn_length(f, cfg);
-    out.extend(rules::fn_params(f, cfg));
-    out.extend(rules::mutation_budget(f, &cfg.mutation_budget));
-    out.extend(rules::side_effect_density(f, effects, cfg));
-    out
+    [
+        rules::fn_length(f, cfg),
+        rules::fn_params(f, cfg),
+        rules::fn_spacing(f, cfg),
+        rules::mutation_budget(f, &cfg.mutation_budget),
+        rules::side_effect_density(f, effects, cfg),
+    ]
+    .concat()
 }
 
 fn invalid_suppression(f: &FnFacts, message: String) -> Diagnostic {
@@ -128,6 +131,7 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
         .zip(&effects)
         .flat_map(|(f, e)| function_diagnostics(f, e, cfg))
         .collect();
+
     report::sort(&mut diagnostics);
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);

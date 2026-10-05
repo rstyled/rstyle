@@ -5,6 +5,7 @@ pub fn strip_generics(path: &str) -> String {
     let mut out = String::with_capacity(path.len());
     let mut depth = 0usize;
     let mut chars = path.chars().peekable();
+
     while let Some(c) = chars.next() {
         match c {
             ':' if depth == 0 && chars.clone().take(2).eq(":<".chars()) => {

@@ -138,6 +138,7 @@ impl Dfs<'_> {
 fn ordinals(w: &Wl, colors: &[u64]) -> Vec<usize> {
     let n = colors.len();
     let mut roots: Vec<usize> = (0..n).filter(|v| w.graph.inc[*v].is_empty()).collect();
+
     roots.sort_by_key(|v| (colors[*v], *v));
     let mut dfs = Dfs {
         graph: &w.graph,
@@ -411,6 +412,7 @@ fn hole_table(ctx: &Ctx<'_>, pairs: &[(usize, usize)]) -> BTreeMap<HoleKey, Vec<
 /// Substitution table of an alignment: equal `(kind, a, b)` triples share one variable.
 pub fn holes_of(ctx: &Ctx<'_>, pairs: &[(usize, usize)]) -> Vec<Hole> {
     let mut ordered: Vec<_> = hole_table(ctx, pairs).into_iter().collect();
+
     ordered.sort_by_key(|(key, sites)| (sites[0].0, key.0));
     let mut counts: BTreeMap<HoleKind, usize> = BTreeMap::new();
     let mut name = |kind: HoleKind| {
@@ -548,6 +550,7 @@ pub fn align_variant(ctx: &Ctx<'_>, v: Variant) -> (Alignment, Vec<Stage>) {
         holes: holes_of(ctx, &pairs),
         pairs,
     };
+
     (alignment, stages)
 }
 

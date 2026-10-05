@@ -2,7 +2,7 @@
 
 use crate::config::{Config, Granularity, MutationBudgetConfig};
 use crate::facts::{EffectKind, FnFacts};
-use crate::lines::code_lines;
+use crate::lines::{code_lines, has_blank_line};
 use crate::report::{Detail, Diagnostic};
 use std::collections::BTreeMap;
 
@@ -41,8 +41,25 @@ pub fn fn_params(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let actual = f.params + counted_self;
     let limit = cfg.fn_params.max_params;
     let message = format!("function `{}` has too many parameters", f.name);
+
     (actual > limit)
         .then(|| diagnostic(f, "fn_params", message, Measure { actual, limit }))
+        .into_iter()
+        .collect()
+}
+
+/// Flags fns with `min_statements`+ top-level statements and no blank line anywhere.
+/// Statements, not lines: a long initializer is still one thing to read. Reported as
+/// `actual > limit` with `limit = min_statements - 1`, like the other threshold rules.
+pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    let min = cfg.fn_spacing.min_statements;
+    let actual = f.top_statements;
+    let limit = min.saturating_sub(1);
+    let message = format!("function `{}` has no blank line between its phases", f.name);
+    let flagged = min > 0 && actual >= min && !has_blank_line(&f.source);
+
+    flagged
+        .then(|| diagnostic(f, "fn_spacing", message, Measure { actual, limit }))
         .into_iter()
         .collect()
 }
@@ -80,6 +97,7 @@ pub fn mutation_budget(f: &FnFacts, cfg: &MutationBudgetConfig) -> Vec<Diagnosti
         .map(|(label, lines)| (label.clone(), lines.clone()))
         .collect();
     let mut out = Vec::new();
+
     if !over.is_empty() {
         let actual = over.values().map(Vec::len).max().unwrap_or(0);
         let measure = Measure {
@@ -151,6 +169,7 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
         line: e.line,
         via: None,
     });
+
     mutations.chain(calls).chain(intrinsic).collect()
 }
 
@@ -187,6 +206,7 @@ pub fn side_effect_density(f: &FnFacts, effects: &[Effect], cfg: &Config) -> Vec
     let limit = cfg.side_effects.max_density_milli;
     let small = f.statements < cfg.side_effects.min_statements
         || code_lines(&f.source) < cfg.side_effects.min_lines;
+
     if small || actual <= limit {
         return Vec::new();
     }
@@ -228,6 +248,40 @@ mod tests {
         assert!(fn_length(&f, &Config::default()).is_empty());
         f.source = body_of(49);
         assert_eq!(fn_length(&f, &Config::default())[0].actual, 51);
+    }
+
+    #[test]
+    fn spacing_boundary_and_blank_line() {
+        let mut f = sample("f");
+        let cfg = Config::default();
+        f.top_statements = 4;
+        assert!(fn_spacing(&f, &cfg).is_empty());
+        f.top_statements = 5;
+        let out = fn_spacing(&f, &cfg);
+        assert_eq!((out[0].actual, out[0].limit), (5, 4));
+        f.source = "fn f() {\nx();\n\nx();\n}".into();
+        assert!(fn_spacing(&f, &cfg).is_empty());
+    }
+
+    #[test]
+    fn long_initializers_do_not_count() {
+        let mut f = sample("f");
+        f.source = body_of(40);
+        f.top_statements = 3;
+        assert!(fn_spacing(&f, &Config::default()).is_empty());
+        f.top_statements = 0; // facts from older runs
+        assert!(fn_spacing(&f, &Config::default()).is_empty());
+    }
+
+    #[test]
+    fn spacing_zero_disables() {
+        let mut f = sample("f");
+        f.top_statements = 20;
+        let mut cfg = Config::default();
+        cfg.fn_spacing.min_statements = 0;
+        assert!(fn_spacing(&f, &cfg).is_empty());
+        cfg.fn_spacing.min_statements = 10;
+        assert_eq!(fn_spacing(&f, &cfg).len(), 1);
     }
 
     #[test]

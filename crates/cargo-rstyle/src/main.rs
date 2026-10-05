@@ -107,6 +107,7 @@ fn load_config(explicit: Option<&Path>, root: &Path) -> Result<Config, String> {
 /// Runs the driver over the selected crates and reads back their facts.
 fn gather(cli: &Cli, facts_dir: &str, pdg: bool) -> Result<(Vec<FnFacts>, PathBuf), String> {
     let meta = workspace::load(cli.manifest_path.as_deref())?;
+
     if let Some(name) = meta.unknown_packages(&cli.packages).first() {
         return Err(format!("package `{name}` is not in this workspace"));
     }
@@ -200,6 +201,7 @@ fn main() -> ExitCode {
         };
     }
     let result = analyze(&cli).and_then(|report| Ok((render(&report, cli.format)?, report)));
+
     match result {
         Ok((output, report)) => {
             println!("{output}");

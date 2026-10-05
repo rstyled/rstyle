@@ -183,6 +183,7 @@ fn judge<'a>(ix: &Index<'a>, values: &[String]) -> Verdict<'a> {
         .iter()
         .filter_map(|f| f.sig.as_ref()?.owner())
         .collect();
+
     // Constructors are not a capability callers use polymorphically.
     let no_receiver = defs
         .iter()
@@ -300,6 +301,7 @@ struct Evidence<'a> {
 fn short_paths(owner: &str) -> String {
     let mut out = String::new();
     let mut word = String::new();
+
     for c in owner.chars() {
         if c.is_alphanumeric() || c == '_' || c == ':' {
             word.push(c);
@@ -350,6 +352,7 @@ fn trait_text(ev: &Evidence<'_>) -> (String, String) {
             methods.join(" ")
         ),
     };
+
     (inference, refactor)
 }
 
@@ -365,6 +368,7 @@ fn finish(ev: Evidence<'_>) -> Candidate {
         .filter_map(|(_, defs)| effect_mismatch(defs))
         .collect::<Vec<_>>();
     let mut counter = mismatch.clone();
+
     if ev.breakdown.lift_milli < 500 {
         counter.push("signature is common in this codebase (low specificity)".into());
     }
@@ -555,6 +559,7 @@ fn generic_fn(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option<C
     // External type holes (`TcpStream | UnixStream`) are often the ones that matter: show all.
     let holes = columns_text_of(ix, &types);
     let breakdown = breakdown_of(sites, cluster, 0);
+
     Some(Candidate {
         kind: CandidateKind::GenericFn,
         score_milli: score_milli(&breakdown, false) / 2,
@@ -607,6 +612,7 @@ fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option
         true => "nothing (exact clone)".to_string(),
         false => columns_text(ix, &cluster.columns),
     };
+
     Some(Candidate {
         kind: CandidateKind::Parameterize,
         score_milli: score_milli(&breakdown, false) / 3,
@@ -649,6 +655,7 @@ fn from_cluster<'a>(ix: &Index<'a>, fns: &[&'a FnFacts], cluster: &Cluster) -> O
         .filter(|c| method_like(c.kind))
         .collect();
     let (verdicts, hidden) = judge_columns(ix, &cols);
+
     if verdicts.is_empty() {
         let reason = hidden.last().map(|e| e.reason.clone());
         return without_trait(ix, &sites, cluster, reason);
@@ -749,6 +756,7 @@ fn collect(outcomes: Vec<Outcome<'_>>) -> Mined {
 pub fn mine(facts: &[FnFacts], groups: &[SigGroup], params: &Params) -> Mined {
     let ix = Index::new(facts, groups, params);
     let mut fns: Vec<&FnFacts> = facts.iter().filter(|f| f.pdg.is_some()).collect();
+
     fns.sort_by(|a, b| (&a.path, a.line, &a.id).cmp(&(&b.path, b.line, &b.id)));
     let pdgs: Vec<&Pdg> = fns.iter().filter_map(|f| f.pdg.as_ref()).collect();
     let mut outcomes: Vec<Outcome<'_>> = cluster(&pdgs, params)

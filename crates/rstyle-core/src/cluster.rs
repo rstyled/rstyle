@@ -255,6 +255,7 @@ pub fn cluster(pdgs: &[&Pdg], params: &Params) -> Vec<Cluster> {
     let adjacency = similar(pdgs, &wls, &pairs_to_compare(pdgs), params);
     let mut free: BTreeSet<usize> = adjacency.keys().copied().collect();
     let mut found = Vec::new();
+
     while let Some(seed) = next_seed(&adjacency, &free) {
         let group: Vec<usize> = adjacency[&seed]
             .iter()

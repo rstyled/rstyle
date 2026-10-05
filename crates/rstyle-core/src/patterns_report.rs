@@ -57,6 +57,7 @@ pub fn run(facts: &[FnFacts], options: &Options) -> PatternsReport {
         .filter(|c| c.score_milli >= options.min_score_milli)
         .take(options.top.unwrap_or(usize::MAX))
         .collect();
+
     PatternsReport {
         candidates,
         suppressed: mined.suppressed,
@@ -157,6 +158,7 @@ pub fn text(report: &PatternsReport) -> String {
         groups,
         section(format!("{} candidates", found.len()), found),
     ];
+
     if !report.suppressed.is_empty() {
         let lines = report
             .suppressed
