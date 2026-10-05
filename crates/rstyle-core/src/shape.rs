@@ -146,6 +146,7 @@ fn qualifiers(sig: &SigFacts) -> String {
         .filter(|(on, _)| *on)
         .map(|(_, word)| *word)
         .collect();
+
     text.push_str("fn");
     if sig.generics > 0 {
         text.push_str(&format!("<{}>", sig.generics));
@@ -160,6 +161,7 @@ pub fn normalize(sig: &SigFacts) -> NormSig {
         .map(String::from)
         .into_iter()
         .collect();
+
     args.extend(sig.params.iter().map(|ty| namer.render(ty)));
     NormSig {
         key: format!(
