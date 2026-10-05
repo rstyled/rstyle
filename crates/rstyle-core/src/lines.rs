@@ -20,6 +20,7 @@ fn line_has_code(line: &str, depth: &mut usize) -> bool {
     let bytes = line.as_bytes();
     let mut index = 0;
     let mut has_code = false;
+
     while index < bytes.len() {
         let rest = &bytes[index..];
         if rest.starts_with(b"/*") {
