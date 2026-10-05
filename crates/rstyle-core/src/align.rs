@@ -194,42 +194,39 @@ fn has_edge(list: &[Nb], node: usize, tag: u64) -> bool {
     list.iter().any(|nb| nb.node == node && nb.tag == tag)
 }
 
+/// For each neighbour in `from_side` whose node is matched (through `image_of`), whether
+/// the same-tag edge to its image exists in `to_side`. Applied to both edge directions.
+fn mirrored<'a>(
+    sides: [(&'a [Nb], &'a [Nb]); 2],
+    image_of: &'a [Option<usize>],
+) -> impl Iterator<Item = bool> + 'a {
+    sides.into_iter().flat_map(move |(from_side, to_side)| {
+        from_side.iter().filter_map(move |nb| {
+            let image = image_of[nb.node]?;
+            Some(has_edge(to_side, image, nb.tag))
+        })
+    })
+}
+
 /// Neighbours of `a` that are matched, split into those the counterpart `b` mirrors
 /// (agree) and those it does not (conflict).
 fn evidence(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> (usize, usize) {
     let sides = [
-        (&ctx.wa.graph.inc[a], &ctx.wb.graph.inc[b]),
-        (&ctx.wa.graph.out[a], &ctx.wb.graph.out[b]),
+        (&ctx.wa.graph.inc[a][..], &ctx.wb.graph.inc[b][..]),
+        (&ctx.wa.graph.out[a][..], &ctx.wb.graph.out[b][..]),
     ];
-    sides
-        .iter()
-        .flat_map(|(mine, theirs)| {
-            mine.iter().filter_map(|nb| {
-                let image = m.fwd[nb.node]?;
-                Some(has_edge(theirs, image, nb.tag))
-            })
-        })
-        .fold((0, 0), |(agree, conflict), ok| {
-            (agree + usize::from(ok), conflict + usize::from(!ok))
-        })
+    mirrored(sides, &m.fwd).fold((0, 0), |(agree, conflict), ok| {
+        (agree + usize::from(ok), conflict + usize::from(!ok))
+    })
 }
 
 /// Edges of `b` into matched nodes that `a` does not mirror.
 fn reverse_conflicts(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> usize {
     let sides = [
-        (&ctx.wb.graph.inc[b], &ctx.wa.graph.inc[a]),
-        (&ctx.wb.graph.out[b], &ctx.wa.graph.out[a]),
+        (&ctx.wb.graph.inc[b][..], &ctx.wa.graph.inc[a][..]),
+        (&ctx.wb.graph.out[b][..], &ctx.wa.graph.out[a][..]),
     ];
-    sides
-        .iter()
-        .flat_map(|(theirs, mine)| {
-            theirs.iter().filter_map(|nb| {
-                let preimage = m.back[nb.node]?;
-                Some(!has_edge(mine, preimage, nb.tag))
-            })
-        })
-        .filter(|missing| *missing)
-        .count()
+    mirrored(sides, &m.back).filter(|ok| !ok).count()
 }
 
 fn classes(colors: &[u64], ordinal: &[usize]) -> BTreeMap<u64, Vec<usize>> {
