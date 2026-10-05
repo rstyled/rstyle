@@ -27,6 +27,7 @@ pub fn parse(comment_line: &str) -> Suppression {
         return Suppression::Invalid("malformed rstyle-allow comment".into());
     };
     let reason = tail.strip_prefix(':').map_or("", str::trim);
+
     if reason.is_empty() {
         return Suppression::Invalid("rstyle-allow requires a reason after `:`".into());
     }
