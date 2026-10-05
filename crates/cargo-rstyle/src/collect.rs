@@ -34,6 +34,7 @@ pub fn read_facts(dir: &Path, wanted: &Wanted<'_>) -> Result<Vec<FnFacts>, Strin
         .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
         .filter(|name| wanted.accepts(name))
         .collect();
+
     names.sort();
     let mut all = Vec::new();
     for name in names {
