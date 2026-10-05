@@ -2,6 +2,10 @@
 //!
 //! It is a final filter on reported candidates. Analysis never sees it.
 
+mod matching;
+
+pub use matching::{Applied, Hidden, Matched, Opts, add, apply, matches, prune};
+
 use crate::candidates::{CandidateKind, Site};
 use crate::wl::fnv1a;
 use serde::Deserialize;
