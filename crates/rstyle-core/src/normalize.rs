@@ -690,6 +690,12 @@ fn manual_counter(pdg: &Pdg, step: usize) -> Option<(usize, usize, usize)> {
     ok.then_some((init, amount, looped))
 }
 
+/// Adds `extra` edges, then removes `dead` nodes with every edge touching them.
+fn rewire(pdg: Pdg, extra: Vec<PdgEdge>, dead: &BTreeSet<usize>) -> Pdg {
+    let edges = dedup(pdg.edges.iter().copied().chain(extra).collect());
+    without(Pdg { edges, ..pdg }, dead)
+}
+
 /// The loop node stands for the counter: whatever read `n` reads the loop, and the
 /// initialisation and the `n += 1` step disappear.
 fn manual_counters(pdg: Pdg) -> Pdg {
@@ -700,14 +706,17 @@ fn manual_counters(pdg: Pdg) -> Pdg {
         })
         .collect();
     let counter_of = |n: usize| found.iter().find(|f| f.1 == n).map(|f| f.3);
-    let reads = pdg.edges.iter().filter_map(|e| {
-        let looped = counter_of(e.from)?;
-        let step = found.iter().any(|f| f.0 == e.to);
-        (e.kind == EdgeKind::Data && !step).then_some(PdgEdge { from: looped, ..*e })
-    });
-    let dead: BTreeSet<usize> = found.iter().flat_map(|&(s, i, a, _)| [s, i, a]).collect();
-    let edges = dedup(pdg.edges.iter().copied().chain(reads).collect());
-    without(Pdg { edges, ..pdg }, &dead)
+    let reads = pdg
+        .edges
+        .iter()
+        .filter_map(|e| {
+            let looped = counter_of(e.from)?;
+            let step = found.iter().any(|f| f.0 == e.to);
+            (e.kind == EdgeKind::Data && !step).then_some(PdgEdge { from: looped, ..*e })
+        })
+        .collect();
+    let dead = found.iter().flat_map(|&(s, i, a, _)| [s, i, a]).collect();
+    rewire(pdg, reads, &dead)
 }
 
 /// `while n < 3 { body }` where `n` is a counter loop: the guard is the loop bound, so the body
@@ -740,13 +749,16 @@ fn loop_guards(pdg: Pdg) -> Pdg {
     let found: Vec<(usize, usize, usize, usize)> = (0..pdg.nodes.len())
         .filter_map(|g| guard(g).map(|(owner, op, bound)| (g, owner, op, bound)))
         .collect();
-    let body = pdg.edges.iter().filter_map(|e| {
-        let (_, owner, ..) = found.iter().find(|f| f.0 == e.from)?;
-        (e.kind == EdgeKind::Ctrl).then_some(PdgEdge { from: *owner, ..*e })
-    });
-    let dead: BTreeSet<usize> = found.iter().flat_map(|&(g, _, op, b)| [g, op, b]).collect();
-    let edges = dedup(pdg.edges.iter().copied().chain(body).collect());
-    without(Pdg { edges, ..pdg }, &dead)
+    let body = pdg
+        .edges
+        .iter()
+        .filter_map(|e| {
+            let (_, owner, ..) = found.iter().find(|f| f.0 == e.from)?;
+            (e.kind == EdgeKind::Ctrl).then_some(PdgEdge { from: *owner, ..*e })
+        })
+        .collect();
+    let dead = found.iter().flat_map(|&(g, _, op, b)| [g, op, b]).collect();
+    rewire(pdg, body, &dead)
 }
 
 fn counter_loops(pdg: Pdg) -> Pdg {
