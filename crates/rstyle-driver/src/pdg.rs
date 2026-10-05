@@ -114,6 +114,7 @@ fn for_parts<'tcx>(
         PatKind::Struct(_, [field], _) => field.pat,
         _ => return None,
     };
+
     Some((head, pat, some.body))
 }
 
@@ -428,6 +429,7 @@ impl<'tcx> Builder<'tcx> {
             self.call_node(expr, target)
         };
         let index = self.add(node);
+
         if target.is_none() {
             let value = self.expr(callee);
             self.link(value, index, 0);
@@ -449,6 +451,7 @@ impl<'tcx> Builder<'tcx> {
             .map(|id| self.tcx.item_name(id).to_string())
             .unwrap_or_default();
         let outside = def_id.is_some_and(|id| !ids::in_workspace(self.tcx, id, &self.root));
+
         if args.is_empty() && outside && TRANSPARENT.contains(&name.as_str()) {
             return self.expr(receiver);
         }
@@ -486,6 +489,7 @@ impl<'tcx> Builder<'tcx> {
         };
         let index = self.add(node);
         let value = self.expr(head);
+
         self.link(value, index, 0);
         if let Some(pat) = item {
             self.bind(pat, index);
@@ -507,6 +511,7 @@ impl<'tcx> Builder<'tcx> {
         };
         let index = self.add(node);
         let value = self.expr(head);
+
         self.link(value, index, 0);
         self.bind(pat, index);
         self.under(index, 0, |b| b.expr(body));
@@ -519,6 +524,7 @@ impl<'tcx> Builder<'tcx> {
             ..self.typed(NodeKind::Macro, expr)
         });
         let mut args = UserArgs::default();
+
         intravisit::walk_expr(&mut args, expr);
         self.operands(index, &args.found, 0);
         index
@@ -568,6 +574,7 @@ impl<'tcx> Builder<'tcx> {
     ) -> usize {
         let node = self.add(self.typed(NodeKind::Let, expr));
         let value = self.expr(init);
+
         self.link(value, node, 0);
         self.bind(pat, node);
         node
@@ -582,6 +589,7 @@ impl<'tcx> Builder<'tcx> {
     ) -> usize {
         let node = self.add(self.typed(NodeKind::Branch, expr));
         let value = self.expr(cond);
+
         self.link(value, node, 0);
         self.under(node, 0, |b| b.expr(then));
         if let Some(other) = otherwise {
@@ -599,6 +607,7 @@ impl<'tcx> Builder<'tcx> {
     ) -> usize {
         let node = self.add(self.typed(NodeKind::Match, expr));
         let value = self.expr(scrutinee);
+
         self.link(value, node, 0);
         for (position, arm) in arms.iter().enumerate() {
             self.bind(arm.pat, node);
