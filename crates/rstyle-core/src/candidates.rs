@@ -5,7 +5,7 @@ use crate::align::HoleKind;
 use crate::cluster::{Cluster, Column, Params, cluster};
 use crate::dispatch::{Dispatch, find};
 use crate::facts::{EdgeKind, FnFacts, NodeKind, Pdg, Receiver};
-use crate::shape::normalize;
+use crate::shape::{normalize, short};
 use crate::sigmine::SigGroup;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -108,14 +108,10 @@ impl<'a> Index<'a> {
     fn display_callee(&self, value: &str) -> String {
         match (self.by_id.get(value), self.callee_owners.get(value)) {
             (Some(f), _) => f.name.clone(),
-            (None, Some(owner)) => format!("{owner}::{}", last_segment(value)),
+            (None, Some(owner)) => format!("{owner}::{}", short(value)),
             (None, None) => last_two(value),
         }
     }
-}
-
-fn last_segment(id: &str) -> &str {
-    id.rsplit("::").next().unwrap_or(id)
 }
 
 fn callee_owners(facts: &[FnFacts]) -> BTreeMap<&str, String> {

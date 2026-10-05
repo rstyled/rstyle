@@ -19,7 +19,7 @@ pub struct NormSig {
 }
 
 /// Last path segment: `alloc::string::String` -> `String`.
-fn short(id: &str) -> &str {
+pub(crate) fn short(id: &str) -> &str {
     id.rsplit("::").next().unwrap_or(id)
 }
 

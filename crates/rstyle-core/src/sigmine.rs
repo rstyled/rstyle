@@ -2,7 +2,7 @@
 //! This is a blocking key for later layers, not a finding by itself.
 
 use crate::facts::FnFacts;
-use crate::shape::normalize;
+use crate::shape::{normalize, short};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -43,18 +43,11 @@ fn member(f: &FnFacts, self_ty: &str) -> Member {
     }
 }
 
-fn short_name(name: &str) -> &str {
-    name.rsplit("::").next().unwrap_or(name)
-}
-
 /// Largest number of distinct types that share one short method name (0 or 1: none).
 fn shared_name_types(members: &[Member]) -> usize {
     let mut owners: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
     for m in members {
-        owners
-            .entry(short_name(&m.name))
-            .or_default()
-            .insert(&m.self_ty);
+        owners.entry(short(&m.name)).or_default().insert(&m.self_ty);
     }
     owners.values().map(BTreeSet::len).max().unwrap_or(0)
 }
