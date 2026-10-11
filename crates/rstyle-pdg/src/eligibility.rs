@@ -53,6 +53,7 @@ const COMPOUND_OPS: [&str; 10] = ["+=", "-=", "*=", "/=", "%=", "&=", "|=", "^="
 struct Outcome {
     diagnostics: Vec<R0Diagnostic>,
     gap: bool,
+    rejected: bool,
 }
 
 impl Outcome {
@@ -60,6 +61,7 @@ impl Outcome {
         Self {
             diagnostics: Vec::new(),
             gap: false,
+            rejected: false,
         }
     }
 
@@ -67,6 +69,7 @@ impl Outcome {
         Self {
             diagnostics: vec![diagnostic],
             gap: false,
+            rejected: true,
         }
     }
 
@@ -74,6 +77,7 @@ impl Outcome {
         Self {
             diagnostics: vec![diagnostic],
             gap: true,
+            rejected: false,
         }
     }
 
@@ -85,6 +89,7 @@ impl Outcome {
                 .chain(other.diagnostics)
                 .collect(),
             gap: self.gap || other.gap,
+            rejected: self.rejected || other.rejected,
         }
     }
 
@@ -167,16 +172,12 @@ pub fn classify(facts: &R0FnFacts) -> R0Eligibility {
     };
 
     let outcome = Outcome::combine(vec![
+        check_source_scan(facts),
         check_signature(facts, &ctx),
         check_bindings(facts, &ctx),
         check_node(&facts.body, false, &ctx),
     ]);
-    let rejected = outcome
-        .diagnostics
-        .iter()
-        .any(|found| !found.reason.contains("evidence is unavailable"));
-
-    let status = if rejected {
+    let status = if outcome.rejected {
         EligibilityVerdict::Ineligible
     } else if outcome.gap {
         EligibilityVerdict::Unknown
@@ -187,6 +188,23 @@ pub fn classify(facts: &R0FnFacts) -> R0Eligibility {
     R0Eligibility {
         status,
         diagnostics: outcome.diagnostics,
+    }
+}
+
+fn check_source_scan(facts: &R0FnFacts) -> Outcome {
+    let source = Outcome {
+        diagnostics: facts.source_diagnostics.clone(),
+        gap: false,
+        rejected: !facts.source_diagnostics.is_empty(),
+    };
+
+    if facts.source_scan_complete {
+        source
+    } else {
+        source.merge(evidence_gap(
+            &facts.body,
+            "complete pre-expansion source and conditional-source resolution",
+        ))
     }
 }
 
@@ -639,6 +657,12 @@ fn check_ty_node(node: &R0Node) -> Outcome {
 
 /// Every retained expression must carry a resolved primitive value type.
 fn check_expr_ty(node: &R0Node, what: &str) -> Outcome {
+    if matches!(node.kind.as_str(), "expr_block" | "expr_if")
+        && node.ty.as_ref().is_some_and(|ty| ty.observed == "!")
+    {
+        return Outcome::ok();
+    }
+
     check_scalar_type(node, what, "expression type")
 }
 
@@ -651,7 +675,13 @@ fn check_scalar_type(node: &R0Node, construct: &str, evidence: &str) -> Outcome 
             node,
             "Type is outside the resolved primitive interface.",
         ),
-        None => evidence_gap(node, evidence),
+        None if node.ty.is_none() => evidence_gap(node, evidence),
+        None => error(
+            "rust.additional-types",
+            construct,
+            node,
+            "Compiler-resolved value type is outside the primitive R0 subset.",
+        ),
     }
 }
 

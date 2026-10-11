@@ -11,7 +11,10 @@ pub mod cfg;
 pub mod eligibility;
 pub mod frontend;
 pub mod model;
+pub mod producer;
 pub mod validate;
+pub mod value_sites;
+pub use value_sites::validate_value_sites;
 
 pub use eligibility::{classify, span};
 pub use frontend::{

@@ -33,6 +33,37 @@ pub struct StrictBundle<'a> {
     pub ctx: &'a ValidationContext,
 }
 
+/// Narrow producer handoff: verify the captured HIR/source/build evidence,
+/// then use the unchanged strict imported-document admission boundary.
+pub fn admit_produced(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &rstyle_pdg::R0FnFacts,
+) -> Result<ImportedFunction, Vec<String>> {
+    rstyle_pdg::producer::verify(pair, facts)?;
+    let source_bytes = pair
+        .pdg
+        .sources
+        .iter()
+        .map(|source| (source.id.clone(), facts.source.bytes.as_bytes().to_vec()))
+        .collect();
+    let width = facts
+        .build
+        .pointer_width
+        .value
+        .and_then(|v| u8::try_from(v).ok())
+        .ok_or_else(|| vec!["Missing captured target width".to_string()])?;
+    let ctx = ValidationContext::CompilerEvidence {
+        pointer_width_bits: width,
+    };
+
+    admit_strict(&StrictBundle {
+        pdg: &pair.pdg,
+        cfg: &pair.cfg,
+        source_bytes: &source_bytes,
+        ctx: &ctx,
+    })
+}
+
 /// Admit one validated document pair into a matching input.
 ///
 /// Every check must pass: PDG eligibility, clean CFG validation, identical
@@ -131,7 +162,8 @@ fn assemble_function(
     ctx: &ValidationContext,
 ) -> Result<ImportedFunction, Vec<String>> {
     let reachability = node_reachability(cfg, map);
-    let nodes = import_nodes(pdg, &reachability);
+    let value_sites = rstyle_pdg::validate_value_sites(pdg, cfg)?;
+    let nodes = import_nodes(pdg, &reachability, &value_sites);
     let inputs = import_interface(&pdg.function.inputs);
     let outputs = import_interface(&pdg.function.outputs);
     let name = import_name(pdg);
@@ -214,13 +246,19 @@ fn collect_results<T, E>(results: impl Iterator<Item = Result<T, E>>) -> Result<
 fn import_nodes(
     pdg: &PdgDocument,
     reachability: &BTreeMap<String, bool>,
+    value_sites: &BTreeSet<String>,
 ) -> Result<Vec<ImportedNode>, Vec<String>> {
-    collect_results(pdg.nodes.iter().map(|node| import_node(node, reachability)))
+    collect_results(
+        pdg.nodes
+            .iter()
+            .map(|node| import_node(node, reachability, value_sites)),
+    )
 }
 
 fn import_node(
     node: &rstyle_pdg::PdgNode,
     reachability: &BTreeMap<String, bool>,
+    value_sites: &BTreeSet<String>,
 ) -> Result<ImportedNode, String> {
     let procedural = matches!(
         node.category,
@@ -249,7 +287,7 @@ fn import_node(
         reachable,
         defines_binding: !node.attributes.defines.is_empty(),
         reads_or_writes: !node.attributes.reads.is_empty() || !node.attributes.writes.is_empty(),
-        value_site_reachable: false,
+        value_site_reachable: value_sites.contains(&node.id),
         read_symbols: read_symbols(node),
         registered_meaning: node.attributes.description.clone(),
     })
@@ -333,7 +371,7 @@ fn param_role_token(role: rstyle_pdg::ParamRole) -> &'static str {
 /// fact with `()` normalized to `unit`. Alias spellings are never rewritten.
 fn resolve_type(param: &rstyle_pdg::Parameter) -> Result<String, String> {
     if let Some(extension) = param.extensions.get(RESOLVED_TYPE_KEY) {
-        match extension.as_str() {
+        match resolved_extension_value(extension).as_deref() {
             Some(seen) if is_accepted_type(seen) => return Ok(seen.to_string()),
             Some(seen) => {
                 return Err(format!(
@@ -343,7 +381,7 @@ fn resolve_type(param: &rstyle_pdg::Parameter) -> Result<String, String> {
             }
             None => {
                 return Err(format!(
-                    "interface position {}: resolved-type extension must be a string",
+                    "interface position {}: resolved-type extension must be a known string fact or a legacy string",
                     param.position
                 ));
             }
@@ -362,6 +400,15 @@ fn resolve_type(param: &rstyle_pdg::Parameter) -> Result<String, String> {
             param.position
         )),
     }
+}
+
+fn resolved_extension_value(value: &serde_json::Value) -> Option<String> {
+    if let Some(value) = value.as_str() {
+        return Some(value.to_string());
+    }
+    let fact: rstyle_pdg::StringFact = serde_json::from_value(value.clone()).ok()?;
+
+    fact.known_value().map(str::to_string)
 }
 
 fn is_accepted_type(seen: &str) -> bool {

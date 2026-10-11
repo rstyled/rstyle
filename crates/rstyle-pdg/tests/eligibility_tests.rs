@@ -141,6 +141,8 @@ fn signature(params: Vec<ParamFact>, ret: &str) -> SignatureFacts {
 
 fn build() -> BuildFacts {
     BuildFacts {
+        producer_revision: known_str("synthetic-test-only"),
+        frontend_options: Default::default(),
         rustc_version: known_str("test"),
         rustc_commit: known_str("test"),
         edition: known_str("2021"),
@@ -164,6 +166,8 @@ fn make_facts(
 ) -> R0FnFacts {
     R0FnFacts {
         name: "f".to_string(),
+        source_diagnostics: Vec::new(),
+        source_scan_complete: true,
         fn_span: span(0, 9),
         source: SourceFacts {
             bytes: "fn f() {}".to_string(),

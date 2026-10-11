@@ -222,6 +222,10 @@ pub struct SourceFacts {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BuildFacts {
+    /// Actual producer source revision captured when the compiler driver built.
+    pub producer_revision: StringFact,
+    /// Relevant effective frontend options captured from the active session.
+    pub frontend_options: std::collections::BTreeMap<String, serde_json::Value>,
     /// Exact rustc version string.
     pub rustc_version: StringFact,
     /// rustc commit hash.
@@ -266,6 +270,12 @@ pub struct R0FnFacts {
     pub body: R0Node,
     /// Captured build and semantic-setting evidence.
     pub build: BuildFacts,
+    /// Findings from the owned source before expansion and cfg removal.
+    #[serde(default)]
+    pub source_diagnostics: Vec<R0Diagnostic>,
+    /// Whether the whole owned source was available to the pre-expansion scan.
+    #[serde(default)]
+    pub source_scan_complete: bool,
 }
 
 /// Eligibility verdict over frontend facts (classifier output).

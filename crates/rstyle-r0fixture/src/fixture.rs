@@ -69,11 +69,11 @@ pub struct ReachingExpect(pub String, pub String, pub String);
 
 /// `[producer, consumer, operand position]`.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-pub struct ValueEdgeExpect(pub String, pub String, u32);
+pub struct ValueEdgeExpect(pub String, pub String, pub u32);
 
 /// `[producer, merge, alternative position, outcome, controller]`.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-pub struct AlternativeEdgeExpect(pub String, pub String, u32, pub String, pub String);
+pub struct AlternativeEdgeExpect(pub String, pub String, pub u32, pub String, pub String);
 
 /// `[prerequisite, target]`.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]

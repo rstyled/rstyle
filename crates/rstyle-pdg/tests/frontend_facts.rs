@@ -133,6 +133,8 @@ fn bindings() -> Vec<BindingFact> {
 
 fn build() -> BuildFacts {
     BuildFacts {
+        producer_revision: known_str("synthetic-test-only"),
+        frontend_options: Default::default(),
         rustc_version: known_str("1.101.0-nightly"),
         rustc_commit: known_str("5c543b0b8"),
         edition: known_str("2021"),
@@ -155,6 +157,8 @@ fn straightline_facts() -> R0FnFacts {
     };
 
     R0FnFacts {
+        source_diagnostics: Vec::new(),
+        source_scan_complete: true,
         name: "f".to_string(),
         fn_span: span(0, 36),
         source: SourceFacts {

@@ -717,7 +717,7 @@ fn fresh_successors(
     fresh
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct OperationMapEntry {
     pub cfg_node_id: String,
     pub cfg_operation_id: String,
@@ -950,7 +950,7 @@ fn coverage_issues(map: &[OperationMapEntry], cfg: &CfgDocument) -> Vec<CfgIssue
     issues
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct PairedGraph {
     pub cfg_document_key: String,
     pub pdg_document_key: String,
