@@ -138,6 +138,13 @@ struct ProjectionData {
 }
 
 /// Evaluate every unordered distinct function-key pair, deterministically.
+///
+/// This is the compact stage-fixture path: it checks gate semantics on
+/// caller-supplied [`ImportedFunction`] values without establishing
+/// extraction eligibility or producer conformance. Production matching must
+/// use [`evaluate_strict_documents`](crate::admission::evaluate_strict_documents),
+/// which admits validated PDG + CFG documents through the strict adapter.
+/// Fixture success here never certifies a producer.
 pub fn evaluate_all(functions: &[ImportedFunction], config: &CcgraphConfig) -> RunReport {
     let mut report = new_report(config);
     let duplicates = duplicate_keys(functions);
@@ -593,7 +600,12 @@ fn gate_size_ratio(input: &GateInput) -> GateResult {
 }
 
 fn judge_size_ratio(ratio: Frac, threshold: Frac, detail: BTreeMap<String, String>) -> GateResult {
-    let accepted = ratio.ge(threshold).unwrap_or(false);
+    let accepted = match ratio.ge(threshold) {
+        Ok(accepted) => accepted,
+        Err(error) => {
+            return failed(StageName::SizeRatio, error.what.to_string(), detail);
+        }
+    };
 
     if accepted {
         return gate_record(StageName::SizeRatio, StageOutcome::Passed, detail);
@@ -657,13 +669,14 @@ fn gate_strings(input: &GateInput) -> GateResult {
 
     match scores.mean.ge(input.config.string_threshold) {
         Ok(true) => gate_record(StageName::Strings, StageOutcome::Passed, detail),
-        _ => halted(
+        Ok(false) => halted(
             StageName::Strings,
             StageOutcome::Rejected {
                 reason: "string mean below threshold".to_string(),
             },
             detail,
         ),
+        Err(error) => failed(StageName::Strings, error.what.to_string(), detail),
     }
 }
 

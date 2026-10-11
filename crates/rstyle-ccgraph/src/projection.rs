@@ -22,8 +22,28 @@ pub enum NodeDisposition {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EdgeDisposition {
+    Retained { reason: &'static str },
+    Dropped { reason: &'static str },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EdgeTrace {
+    /// Index of the occurrence in the imported edge list; parallel edges on
+    /// identical endpoints keep distinct indices.
+    pub occurrence_index: usize,
+    pub source: String,
+    pub target: String,
+    pub family: rstyle_pdg::EdgeFamily,
+    /// Imported origin reference (edge id when supplied, else occurrence index).
+    pub origin: String,
+    pub disposition: EdgeDisposition,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectionTrace {
     pub nodes: Vec<(String, NodeDisposition)>,
+    pub edges: Vec<EdgeTrace>,
     pub edges_retained: usize,
     pub edges_dropped: usize,
     pub dropped_for_unreachable: usize,
@@ -183,26 +203,84 @@ fn trace_projection(
         .iter()
         .map(|n| (n.id.clone(), disposition(n, kept)))
         .collect();
-    let unreachable: BTreeSet<&str> = func
-        .nodes
-        .iter()
-        .filter(|n| !kept.contains(&n.id) && !n.reachable && !is_boundary(n))
-        .map(|n| n.id.as_str())
-        .collect();
-    let dropped_for_unreachable = func
-        .edges
-        .iter()
-        .filter(|e| !kept.contains(&e.source) || !kept.contains(&e.target))
-        .filter(|e| {
-            unreachable.contains(e.source.as_str()) || unreachable.contains(e.target.as_str())
-        })
-        .count();
+
+    let unreachable = unreachable_ids(func, kept);
+    let edges = trace_edges(func, kept, &unreachable);
+    let dropped_for_unreachable = count_unreachable_drops(&edges, &unreachable);
+
     ProjectionTrace {
         nodes,
         edges_retained: graph.edges.len(),
         edges_dropped: func.edges.len() - graph.edges.len(),
         dropped_for_unreachable,
+        edges,
     }
+}
+
+fn unreachable_ids<'a>(func: &'a ImportedFunction, kept: &BTreeSet<String>) -> BTreeSet<&'a str> {
+    func.nodes
+        .iter()
+        .filter(|n| !kept.contains(&n.id) && !n.reachable && !is_boundary(n))
+        .map(|n| n.id.as_str())
+        .collect()
+}
+
+fn trace_edges(
+    func: &ImportedFunction,
+    kept: &BTreeSet<String>,
+    unreachable: &BTreeSet<&str>,
+) -> Vec<EdgeTrace> {
+    func.edges
+        .iter()
+        .enumerate()
+        .map(|(index, e)| trace_one(index, e, kept, unreachable))
+        .collect()
+}
+
+fn trace_one(
+    index: usize,
+    e: &ImportedEdge,
+    kept: &BTreeSet<String>,
+    unreachable: &BTreeSet<&str>,
+) -> EdgeTrace {
+    EdgeTrace {
+        occurrence_index: index,
+        source: e.source.clone(),
+        target: e.target.clone(),
+        family: e.family,
+        origin: e.origin.clone(),
+        disposition: edge_disposition(e, kept, unreachable),
+    }
+}
+
+fn edge_disposition(
+    e: &ImportedEdge,
+    kept: &BTreeSet<String>,
+    unreachable: &BTreeSet<&str>,
+) -> EdgeDisposition {
+    if kept.contains(&e.source) && kept.contains(&e.target) {
+        return EdgeDisposition::Retained {
+            reason: "retained-edge-occurrence",
+        };
+    }
+    if unreachable.contains(e.source.as_str()) || unreachable.contains(e.target.as_str()) {
+        return EdgeDisposition::Dropped {
+            reason: "dropped-entry-unreachable",
+        };
+    }
+    EdgeDisposition::Dropped {
+        reason: "dropped-removed-endpoint",
+    }
+}
+
+fn count_unreachable_drops(edges: &[EdgeTrace], unreachable: &BTreeSet<&str>) -> usize {
+    edges
+        .iter()
+        .filter(|e| matches!(e.disposition, EdgeDisposition::Dropped { .. }))
+        .filter(|e| {
+            unreachable.contains(e.source.as_str()) || unreachable.contains(e.target.as_str())
+        })
+        .count()
 }
 
 fn disposition(node: &ImportedNode, kept: &BTreeSet<String>) -> NodeDisposition {

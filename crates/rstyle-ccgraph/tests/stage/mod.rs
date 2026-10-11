@@ -57,10 +57,12 @@ fn compact_edges(edges: &serde_json::Value) -> Vec<ImportedEdge> {
         .as_array()
         .expect("edges array")
         .iter()
-        .map(|edge| ImportedEdge {
+        .enumerate()
+        .map(|(index, edge)| ImportedEdge {
             source: edge[0].as_str().expect("source").to_string(),
             target: edge[1].as_str().expect("target").to_string(),
             family: parse_family(edge[2].as_str().expect("family")),
+            origin: format!("stage-edge-{index}"),
         })
         .collect()
 }

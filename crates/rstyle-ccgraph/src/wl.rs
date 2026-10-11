@@ -13,7 +13,8 @@ use std::collections::{BTreeMap, BTreeSet};
 /// Maximum finite shortest-path distance over reachable distinct ordered
 /// vertex pairs, following recorded direction. Unreachable pairs are
 /// ignored; graphs without one return 0. Parallel edges and lone
-/// self-edges never lengthen a distance.
+/// self-edges never lengthen a distance. Each vertex is discovered and
+/// enqueued at most once per source BFS, so parallel-edge fans stay linear.
 pub fn diameter(graph: &ProjectedGraph) -> usize {
     let mut best = 0;
     for start in graph.ordered_ids() {
@@ -28,8 +29,7 @@ fn farthest_from(graph: &ProjectedGraph, start: &str) -> usize {
     let mut best = 0;
 
     while !frontier.is_empty() {
-        let fresh = fresh_targets(graph, &frontier, &seen);
-        seen.extend(fresh.iter().cloned());
+        let fresh = fresh_targets(graph, &frontier, &mut seen);
         best += usize::from(!fresh.is_empty());
         frontier = fresh;
     }
@@ -40,19 +40,19 @@ fn farthest_from(graph: &ProjectedGraph, start: &str) -> usize {
 fn fresh_targets(
     graph: &ProjectedGraph,
     frontier: &[String],
-    seen: &BTreeSet<String>,
+    seen: &mut BTreeSet<String>,
 ) -> Vec<String> {
-    frontier
-        .iter()
-        .flat_map(|current| {
-            graph
-                .edges
-                .iter()
-                .filter(move |edge| edge.source == *current)
-        })
-        .map(|edge| edge.target.clone())
-        .filter(|target| !seen.contains(target))
-        .collect()
+    let mut fresh = Vec::new();
+    for current in frontier {
+        for edge in graph.edges.iter().filter(|edge| edge.source == *current) {
+            // Discover-once: insert at discovery so parallel edges sharing one
+            // target enqueue that target a single time.
+            if seen.insert(edge.target.clone()) {
+                fresh.push(edge.target.clone());
+            }
+        }
+    }
+    fresh
 }
 
 /// Pair depth: diameter of the fewer-node graph; on equal counts the

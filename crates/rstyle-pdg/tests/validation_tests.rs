@@ -351,10 +351,16 @@ fn unknown_policy_is_ineligible_under_compiler_evidence() {
 #[test]
 fn compiler_evidence_requires_source_digests() {
     let mut doc = base_doc();
-    doc.profile = ProfileId {
+    let r0 = ProfileId {
         id: R0_POLICY_ID.to_string(),
         version: R0_POLICY_VERSION.to_string(),
     };
+    doc.profile = r0.clone();
+
+    for edge in &mut doc.edges {
+        edge.policy = r0.clone();
+    }
+
     let ctx = ValidationContext::CompilerEvidence {
         pointer_width_bits: 64,
     };
@@ -367,14 +373,82 @@ fn compiler_evidence_requires_source_digests() {
             .any(|i| i.code == "pdg.source-identity")
     );
     doc.sources[0].content_identity = StringFact::known(
-        "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
     );
-    let report = validate(&doc, &ctx, &BTreeMap::new());
+    let bytes = BTreeMap::from([("s0".to_string(), b"a".to_vec())]);
+    let report = validate(&doc, &ctx, &bytes);
     assert_eq!(
         report.matching,
         Eligibility::Eligible,
         "{:?}",
         report.issues
+    );
+    assert!(report.spans_bound_checked);
+}
+
+#[test]
+fn wrong_digest_is_ineligible() {
+    let mut doc = base_doc();
+    let r0 = ProfileId {
+        id: R0_POLICY_ID.to_string(),
+        version: R0_POLICY_VERSION.to_string(),
+    };
+    doc.profile = r0.clone();
+
+    for edge in &mut doc.edges {
+        edge.policy = r0.clone();
+    }
+
+    doc.sources[0].content_identity = StringFact::known(
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    );
+    let ctx = ValidationContext::CompilerEvidence {
+        pointer_width_bits: 64,
+    };
+    let bytes = BTreeMap::from([("s0".to_string(), b"a".to_vec())]);
+    let report = validate(&doc, &ctx, &bytes);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(report.issues.iter().any(|i| i.code == "pdg.source-digest"));
+}
+
+#[test]
+fn missing_source_bytes_fail_closed_under_compiler_evidence() {
+    let mut doc = base_doc();
+    let r0 = ProfileId {
+        id: R0_POLICY_ID.to_string(),
+        version: R0_POLICY_VERSION.to_string(),
+    };
+    doc.profile = r0.clone();
+
+    for edge in &mut doc.edges {
+        edge.policy = r0.clone();
+    }
+
+    doc.sources[0].content_identity = StringFact::known(
+        "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+    );
+    let ctx = ValidationContext::CompilerEvidence {
+        pointer_width_bits: 64,
+    };
+    let report = validate(&doc, &ctx, &BTreeMap::new());
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(!report.spans_bound_checked);
+}
+
+#[test]
+fn false_not_applicable_call_claim_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes
+        .push(source_node("n_c", NodeCategory::Call, empty_attrs()));
+    // calls is NotApplicable in the fixture capabilities; a call node
+    // contradicts that claim even before call-target evidence is considered.
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(
+        report
+            .issues
+            .iter()
+            .any(|i| i.code == "pdg.false-not-applicable")
     );
 }
 
@@ -454,7 +528,10 @@ fn cfg_entry_with_incoming_edge_is_flagged() {
         id: "x".to_string(),
         source: "b".to_string(),
         target: "E".to_string(),
-        kind: "normal".to_string(),
+        kind: CfgEdgeKind::Normal,
+        case_value: None,
+        loop_role: None,
+        reason: None,
     });
     assert!(
         validate_cfg(&bad)
@@ -463,54 +540,94 @@ fn cfg_entry_with_incoming_edge_is_flagged() {
     );
 }
 
+fn cfg_producer() -> CfgProducer {
+    CfgProducer {
+        name: "fixture-author".to_string(),
+        version: "0".to_string(),
+        language: "Rust".to_string(),
+        language_version: StringFact::known("1.0"),
+        configuration: BTreeMap::new(),
+    }
+}
+
+fn cfg_nodes() -> Vec<CfgNode> {
+    vec![
+        CfgNode {
+            id: "E".to_string(),
+            kind: CfgNodeKind::Entry,
+            origin: "synthetic entry".to_string(),
+            exit_kind: None,
+            operations: Vec::new(),
+        },
+        CfgNode {
+            id: "b".to_string(),
+            kind: CfgNodeKind::Block,
+            origin: "test operation".to_string(),
+            exit_kind: None,
+            operations: vec![CfgOperation {
+                id: "op0".to_string(),
+                original_kind: "k".to_string(),
+                text: "t".to_string(),
+                source_span: span(),
+            }],
+        },
+        CfgNode {
+            id: "X".to_string(),
+            kind: CfgNodeKind::Exit,
+            origin: "synthetic exit".to_string(),
+            exit_kind: Some(CfgExitKind::Normal),
+            operations: Vec::new(),
+        },
+    ]
+}
+
+fn cfg_edges() -> Vec<CfgEdge> {
+    vec![
+        CfgEdge {
+            id: "c0".to_string(),
+            source: "E".to_string(),
+            target: "b".to_string(),
+            kind: CfgEdgeKind::Normal,
+            case_value: None,
+            loop_role: None,
+            reason: None,
+        },
+        CfgEdge {
+            id: "c1".to_string(),
+            source: "b".to_string(),
+            target: "X".to_string(),
+            kind: CfgEdgeKind::Return,
+            case_value: None,
+            loop_role: None,
+            reason: None,
+        },
+    ]
+}
+
 fn cfg_doc() -> CfgDocument {
     CfgDocument {
         schema_version: CFG_SCHEMA_VERSION.to_string(),
-        profile: profile(),
+        profile: r0_profile(),
+        producer: cfg_producer(),
+        sources: vec![CfgSource {
+            id: "s0".to_string(),
+            path: "a.rs".to_string(),
+            content_identity: StringFact::missing(FactStatus::Unknown, "hand-authored"),
+            content: None,
+        }],
+        function: CfgFunction {
+            id: "f".to_string(),
+            name: StringFact::known("alpha"),
+            source_span: span(),
+        },
         entry_node_id: "E".to_string(),
         exit_node_ids: vec!["X".to_string()],
-        nodes: vec![
-            CfgNode {
-                id: "E".to_string(),
-                kind: CfgNodeKind::Entry,
-                origin: "o".to_string(),
-                exit_kind: None,
-                operations: Vec::new(),
-            },
-            CfgNode {
-                id: "b".to_string(),
-                kind: CfgNodeKind::Block,
-                origin: "o".to_string(),
-                exit_kind: None,
-                operations: vec![CfgOperation {
-                    id: "op0".to_string(),
-                    original_kind: "k".to_string(),
-                    text: "t".to_string(),
-                    source_span: span(),
-                }],
-            },
-            CfgNode {
-                id: "X".to_string(),
-                kind: CfgNodeKind::Exit,
-                origin: "o".to_string(),
-                exit_kind: Some("normal".to_string()),
-                operations: Vec::new(),
-            },
-        ],
-        edges: vec![
-            CfgEdge {
-                id: "c0".to_string(),
-                source: "E".to_string(),
-                target: "b".to_string(),
-                kind: "normal".to_string(),
-            },
-            CfgEdge {
-                id: "c1".to_string(),
-                source: "b".to_string(),
-                target: "X".to_string(),
-                kind: "return".to_string(),
-            },
-        ],
+        nodes: cfg_nodes(),
+        edges: cfg_edges(),
+        extraction_evidence: CfgExtractionEvidence {
+            status: ExtractionStatus::Complete,
+            limitations: Vec::new(),
+        },
         extensions: BTreeMap::new(),
     }
 }
@@ -540,4 +657,195 @@ fn correspondence_rejects_unknown_pdg_nodes_and_shared_vertices() {
 
 fn singleton_ids(ids: [&str; 1]) -> std::collections::BTreeSet<String> {
     ids.iter().map(|s| s.to_string()).collect()
+}
+
+fn op_map_entry(node: &str, op: &str, pdg: &str) -> OperationMapEntry {
+    OperationMapEntry {
+        cfg_node_id: node.to_string(),
+        cfg_operation_id: op.to_string(),
+        pdg_node_id: pdg.to_string(),
+    }
+}
+
+#[test]
+fn correspondence_requires_complete_coverage() {
+    let cfg = cfg_doc();
+    let pdg = singleton_ids(["n0"]);
+    let empty: Vec<OperationMapEntry> = Vec::new();
+    assert!(
+        validate_correspondence(&empty, &cfg, &pdg)
+            .iter()
+            .any(|i| i.code == "cfg.operation-map-incomplete")
+    );
+}
+
+#[test]
+fn correspondence_rejects_duplicate_mappings() {
+    let cfg = cfg_doc();
+    let pdg: std::collections::BTreeSet<String> =
+        ["n0", "n1"].iter().map(|s| s.to_string()).collect();
+    let map = vec![
+        op_map_entry("b", "op0", "n0"),
+        op_map_entry("b", "op0", "n1"),
+    ];
+    assert!(
+        validate_correspondence(&map, &cfg, &pdg)
+            .iter()
+            .any(|i| i.code == "cfg.operation-map-duplicate")
+    );
+}
+
+#[test]
+fn paired_documents_must_agree() {
+    let map =
+        serde_json::json!([{"cfg_node_id": "b", "cfg_operation_id": "op0", "pdg_node_id": "n0"}]);
+    let link = serde_json::json!({"cfg_document_key": "c1", "pdg_document_key": "p1"});
+    let pdg_ext: Extensions = BTreeMap::from([
+        (OPERATION_MAP_KEY.to_string(), map.clone()),
+        (PAIRED_GRAPH_KEY.to_string(), link.clone()),
+    ]);
+    let cfg_ext = pdg_ext.clone();
+    assert!(validate_paired_agreement(&pdg_ext, &cfg_ext).is_empty());
+
+    let mut other_map: Extensions = BTreeMap::new();
+    other_map.insert(
+        OPERATION_MAP_KEY.to_string(),
+        serde_json::json!([{"cfg_node_id": "b", "cfg_operation_id": "op0", "pdg_node_id": "n9"}]),
+    );
+    other_map.insert(PAIRED_GRAPH_KEY.to_string(), link);
+    assert!(
+        validate_paired_agreement(&pdg_ext, &other_map)
+            .iter()
+            .any(|i| i.code == "cfg.paired-operation-map")
+    );
+}
+
+#[test]
+fn exit_id_must_name_an_exit_node() {
+    let mut cfg = cfg_doc();
+    cfg.exit_node_ids = vec!["b".to_string()];
+    assert!(validate_cfg(&cfg).iter().any(|i| i.code == "cfg.exit"));
+}
+
+#[test]
+fn unlisted_exit_node_is_flagged() {
+    let mut cfg = cfg_doc();
+    cfg.nodes.push(CfgNode {
+        id: "X2".to_string(),
+        kind: CfgNodeKind::Exit,
+        origin: "extra exit".to_string(),
+        exit_kind: Some(CfgExitKind::Normal),
+        operations: Vec::new(),
+    });
+    assert!(validate_cfg(&cfg).iter().any(|i| i.code == "cfg.exit"));
+}
+
+fn has_code(report: &ValidationReport, code: &str) -> bool {
+    report.issues.iter().any(|i| i.code == code)
+}
+
+#[test]
+fn unclaimed_definition_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes[0].attributes.defines.clear();
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.definition-ownership"));
+}
+
+#[test]
+fn edge_policy_mismatch_is_ineligible() {
+    let mut doc = base_doc();
+    doc.edges[0].policy = counted_policy();
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.edge-policy"));
+}
+
+#[test]
+fn empty_edge_subkind_is_ineligible() {
+    let mut doc = base_doc();
+    doc.edges[0].subkind.clear();
+    assert_eq!(check(&doc).matching, Eligibility::Ineligible);
+}
+
+#[test]
+fn read_without_access_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes[1].attributes.reads.clear();
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.read-access"));
+}
+
+#[test]
+fn call_without_callee_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes
+        .push(source_node("n_c", NodeCategory::Call, empty_attrs()));
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.call-target"));
+}
+
+#[test]
+fn control_without_construct_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes
+        .push(source_node("n_p2", NodeCategory::Control, empty_attrs()));
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.control-construct"));
+}
+
+#[test]
+fn bad_extension_key_is_ineligible() {
+    let mut doc = base_doc();
+    doc.extensions
+        .insert("bare".to_string(), serde_json::json!(1));
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.extension-namespace"));
+}
+
+#[test]
+fn unknown_provenance_node_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes[1].provenance.origin_node_ids = vec!["ghost".to_string()];
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.dangling-node"));
+}
+
+#[test]
+fn unknown_edge_definition_is_ineligible() {
+    let mut doc = base_doc();
+    doc.edges[0].definition_id = Some("ghost".to_string());
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.dangling-definition"));
+}
+
+#[test]
+fn unknown_interface_symbol_is_ineligible() {
+    let mut doc = base_doc();
+    doc.function.inputs[0].symbol_id = Some("ghost".to_string());
+    assert_eq!(check(&doc).matching, Eligibility::Ineligible);
+}
+
+#[test]
+fn conformant_claim_does_not_establish_eligibility() {
+    let mut doc = base_doc();
+    doc.extraction_evidence.conformance.push(ConformanceRecord {
+        profile: profile(),
+        status: ConformanceStatus::Conformant,
+        reasons: Vec::new(),
+    });
+    doc.edges.push(edge("e9", "n_r", "ghost"));
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert_eq!(
+        report.producer_conformance,
+        ProducerConformance::NotEvaluated
+    );
 }

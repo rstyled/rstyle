@@ -1,0 +1,71 @@
+{
+  "schema_version": "0.2.0",
+  "profile": {
+    "name": "compat.cfg.illustrative-go-subset",
+    "version": "0.2.0",
+    "granularity": "operation",
+    "evaluation_order": {
+          "sequencing": "language_defined",
+          "short_circuit": "explicit_branches",
+          "unspecified_order": "reject"
+        },
+    "exceptional_flow": "omitted",
+    "exit_policy": "One normal exit receives both return paths. Loop divergence would remain cyclic, without an artificial exit edge. This function has no exceptional or nonreturning operations in the illustrated subset.",
+    "unreachable_code": "preserve"
+  },
+  "producer": {
+    "name": "compat.hand-authored-fixture",
+    "version": "0.1.0",
+    "language": "go",
+    "language_version": {"status": "unknown", "reason": "Illustrative source fragment, not extracted from a versioned Go build."},
+    "configuration": {"fixture": true}
+  },
+  "sources": [
+    {
+      "id": "src:example",
+      "path": "example.go",
+      "content_identity": {"status": "unknown", "reason": "Exact content is embedded for this illustrative fixture; no digest is asserted."},
+      "content": "func firstPositive(n int) int {\n    for n > 0 {\n        if n == 2 {\n            return n\n        }\n        n--\n    }\n    return 0\n}\n"
+    }
+  ],
+  "function": {
+    "id": "fn:firstPositive",
+    "name": {"status": "known", "value": "firstPositive"},
+    "source_span": {"source_id": "src:example", "start": 0, "end": 131}
+  },
+  "entry_node_id": "n0",
+  "exit_node_ids": ["n7"],
+  "nodes": [
+    {"id": "n0", "kind": "entry", "origin": "Synthetic function-entry boundary; parameter n is supplied at entry.", "operations": []},
+    {"id": "n1", "kind": "condition", "origin": "Loop predicate from the for statement.", "operations": [
+      {"id": "op:loop-test", "original_kind": "go.BinaryExpr", "text": "n > 0", "source_span": {"source_id": "src:example", "start": 40, "end": 45}}
+    ]},
+    {"id": "n2", "kind": "condition", "origin": "Predicate from the nested if statement.", "operations": [
+      {"id": "op:if-test", "original_kind": "go.BinaryExpr", "text": "n == 2", "source_span": {"source_id": "src:example", "start": 59, "end": 65}}
+    ]},
+    {"id": "n3", "kind": "transfer", "origin": "Early return inside the loop.", "operations": [
+      {"id": "op:early-return", "original_kind": "go.ReturnStmt", "text": "return n", "source_span": {"source_id": "src:example", "start": 80, "end": 88}}
+    ]},
+    {"id": "n4", "kind": "block", "origin": "Decrement in the loop body.", "operations": [
+      {"id": "op:decrement", "original_kind": "go.IncDecStmt", "text": "n--", "source_span": {"source_id": "src:example", "start": 107, "end": 110}}
+    ]},
+    {"id": "n5", "kind": "transfer", "origin": "Return after the loop exits.", "operations": [
+      {"id": "op:final-return", "original_kind": "go.ReturnStmt", "text": "return 0", "source_span": {"source_id": "src:example", "start": 121, "end": 129}}
+    ]},
+    {"id": "n7", "kind": "exit", "exit_kind": "normal", "origin": "Synthetic normal function-exit boundary shared by both returns.", "operations": []}
+  ],
+  "edges": [
+    {"id": "e0", "source": "n0", "target": "n1", "kind": "normal"},
+    {"id": "e1", "source": "n1", "target": "n2", "kind": "true"},
+    {"id": "e2", "source": "n1", "target": "n5", "kind": "false", "loop_role": "loop_exit"},
+    {"id": "e3", "source": "n2", "target": "n3", "kind": "true"},
+    {"id": "e4", "source": "n2", "target": "n4", "kind": "false"},
+    {"id": "e5", "source": "n3", "target": "n7", "kind": "return", "loop_role": "loop_exit"},
+    {"id": "e6", "source": "n4", "target": "n1", "kind": "normal", "loop_role": "back_edge"},
+    {"id": "e7", "source": "n5", "target": "n7", "kind": "return"}
+  ],
+  "extraction_evidence": {
+    "status": "complete",
+    "limitations": ["Hand-authored topology for the documented illustrative subset, not a compiler-extraction or TinyPDG conformance result. No binding, def/use, memory, or PDG dependency facts are asserted."]
+  }
+}
