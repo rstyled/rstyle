@@ -60,8 +60,17 @@ pub struct ImportedNode {
     pub id: String,
     pub category: NodeCategory,
     /// Positively identified administrative bookkeeping, without value semantics.
+    ///
+    /// In the compact stage fixtures this arrives as the `administrative` flag.
+    /// That flag is fixture shorthand, not a PDG schema field: production
+    /// evidence is provenance plus the absence of binding semantics, checked
+    /// in `rstyle-pdg` before anything reaches this struct.
     pub administrative: bool,
     /// Reachable from the paired CFG entry (or explicit stage evidence).
+    ///
+    /// Likewise, the fixture `reachable` flag stands in for BFS reachability
+    /// over the paired CFG (`rstyle-pdg::reachable_vertices` plus the
+    /// operation-map correspondence). Absent means reachable.
     pub reachable: bool,
     pub defines_binding: bool,
     pub reads_or_writes: bool,
