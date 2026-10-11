@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/rstyle-core", "crates/rstyle-driver", "crates/cargo-rstyle"]
+members = ["crates/rstyle-core", "crates/rstyle-driver", "crates/cargo-rstyle", "crates/rstyle-pdg", "crates/rstyle-ccgraph"]
 resolver = "3"
 
 [workspace.package]
