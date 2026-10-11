@@ -22,8 +22,28 @@ pub enum NodeDisposition {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EdgeDisposition {
+    Retained { reason: &'static str },
+    Dropped { reason: &'static str },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EdgeTrace {
+    /// Index of the occurrence in the imported edge list; parallel edges on
+    /// identical endpoints keep distinct indices.
+    pub occurrence_index: usize,
+    pub source: String,
+    pub target: String,
+    pub family: rstyle_pdg::EdgeFamily,
+    /// Imported origin reference (edge id when supplied, else occurrence index).
+    pub origin: String,
+    pub disposition: EdgeDisposition,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectionTrace {
     pub nodes: Vec<(String, NodeDisposition)>,
+    pub edges: Vec<EdgeTrace>,
     pub edges_retained: usize,
     pub edges_dropped: usize,
     pub dropped_for_unreachable: usize,
@@ -189,10 +209,49 @@ fn trace_projection(
         .filter(|n| !kept.contains(&n.id) && !n.reachable && !is_boundary(n))
         .map(|n| n.id.as_str())
         .collect();
-    let dropped_for_unreachable = func
+    let edges: Vec<EdgeTrace> = func
         .edges
         .iter()
-        .filter(|e| !kept.contains(&e.source) || !kept.contains(&e.target))
+        .enumerate()
+        .map(|(index, e)| {
+            let retained = kept.contains(&e.source) && kept.contains(&e.target);
+            let (disposition, _kept) = if retained {
+                (
+                    EdgeDisposition::Retained {
+                        reason: "retained-edge-occurrence",
+                    },
+                    true,
+                )
+            } else if unreachable.contains(e.source.as_str())
+                || unreachable.contains(e.target.as_str())
+            {
+                (
+                    EdgeDisposition::Dropped {
+                        reason: "dropped-entry-unreachable",
+                    },
+                    false,
+                )
+            } else {
+                (
+                    EdgeDisposition::Dropped {
+                        reason: "dropped-removed-endpoint",
+                    },
+                    false,
+                )
+            };
+            EdgeTrace {
+                occurrence_index: index,
+                source: e.source.clone(),
+                target: e.target.clone(),
+                family: e.family,
+                origin: e.origin.clone(),
+                disposition,
+            }
+        })
+        .collect();
+    let dropped_for_unreachable = edges
+        .iter()
+        .filter(|e| matches!(e.disposition, EdgeDisposition::Dropped { .. }))
         .filter(|e| {
             unreachable.contains(e.source.as_str()) || unreachable.contains(e.target.as_str())
         })
@@ -202,6 +261,7 @@ fn trace_projection(
         edges_retained: graph.edges.len(),
         edges_dropped: func.edges.len() - graph.edges.len(),
         dropped_for_unreachable,
+        edges,
     }
 }
 

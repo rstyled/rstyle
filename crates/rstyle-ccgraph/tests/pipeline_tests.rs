@@ -421,6 +421,7 @@ fn self_loop_zero_depth_scores_only_initial_labels() {
         source: "x".to_string(),
         target: "x".to_string(),
         family: EdgeFamily::Data,
+        origin: "stage-edge-self".to_string(),
     });
     let bare = stage_function(
         "s",

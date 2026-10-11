@@ -28,7 +28,8 @@ pub use pipeline::{
     evaluate_all,
 };
 pub use projection::{
-    NodeDisposition, Projection, ProjectionFacts, ProjectionFault, ProjectionTrace, project,
+    EdgeDisposition, EdgeTrace, NodeDisposition, Projection, ProjectionFacts, ProjectionFault,
+    ProjectionTrace, project,
 };
 pub use scoring::{Histogram, RoundScores, cosine_score, overlap_score, score_rounds};
 pub use wl::{diameter, pair_depth, refine, weights};

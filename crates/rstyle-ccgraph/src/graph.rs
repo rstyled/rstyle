@@ -78,6 +78,9 @@ pub struct ImportedEdge {
     pub source: String,
     pub target: String,
     pub family: EdgeFamily,
+    /// Origin reference for projection provenance: the imported occurrence
+    /// identity (edge id when the adapter supplies one, else occurrence index).
+    pub origin: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

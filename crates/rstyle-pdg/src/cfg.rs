@@ -212,13 +212,13 @@ fn entry_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
 }
 
 /// Vertices reachable from entry, following recorded CFG direction.
+/// Each vertex is discovered and enqueued once, so parallel-edge fans stay linear.
 pub fn reachable_vertices(doc: &CfgDocument) -> BTreeSet<String> {
     let mut seen = BTreeSet::from([doc.entry_node_id.clone()]);
     let mut frontier = vec![doc.entry_node_id.clone()];
 
     while !frontier.is_empty() {
-        let fresh = fresh_successors(doc, &frontier, &seen);
-        seen.extend(fresh.iter().cloned());
+        let fresh = fresh_successors(doc, &frontier, &mut seen);
         frontier = fresh;
     }
 
@@ -228,14 +228,17 @@ pub fn reachable_vertices(doc: &CfgDocument) -> BTreeSet<String> {
 fn fresh_successors(
     doc: &CfgDocument,
     frontier: &[String],
-    seen: &BTreeSet<String>,
+    seen: &mut BTreeSet<String>,
 ) -> Vec<String> {
-    frontier
-        .iter()
-        .flat_map(|current| doc.edges.iter().filter(move |edge| edge.source == *current))
-        .map(|edge| edge.target.clone())
-        .filter(|target| !seen.contains(target))
-        .collect()
+    let mut fresh = Vec::new();
+    for current in frontier {
+        for edge in doc.edges.iter().filter(|edge| edge.source == *current) {
+            if seen.insert(edge.target.clone()) {
+                fresh.push(edge.target.clone());
+            }
+        }
+    }
+    fresh
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

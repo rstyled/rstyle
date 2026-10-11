@@ -593,7 +593,16 @@ fn gate_size_ratio(input: &GateInput) -> GateResult {
 }
 
 fn judge_size_ratio(ratio: Frac, threshold: Frac, detail: BTreeMap<String, String>) -> GateResult {
-    let accepted = ratio.ge(threshold).unwrap_or(false);
+    let accepted = match ratio.ge(threshold) {
+        Ok(accepted) => accepted,
+        Err(error) => {
+            return failed(
+                StageName::SizeRatio,
+                error.what.to_string(),
+                detail,
+            );
+        }
+    };
 
     if accepted {
         return gate_record(StageName::SizeRatio, StageOutcome::Passed, detail);
@@ -657,13 +666,14 @@ fn gate_strings(input: &GateInput) -> GateResult {
 
     match scores.mean.ge(input.config.string_threshold) {
         Ok(true) => gate_record(StageName::Strings, StageOutcome::Passed, detail),
-        _ => halted(
+        Ok(false) => halted(
             StageName::Strings,
             StageOutcome::Rejected {
                 reason: "string mean below threshold".to_string(),
             },
             detail,
         ),
+        Err(error) => failed(StageName::Strings, error.what.to_string(), detail),
     }
 }
 

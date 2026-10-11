@@ -38,10 +38,12 @@ pub fn stage_function(
         nodes,
         edges: edges
             .into_iter()
-            .map(|(source, target, family)| ImportedEdge {
+            .enumerate()
+            .map(|(index, (source, target, family))| ImportedEdge {
                 source: source.to_string(),
                 target: target.to_string(),
                 family,
+                origin: format!("stage-edge-{index}"),
             })
             .collect(),
         inputs: vec![element("parameter", "i32")],

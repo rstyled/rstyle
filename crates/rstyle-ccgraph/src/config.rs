@@ -115,7 +115,9 @@ fn parse_threshold(value: &serde_json::Value) -> Result<Frac, ConfigError> {
 fn threshold_lexeme(value: &serde_json::Value) -> Result<String, ConfigError> {
     match value {
         serde_json::Value::String(text) => Ok(text.clone()),
-        serde_json::Value::Number(number) => Ok(number.to_string()),
+        // Preserve the exact JSON number lexeme (e.g. 0.50000000000000001)
+        // instead of reconstructing it after an f64 round trip.
+        serde_json::Value::Number(number) => Ok(number.as_str().to_string()),
         _ => Err(config_error(
             "threshold must be a decimal string or number".to_string(),
         )),
