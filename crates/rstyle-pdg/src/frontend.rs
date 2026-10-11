@@ -150,26 +150,62 @@ pub struct ParamFact {
     pub position: u32,
     /// Parameter identifier token span.
     pub name_span: ByteSpan,
+    /// Type annotation span.
+    pub ty_span: ByteSpan,
     /// Resolved parameter type (spelling kept from the annotation).
     pub ty: ResolvedTy,
+    /// Faithful pattern subtree (`pat_binding`, `pat_wild`, ...).
+    pub pat: R0Node,
+}
+
+/// A receiver (`self`) that R0 always rejects, with its source evidence.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiverFact {
+    /// Receiver token span.
+    pub span: ByteSpan,
+    /// Exact source text covered by the span.
+    pub snippet: String,
+}
+
+/// A function-level generic parameter that R0 always rejects.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GenericFact {
+    /// Declared generic name.
+    pub name: String,
+    /// Generic parameter span.
+    pub span: ByteSpan,
 }
 
 /// Owned signature evidence: parameters, return type, and shape.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SignatureFacts {
+    /// Whole-signature span for signature-shape diagnostics.
+    pub sig_span: ByteSpan,
     /// Parameters in source order (`self` excluded; receivers rejected).
     pub params: Vec<ParamFact>,
+    /// Receiver evidence when present.
+    pub receiver: Option<ReceiverFact>,
     /// Resolved return type (`unit` for a default return).
     pub return_ty: ResolvedTy,
+    /// Return type annotation span (function end for a default return).
+    pub return_ty_span: ByteSpan,
     /// Whether a receiver (`self`) is present.
     pub has_self: bool,
     /// ABI name (`Rust` when standard).
     pub abi: StringFact,
-    /// Declared function-level generic parameter names (empty when none).
-    pub generics: Vec<String>,
+    /// Declared function-level generic parameters (empty when none).
+    pub generics: Vec<GenericFact>,
     /// Whether the signature is variadic (C-style `...`).
     pub is_variadic: bool,
+    /// Whether the function is `async`.
+    pub is_async: bool,
+    /// Whether the function body is an `unsafe` block or `unsafe fn`.
+    pub is_unsafe: bool,
+    /// Whether the function is a `const fn`.
+    pub is_const: bool,
 }
 
 /// Exact assessed-function bytes with their verified identity.

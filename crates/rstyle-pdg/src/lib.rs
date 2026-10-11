@@ -8,14 +8,17 @@
 //! here.
 
 pub mod cfg;
+pub mod eligibility;
 pub mod frontend;
 pub mod model;
 pub mod validate;
 
+pub use eligibility::{classify, span};
 pub use frontend::{
-    BindingFact, BuildFacts, ByteSpan, Dispatch, EligibilityVerdict, ExpansionSite, HirRef,
-    ParamFact, PathRes, R0Diagnostic, R0Eligibility, R0FnFacts, R0Node, ResolvedTy, SignatureFacts,
-    SourceFacts, known_bool, known_count, known_str, unknown_bool, unknown_count, unknown_str,
+    BindingFact, BuildFacts, ByteSpan, Dispatch, EligibilityVerdict, ExpansionSite, GenericFact,
+    HirRef, ParamFact, PathRes, R0Diagnostic, R0Eligibility, R0FnFacts, R0Node, ReceiverFact,
+    ResolvedTy, SignatureFacts, SourceFacts, known_bool, known_count, known_str, unknown_bool,
+    unknown_count, unknown_str,
 };
 
 pub use cfg::{

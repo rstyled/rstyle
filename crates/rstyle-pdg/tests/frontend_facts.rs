@@ -82,19 +82,35 @@ fn add_node() -> R0Node {
     }
 }
 
+fn pat_binding() -> R0Node {
+    R0Node {
+        binding: Some("s0".to_string()),
+        binding_mut: Some(false),
+        ..leaf("pat_binding", 5, 6, "a")
+    }
+}
+
 fn signature() -> SignatureFacts {
     SignatureFacts {
+        sig_span: span(0, 20),
         params: vec![ParamFact {
             symbol: "s0".to_string(),
             position: 0,
             name_span: span(5, 6),
+            ty_span: span(8, 11),
             ty: scalar("i32", "i32"),
+            pat: pat_binding(),
         }],
+        receiver: None,
         return_ty: scalar("i32", "i32"),
+        return_ty_span: span(15, 18),
         has_self: false,
         abi: known_str("Rust"),
         generics: Vec::new(),
         is_variadic: false,
+        is_async: false,
+        is_unsafe: false,
+        is_const: false,
     }
 }
 
