@@ -1,0 +1,88 @@
+{
+  "schema_version": "0.1.0",
+  "profile": {"id": "compat.rust.hir-r0", "version": "0.1.0"},
+  "producer": {
+    "name": "hand-authored-schema-example",
+    "version": "0.1.0",
+    "language": "rust",
+    "language_version": {"status": "unknown", "reason": "No compiler was run for this structural example."},
+    "configuration": {"source_text": "fn answer() -> i32 { 1 }\n", "analyzer_execution": "not_run"}
+  },
+  "sources": [{
+    "id": "src",
+    "path": "answer.rs",
+    "content_identity": {"status": "known", "value": "sha256:a2d7afdf7d781a33421b621dbc0aba9c8358074e0e82839b1b14879070281888"}
+  }],
+  "function": {
+    "id": "answer",
+    "name": {"status": "known", "value": "answer"},
+    "qualified_name": {"status": "known", "value": "answer"},
+    "source_span": {"source_id": "src", "start": 0, "end": 24},
+    "inputs": [],
+    "outputs": [{
+      "position": 0,
+      "role": "return",
+      "name": {"status": "not_applicable", "reason": "Unnamed return slot."},
+      "type": {"status": "known", "value": "i32"},
+      "variadic": {"status": "known", "value": false}
+    }],
+    "interface_completeness": {"status": "unknown", "description": "Hand-authored interface; compiler-backed completeness was not evaluated."},
+    "reference_count": {"status": "known", "value": 0}
+  },
+  "symbols": [],
+  "definitions": [],
+  "memory_locations": [],
+  "nodes": [
+    {
+      "id": "literal",
+      "category": "computation",
+      "original_kind": {"status": "known", "value": "literal"},
+      "synthetic": false,
+      "source_span": {"source_id": "src", "start": 21, "end": 22},
+      "attributes": {"literal": {"status": "known", "value": "1"}},
+      "provenance": {"origin": "source", "description": "Hand-authored literal from the example source."},
+      "evidence": {"status": "unknown", "description": "Operation extraction has not been checked against compiler output."}
+    },
+    {
+      "id": "return",
+      "category": "return",
+      "original_kind": {"status": "not_applicable", "reason": "Implicit return of the function tail."},
+      "synthetic": true,
+      "source_span": {"source_id": "src", "start": 21, "end": 22},
+      "attributes": {},
+      "provenance": {"origin": "desugaring", "description": "Implicit tail return represented as a semantic operation.", "origin_node_ids": ["literal"]},
+      "evidence": {"status": "unknown", "description": "Return extraction has not been checked against compiler output."}
+    }
+  ],
+  "edges": [{
+    "id": "literal-return",
+    "source": "literal",
+    "target": "return",
+    "kind": "data",
+    "subkind": "value_operand",
+    "operand_position": 0,
+    "evidence": {"status": "unknown", "description": "Hand-authored value dependency; semantic validation was not run."},
+    "provenance": {"origin": "analysis", "description": "Tail value supplied to the implicit return."}
+  }],
+  "extraction_evidence": {
+    "capabilities": {
+      "node_extraction": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "scalar_reaching_definitions": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "branch_merges": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "loop_carried_dependencies": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "control_dependencies": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "execution_dependencies": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "returns": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "calls": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "parameters": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "closures": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "macros": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "memory_aliases": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "exceptional_flow": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "concurrency": {"status": "unknown", "description": "Structural example; extraction not run."},
+      "reference_counting": {"status": "unknown", "description": "Structural example; extraction not run."}
+    },
+    "diagnostics": [],
+    "conformance": {"status": "not_evaluated", "reasons": ["Hand-authored schema illustration, not producer conformance evidence."]}
+  }
+}
