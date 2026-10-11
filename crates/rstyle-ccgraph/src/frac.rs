@@ -22,21 +22,26 @@ impl Frac {
                 what: "zero denominator",
             });
         }
+
         let overflow = || ArithError {
             what: "rational overflow",
         };
+
         // Reduce by gcd in unsigned space so i128::MIN never needs negation.
         let num_abs = num.unsigned_abs();
         let den_abs = den.unsigned_abs();
         let divisor = gcd(num_abs, den_abs);
+
         // divisor >= 1; exact division in u128.
         let num_q = num_abs / divisor;
         let den_q = den_abs / divisor;
+
         // Value sign: negative iff exactly one part is negative.
         // Thresholds, counts and scores are nonnegative in practice; the
         // checked paths below only guard against wrapping on extremes.
         let negative = (num < 0) != (den < 0);
         let den = i128::try_from(den_q).map_err(|_| overflow())?;
+
         // A negative numerator may legally be i128::MIN, whose absolute
         // value (2^127) does not fit as a positive i128.
         let num = if negative {
@@ -51,6 +56,7 @@ impl Frac {
         } else {
             i128::try_from(num_q).map_err(|_| overflow())?
         };
+
         // Denominator is positive by construction; num_q/den_q already reduced
         // because the common divisor was removed before applying the sign.
         debug_assert!(den > 0);

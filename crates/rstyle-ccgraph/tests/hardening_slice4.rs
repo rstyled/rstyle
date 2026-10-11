@@ -57,8 +57,7 @@ fn long_parallel_chain_diameter_is_bounded_and_linear() {
 fn exact_decimal_lexeme_survives_json_number_ingestion() {
     // 0.50000000000000001 as a JSON number must not collapse to 0.5 via f64.
     let value: serde_json::Value =
-        serde_json::from_str(r#"{"numerical_threshold": 0.50000000000000001}"#)
-            .expect("parse");
+        serde_json::from_str(r#"{"numerical_threshold": 0.50000000000000001}"#).expect("parse");
     let config = parse_config(&value).expect("config");
     assert_eq!(
         config.numerical_threshold,
@@ -120,15 +119,8 @@ fn arithmetic_failure_is_error_and_marks_run_incomplete() {
     };
     // 2 vs 3 nodes: 2*10^38 overflows i128, forcing the size-ratio
     // comparison to fail arithmetically.
-    let report = evaluate_all(
-        &[chain("a", 2, "same"), chain("b", 3, "same")],
-        &config,
-    );
-    let pair = report
-        .pairs
-        .iter()
-        .find(|p| p.first == "a")
-        .expect("pair");
+    let report = evaluate_all(&[chain("a", 2, "same"), chain("b", 3, "same")], &config);
+    let pair = report.pairs.iter().find(|p| p.first == "a").expect("pair");
     let ratio = pair
         .stages
         .iter()
@@ -144,7 +136,10 @@ fn arithmetic_failure_is_error_and_marks_run_incomplete() {
         "arithmetic failure must mark the run incomplete"
     );
     assert!(
-        !report.pairs.iter().all(|p| p.decision == Decision::Rejected)
+        !report
+            .pairs
+            .iter()
+            .all(|p| p.decision == Decision::Rejected)
             || report.incomplete,
         "a complete run must not contain only rejected pairs after failure"
     );
@@ -182,11 +177,6 @@ fn projection_trace_records_each_edge_occurrence_and_origin() {
     let made = project(&doubled).expect("projects");
     assert_eq!(made.graph.edges.len(), 3);
     assert_eq!(made.trace.edges.len(), 3);
-    let origins: Vec<&str> = made
-        .trace
-        .edges
-        .iter()
-        .map(|e| e.origin.as_str())
-        .collect();
+    let origins: Vec<&str> = made.trace.edges.iter().map(|e| e.origin.as_str()).collect();
     assert_eq!(origins, vec!["occ-0", "occ-1", "occ-2"]);
 }

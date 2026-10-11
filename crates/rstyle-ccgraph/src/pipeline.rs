@@ -596,11 +596,7 @@ fn judge_size_ratio(ratio: Frac, threshold: Frac, detail: BTreeMap<String, Strin
     let accepted = match ratio.ge(threshold) {
         Ok(accepted) => accepted,
         Err(error) => {
-            return failed(
-                StageName::SizeRatio,
-                error.what.to_string(),
-                detail,
-            );
+            return failed(StageName::SizeRatio, error.what.to_string(), detail);
         }
     };
 
