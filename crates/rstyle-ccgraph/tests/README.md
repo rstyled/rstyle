@@ -20,3 +20,18 @@ production, reachability comes from BFS over the paired CFG entry
 (`rstyle-pdg::reachable_vertices` plus the operation-map correspondence),
 and administrative-ness is proven from provenance plus the absence of
 binding semantics (`rstyle-pdg` validation).
+
+## Reading the projection expectations
+
+`expected.features` is the nine-coordinate numeric vector in fixed order
+(`NumOfCtrlEdges, NumOfExcEdges, NumOfDataEdges, NumOfDeclNodes,
+NumOfAssignNodes, NumOfCtrlNodes, NumOfStateNodes, NumOfOtherNodes,
+NumOfReference`), recomputed from the retained slice: edge occurrences keep
+multiplicity and family, the five node counts sum to the projected size,
+and the reference count covers distinct symbols read by retained reads
+only (unreachable reads do not count).
+
+`expected.forbidden` lists wrong implementations that must not produce
+those numbers: removing synthetic formal inputs, splicing boundary-node
+neighbors, counting unreachable reads, and deduplicating distinct edge
+families that share endpoints.
