@@ -16,7 +16,6 @@
 
 use crate::model::*;
 use std::collections::{BTreeMap, BTreeSet};
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Eligibility {
     Eligible,
@@ -203,9 +202,7 @@ fn check_policy_identity(doc: &PdgDocument, ctx: &ValidationContext) -> CheckOut
         );
     }
 
-    let known = (doc.profile.id == R0_POLICY_ID && doc.profile.version == R0_POLICY_VERSION)
-        || (doc.profile.id == REFERENCE_COUNT_POLICY_ID
-            && doc.profile.version == REFERENCE_COUNT_POLICY_VERSION);
+    let known = doc.profile.id == R0_POLICY_ID && doc.profile.version == R0_POLICY_VERSION;
     if known {
         return clear();
     }
@@ -416,14 +413,13 @@ fn definition_issues(
 fn check_edge_endpoints(doc: &PdgDocument, nodes: &BTreeSet<String>) -> Vec<Issue> {
     doc.edges
         .iter()
-        .flat_map(|edge| endpoint_issues(edge, nodes, doc))
+        .flat_map(|edge| endpoint_issues(edge, nodes))
         .collect()
 }
 
-fn endpoint_issues(edge: &PdgEdge, nodes: &BTreeSet<String>, doc: &PdgDocument) -> Vec<Issue> {
+fn endpoint_issues(edge: &PdgEdge, nodes: &BTreeSet<String>) -> Vec<Issue> {
     [
         dangling_endpoint_issue(edge, nodes),
-        policy_issue(edge, doc),
         subkind_issue(edge),
         meaning_issue(edge),
         evidence_issue(edge),
@@ -443,24 +439,6 @@ fn dangling_endpoint_issue(edge: &PdgEdge, nodes: &BTreeSet<String>) -> Option<I
         "pdg.dangling-edge",
         format!("edge {:?} names an unknown endpoint", edge.id),
     ))
-}
-
-fn policy_issue(edge: &PdgEdge, doc: &PdgDocument) -> Option<Issue> {
-    if edge.policy.id.is_empty() || edge.policy.version.is_empty() {
-        return Some(issue(
-            "pdg.policy-identity",
-            format!("edge {:?} lacks a policy identity", edge.id),
-        ));
-    }
-
-    if edge.policy != doc.profile {
-        return Some(issue(
-            "pdg.edge-policy",
-            format!("edge {:?} policy must match the document profile", edge.id),
-        ));
-    }
-
-    None
 }
 
 fn subkind_issue(edge: &PdgEdge) -> Option<Issue> {
@@ -1064,11 +1042,7 @@ fn symbol_extension_issues(doc: &PdgDocument) -> Vec<Issue> {
 fn check_provenance_references(doc: &PdgDocument) -> CheckOutput {
     let nodes = collect_ids(&doc.nodes, |n| &n.id);
     let sources = collect_ids(&doc.sources, |s| &s.id);
-    let blocking = [
-        node_provenance_issues(doc, &nodes, &sources),
-        edge_provenance_issues(doc),
-    ]
-    .concat();
+    let blocking = node_provenance_issues(doc, &nodes, &sources);
 
     CheckOutput {
         blocking,
@@ -1083,7 +1057,7 @@ fn node_provenance_issues(
 ) -> Vec<Issue> {
     doc.nodes
         .iter()
-        .flat_map(|node| provenance_issues(node, nodes, sources, &doc.profile))
+        .flat_map(|node| provenance_issues(node, nodes, sources))
         .collect()
 }
 
@@ -1091,15 +1065,10 @@ fn provenance_issues(
     node: &PdgNode,
     nodes: &BTreeSet<String>,
     sources: &BTreeSet<String>,
-    profile: &ProfileId,
 ) -> Vec<Issue> {
     let mut out = Vec::new();
     out.extend(dangling_origin_issues(node, nodes));
     out.extend(dangling_origin_span_issues(node, sources));
-
-    if let Some(complaint) = provenance_policy_issue(&node.provenance.policy, profile, &node.id) {
-        out.push(complaint);
-    }
 
     out
 }
@@ -1129,27 +1098,6 @@ fn dangling_origin_span_issues(node: &PdgNode, sources: &BTreeSet<String>) -> Ve
                 format!("node {:?} provenance names unknown source", node.id),
             )
         })
-        .collect()
-}
-
-fn provenance_policy_issue(
-    policy: &Option<ProfileId>,
-    profile: &ProfileId,
-    owner: &str,
-) -> Option<Issue> {
-    match policy {
-        Some(seen) if seen != profile => Some(issue(
-            "pdg.provenance-policy",
-            format!("{owner:?} provenance policy must match the document profile"),
-        )),
-        _ => None,
-    }
-}
-
-fn edge_provenance_issues(doc: &PdgDocument) -> Vec<Issue> {
-    doc.edges
-        .iter()
-        .filter_map(|edge| provenance_policy_issue(&edge.provenance.policy, &doc.profile, &edge.id))
         .collect()
 }
 

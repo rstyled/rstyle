@@ -384,8 +384,8 @@ fn check_interface(func: &ImportedFunction, reasons: &mut Vec<String>) {
 }
 
 fn check_reference(func: &ImportedFunction, reasons: &mut Vec<String>) {
-    if func.reference_count.is_none() || !func.reference_policy_ok {
-        reasons.push("reference count must be known under the recorded policy".to_string());
+    if func.reference_count.is_none() {
+        reasons.push("reference count must be known".to_string());
     }
 }
 

@@ -163,8 +163,7 @@ fn assemble_function(
         inputs: inputs.unwrap_or_default(),
         outputs: outputs.unwrap_or_default(),
         name: name.ok(),
-        reference_count: reference.as_ref().ok().map(|first| first.0),
-        reference_policy_ok: reference.as_ref().is_ok_and(|second| second.1),
+        reference_count: reference.as_ref().ok().copied(),
         target_pointer_width: width,
         native_width_involved: native,
     })
@@ -392,24 +391,12 @@ fn import_name(pdg: &PdgDocument) -> Result<String, String> {
     }
 }
 
-fn import_reference(pdg: &PdgDocument) -> Result<(u64, bool), Vec<String>> {
+fn import_reference(pdg: &PdgDocument) -> Result<u64, Vec<String>> {
     let count = &pdg.function.reference_count;
 
-    let value = match (count.status, count.value) {
-        (rstyle_pdg::FactStatus::Known, Some(seen)) => Some(seen),
-        _ => None,
-    };
-    let policy_ok = count.policy.as_ref().is_some_and(|policy| {
-        policy.id == rstyle_pdg::REFERENCE_COUNT_POLICY_ID
-            && policy.version == rstyle_pdg::REFERENCE_COUNT_POLICY_VERSION
-    });
-
-    match (value, policy_ok) {
-        (Some(seen), true) => Ok((seen, true)),
-        (Some(_), false) => Err(vec![
-            "reference count must use the recorded counting policy".to_string(),
-        ]),
-        (None, _) => Err(vec!["reference count must be known".to_string()]),
+    match (count.status, count.value) {
+        (rstyle_pdg::FactStatus::Known, Some(seen)) => Ok(seen),
+        _ => Err(vec!["reference count must be known".to_string()]),
     }
 }
 

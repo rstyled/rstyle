@@ -93,8 +93,8 @@ pub struct ImportedFunction {
     /// Known nonempty unqualified identifier; `None` is missing evidence.
     pub name: Option<String>,
     /// Known reference count; `None` is unknown and never coerced to zero.
+    /// Counts follow the root extraction profile's counting rule.
     pub reference_count: Option<u64>,
-    pub reference_policy_ok: bool,
     pub target_pointer_width: Option<u16>,
     pub native_width_involved: bool,
 }

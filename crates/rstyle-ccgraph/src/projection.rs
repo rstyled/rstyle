@@ -321,9 +321,9 @@ fn projection_facts(
         None => Err(ineligible(
             "unknown reference count cannot be projected".to_string(),
         )),
-        Some(known) if !func.reference_policy_ok || known != recomputed => Err(ineligible(
-            format!("producer reference count {known} disagrees with recomputed {recomputed}"),
-        )),
+        Some(known) if known != recomputed => Err(ineligible(format!(
+            "producer reference count {known} disagrees with recomputed {recomputed}"
+        ))),
         Some(known) => Ok(ProjectionFacts {
             reference_count: known,
             category_counts: count_labels(func, kept)?,
