@@ -138,6 +138,13 @@ struct ProjectionData {
 }
 
 /// Evaluate every unordered distinct function-key pair, deterministically.
+///
+/// This is the compact stage-fixture path: it checks gate semantics on
+/// caller-supplied [`ImportedFunction`] values without establishing
+/// extraction eligibility or producer conformance. Production matching must
+/// use [`evaluate_strict_documents`](crate::admission::evaluate_strict_documents),
+/// which admits validated PDG + CFG documents through the strict adapter.
+/// Fixture success here never certifies a producer.
 pub fn evaluate_all(functions: &[ImportedFunction], config: &CcgraphConfig) -> RunReport {
     let mut report = new_report(config);
     let duplicates = duplicate_keys(functions);

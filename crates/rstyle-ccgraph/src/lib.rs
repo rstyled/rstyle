@@ -5,6 +5,7 @@
 //! call/memory support, no grouping or abstraction proposals, and no
 //! semantic-equivalence claims.
 
+pub mod admission;
 pub mod config;
 pub mod features;
 pub mod frac;
@@ -15,6 +16,7 @@ pub mod projection;
 pub mod scoring;
 pub mod wl;
 
+pub use admission::{RESOLVED_TYPE_KEY, StrictBundle, admit_strict, evaluate_strict_documents};
 pub use config::{CcgraphConfig, ConfigError, Scoring, parse_config};
 pub use features::{FEATURE_NAMES, Vector9, cosine_parts, cosine_passes, numerical_features};
 pub use frac::{ArithError, Frac};
