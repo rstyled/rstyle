@@ -1,0 +1,130 @@
+{
+  "profile": {"id": "compat.ccgraph.strict", "version": "0.1.0"},
+  "status": "specified_not_implemented",
+  "schema_versions": {"cfg": "0.2.0", "pdg": "0.1.0"},
+  "normative_document": "ccgraph-profile.md",
+  "rust_extraction_profile": {"id": "compat.rust.hir-r0", "version": "0.1.0"},
+  "projection": {
+    "policy": "conservative-reachable-operations",
+    "remove_categories_if_administrative": ["entry", "exit"],
+    "drop_incident_edges_without_splicing": true,
+    "exclude_entry_unreachable": true,
+    "retain_formal_inputs": true,
+    "retain_required_value_merges": true,
+    "canonicalization": "none",
+    "memory_summary": "ineligible_without_separate_profile"
+  },
+  "category_mapping": {
+    "declaration": "DECL",
+    "assignment": "ASSIGN",
+    "control": "CTRL",
+    "call": "STATE",
+    "read": "OTHER",
+    "computation": "OTHER",
+    "formal_input": "OTHER",
+    "return": "OTHER",
+    "formal_output": "OTHER",
+    "merge": "OTHER",
+    "other": "OTHER"
+  },
+  "numerical_features": [
+    "NumOfCtrlEdges", "NumOfExcEdges", "NumOfDataEdges",
+    "NumOfDeclNodes", "NumOfAssignNodes", "NumOfCtrlNodes",
+    "NumOfStateNodes", "NumOfOtherNodes", "NumOfReference"
+  ],
+  "reference_count_policy": "distinct-retained-read-bindings",
+  "string_features": ["ReturnPara", "IntroPara", "Name"],
+  "interface_serialization": "compact-json-role-type-variadic-tuples",
+  "type_normalization": {
+    "unit": "unit",
+    "accepted_tokens": ["bool", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize", "unit"],
+    "erase_integer_width": false,
+    "erase_signedness": false
+  },
+  "jaro_winkler": {
+    "unit": "unicode-scalar-value",
+    "orientation": "shorter-first-then-codepoint-lexicographic",
+    "matching_window": "max(0,floor(max_length/2)-1)",
+    "matching": "left-to-right-first-unmatched-equal-in-window",
+    "transpositions": "matched-sequence-disagreements/2",
+    "prefix_cap": 4,
+    "prefix_scale": 0.1,
+    "boost": "always",
+    "both_empty": 1,
+    "one_empty": 0,
+    "no_matches": 0,
+    "aggregation": "arithmetic-mean-of-three-fields"
+  },
+  "wl": {
+    "initial_labels": "category_mapping",
+    "edge_labels": ["data", "control", "execution"],
+    "neighbor_encoding": "separate-in-out-sorted-edge-family-and-previous-label-multisets",
+    "include_operand_positions": false,
+    "include_branch_outcomes": false,
+    "preserve_multiplicity": true,
+    "update": "synchronous",
+    "compression": "shared-exact-sequence-interning",
+    "diameter": "max-finite-directed-distance",
+    "distance_unit": "edges",
+    "unreachable_pairs": "ignore",
+    "depth": "diameter-of-fewer-nodes-tie-min-diameter",
+    "round_zero": "included",
+    "round_weight": "h+1-r",
+    "refinement_cap": null,
+    "graph_size_fallback": null
+  },
+  "scoring": {
+    "default": "smaller_graph_overlap",
+    "experimental": ["cross_product_cosine"],
+    "smaller_graph_overlap": {
+      "round_match_count": "sum_c min(a_r(c),b_r(c))",
+      "aggregation": "weighted-average-match-count",
+      "normalization": "divide-by-smaller-node-count"
+    },
+    "cross_product_cosine": {
+      "round_kernel": "sum_c a_r(c)*b_r(c)",
+      "aggregation": "weighted-sum",
+      "normalization": "KAB/sqrt(KAA*KBB)",
+      "self_kernel_depth": "same-pair-selected-depth-and-weights"
+    }
+  },
+  "defaults": {
+    "minimum_projected_nodes": 1,
+    "minimum_size_ratio": 0.8,
+    "numerical_threshold": 0.9,
+    "string_threshold": 0.5,
+    "final_threshold": 0.9,
+    "scoring": "smaller_graph_overlap"
+  },
+  "configuration": {
+    "allowed_overrides": ["minimum_size_ratio", "numerical_threshold", "string_threshold", "final_threshold", "scoring"],
+    "threshold_domain": "finite-decimal-in-[0,1]",
+    "zero_size_ratio": "disable-ratio-rejection-only",
+    "unknown_keys": "error",
+    "record_effective_configuration": true
+  },
+  "gates": {
+    "order": ["validation", "projection", "nonempty", "size_ratio", "numerical", "strings", "wl_final"],
+    "composition": "sequential-AND",
+    "comparison": ">=",
+    "compare_unrounded": true,
+    "exact_boundary_policy": "decimal-thresholds-as-rationals-cosine-by-squared-comparison",
+    "preliminary_wl_gate": false,
+    "skipped_stage": "not_evaluated"
+  },
+  "pairs": {
+    "enumeration": "exhaustive-unordered-distinct-function-keys",
+    "self_pairs": false,
+    "reverse_duplicates": false,
+    "grouping": "outside-profile",
+    "resource_limit": "diagnostic-not-silent-truncation"
+  },
+  "evidence": {
+    "producer_claims": "validate-not-trust",
+    "unknown_required_fact": "ineligible-with-diagnostic",
+    "required_normal_flow": "supported-under-registered-extraction-policy",
+    "exceptional_flow": "disclosed-omissions-permitted-only-under-bounded-normal-flow-policy",
+    "semantic_equivalence": "not_claimed",
+    "original_tool_reproduction": "not_claimed"
+  }
+}
