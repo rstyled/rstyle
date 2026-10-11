@@ -1,143 +1,155 @@
-# R0 coverage ledger (`compat.rust.hir-r0 / 0.1.0`)
+# HIR R0 coverage ledger
 
-Independent record of what the HIR R0 producer has demonstrated, what
-remains, and under which bounds conformance claims hold. Pinned contracts
-are never edited here; this file only cites them.
+Authority: compat `04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f`, vendored unchanged
+in `vendor-compat/rust-r0`. Targets are `compat.rust.hir-r0/0.1.0`, PDG `0.1.0`
+and CFG `0.2.0`. Landed imported-contract hardening is `a9da3eb`, an ancestor
+of this branch; its strict adapter and validation tests remain in use. Later
+root-policy transport changes (`314e91b`, `820bd39`, `9c9d324`) are also retained.
 
-## 1. Authority and baseline
+## Verified implementation and bounded claims
 
-- Authoritative compat revision: `04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f`
-  (vendored byte-for-byte under `vendor-compat/rust-r0/`, see `ORIGIN.md`).
-- Targets: extraction profile `compat.rust.hir-r0 / 0.1.0`, PDG `0.1.0`,
-  CFG `0.2.0`.
-- Landed imported-contract-hardening revision: `a9da3eb`
-  (`fix(patterns): merge import partition loop, dismiss reviewed candidates`,
-  tip of `ccgraph/imported-contract-hardening`), ancestor of this branch.
-  Its strict admission adapter (`crates/rstyle-ccgraph/src/admission.rs`)
-  and PDG validation boundary (`crates/rstyle-pdg/src/validate.rs`,
-  `crates/rstyle-pdg/src/cfg.rs`) are present and all workspace tests pass.
-- Branch: `ccgraph/hir-r0-producer`. Legacy extraction/matching behavior is
-  unchanged; no legacy graph is relabeled R0-conformant.
-- Producer assertions alone never establish eligibility: every accepted
-  document must cross the hardened validation/admission boundary, and every
-  comparison must run against the independent expectations in
-  `crates/rstyle-r0fixture` (never derived from producer routines).
+The opt-in driver captures pre-expansion owned-body source, resolved HIR,
+types, built-in dispatch, lexical bindings, exact original UTF-8 bytes (including
+CRLF normalization reversal), compiler identity, target layout and settings.
+Compiler-private dependencies remain in the driver. Compiler-independent
+lowering, dataflow, dominance, value lowering and serialization live in
+`rstyle-pdg`. Legacy defaults and matching algorithms are unchanged.
 
-## 2. Capability status
+All 23 pinned cases run through the pinned real rustc. The 16 accepted cases
+compare exact operation inventories/spans, CFG transfers, dependence multisets,
+binding/definition inventories, specified read/IN/OUT definition sets,
+literal/operator/role attributes, and merge guard/frontier expectations.
+Both documents validate against the pinned schemas, their exact serialized
+bytes validate against external manifests, and accepted documents cross
+`admit_produced` and the real strict imported boundary. Seven negative cases
+check the independently specified eligibility and diagnostic spans.
 
-`unimplemented` = no producer evidence. `in_progress` = partial,
-boundary-described work. `verified` = producer output compared exactly
-against independent expectations **and** admitted through the hardened
-boundary. Schema acceptance alone never advances a status.
+Capability support is bounded to these independently exercised cases and the
+additional tests below. The fixture pack is not exhaustive certification of
+all integer widths/operators or of deferred Rust constructs.
 
-| Capability ID | Status | Evidence / boundary |
-| --- | --- | --- |
-| `rust.scalar-interface` | unimplemented | Expectation side parsed + selectors resolve (`rstyle-r0fixture`). No producer type evidence. |
-| `rust.local-bindings` | unimplemented | Same as above. |
-| `rust.local-writes` | unimplemented | Same as above. |
-| `rust.scalar-computation` | unimplemented | Same as above. |
-| `rust.blocks` | unimplemented | Same as above. |
-| `rust.branching` | unimplemented | Same as above. |
-| `rust.short-circuit` | unimplemented | Same as above. |
-| `rust.returns` | unimplemented | Same as above. |
-| `rust.control-dependence` | unimplemented | Same as above. |
-| `rust.execution-dependence` | unimplemented | Same as above. |
-| Deferred (`rust.call-summaries`, `rust.abstract-memory`, `rust.loops`, `rust.match`, `rust.for-iteration`, `rust.closures`, `rust.macros`, `rust.async`, `rust.unsafe`, `rust.unwinding-cleanup`, `rust.unspecified-order`, `rust.additional-types`, `rust.nonreturning-calls`, `rust.divergence`, `rust.conservative-call-effects`, `rust.precise-aliasing`) | unimplemented | Negative fixtures parsed; rejection diagnostics carry capability IDs. No producer rejection evidence yet. |
-
-## 3. Bounded-conformance decisions
-
-- **Record-level policy omission.** The pinned PDG schema permits optional
-  record-level `policy` objects referencing the R0 profile. The workspace
-  transport (root-policy simplification, `vendor-compat/pdg.schema.json`)
-  rejects record-level `policy` fields, and the hardened boundary enforces
-  that. The producer omits them and is governed by the root `profile`
-  (`compat.rust.hir-r0 / 0.1.0`) instead. Omitted fields validate as absent
-  under both schemas; no divergent policy is asserted.
-- **Fixture-local proofs deferred.** Cases requiring exceptional-flow
-  impossibility proofs (e.g. `rhs-first-primitive-compound-write`,
-  `ordinary-binary-old-value-snapshot`) record their concrete local proof
-  text in the fixture; the producer has not reproduced any such proof yet.
-- **Initial pack is not certification.** The 23 vendored cases are the
-  comparison oracle for this milestone, not exhaustive proof of every R0
-  operation or deferred capability. `supported`/`conformant` claims stay
-  scoped to demonstrated cases.
-- **Reference implementation tests are not authority.** Existing legacy
-  graphs, passing implementation tests, and moving compat branches never
-  override the pinned contracts on conflict.
-
-## 4. Fixture cases and producer status
-
-`not_run` = the actual producer has not exercised this case yet.
-Identities are `sha256` of the exact source bytes (no added newline),
-recomputed by `rstyle-r0fixture`.
-
-| Case | Expectation | Producer |
-| --- | --- | --- |
-| straightline-integer-input-and-tail | eligible, exact, CFG partial (overflow panic omitted) | not_run |
-| two-arm-reassignment-reaching-set | eligible, exact, CFG complete | not_run |
-| short-circuit-and-saved-left | eligible, exact, CFG complete | not_run |
-| short-circuit-or-outcomes | eligible, exact, CFG complete | not_run |
-| early-return-controls-continuation | eligible, exact | not_run |
-| returning-arm-does-not-execute-continuation-declaration | eligible, exact | not_run |
-| if-value-effectful-declaration-site | eligible, exact | not_run |
-| saved-left-value-before-branching-operand | eligible, exact | not_run |
-| nested-if-merges-share-site-with-distinct-availability | eligible, exact | not_run |
-| rhs-first-primitive-compound-write | eligible, exact, fixture-local overflow-freedom proof required | not_run |
-| ordinary-binary-old-value-snapshot | eligible, exact | not_run |
-| parameter-shadow-initializer-reads-old-binding | eligible, exact | not_run |
-| empty-unit-body-retains-unused-interface | eligible, exact | not_run |
-| unit-binding-retains-definition-not-value-operands | eligible, exact | not_run |
-| explicit-unit-literal-return | eligible, exact | not_run |
-| unreachable-supported-source-preserved | eligible, exact, reachability + diagnostic edges | not_run |
-| unsupported-unit-comparison-not-builtin | ineligible (`rust.scalar-computation`) | not_run |
-| unsupported-direct-call | ineligible (`rust.call-summaries`) | not_run |
-| unsupported-call-after-return | ineligible (`rust.call-summaries`) | not_run |
-| unsupported-short-circuit-macro | ineligible (`rust.macros`) | not_run |
-| unsupported-nested-item-owner | ineligible (`rust.blocks`) | not_run |
-| unsupported-unnamed-parameter | ineligible (unnamed parameter) | not_run |
-| unsupported-reference-interface | ineligible (reference interface) | not_run |
-
-Source identities (`sha256` of exact bytes):
-
-| Case | Identity |
+| Capability | Verified scope |
 | --- | --- |
-| straightline-integer-input-and-tail | `sha256:b5ea3ee7b934b92de243704c845be5e33602f25909a73d509a63ee98926fc7bf` |
-| two-arm-reassignment-reaching-set | `sha256:64647ff54e9eeaa3f5a74566951bf83412f0f4804fe54fd15138344013c6ce47` |
-| short-circuit-and-saved-left | `sha256:18a069dc5f46744d06c63c09565b609b332d1a1b5e494a591540ee96d19cc9d5` |
-| short-circuit-or-outcomes | `sha256:fc9aec7f1ae63f8f3f0aa6340bf5694f245a92f0781d6351237ca7eae3d4a646` |
-| early-return-controls-continuation | `sha256:4101b865c8a04130768be6409566ec88e7321e66af72d8c423e9a5ac1f742e72` |
-| returning-arm-does-not-execute-continuation-declaration | `sha256:184714834f2e7a9d2624b329bbe8314d8935b6c2a7aa304721173a80dd322358` |
-| if-value-effectful-declaration-site | `sha256:e1453e908393cdb99e3d898735c826795a4922d8d2dfd04fdcb3763f7db1d6fa` |
-| saved-left-value-before-branching-operand | `sha256:17e9d46e1568a3506e30141942330b6d8856726cad12206eaf4816d955a2b3af` |
-| nested-if-merges-share-site-with-distinct-availability | `sha256:de1b0919218cd72ca8d47996c1cd5c67f3da5d683319ce8cce7068d6ea716623` |
-| rhs-first-primitive-compound-write | `sha256:fb756ae61c97ce8337efa7f09117d53dd669f713ff02e1d6414754cc2ca9683c` |
-| ordinary-binary-old-value-snapshot | `sha256:23d35ac8bfcfd0a0a828659767887c16591e568c7ce170f58c3168c7203ca582` |
-| parameter-shadow-initializer-reads-old-binding | `sha256:69ae96b3dd0149d2f6161493860735acee50241ff27d2eb4b3c097d27bf9c227` |
-| empty-unit-body-retains-unused-interface | `sha256:d43610f9a2305442c2f11415cdbd0197570660a73b00b1e7bf34929068c07e4d` |
-| unit-binding-retains-definition-not-value-operands | `sha256:ccbfcb46b35e7f2fdfe55da6e08bb72185acbdf609f2654bf4a49cc34176c194` |
-| explicit-unit-literal-return | `sha256:659440c6fa903ed945787d923029d7e52f964dded40a9` |
-| unreachable-supported-source-preserved | `sha256:7ffcbf92e62fb3852b56e39378b86ebf16c1d15d6d51f76d850665147284eb42` |
-| unsupported-unit-comparison-not-builtin | `sha256:b737f403497b6edd37211806b9cdf71836dab2c6a27e330d916f949d45281cff` |
-| unsupported-direct-call | `sha256:6188228d385e56a65b828bf3c8045f8f75b4c6dca4697cb48d73c466c0e5dd23` |
-| unsupported-call-after-return | `sha256:0b71e167737e91ea9bc35800df1b5d5c1447f9da615b9b544511d8d45cafa278` |
-| unsupported-short-circuit-macro | `sha256:cc285b6793c98b2c01f7330a4015053b7ea0638dcabbfaad7fa32144a108cabe` |
-| unsupported-nested-item-owner | `sha256:a2a1b388d978d42d8cbc840dd2a07cfa72dd2ef5de02a52f1650ed89441b194a` |
-| unsupported-unnamed-parameter | `sha256:bddd05278a459732a1ead8cd34454cf55dd5398d478125294fd6adf8402f7e71` |
-| unsupported-reference-interface | `sha256:27edccddb7ea5560998d297506f6e8115211d99b8c887b57d11fb11f08cb78b1` |
+| scalar interface | integer/bool/unit parameters, unused inputs, return metadata; aliases and mutable parameters additionally exercised |
+| local bindings/writes | initialization, shadowing, direct writes, RHS-first primitive compound updates, unit binding definitions |
+| scalar computation | source literals, saved read snapshots, tested built-in scalar dispatch and operand positions |
+| blocks/returns | source tails/closing braces, explicit returns, unreachable supported suffixes and both-arm returns |
+| branching/short circuit | both outcomes, saved left boolean, returning arms, expression merges and nested availability/frontiers |
+| reaching definitions | exact fixture read sets and specified per-binding kill/gen IN/OUT sets |
+| control/execution | exact reachable postdominance and nearest dominating operation edge multisets |
+| deferred constructs | fixture calls, macros, nested items, unnamed/reference interfaces and unit comparisons; additional negative cases below |
 
-## 5. Remaining obligations
+## Pinned wire contract versus workspace transport
 
-- [ ] Frontend evidence: run the pinned rustc over exact fixture source
-      bytes; resolve HIR, types, and lexical bindings (slice 2).
-- [ ] Strict eligibility scan with capability diagnostics, including
-      unreachable/short-circuited/cfg-disabled source (slice 2).
-- [ ] Operation CFG construction with exact lowering rules (slice 3).
-- [ ] Reaching definitions, operand snapshots, postdominance control,
-      nearest-dominator execution, merge guards/frontiers (slice 4).
-- [ ] Schema-faithful paired PDG/CFG emission with build evidence (slice 5).
-- [ ] Semantic validation through the hardened boundary; exceptional-flow
-      limitation reporting; fixture-local proofs (slice 6).
-- [ ] Adversarial/regression coverage: tamper rejection, ID/array
-      invariance, determinism, producer-handoff test (slice 7).
-- [ ] Out of scope (not started here): source-to-pair integration, bounded
-      quality study, R1, matching-profile changes.
+The pinned PDG schema **requires** policies on edges and known reference counts,
+and uses an array of profile-specific conformance assessments. The later workspace
+transport uses a root profile and a single assessment. `producer::pinned` emits
+the authoritative pinned wire representation and checks every supplied policy
+for agreement before converting back to existing transport models. Required
+policies cannot be missing. CFG operation provenance also carries the pinned
+policy in its permitted extension. No schema or admission requirement is weakened.
+
+## Exceptional flow and evidence limits
+
+Only bounded normal-flow extraction is assessed. Panic/cleanup transfers are
+omitted. Arithmetic assessment uses resolved widths, captured overflow settings,
+checked constant evaluation and reaching-definition snapshots; each relevant
+reachable operation records its checked operands and safety result in a
+namespaced extension. The two arithmetic proof fixtures discharge their local
+constant bounds. Possible hazards yield partial CFG evidence and specific
+limitations. The minimum-i32 literal negation exception is tested.
+
+Unknown constants, including values too large for the current signed-i128 proof
+engine, conservatively retain limitations. These are not rewrite-safety or
+complete Rust execution claims. Conditional body source without complete
+per-source resolution is conservatively unknown, even when rustc removed it;
+known unsupported constructs remain ineligible. No supported remainder is emitted.
+Missing original source/signature evidence fails extraction explicitly rather
+than dropping a function into an eligible empty result.
+
+The handoff verifier recomputes expected normal-flow evidence from captured
+compiler facts. Its analyses share producer routines; the exact fixture oracle
+is separate and never calls those routines to generate expected facts. Serialized
+value-site validation independently enumerates normal paths and recursively
+checks availability, frontiers and snapshots. Broader independent semantic
+oracles remain a future coverage obligation.
+
+## Additional regression and adversarial tests
+
+`crates/rstyle-driver/tests/r0_frontend.rs` exercises:
+
+- UTF-8 identifiers/comments, a leading BOM/prefix, CRLF, original-byte spans.
+- cfg-disabled calls/literals and unresolved removed paths; compiler failures.
+- unreachable closures/casts, nested items, async, macros, generic/tuple interfaces.
+- aliases, mutable parameters, same/nested shadowing, unit writes/discards,
+  both-arm returns and signed-minimum literal negation.
+- independent straight-line inventories/operand positions for every eager
+  integer operator on i32, addition across all 12 integer types, eager boolean
+  operators, all 10 integer compound updates, signed unary negation and
+  representative integer/boolean unary not operations.
+- repeated serialization determinism under identical captured facts.
+- ID renaming and document-array reordering compared to the unchanged baseline
+  using known operation/binding correspondence, followed by strict admission.
+- wrong manifests, source digests, settings, missing/extra edges/correspondence,
+  mismatched/missing wire policies, false capability applicability, definition
+  ownership/reaching sets, guards/frontiers and future-predicate authorization.
+- actual opt-in driver output through serialization, manifest validation and
+  strict admission; rejected functions produce assessments without graph pairs.
+
+## Remaining coverage obligations
+
+Exhaustive operator/type combinations, cross-target builds, all semantic-setting
+combinations, complete adversarial definition-set coverage, and a separately
+implemented general dependence oracle are not claimed as verified by this initial
+pack. The conservative conditional-source evidence gate needs finer resolved
+correspondence before cfg-annotated supported source can receive certification.
+All-target rstyle also reports test/example violations, including the IO-heavy
+compiler harness; default production rstyle is checked separately. No suppressions
+or thresholds were changed.
+
+Source-to-pair orchestration, miner activation, the bounded quality study, R1,
+exceptional flow implementation and matching-profile changes have not started.
+
+## Validation commands and outcomes
+
+- `cargo test -p rstyle-driver --test r0_frontend --locked`: 16 tests passed,
+  including all 23 pinned cases (16 exact accepted cases and seven rejections).
+- `cargo test --workspace --locked`: passed, including imported admission,
+  legacy behavior and the workspace's default style self-test.
+- `cargo fmt --all -- --check`: passed.
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`: passed.
+- `cargo rstyle --format json`: zero production violations.
+- `cargo rstyle patterns --format json`: completed; two low-score parameterize
+  hints (0.218 and 0.198) concern distinct signature/binding checks and distinct
+  imported-read/definition extraction. No common abstraction was justified;
+  no ignore entries were added.
+
+## Pinned case results
+
+Each row is exercised by the actual frontend and the independent fixture harness.
+
+| Case | Result | Exact source identity |
+| --- | --- | --- |
+| straightline-integer-input-and-tail | passed exact extraction/schema/admission | `sha256:b5ea3ee7b934b92de243704c845be5e33602f25909a73d509a63ee98926fc7bf` |
+| two-arm-reassignment-reaching-set | passed exact extraction/schema/admission | `sha256:64647ff54e9eeaa3f5a74566951bf83412f0f4804fe54fd15138344013c6ce47` |
+| short-circuit-and-saved-left | passed exact extraction/schema/admission | `sha256:18a069dc5f46744d06c63c09565b609b332d1a1b5e494a591540ee96d19cc9d5` |
+| short-circuit-or-outcomes | passed exact extraction/schema/admission | `sha256:fc9aec7f1ae63f8f3f0aa6340bf5694f245a92f0781d6351237ca7eae3d4a646` |
+| early-return-controls-continuation | passed exact extraction/schema/admission | `sha256:4101b865c8a04130768be6409566ec88e7321e66af72d8c423e9a5ac1f742e72` |
+| returning-arm-does-not-execute-continuation-declaration | passed exact extraction/schema/admission | `sha256:184714834f2e7a9d2624b329bbe8314d8935b6c2a7aa304721173a80dd322358` |
+| if-value-effectful-declaration-site | passed exact extraction/schema/admission | `sha256:e1453e908393cdb99e3d898735c826795a4922d8d2dfd04fdcb3763f7db1d6fa` |
+| saved-left-value-before-branching-operand | passed exact extraction/schema/admission | `sha256:17e9d46e1568a3506e30141942330b6d8856726cad12206eaf4816d955a2b3af` |
+| nested-if-merges-share-site-with-distinct-availability | passed exact extraction/schema/admission | `sha256:de1b0919218cd72ca8d47996c1cd5c67f3da5d683319ce8cce7068d6ea716623` |
+| rhs-first-primitive-compound-write | passed exact extraction/schema/admission | `sha256:fb756ae61c97ce8337efa7f09117d53dd669f713ff02e1d6414754cc2ca9683c` |
+| ordinary-binary-old-value-snapshot | passed exact extraction/schema/admission | `sha256:23d35ac8bfcfd0a0a828659767887c16591e568c7ce170f58c3168c7203ca582` |
+| parameter-shadow-initializer-reads-old-binding | passed exact extraction/schema/admission | `sha256:69ae96b3dd0149d2f6161493860735acee50241ff27d2eb4b3c097d27bf9c227` |
+| empty-unit-body-retains-unused-interface | passed exact extraction/schema/admission | `sha256:d43610f9a2305442c2f11415cdbd0197570660a73b00b1e7bf34929068c07e4d` |
+| unit-binding-retains-definition-not-value-operands | passed exact extraction/schema/admission | `sha256:ccbfcb46b35e7f2fdfe55da6e08bb72185acbdf609f2654bf4a49cc34176c194` |
+| explicit-unit-literal-return | passed exact extraction/schema/admission | `sha256:659440c6fa903ed945787d923029d7e0e14270fe8b7a24127e52f964dded40a9` |
+| unreachable-supported-source-preserved | passed exact extraction/schema/admission | `sha256:7ffcbf92e62fb3852b56e39378b86ebf16c1d15d6d51f76d850665147284eb42` |
+| unsupported-unit-comparison-not-builtin | passed rejection | `sha256:b737f403497b6edd37211806b9cdf71836dab2c6a27e330d916f949d45281cff` |
+| unsupported-direct-call | passed rejection | `sha256:6188228d385e56a65b828bf3c8045f8f75b4c6dca4697cb48d73c466c0e5dd23` |
+| unsupported-call-after-return | passed rejection | `sha256:0b71e167737e91ea9bc35800df1b5d5c1447f9da615b9b544511d8d45cafa278` |
+| unsupported-short-circuit-macro | passed rejection | `sha256:cc285b6793c98b2c01f7330a4015053b7ea0638dcabbfaad7fa32144a108cabe` |
+| unsupported-nested-item-owner | passed rejection | `sha256:a2a1b388d978d42d8cbc840dd2a07cfa72dd2ef5de02a52f1650ed89441b194a` |
+| unsupported-unnamed-parameter | passed rejection | `sha256:bddd05278a459732a1ead8cd34454cf55dd5398d478125294fd6adf8402f7e71` |
+| unsupported-reference-interface | passed rejection | `sha256:27edccddb7ea5560998d297506f6e8115211d99b8c887b57d11fb11f08cb78b1` |

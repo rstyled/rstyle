@@ -24,10 +24,9 @@ repository at the pinned revision above. Do not hand-edit these files to make
 tests pass; if the contract changes, re-vendor from a new pinned revision and
 record it here.
 
-Note: the pinned PDG schema still carries optional record-level `policy`
-fields. The workspace transport (`vendor-compat/pdg.schema.json`, pinned at
-`283f1fba27f1`) rejects record-level `policy` fields after the root-policy
-simplification. Optional fields validate when absent under both schemas, so
-the R0 producer omits record-level `policy` and is governed by the root
-`profile` (`compat.rust.hir-r0 / 0.1.0`) instead. See the capability/test
-coverage ledger for this and other bounded-conformance decisions.
+The pinned PDG schema requires record policies on edges and known reference
+counts and an array of profile-specific conformance assessments. The later
+workspace transport uses a root profile and a single assessment. The producer's
+checked pinned-wire bridge emits the authoritative format, validates policy
+agreement, then converts to existing transport for strict admission. See
+`R0_COVERAGE_LEDGER.md`; these snapshots have not been modified.
