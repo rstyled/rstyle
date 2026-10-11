@@ -8,6 +8,7 @@
 //! here.
 
 pub mod cfg;
+pub mod collection;
 pub mod eligibility;
 pub mod frontend;
 pub mod model;

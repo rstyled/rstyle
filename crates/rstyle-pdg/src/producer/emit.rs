@@ -381,18 +381,14 @@ fn pdg_edge(index: usize, edge: &Dependence) -> PdgEdge {
 }
 
 fn definitions(graph: &Graph) -> Vec<Definition> {
-    graph
-        .nodes
-        .iter()
-        .filter_map(|node| {
-            node.definition.as_ref().map(|id| Definition {
-                id: id.clone(),
-                node_id: node.id.clone(),
-                symbol_id: node.symbol.clone(),
-                location_id: None,
-            })
+    crate::collection::collect_present(&graph.nodes, |node| {
+        node.definition.as_ref().map(|id| Definition {
+            id: id.clone(),
+            node_id: node.id.clone(),
+            symbol_id: node.symbol.clone(),
+            location_id: None,
         })
-        .collect()
+    })
 }
 
 fn resolved_extension(ty: &ResolvedTy) -> Extensions {

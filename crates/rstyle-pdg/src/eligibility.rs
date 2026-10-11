@@ -96,6 +96,10 @@ impl Outcome {
     fn combine(outcomes: Vec<Self>) -> Self {
         outcomes.into_iter().fold(Self::ok(), Self::merge)
     }
+
+    fn check_each<'a, T>(items: &'a [T], check: impl FnMut(&'a T) -> Self) -> Self {
+        items.iter().map(check).fold(Self::ok(), Self::merge)
+    }
 }
 
 /// Read-only classifier context: binding cross-references.
@@ -360,13 +364,7 @@ fn check_sig_flags(signature: &SignatureFacts) -> Outcome {
 }
 
 fn check_sig_params(signature: &SignatureFacts, ctx: &Ctx<'_>) -> Outcome {
-    Outcome::combine(
-        signature
-            .params
-            .iter()
-            .map(|param| check_param(param, ctx))
-            .collect(),
-    )
+    Outcome::check_each(&signature.params, |param| check_param(param, ctx))
 }
 
 fn check_sig_return(signature: &SignatureFacts) -> Outcome {
@@ -405,49 +403,43 @@ fn check_param(param: &ParamFact, ctx: &Ctx<'_>) -> Outcome {
 fn check_bindings(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
     let mut seen: BTreeSet<&str> = BTreeSet::new();
 
-    Outcome::combine(
-        facts
-            .bindings
-            .iter()
-            .map(|binding| {
-                let duplicate = if seen.insert(binding.symbol.as_str()) {
-                    Outcome::ok()
-                } else {
-                    Outcome::reject(diagnostic(
-                        "rust.local-bindings",
-                        "binding",
-                        &Site {
-                            span: binding.decl_span,
-                            snippet: binding.name.clone(),
-                        },
-                        "Duplicate binding symbol; each definition needs its own ID.",
-                    ))
-                };
-                let table = if ctx.symbols.contains(binding.symbol.as_str()) {
-                    Outcome::ok()
-                } else {
-                    evidence_gap(&binding_node(binding), "binding table entry")
-                };
-                let ty = match norm(&binding.ty) {
-                    Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
-                    // Parameter interface types are diagnosed at the signature;
-                    // the table keeps the entry so reads still resolve.
-                    _ if binding.is_param => Outcome::ok(),
-                    _ => Outcome::reject(diagnostic(
-                        "rust.additional-types",
-                        "binding_type",
-                        &Site {
-                            span: binding.decl_span,
-                            snippet: binding.name.clone(),
-                        },
-                        "Binding type is outside the resolved primitive interface.",
-                    )),
-                };
+    Outcome::check_each(&facts.bindings, |binding| {
+        let duplicate = if seen.insert(binding.symbol.as_str()) {
+            Outcome::ok()
+        } else {
+            Outcome::reject(diagnostic(
+                "rust.local-bindings",
+                "binding",
+                &Site {
+                    span: binding.decl_span,
+                    snippet: binding.name.clone(),
+                },
+                "Duplicate binding symbol; each definition needs its own ID.",
+            ))
+        };
+        let table = if ctx.symbols.contains(binding.symbol.as_str()) {
+            Outcome::ok()
+        } else {
+            evidence_gap(&binding_node(binding), "binding table entry")
+        };
+        let ty = match norm(&binding.ty) {
+            Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
+            // Parameter interface types are diagnosed at the signature;
+            // the table keeps the entry so reads still resolve.
+            _ if binding.is_param => Outcome::ok(),
+            _ => Outcome::reject(diagnostic(
+                "rust.additional-types",
+                "binding_type",
+                &Site {
+                    span: binding.decl_span,
+                    snippet: binding.name.clone(),
+                },
+                "Binding type is outside the resolved primitive interface.",
+            )),
+        };
 
-                Outcome::combine(vec![duplicate, table, ty])
-            })
-            .collect(),
-    )
+        Outcome::combine(vec![duplicate, table, ty])
+    })
 }
 
 fn binding_node(binding: &BindingFact) -> HirNode {

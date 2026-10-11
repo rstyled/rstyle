@@ -119,10 +119,10 @@ exceptional flow implementation and matching-profile changes have not started.
 - `cargo fmt --all -- --check`: passed.
 - `cargo clippy --workspace --all-targets --locked -- -D warnings`: passed.
 - `cargo rstyle --format json`: zero production violations.
-- `cargo rstyle patterns --format json`: completed; two low-score parameterize
-  hints (0.218 and 0.198) concern distinct signature/binding checks and distinct
-  imported-read/definition extraction. No common abstraction was justified;
-  no ignore entries were added.
+- `cargo rstyle patterns --format json --fail-on-candidates`: passed with zero
+  candidates after extracting shared eligibility traversal and optional graph
+  record collection. No suppressions, ignore entries, or threshold changes
+  were added.
 
 ## Pinned case results
 
@@ -174,3 +174,16 @@ Refactor verification: 437 workspace tests passed, including the 23 pinned
 extraction cases. Formatting, all-target clippy, workspace build, and default
 rstyle checks passed. Pattern review retained the two existing low-score hints
 without suppressions or ignore entries.
+
+## Pattern cleanup
+
+The two remaining parameterization suggestions now share explicit traversal
+helpers. `Outcome::check_each` checks every parameter or binding and combines
+all diagnostics without an intermediate result vector. `collect_present`
+collects optional graph records for imported read symbols and producer
+definitions, preserving order and multiplicity. Domain-specific checks and
+record construction remain at their original call sites.
+
+The default style check reports zero violations, and the default pattern check
+with `--fail-on-candidates` reports zero candidates. No new suppressions or
+ignore entries were introduced.

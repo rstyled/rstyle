@@ -303,11 +303,9 @@ fn is_administrative(node: &rstyle_pdg::PdgNode) -> bool {
 }
 
 fn read_symbols(node: &rstyle_pdg::PdgNode) -> Vec<String> {
-    node.attributes
-        .reads
-        .iter()
-        .filter_map(|access| access.symbol_id.clone())
-        .collect()
+    rstyle_pdg::collection::collect_present(&node.attributes.reads, |access| {
+        access.symbol_id.clone()
+    })
 }
 
 fn import_edges(pdg: &PdgDocument) -> Vec<ImportedEdge> {
