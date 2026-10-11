@@ -95,11 +95,6 @@ fn projection_cases_retain_values_and_drop_only_boundaries() {
     }
 }
 
-/// Materialize a projection-case input as a typed imported function.
-/// Flag conventions (fixture shorthand, not schema fields): absent
-/// `reachable` means reachable, absent `administrative` means not
-/// administrative. `synthetic` is informational here — retention follows
-/// from the node category under the profile rules, as in production.
 fn projection_input(case: &serde_json::Value) -> ImportedFunction {
     ImportedFunction {
         key: "projection-stage".to_string(),
