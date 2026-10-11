@@ -311,7 +311,12 @@ fn dup_id_issues<T>(items: &[T], id_of: impl Fn(&T) -> &str) -> Vec<CfgIssue> {
 fn presence_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
     let ids = id_set(&doc.nodes);
 
-    [entry_presence(doc, &ids), exit_presence(doc, &ids)].concat()
+    [
+        entry_presence(doc, &ids),
+        exit_presence(doc, &ids),
+        boundary_listing_issues(doc),
+    ]
+    .concat()
 }
 
 fn entry_presence(doc: &CfgDocument, ids: &BTreeSet<String>) -> Vec<CfgIssue> {
@@ -342,6 +347,65 @@ fn exit_presence(doc: &CfgDocument, ids: &BTreeSet<String>) -> Vec<CfgIssue> {
     }
 
     issues
+}
+
+/// Exactly one entry node; every exit-kind node must be listed and every
+/// listed exit must be an exit-kind node.
+fn boundary_listing_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    [
+        entry_count_issues(doc),
+        unlisted_exit_issues(doc),
+        mislisted_exit_issues(doc),
+    ]
+    .concat()
+}
+
+fn entry_count_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    let entries: Vec<&CfgNode> = doc
+        .nodes
+        .iter()
+        .filter(|node| node.kind == CfgNodeKind::Entry)
+        .collect();
+
+    if entries.len() != 1 {
+        return vec![make_issue(
+            "cfg.entry",
+            "exactly one entry node is required",
+        )];
+    }
+
+    if entries[0].id != doc.entry_node_id {
+        return vec![make_issue(
+            "cfg.entry",
+            "entry node id must name the entry node",
+        )];
+    }
+
+    Vec::new()
+}
+
+fn unlisted_exit_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    let exits: BTreeSet<&str> = doc.exit_node_ids.iter().map(String::as_str).collect();
+
+    doc.nodes
+        .iter()
+        .filter(|node| node.kind == CfgNodeKind::Exit)
+        .filter(|node| !exits.contains(node.id.as_str()))
+        .map(|_| make_issue("cfg.exit", "exit node is not listed in exit_node_ids"))
+        .collect()
+}
+
+fn mislisted_exit_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    doc.exit_node_ids
+        .iter()
+        .filter(|exit| {
+            doc.nodes
+                .iter()
+                .find(|node| node.id == **exit)
+                .is_some_and(|node| node.kind != CfgNodeKind::Exit)
+        })
+        .map(|_| make_issue("cfg.exit", "exit node id must name an exit node"))
+        .collect()
 }
 
 fn shape_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
@@ -709,7 +773,9 @@ fn reject_extra_triple_fields(value: &serde_json::Value) -> Result<(), String> {
 ///
 /// Each reachable or unreachable semantic operation has exactly one triple,
 /// one non-boundary CFG vertex, one CFG operation, and one PDG operation node.
-/// No two distinct operations share a CFG vertex in R0.
+/// No two distinct operations share a CFG vertex in R0. Triples must be
+/// duplicate-free and one-to-one on both operation and PDG sides, and every
+/// non-boundary CFG operation must be covered exactly once.
 pub fn validate_correspondence(
     map: &[OperationMapEntry],
     cfg: &CfgDocument,
@@ -721,8 +787,10 @@ pub fn validate_correspondence(
         .flat_map(|entry| triple_endpoint_issues(entry, &cfg_ops, pdg_node_ids))
         .collect::<Vec<_>>();
     let sharing = sharing_issues(map);
+    let duplicates = duplicate_triple_issues(map);
+    let coverage = coverage_issues(map, cfg);
 
-    [endpoint, sharing].concat()
+    [endpoint, sharing, duplicates, coverage].concat()
 }
 
 fn cfg_operation_index(cfg: &CfgDocument) -> BTreeMap<String, (String, bool)> {
@@ -796,4 +864,192 @@ fn shared_vertex(chunk: &[&OperationMapEntry]) -> bool {
         .collect::<BTreeSet<_>>()
         .len()
         > 1
+}
+
+/// Duplicate triples and duplicate mappings on either side are forbidden:
+/// the map must be one-to-one between CFG operations and PDG nodes.
+fn duplicate_triple_issues(map: &[OperationMapEntry]) -> Vec<CfgIssue> {
+    [
+        repeated_triple_issues(map),
+        repeated_operation_issues(map),
+        repeated_pdg_issues(map),
+    ]
+    .concat()
+}
+
+fn repeated_triple_issues(map: &[OperationMapEntry]) -> Vec<CfgIssue> {
+    repeat_issues(
+        map.iter().map(|entry| {
+            (
+                entry.cfg_node_id.clone(),
+                entry.cfg_operation_id.clone(),
+                entry.pdg_node_id.clone(),
+            )
+        }),
+        "duplicate operation-map triple",
+    )
+}
+
+fn repeated_operation_issues(map: &[OperationMapEntry]) -> Vec<CfgIssue> {
+    repeat_issues(
+        map.iter().map(|entry| entry.cfg_operation_id.clone()),
+        "CFG operation mapped more than once",
+    )
+}
+
+fn repeated_pdg_issues(map: &[OperationMapEntry]) -> Vec<CfgIssue> {
+    repeat_issues(
+        map.iter().map(|entry| entry.pdg_node_id.clone()),
+        "PDG node mapped more than once",
+    )
+}
+
+fn repeat_issues<K: Ord + Clone>(
+    keys: impl Iterator<Item = K>,
+    message: &'static str,
+) -> Vec<CfgIssue> {
+    let mut seen = BTreeSet::new();
+    let repeats = keys.filter(|key| !seen.insert(key.clone())).count();
+
+    (0..repeats)
+        .map(|_| make_issue("cfg.operation-map-duplicate", message))
+        .collect()
+}
+
+/// Every non-boundary CFG operation must be covered exactly once.
+fn coverage_issues(map: &[OperationMapEntry], cfg: &CfgDocument) -> Vec<CfgIssue> {
+    let covered: BTreeSet<&str> = map
+        .iter()
+        .map(|entry| entry.cfg_operation_id.as_str())
+        .collect();
+    let mut issues = Vec::new();
+
+    for node in &cfg.nodes {
+        if matches!(node.kind, CfgNodeKind::Entry | CfgNodeKind::Exit) {
+            continue;
+        }
+
+        for op in &node.operations {
+            if !covered.contains(op.id.as_str()) {
+                issues.push(make_issue(
+                    "cfg.operation-map-incomplete",
+                    "non-boundary CFG operation lacks an operation-map triple",
+                ));
+            }
+        }
+    }
+
+    issues
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PairedGraph {
+    pub cfg_document_key: String,
+    pub pdg_document_key: String,
+}
+
+/// Read the paired-graph link extension identifying the document pair.
+pub fn read_paired_graph(extensions: &Extensions) -> Result<PairedGraph, String> {
+    let value = extensions
+        .get(PAIRED_GRAPH_KEY)
+        .ok_or_else(|| format!("missing extension {PAIRED_GRAPH_KEY}"))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| "paired-graph is not an object".to_string())?;
+    let get = |field: &str| {
+        object
+            .get(field)
+            .and_then(|v| v.as_str())
+            .filter(|text| !text.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| format!("paired-graph lacks {field}"))
+    };
+    let paired = PairedGraph {
+        cfg_document_key: get("cfg_document_key")?,
+        pdg_document_key: get("pdg_document_key")?,
+    };
+
+    if object.len() != 2 {
+        return Err("paired-graph has forbidden fields".to_string());
+    }
+
+    Ok(paired)
+}
+
+/// Both documents must carry the identical operation-map and agree on the
+/// paired-graph link. Comparison is on parsed triples, never on raw text.
+pub fn validate_paired_agreement(
+    pdg_extensions: &Extensions,
+    cfg_extensions: &Extensions,
+) -> Vec<CfgIssue> {
+    [
+        operation_map_agreement(pdg_extensions, cfg_extensions),
+        paired_graph_agreement(pdg_extensions, cfg_extensions),
+    ]
+    .concat()
+}
+
+fn operation_map_agreement(
+    pdg_extensions: &Extensions,
+    cfg_extensions: &Extensions,
+) -> Vec<CfgIssue> {
+    match (
+        read_operation_map(pdg_extensions),
+        read_operation_map(cfg_extensions),
+    ) {
+        (Ok(pdg_map), Ok(cfg_map)) => {
+            if sorted_triples(&pdg_map) != sorted_triples(&cfg_map) {
+                return vec![make_issue(
+                    "cfg.paired-operation-map",
+                    "paired documents disagree on the operation map",
+                )];
+            }
+
+            Vec::new()
+        }
+        _ => vec![make_issue(
+            "cfg.paired-operation-map",
+            "both paired documents must carry the operation map",
+        )],
+    }
+}
+
+fn paired_graph_agreement(
+    pdg_extensions: &Extensions,
+    cfg_extensions: &Extensions,
+) -> Vec<CfgIssue> {
+    match (
+        read_paired_graph(pdg_extensions),
+        read_paired_graph(cfg_extensions),
+    ) {
+        (Ok(pdg_link), Ok(cfg_link)) => {
+            if pdg_link != cfg_link {
+                return vec![make_issue(
+                    "cfg.paired-graph",
+                    "paired documents disagree on the paired-graph link",
+                )];
+            }
+
+            Vec::new()
+        }
+        _ => vec![make_issue(
+            "cfg.paired-graph",
+            "both paired documents must carry the paired-graph link",
+        )],
+    }
+}
+
+fn sorted_triples(map: &[OperationMapEntry]) -> Vec<(String, String, String)> {
+    let mut triples: Vec<(String, String, String)> = map
+        .iter()
+        .map(|entry| {
+            (
+                entry.cfg_node_id.clone(),
+                entry.cfg_operation_id.clone(),
+                entry.pdg_node_id.clone(),
+            )
+        })
+        .collect();
+    triples.sort();
+    triples
 }

@@ -13,8 +13,9 @@ pub use cfg::{
     CfgDocument, CfgEdge, CfgEdgeKind, CfgExitKind, CfgExtractionEvidence, CfgFunction, CfgIssue,
     CfgNode, CfgNodeKind, CfgOperation, CfgProducer, CfgProfile, CfgSource, EvaluationOrder,
     ExceptionalFlow, ExtractionStatus, Granularity, LoopRole, OPERATION_MAP_KEY, OperationMapEntry,
-    PAIRED_GRAPH_KEY, Sequencing, ShortCircuit, UnreachableCode, UnspecifiedOrder, r0_profile,
-    reachable_vertices, read_operation_map, validate_cfg, validate_correspondence,
+    PAIRED_GRAPH_KEY, PairedGraph, Sequencing, ShortCircuit, UnreachableCode, UnspecifiedOrder,
+    r0_profile, reachable_vertices, read_operation_map, read_paired_graph, validate_cfg,
+    validate_correspondence, validate_paired_agreement,
 };
 pub use model::{
     Access, BoolFact, CFG_SCHEMA_VERSION, CallForm, Capability, CapabilityStatus,

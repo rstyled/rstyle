@@ -659,6 +659,87 @@ fn singleton_ids(ids: [&str; 1]) -> std::collections::BTreeSet<String> {
     ids.iter().map(|s| s.to_string()).collect()
 }
 
+fn op_map_entry(node: &str, op: &str, pdg: &str) -> OperationMapEntry {
+    OperationMapEntry {
+        cfg_node_id: node.to_string(),
+        cfg_operation_id: op.to_string(),
+        pdg_node_id: pdg.to_string(),
+    }
+}
+
+#[test]
+fn correspondence_requires_complete_coverage() {
+    let cfg = cfg_doc();
+    let pdg = singleton_ids(["n0"]);
+    let empty: Vec<OperationMapEntry> = Vec::new();
+    assert!(
+        validate_correspondence(&empty, &cfg, &pdg)
+            .iter()
+            .any(|i| i.code == "cfg.operation-map-incomplete")
+    );
+}
+
+#[test]
+fn correspondence_rejects_duplicate_mappings() {
+    let cfg = cfg_doc();
+    let pdg: std::collections::BTreeSet<String> =
+        ["n0", "n1"].iter().map(|s| s.to_string()).collect();
+    let map = vec![
+        op_map_entry("b", "op0", "n0"),
+        op_map_entry("b", "op0", "n1"),
+    ];
+    assert!(
+        validate_correspondence(&map, &cfg, &pdg)
+            .iter()
+            .any(|i| i.code == "cfg.operation-map-duplicate")
+    );
+}
+
+#[test]
+fn paired_documents_must_agree() {
+    let map =
+        serde_json::json!([{"cfg_node_id": "b", "cfg_operation_id": "op0", "pdg_node_id": "n0"}]);
+    let link = serde_json::json!({"cfg_document_key": "c1", "pdg_document_key": "p1"});
+    let pdg_ext: Extensions = BTreeMap::from([
+        (OPERATION_MAP_KEY.to_string(), map.clone()),
+        (PAIRED_GRAPH_KEY.to_string(), link.clone()),
+    ]);
+    let cfg_ext = pdg_ext.clone();
+    assert!(validate_paired_agreement(&pdg_ext, &cfg_ext).is_empty());
+
+    let mut other_map: Extensions = BTreeMap::new();
+    other_map.insert(
+        OPERATION_MAP_KEY.to_string(),
+        serde_json::json!([{"cfg_node_id": "b", "cfg_operation_id": "op0", "pdg_node_id": "n9"}]),
+    );
+    other_map.insert(PAIRED_GRAPH_KEY.to_string(), link);
+    assert!(
+        validate_paired_agreement(&pdg_ext, &other_map)
+            .iter()
+            .any(|i| i.code == "cfg.paired-operation-map")
+    );
+}
+
+#[test]
+fn exit_id_must_name_an_exit_node() {
+    let mut cfg = cfg_doc();
+    cfg.exit_node_ids = vec!["b".to_string()];
+    assert!(validate_cfg(&cfg).iter().any(|i| i.code == "cfg.exit"));
+}
+
+#[test]
+fn unlisted_exit_node_is_flagged() {
+    let mut cfg = cfg_doc();
+    cfg.nodes.push(CfgNode {
+        id: "X2".to_string(),
+        kind: CfgNodeKind::Exit,
+        origin: "extra exit".to_string(),
+        exit_kind: Some(CfgExitKind::Normal),
+        operations: Vec::new(),
+    });
+    assert!(validate_cfg(&cfg).iter().any(|i| i.code == "cfg.exit"));
+}
+
 fn has_code(report: &ValidationReport, code: &str) -> bool {
     report.issues.iter().any(|i| i.code == code)
 }
