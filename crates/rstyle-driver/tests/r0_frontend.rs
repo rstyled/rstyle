@@ -533,6 +533,11 @@ fn original_utf8_crlf_bytes_and_spans_are_preserved() {
     let facts = facts.expect("captured source");
     let function = &facts[0];
     assert_eq!(function.source.bytes, source);
+    assert_eq!(function.fn_span.start, "\u{feff}// prefix\r\n".len() as u32);
+    assert_eq!(
+        function.fn_span.end - function.fn_span.start,
+        source.len() as u32
+    );
     let pair = rstyle_pdg::producer::produce(function).expect("exact-byte extraction");
     for node in &pair.pdg.nodes {
         if let Some(span) = &node.source_span {
@@ -735,6 +740,49 @@ fn conditionally_removed_unresolved_facts_remain_unknown() {
 }
 
 #[test]
+fn missing_semantic_build_values_cannot_receive_certification() {
+    let (_, facts) = compile("fn f(a: i32) -> i32 { a }");
+    let facts = &facts.expect("captured facts")[0];
+    let baseline = rstyle_pdg::producer::produce(facts).unwrap();
+    for missing in 0..4 {
+        let mut incomplete = facts.clone();
+        match missing {
+            0 => incomplete.build.frontend_options.clear(),
+            1 => incomplete.build.overflow_checks.value = None,
+            2 => incomplete.build.debug_assertions.value = None,
+            _ => incomplete.build.rustc_commit.value = None,
+        }
+        assert!(rstyle_pdg::producer::produce(&incomplete).is_err());
+        assert!(rstyle_ccgraph::admit_produced(&baseline, &incomplete).is_err());
+    }
+}
+
+#[test]
+fn independent_value_validator_rejects_future_guard_authorization() {
+    let (_, facts) = compile(
+        "fn f(a: bool, b: bool, c: bool) -> bool { let x = a && b; if c { x } else { x } }",
+    );
+    let facts = &facts.expect("captured facts")[0];
+    let pair = rstyle_pdg::producer::produce(facts).unwrap();
+    let mut document = serde_json::to_value(&pair.pdg).unwrap();
+    let sites = &document["extensions"]["compat.rust.hir-r0:value-sites"];
+    let merge = sites[0]["pdg_node_id"].clone();
+    let future = sites[1]["controller_pdg_node_id"].clone();
+    let guard = serde_json::json!([[{"controller_pdg_node_id": future, "outcome": "true"}]]);
+    document["extensions"]["compat.rust.hir-r0:value-sites"][0]["annotations"]["compat.rust.hir-r0:guards"] =
+        guard.clone();
+    let node = document["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["id"] == merge)
+        .unwrap();
+    node["annotations"]["compat.rust.hir-r0:guards"] = guard;
+    let pdg = serde_json::from_value(document).unwrap();
+    assert!(rstyle_pdg::validate_value_sites(&pdg, &pair.cfg).is_err());
+}
+
+#[test]
 fn eager_scalar_operator_inventory_and_operand_positions_are_independent() {
     for op in [
         "+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>", "==", "!=", "<", "<=", ">", ">=",
@@ -794,7 +842,7 @@ fn serialized_manifest_policies_guards_and_frontiers_are_checked() {
     let (_, facts) = compile("fn f(a: bool, b: bool) -> bool { a && b }");
     let facts = &facts.expect("captured facts")[0];
     let baseline = rstyle_pdg::producer::produce(facts).unwrap();
-    for mutation in 0..6 {
+    for mutation in 0..8 {
         let mut serialized = baseline.serialize().unwrap();
         if mutation == 0 {
             serialized.manifest.documents[0].sha256 = "sha256:wrong".to_string();
@@ -841,9 +889,22 @@ fn mutate_wire_document(document: &mut serde_json::Value, mutation: usize) {
             document["extensions"]["compat.rust.hir-r0:value-sites"][0]["alternatives"][0]["completion_cfg_node_ids"] =
                 serde_json::json!([]);
         }
-        _ => {
+        5 => {
             document["extraction_evidence"]["capabilities"]["node_extraction"]["status"] =
                 "not_applicable".into();
+        }
+        6 => {
+            document["definitions"][0]["node_id"] = document["definitions"][1]["node_id"].clone();
+        }
+        _ => {
+            let definition = document["definitions"][1]["id"].clone();
+            let edge = document["edges"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|edge| edge["subkind"] == "reaching_definition")
+                .unwrap();
+            edge["definition_id"] = definition;
         }
     }
 }

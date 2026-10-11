@@ -202,7 +202,10 @@ fn producer(facts: &R0FnFacts, revision: &str) -> Result<Producer, String> {
         || build.pointer_width.status != FactStatus::Known
         || !matches!(build.pointer_width.value, Some(32 | 64))
         || build.overflow_checks.status != FactStatus::Known
+        || build.overflow_checks.value.is_none()
         || build.debug_assertions.status != FactStatus::Known
+        || build.debug_assertions.value.is_none()
+        || !frontend_options_complete(build)
     {
         return Err(
             "Required captured compiler/build/producer evidence is unavailable".to_string(),
@@ -224,6 +227,26 @@ fn producer(facts: &R0FnFacts, revision: &str) -> Result<Producer, String> {
         language_version: build.rustc_version.clone(),
         configuration,
     })
+}
+
+fn frontend_options_complete(build: &BuildFacts) -> bool {
+    build
+        .frontend_options
+        .get("edition")
+        .and_then(Value::as_str)
+        == build.edition.known_value()
+        && build
+            .frontend_options
+            .get("target")
+            .and_then(Value::as_str)
+            .is_some_and(|target| !target.is_empty())
+        && build
+            .frontend_options
+            .get("invocation")
+            .and_then(Value::as_array)
+            .is_some_and(|arguments| {
+                !arguments.is_empty() && arguments.iter().all(Value::is_string)
+            })
 }
 
 fn span(span: ByteSpan) -> Span {

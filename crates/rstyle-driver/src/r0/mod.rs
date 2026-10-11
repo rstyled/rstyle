@@ -33,7 +33,7 @@ fn function(
     let body = tcx.hir_body(node.body_id()?);
     let function_span = sig.span.to(body.value.span).source_callsite();
     let result = tcx.fn_sig(id).instantiate_identity().skip_binder().output();
-    let source_bytes = original_source(tcx, function_span)?;
+    let (source_bytes, fn_span) = original_source(tcx, function_span)?;
     let ctx = hir::Context {
         tcx,
         typeck: tcx.typeck(id),
@@ -56,10 +56,7 @@ fn function(
 
     Some(R0FnFacts {
         name: tcx.def_path_str(id.to_def_id()),
-        fn_span: ByteSpan {
-            start: 0,
-            end: source_bytes.len() as u32,
-        },
+        fn_span,
         source: SourceFacts {
             digest: evidence::digest(source_bytes.as_bytes()),
             bytes: source_bytes,
@@ -76,7 +73,7 @@ fn function(
 /// Recover the compiler's original input using its recorded normalization map.
 /// rustc removes only a leading BOM and the CR in CRLF; no filesystem reread
 /// can race with the source buffer actually used for compilation.
-fn original_source(tcx: TyCtxt<'_>, span: rustc_span::Span) -> Option<String> {
+fn original_source(tcx: TyCtxt<'_>, span: rustc_span::Span) -> Option<(String, ByteSpan)> {
     let file = tcx.sess.source_map().lookup_source_file(span.lo());
     let normalized = file.src.as_ref()?;
     let mut bytes = normalized.as_bytes().to_vec();
@@ -95,7 +92,15 @@ fn original_source(tcx: TyCtxt<'_>, span: rustc_span::Span) -> Option<String> {
 
     let start = file.original_relative_byte_pos(span.lo()).0 as usize;
     let end = file.original_relative_byte_pos(span.hi()).0 as usize;
-    String::from_utf8(bytes.get(start..end)?.to_vec()).ok()
+    let source = String::from_utf8(bytes.get(start..end)?.to_vec()).ok()?;
+
+    Some((
+        source,
+        ByteSpan {
+            start: start as u32,
+            end: end as u32,
+        },
+    ))
 }
 
 fn parameters<'tcx>(

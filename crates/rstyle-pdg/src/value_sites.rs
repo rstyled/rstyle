@@ -352,7 +352,18 @@ impl Context<'_> {
     }
 
     fn check_site_path(&self, site: &Site, path: &Path) -> Result<(), String> {
-        let available = satisfies(&site.annotations.guards, path);
+        let successor = path
+            .vertices
+            .iter()
+            .position(|v| v == &site.cfg_successor_node_id)
+            .expect("site on path");
+        let before = path.vertices[..successor].iter().collect();
+        let availability = Availability {
+            path,
+            before: &before,
+            visiting: BTreeSet::new(),
+        };
+        let available = self.satisfies_before(&site.annotations.guards, &availability);
         if available != path.outcomes.contains_key(&site.controller_pdg_node_id) {
             return Err(
                 "Merge availability does not match normally completed controller paths".to_string(),
@@ -361,7 +372,7 @@ impl Context<'_> {
         let selected: Vec<_> = site
             .alternatives
             .iter()
-            .filter(|a| satisfies(&a.annotations.guards, path))
+            .filter(|a| self.satisfies_before(&a.annotations.guards, &availability))
             .collect();
         if selected.len() != usize::from(available) {
             return Err("Merge alternative guards must partition available paths".to_string());
@@ -370,17 +381,6 @@ impl Context<'_> {
             if path.outcomes.get(&site.controller_pdg_node_id) != Some(&alternative.outcome) {
                 return Err("Alternative guard does not imply the controller outcome".to_string());
             }
-            let successor = path
-                .vertices
-                .iter()
-                .position(|v| v == &site.cfg_successor_node_id)
-                .expect("site on path");
-            let before: BTreeSet<_> = path.vertices[..successor].iter().collect();
-            let availability = Availability {
-                path,
-                before: &before,
-                visiting: BTreeSet::new(),
-            };
             if !self.available(&alternative.value_pdg_node_id, &availability)? {
                 return Err(
                     "Alternative snapshot was not evaluated or available on its path".to_string(),
