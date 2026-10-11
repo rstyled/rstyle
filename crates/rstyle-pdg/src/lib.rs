@@ -18,14 +18,13 @@ pub use cfg::{
     validate_correspondence, validate_paired_agreement,
 };
 pub use model::{
-    Access, BoolFact, CFG_SCHEMA_VERSION, CallForm, Capability, CapabilityStatus,
-    ConformanceRecord, ConformanceStatus, CountFact, Definition, Diagnostic, DiagnosticSeverity,
-    EdgeFamily, ExitKind, Extensions, ExtractionEvidence, FactStatus, FunctionInfo, MemoryLocation,
-    NodeAttributes, NodeCategory, PDG_SCHEMA_VERSION, ParamRole, Parameter, PdgDocument, PdgEdge,
-    PdgNode, Producer, ProfileId, Provenance, ProvenanceOrigin, R0_POLICY_ID, R0_POLICY_VERSION,
-    REFERENCE_COUNT_POLICY_ID, REFERENCE_COUNT_POLICY_VERSION, REQUIRED_CAPABILITIES,
-    REQUIRED_NORMAL_FLOW, Source, Span, StringFact, Symbol, SymbolRole, invalid_extension_keys,
-    is_valid_extension_key,
+    Access, BoolFact, CFG_SCHEMA_VERSION, CallForm, Capability, CapabilityStatus, Conformance,
+    ConformanceStatus, CountFact, Definition, Diagnostic, DiagnosticSeverity, EdgeFamily, ExitKind,
+    Extensions, ExtractionEvidence, FactStatus, FunctionInfo, MemoryLocation, NodeAttributes,
+    NodeCategory, PDG_SCHEMA_VERSION, ParamRole, Parameter, PdgDocument, PdgEdge, PdgNode,
+    Producer, ProfileId, Provenance, ProvenanceOrigin, R0_POLICY_ID, R0_POLICY_VERSION,
+    REQUIRED_CAPABILITIES, REQUIRED_NORMAL_FLOW, Source, Span, StringFact, Symbol, SymbolRole,
+    invalid_extension_keys, is_valid_extension_key,
 };
 pub use validate::{
     Eligibility, Issue, ProducerConformance, ValidationContext, ValidationReport, validate,

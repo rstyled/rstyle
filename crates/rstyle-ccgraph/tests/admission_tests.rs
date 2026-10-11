@@ -16,18 +16,10 @@ fn r0() -> ProfileId {
     }
 }
 
-fn counted_policy() -> ProfileId {
-    ProfileId {
-        id: REFERENCE_COUNT_POLICY_ID.to_string(),
-        version: REFERENCE_COUNT_POLICY_VERSION.to_string(),
-    }
-}
-
 fn supported() -> Capability {
     Capability {
         status: CapabilityStatus::Supported,
         description: "d".to_string(),
-        policy: None,
     }
 }
 
@@ -35,7 +27,6 @@ fn na() -> Capability {
     Capability {
         status: CapabilityStatus::NotApplicable,
         description: "absent".to_string(),
-        policy: None,
     }
 }
 
@@ -56,7 +47,6 @@ fn capabilities() -> BTreeMap<String, Capability> {
         Capability {
             status: CapabilityStatus::Unsupported,
             description: "normal-flow only".to_string(),
-            policy: None,
         },
     );
     caps
@@ -76,7 +66,6 @@ fn provenance() -> Provenance {
         description: "d".to_string(),
         origin_node_ids: Vec::new(),
         origin_spans: Vec::new(),
-        policy: None,
     }
 }
 
@@ -196,7 +185,6 @@ fn pdg_edges() -> Vec<PdgEdge> {
             target: "n_r".to_string(),
             kind: EdgeFamily::Data,
             subkind: "reaching_definition".to_string(),
-            policy: r0(),
             evidence: supported(),
             provenance: provenance(),
             operand_position: Some(0),
@@ -213,7 +201,6 @@ fn pdg_edges() -> Vec<PdgEdge> {
             target: "n_ret".to_string(),
             kind: EdgeFamily::Data,
             subkind: "value_operand".to_string(),
-            policy: r0(),
             evidence: supported(),
             provenance: provenance(),
             operand_position: Some(0),
@@ -252,7 +239,7 @@ fn pdg_function() -> FunctionInfo {
             extensions: BTreeMap::new(),
         }],
         interface_completeness: supported(),
-        reference_count: CountFact::known(1, counted_policy()),
+        reference_count: CountFact::known(1),
     }
 }
 
@@ -301,7 +288,7 @@ fn pdg_doc(pdg_key: &str, cfg_key: &str) -> PdgDocument {
         extraction_evidence: ExtractionEvidence {
             capabilities: capabilities(),
             diagnostics: Vec::new(),
-            conformance: Vec::new(),
+            conformance: Conformance::not_evaluated("test"),
         },
         extensions: extensions(pdg_key, cfg_key),
     }
@@ -433,7 +420,6 @@ fn strict_pair_is_admitted_and_evaluated() {
 
         assert_eq!(admitted.name.as_deref(), Some("alpha"));
         assert_eq!(admitted.reference_count, Some(1));
-        assert!(admitted.reference_policy_ok);
     }
 
     let report = evaluate_strict_documents(&bundles, &open_config());

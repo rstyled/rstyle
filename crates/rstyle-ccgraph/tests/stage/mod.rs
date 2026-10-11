@@ -27,7 +27,6 @@ pub fn compact_graph(nodes: &serde_json::Value, edges: &serde_json::Value) -> Im
         outputs: vec![unit],
         name: Some("stage".to_string()),
         reference_count: Some(0),
-        reference_policy_ok: true,
         target_pointer_width: Some(64),
         native_width_involved: false,
     }

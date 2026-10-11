@@ -20,6 +20,15 @@ fns = [
   "rstyle_pdg::model::StringFact::shape_ok",
 ]
 
+[ignore.fc9b070d78be]
+kind = "generic_fn"
+reason = "residual one-line delegations to shared well_formed helper; a trait would add more code than it removes"
+fns = [
+  "rstyle_pdg::model::BoolFact::shape_ok",
+  "rstyle_pdg::model::CountFact::shape_ok",
+  "rstyle_pdg::model::StringFact::shape_ok",
+]
+
 [ignore.0ee0a828b288]
 kind = "parameterize"
 reason = "BFS successor scan over ProjectedGraph vs CfgDocument in different crates; a shared generic would couple ccgraph to pdg internals for 8 lines"

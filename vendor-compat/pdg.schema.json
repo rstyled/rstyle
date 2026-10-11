@@ -24,7 +24,7 @@
     },
     "profile": {
       "$ref": "#/$defs/profile",
-      "description": "Versioned policy defining graph granularity, extraction semantics, and required evidence."
+      "description": "Sole versioned extraction contract for this document. Defines graph granularity, dependency and reference-count semantics, transformations, and required evidence; records cannot select independent policies."
     },
     "producer": {
       "type": "object",
@@ -43,7 +43,7 @@
         },
         "version": {
           "$ref": "#/$defs/id",
-          "description": "Version identifying the producer or policy, as determined by the containing record."
+          "description": "Version identifying the producer implementation."
         },
         "language": {
           "$ref": "#/$defs/id",
@@ -141,7 +141,7 @@
         },
         "reference_count": {
           "$ref": "#/$defs/countFact",
-          "description": "Known nonnegative reference count under an explicit versioned counting policy, or unavailable evidence; unknown is not zero."
+          "description": "Known nonnegative reference count under the root extraction profile's counting rule, or unavailable evidence; unknown is not zero."
         }
       },
       "description": "Identity, source boundary, interface, and counting evidence for the represented function."
@@ -277,7 +277,7 @@
         },
         "description": "One element of the enclosing collection; its referenced definition or fields specify its semantics."
       },
-      "description": "Abstract storage locations under the declared memory and alias policy."
+      "description": "Abstract storage locations under the root extraction profile's memory and alias rules."
     },
     "nodes": {
       "type": "array",
@@ -337,64 +337,53 @@
           "description": "Extraction or validation messages, including unsupported constructs and missing required evidence."
         },
         "conformance": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "profile",
-              "status",
-              "reasons"
-            ],
-            "properties": {
-              "profile": {
-                "$ref": "#/$defs/profile",
-                "description": "Versioned policy defining graph granularity, extraction semantics, and required evidence."
-              },
-              "status": {
-                "enum": [
-                  "conformant",
-                  "non_conformant",
-                  "not_evaluated"
-                ],
-                "description": "Explicit knowledge, support, or conformance state according to the containing record; must not be inferred from empty collections."
-              },
-              "reasons": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/$defs/id",
-                  "description": "One element of the enclosing collection; its referenced definition or fields specify its semantics."
-                },
-                "description": "Explanations of the conformance assessment; at least one is required for non-conformance."
-              }
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "reasons"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "conformant",
+                "non_conformant",
+                "not_evaluated"
+              ],
+              "description": "Assessment of the root extraction profile; must not be inferred from empty collections."
             },
-            "allOf": [
-              {
-                "if": {
-                  "properties": {
-                    "status": {
-                      "const": "non_conformant",
-                      "description": "Explicit knowledge, support, or conformance state according to the containing record; must not be inferred from empty collections."
-                    }
-                  }
-                },
-                "then": {
-                  "properties": {
-                    "reasons": {
-                      "minItems": 1,
-                      "description": "Explanations of the conformance assessment; at least one is required for non-conformance."
-                    }
-                  }
-                },
-                "description": "Structural requirement; semantic consistency requires profile validation."
-              }
-            ],
-            "description": "One element of the enclosing collection; its referenced definition or fields specify its semantics."
+            "reasons": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id",
+                "description": "Explanation of the conformance assessment."
+              },
+              "description": "Explanations of the conformance assessment; at least one is required for non-conformance."
+            }
           },
-          "description": "Assessments against named versioned profiles; structural validity alone does not prove conformance."
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "status": {
+                    "const": "non_conformant"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "reasons": {
+                    "minItems": 1
+                  }
+                }
+              },
+              "description": "Structural requirement; semantic consistency requires profile validation."
+            }
+          ],
+          "description": "Single assessment of the document's root extraction profile; structural validity alone does not prove conformance."
         }
       },
-      "description": "Capability coverage, limitations, diagnostics, and explicit profile-conformance assessments."
+      "description": "Capability coverage, limitations, diagnostics, and a single root-profile conformance assessment."
     },
     "extensions": {
       "$ref": "#/$defs/extensions",
@@ -421,10 +410,10 @@
         },
         "version": {
           "$ref": "#/$defs/id",
-          "description": "Version identifying the producer or policy, as determined by the containing record."
+          "description": "Version of the document-wide extraction contract."
         }
       },
-      "description": "Named and versioned semantic policy; schema compatibility alone does not establish profile compatibility."
+      "description": "Named and versioned document-wide extraction contract; schema compatibility alone does not establish profile compatibility."
     },
     "extensions": {
       "type": "object",
@@ -534,8 +523,7 @@
           "additionalProperties": false,
           "required": [
             "status",
-            "value",
-            "policy"
+            "value"
           ],
           "properties": {
             "status": {
@@ -546,10 +534,6 @@
               "type": "integer",
               "minimum": 0,
               "description": "Known fact value. Empty strings and zero counts are known values, not substitutes for unknown evidence."
-            },
-            "policy": {
-              "$ref": "#/$defs/profile",
-              "description": "Versioned interpretation or analysis policy governing the enclosing fact, edge, or transformation."
             }
           },
           "description": "Alternative representation of the enclosing fact."
@@ -578,7 +562,7 @@
           "description": "Alternative representation of the enclosing fact."
         }
       ],
-      "description": "Known nonnegative reference count under an explicit versioned counting policy, or unavailable evidence; unknown is not zero."
+      "description": "Known nonnegative reference count under the root extraction profile's counting rule, or unavailable evidence; unknown is not zero."
     },
     "span": {
       "description": "Half-open UTF-8 byte offsets into the identified source content.",
@@ -627,13 +611,9 @@
         "description": {
           "$ref": "#/$defs/id",
           "description": "Human-readable explanation of this record, its scope, or its limitations; not a base matching label."
-        },
-        "policy": {
-          "$ref": "#/$defs/profile",
-          "description": "Versioned interpretation or analysis policy governing the enclosing fact, edge, or transformation."
         }
       },
-      "description": "Support evidence with a required explanation of scope, limitations, and approximation behavior."
+      "description": "Support evidence under the root extraction profile, with a required explanation of scope, limitations, and approximation behavior."
     },
     "parameter": {
       "type": "object",
@@ -712,7 +692,7 @@
             "$ref": "#/$defs/id",
             "description": "One element of the enclosing collection; its referenced definition or fields specify its semantics."
           },
-          "description": "Nodes from which this entity was derived; external graph reference context must be defined by a transformation profile."
+          "description": "Nodes from which this entity was derived; external graph reference context must be defined by the root extraction profile."
         },
         "origin_spans": {
           "type": "array",
@@ -721,13 +701,9 @@
             "description": "One element of the enclosing collection; its referenced definition or fields specify its semantics."
           },
           "description": "Source ranges contributing to this entity, including expansion or transformation origins."
-        },
-        "policy": {
-          "$ref": "#/$defs/profile",
-          "description": "Versioned interpretation or analysis policy governing the enclosing fact, edge, or transformation."
         }
       },
-      "description": "Origin and transformation evidence used to trace this entity back to source or prior graphs."
+      "description": "Origin and transformation evidence under the root extraction profile, used to trace this entity back to source or prior graphs."
     },
     "access": {
       "type": "object",
@@ -904,7 +880,7 @@
                 "indirect",
                 "unknown"
               ],
-              "description": "Whether the call is direct, indirect, or unresolved; indirect calls may have multiple possible targets under an extension policy."
+              "description": "Whether the call is direct, indirect, or unresolved; the root extraction profile defines any admitted indirect-call target handling."
             },
             "outcomes": {
               "type": "array",
@@ -972,7 +948,7 @@
       "description": "Program operation or analysis entity with graph-local navigation identity, original kind, semantic attributes, and extraction provenance."
     },
     "edge": {
-      "description": "Directed multigraph edge. Data: producer to consumer; control: controller to controlled operation; execution: prerequisite to constrained operation under a declared policy.",
+      "description": "Directed multigraph edge under the root extraction profile. Data: producer to consumer; control: controller to controlled operation; execution: prerequisite to constrained operation.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -981,7 +957,6 @@
         "target",
         "kind",
         "subkind",
-        "policy",
         "evidence",
         "provenance"
       ],
@@ -1004,15 +979,11 @@
             "control",
             "execution"
           ],
-          "description": "Dependency family: data flows producer to consumer; control flows controller to controlled operation; execution flows prerequisite to constrained operation under its policy, not simple source order."
+          "description": "Dependency family under the root extraction profile: data flows producer to consumer; control flows controller to controlled operation; execution flows prerequisite to constrained operation, not simple source order."
         },
         "subkind": {
           "$ref": "#/$defs/id",
-          "description": "Profile-defined dependency refinement, such as reaching_definition, flow, anti, or output; accepted meanings require semantic validation."
-        },
-        "policy": {
-          "$ref": "#/$defs/profile",
-          "description": "Versioned interpretation or analysis policy governing the enclosing fact, edge, or transformation."
+          "description": "Root-extraction-profile-defined dependency refinement, such as reaching_definition, flow, anti, or output; accepted meanings require semantic validation."
         },
         "evidence": {
           "$ref": "#/$defs/capability",

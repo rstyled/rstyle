@@ -10,18 +10,10 @@ fn profile() -> ProfileId {
     }
 }
 
-fn counted_policy() -> ProfileId {
-    ProfileId {
-        id: REFERENCE_COUNT_POLICY_ID.to_string(),
-        version: REFERENCE_COUNT_POLICY_VERSION.to_string(),
-    }
-}
-
 fn supported_capability() -> Capability {
     Capability {
         status: CapabilityStatus::Supported,
         description: "d".to_string(),
-        policy: None,
     }
 }
 
@@ -29,7 +21,6 @@ fn na_capability() -> Capability {
     Capability {
         status: CapabilityStatus::NotApplicable,
         description: "absent".to_string(),
-        policy: None,
     }
 }
 
@@ -47,7 +38,6 @@ fn capabilities() -> BTreeMap<String, Capability> {
         Capability {
             status: CapabilityStatus::Unsupported,
             description: "normal-flow only".to_string(),
-            policy: None,
         },
     );
     caps
@@ -67,7 +57,6 @@ fn provenance() -> Provenance {
         description: "d".to_string(),
         origin_node_ids: Vec::new(),
         origin_spans: Vec::new(),
-        policy: None,
     }
 }
 
@@ -128,7 +117,6 @@ fn edge(id: &str, source: &str, target: &str) -> PdgEdge {
         target: target.to_string(),
         kind: EdgeFamily::Data,
         subkind: "value_operand".to_string(),
-        policy: profile(),
         evidence: supported_capability(),
         provenance: provenance(),
         operand_position: None,
@@ -176,7 +164,7 @@ fn base_doc() -> PdgDocument {
         extraction_evidence: ExtractionEvidence {
             capabilities: capabilities(),
             diagnostics: Vec::new(),
-            conformance: Vec::new(),
+            conformance: Conformance::not_evaluated("fixture"),
         },
         extensions: BTreeMap::new(),
     }
@@ -212,12 +200,7 @@ fn base_function() -> FunctionInfo {
         inputs: vec![base_param(ParamRole::Parameter, Some("s_x"), "x", "i32")],
         outputs: vec![base_param(ParamRole::Return, None, "", "unit")],
         interface_completeness: supported_capability(),
-        reference_count: CountFact {
-            status: FactStatus::Known,
-            value: Some(1),
-            policy: Some(counted_policy()),
-            reason: None,
-        },
+        reference_count: CountFact::known(1),
     }
 }
 
@@ -324,7 +307,6 @@ fn unknown_reference_count_is_ineligible_and_never_zero() {
     doc.function.reference_count = CountFact {
         status: FactStatus::Unknown,
         value: None,
-        policy: None,
         reason: Some("unavailable".to_string()),
     };
     let report = check(&doc);
@@ -351,15 +333,10 @@ fn unknown_policy_is_ineligible_under_compiler_evidence() {
 #[test]
 fn compiler_evidence_requires_source_digests() {
     let mut doc = base_doc();
-    let r0 = ProfileId {
+    doc.profile = ProfileId {
         id: R0_POLICY_ID.to_string(),
         version: R0_POLICY_VERSION.to_string(),
     };
-    doc.profile = r0.clone();
-
-    for edge in &mut doc.edges {
-        edge.policy = r0.clone();
-    }
 
     let ctx = ValidationContext::CompilerEvidence {
         pointer_width_bits: 64,
@@ -395,10 +372,6 @@ fn wrong_digest_is_ineligible() {
     };
     doc.profile = r0.clone();
 
-    for edge in &mut doc.edges {
-        edge.policy = r0.clone();
-    }
-
     doc.sources[0].content_identity = StringFact::known(
         "sha256:0000000000000000000000000000000000000000000000000000000000000000",
     );
@@ -419,10 +392,6 @@ fn missing_source_bytes_fail_closed_under_compiler_evidence() {
         version: R0_POLICY_VERSION.to_string(),
     };
     doc.profile = r0.clone();
-
-    for edge in &mut doc.edges {
-        edge.policy = r0.clone();
-    }
 
     doc.sources[0].content_identity = StringFact::known(
         "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
@@ -481,7 +450,6 @@ fn approximated_normal_flow_is_ineligible() {
         Capability {
             status: CapabilityStatus::Approximated,
             description: "d".to_string(),
-            policy: None,
         },
     );
     assert_eq!(check(&doc).matching, Eligibility::Ineligible);
@@ -754,15 +722,6 @@ fn unclaimed_definition_is_ineligible() {
 }
 
 #[test]
-fn edge_policy_mismatch_is_ineligible() {
-    let mut doc = base_doc();
-    doc.edges[0].policy = counted_policy();
-    let report = check(&doc);
-    assert_eq!(report.matching, Eligibility::Ineligible);
-    assert!(has_code(&report, "pdg.edge-policy"));
-}
-
-#[test]
 fn empty_edge_subkind_is_ineligible() {
     let mut doc = base_doc();
     doc.edges[0].subkind.clear();
@@ -836,11 +795,10 @@ fn unknown_interface_symbol_is_ineligible() {
 #[test]
 fn conformant_claim_does_not_establish_eligibility() {
     let mut doc = base_doc();
-    doc.extraction_evidence.conformance.push(ConformanceRecord {
-        profile: profile(),
+    doc.extraction_evidence.conformance = Conformance {
         status: ConformanceStatus::Conformant,
         reasons: Vec::new(),
-    });
+    };
     doc.edges.push(edge("e9", "n_r", "ghost"));
     let report = check(&doc);
     assert_eq!(report.matching, Eligibility::Ineligible);
