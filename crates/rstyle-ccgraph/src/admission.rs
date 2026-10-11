@@ -192,25 +192,31 @@ fn node_reachability(
     out
 }
 
-fn import_nodes(
-    pdg: &PdgDocument,
-    reachability: &BTreeMap<String, bool>,
-) -> Result<Vec<ImportedNode>, Vec<String>> {
-    let mut nodes = Vec::new();
+/// Partition fallible imports into values or the collected reasons.
+/// Shared by node and interface import; missing evidence is never dropped.
+fn collect_results<T, E>(results: impl Iterator<Item = Result<T, E>>) -> Result<Vec<T>, Vec<E>> {
+    let mut values = Vec::new();
     let mut errors = Vec::new();
 
-    for node in &pdg.nodes {
-        match import_node(node, reachability) {
-            Ok(imported) => nodes.push(imported),
+    for result in results {
+        match result {
+            Ok(value) => values.push(value),
             Err(message) => errors.push(message),
         }
     }
 
     if errors.is_empty() {
-        Ok(nodes)
+        Ok(values)
     } else {
         Err(errors)
     }
+}
+
+fn import_nodes(
+    pdg: &PdgDocument,
+    reachability: &BTreeMap<String, bool>,
+) -> Result<Vec<ImportedNode>, Vec<String>> {
+    collect_results(pdg.nodes.iter().map(|node| import_node(node, reachability)))
 }
 
 fn import_node(
@@ -293,21 +299,7 @@ fn sorted_params(params: &[rstyle_pdg::Parameter]) -> Vec<rstyle_pdg::Parameter>
 }
 
 fn convert_params(ordered: &[rstyle_pdg::Parameter]) -> Result<Vec<InterfaceElement>, Vec<String>> {
-    let mut elements = Vec::new();
-    let mut errors = Vec::new();
-
-    for param in ordered {
-        match import_element(param) {
-            Ok(element) => elements.push(element),
-            Err(message) => errors.push(message),
-        }
-    }
-
-    if errors.is_empty() {
-        Ok(elements)
-    } else {
-        Err(errors)
-    }
+    collect_results(ordered.iter().map(import_element))
 }
 
 fn import_element(param: &rstyle_pdg::Parameter) -> Result<InterfaceElement, String> {
