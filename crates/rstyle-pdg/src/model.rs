@@ -418,14 +418,20 @@ impl StringFact {
 
     /// Shape check only; semantic requiredness is decided by validation.
     pub fn shape_ok(&self) -> bool {
-        self.shape_parts()
+        well_formed(
+            self.status == FactStatus::Known,
+            self.value.is_some(),
+            self.reason.is_some(),
+        )
     }
+}
 
-    fn shape_parts(&self) -> bool {
-        match self.status {
-            FactStatus::Known => self.value.is_some() && self.reason.is_none(),
-            _ => self.value.is_none() && self.reason.is_some(),
-        }
+/// Known facts carry a value and no reason; the rest carry a reason and no value.
+fn well_formed(known: bool, has_value: bool, has_reason: bool) -> bool {
+    if known {
+        has_value && !has_reason
+    } else {
+        !has_value && has_reason
     }
 }
 
@@ -439,20 +445,20 @@ impl BoolFact {
     }
 
     pub fn shape_ok(&self) -> bool {
-        match self.status {
-            FactStatus::Known => self.value.is_some() && self.reason.is_none(),
-            _ => self.value.is_none() && self.reason.is_some(),
-        }
+        well_formed(
+            self.status == FactStatus::Known,
+            self.value.is_some(),
+            self.reason.is_some(),
+        )
     }
 }
 
 impl CountFact {
     pub fn shape_ok(&self) -> bool {
-        match self.status {
-            FactStatus::Known => {
-                self.value.is_some() && self.policy.is_some() && self.reason.is_none()
-            }
-            _ => self.value.is_none() && self.reason.is_some(),
-        }
+        well_formed(
+            self.status == FactStatus::Known,
+            self.value.is_some(),
+            self.reason.is_some(),
+        ) && (self.status != FactStatus::Known || self.policy.is_some())
     }
 }

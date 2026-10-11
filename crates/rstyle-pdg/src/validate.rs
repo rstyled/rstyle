@@ -658,28 +658,32 @@ fn check_capabilities(doc: &PdgDocument) -> CheckOutput {
 }
 
 fn missing_capabilities(caps: &BTreeMap<String, Capability>) -> Vec<Issue> {
-    REQUIRED_CAPABILITIES
-        .iter()
-        .filter(|key| !caps.contains_key(**key))
-        .map(|key| {
-            issue(
-                "pdg.capability-missing",
-                format!("capability {key} is not recorded"),
-            )
-        })
-        .collect()
+    key_issues(
+        &REQUIRED_CAPABILITIES,
+        "pdg.capability-missing",
+        |key| !caps.contains_key(key),
+        |key| format!("capability {key} is not recorded"),
+    )
 }
 
 fn normal_flow_issues(caps: &BTreeMap<String, Capability>) -> Vec<Issue> {
-    REQUIRED_NORMAL_FLOW
-        .iter()
-        .filter(|key| !is_established(caps.get(**key)))
-        .map(|key| {
-            issue(
-                "pdg.normal-flow",
-                format!("required normal-flow capability {key} is not established"),
-            )
-        })
+    key_issues(
+        &REQUIRED_NORMAL_FLOW,
+        "pdg.normal-flow",
+        |key| !is_established(caps.get(key)),
+        |key| format!("required normal-flow capability {key} is not established"),
+    )
+}
+
+fn key_issues(
+    keys: &[&str],
+    code: &'static str,
+    bad: impl Fn(&str) -> bool,
+    message: impl Fn(&str) -> String,
+) -> Vec<Issue> {
+    keys.iter()
+        .filter(|key| bad(key))
+        .map(|key| issue(code, message(key)))
         .collect()
 }
 

@@ -5,7 +5,7 @@
 //! self-normalizes with the identical depths and weights in all three
 //! kernels. Neither is calibrated, and neither divides twice.
 
-use crate::frac::{ArithError, Frac};
+use crate::frac::{ArithError, Frac, as_i128};
 use std::collections::BTreeMap;
 
 pub type Histogram = BTreeMap<String, u64>;
@@ -81,18 +81,7 @@ fn round_cross(a: &Histogram, b: &Histogram) -> Result<u128, ArithError> {
 }
 
 fn round_self(hist: &Histogram) -> Result<u128, ArithError> {
-    let mut total: u128 = 0;
-    for count in hist.values() {
-        let term = u128::from(*count)
-            .checked_mul(u128::from(*count))
-            .ok_or(ArithError {
-                what: "kernel overflow",
-            })?;
-        total = total.checked_add(term).ok_or(ArithError {
-            what: "kernel overflow",
-        })?;
-    }
-    Ok(total)
+    round_cross(hist, hist)
 }
 
 fn weight_sum(weights: &[u64]) -> Result<u128, ArithError> {
@@ -223,12 +212,6 @@ fn frac_term(a: u128, b: u128, c: i128, d: i128) -> Result<Frac, ArithError> {
         .checked_mul(d)
         .ok_or(fail())?;
     Frac::new(scaled, 1)
-}
-
-fn as_i128(value: u128) -> Result<i128, ArithError> {
-    i128::try_from(value).map_err(|_| ArithError {
-        what: "value exceeds i128",
-    })
 }
 
 fn fail() -> ArithError {

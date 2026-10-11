@@ -125,6 +125,13 @@ impl Frac {
     }
 }
 
+/// Checked `u128` to `i128` narrowing for exact score arithmetic.
+pub fn as_i128(value: u128) -> Result<i128, ArithError> {
+    i128::try_from(value).map_err(|_| ArithError {
+        what: "value exceeds i128",
+    })
+}
+
 fn gcd(mut a: u128, mut b: u128) -> u128 {
     while b != 0 {
         (a, b) = (b, a % b);

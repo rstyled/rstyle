@@ -5,7 +5,7 @@
 //! NumOfOtherNodes, NumOfReference. Edge occurrences preserve multiplicity
 //! and self-edges; different families on identical endpoints stay separate.
 
-use crate::frac::{ArithError, Frac};
+use crate::frac::{ArithError, Frac, as_i128};
 use crate::graph::{CcLabel, ProjectedGraph};
 use rstyle_pdg::EdgeFamily;
 
@@ -132,12 +132,6 @@ fn frac_squared(num: i128, den: i128) -> Result<Frac, ArithError> {
     let den = (den as u128).checked_mul(den as u128).ok_or(overflow)?;
 
     Frac::new(as_i128(num)?, as_i128(den)?)
-}
-
-fn as_i128(value: u128) -> Result<i128, ArithError> {
-    i128::try_from(value).map_err(|_| ArithError {
-        what: "cosine overflow",
-    })
 }
 
 trait MulFrac {

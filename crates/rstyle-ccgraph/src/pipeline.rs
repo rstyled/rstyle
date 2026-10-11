@@ -314,6 +314,8 @@ fn fault_reason(fault: &ProjectionFault) -> String {
 fn wrap_projection(func: &ImportedFunction, projection: Projection) -> ProjectionData {
     let graph = projection.graph;
     let features = numerical_features(&graph, projection.facts.reference_count);
+    let (retained_nodes, removed_nodes) = disposition_counts(&projection.trace);
+
     let record = FunctionProjection {
         projected_nodes: graph.node_count(),
         diameter: diameter(&graph),
@@ -328,27 +330,21 @@ fn wrap_projection(func: &ImportedFunction, projection: Projection) -> Projectio
             .iter()
             .map(|(k, v)| (k.to_string(), *v))
             .collect(),
-        retained_nodes: retained_count(&projection.trace),
-        removed_nodes: removed_count(&projection.trace),
+        retained_nodes,
+        removed_nodes,
         ignored_label_inputs: "operators, literals, kinds, names, types, ids, spans, outcomes, positions, annotations",
     };
     ProjectionData { graph, record }
 }
 
-fn retained_count(trace: &crate::projection::ProjectionTrace) -> usize {
-    trace
-        .nodes
-        .iter()
-        .filter(|(_, d)| matches!(d, crate::projection::NodeDisposition::Retained { .. }))
-        .count()
-}
-
-fn removed_count(trace: &crate::projection::ProjectionTrace) -> usize {
-    trace
-        .nodes
-        .iter()
-        .filter(|(_, d)| matches!(d, crate::projection::NodeDisposition::Removed { .. }))
-        .count()
+fn disposition_counts(trace: &crate::projection::ProjectionTrace) -> (usize, usize) {
+    trace.nodes.iter().fold(
+        (0, 0),
+        |(kept, dropped), (_, disposition)| match disposition {
+            crate::projection::NodeDisposition::Retained { .. } => (kept + 1, dropped),
+            crate::projection::NodeDisposition::Removed { .. } => (kept, dropped + 1),
+        },
+    )
 }
 
 /// Imported-function validation: identifiers, interfaces, reference policy.

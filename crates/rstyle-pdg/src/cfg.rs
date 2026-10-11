@@ -105,20 +105,20 @@ fn id_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
 }
 
 fn dup_node_ids(nodes: &[CfgNode]) -> Vec<CfgIssue> {
-    let mut seen = BTreeSet::new();
-    nodes
-        .iter()
-        .filter(|node| node.id.is_empty() || !seen.insert(node.id.clone()))
-        .map(|_| make_issue("cfg.duplicate-id", "bad or duplicate node id"))
-        .collect()
+    dup_id_issues(nodes, |node| node.id.as_str())
 }
 
 fn dup_edge_ids(edges: &[CfgEdge]) -> Vec<CfgIssue> {
+    dup_id_issues(edges, |edge| edge.id.as_str())
+}
+
+fn dup_id_issues<T>(items: &[T], id_of: impl Fn(&T) -> &str) -> Vec<CfgIssue> {
     let mut seen = BTreeSet::new();
-    edges
+    items
         .iter()
-        .filter(|edge| edge.id.is_empty() || !seen.insert(edge.id.clone()))
-        .map(|_| make_issue("cfg.duplicate-id", "bad or duplicate edge id"))
+        .map(id_of)
+        .filter(|id| id.is_empty() || !seen.insert(id.to_string()))
+        .map(|_| make_issue("cfg.duplicate-id", "bad or duplicate id"))
         .collect()
 }
 
@@ -153,35 +153,25 @@ fn node_shape_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
 
 fn vertex_shape_issues(node: &CfgNode) -> Vec<CfgIssue> {
     let boundary = matches!(node.kind, CfgNodeKind::Entry | CfgNodeKind::Exit);
-    [
-        boundary_operation_issue(node, boundary),
-        empty_operation_issue(node, boundary),
-    ]
-    .into_iter()
-    .flatten()
-    .chain(exit_kind_issue(node))
-    .collect()
+    operation_presence_issues(node, boundary)
+        .into_iter()
+        .chain(exit_kind_issue(node))
+        .collect()
 }
 
-fn boundary_operation_issue(node: &CfgNode, boundary: bool) -> Option<CfgIssue> {
+fn operation_presence_issues(node: &CfgNode, boundary: bool) -> Vec<CfgIssue> {
     if boundary && !node.operations.is_empty() {
-        Some(make_issue(
+        vec![make_issue(
             "cfg.boundary-operations",
             "boundary node carries operations",
-        ))
-    } else {
-        None
-    }
-}
-
-fn empty_operation_issue(node: &CfgNode, boundary: bool) -> Option<CfgIssue> {
-    if !boundary && node.operations.is_empty() {
-        Some(make_issue(
+        )]
+    } else if !boundary && node.operations.is_empty() {
+        vec![make_issue(
             "cfg.empty-operation",
             "non-boundary node lacks operations",
-        ))
+        )]
     } else {
-        None
+        Vec::new()
     }
 }
 

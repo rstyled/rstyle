@@ -4,6 +4,14 @@
 
 version = 1
 
+[ignore.3d01b396fee9]
+kind = "generic_fn"
+reason = "residual one-line wrappers around shared well_formed helper; nothing left to merge"
+fns = [
+  "rstyle_pdg::model::BoolFact::shape_ok",
+  "rstyle_pdg::model::StringFact::shape_ok",
+]
+
 [ignore.114994040aee]
 kind = "parameterize"
 reason = "thin mirrored wrappers over one shared helper after #10 (#11)"
@@ -20,6 +28,14 @@ fns = [
   "rstyle_core::normalize::dedup",
 ]
 
+[ignore.3648312ee5d9]
+kind = "parameterize"
+reason = "one-line flat_map-collect shape over distinct validation domains; merging saves nothing"
+fns = [
+  "rstyle_pdg::validate::check_node_requirements",
+  "rstyle_pdg::validate::check_source_identities",
+]
+
 [ignore.3fff85bb6c1b]
 kind = "parameterize"
 reason = "iterator one-liners (map/filter + collect) over unrelated types; coincidental shape (#11)"
@@ -27,6 +43,15 @@ fns = [
   "rstyle_core::graph::boundaries",
   "rstyle_core::ledger::status::current",
   "rstyle_driver::effects::Walker::sources",
+]
+
+[ignore.440013106447]
+kind = "parameterize"
+reason = "stateful dup/index checks vs stateless key filter; shapes differ genuinely"
+fns = [
+  "rstyle_pdg::validate::dup_issues",
+  "rstyle_pdg::validate::key_issues",
+  "rstyle_pdg::validate::position_issues",
 ]
 
 [ignore.60e8af5f467a]
@@ -37,12 +62,30 @@ fns = [
   "rstyle_core::shape::Namer::list",
 ]
 
+[ignore.6b880033132d]
+kind = "parameterize"
+reason = "generic one-line ID collectors across core/driver/pdg; no shared abstraction without cross-crate coupling"
+fns = [
+  "rstyle_core::graph::boundaries",
+  "rstyle_core::ledger::status::current",
+  "rstyle_driver::effects::Walker::sources",
+  "rstyle_pdg::cfg::id_set",
+]
+
 [ignore.8758139492e7]
 kind = "parameterize"
 reason = "lists of passes (function composition), not duplicated logic (#11)"
 fns = [
   "rstyle_core::normalize::counter_loops",
   "rstyle_core::normalize::unify_case",
+]
+
+[ignore.9cfdfc96cdf0]
+kind = "parameterize"
+reason = "cross-crate BFS frontier over distinct edge types; shared generic would couple pdg/ccgraph for 8 lines"
+fns = [
+  "rstyle_ccgraph::wl::fresh_targets",
+  "rstyle_pdg::cfg::fresh_successors",
 ]
 
 [ignore.a6512f630b9a]
@@ -60,6 +103,32 @@ reason = "recursive all() checks with different leaf rules; a shared helper woul
 fns = [
   "rstyle_core::normalize::constant_tree",
   "rstyle_core::normalize::predicate_tree",
+]
+
+[ignore.c26dbf1aa399]
+kind = "parameterize"
+reason = "cross-domain coincidence between core prep and pdg access validation"
+fns = [
+  "rstyle_core::prep::impls",
+  "rstyle_pdg::validate::access_issues",
+]
+
+[ignore.c2d0658d42db]
+kind = "parameterize"
+reason = "new-contract weights vs parked legacy miner weights; miner parked, no retrofit merging"
+fns = [
+  "rstyle_ccgraph::wl::weights",
+  "rstyle_core::wl::weights",
+]
+
+[ignore.c5f442ffa59a]
+kind = "parameterize"
+reason = "distinct exact rational operations; merging add/mul/div/compare would obscure overflow-critical arithmetic"
+fns = [
+  "rstyle_ccgraph::frac::Frac::checked_add",
+  "rstyle_ccgraph::frac::Frac::checked_div",
+  "rstyle_ccgraph::frac::Frac::checked_mul",
+  "rstyle_ccgraph::frac::Frac::ge",
 ]
 
 [ignore.fdb66ce83259]
