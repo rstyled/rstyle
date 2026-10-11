@@ -838,6 +838,66 @@ fn check_eager_operator(source: &str, operator: &str) {
 }
 
 #[test]
+fn compound_updates_keep_rhs_first_and_semantic_operand_positions() {
+    for op in ["+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="] {
+        let source = format!("fn f(mut a: i32, b: i32) -> i32 {{ a {op} b; a }}");
+        let (_, facts) = compile(&source);
+        let facts = &facts.expect("compiler evidence")[0];
+        let graph = rstyle_pdg::producer::lower(facts).unwrap();
+        assert_eq!(graph.nodes.len(), 8);
+        assert_eq!(operation_text(&graph.nodes[2], facts), "b");
+        assert_eq!(operation_text(&graph.nodes[3], facts), "a");
+        assert_eq!(
+            graph.nodes[4].operator.as_deref(),
+            Some(op.trim_end_matches('='))
+        );
+        assert_eq!(
+            graph.nodes[4].operands,
+            [graph.nodes[3].id.clone(), graph.nodes[2].id.clone()]
+        );
+        assert_eq!(
+            graph.nodes[5].category,
+            rstyle_pdg::NodeCategory::Assignment
+        );
+        assert_eq!(graph.transfers.len(), 7);
+        let pair = rstyle_pdg::producer::produce(facts).unwrap();
+        assert_eq!(pair.pdg.edges.len(), 12);
+        rstyle_ccgraph::admit_produced(&pair, facts).unwrap();
+    }
+}
+
+fn operation_text<'a>(node: &rstyle_pdg::producer::Operation, facts: &'a R0FnFacts) -> &'a str {
+    &facts.source.bytes[node.span.start as usize..node.span.end as usize]
+}
+
+#[test]
+fn unary_operations_preserve_their_input_snapshot() {
+    for (ty, op) in [
+        ("i8", "-"),
+        ("i16", "-"),
+        ("i32", "-"),
+        ("i64", "-"),
+        ("i128", "-"),
+        ("isize", "-"),
+        ("i32", "!"),
+        ("u32", "!"),
+        ("bool", "!"),
+    ] {
+        let (_, facts) = compile(&format!("fn f(a: {ty}) -> {ty} {{ {op}a }}"));
+        let facts = &facts.expect("compiler evidence")[0];
+        let graph = rstyle_pdg::producer::lower(facts).unwrap();
+        assert_eq!(graph.nodes.len(), 4);
+        assert_eq!(graph.nodes[1].category, rstyle_pdg::NodeCategory::Read);
+        assert_eq!(graph.nodes[2].operator.as_deref(), Some(op));
+        assert_eq!(graph.nodes[2].operands, [graph.nodes[1].id.clone()]);
+        assert_eq!(graph.transfers.len(), 4);
+        let pair = rstyle_pdg::producer::produce(facts).unwrap();
+        assert_eq!(pair.pdg.edges.len(), 5);
+        rstyle_ccgraph::admit_produced(&pair, facts).unwrap();
+    }
+}
+
+#[test]
 fn serialized_manifest_policies_guards_and_frontiers_are_checked() {
     let (_, facts) = compile("fn f(a: bool, b: bool) -> bool { a && b }");
     let facts = &facts.expect("captured facts")[0];
