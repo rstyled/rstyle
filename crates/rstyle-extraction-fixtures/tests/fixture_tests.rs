@@ -5,7 +5,7 @@
 //! inventory, selector resolvability, overlap legality and source identities.
 //! They run without any producer and without rustc.
 
-use rstyle_r0fixture::fixture::{FixturePack, load_vendored_pack, parse_pack};
+use rstyle_extraction_fixtures::fixture::{FixturePack, load_vendored_pack, parse_pack};
 use std::collections::BTreeSet;
 
 /// The pinned snapshot embedded at compile time: exact bytes, no IO effect.

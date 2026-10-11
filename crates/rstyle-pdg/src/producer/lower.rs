@@ -32,21 +32,21 @@ struct Arms {
 }
 
 struct Builder<'a> {
-    facts: &'a R0FnFacts,
+    facts: &'a HirFnFacts,
     nodes: Vec<Operation>,
     transfers: Vec<Transfer>,
     sites: Vec<ValueSite>,
 }
 
-pub fn lower(facts: &R0FnFacts) -> Result<Graph, R0Eligibility> {
+pub fn lower(facts: &HirFnFacts) -> Result<Graph, HirEligibility> {
     let eligibility = crate::classify(facts);
     if eligibility.status != EligibilityVerdict::Eligible {
         return Err(eligibility);
     }
     if let Some(node) = incomplete_shape(&facts.body) {
-        return Err(R0Eligibility {
+        return Err(HirEligibility {
             status: EligibilityVerdict::Unknown,
-            diagnostics: vec![R0Diagnostic {
+            diagnostics: vec![HirDiagnostic {
                 capability: "rust.scalar-computation".to_string(),
                 construct: node.kind.clone(),
                 span: node.span,
@@ -87,7 +87,7 @@ pub fn lower(facts: &R0FnFacts) -> Result<Graph, R0Eligibility> {
     })
 }
 
-fn incomplete_shape(node: &R0Node) -> Option<&R0Node> {
+fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
     let count = node.children.len();
     let complete = match node.kind.as_str() {
         "stmt_expr" | "stmt_semi" | "expr_unary" => count == 1,
@@ -180,15 +180,15 @@ impl Builder<'_> {
         }
     }
 
-    fn expression(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
         lowerer(node)(self, node, flow)
     }
 
-    fn expression_statement(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn expression_statement(&mut self, node: &HirNode, flow: Flow) -> Flow {
         self.expression(&node.children[0], flow)
     }
 
-    fn block(&mut self, node: &R0Node, mut flow: Flow) -> Flow {
+    fn block(&mut self, node: &HirNode, mut flow: Flow) -> Flow {
         for child in &node.children {
             let continuing = flow.normal;
             flow = self.expression(
@@ -211,18 +211,18 @@ impl Builder<'_> {
         flow
     }
 
-    fn literal(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn literal(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let mut operation = template(node, NodeCategory::Computation);
         operation.literal = Some(node.lit.clone().unwrap_or_else(|| "()".to_string()));
 
         self.emit(operation, flow)
     }
 
-    fn read(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn read(&mut self, node: &HirNode, flow: Flow) -> Flow {
         self.emit(self.read_operation(node), flow)
     }
 
-    fn read_operation(&self, node: &R0Node) -> Operation {
+    fn read_operation(&self, node: &HirNode) -> Operation {
         let target = node
             .res
             .as_ref()
@@ -239,7 +239,7 @@ impl Builder<'_> {
         }
     }
 
-    fn declaration(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn declaration(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let initializer = node
             .children
             .iter()
@@ -262,7 +262,7 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
-    fn computation(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn computation(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let evaluated = node.children.iter().fold(
             Operands {
                 flow,
@@ -287,7 +287,7 @@ impl Builder<'_> {
         self.emit(operation, evaluated.flow)
     }
 
-    fn assignment(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn assignment(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.expression(&node.children[1], flow);
         let mut operation = self.write(node, "reassignment");
         operation.operator = Some("=".to_string());
@@ -296,7 +296,7 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
-    fn write(&self, node: &R0Node, form: &str) -> Operation {
+    fn write(&self, node: &HirNode, form: &str) -> Operation {
         let mut operation = template(node, NodeCategory::Assignment);
         let target = node.children[0]
             .res
@@ -315,7 +315,7 @@ impl Builder<'_> {
         operation
     }
 
-    fn compound(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn compound(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let evaluated = self.compound_values(node, flow);
         let dispatch = node.dispatch.as_ref().expect("builtin compound dispatch");
         let operation = Operation {
@@ -336,7 +336,7 @@ impl Builder<'_> {
         self.emit(write, computed)
     }
 
-    fn compound_values(&mut self, node: &R0Node, flow: Flow) -> Operands {
+    fn compound_values(&mut self, node: &HirNode, flow: Flow) -> Operands {
         let rhs = self.expression(&node.children[1], flow);
         let rhs_value = rhs.value.clone();
         let read = Operation {
@@ -365,7 +365,7 @@ impl Builder<'_> {
             .collect()
     }
 
-    fn predicate(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn predicate(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let (condition, construct) = if node.kind == "expr_if" {
             (&node.children[0], "if")
         } else {
@@ -386,7 +386,7 @@ impl Builder<'_> {
         self.emit(predicate, flow)
     }
 
-    fn branch(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn branch(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let predicate = self.condition(node, flow).flow;
         let controller = predicate.value.clone().expect("predicate");
         let arms = self.branch_arms(node, &predicate);
@@ -394,7 +394,7 @@ impl Builder<'_> {
         self.join(node, controller, arms)
     }
 
-    fn branch_arms(&mut self, node: &R0Node, predicate: &Flow) -> Arms {
+    fn branch_arms(&mut self, node: &HirNode, predicate: &Flow) -> Arms {
         let yes = self.expression(&node.children[1], arm(predicate, "true"));
         let no = if let Some(no) = node.children.get(2) {
             self.expression(no, arm(predicate, "false"))
@@ -405,7 +405,7 @@ impl Builder<'_> {
         Arms { yes, no }
     }
 
-    fn condition(&mut self, node: &R0Node, flow: Flow) -> Condition {
+    fn condition(&mut self, node: &HirNode, flow: Flow) -> Condition {
         let condition = self.expression(&node.children[0], flow);
         let value = condition.value.clone();
         let flow = self.predicate(node, condition);
@@ -413,7 +413,7 @@ impl Builder<'_> {
         Condition { flow, value }
     }
 
-    fn short_circuit(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn short_circuit(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let condition = self.condition(node, flow);
         let saved = condition.value;
         let op = node
@@ -442,7 +442,7 @@ impl Builder<'_> {
         self.join(node, controller, Arms { yes, no })
     }
 
-    fn join(&mut self, node: &R0Node, controller: String, arms: Arms) -> Flow {
+    fn join(&mut self, node: &HirNode, controller: String, arms: Arms) -> Flow {
         let Arms { yes, no } = arms;
         let alternatives: Vec<_> = [("true", &yes), ("false", &no)]
             .into_iter()
@@ -483,7 +483,7 @@ impl Builder<'_> {
 
     fn merge(
         &mut self,
-        node: &R0Node,
+        node: &HirNode,
         controller: String,
         alternatives: Vec<Alternative>,
     ) -> String {
@@ -505,7 +505,7 @@ impl Builder<'_> {
         id
     }
 
-    fn explicit_return(&mut self, node: &R0Node, flow: Flow) -> Flow {
+    fn explicit_return(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = if let Some(value) = node.children.first() {
             self.expression(value, flow)
         } else {
@@ -521,7 +521,7 @@ impl Builder<'_> {
             .children
             .last()
             .filter(|node| node.kind.starts_with("expr_"));
-        let anchor = tail.cloned().unwrap_or_else(|| R0Node {
+        let anchor = tail.cloned().unwrap_or_else(|| HirNode {
             span: ByteSpan {
                 start: body.span.end - 1,
                 end: body.span.end,
@@ -533,7 +533,7 @@ impl Builder<'_> {
         self.return_operation(&anchor, "implicit", flow);
     }
 
-    fn return_operation(&mut self, node: &R0Node, form: &str, flow: Flow) -> Flow {
+    fn return_operation(&mut self, node: &HirNode, form: &str, flow: Flow) -> Flow {
         let mut operation = template(node, NodeCategory::Return);
         operation.ty = self
             .facts
@@ -594,7 +594,7 @@ fn arm(predicate: &Flow, outcome: &str) -> Flow {
     }
 }
 
-fn lowerer<'a>(node: &R0Node) -> fn(&mut Builder<'a>, &R0Node, Flow) -> Flow {
+fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
     match node.kind.as_str() {
         "expr_block" => Builder::block,
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
@@ -618,7 +618,7 @@ fn lowerer<'a>(node: &R0Node) -> fn(&mut Builder<'a>, &R0Node, Flow) -> Flow {
     }
 }
 
-fn template(node: &R0Node, category: NodeCategory) -> Operation {
+fn template(node: &HirNode, category: NodeCategory) -> Operation {
     Operation {
         id: String::new(),
         category,

@@ -76,7 +76,7 @@ oracles remain a future coverage obligation.
 
 ## Additional regression and adversarial tests
 
-`crates/rstyle-driver/tests/r0_frontend.rs` exercises:
+`crates/rstyle-driver/tests/hir_extraction.rs` exercises:
 
 - UTF-8 identifiers/comments, a leading BOM/prefix, CRLF, original-byte spans.
 - cfg-disabled calls/literals and unresolved removed paths; compiler failures.
@@ -112,7 +112,7 @@ exceptional flow implementation and matching-profile changes have not started.
 
 ## Validation commands and outcomes
 
-- `cargo test -p rstyle-driver --test r0_frontend --locked`: 16 tests passed,
+- `cargo test -p rstyle-driver --test hir_extraction --locked`: 16 tests passed,
   including all 23 pinned cases (16 exact accepted cases and seven rejections).
 - `cargo test --workspace --locked`: passed, including imported admission,
   legacy behavior and the workspace's default style self-test.
@@ -153,3 +153,24 @@ Each row is exercised by the actual frontend and the independent fixture harness
 | unsupported-nested-item-owner | passed rejection | `sha256:a2a1b388d978d42d8cbc840dd2a07cfa72dd2ef5de02a52f1650ed89441b194a` |
 | unsupported-unnamed-parameter | passed rejection | `sha256:bddd05278a459732a1ead8cd34454cf55dd5398d478125294fd6adf8402f7e71` |
 | unsupported-reference-interface | passed rejection | `sha256:27edccddb7ea5560998d297506f6e8115211d99b8c887b57d11fb11f08cb78b1` |
+
+## HIR extraction naming and native transport refactor
+
+Implementation names use HIR extraction: `rstyle-extraction-fixtures`,
+`HirFnFacts`, `HirNode`, `HirDiagnostic`, and `HirEligibility`. The opt-in
+frontend uses `RSTYLE_HIR_FACTS_FILE` and `RSTYLE_HIR_DOCUMENT_DIR` exclusively.
+The normative profile identifier remains `compat.rust.hir-r0/0.1.0`.
+
+PDG serialization and decoding now use the native record-policy model directly;
+the pinned-wire translation module is removed. Native transport schema tests
+use the pinned PDG schema, and imported validation rejects mismatched edge,
+reference-count, capability, and provenance policies. Resolved-type extensions
+require known string facts; the legacy raw-string accommodation is removed.
+The older vendored PDG example is no longer a native transport test input;
+independently constructed native documents and actual frontend outputs cover
+schema roundtrips against the authoritative schema.
+
+Refactor verification: 437 workspace tests passed, including the 23 pinned
+extraction cases. Formatting, all-target clippy, workspace build, and default
+rstyle checks passed. Pattern review retained the two existing low-score hints
+without suppressions or ignore entries.

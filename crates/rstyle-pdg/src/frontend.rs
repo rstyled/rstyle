@@ -85,7 +85,7 @@ pub struct ExpansionSite {
 /// One faithfully recorded HIR construct with resolved evidence.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct R0Node {
+pub struct HirNode {
     /// HIR identity for cross-referencing within this document.
     pub hir: HirRef,
     /// Faithful HIR kind tag (for example `block`, `binary`, `call`).
@@ -115,7 +115,7 @@ pub struct R0Node {
     #[serde(default)]
     pub is_unsafe_block: bool,
     /// Nested constructs in source order.
-    pub children: Vec<R0Node>,
+    pub children: Vec<HirNode>,
 }
 
 /// One lexical binding: identity is the declaring-token span plus scope.
@@ -155,7 +155,7 @@ pub struct ParamFact {
     /// Resolved parameter type (spelling kept from the annotation).
     pub ty: ResolvedTy,
     /// Faithful pattern subtree (`pat_binding`, `pat_wild`, ...).
-    pub pat: R0Node,
+    pub pat: HirNode,
 }
 
 /// A receiver (`self`) that R0 always rejects, with its source evidence.
@@ -255,7 +255,7 @@ pub struct BuildFacts {
 /// One assessed function's complete frontend evidence.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct R0FnFacts {
+pub struct HirFnFacts {
     /// Function path for navigation (never a matching label).
     pub name: String,
     /// Span of the whole function within its file, in file bytes.
@@ -267,12 +267,12 @@ pub struct R0FnFacts {
     /// Lexical bindings in walk order.
     pub bindings: Vec<BindingFact>,
     /// Faithful construct tree of the owned body.
-    pub body: R0Node,
+    pub body: HirNode,
     /// Captured build and semantic-setting evidence.
     pub build: BuildFacts,
     /// Findings from the owned source before expansion and cfg removal.
     #[serde(default)]
-    pub source_diagnostics: Vec<R0Diagnostic>,
+    pub source_diagnostics: Vec<HirDiagnostic>,
     /// Whether the whole owned source was available to the pre-expansion scan.
     #[serde(default)]
     pub source_scan_complete: bool,
@@ -293,7 +293,7 @@ pub enum EligibilityVerdict {
 /// One actionable eligibility diagnostic.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct R0Diagnostic {
+pub struct HirDiagnostic {
     /// Stable capability ID from the backlog.
     pub capability: String,
     /// Offending construct tag.
@@ -311,11 +311,11 @@ pub struct R0Diagnostic {
 /// Classifier output: verdict plus visible diagnostics.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct R0Eligibility {
+pub struct HirEligibility {
     /// Verdict over the assessed function.
     pub status: EligibilityVerdict,
     /// Every encountered rejection or evidence gap.
-    pub diagnostics: Vec<R0Diagnostic>,
+    pub diagnostics: Vec<HirDiagnostic>,
 }
 
 /// Build a known string fact.
@@ -356,18 +356,10 @@ pub fn unknown_bool(reason: &str) -> BoolFact {
 
 /// Build a known count fact.
 pub fn known_count(value: u64) -> CountFact {
-    CountFact {
-        status: FactStatus::Known,
-        value: Some(value),
-        reason: None,
-    }
+    CountFact::known(value, crate::ProfileId::hir_r0())
 }
 
 /// Build an unknown count fact with an explicit reason.
 pub fn unknown_count(reason: &str) -> CountFact {
-    CountFact {
-        status: FactStatus::Unknown,
-        value: None,
-        reason: Some(reason.to_string()),
-    }
+    CountFact::missing(FactStatus::Unknown, reason)
 }

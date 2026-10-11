@@ -1138,8 +1138,17 @@ dependencies = [
  "jsonschema",
  "rstyle-ccgraph",
  "rstyle-core",
+ "rstyle-extraction-fixtures",
  "rstyle-pdg",
- "rstyle-r0fixture",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "rstyle-extraction-fixtures"
+version = "0.1.0"
+dependencies = [
  "serde",
  "serde_json",
  "sha2",
@@ -1150,15 +1159,6 @@ name = "rstyle-pdg"
 version = "0.1.0"
 dependencies = [
  "jsonschema",
- "serde",
- "serde_json",
- "sha2",
-]
-
-[[package]]
-name = "rstyle-r0fixture"
-version = "0.1.0"
-dependencies = [
  "serde",
  "serde_json",
  "sha2",

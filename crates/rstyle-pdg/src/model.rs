@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 pub const PDG_SCHEMA_VERSION: &str = "0.1.0";
 pub const CFG_SCHEMA_VERSION: &str = "0.2.0";
 
-/// First specified extraction policy; known but not implemented by any producer.
+/// First specified extraction policy; implemented by the opt-in HIR extraction producer.
 pub const R0_POLICY_ID: &str = "compat.rust.hir-r0";
 pub const R0_POLICY_VERSION: &str = "0.1.0";
 
@@ -204,6 +204,15 @@ pub struct ProfileId {
     pub version: String,
 }
 
+impl ProfileId {
+    pub fn hir_r0() -> Self {
+        Self {
+            id: R0_POLICY_ID.to_string(),
+            version: R0_POLICY_VERSION.to_string(),
+        }
+    }
+}
+
 // ---- Facts: known {status,value} vs missing {status,reason} ----
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -231,6 +240,8 @@ pub struct CountFact {
     pub value: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy: Option<ProfileId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -261,6 +272,8 @@ struct CountFactWire {
     value: Option<u64>,
     #[serde(default)]
     reason: Option<String>,
+    #[serde(default)]
+    policy: Option<ProfileId>,
 }
 
 fn reject_empty_reason(reason: &Option<String>) -> Result<(), String> {
@@ -336,6 +349,11 @@ impl<'de> Deserialize<'de> for BoolFact {
 impl<'de> Deserialize<'de> for CountFact {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let wire = CountFactWire::deserialize(deserializer)?;
+        if (wire.status == FactStatus::Known) != wire.policy.is_some() {
+            return Err(serde::de::Error::custom(
+                "known counts require a policy; unavailable counts must not carry one",
+            ));
+        }
 
         match wire.status {
             FactStatus::Known => {
@@ -360,6 +378,7 @@ impl<'de> Deserialize<'de> for CountFact {
             status: wire.status,
             value: wire.value,
             reason: wire.reason,
+            policy: wire.policy,
         })
     }
 }
@@ -367,6 +386,8 @@ impl<'de> Deserialize<'de> for CountFact {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Capability {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy: Option<ProfileId>,
     pub status: CapabilityStatus,
     pub description: String,
 }
@@ -382,6 +403,8 @@ pub struct Span {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Provenance {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy: Option<ProfileId>,
     pub origin: ProvenanceOrigin,
     pub description: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -457,6 +480,7 @@ pub struct PdgNode {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PdgEdge {
+    pub policy: ProfileId,
     pub id: String,
     pub source: String,
     pub target: String,
@@ -568,13 +592,15 @@ pub struct Diagnostic {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Conformance {
+    pub profile: ProfileId,
     pub status: ConformanceStatus,
     pub reasons: Vec<String>,
 }
 
 impl Conformance {
-    pub fn not_evaluated(reason: &str) -> Self {
+    pub fn not_evaluated(profile: ProfileId, reason: &str) -> Self {
         Self {
+            profile,
             status: ConformanceStatus::NotEvaluated,
             reasons: vec![reason.to_string()],
         }
@@ -596,7 +622,7 @@ pub struct Producer {
 pub struct ExtractionEvidence {
     pub capabilities: BTreeMap<String, Capability>,
     pub diagnostics: Vec<Diagnostic>,
-    pub conformance: Conformance,
+    pub conformance: Vec<Conformance>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -692,8 +718,9 @@ impl BoolFact {
 }
 
 impl CountFact {
-    pub fn known(value: u64) -> Self {
+    pub fn known(value: u64, policy: ProfileId) -> Self {
         Self {
+            policy: Some(policy),
             status: FactStatus::Known,
             value: Some(value),
             reason: None,
@@ -702,6 +729,7 @@ impl CountFact {
 
     pub fn missing(status: FactStatus, reason: &str) -> Self {
         Self {
+            policy: None,
             status,
             value: None,
             reason: Some(reason.to_string()),
@@ -709,10 +737,11 @@ impl CountFact {
     }
 
     pub fn shape_ok(&self) -> bool {
-        well_formed(
-            self.status == FactStatus::Known,
-            self.value.is_some(),
-            self.reason.as_deref(),
-        )
+        ((self.status == FactStatus::Known) == self.policy.is_some())
+            && well_formed(
+                self.status == FactStatus::Known,
+                self.value.is_some(),
+                self.reason.as_deref(),
+            )
     }
 }

@@ -1,7 +1,7 @@
 //! Real pinned rustc runs against independent source/eligibility expectations.
 
-use rstyle_pdg::{EligibilityVerdict, R0FnFacts, classify};
-use rstyle_r0fixture::fixture::FixtureCase;
+use rstyle_extraction_fixtures::fixture::FixtureCase;
+use rstyle_pdg::{EligibilityVerdict, HirFnFacts, classify};
 use std::{
     path::PathBuf,
     process::{Command, Output},
@@ -15,13 +15,14 @@ mod oracle;
 
 fn directory() -> PathBuf {
     let serial = RUN.fetch_add(1, Ordering::Relaxed);
-    let directory = std::env::temp_dir().join(format!("rstyle-r0-{}-{serial}", std::process::id()));
+    let directory =
+        std::env::temp_dir().join(format!("rstyle-hir-{}-{serial}", std::process::id()));
     std::fs::create_dir_all(&directory).expect("create isolated rustc run");
 
     directory
 }
 
-fn compile(source: &str) -> (Output, Option<Vec<R0FnFacts>>) {
+fn compile(source: &str) -> (Output, Option<Vec<HirFnFacts>>) {
     let directory = directory();
     let input = directory.join("input.rs");
     let facts = directory.join("facts.json");
@@ -47,7 +48,7 @@ fn invocation(input: &std::path::Path, facts: &std::path::Path) -> Command {
         .arg("rustc")
         .args([
             "--crate-name",
-            "r0fixture",
+            "extraction_fixture",
             "--crate-type",
             "lib",
             "--edition",
@@ -68,7 +69,7 @@ fn invocation(input: &std::path::Path, facts: &std::path::Path) -> Command {
         .arg("-o")
         .arg(input.with_extension("rmeta"))
         .arg(input)
-        .env("RSTYLE_R0_OUT_FILE", facts);
+        .env("RSTYLE_HIR_FACTS_FILE", facts);
 
     command
 }
@@ -117,7 +118,7 @@ fn check_case(case: &FixtureCase) {
     }
 }
 
-fn check_lowering(case: &FixtureCase, facts: &R0FnFacts) {
+fn check_lowering(case: &FixtureCase, facts: &HirFnFacts) {
     let graph = rstyle_pdg::producer::lower(facts).expect("eligible lowering");
     let expected = case.expected.nodes.as_deref().expect("node inventory");
     assert_eq!(
@@ -195,7 +196,9 @@ fn check_dependence(
 
 type EdgeExpectation = (String, String, String, Option<u64>, Option<String>);
 
-fn expected_data(oracle: &rstyle_r0fixture::fixture::PdgEdgesExpect) -> Vec<EdgeExpectation> {
+fn expected_data(
+    oracle: &rstyle_extraction_fixtures::fixture::PdgEdgesExpect,
+) -> Vec<EdgeExpectation> {
     let values = oracle.value_operand.iter().map(|e| {
         (
             "value_operand".to_string(),
@@ -227,7 +230,9 @@ fn expected_data(oracle: &rstyle_r0fixture::fixture::PdgEdgesExpect) -> Vec<Edge
     values.chain(reaching).chain(alternatives).collect()
 }
 
-fn expected_flow(oracle: &rstyle_r0fixture::fixture::PdgEdgesExpect) -> Vec<EdgeExpectation> {
+fn expected_flow(
+    oracle: &rstyle_extraction_fixtures::fixture::PdgEdgesExpect,
+) -> Vec<EdgeExpectation> {
     let execution = oracle.execution.iter().map(|e| {
         (
             "nearest_dominating_operation".to_string(),
@@ -250,7 +255,7 @@ fn expected_flow(oracle: &rstyle_r0fixture::fixture::PdgEdgesExpect) -> Vec<Edge
     execution.chain(control).collect()
 }
 
-fn check_emission(case: &FixtureCase, facts: &R0FnFacts) {
+fn check_emission(case: &FixtureCase, facts: &HirFnFacts) {
     let pair = rstyle_pdg::producer::produce(facts).expect("captured evidence");
     rstyle_pdg::producer::verify(&pair, facts).expect("source/build/semantic verification");
     let serialized = pair.serialize().expect("paired serialization");
@@ -265,7 +270,7 @@ fn check_schemas(case: &FixtureCase, pair: &rstyle_pdg::producer::Pair) {
     let schemas = [
         (
             include_str!("../../../vendor-compat/rust-r0/pdg.schema.json"),
-            rstyle_pdg::producer::pinned::pdg_value(&pair.pdg).expect("pinned PDG"),
+            serde_json::to_value(&pair.pdg).expect("PDG document"),
         ),
         (
             include_str!("../../../vendor-compat/rust-r0/cfg.schema.json"),
@@ -283,7 +288,7 @@ fn check_schemas(case: &FixtureCase, pair: &rstyle_pdg::producer::Pair) {
     }
 }
 
-fn check_admission(case: &FixtureCase, facts: &R0FnFacts, pair: &rstyle_pdg::producer::Pair) {
+fn check_admission(case: &FixtureCase, facts: &HirFnFacts, pair: &rstyle_pdg::producer::Pair) {
     let bytes =
         std::collections::BTreeMap::from([("source".to_string(), case.source.as_bytes().to_vec())]);
     let context = rstyle_pdg::ValidationContext::CompilerEvidence {
@@ -389,7 +394,7 @@ fn check_value_sites(
 }
 
 fn expected_guards(
-    annotations: &rstyle_r0fixture::fixture::GuardAnnotations,
+    annotations: &rstyle_extraction_fixtures::fixture::GuardAnnotations,
 ) -> Vec<Vec<(String, String)>> {
     annotations
         .guards
@@ -473,7 +478,7 @@ fn merge_matches(case: &FixtureCase, alias: &str, node: &rstyle_pdg::producer::O
     node.span.start as usize == start && node.span.end as usize == end
 }
 
-fn check_diagnostics(case: &FixtureCase, found: &[rstyle_pdg::R0Diagnostic]) {
+fn check_diagnostics(case: &FixtureCase, found: &[rstyle_pdg::HirDiagnostic]) {
     for expected in case.expected.diagnostics.as_deref().unwrap_or_default() {
         let (start, end) = expected
             .selector
@@ -492,7 +497,7 @@ fn check_diagnostics(case: &FixtureCase, found: &[rstyle_pdg::R0Diagnostic]) {
 
 #[test]
 fn all_pinned_sources_run_through_real_rustc() {
-    let pack = rstyle_r0fixture::parse_pack(include_bytes!(
+    let pack = rstyle_extraction_fixtures::parse_pack(include_bytes!(
         "../../../vendor-compat/rust-r0/fixtures/rust-r0-extraction.json"
     ));
 
@@ -866,7 +871,7 @@ fn compound_updates_keep_rhs_first_and_semantic_operand_positions() {
     }
 }
 
-fn operation_text<'a>(node: &rstyle_pdg::producer::Operation, facts: &'a R0FnFacts) -> &'a str {
+fn operation_text<'a>(node: &rstyle_pdg::producer::Operation, facts: &'a HirFnFacts) -> &'a str {
     &facts.source.bytes[node.span.start as usize..node.span.end as usize]
 }
 
@@ -912,9 +917,7 @@ fn serialized_manifest_policies_guards_and_frontiers_are_checked() {
         let mut document: serde_json::Value =
             serde_json::from_slice(&serialized.pdg_bytes).unwrap();
         mutate_wire_document(&mut document, mutation);
-        if let Ok(pdg) =
-            rstyle_pdg::producer::pinned::read_pdg(&serde_json::to_vec(&document).unwrap())
-        {
+        if let Ok(pdg) = serde_json::from_value::<rstyle_pdg::PdgDocument>(document) {
             let cfg = serde_json::from_slice(&serialized.cfg_bytes).unwrap();
             assert!(
                 rstyle_ccgraph::admit_produced(&rstyle_pdg::producer::Pair { pdg, cfg }, facts)
@@ -977,11 +980,11 @@ fn opt_in_driver_artifacts_cross_the_serialized_strict_handoff() {
     let documents = dir.join("documents");
     std::fs::write(&input, "fn f(a: i32) -> i32 { a }\nfn rejected() { f(1); }").unwrap();
     let output = invocation(&input, &facts_path)
-        .env("RSTYLE_R0_DOCUMENT_DIR", &documents)
+        .env("RSTYLE_HIR_DOCUMENT_DIR", &documents)
         .output()
         .unwrap();
     assert!(output.status.success(), "{:?}", output.stderr);
-    let facts: Vec<R0FnFacts> =
+    let facts: Vec<HirFnFacts> =
         serde_json::from_slice(&std::fs::read(&facts_path).unwrap()).unwrap();
     let serialized = rstyle_pdg::producer::SerializedPair {
         pdg_bytes: std::fs::read(documents.join("function-0.pdg.json")).unwrap(),

@@ -43,16 +43,9 @@ struct DocumentMetadata {
 #[derive(Serialize)]
 struct OperationProvenance {
     cfg_operation_id: String,
-    provenance: ProfileProvenance,
+    provenance: Provenance,
     construct_span: Span,
     role: String,
-}
-
-#[derive(Serialize)]
-struct ProfileProvenance {
-    #[serde(flatten)]
-    provenance: Provenance,
-    policy: ProfileId,
 }
 
 #[derive(Serialize)]
@@ -98,9 +91,7 @@ impl SerializedPair {
 
 impl Pair {
     pub fn serialize(&self) -> Result<SerializedPair, serde_json::Error> {
-        let pdg_bytes = serde_json::to_vec(
-            &super::pinned::pdg_value(&self.pdg).map_err(serde::ser::Error::custom)?,
-        )?;
+        let pdg_bytes = serde_json::to_vec(&self.pdg)?;
         let cfg_bytes = serde_json::to_vec(&self.cfg)?;
         let links = read_paired_graph(&self.pdg.extensions).expect("producer paired links");
         let manifest = Manifest {
@@ -126,7 +117,7 @@ fn identity(key: String, bytes: &[u8]) -> DocumentIdentity {
 }
 
 pub fn emit(
-    facts: &R0FnFacts,
+    facts: &HirFnFacts,
     graph: &Graph,
     analysis: &Analysis,
     revision: &str,
@@ -150,7 +141,7 @@ pub fn emit(
 }
 
 fn pdg_document(
-    facts: &R0FnFacts,
+    facts: &HirFnFacts,
     graph: &Graph,
     analysis: &Analysis,
     metadata: &DocumentMetadata,
@@ -183,7 +174,7 @@ fn pdg_document(
     }
 }
 
-fn producer(facts: &R0FnFacts, revision: &str) -> Result<Producer, String> {
+fn producer(facts: &HirFnFacts, revision: &str) -> Result<Producer, String> {
     let build = &facts.build;
     let required = [
         &build.producer_revision,
@@ -221,7 +212,7 @@ fn producer(facts: &R0FnFacts, revision: &str) -> Result<Producer, String> {
     ]);
 
     Ok(Producer {
-        name: "rstyle-hir-r0".to_string(),
+        name: "rstyle-hir-extraction".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         language: "Rust".to_string(),
         language_version: build.rustc_version.clone(),
@@ -259,6 +250,7 @@ fn span(span: ByteSpan) -> Span {
 
 fn evidence(description: &str) -> Capability {
     Capability {
+        policy: Some(ProfileId::hir_r0()),
         status: CapabilityStatus::Supported,
         description: description.to_string(),
     }
@@ -277,6 +269,7 @@ fn provenance(node: &Operation) -> Provenance {
     };
 
     Provenance {
+        policy: Some(ProfileId::hir_r0()),
         origin,
         description: format!("R0 {} from resolved {}", node.role, node.original_kind),
         origin_node_ids: Vec::new(),
@@ -286,6 +279,7 @@ fn provenance(node: &Operation) -> Provenance {
 
 fn analysis_provenance() -> Provenance {
     Provenance {
+        policy: Some(ProfileId::hir_r0()),
         origin: ProvenanceOrigin::Analysis,
         description: "Exact R0 normal-flow binding/value/dominance analysis".to_string(),
         origin_node_ids: Vec::new(),
@@ -364,6 +358,7 @@ fn pdg_node(node: &Operation, graph: &Graph) -> PdgNode {
 
 fn pdg_edge(index: usize, edge: &Dependence) -> PdgEdge {
     PdgEdge {
+        policy: ProfileId::hir_r0(),
         id: format!("e{index}"),
         source: edge.source.clone(),
         target: edge.target.clone(),
@@ -434,7 +429,7 @@ fn symbol(binding: &BindingFact) -> Symbol {
     }
 }
 
-fn function(facts: &R0FnFacts, graph: &Graph, analysis: &Analysis) -> FunctionInfo {
+fn function(facts: &HirFnFacts, graph: &Graph, analysis: &Analysis) -> FunctionInfo {
     let inputs = facts
         .signature
         .params
@@ -481,7 +476,7 @@ fn function(facts: &R0FnFacts, graph: &Graph, analysis: &Analysis) -> FunctionIn
         interface_completeness: evidence(
             "Every resolved named primitive parameter and the return metadata are retained",
         ),
-        reference_count: CountFact::known(reads.len() as u64),
+        reference_count: CountFact::known(reads.len() as u64, ProfileId::hir_r0()),
     }
 }
 
@@ -494,7 +489,7 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
             _ => CapabilityStatus::NotApplicable,
         };
         let description = if key == "exceptional_flow" && !limitations.is_empty() { limitations.join("; ") } else { format!("R0 bounded normal-flow {key}: {status:?}; validated only within demonstrated subset") };
-        (key.to_string(), Capability { status, description })
+        (key.to_string(), Capability { policy: Some(ProfileId::hir_r0()), status, description })
     }).collect();
     let diagnostics = limitations
         .iter()
@@ -511,13 +506,18 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
     ExtractionEvidence {
         capabilities,
         diagnostics,
-        conformance: Conformance::not_evaluated(
+        conformance: vec![Conformance::not_evaluated(
+            ProfileId::hir_r0(),
             "Await independent normal-flow validation and strict admission; schema acceptance is insufficient",
-        ),
+        )],
     }
 }
 
-fn extensions(facts: &R0FnFacts, graph: &Graph, analysis: &Analysis) -> Result<Extensions, String> {
+fn extensions(
+    facts: &HirFnFacts,
+    graph: &Graph,
+    analysis: &Analysis,
+) -> Result<Extensions, String> {
     let key = format!("{}:{}", facts.source.digest, facts.name);
     let operations: Vec<_> = graph
         .nodes
@@ -562,13 +562,7 @@ fn extensions(facts: &R0FnFacts, graph: &Graph, analysis: &Analysis) -> Result<E
 fn operation_provenance(node: &Operation) -> OperationProvenance {
     OperationProvenance {
         cfg_operation_id: format!("op:{}", node.id),
-        provenance: ProfileProvenance {
-            provenance: provenance(node),
-            policy: ProfileId {
-                id: R0_POLICY_ID.to_string(),
-                version: R0_POLICY_VERSION.to_string(),
-            },
-        },
+        provenance: provenance(node),
         construct_span: span(node.construct_span),
         role: node.role.clone(),
     }
@@ -601,7 +595,7 @@ fn value_site(site: &super::ValueSite) -> Result<Value, String> {
     serde_json::to_value(wire).map_err(|e| e.to_string())
 }
 
-fn cfg_document(facts: &R0FnFacts, graph: &Graph, metadata: DocumentMetadata) -> CfgDocument {
+fn cfg_document(facts: &HirFnFacts, graph: &Graph, metadata: DocumentMetadata) -> CfgDocument {
     let DocumentMetadata {
         producer,
         extensions,
@@ -650,7 +644,7 @@ fn cfg_document(facts: &R0FnFacts, graph: &Graph, metadata: DocumentMetadata) ->
     }
 }
 
-fn cfg_nodes(graph: &Graph, facts: &R0FnFacts) -> Vec<CfgNode> {
+fn cfg_nodes(graph: &Graph, facts: &HirFnFacts) -> Vec<CfgNode> {
     let mut nodes = vec![
         boundary("E", CfgNodeKind::Entry),
         boundary("X", CfgNodeKind::Exit),
@@ -697,7 +691,7 @@ fn boundary(id: &str, kind: CfgNodeKind) -> CfgNode {
     }
 }
 
-fn cfg_node(node: &Operation, facts: &R0FnFacts) -> CfgNode {
+fn cfg_node(node: &Operation, facts: &HirFnFacts) -> CfgNode {
     CfgNode {
         id: node.id.clone(),
         kind: match node.category {

@@ -19,7 +19,7 @@ pub use value_sites::validate_value_sites;
 pub use eligibility::{classify, span};
 pub use frontend::{
     BindingFact, BuildFacts, ByteSpan, Dispatch, EligibilityVerdict, ExpansionSite, GenericFact,
-    HirRef, ParamFact, PathRes, R0Diagnostic, R0Eligibility, R0FnFacts, R0Node, ReceiverFact,
+    HirDiagnostic, HirEligibility, HirFnFacts, HirNode, HirRef, ParamFact, PathRes, ReceiverFact,
     ResolvedTy, SignatureFacts, SourceFacts, known_bool, known_count, known_str, unknown_bool,
     unknown_count, unknown_str,
 };

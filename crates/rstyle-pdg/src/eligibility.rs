@@ -8,7 +8,7 @@
 //! stable capability ID, construct, exact source span, and reason. Missing
 //! required evidence yields `Unknown`, never an eligible empty graph.
 //!
-//! Driver contract for `R0Node.kind` strings: expression nodes use
+//! Driver contract for `HirNode.kind` strings: expression nodes use
 //! `expr_<lowercase HIR variant>` (`expr_binary`, `expr_call`, ...),
 //! statements use `stmt_<variant>` (`stmt_let`, `stmt_item`, ...),
 //! patterns use `pat_<variant>` (`pat_binding`, `pat_wild`, ...), and type
@@ -16,8 +16,8 @@
 //! fallback arm; the walk stays total over future HIR variants.
 
 use crate::frontend::{
-    BindingFact, ByteSpan, EligibilityVerdict, ExpansionSite, ParamFact, R0Diagnostic,
-    R0Eligibility, R0FnFacts, R0Node, ResolvedTy, SignatureFacts,
+    BindingFact, ByteSpan, EligibilityVerdict, ExpansionSite, HirDiagnostic, HirEligibility,
+    HirFnFacts, HirNode, ParamFact, ResolvedTy, SignatureFacts,
 };
 use crate::model::{FactStatus, StringFact};
 use std::collections::{BTreeMap, BTreeSet};
@@ -51,7 +51,7 @@ const COMPOUND_OPS: [&str; 10] = ["+=", "-=", "*=", "/=", "%=", "&=", "|=", "^="
 /// One classifier finding: diagnostics plus an evidence-gap flag.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Outcome {
-    diagnostics: Vec<R0Diagnostic>,
+    diagnostics: Vec<HirDiagnostic>,
     gap: bool,
     rejected: bool,
 }
@@ -65,7 +65,7 @@ impl Outcome {
         }
     }
 
-    fn reject(diagnostic: R0Diagnostic) -> Self {
+    fn reject(diagnostic: HirDiagnostic) -> Self {
         Self {
             diagnostics: vec![diagnostic],
             gap: false,
@@ -73,7 +73,7 @@ impl Outcome {
         }
     }
 
-    fn gap(diagnostic: R0Diagnostic) -> Self {
+    fn gap(diagnostic: HirDiagnostic) -> Self {
         Self {
             diagnostics: vec![diagnostic],
             gap: true,
@@ -110,15 +110,15 @@ struct Site {
     snippet: String,
 }
 
-fn site_of(node: &R0Node) -> Site {
+fn site_of(node: &HirNode) -> Site {
     Site {
         span: node.span,
         snippet: node.snippet.clone(),
     }
 }
 
-fn diagnostic(capability: &str, construct: &str, site: &Site, reason: &str) -> R0Diagnostic {
-    R0Diagnostic {
+fn diagnostic(capability: &str, construct: &str, site: &Site, reason: &str) -> HirDiagnostic {
+    HirDiagnostic {
         capability: capability.to_string(),
         construct: construct.to_string(),
         span: site.span,
@@ -128,11 +128,11 @@ fn diagnostic(capability: &str, construct: &str, site: &Site, reason: &str) -> R
     }
 }
 
-fn error(capability: &str, construct: &str, node: &R0Node, reason: &str) -> Outcome {
+fn error(capability: &str, construct: &str, node: &HirNode, reason: &str) -> Outcome {
     Outcome::reject(diagnostic(capability, construct, &site_of(node), reason))
 }
 
-fn evidence_gap(node: &R0Node, what: &str) -> Outcome {
+fn evidence_gap(node: &HirNode, what: &str) -> Outcome {
     Outcome::gap(diagnostic(
         "rust.scalar-computation",
         &node.kind,
@@ -147,12 +147,12 @@ fn norm(ty: &ResolvedTy) -> Option<&str> {
 }
 
 /// Normalized primitive token of a node's value type, if present.
-fn node_norm(node: &R0Node) -> Option<&str> {
+fn node_norm(node: &HirNode) -> Option<&str> {
     node.ty.as_ref().and_then(norm)
 }
 
 /// Classify one assessed function.
-pub fn classify(facts: &R0FnFacts) -> R0Eligibility {
+pub fn classify(facts: &HirFnFacts) -> HirEligibility {
     let ctx = Ctx {
         bindings: facts
             .bindings
@@ -185,13 +185,13 @@ pub fn classify(facts: &R0FnFacts) -> R0Eligibility {
         EligibilityVerdict::Eligible
     };
 
-    R0Eligibility {
+    HirEligibility {
         status,
         diagnostics: outcome.diagnostics,
     }
 }
 
-fn check_source_scan(facts: &R0FnFacts) -> Outcome {
+fn check_source_scan(facts: &HirFnFacts) -> Outcome {
     let source = Outcome {
         diagnostics: facts.source_diagnostics.clone(),
         gap: false,
@@ -216,8 +216,8 @@ fn known_str(value: &StringFact) -> Option<&str> {
 }
 
 /// Signature-shape diagnostics anchor on the signature span.
-fn signature_node(signature: &SignatureFacts) -> R0Node {
-    R0Node {
+fn signature_node(signature: &SignatureFacts) -> HirNode {
+    HirNode {
         hir: crate::frontend::HirRef {
             krate: 0,
             owner: 0,
@@ -239,7 +239,7 @@ fn signature_node(signature: &SignatureFacts) -> R0Node {
     }
 }
 
-fn check_signature(facts: &R0FnFacts, ctx: &Ctx<'_>) -> Outcome {
+fn check_signature(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
     Outcome::combine(vec![
         check_sig_subject(&facts.signature),
         check_sig_header(&facts.signature),
@@ -402,7 +402,7 @@ fn check_param(param: &ParamFact, ctx: &Ctx<'_>) -> Outcome {
     Outcome::combine(vec![pat, ty])
 }
 
-fn check_bindings(facts: &R0FnFacts, ctx: &Ctx<'_>) -> Outcome {
+fn check_bindings(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
     let mut seen: BTreeSet<&str> = BTreeSet::new();
 
     Outcome::combine(
@@ -450,8 +450,8 @@ fn check_bindings(facts: &R0FnFacts, ctx: &Ctx<'_>) -> Outcome {
     )
 }
 
-fn binding_node(binding: &BindingFact) -> R0Node {
-    R0Node {
+fn binding_node(binding: &BindingFact) -> HirNode {
+    HirNode {
         hir: binding.hir.clone(),
         kind: "binding".to_string(),
         span: binding.decl_span,
@@ -471,7 +471,7 @@ fn binding_node(binding: &BindingFact) -> R0Node {
 
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
-fn check_node(node: &R0Node, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     if !in_expansion && let Some(site) = &node.expansion {
         return macro_diagnostic(node, site);
     }
@@ -493,7 +493,7 @@ fn check_node(node: &R0Node, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     own.merge(children)
 }
 
-fn macro_diagnostic(node: &R0Node, site: &ExpansionSite) -> Outcome {
+fn macro_diagnostic(node: &HirNode, site: &ExpansionSite) -> Outcome {
     Outcome::reject(diagnostic(
         "rust.macros",
         &node.kind,
@@ -505,7 +505,7 @@ fn macro_diagnostic(node: &R0Node, site: &ExpansionSite) -> Outcome {
     ))
 }
 
-fn check_kind(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
+fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     if node.kind.starts_with("pat_") {
         return check_pat_node(node, ctx);
     }
@@ -523,7 +523,7 @@ fn check_kind(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
 }
 
 /// Constructs that may be admitted once their evidence checks pass.
-fn check_supported(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
+fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     match node.kind.as_str() {
         "expr_block" => check_block(node),
         "stmt_expr" | "stmt_semi" => Outcome::ok(),
@@ -545,7 +545,7 @@ fn check_supported(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
 }
 
 /// Deferred constructs: each maps to its stable capability ID.
-fn check_deferred(node: &R0Node) -> Outcome {
+fn check_deferred(node: &HirNode) -> Outcome {
     match node.kind.as_str() {
         "stmt_item" => error(
             "rust.blocks",
@@ -563,7 +563,7 @@ fn check_deferred(node: &R0Node) -> Outcome {
     }
 }
 
-fn check_deferred_expression(node: &R0Node) -> Outcome {
+fn check_deferred_expression(node: &HirNode) -> Outcome {
     match node.kind.as_str() {
         "expr_field" | "expr_index" | "expr_addr_of" => error(
             "rust.abstract-memory",
@@ -593,7 +593,7 @@ fn check_deferred_expression(node: &R0Node) -> Outcome {
     }
 }
 
-fn check_deferred_owned_body(node: &R0Node) -> Outcome {
+fn check_deferred_owned_body(node: &HirNode) -> Outcome {
     match node.kind.as_str() {
         "expr_closure" => error(
             "rust.closures",
@@ -630,7 +630,7 @@ fn check_deferred_owned_body(node: &R0Node) -> Outcome {
 }
 
 /// Pattern nodes are leaves: the outermost shape decides, children excluded.
-fn check_pat_node(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
+fn check_pat_node(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     match node.kind.as_str() {
         "pat_binding" => match &node.binding {
             Some(symbol) if ctx.symbols.contains(symbol.as_str()) => Outcome::ok(),
@@ -651,12 +651,12 @@ fn check_pat_node(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
     }
 }
 
-fn check_ty_node(node: &R0Node) -> Outcome {
+fn check_ty_node(node: &HirNode) -> Outcome {
     check_scalar_type(node, "annotation_type", "annotation type")
 }
 
 /// Every retained expression must carry a resolved primitive value type.
-fn check_expr_ty(node: &R0Node, what: &str) -> Outcome {
+fn check_expr_ty(node: &HirNode, what: &str) -> Outcome {
     if matches!(node.kind.as_str(), "expr_block" | "expr_if")
         && node.ty.as_ref().is_some_and(|ty| ty.observed == "!")
     {
@@ -666,7 +666,7 @@ fn check_expr_ty(node: &R0Node, what: &str) -> Outcome {
     check_scalar_type(node, what, "expression type")
 }
 
-fn check_scalar_type(node: &R0Node, construct: &str, evidence: &str) -> Outcome {
+fn check_scalar_type(node: &HirNode, construct: &str, evidence: &str) -> Outcome {
     match node_norm(node) {
         Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
         Some(_) => error(
@@ -685,7 +685,7 @@ fn check_scalar_type(node: &R0Node, construct: &str, evidence: &str) -> Outcome 
     }
 }
 
-fn check_block(node: &R0Node) -> Outcome {
+fn check_block(node: &HirNode) -> Outcome {
     if node.is_unsafe_block {
         return error(
             "rust.unsafe",
@@ -698,7 +698,7 @@ fn check_block(node: &R0Node) -> Outcome {
     check_expr_ty(node, "block")
 }
 
-fn check_tup(node: &R0Node) -> Outcome {
+fn check_tup(node: &HirNode) -> Outcome {
     if !node.children.is_empty() {
         return error(
             "rust.additional-types",
@@ -711,7 +711,7 @@ fn check_tup(node: &R0Node) -> Outcome {
     check_expr_ty(node, "unit")
 }
 
-fn check_path(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
+fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     let resolution = match &node.res {
         None => return evidence_gap(node, "path resolution"),
         Some(res) => res,
@@ -738,7 +738,7 @@ fn check_path(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
     }
 }
 
-fn builtin_or_reject(node: &R0Node, what: &str) -> Outcome {
+fn builtin_or_reject(node: &HirNode, what: &str) -> Outcome {
     match &node.dispatch {
         None => evidence_gap(node, "operator dispatch"),
         Some(dispatch) if dispatch.kind == "builtin" => Outcome::ok(),
@@ -751,7 +751,7 @@ fn builtin_or_reject(node: &R0Node, what: &str) -> Outcome {
     }
 }
 
-fn check_binary(node: &R0Node) -> Outcome {
+fn check_binary(node: &HirNode) -> Outcome {
     let dispatch = builtin_or_reject(node, "binary");
     if !dispatch.diagnostics.is_empty() || dispatch.gap {
         return dispatch;
@@ -780,7 +780,7 @@ fn check_binary(node: &R0Node) -> Outcome {
 }
 
 /// Unit comparisons use library traits, not built-in scalar operations.
-fn unit_comparison(node: &R0Node, op: &str) -> Outcome {
+fn unit_comparison(node: &HirNode, op: &str) -> Outcome {
     if COMPARISONS.contains(&op) {
         return error(
             "rust.scalar-computation",
@@ -814,7 +814,7 @@ fn is_int(ty: &str) -> bool {
     SIGNED_INTS.contains(&ty) || UNSIGNED_INTS.contains(&ty)
 }
 
-fn check_unary(node: &R0Node) -> Outcome {
+fn check_unary(node: &HirNode) -> Outcome {
     let dispatch = builtin_or_reject(node, "unary");
     if !dispatch.diagnostics.is_empty() || dispatch.gap {
         return dispatch;
@@ -845,7 +845,7 @@ fn check_unary(node: &R0Node) -> Outcome {
 }
 
 /// Direct assignment target must be a lexical binding path (never a read).
-fn check_assign(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
+fn check_assign(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     let [target, _value] = node.children.as_slice() else {
         return evidence_gap(node, "assignment shape");
     };
@@ -867,7 +867,7 @@ fn check_assign(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
     check_expr_ty(node, "assignment")
 }
 
-fn check_assign_op(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
+fn check_assign_op(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     let dispatch = builtin_or_reject(node, "compound_assignment");
     if !dispatch.diagnostics.is_empty() || dispatch.gap {
         return dispatch;
@@ -904,7 +904,7 @@ fn check_assign_op(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
     check_expr_ty(node, "compound_assignment")
 }
 
-fn check_if(node: &R0Node) -> Outcome {
+fn check_if(node: &HirNode) -> Outcome {
     let [cond, ..] = node.children.as_slice() else {
         return evidence_gap(node, "branch shape");
     };
@@ -930,7 +930,7 @@ fn check_if(node: &R0Node) -> Outcome {
     }
 }
 
-fn check_let(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
+fn check_let(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     let pats = node
         .children
         .iter()
@@ -966,7 +966,7 @@ fn check_let(node: &R0Node, ctx: &Ctx<'_>) -> Outcome {
 }
 
 /// A declaration needs its pattern and a single initializer value.
-fn shape_outcome(node: &R0Node) -> Outcome {
+fn shape_outcome(node: &HirNode) -> Outcome {
     let pats = node
         .children
         .iter()

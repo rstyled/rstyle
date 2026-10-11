@@ -1,9 +1,9 @@
 //! Independent fixture facts: no producer analysis is used to create expectations.
+use rstyle_extraction_fixtures::fixture::FixtureCase;
 use rstyle_pdg::{
-    R0FnFacts,
+    HirFnFacts,
     producer::{Graph, analyze},
 };
-use rstyle_r0fixture::fixture::FixtureCase;
 use std::collections::{BTreeMap, BTreeSet};
 
 struct Names<'a> {
@@ -14,7 +14,7 @@ struct Names<'a> {
 
 pub fn check_bindings(
     case: &FixtureCase,
-    facts: &R0FnFacts,
+    facts: &HirFnFacts,
     graph: &Graph,
     aliases: &BTreeMap<String, String>,
 ) {

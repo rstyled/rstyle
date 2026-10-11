@@ -1,10 +1,10 @@
-# Opt-in HIR R0 producer
+# Opt-in HIR extraction producer
 
 Build with the repository's pinned toolchain, including rustc-dev:
 
 ```sh
 cargo build --workspace --locked
-RSTYLE_R0_DOCUMENT_DIR=/tmp/rstyle-r0-documents \
+RSTYLE_HIR_DOCUMENT_DIR=/tmp/rstyle-hir-documents \
   target/debug/rstyle-driver rustc --crate-type lib --edition 2021 \
   --emit metadata -C overflow-checks=yes -C debug-assertions=yes \
   -C panic=unwind -C opt-level=0 example.rs
@@ -16,12 +16,11 @@ per-function assessments, and accepted `function-N.pdg.json`,
 by their paired keys and SHA-256 of their exact serialized bytes. Unsupported
 functions produce diagnostics and assessments without a graph pair. Use a fresh
 output directory for each compilation so previous artifacts cannot be confused
-with a failed run. `RSTYLE_R0_OUT_FILE` selects a separate facts path and can
+with a failed run. `RSTYLE_HIR_FACTS_FILE` selects a separate facts path and can
 also be used alone to capture frontend evidence.
 
 Both wire documents follow the pinned extraction contracts in
-`vendor-compat/rust-r0`. The PDG wire bridge checks record policies before
-conversion to the current root-profile transport. For the narrow in-process
+`vendor-compat/rust-r0`. The native transport preserves record policies without conversion. For the narrow in-process
 handoff, `producer::verify_serialized` validates manifests and captured semantic
 evidence, then `rstyle_ccgraph::admit_produced` invokes strict admission. Raw
 producer conformance flags are insufficient evidence.
@@ -36,11 +35,11 @@ limitations. Certification is bounded to the tested R0 subset; it does not claim
 complete Rust execution, purity, equivalence or rewrite safety. Conditional body
 source without complete source-resolution correspondence remains unknown.
 
-See [the coverage ledger](../R0_COVERAGE_LEDGER.md) for case-by-case results and
+See [the coverage ledger](../HIR_EXTRACTION_COVERAGE.md) for case-by-case results and
 remaining coverage obligations. Validation commands:
 
 ```sh
-cargo test -p rstyle-driver --test r0_frontend --locked
+cargo test -p rstyle-driver --test hir_extraction --locked
 cargo test --workspace --locked
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings

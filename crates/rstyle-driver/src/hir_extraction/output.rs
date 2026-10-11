@@ -1,6 +1,6 @@
 //! Explicit producer artifacts, independent of matching orchestration.
 
-use rstyle_pdg::{R0FnFacts, classify, producer};
+use rstyle_pdg::{HirFnFacts, classify, producer};
 use serde::Serialize;
 use std::{
     io,
@@ -19,13 +19,13 @@ struct Assessment<'a> {
     eligibility: String,
     normal_flow_validation: &'static str,
     matching_admission: &'static str,
-    diagnostics: &'a [rstyle_pdg::R0Diagnostic],
+    diagnostics: &'a [rstyle_pdg::HirDiagnostic],
     extraction_errors: Vec<String>,
     manifest_file: Option<String>,
 }
 
 impl Destination {
-    pub fn write(&self, facts: &[R0FnFacts]) -> io::Result<()> {
+    pub fn write(&self, facts: &[HirFnFacts]) -> io::Result<()> {
         if let Some(directory) = &self.document_directory {
             write(directory, facts)?;
         }
@@ -33,7 +33,7 @@ impl Destination {
     }
 }
 
-fn write(directory: &Path, facts: &[R0FnFacts]) -> io::Result<()> {
+fn write(directory: &Path, facts: &[HirFnFacts]) -> io::Result<()> {
     std::fs::create_dir_all(directory)?;
     for (index, function) in facts.iter().enumerate() {
         write_function(directory, index, function)?;
@@ -42,7 +42,7 @@ fn write(directory: &Path, facts: &[R0FnFacts]) -> io::Result<()> {
     Ok(())
 }
 
-fn write_function(directory: &Path, index: usize, facts: &R0FnFacts) -> io::Result<()> {
+fn write_function(directory: &Path, index: usize, facts: &HirFnFacts) -> io::Result<()> {
     let eligibility = classify(facts);
     let result = producer::produce(facts)
         .and_then(|pair| rstyle_ccgraph::admit_produced(&pair, facts).map(|_| pair));

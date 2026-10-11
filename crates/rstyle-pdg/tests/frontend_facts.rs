@@ -5,7 +5,7 @@
 //! rustc or any producer analysis.
 
 use rstyle_pdg::frontend::{
-    BindingFact, BuildFacts, ByteSpan, HirRef, ParamFact, R0FnFacts, R0Node, ResolvedTy,
+    BindingFact, BuildFacts, ByteSpan, HirFnFacts, HirNode, HirRef, ParamFact, ResolvedTy,
     SignatureFacts, SourceFacts, known_bool, known_count, known_str,
 };
 
@@ -21,8 +21,8 @@ fn scalar(normalized: &str, spelling: &str) -> ResolvedTy {
     }
 }
 
-fn leaf(kind: &str, start: u32, end: u32, snippet: &str) -> R0Node {
-    R0Node {
+fn leaf(kind: &str, start: u32, end: u32, snippet: &str) -> HirNode {
+    HirNode {
         hir: HirRef {
             krate: 0,
             owner: 1,
@@ -44,8 +44,8 @@ fn leaf(kind: &str, start: u32, end: u32, snippet: &str) -> R0Node {
     }
 }
 
-fn read_node() -> R0Node {
-    R0Node {
+fn read_node() -> HirNode {
+    HirNode {
         res: Some(rstyle_pdg::frontend::PathRes {
             kind: "local".to_string(),
             target: Some(HirRef {
@@ -60,16 +60,16 @@ fn read_node() -> R0Node {
     }
 }
 
-fn lit_node() -> R0Node {
-    R0Node {
+fn lit_node() -> HirNode {
+    HirNode {
         lit: Some("1".to_string()),
         ty: Some(scalar("i32", "")),
         ..leaf("lit", 30, 31, "1")
     }
 }
 
-fn add_node() -> R0Node {
-    R0Node {
+fn add_node() -> HirNode {
+    HirNode {
         dispatch: Some(rstyle_pdg::frontend::Dispatch {
             kind: "builtin".to_string(),
             op: "+".to_string(),
@@ -82,8 +82,8 @@ fn add_node() -> R0Node {
     }
 }
 
-fn pat_binding() -> R0Node {
-    R0Node {
+fn pat_binding() -> HirNode {
+    HirNode {
         binding: Some("s0".to_string()),
         binding_mut: Some(false),
         ..leaf("pat_binding", 5, 6, "a")
@@ -150,13 +150,13 @@ fn build() -> BuildFacts {
     }
 }
 
-fn straightline_facts() -> R0FnFacts {
-    let body = R0Node {
+fn straightline_facts() -> HirFnFacts {
+    let body = HirNode {
         children: vec![add_node()],
         ..leaf("block", 21, 35, "{ let x = a + 1; x }")
     };
 
-    R0FnFacts {
+    HirFnFacts {
         source_diagnostics: Vec::new(),
         source_scan_complete: true,
         name: "f".to_string(),
@@ -176,7 +176,7 @@ fn straightline_facts() -> R0FnFacts {
 fn facts_survive_json_round_trip() {
     let facts = straightline_facts();
     let json = serde_json::to_string(&facts).expect("facts serialize");
-    let back: R0FnFacts = serde_json::from_str(&json).expect("facts parse");
+    let back: HirFnFacts = serde_json::from_str(&json).expect("facts parse");
 
     assert_eq!(facts, back);
 }
@@ -191,7 +191,7 @@ fn unknown_fields_are_rejected() {
 
 #[test]
 fn unknown_evidence_keeps_a_reason() {
-    let facts = R0FnFacts {
+    let facts = HirFnFacts {
         build: BuildFacts {
             rustc_commit: rstyle_pdg::frontend::unknown_str("rustc -vV unavailable"),
             ..straightline_facts().build
@@ -199,7 +199,7 @@ fn unknown_evidence_keeps_a_reason() {
         ..straightline_facts()
     };
     let json = serde_json::to_string(&facts).expect("facts serialize");
-    let back: R0FnFacts = serde_json::from_str(&json).expect("facts parse");
+    let back: HirFnFacts = serde_json::from_str(&json).expect("facts parse");
 
     assert_eq!(facts, back);
     assert_eq!(back.build.rustc_commit.value, None);

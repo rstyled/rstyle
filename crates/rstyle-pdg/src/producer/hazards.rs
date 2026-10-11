@@ -3,7 +3,7 @@
 //! an unavailable value or an unproved bound retains an explicit limitation.
 
 use super::{Analysis, Graph, Operation};
-use crate::{NodeCategory, R0FnFacts};
+use crate::{HirFnFacts, NodeCategory};
 use std::collections::BTreeMap;
 
 #[derive(serde::Serialize)]
@@ -21,7 +21,7 @@ pub struct Proof {
     method: &'static str,
 }
 
-pub fn assess(facts: &R0FnFacts, graph: &Graph, analysis: &Analysis) -> Assessment {
+pub fn assess(facts: &HirFnFacts, graph: &Graph, analysis: &Analysis) -> Assessment {
     let mut values = BTreeMap::new();
     let mut assessment = Assessment {
         limitations: Vec::new(),
@@ -145,7 +145,7 @@ fn evaluate(op: &str, values: &[i128]) -> Option<i128> {
     }
 }
 
-fn width(facts: &R0FnFacts, ty: &str) -> Option<u32> {
+fn width(facts: &HirFnFacts, ty: &str) -> Option<u32> {
     if matches!(ty, "isize" | "usize") {
         return facts
             .build
@@ -157,7 +157,7 @@ fn width(facts: &R0FnFacts, ty: &str) -> Option<u32> {
     ty.get(1..)?.parse().ok()
 }
 
-fn fits(facts: &R0FnFacts, ty: &str, value: i128) -> bool {
+fn fits(facts: &HirFnFacts, ty: &str, value: i128) -> bool {
     let Some(bits) = width(facts, ty) else {
         return false;
     };
@@ -169,7 +169,7 @@ fn fits(facts: &R0FnFacts, ty: &str, value: i128) -> bool {
 }
 
 fn proven_safe(
-    facts: &R0FnFacts,
+    facts: &HirFnFacts,
     graph: &Graph,
     node: &Operation,
     operands: &[Option<i128>],
@@ -207,7 +207,7 @@ fn proven_safe(
         .is_some_and(|result| fits(facts, &node.ty, result))
 }
 
-fn literal_negation_safe(facts: &R0FnFacts, graph: &Graph, node: &Operation) -> bool {
+fn literal_negation_safe(facts: &HirFnFacts, graph: &Graph, node: &Operation) -> bool {
     let literal = graph
         .nodes
         .iter()

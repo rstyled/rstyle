@@ -7,7 +7,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
-pub fn verify(pair: &Pair, facts: &R0FnFacts) -> Result<(), Vec<String>> {
+pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     let digest = format!("sha256:{:x}", Sha256::digest(facts.source.bytes.as_bytes()));
     if digest != facts.source.digest {
         return Err(vec!["Captured source identity is inconsistent".to_string()]);
@@ -31,7 +31,7 @@ pub fn verify(pair: &Pair, facts: &R0FnFacts) -> Result<(), Vec<String>> {
     validate_boundary(pair, facts)
 }
 
-fn validate_boundary(pair: &Pair, facts: &R0FnFacts) -> Result<(), Vec<String>> {
+fn validate_boundary(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     let bytes = pair
         .pdg
         .sources

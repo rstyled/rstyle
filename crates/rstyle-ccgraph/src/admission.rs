@@ -7,8 +7,7 @@
 //! [`evaluate_all`](crate::pipeline::evaluate_all) on hand-built
 //! [`ImportedFunction`](crate::graph::ImportedFunction) remains available for
 //! compact stage fixtures but is explicitly non-certifying: it never
-//! establishes extraction eligibility or producer conformance. No HIR producer
-//! exists yet, so conformance is never claimed.
+//! establishes extraction eligibility or producer conformance. Producer conformance requires separately verified frontend evidence.
 
 use crate::config::CcgraphConfig;
 use crate::graph::{ImportedEdge, ImportedFunction, ImportedNode, InterfaceElement};
@@ -37,7 +36,7 @@ pub struct StrictBundle<'a> {
 /// then use the unchanged strict imported-document admission boundary.
 pub fn admit_produced(
     pair: &rstyle_pdg::producer::Pair,
-    facts: &rstyle_pdg::R0FnFacts,
+    facts: &rstyle_pdg::HirFnFacts,
 ) -> Result<ImportedFunction, Vec<String>> {
     rstyle_pdg::producer::verify(pair, facts)?;
     let source_bytes = pair
@@ -381,7 +380,7 @@ fn resolve_type(param: &rstyle_pdg::Parameter) -> Result<String, String> {
             }
             None => {
                 return Err(format!(
-                    "interface position {}: resolved-type extension must be a known string fact or a legacy string",
+                    "interface position {}: resolved-type extension must be a known string fact",
                     param.position
                 ));
             }
@@ -403,9 +402,6 @@ fn resolve_type(param: &rstyle_pdg::Parameter) -> Result<String, String> {
 }
 
 fn resolved_extension_value(value: &serde_json::Value) -> Option<String> {
-    if let Some(value) = value.as_str() {
-        return Some(value.to_string());
-    }
     let fact: rstyle_pdg::StringFact = serde_json::from_value(value.clone()).ok()?;
 
     fact.known_value().map(str::to_string)

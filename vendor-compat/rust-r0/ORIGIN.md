@@ -24,9 +24,6 @@ repository at the pinned revision above. Do not hand-edit these files to make
 tests pass; if the contract changes, re-vendor from a new pinned revision and
 record it here.
 
-The pinned PDG schema requires record policies on edges and known reference
-counts and an array of profile-specific conformance assessments. The later
-workspace transport uses a root profile and a single assessment. The producer's
-checked pinned-wire bridge emits the authoritative format, validates policy
-agreement, then converts to existing transport for strict admission. See
-`R0_COVERAGE_LEDGER.md`; these snapshots have not been modified.
+The native PDG transport uses the pinned record policies and profile-specific
+conformance assessment array directly. No wire translation is required. See
+`HIR_EXTRACTION_COVERAGE.md`; normative snapshots remain unchanged.

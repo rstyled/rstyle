@@ -8,7 +8,7 @@
 use rstyle_pdg::EligibilityVerdict;
 use rstyle_pdg::eligibility::{classify, span};
 use rstyle_pdg::frontend::{
-    BindingFact, BuildFacts, ByteSpan, Dispatch, HirRef, ParamFact, PathRes, R0FnFacts, R0Node,
+    BindingFact, BuildFacts, ByteSpan, Dispatch, HirFnFacts, HirNode, HirRef, ParamFact, PathRes,
     ResolvedTy, SignatureFacts, SourceFacts, known_bool, known_count, known_str,
 };
 
@@ -32,8 +32,8 @@ fn untyped() -> Option<ResolvedTy> {
     None
 }
 
-fn leaf(kind: &str, snippet: &str) -> R0Node {
-    R0Node {
+fn leaf(kind: &str, snippet: &str) -> HirNode {
+    HirNode {
         hir: hir(0),
         kind: kind.to_string(),
         span: span(0, 0),
@@ -51,17 +51,17 @@ fn leaf(kind: &str, snippet: &str) -> R0Node {
     }
 }
 
-fn typed(mut node: R0Node, normalized: &str) -> R0Node {
+fn typed(mut node: HirNode, normalized: &str) -> HirNode {
     node.ty = Some(scalar(normalized));
     node
 }
 
-fn kids(mut node: R0Node, children: Vec<R0Node>) -> R0Node {
+fn kids(mut node: HirNode, children: Vec<HirNode>) -> HirNode {
     node.children = children;
     node
 }
 
-fn local_read(target_local: u32, ty: &str) -> R0Node {
+fn local_read(target_local: u32, ty: &str) -> HirNode {
     let mut node = leaf("expr_path", "a");
     node.res = Some(PathRes {
         kind: "local".to_string(),
@@ -100,14 +100,14 @@ fn param_binding(symbol: &str, name: &str, local: u32, ty: &str) -> BindingFact 
     }
 }
 
-fn pat_binding(symbol: &str) -> R0Node {
+fn pat_binding(symbol: &str) -> HirNode {
     let mut node = leaf("pat_binding", "a");
     node.binding = Some(symbol.to_string());
     node.binding_mut = Some(false);
     node
 }
 
-fn param(symbol: &str, ty: &str, pat: R0Node) -> ParamFact {
+fn param(symbol: &str, ty: &str, pat: HirNode) -> ParamFact {
     ParamFact {
         symbol: symbol.to_string(),
         position: 0,
@@ -159,12 +159,12 @@ fn build() -> BuildFacts {
 }
 
 fn make_facts(
-    body: R0Node,
+    body: HirNode,
     bindings: Vec<BindingFact>,
     params: Vec<ParamFact>,
     ret: &str,
-) -> R0FnFacts {
-    R0FnFacts {
+) -> HirFnFacts {
+    HirFnFacts {
         name: "f".to_string(),
         source_diagnostics: Vec::new(),
         source_scan_complete: true,
@@ -180,7 +180,7 @@ fn make_facts(
     }
 }
 
-fn capabilities(found: &rstyle_pdg::frontend::R0Eligibility) -> Vec<&str> {
+fn capabilities(found: &rstyle_pdg::frontend::HirEligibility) -> Vec<&str> {
     found
         .diagnostics
         .iter()
@@ -264,7 +264,7 @@ fn overloaded_operator_is_rejected() {
 
 #[test]
 fn macro_expansion_reports_once_at_the_callsite() {
-    let expanded_call = R0Node {
+    let expanded_call = HirNode {
         expansion: Some(rstyle_pdg::frontend::ExpansionSite {
             callsite: span(11, 19),
             snippet: "panic!()".to_string(),
@@ -418,8 +418,8 @@ fn uninitialized_and_let_else_declarations_are_rejected() {
     assert_eq!(capabilities(&found), vec!["rust.local-bindings"]);
 }
 
-fn with_signature(body: R0Node, signature: SignatureFacts) -> R0FnFacts {
-    R0FnFacts {
+fn with_signature(body: HirNode, signature: SignatureFacts) -> HirFnFacts {
+    HirFnFacts {
         signature,
         ..make_facts(body, Vec::new(), Vec::new(), "unit")
     }

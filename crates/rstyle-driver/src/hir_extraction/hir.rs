@@ -72,8 +72,8 @@ impl<'tcx> Context<'tcx> {
             .to_string()
     }
 
-    pub fn node(&self, id: HirId, span: Span, kind: &str) -> R0Node {
-        R0Node {
+    pub fn node(&self, id: HirId, span: Span, kind: &str) -> HirNode {
+        HirNode {
             hir: reference(id),
             kind: kind.to_string(),
             span: self.span(span),
@@ -91,7 +91,7 @@ impl<'tcx> Context<'tcx> {
         }
     }
 
-    pub fn pattern(&self, pat: &hir::Pat<'tcx>) -> R0Node {
+    pub fn pattern(&self, pat: &hir::Pat<'tcx>) -> HirNode {
         let (kind, span) = match pat.kind {
             PatKind::Binding(hir::BindingMode(hir::ByRef::No, _), _, ident, None) => {
                 ("pat_binding", ident.span)
@@ -106,7 +106,7 @@ impl<'tcx> Context<'tcx> {
             _ => (None, None),
         };
 
-        R0Node {
+        HirNode {
             ty: self
                 .typeck
                 .node_type_opt(pat.hir_id)
@@ -117,7 +117,7 @@ impl<'tcx> Context<'tcx> {
         }
     }
 
-    pub fn expression(&self, expr: &Expr<'tcx>) -> R0Node {
+    pub fn expression(&self, expr: &Expr<'tcx>) -> HirNode {
         if let ExprKind::DropTemps(inner) = expr.kind {
             return self.expression(inner);
         }
@@ -132,7 +132,7 @@ impl<'tcx> Context<'tcx> {
             callsite: self.span(expr.span.source_callsite()),
             snippet: self.snippet(expr.span),
         });
-        let node = R0Node {
+        let node = HirNode {
             ty: Some(resolved(ty, String::new())),
             expansion,
             ..base
@@ -141,7 +141,7 @@ impl<'tcx> Context<'tcx> {
         self.expression_fields(expr, node)
     }
 
-    fn expression_fields(&self, expr: &Expr<'tcx>, node: R0Node) -> R0Node {
+    fn expression_fields(&self, expr: &Expr<'tcx>, node: HirNode) -> HirNode {
         let children = self.children(expr);
         let res = match expr.kind {
             ExprKind::Path(ref path) => {
@@ -166,7 +166,7 @@ impl<'tcx> Context<'tcx> {
         let lit = matches!(expr.kind, ExprKind::Lit(_)).then(|| self.snippet(expr.span));
         let is_unsafe_block = matches!(expr.kind, ExprKind::Block(block, _) if matches!(block.rules, hir::BlockCheckMode::UnsafeBlock(_)));
 
-        R0Node {
+        HirNode {
             children,
             res,
             lit,
@@ -176,7 +176,7 @@ impl<'tcx> Context<'tcx> {
         }
     }
 
-    fn children(&self, expr: &Expr<'tcx>) -> Vec<R0Node> {
+    fn children(&self, expr: &Expr<'tcx>) -> Vec<HirNode> {
         match expr.kind {
             ExprKind::Block(block, _) => self.block_children(block),
             ExprKind::Binary(_, left, right)
@@ -199,7 +199,7 @@ impl<'tcx> Context<'tcx> {
         }
     }
 
-    fn block_children(&self, block: &hir::Block<'tcx>) -> Vec<R0Node> {
+    fn block_children(&self, block: &hir::Block<'tcx>) -> Vec<HirNode> {
         block
             .stmts
             .iter()
@@ -208,7 +208,7 @@ impl<'tcx> Context<'tcx> {
             .collect()
     }
 
-    fn statement(&self, stmt: &hir::Stmt<'tcx>) -> R0Node {
+    fn statement(&self, stmt: &hir::Stmt<'tcx>) -> HirNode {
         match stmt.kind {
             StmtKind::Let(local) => self.declaration(local),
             StmtKind::Expr(expr) | StmtKind::Semi(expr) => {
@@ -217,7 +217,7 @@ impl<'tcx> Context<'tcx> {
                 } else {
                     "stmt_expr"
                 };
-                R0Node {
+                HirNode {
                     children: vec![self.expression(expr)],
                     ..self.node(stmt.hir_id, stmt.span, kind)
                 }
@@ -226,8 +226,8 @@ impl<'tcx> Context<'tcx> {
         }
     }
 
-    fn declaration(&self, local: &hir::LetStmt<'tcx>) -> R0Node {
-        let annotation = local.ty.map(|ty| R0Node {
+    fn declaration(&self, local: &hir::LetStmt<'tcx>) -> HirNode {
+        let annotation = local.ty.map(|ty| HirNode {
             ty: self
                 .typeck
                 .node_type_opt(local.pat.hir_id)
@@ -240,7 +240,7 @@ impl<'tcx> Context<'tcx> {
             .chain(local.els.map(|b| self.node(b.hir_id, b.span, "let_else")))
             .collect();
 
-        R0Node {
+        HirNode {
             children,
             ..self.node(local.hir_id, local.span, "stmt_let")
         }
@@ -306,7 +306,7 @@ fn kind(kind: &ExprKind<'_>) -> &'static str {
     }
 }
 
-pub fn bindings(node: &R0Node, scope: &str) -> Vec<BindingFact> {
+pub fn bindings(node: &HirNode, scope: &str) -> Vec<BindingFact> {
     let local_scope = (node.kind == "expr_block")
         .then(|| format!("scope:source:block:{}:{}", node.span.start, node.span.end));
     let scope = local_scope.as_deref().unwrap_or(scope);

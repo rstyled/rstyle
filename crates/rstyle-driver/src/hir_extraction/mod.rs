@@ -13,7 +13,7 @@ pub fn crate_facts(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
     invocation: &[String],
-) -> Result<Vec<R0FnFacts>, String> {
+) -> Result<Vec<HirFnFacts>, String> {
     tcx.hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
         .map(|id| function(tcx, id, scanned, invocation).ok_or_else(|| format!(
@@ -27,7 +27,7 @@ fn function(
     id: LocalDefId,
     scanned: &[source::Function],
     invocation: &[String],
-) -> Option<R0FnFacts> {
+) -> Option<HirFnFacts> {
     let node = tcx.hir_node_by_def_id(id);
     let sig = node.fn_sig()?;
     let body = tcx.hir_body(node.body_id()?);
@@ -54,7 +54,7 @@ fn function(
         .find(|scan| scan.span.source_callsite() == function_span);
     let source_diagnostics = source_findings(&ctx, scan, sig.span);
 
-    Some(R0FnFacts {
+    Some(HirFnFacts {
         name: tcx.def_path_str(id.to_def_id()),
         fn_span,
         source: SourceFacts {
@@ -114,7 +114,7 @@ fn parameters<'tcx>(
         .zip(body.params)
         .enumerate()
         .map(|(position, (ty, param))| {
-            let pat = R0Node {
+            let pat = HirNode {
                 param_index: Some(position as u32),
                 ..ctx.pattern(param.pat)
             };
@@ -180,9 +180,9 @@ fn source_findings(
     ctx: &hir::Context<'_>,
     scan: Option<&source::Function>,
     signature_span: rustc_span::Span,
-) -> Vec<R0Diagnostic> {
+) -> Vec<HirDiagnostic> {
     if signature_span.from_expansion() {
-        return vec![R0Diagnostic {
+        return vec![HirDiagnostic {
             capability: "rust.macros".to_string(),
             construct: "macro_generated_function".to_string(),
             span: ctx.span(signature_span),
@@ -194,7 +194,7 @@ fn source_findings(
 
     scan.into_iter()
         .flat_map(|scan| &scan.findings)
-        .map(|finding| R0Diagnostic {
+        .map(|finding| HirDiagnostic {
             capability: finding.capability.to_string(),
             construct: finding.construct.to_string(),
             span: ctx.span(finding.span),

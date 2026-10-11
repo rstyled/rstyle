@@ -1,5 +1,5 @@
 [package]
-name = "rstyle-r0fixture"
+name = "rstyle-extraction-fixtures"
 version.workspace = true
 edition.workspace = true
 

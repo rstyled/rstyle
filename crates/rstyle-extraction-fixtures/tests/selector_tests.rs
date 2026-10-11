@@ -4,7 +4,7 @@
 //! contract (whitespace-insensitive contiguous token runs, 1-based
 //! occurrences, byte spans) that every later comparison relies on.
 
-use rstyle_r0fixture::selector::{count_matches, lex, resolve};
+use rstyle_extraction_fixtures::selector::{count_matches, lex, resolve};
 
 fn span_text(source: &str, span: (usize, usize)) -> &str {
     &source[span.0..span.1]

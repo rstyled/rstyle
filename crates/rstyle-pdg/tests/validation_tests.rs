@@ -12,6 +12,7 @@ fn profile() -> ProfileId {
 
 fn supported_capability() -> Capability {
     Capability {
+        policy: None,
         status: CapabilityStatus::Supported,
         description: "d".to_string(),
     }
@@ -19,6 +20,7 @@ fn supported_capability() -> Capability {
 
 fn na_capability() -> Capability {
     Capability {
+        policy: None,
         status: CapabilityStatus::NotApplicable,
         description: "absent".to_string(),
     }
@@ -36,6 +38,7 @@ fn capabilities() -> BTreeMap<String, Capability> {
     caps.insert(
         "exceptional_flow".to_string(),
         Capability {
+            policy: None,
             status: CapabilityStatus::Unsupported,
             description: "normal-flow only".to_string(),
         },
@@ -53,6 +56,7 @@ fn span() -> Span {
 
 fn provenance() -> Provenance {
     Provenance {
+        policy: None,
         origin: ProvenanceOrigin::Source,
         description: "d".to_string(),
         origin_node_ids: Vec::new(),
@@ -112,6 +116,7 @@ fn empty_attrs() -> NodeAttributes {
 
 fn edge(id: &str, source: &str, target: &str) -> PdgEdge {
     PdgEdge {
+        policy: profile(),
         id: id.to_string(),
         source: source.to_string(),
         target: target.to_string(),
@@ -164,7 +169,7 @@ fn base_doc() -> PdgDocument {
         extraction_evidence: ExtractionEvidence {
             capabilities: capabilities(),
             diagnostics: Vec::new(),
-            conformance: Conformance::not_evaluated("fixture"),
+            conformance: vec![Conformance::not_evaluated(profile(), "fixture")],
         },
         extensions: BTreeMap::new(),
     }
@@ -200,7 +205,7 @@ fn base_function() -> FunctionInfo {
         inputs: vec![base_param(ParamRole::Parameter, Some("s_x"), "x", "i32")],
         outputs: vec![base_param(ParamRole::Return, None, "", "unit")],
         interface_completeness: supported_capability(),
-        reference_count: CountFact::known(1),
+        reference_count: CountFact::known(1, profile()),
     }
 }
 
@@ -306,6 +311,7 @@ fn unknown_reference_count_is_ineligible_and_never_zero() {
     let mut doc = base_doc();
     doc.function.reference_count = CountFact {
         status: FactStatus::Unknown,
+        policy: None,
         value: None,
         reason: Some("unavailable".to_string()),
     };
@@ -337,6 +343,10 @@ fn compiler_evidence_requires_source_digests() {
         id: R0_POLICY_ID.to_string(),
         version: R0_POLICY_VERSION.to_string(),
     };
+    doc.function.reference_count.policy = Some(doc.profile.clone());
+    for edge in &mut doc.edges {
+        edge.policy = doc.profile.clone();
+    }
 
     let ctx = ValidationContext::CompilerEvidence {
         pointer_width_bits: 64,
@@ -448,6 +458,7 @@ fn approximated_normal_flow_is_ineligible() {
     doc.extraction_evidence.capabilities.insert(
         "returns".to_string(),
         Capability {
+            policy: None,
             status: CapabilityStatus::Approximated,
             description: "d".to_string(),
         },
@@ -795,10 +806,11 @@ fn unknown_interface_symbol_is_ineligible() {
 #[test]
 fn conformant_claim_does_not_establish_eligibility() {
     let mut doc = base_doc();
-    doc.extraction_evidence.conformance = Conformance {
+    doc.extraction_evidence.conformance = vec![Conformance {
+        profile: doc.profile.clone(),
         status: ConformanceStatus::Conformant,
         reasons: Vec::new(),
-    };
+    }];
     doc.edges.push(edge("e9", "n_r", "ghost"));
     let report = check(&doc);
     assert_eq!(report.matching, Eligibility::Ineligible);
@@ -806,4 +818,39 @@ fn conformant_claim_does_not_establish_eligibility() {
         report.producer_conformance,
         ProducerConformance::NotEvaluated
     );
+}
+
+#[test]
+fn native_record_policy_disagreement_blocks_admission() {
+    let baseline = base_doc();
+    assert_eq!(check(&baseline).matching, Eligibility::Eligible);
+    let mut documents = Vec::new();
+    let mut edge_policy = baseline.clone();
+    edge_policy.edges[0].policy.version = "9.9.9".to_string();
+    documents.push(edge_policy);
+    let mut count_policy = baseline.clone();
+    count_policy
+        .function
+        .reference_count
+        .policy
+        .as_mut()
+        .unwrap()
+        .version = "9.9.9".to_string();
+    documents.push(count_policy);
+    let mut capability_policy = baseline.clone();
+    capability_policy.nodes[0].evidence.policy = Some(ProfileId::hir_r0());
+    documents.push(capability_policy);
+
+    for doc in documents {
+        let wire = serde_json::to_vec(&doc).unwrap();
+        let roundtrip: PdgDocument = serde_json::from_slice(&wire).unwrap();
+        let report = check(&roundtrip);
+        assert_eq!(report.matching, Eligibility::Ineligible);
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.code == "pdg.record-policy")
+        );
+    }
 }
