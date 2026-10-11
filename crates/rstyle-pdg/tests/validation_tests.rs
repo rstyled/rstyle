@@ -351,10 +351,16 @@ fn unknown_policy_is_ineligible_under_compiler_evidence() {
 #[test]
 fn compiler_evidence_requires_source_digests() {
     let mut doc = base_doc();
-    doc.profile = ProfileId {
+    let r0 = ProfileId {
         id: R0_POLICY_ID.to_string(),
         version: R0_POLICY_VERSION.to_string(),
     };
+    doc.profile = r0.clone();
+
+    for edge in &mut doc.edges {
+        edge.policy = r0.clone();
+    }
+
     let ctx = ValidationContext::CompilerEvidence {
         pointer_width_bits: 64,
     };
@@ -583,4 +589,114 @@ fn correspondence_rejects_unknown_pdg_nodes_and_shared_vertices() {
 
 fn singleton_ids(ids: [&str; 1]) -> std::collections::BTreeSet<String> {
     ids.iter().map(|s| s.to_string()).collect()
+}
+
+fn has_code(report: &ValidationReport, code: &str) -> bool {
+    report.issues.iter().any(|i| i.code == code)
+}
+
+#[test]
+fn unclaimed_definition_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes[0].attributes.defines.clear();
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.definition-ownership"));
+}
+
+#[test]
+fn edge_policy_mismatch_is_ineligible() {
+    let mut doc = base_doc();
+    doc.edges[0].policy = counted_policy();
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.edge-policy"));
+}
+
+#[test]
+fn empty_edge_subkind_is_ineligible() {
+    let mut doc = base_doc();
+    doc.edges[0].subkind.clear();
+    assert_eq!(check(&doc).matching, Eligibility::Ineligible);
+}
+
+#[test]
+fn read_without_access_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes[1].attributes.reads.clear();
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.read-access"));
+}
+
+#[test]
+fn call_without_callee_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes
+        .push(source_node("n_c", NodeCategory::Call, empty_attrs()));
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.call-target"));
+}
+
+#[test]
+fn control_without_construct_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes
+        .push(source_node("n_p2", NodeCategory::Control, empty_attrs()));
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.control-construct"));
+}
+
+#[test]
+fn bad_extension_key_is_ineligible() {
+    let mut doc = base_doc();
+    doc.extensions
+        .insert("bare".to_string(), serde_json::json!(1));
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.extension-namespace"));
+}
+
+#[test]
+fn unknown_provenance_node_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes[1].provenance.origin_node_ids = vec!["ghost".to_string()];
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.dangling-node"));
+}
+
+#[test]
+fn unknown_edge_definition_is_ineligible() {
+    let mut doc = base_doc();
+    doc.edges[0].definition_id = Some("ghost".to_string());
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(has_code(&report, "pdg.dangling-definition"));
+}
+
+#[test]
+fn unknown_interface_symbol_is_ineligible() {
+    let mut doc = base_doc();
+    doc.function.inputs[0].symbol_id = Some("ghost".to_string());
+    assert_eq!(check(&doc).matching, Eligibility::Ineligible);
+}
+
+#[test]
+fn conformant_claim_does_not_establish_eligibility() {
+    let mut doc = base_doc();
+    doc.extraction_evidence.conformance.push(ConformanceRecord {
+        profile: profile(),
+        status: ConformanceStatus::Conformant,
+        reasons: Vec::new(),
+    });
+    doc.edges.push(edge("e9", "n_r", "ghost"));
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert_eq!(
+        report.producer_conformance,
+        ProducerConformance::NotEvaluated
+    );
 }
