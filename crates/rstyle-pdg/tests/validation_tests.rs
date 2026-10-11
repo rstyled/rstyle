@@ -454,7 +454,10 @@ fn cfg_entry_with_incoming_edge_is_flagged() {
         id: "x".to_string(),
         source: "b".to_string(),
         target: "E".to_string(),
-        kind: "normal".to_string(),
+        kind: CfgEdgeKind::Normal,
+        case_value: None,
+        loop_role: None,
+        reason: None,
     });
     assert!(
         validate_cfg(&bad)
@@ -463,54 +466,94 @@ fn cfg_entry_with_incoming_edge_is_flagged() {
     );
 }
 
+fn cfg_producer() -> CfgProducer {
+    CfgProducer {
+        name: "fixture-author".to_string(),
+        version: "0".to_string(),
+        language: "Rust".to_string(),
+        language_version: StringFact::known("1.0"),
+        configuration: BTreeMap::new(),
+    }
+}
+
+fn cfg_nodes() -> Vec<CfgNode> {
+    vec![
+        CfgNode {
+            id: "E".to_string(),
+            kind: CfgNodeKind::Entry,
+            origin: "synthetic entry".to_string(),
+            exit_kind: None,
+            operations: Vec::new(),
+        },
+        CfgNode {
+            id: "b".to_string(),
+            kind: CfgNodeKind::Block,
+            origin: "test operation".to_string(),
+            exit_kind: None,
+            operations: vec![CfgOperation {
+                id: "op0".to_string(),
+                original_kind: "k".to_string(),
+                text: "t".to_string(),
+                source_span: span(),
+            }],
+        },
+        CfgNode {
+            id: "X".to_string(),
+            kind: CfgNodeKind::Exit,
+            origin: "synthetic exit".to_string(),
+            exit_kind: Some(CfgExitKind::Normal),
+            operations: Vec::new(),
+        },
+    ]
+}
+
+fn cfg_edges() -> Vec<CfgEdge> {
+    vec![
+        CfgEdge {
+            id: "c0".to_string(),
+            source: "E".to_string(),
+            target: "b".to_string(),
+            kind: CfgEdgeKind::Normal,
+            case_value: None,
+            loop_role: None,
+            reason: None,
+        },
+        CfgEdge {
+            id: "c1".to_string(),
+            source: "b".to_string(),
+            target: "X".to_string(),
+            kind: CfgEdgeKind::Return,
+            case_value: None,
+            loop_role: None,
+            reason: None,
+        },
+    ]
+}
+
 fn cfg_doc() -> CfgDocument {
     CfgDocument {
         schema_version: CFG_SCHEMA_VERSION.to_string(),
-        profile: profile(),
+        profile: r0_profile(),
+        producer: cfg_producer(),
+        sources: vec![CfgSource {
+            id: "s0".to_string(),
+            path: "a.rs".to_string(),
+            content_identity: StringFact::missing(FactStatus::Unknown, "hand-authored"),
+            content: None,
+        }],
+        function: CfgFunction {
+            id: "f".to_string(),
+            name: StringFact::known("alpha"),
+            source_span: span(),
+        },
         entry_node_id: "E".to_string(),
         exit_node_ids: vec!["X".to_string()],
-        nodes: vec![
-            CfgNode {
-                id: "E".to_string(),
-                kind: CfgNodeKind::Entry,
-                origin: "o".to_string(),
-                exit_kind: None,
-                operations: Vec::new(),
-            },
-            CfgNode {
-                id: "b".to_string(),
-                kind: CfgNodeKind::Block,
-                origin: "o".to_string(),
-                exit_kind: None,
-                operations: vec![CfgOperation {
-                    id: "op0".to_string(),
-                    original_kind: "k".to_string(),
-                    text: "t".to_string(),
-                    source_span: span(),
-                }],
-            },
-            CfgNode {
-                id: "X".to_string(),
-                kind: CfgNodeKind::Exit,
-                origin: "o".to_string(),
-                exit_kind: Some("normal".to_string()),
-                operations: Vec::new(),
-            },
-        ],
-        edges: vec![
-            CfgEdge {
-                id: "c0".to_string(),
-                source: "E".to_string(),
-                target: "b".to_string(),
-                kind: "normal".to_string(),
-            },
-            CfgEdge {
-                id: "c1".to_string(),
-                source: "b".to_string(),
-                target: "X".to_string(),
-                kind: "return".to_string(),
-            },
-        ],
+        nodes: cfg_nodes(),
+        edges: cfg_edges(),
+        extraction_evidence: CfgExtractionEvidence {
+            status: ExtractionStatus::Complete,
+            limitations: Vec::new(),
+        },
         extensions: BTreeMap::new(),
     }
 }

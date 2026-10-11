@@ -1,15 +1,21 @@
 //! CFG interchange model, reachability, and CFG/PDG correspondence.
 //!
-//! The matcher derives operation reachability from the paired CFG's entry,
-//! never from array order. Correspondence triples live in the shared
-//! `compat.rust.hir-r0:operation-map` extension on both documents.
+//! The model mirrors CFG 0.2.0 structurally with closed objects and
+//! absent-optional omission. The matcher derives operation reachability from
+//! the paired CFG's entry, never from array order. Correspondence triples
+//! live in the shared `compat.rust.hir-r0:operation-map` extension on both
+//! documents.
 
-use crate::model::{Extensions, ProfileId, Span};
+use crate::model::{Extensions, Span, StringFact};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const OPERATION_MAP_KEY: &str = "compat.rust.hir-r0:operation-map";
 pub const PAIRED_GRAPH_KEY: &str = "compat.rust.hir-r0:paired-graph";
+
+/// R0 CFG construction policy identity.
+pub const R0_CFG_NAME: &str = "compat.rust.hir-r0";
+pub const R0_CFG_VERSION: &str = "0.1.0";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -21,7 +27,144 @@ pub enum CfgNodeKind {
     Transfer,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CfgExitKind {
+    Normal,
+    Exceptional,
+    ProcessTermination,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CfgEdgeKind {
+    Normal,
+    True,
+    False,
+    Case,
+    Default,
+    Return,
+    Break,
+    Continue,
+    Exception,
+    Terminate,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LoopRole {
+    BackEdge,
+    LoopExit,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Granularity {
+    Operation,
+    BasicBlock,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExceptionalFlow {
+    Explicit,
+    Conservative,
+    Omitted,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnreachableCode {
+    Preserve,
+    Omit,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShortCircuit {
+    ExplicitBranches,
+    Reject,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnspecifiedOrder {
+    Overapproximate,
+    Reject,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExtractionStatus {
+    Complete,
+    Partial,
+    Unknown,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvaluationOrder {
+    pub sequencing: Sequencing,
+    pub short_circuit: ShortCircuit,
+    pub unspecified_order: UnspecifiedOrder,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Sequencing {
+    LanguageDefined,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CfgProfile {
+    pub name: String,
+    pub version: String,
+    pub granularity: Granularity,
+    pub evaluation_order: EvaluationOrder,
+    pub exceptional_flow: ExceptionalFlow,
+    pub exit_policy: String,
+    pub unreachable_code: UnreachableCode,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CfgProducer {
+    pub name: String,
+    pub version: String,
+    pub language: String,
+    pub language_version: StringFact,
+    pub configuration: BTreeMap<String, serde_json::Value>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CfgSource {
+    pub id: String,
+    pub path: String,
+    pub content_identity: StringFact,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CfgFunction {
+    pub id: String,
+    pub name: StringFact,
+    pub source_span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CfgExtractionEvidence {
+    pub status: ExtractionStatus,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CfgOperation {
     pub id: String,
     pub original_kind: String,
@@ -30,34 +173,65 @@ pub struct CfgOperation {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CfgNode {
     pub id: String,
     pub kind: CfgNodeKind,
     pub origin: String,
-    #[serde(default)]
-    pub exit_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_kind: Option<CfgExitKind>,
     #[serde(default)]
     pub operations: Vec<CfgOperation>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CfgEdge {
     pub id: String,
     pub source: String,
     pub target: String,
-    pub kind: String,
+    pub kind: CfgEdgeKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub case_value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loop_role: Option<LoopRole>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CfgDocument {
     pub schema_version: String,
-    pub profile: ProfileId,
+    pub profile: CfgProfile,
+    pub producer: CfgProducer,
+    pub sources: Vec<CfgSource>,
+    pub function: CfgFunction,
     pub entry_node_id: String,
     pub exit_node_ids: Vec<String>,
     pub nodes: Vec<CfgNode>,
     pub edges: Vec<CfgEdge>,
-    #[serde(default)]
+    pub extraction_evidence: CfgExtractionEvidence,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub extensions: Extensions,
+}
+
+/// R0 construction policy: operation granularity with explicit branches.
+pub fn r0_profile() -> CfgProfile {
+    CfgProfile {
+        name: R0_CFG_NAME.to_string(),
+        version: R0_CFG_VERSION.to_string(),
+        granularity: Granularity::Operation,
+        evaluation_order: EvaluationOrder {
+            sequencing: Sequencing::LanguageDefined,
+            short_circuit: ShortCircuit::ExplicitBranches,
+            unspecified_order: UnspecifiedOrder::Reject,
+        },
+        exceptional_flow: ExceptionalFlow::Omitted,
+        exit_policy: "one normal exit; source returns only; no fabricated divergent fallthrough"
+            .to_string(),
+        unreachable_code: UnreachableCode::Preserve,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -75,6 +249,8 @@ pub fn validate_cfg(doc: &CfgDocument) -> Vec<CfgIssue> {
         shape_issues(doc),
         endpoint_issues(doc),
         entry_issues(doc),
+        metadata_issues(doc),
+        edge_shape_issues(doc),
     ]
     .concat()
 }
@@ -101,7 +277,12 @@ fn id_set(nodes: &[CfgNode]) -> BTreeSet<String> {
 }
 
 fn id_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
-    [dup_node_ids(&doc.nodes), dup_edge_ids(&doc.edges)].concat()
+    [
+        dup_node_ids(&doc.nodes),
+        dup_edge_ids(&doc.edges),
+        dup_source_ids(&doc.sources),
+    ]
+    .concat()
 }
 
 fn dup_node_ids(nodes: &[CfgNode]) -> Vec<CfgIssue> {
@@ -112,8 +293,13 @@ fn dup_edge_ids(edges: &[CfgEdge]) -> Vec<CfgIssue> {
     dup_id_issues(edges, |edge| edge.id.as_str())
 }
 
+fn dup_source_ids(sources: &[CfgSource]) -> Vec<CfgIssue> {
+    dup_id_issues(sources, |source| source.id.as_str())
+}
+
 fn dup_id_issues<T>(items: &[T], id_of: impl Fn(&T) -> &str) -> Vec<CfgIssue> {
     let mut seen = BTreeSet::new();
+
     items
         .iter()
         .map(id_of)
@@ -124,6 +310,7 @@ fn dup_id_issues<T>(items: &[T], id_of: impl Fn(&T) -> &str) -> Vec<CfgIssue> {
 
 fn presence_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
     let ids = id_set(&doc.nodes);
+
     [entry_presence(doc, &ids), exit_presence(doc, &ids)].concat()
 }
 
@@ -136,15 +323,34 @@ fn entry_presence(doc: &CfgDocument, ids: &BTreeSet<String>) -> Vec<CfgIssue> {
 }
 
 fn exit_presence(doc: &CfgDocument, ids: &BTreeSet<String>) -> Vec<CfgIssue> {
-    doc.exit_node_ids
-        .iter()
-        .filter(|exit| !ids.contains(*exit))
-        .map(|_| make_issue("cfg.exit", "exit node id is unknown"))
-        .collect()
+    let mut issues = Vec::new();
+
+    if doc.exit_node_ids.is_empty() {
+        issues.push(make_issue("cfg.exit", "exit node list is empty"));
+    }
+
+    let mut seen = BTreeSet::new();
+
+    for exit in &doc.exit_node_ids {
+        if !seen.insert(exit.clone()) {
+            issues.push(make_issue("cfg.exit", "duplicate exit node id"));
+        }
+
+        if !ids.contains(exit) {
+            issues.push(make_issue("cfg.exit", "exit node id is unknown"));
+        }
+    }
+
+    issues
 }
 
 fn shape_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
-    [node_shape_issues(doc), operation_id_issues(doc)].concat()
+    [
+        node_shape_issues(doc),
+        operation_id_issues(doc),
+        granularity_issues(doc),
+    ]
+    .concat()
 }
 
 fn node_shape_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
@@ -153,9 +359,11 @@ fn node_shape_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
 
 fn vertex_shape_issues(node: &CfgNode) -> Vec<CfgIssue> {
     let boundary = matches!(node.kind, CfgNodeKind::Entry | CfgNodeKind::Exit);
+
     operation_presence_issues(node, boundary)
         .into_iter()
         .chain(exit_kind_issue(node))
+        .chain(origin_issue(node))
         .collect()
 }
 
@@ -176,25 +384,62 @@ fn operation_presence_issues(node: &CfgNode, boundary: bool) -> Vec<CfgIssue> {
 }
 
 fn exit_kind_issue(node: &CfgNode) -> Option<CfgIssue> {
-    if node.kind == CfgNodeKind::Exit && node.exit_kind.is_none() {
-        Some(make_issue("cfg.exit-kind", "exit node lacks an exit kind"))
+    match (node.kind, node.exit_kind) {
+        (CfgNodeKind::Exit, None) => {
+            Some(make_issue("cfg.exit-kind", "exit node lacks an exit kind"))
+        }
+        (CfgNodeKind::Exit, Some(_)) => None,
+        (_, None) => None,
+        _ => Some(make_issue(
+            "cfg.exit-kind",
+            "only exit nodes carry an exit kind",
+        )),
+    }
+}
+
+fn origin_issue(node: &CfgNode) -> Option<CfgIssue> {
+    if node.origin.is_empty() {
+        Some(make_issue("cfg.origin", "node origin must be nonempty"))
     } else {
         None
     }
 }
 
+/// Operation granularity requires exactly one operation per non-boundary node.
+fn granularity_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    if doc.profile.granularity != Granularity::Operation {
+        return Vec::new();
+    }
+
+    doc.nodes
+        .iter()
+        .filter(|node| {
+            !matches!(node.kind, CfgNodeKind::Entry | CfgNodeKind::Exit)
+                && node.operations.len() != 1
+        })
+        .map(|_| {
+            make_issue(
+                "cfg.granularity",
+                "operation granularity requires one operation per non-boundary node",
+            )
+        })
+        .collect()
+}
+
 fn operation_id_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
     let mut seen = BTreeSet::new();
+
     doc.nodes
         .iter()
         .flat_map(|node| node.operations.iter())
-        .filter(|op| !seen.insert(op.id.clone()))
+        .filter(|op| op.id.is_empty() || !seen.insert(op.id.clone()))
         .map(|_| make_issue("cfg.duplicate-id", "duplicate operation id"))
         .collect()
 }
 
 fn endpoint_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
     let ids = id_set(&doc.nodes);
+
     doc.edges
         .iter()
         .filter(|edge| !ids.contains(&edge.source) || !ids.contains(&edge.target))
@@ -204,11 +449,168 @@ fn endpoint_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
 
 /// Entry must have no incoming edges; reachability starts there.
 fn entry_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
-    doc.edges
+    let mut issues: Vec<CfgIssue> = doc
+        .edges
         .iter()
         .filter(|edge| edge.target == doc.entry_node_id)
         .map(|_| make_issue("cfg.entry-incoming", "entry has an incoming edge"))
+        .collect();
+
+    issues.extend(exit_outgoing_issues(doc));
+    issues
+}
+
+fn exit_outgoing_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    let exits: BTreeSet<&str> = doc.exit_node_ids.iter().map(String::as_str).collect();
+
+    doc.edges
+        .iter()
+        .filter(|edge| exits.contains(edge.source.as_str()))
+        .map(|_| make_issue("cfg.exit-outgoing", "exit has an outgoing edge"))
         .collect()
+}
+
+fn metadata_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    [
+        source_issues(doc),
+        evidence_issues(doc),
+        profile_issues(doc),
+        function_fact_issues(doc),
+    ]
+    .concat()
+}
+
+fn source_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    if doc.sources.is_empty() {
+        return vec![make_issue("cfg.sources", "source list is empty")];
+    }
+
+    doc.sources
+        .iter()
+        .flat_map(|source| {
+            let mut issues = Vec::new();
+
+            if source.path.is_empty() {
+                issues.push(make_issue(
+                    "cfg.source-path",
+                    "source path must be nonempty",
+                ));
+            }
+
+            if !source.content_identity.shape_ok() {
+                issues.push(make_issue(
+                    "cfg.fact-shape",
+                    "malformed source content_identity fact",
+                ));
+            }
+
+            issues
+        })
+        .collect()
+}
+
+fn evidence_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    let mut issues = Vec::new();
+    let evidence = &doc.extraction_evidence;
+
+    match evidence.status {
+        ExtractionStatus::Complete => {}
+        ExtractionStatus::Partial | ExtractionStatus::Unknown
+            if evidence.limitations.is_empty() =>
+        {
+            issues.push(make_issue(
+                "cfg.evidence",
+                "partial or unknown evidence requires limitations",
+            ))
+        }
+        _ => {}
+    }
+
+    for limitation in &evidence.limitations {
+        if limitation.is_empty() {
+            issues.push(make_issue(
+                "cfg.evidence",
+                "limitation entries must be nonempty",
+            ));
+        }
+    }
+
+    issues
+}
+
+fn profile_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    let mut issues = Vec::new();
+
+    if doc.profile.name.is_empty() || doc.profile.version.is_empty() {
+        issues.push(make_issue(
+            "cfg.profile",
+            "profile name and version must be nonempty",
+        ));
+    }
+
+    if doc.profile.exit_policy.is_empty() {
+        issues.push(make_issue(
+            "cfg.exit-policy",
+            "exit policy must be nonempty",
+        ));
+    }
+
+    if doc.nodes.len() < 2 {
+        issues.push(make_issue(
+            "cfg.nodes",
+            "node collection requires at least entry and exit",
+        ));
+    }
+
+    issues
+}
+
+fn function_fact_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    let mut issues = Vec::new();
+
+    if doc.function.id.is_empty() {
+        issues.push(make_issue("cfg.function", "function id must be nonempty"));
+    }
+
+    if !doc.function.name.shape_ok() {
+        issues.push(make_issue("cfg.fact-shape", "malformed function name fact"));
+    }
+
+    issues
+}
+
+fn edge_shape_issues(doc: &CfgDocument) -> Vec<CfgIssue> {
+    doc.edges.iter().flat_map(edge_issues).collect()
+}
+
+fn edge_issues(edge: &CfgEdge) -> Vec<CfgIssue> {
+    let mut issues = Vec::new();
+
+    match (edge.kind, edge.case_value.as_deref()) {
+        (CfgEdgeKind::Case, Some(value)) if !value.is_empty() => {}
+        (CfgEdgeKind::Case, _) => {
+            issues.push(make_issue(
+                "cfg.edge-case",
+                "case edges require a nonempty case_value",
+            ));
+        }
+        (_, Some(_)) => {
+            issues.push(make_issue(
+                "cfg.edge-case",
+                "only case edges carry a case_value",
+            ));
+        }
+        _ => {}
+    }
+
+    if edge.reason.as_deref().is_some_and(str::is_empty) {
+        issues.push(make_issue(
+            "cfg.edge-reason",
+            "edge reason must be nonempty",
+        ));
+    }
+
+    issues
 }
 
 /// Vertices reachable from entry, following recorded CFG direction.
@@ -231,6 +633,7 @@ fn fresh_successors(
     seen: &mut BTreeSet<String>,
 ) -> Vec<String> {
     let mut fresh = Vec::new();
+
     for current in frontier {
         for edge in doc.edges.iter().filter(|edge| edge.source == *current) {
             if seen.insert(edge.target.clone()) {
@@ -238,6 +641,7 @@ fn fresh_successors(
             }
         }
     }
+
     fresh
 }
 
@@ -264,18 +668,41 @@ fn missing_map_msg() -> String {
 }
 
 fn read_triple(value: &serde_json::Value) -> Result<OperationMapEntry, String> {
+    if !value.is_object() {
+        return Err("operation-map triple must be an object".to_string());
+    }
+
     let get = |field: &str| {
         value
             .get(field)
             .and_then(|v| v.as_str())
+            .filter(|text| !text.is_empty())
             .map(str::to_string)
             .ok_or_else(|| format!("operation-map triple lacks {field}"))
     };
-    Ok(OperationMapEntry {
+
+    let entry = OperationMapEntry {
         cfg_node_id: get("cfg_node_id")?,
         cfg_operation_id: get("cfg_operation_id")?,
         pdg_node_id: get("pdg_node_id")?,
-    })
+    };
+
+    reject_extra_triple_fields(value)?;
+
+    Ok(entry)
+}
+
+fn reject_extra_triple_fields(value: &serde_json::Value) -> Result<(), String> {
+    let allowed = ["cfg_node_id", "cfg_operation_id", "pdg_node_id"];
+
+    value
+        .as_object()
+        .expect("triple is an object")
+        .keys()
+        .find(|key| !allowed.contains(&key.as_str()))
+        .map_or(Ok(()), |key| {
+            Err(format!("operation-map triple has forbidden field {key:?}"))
+        })
 }
 
 /// Check cross-document correspondence against externally identified pairs.
@@ -300,12 +727,15 @@ pub fn validate_correspondence(
 
 fn cfg_operation_index(cfg: &CfgDocument) -> BTreeMap<String, (String, bool)> {
     let mut index = BTreeMap::new();
+
     for node in &cfg.nodes {
         let boundary = matches!(node.kind, CfgNodeKind::Entry | CfgNodeKind::Exit);
+
         for op in &node.operations {
             index.insert(op.id.clone(), (node.id.clone(), boundary));
         }
     }
+
     index
 }
 
