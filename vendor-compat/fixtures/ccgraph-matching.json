@@ -1,0 +1,157 @@
+{
+  "fixture_format": {"id": "compat.ccgraph.stage-expectations", "version": "0.1.0"},
+  "matching_profile": {"id": "compat.ccgraph.strict", "version": "0.1.0"},
+  "authoring": "Hand-worked stage expectations, independent of either analyzer. Compact graphs are projected stage inputs, not PDG-schema documents or proof of extraction eligibility.",
+  "validation": {"analyzer_execution": "not_run", "conformance": "not_evaluated", "quality": "not_evaluated"},
+  "encoding": {
+    "graph_nodes": "Object mapping navigation aliases to one of the five initial labels.",
+    "graph_edges": "Array of [source,target,family]; each tuple is a distinct occurrence. No endpoint deduplication.",
+    "fractions": "Two-integer arrays [numerator,denominator].",
+    "cosine": "{numerator,sqrt_denominator} means numerator/sqrt(sqrt_denominator).",
+    "histogram_labels": "Tokens stand for equivalence classes within each round, shared across compared graphs; not implementation hashes.",
+    "scope": "Stage isolation is deliberate: a WL fixture does not imply its pair survives size/numerical/string gates. Schema/source validation is exercised separately by future producer harnesses."
+  },
+  "projection_cases": [
+    {
+      "id": "retain-values-remove-only-boundaries-and-unreachable",
+      "input": {
+        "nodes": [
+          {"id":"E","category":"entry","administrative":true},
+          {"id":"p","category":"formal_input","synthetic":true},
+          {"id":"d","category":"declaration","reachable":true},
+          {"id":"r","category":"read","reachable":true,"read_symbols":["x"]},
+          {"id":"ret","category":"return","reachable":true},
+          {"id":"X","category":"exit","administrative":true},
+          {"id":"u","category":"computation","reachable":false},
+          {"id":"v","category":"read","reachable":false,"read_symbols":["y"]}
+        ],
+        "edges": [["E","d","execution"],["p","d","data"],["d","r","data"],["r","ret","data"],["d","r","execution"],["r","ret","execution"],["ret","X","execution"],["u","v","data"]]
+      },
+      "expected": {
+        "retained_nodes":["p","d","r","ret"],
+        "removed_nodes":["E","X","u","v"],
+        "edges":[["p","d","data"],["d","r","data"],["r","ret","data"],["d","r","execution"],["r","ret","execution"]],
+        "features":[0,2,3,1,0,0,0,3,1],
+        "forbidden":["remove synthetic p","splice E or X","count unreachable y","deduplicate different families on d->r"]
+      }
+    }
+  ],
+  "interface_cases": [
+    {
+      "id":"ordered-inputs-and-single-return",
+      "inputs":[["parameter","i32",false],["parameter","bool",false]],
+      "outputs":[["return","i32",false]],
+      "name":"choose",
+      "expected":{"IntroPara":"[[\"parameter\",\"i32\",false],[\"parameter\",\"bool\",false]]","ReturnPara":"[[\"return\",\"i32\",false]]","Name":"choose"}
+    },
+    {
+      "id":"known-no-inputs-and-unit-output",
+      "inputs":[],"outputs":[["return","unit",false]],"name":"empty",
+      "expected":{"IntroPara":"[]","ReturnPara":"[[\"return\",\"unit\",false]]","Name":"empty"}
+    }
+  ],
+  "jaro_winkler_cases": [
+    {"id":"both-known-empty","a":"","b":"","expected":[1,1]},
+    {"id":"one-known-empty","a":"","b":"a","expected":[0,1]},
+    {"id":"no-matches","a":"abc","b":"xyz","expected":[0,1]},
+    {"id":"classic-transposition","a":"MARTHA","b":"MARHTA","expected":[173,180]},
+    {"id":"classic-length-difference","a":"DWAYNE","b":"DUANE","expected":[21,25]},
+    {"id":"classic-longer-name","a":"DIXON","b":"DICKSONX","expected":[61,75]},
+    {"id":"boost-below-point-seven","a":"abxx","b":"abyy","expected":[11,15]},
+    {"id":"repeated-character-orientation","a":"aaba","b":"abaa","expected":[37,40]},
+    {"id":"unicode-not-byte-matching","a":"é","b":"e","expected":[0,1]},
+    {"id":"no-unicode-normalization","a":"é","b":"é","expected":[0,1]},
+    {"id":"identical-unicode","a":"é","b":"é","expected":[1,1]}
+  ],
+  "diameter_cases": [
+    {"id":"directed-chain","graph":{"nodes":{"a":"OTHER","b":"OTHER","c":"OTHER"},"edges":[["a","b","data"],["b","c","execution"]]},"expected":2},
+    {"id":"underlying-undirected-path-is-not-directed-path","graph":{"nodes":{"a":"OTHER","b":"OTHER","c":"OTHER"},"edges":[["a","b","data"],["c","b","execution"]]},"expected":1},
+    {"id":"disconnected-finite-distance","graph":{"nodes":{"a":"OTHER","b":"OTHER","c":"OTHER"},"edges":[["a","b","data"]]},"expected":1},
+    {"id":"cycle-stage-only-not-r0","graph":{"nodes":{"a":"OTHER","b":"OTHER","c":"OTHER"},"edges":[["a","b","data"],["b","c","data"],["c","a","data"]]},"expected":2},
+    {"id":"singleton-self-edge","graph":{"nodes":{"a":"OTHER"},"edges":[["a","a","data"]]},"expected":0},
+    {"id":"parallel-edges-do-not-lengthen-path","graph":{"nodes":{"a":"OTHER","b":"OTHER"},"edges":[["a","b","data"],["a","b","data"]]},"expected":1}
+  ],
+  "depth_cases": [
+    {"id":"smaller-by-node-count-not-smaller-diameter","sizes":[3,4],"diameters":[2,1],"expected":2},
+    {"id":"equal-size-tie","sizes":[3,3],"diameters":[2,1],"expected":1},
+    {"id":"zero-depth-pair","sizes":[1,2],"diameters":[0,1],"expected":0}
+  ],
+  "wl_cases": [
+    {
+      "id":"reversed-dependency-direction",
+      "a":{"nodes":{"a":"DECL","b":"ASSIGN"},"edges":[["a","b","data"]]},
+      "b":{"nodes":{"a":"DECL","b":"ASSIGN"},"edges":[["b","a","data"]]},
+      "expected":{"h":1,"weights":[2,1],"overlap_per_round":[2,0],"cross_per_round":[2,0],"self_a_per_round":[2,2],"self_b_per_round":[2,2],"overlap_score":[2,3],"cosine_score":{"numerator":4,"sqrt_denominator":36}}
+    },
+    {
+      "id":"dependency-family-changed",
+      "a":{"nodes":{"a":"DECL","b":"ASSIGN"},"edges":[["a","b","data"]]},
+      "b":{"nodes":{"a":"DECL","b":"ASSIGN"},"edges":[["a","b","control"]]},
+      "expected":{"h":1,"weights":[2,1],"overlap_per_round":[2,0],"cross_per_round":[2,0],"self_a_per_round":[2,2],"self_b_per_round":[2,2],"overlap_score":[2,3],"cosine_score":{"numerator":4,"sqrt_denominator":36}}
+    },
+    {
+      "id":"parallel-edge-multiplicity-changed",
+      "a":{"nodes":{"a":"DECL","b":"ASSIGN"},"edges":[["a","b","data"]]},
+      "b":{"nodes":{"a":"DECL","b":"ASSIGN"},"edges":[["a","b","data"],["a","b","data"]]},
+      "expected":{"h":1,"weights":[2,1],"overlap_per_round":[2,0],"cross_per_round":[2,0],"self_a_per_round":[2,2],"self_b_per_round":[2,2],"overlap_score":[2,3],"cosine_score":{"numerator":4,"sqrt_denominator":36}}
+    },
+    {
+      "id":"identical-directed-graph",
+      "a":{"nodes":{"a":"DECL","b":"ASSIGN"},"edges":[["a","b","data"]]},
+      "b":{"nodes":{"a":"DECL","b":"ASSIGN"},"edges":[["a","b","data"]]},
+      "expected":{"h":1,"weights":[2,1],"overlap_per_round":[2,2],"cross_per_round":[2,2],"self_a_per_round":[2,2],"self_b_per_round":[2,2],"overlap_score":[1,1],"cosine_score":{"numerator":6,"sqrt_denominator":36}}
+    },
+    {
+      "id":"self-loop-zero-depth-known-limitation",
+      "a":{"nodes":{"a":"OTHER"},"edges":[["a","a","data"]]},
+      "b":{"nodes":{"a":"OTHER"},"edges":[]},
+      "expected":{"h":0,"weights":[1],"overlap_per_round":[1],"cross_per_round":[1],"self_a_per_round":[1],"self_b_per_round":[1],"overlap_score":[1,1],"cosine_score":{"numerator":1,"sqrt_denominator":1}},
+      "note":"WL stage alone ignores structural self-loop at h=0. This is an explicit limitation, not permission for cyclic R0 extraction. Other gates may differ."
+    }
+  ],
+  "histogram_score_cases": [
+    {
+      "id":"smaller-graph-covered-but-not-identical-distribution",
+      "sizes":[4,5],"h":0,
+      "a":[{"DECL":2,"OTHER":2}],"b":[{"DECL":3,"OTHER":2}],
+      "expected":{"weights":[1],"overlap_per_round":[4],"overlap_score":[1,1],"larger_coverage":[4,5],"cross_per_round":[10],"self_a_per_round":[8],"self_b_per_round":[13],"cosine_score":{"numerator":10,"sqrt_denominator":104}}
+    },
+    {
+      "id":"linear-weights-exact-point-nine-boundary",
+      "sizes":[4,5],"h":3,
+      "a":[{"root":4},{"x":3,"y":1},{"u":2,"v":1,"y":1},{"aa":2,"v":1,"y":1}],
+      "b":[{"root":5},{"x":3,"y":1,"z":1},{"u":2,"y":1,"w":1,"z":1},{"aa":1,"q":1,"y":1,"w":1,"z":1}],
+      "note":"Scoring-stage arithmetic inputs only; this fixture does not assert a particular source graph or prove that its selected depth/partitions are realized by a producer.",
+      "expected":{"weights":[4,3,2,1],"overlap_per_round":[4,4,3,2],"overlap_score":[9,10],"larger_coverage":[18,25],"cross_per_round":[20,10,5,3],"self_a_per_round":[16,10,6,6],"self_b_per_round":[25,11,7,5],"cosine_score":{"numerator":123,"sqrt_denominator":17024}}
+    },
+    {
+      "id":"raw-cross-product-divided-by-min-is-unbounded",
+      "sizes":[10,10],"h":0,"a":[{"OTHER":10}],"b":[{"OTHER":10}],
+      "expected":{"weights":[1],"overlap_per_round":[10],"overlap_score":[1,1],"larger_coverage":[1,1],"cross_per_round":[100],"self_a_per_round":[100],"self_b_per_round":[100],"cosine_score":{"numerator":100,"sqrt_denominator":10000},"forbidden_raw_cross_min_score":[10,1]}
+    }
+  ],
+  "boundary_cases": [
+    {"id":"size-ratio-exact-point-eight","kind":"ratio","sizes":[20,25],"threshold":"0.8","expected":true},
+    {"id":"size-ratio-below-point-eight","kind":"ratio","sizes":[20,26],"threshold":"0.8","expected":false},
+    {"id":"zero-ratio-does-not-admit-empty","kind":"ratio","sizes":[0,25],"threshold":"0","expected":false},
+    {"id":"final-exact-point-nine","kind":"rational","score":[9,10],"threshold":"0.9","expected":true},
+    {"id":"final-below-point-nine","kind":"rational","score":[899999,1000000],"threshold":"0.9","expected":false},
+    {"id":"string-mean-exact-point-five","kind":"mean","fields":[[1,1],[1,2],[0,1]],"threshold":"0.5","expected":true},
+    {"id":"cosine-exact-point-nine","kind":"cosine","dot":9,"norm_product":100,"threshold":"0.9","expected":true},
+    {"id":"cosine-below-point-nine","kind":"cosine","dot":899999,"norm_product":1000000000000,"threshold":"0.9","expected":false}
+  ],
+  "future_harness_requirements": [
+    {"id":"all-nine-features","expected":"No omitted coordinate or unknown-to-zero coercion; five node counts sum to projected size."},
+    {"id":"unknown-reference-count","expected":"Ineligible with diagnostic; known zero remains a legitimate count."},
+    {"id":"unknown-interface","expected":"Ineligible with diagnostic; verified empty interface is serialized as []."},
+    {"id":"invalid-source-or-reference","expected":"Schema and semantic validation reject dangling/duplicate IDs, stale source identity and invalid spans."},
+    {"id":"required-normal-flow-unknown","expected":"Ineligible; normal-flow policy does not excuse missing required facts."},
+    {"id":"known-exceptional-omission","expected":"Partial CFG evidence may coexist with verified bounded normal-flow conformance; no complete exceptional-flow claim."},
+    {"id":"native-width-target-mismatch","expected":"Pair ineligible if native-width semantics are involved across different known pointer widths."},
+    {"id":"metadata-invariance","expected":"Navigation-ID renaming, collection reordering, ignored operators/literals/outcomes/positions and optional annotations do not alter base scores when validated matching structure is unchanged."},
+    {"id":"pair-enumeration","expected":"Unique unordered distinct keys only; reject duplicate input keys; no grouping or display filter mutates accepted pairs."},
+    {"id":"stage-short-circuit","expected":"Later stages are not_evaluated after rejection, not zero-score failures."},
+    {"id":"invalid-configuration","expected":"Reject unknown keys, variants, nonfinite/out-of-range thresholds; record exact effective decimals."},
+    {"id":"resource-failure","expected":"Explicit diagnostic and incomplete-run status; no legacy depth cap, graph-size fallback or silent pair truncation."}
+  ]
+}
