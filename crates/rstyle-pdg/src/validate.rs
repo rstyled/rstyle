@@ -97,7 +97,10 @@ pub fn validate(
         check_spans(doc, source_bytes),
         check_node_requirements(doc),
         check_capabilities(doc),
+        check_capability_applicability(doc),
         check_source_identities(doc, ctx),
+        check_source_digests(doc, ctx, source_bytes),
+        check_build_evidence(doc, ctx, source_bytes),
         check_extension_namespaces(doc),
         check_provenance_references(doc),
     ];
@@ -116,7 +119,7 @@ pub fn validate(
         matching: eligibility_of(&blocking),
         producer_conformance: ProducerConformance::NotEvaluated,
         producer_note: producer_note(ctx).to_string(),
-        spans_bound_checked: !source_bytes.is_empty(),
+        spans_bound_checked: spans_fully_checked(doc, source_bytes),
         issues,
     }
 }
@@ -1186,5 +1189,277 @@ fn source_identity_issues(source: &Source, ctx: &ValidationContext) -> Vec<Issue
 
 fn is_sha256(value: &str) -> bool {
     let digest = value.strip_prefix("sha256:").unwrap_or("");
+
     digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// All spans that must be bound-checked: function, node spans, provenance
+/// origin spans.
+fn document_spans(doc: &PdgDocument) -> Vec<&Span> {
+    let mut spans = vec![&doc.function.source_span];
+
+    for node in &doc.nodes {
+        if let Some(span) = node.source_span.as_ref() {
+            spans.push(span);
+        }
+
+        spans.extend(node.provenance.origin_spans.iter());
+    }
+
+    spans
+}
+
+/// Accurate bound-check coverage: true only when every span's source had
+/// bytes supplied, so every bound was actually verified.
+fn spans_fully_checked(doc: &PdgDocument, source_bytes: &BTreeMap<String, Vec<u8>>) -> bool {
+    document_spans(doc)
+        .iter()
+        .all(|span| source_bytes.contains_key(&span.source_id))
+}
+
+/// Source digests are verified against supplied bytes. A mismatch blocks
+/// eligibility; missing bytes fail closed under compiler evidence.
+fn check_source_digests(
+    doc: &PdgDocument,
+    ctx: &ValidationContext,
+    source_bytes: &BTreeMap<String, Vec<u8>>,
+) -> CheckOutput {
+    let blocking = doc
+        .sources
+        .iter()
+        .flat_map(|source| digest_issues(source, ctx, source_bytes))
+        .collect();
+
+    CheckOutput {
+        blocking,
+        notes: Vec::new(),
+    }
+}
+
+fn digest_issues(
+    source: &Source,
+    ctx: &ValidationContext,
+    source_bytes: &BTreeMap<String, Vec<u8>>,
+) -> Vec<Issue> {
+    let Some(claimed) = source.content_identity.known_value() else {
+        return Vec::new();
+    };
+
+    if !is_sha256(claimed) {
+        return Vec::new();
+    }
+
+    match source_bytes.get(&source.id) {
+        None => {
+            if ctx.is_fixture_only() {
+                Vec::new()
+            } else {
+                vec![issue(
+                    "pdg.source-bytes",
+                    format!("source {:?} has no supplied bytes to verify", source.id),
+                )]
+            }
+        }
+        Some(bytes) => {
+            let actual = sha256_hex(bytes);
+
+            if claimed == actual {
+                Vec::new()
+            } else {
+                vec![issue(
+                    "pdg.source-digest",
+                    format!(
+                        "source {:?} digest does not match supplied bytes",
+                        source.id
+                    ),
+                )]
+            }
+        }
+    }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+
+    format!("sha256:{:x}", Sha256::digest(bytes))
+}
+
+/// Production admission fails closed when required build evidence was not
+/// independently checked: pointer width, language version, and span coverage.
+fn check_build_evidence(
+    doc: &PdgDocument,
+    ctx: &ValidationContext,
+    source_bytes: &BTreeMap<String, Vec<u8>>,
+) -> CheckOutput {
+    let ValidationContext::CompilerEvidence { pointer_width_bits } = ctx else {
+        return clear();
+    };
+
+    let mut blocking = Vec::new();
+
+    if *pointer_width_bits != 32 && *pointer_width_bits != 64 {
+        blocking.push(issue(
+            "pdg.build-evidence",
+            "pointer width must be 32 or 64".to_string(),
+        ));
+    }
+
+    if doc.producer.language_version.known_value().is_none() {
+        blocking.push(issue(
+            "pdg.build-evidence",
+            "producer language version must be known".to_string(),
+        ));
+    }
+
+    if !spans_fully_checked(doc, source_bytes) {
+        blocking.push(issue(
+            "pdg.span-unchecked",
+            "spans cannot be fully bound-checked without all source bytes".to_string(),
+        ));
+    }
+
+    CheckOutput {
+        blocking,
+        notes: Vec::new(),
+    }
+}
+
+/// A `not_applicable` claim is only valid when the corresponding construct is
+/// actually absent. False NA claims block eligibility.
+fn check_capability_applicability(doc: &PdgDocument) -> CheckOutput {
+    let caps = &doc.extraction_evidence.capabilities;
+    let blocking = [
+        calls_applicability(doc, caps),
+        memory_applicability(doc, caps),
+        merge_applicability(doc, caps),
+        loop_carried_applicability(doc, caps),
+        returns_applicability(doc, caps),
+        parameters_applicability(doc, caps),
+    ]
+    .concat();
+
+    CheckOutput {
+        blocking,
+        notes: Vec::new(),
+    }
+}
+
+fn is_not_applicable(caps: &BTreeMap<String, Capability>, key: &str) -> bool {
+    caps.get(key)
+        .is_some_and(|cap| cap.status == CapabilityStatus::NotApplicable)
+}
+
+fn calls_applicability(doc: &PdgDocument, caps: &BTreeMap<String, Capability>) -> Vec<Issue> {
+    if !is_not_applicable(caps, "calls") {
+        return Vec::new();
+    }
+
+    if doc.nodes.iter().any(|n| n.category == NodeCategory::Call) {
+        return vec![issue(
+            "pdg.false-not-applicable",
+            "calls claimed not_applicable but call nodes are present".to_string(),
+        )];
+    }
+
+    Vec::new()
+}
+
+fn memory_applicability(doc: &PdgDocument, caps: &BTreeMap<String, Capability>) -> Vec<Issue> {
+    if !is_not_applicable(caps, "memory_aliases") {
+        return Vec::new();
+    }
+
+    if !doc.memory_locations.is_empty() {
+        return vec![issue(
+            "pdg.false-not-applicable",
+            "memory_aliases claimed not_applicable but memory locations exist".to_string(),
+        )];
+    }
+
+    let located = doc.definitions.iter().any(|d| d.location_id.is_some())
+        || doc.edges.iter().any(|e| e.location_id.is_some())
+        || doc.nodes.iter().any(|n| {
+            n.attributes
+                .reads
+                .iter()
+                .chain(n.attributes.writes.iter())
+                .any(|a| a.location_id.is_some())
+        });
+
+    if located {
+        return vec![issue(
+            "pdg.false-not-applicable",
+            "memory_aliases claimed not_applicable but location references exist".to_string(),
+        )];
+    }
+
+    Vec::new()
+}
+
+fn merge_applicability(doc: &PdgDocument, caps: &BTreeMap<String, Capability>) -> Vec<Issue> {
+    if !is_not_applicable(caps, "branch_merges") {
+        return Vec::new();
+    }
+
+    if doc.nodes.iter().any(|n| n.category == NodeCategory::Merge) {
+        return vec![issue(
+            "pdg.false-not-applicable",
+            "branch_merges claimed not_applicable but merge nodes are present".to_string(),
+        )];
+    }
+
+    Vec::new()
+}
+
+fn loop_carried_applicability(
+    doc: &PdgDocument,
+    caps: &BTreeMap<String, Capability>,
+) -> Vec<Issue> {
+    if !is_not_applicable(caps, "loop_carried_dependencies") {
+        return Vec::new();
+    }
+
+    if doc.edges.iter().any(|e| e.loop_carried == Some(true)) {
+        return vec![issue(
+            "pdg.false-not-applicable",
+            "loop_carried_dependencies claimed not_applicable but loop-carried edges exist"
+                .to_string(),
+        )];
+    }
+
+    Vec::new()
+}
+
+fn returns_applicability(doc: &PdgDocument, caps: &BTreeMap<String, Capability>) -> Vec<Issue> {
+    if !is_not_applicable(caps, "returns") {
+        return Vec::new();
+    }
+
+    if doc.nodes.iter().any(|n| n.category == NodeCategory::Return) {
+        return vec![issue(
+            "pdg.false-not-applicable",
+            "returns claimed not_applicable but return nodes are present".to_string(),
+        )];
+    }
+
+    Vec::new()
+}
+
+fn parameters_applicability(doc: &PdgDocument, caps: &BTreeMap<String, Capability>) -> Vec<Issue> {
+    if !is_not_applicable(caps, "parameters") {
+        return Vec::new();
+    }
+
+    if doc
+        .nodes
+        .iter()
+        .any(|n| n.category == NodeCategory::FormalInput)
+    {
+        return vec![issue(
+            "pdg.false-not-applicable",
+            "parameters claimed not_applicable but formal inputs are present".to_string(),
+        )];
+    }
+
+    Vec::new()
 }

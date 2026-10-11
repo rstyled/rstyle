@@ -373,14 +373,82 @@ fn compiler_evidence_requires_source_digests() {
             .any(|i| i.code == "pdg.source-identity")
     );
     doc.sources[0].content_identity = StringFact::known(
-        "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
     );
-    let report = validate(&doc, &ctx, &BTreeMap::new());
+    let bytes = BTreeMap::from([("s0".to_string(), b"a".to_vec())]);
+    let report = validate(&doc, &ctx, &bytes);
     assert_eq!(
         report.matching,
         Eligibility::Eligible,
         "{:?}",
         report.issues
+    );
+    assert!(report.spans_bound_checked);
+}
+
+#[test]
+fn wrong_digest_is_ineligible() {
+    let mut doc = base_doc();
+    let r0 = ProfileId {
+        id: R0_POLICY_ID.to_string(),
+        version: R0_POLICY_VERSION.to_string(),
+    };
+    doc.profile = r0.clone();
+
+    for edge in &mut doc.edges {
+        edge.policy = r0.clone();
+    }
+
+    doc.sources[0].content_identity = StringFact::known(
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    );
+    let ctx = ValidationContext::CompilerEvidence {
+        pointer_width_bits: 64,
+    };
+    let bytes = BTreeMap::from([("s0".to_string(), b"a".to_vec())]);
+    let report = validate(&doc, &ctx, &bytes);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(report.issues.iter().any(|i| i.code == "pdg.source-digest"));
+}
+
+#[test]
+fn missing_source_bytes_fail_closed_under_compiler_evidence() {
+    let mut doc = base_doc();
+    let r0 = ProfileId {
+        id: R0_POLICY_ID.to_string(),
+        version: R0_POLICY_VERSION.to_string(),
+    };
+    doc.profile = r0.clone();
+
+    for edge in &mut doc.edges {
+        edge.policy = r0.clone();
+    }
+
+    doc.sources[0].content_identity = StringFact::known(
+        "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+    );
+    let ctx = ValidationContext::CompilerEvidence {
+        pointer_width_bits: 64,
+    };
+    let report = validate(&doc, &ctx, &BTreeMap::new());
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(!report.spans_bound_checked);
+}
+
+#[test]
+fn false_not_applicable_call_claim_is_ineligible() {
+    let mut doc = base_doc();
+    doc.nodes
+        .push(source_node("n_c", NodeCategory::Call, empty_attrs()));
+    // calls is NotApplicable in the fixture capabilities; a call node
+    // contradicts that claim even before call-target evidence is considered.
+    let report = check(&doc);
+    assert_eq!(report.matching, Eligibility::Ineligible);
+    assert!(
+        report
+            .issues
+            .iter()
+            .any(|i| i.code == "pdg.false-not-applicable")
     );
 }
 
