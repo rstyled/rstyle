@@ -20,10 +20,15 @@ pub const R0_CFG_VERSION: &str = "0.1.0";
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CfgNodeKind {
+    /// Start of control flow into the function.
     Entry,
+    /// End of a control-flow path out of the function.
     Exit,
+    /// Straight-line sequence of operations.
     Block,
+    /// Predicate that selects a control-flow branch.
     Condition,
+    /// Explicit control transfer, such as return, break, or continue.
     Transfer,
 }
 
@@ -177,9 +182,12 @@ pub struct CfgOperation {
 pub struct CfgNode {
     pub id: String,
     pub kind: CfgNodeKind,
+    /// Extraction or synthesis provenance, including frontend or lowering details.
     pub origin: String,
+    /// Termination category; exit nodes only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_kind: Option<CfgExitKind>,
+    /// Execution-ordered operations; empty on entry and exit nodes.
     #[serde(default)]
     pub operations: Vec<CfgOperation>,
 }
