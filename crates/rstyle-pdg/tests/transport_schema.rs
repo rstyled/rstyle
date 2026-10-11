@@ -33,18 +33,10 @@ fn profile() -> ProfileId {
     }
 }
 
-fn counted_policy() -> ProfileId {
-    ProfileId {
-        id: REFERENCE_COUNT_POLICY_ID.to_string(),
-        version: REFERENCE_COUNT_POLICY_VERSION.to_string(),
-    }
-}
-
 fn supported_capability() -> Capability {
     Capability {
         status: CapabilityStatus::Supported,
         description: "d".to_string(),
-        policy: None,
     }
 }
 
@@ -52,7 +44,6 @@ fn na_capability() -> Capability {
     Capability {
         status: CapabilityStatus::NotApplicable,
         description: "absent".to_string(),
-        policy: None,
     }
 }
 
@@ -73,7 +64,6 @@ fn capabilities() -> BTreeMap<String, Capability> {
         Capability {
             status: CapabilityStatus::Unsupported,
             description: "normal-flow only".to_string(),
-            policy: None,
         },
     );
     caps
@@ -93,7 +83,6 @@ fn provenance() -> Provenance {
         description: "d".to_string(),
         origin_node_ids: Vec::new(),
         origin_spans: Vec::new(),
-        policy: None,
     }
 }
 
@@ -166,7 +155,6 @@ fn edge(id: &str, source: &str, target: &str) -> PdgEdge {
         target: target.to_string(),
         kind: EdgeFamily::Data,
         subkind: "value_operand".to_string(),
-        policy: profile(),
         evidence: supported_capability(),
         provenance: provenance(),
         operand_position: None,
@@ -213,7 +201,7 @@ fn base_function() -> FunctionInfo {
         inputs: vec![base_param(ParamRole::Parameter, Some("s_x"), "x", "i32")],
         outputs: vec![base_param(ParamRole::Return, None, "", "unit")],
         interface_completeness: supported_capability(),
-        reference_count: CountFact::known(1, counted_policy()),
+        reference_count: CountFact::known(1),
     }
 }
 
@@ -260,7 +248,7 @@ fn base_doc() -> PdgDocument {
         extraction_evidence: ExtractionEvidence {
             capabilities: capabilities(),
             diagnostics: Vec::new(),
-            conformance: Vec::new(),
+            conformance: Conformance::not_evaluated("fixture"),
         },
         extensions: BTreeMap::new(),
     }
@@ -384,6 +372,21 @@ fn cfg_wire_document_validates_against_authoritative_schema() {
 }
 
 #[test]
+fn vendored_pdg_example_deserializes_and_reserializes_schema_valid() {
+    let schema = vendor("pdg.schema.json");
+    let validator = validator_for(&schema);
+    let example = vendor("pdg.example.json");
+
+    assert_valid(&validator, &example);
+
+    let doc: PdgDocument = serde_json::from_value(example.clone()).expect("example parses");
+    assert_eq!(doc.schema_version, PDG_SCHEMA_VERSION);
+
+    let round = serde_json::to_value(doc.clone()).expect("reserialize");
+    assert_valid(&validator, &round);
+}
+
+#[test]
 fn vendored_cfg_example_deserializes_and_reserializes_schema_valid() {
     let schema = vendor("cfg.schema.json");
     let validator = validator_for(&schema);
@@ -473,12 +476,19 @@ fn fact_alternatives_reject_mixed_and_empty_reasons() {
     assert!(
         serde_json::from_value::<StringFact>(serde_json::json!({"status": "unknown"})).is_err()
     );
-    // Count known without a policy.
+    // Count known is exactly status plus value under the root profile.
     assert!(
         serde_json::from_value::<CountFact>(serde_json::json!({"status": "known", "value": 1}))
-            .is_err()
+            .is_ok()
     );
-    // Count unknown carrying a value/policy.
+    // A record-level policy field is forbidden.
+    assert!(
+        serde_json::from_value::<CountFact>(
+            serde_json::json!({"status": "known", "value": 1, "policy": {"id": "x", "version": "y"}})
+        )
+        .is_err()
+    );
+    // Count unknown carrying a value.
     assert!(
         serde_json::from_value::<CountFact>(
             serde_json::json!({"status": "unknown", "value": 1, "reason": "r"})

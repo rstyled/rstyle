@@ -50,7 +50,6 @@ pub fn stage_function(
         outputs: vec![element("return", "i32")],
         name: Some(name.to_string()),
         reference_count: Some(reference_count),
-        reference_policy_ok: true,
         target_pointer_width: Some(64),
         native_width_involved: false,
     }

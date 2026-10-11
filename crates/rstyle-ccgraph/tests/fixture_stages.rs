@@ -104,7 +104,6 @@ fn projection_input(case: &serde_json::Value) -> ImportedFunction {
         outputs: Vec::new(),
         name: Some("stage".to_string()),
         reference_count: Some(1),
-        reference_policy_ok: true,
         target_pointer_width: Some(64),
         native_width_involved: false,
     }
