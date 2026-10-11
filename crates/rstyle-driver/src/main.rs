@@ -19,6 +19,7 @@ mod extract;
 mod ids;
 mod mutations;
 mod pdg;
+mod r0;
 mod sig;
 
 use rustc_driver::{Callbacks, Compilation};
@@ -105,11 +106,51 @@ fn main() -> ExitCode {
         pdg: std::env::var_os("RSTYLE_PDG").is_some(),
     });
 
-    rustc_driver::catch_with_exit_code(|| match extract {
-        Some(mut callbacks) => rustc_driver::run_compiler(&args, &mut callbacks),
-        None => rustc_driver::run_compiler(&args, &mut NoOp),
+    let document_dir = std::env::var_os("RSTYLE_R0_DOCUMENT_DIR").map(PathBuf::from);
+    let facts_path = std::env::var_os("RSTYLE_R0_OUT_FILE")
+        .map(PathBuf::from)
+        .or_else(|| document_dir.as_ref().map(|dir| dir.join("facts.json")));
+    let r0 = facts_path.map(|path| R0Extract {
+        output: r0::output::Destination {
+            facts_file: path,
+            document_directory: document_dir,
+        },
+        scanned: Vec::new(),
+        invocation: args.clone(),
+    });
+
+    rustc_driver::catch_with_exit_code(|| match (r0, extract) {
+        (Some(mut callbacks), _) => rustc_driver::run_compiler(&args, &mut callbacks),
+        (None, Some(mut callbacks)) => rustc_driver::run_compiler(&args, &mut callbacks),
+        (None, None) => rustc_driver::run_compiler(&args, &mut NoOp),
     })
 }
 
 struct NoOp;
 impl Callbacks for NoOp {}
+
+struct R0Extract {
+    output: r0::output::Destination,
+    scanned: Vec<r0::source::Function>,
+    invocation: Vec<String>,
+}
+
+impl Callbacks for R0Extract {
+    fn after_crate_root_parsing(
+        &mut self,
+        _: &Compiler,
+        krate: &mut rustc_ast::Crate,
+    ) -> Compilation {
+        self.scanned = r0::source::scan(krate);
+        Compilation::Continue
+    }
+
+    fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
+        let facts = r0::crate_facts(tcx, &self.scanned, &self.invocation)
+            .expect("capture complete source-facing R0 evidence");
+        self.output
+            .write(&facts)
+            .expect("write R0 evidence and optional documents");
+        Compilation::Continue
+    }
+}

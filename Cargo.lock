@@ -1135,8 +1135,14 @@ dependencies = [
 name = "rstyle-driver"
 version = "0.1.0"
 dependencies = [
+ "jsonschema",
+ "rstyle-ccgraph",
  "rstyle-core",
+ "rstyle-pdg",
+ "rstyle-r0fixture",
+ "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

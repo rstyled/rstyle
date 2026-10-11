@@ -5,7 +5,15 @@ edition.workspace = true
 
 [dependencies]
 rstyle-core = { path = "../rstyle-core" }
+rstyle-pdg = { path = "../rstyle-pdg" }
+rstyle-ccgraph = { path = "../rstyle-ccgraph" }
+sha2 = "0.10"
 serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+rstyle-r0fixture = { path = "../rstyle-r0fixture" }
+jsonschema = "0.33"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
