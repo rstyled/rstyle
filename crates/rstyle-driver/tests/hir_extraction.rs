@@ -1005,3 +1005,36 @@ fn opt_in_driver_artifacts_cross_the_serialized_strict_handoff() {
     assert_eq!(rejected["matching_admission"], "not_evaluated");
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn source_identifiers_and_file_navigation_are_independent_of_module_paths() {
+    let source = "mod one { pub fn r#type(x: i32) -> i32 { x } }\nmod two { pub fn r#type(x: i32) -> i32 { x } }";
+    let (output, facts) = compile(source);
+    assert!(output.status.success());
+    let facts = facts.unwrap();
+    assert_eq!(facts.len(), 2);
+    assert_ne!(facts[0].name, facts[1].name);
+    for function in &facts {
+        assert_eq!(function.build.frontend_options["source_identifier"], "type");
+        assert!(
+            PathBuf::from(
+                function.build.frontend_options["source_file"]
+                    .as_str()
+                    .unwrap()
+            )
+            .is_absolute()
+        );
+        let span = function.fn_span;
+        assert_eq!(
+            &source[span.start as usize..span.end as usize],
+            function.source.bytes
+        );
+        let pair = rstyle_pdg::producer::produce(function).unwrap();
+        let imported = rstyle_ccgraph::admit_produced(&pair, function).unwrap();
+        assert_eq!(imported.name.as_deref(), Some("type"));
+        assert_eq!(
+            pair.pdg.function.qualified_name.known_value(),
+            Some(function.name.as_str())
+        );
+    }
+}
