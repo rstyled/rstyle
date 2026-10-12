@@ -1,0 +1,71 @@
+{
+  "commands": {
+    "cargo build -p cargo-rstyle -p rstyle-driver --locked": {
+      "exit": 0,
+      "log_sha256": "fac345120b5b784cebf518766339a422bb08814d8f7ea78db514c20e40f65181"
+    },
+    "cargo clippy --workspace --all-targets --locked -- -D warnings": {
+      "exit": 0,
+      "log_sha256": "3465ff21df7fa2a6db81243a53104016b10136af8053317b4ae47afee728c668"
+    },
+    "cargo fmt --all -- --check": {
+      "exit": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "cargo rstyle --format json": {
+      "effect_counts": {
+        "io": 98,
+        "mutation": 150,
+        "panic": 1,
+        "unknown": 9
+      },
+      "exit": 0,
+      "functions": 1208,
+      "max_density_milli": 12000,
+      "mean_density_milli": 77,
+      "violations": 0
+    },
+    "cargo rstyle patterns --format json --fail-on-candidates": {
+      "candidates": 0,
+      "exit": 0
+    },
+    "cargo test --workspace --locked": {
+      "exit": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "deb8633eba55e0857dc499a43c101323d5a96892b1053f9799df1461a23d69e3",
+      "passed": 459
+    },
+    "cargo test -p cargo-rstyle --test cli --locked": {
+      "exit": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "c832475be5d4536970d2d2ae992e69743d22b8a78836fcef766166e51e89a590",
+      "passed": 55
+    },
+    "cargo test -p rstyle-ccgraph --locked": {
+      "exit": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "1182ea56b6d873e1848f67dbcdae9167fb2f2ccc9f8b93b9a0e93a82cb6ad3ac",
+      "passed": 44
+    },
+    "cargo test -p rstyle-driver --test hir_extraction --locked": {
+      "exit": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "f380e21ae3c8dcf384dfb7f5d26cd1da7da285e0d4b9191df1e012ac93b27d91",
+      "passed": 18
+    },
+    "python3 -m unittest discover -s scripts -p 'test_ccgraph*.py' -v": {
+      "exit": 0,
+      "log_sha256": "bd3567321216d1fd4f967658022037fa5d0a04999b45a19a5a8c11400c6b9b42"
+    },
+    "python3 -m unittest discover -s scripts -p test_ccgraph*.py -v": {
+      "exit": 0,
+      "passed": 20
+    }
+  },
+  "toolchain": "nightly-2026-09-30",
+  "unverified_required_obligations": []
+}
