@@ -52,5 +52,25 @@ class Followup(unittest.TestCase):
         self.assertEqual(f.coverage_targets(results)['natural_heldout_admission']['outcome'], 'not met')
         self.assertEqual(f.coverage_targets(results)['natural_heldout_bounded_oracles']['numerator'], 2)
 
+    def test_target_aggregation_ignores_order_and_test_contexts(self):
+        def row(i, test=False):
+            return dict(id=str(i), test=test, expected='admitted', actual='admitted', outcome_agrees=True, oracle={'agrees': True})
+        results = [dict(scope=dict(id='p1', population='natural', split='heldout'), variant='default', correctness=[row(1), row(2), row(1, True), row(2, True)]),
+                   dict(scope=dict(id='p2', population='natural', split='heldout'), variant='default', correctness=[row(3), row(3, True)])]
+        expected = f.coverage_targets(results)
+        self.assertEqual(expected['natural_heldout_admission']['denominator'], 3)
+        results.reverse()
+        for r in results: r['correctness'].reverse()
+        self.assertEqual(f.coverage_targets(results), expected)
+
+    def test_natural_histories_stay_in_one_split(self):
+        manifest = b.read(f.STUDY / 'manifest.json')
+        scopes = {s['id']: s for s in manifest['scopes']}
+        groups = {}
+        for function in manifest['functions']:
+            groups.setdefault(function['provenance_group'], set()).add(scopes[function['scope']]['split'])
+        self.assertEqual(groups, {'lz4': {'development'}, 'lexical': {'development'}, 'audit': {'development'},
+                                  'regex': {'heldout'}, 'time': {'heldout'}})
+
 if __name__ == '__main__':
     unittest.main()
