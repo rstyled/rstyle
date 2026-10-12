@@ -1929,14 +1929,15 @@ fn assert_const_graph_equivalence(ordinary: &HirFnFacts, qualified: &HirFnFacts)
 }
 
 fn assert_local_wire_schema(pair: &rstyle_pdg::producer::Pair) {
+    let serialized = pair.serialize().unwrap();
     for (schema, document) in [
         (
             include_str!("../../../vendor-compat/rust-r0/pdg.schema.json"),
-            serde_json::to_value(&pair.pdg).unwrap(),
+            serde_json::from_slice(&serialized.pdg_bytes).unwrap(),
         ),
         (
             include_str!("../../../vendor-compat/rust-r0/cfg.schema.json"),
-            serde_json::to_value(&pair.cfg).unwrap(),
+            serde_json::from_slice(&serialized.cfg_bytes).unwrap(),
         ),
     ] {
         let schema = serde_json::from_str(schema).unwrap();
@@ -2259,5 +2260,39 @@ fn expanded_pair_compatibility_rejects_mixed_profiles_and_build_settings() {
             report.pairs[0].stages[0].outcome,
             rstyle_ccgraph::StageOutcome::Ineligible { .. }
         ));
+    }
+}
+
+#[test]
+fn expanded_construct_documents_satisfy_unchanged_pinned_schemas_as_serialized() {
+    for (profile, source) in [
+        ("hir-const-v1", "const fn f(x: i32) -> i32 { x }"),
+        ("hir-casts-v1", "fn f(x: i32) -> u8 { x as u8 }"),
+        (
+            "hir-match-v1",
+            "fn f(x: i32) -> i32 { match x { 1 => 2, _ => 3 } }",
+        ),
+        (
+            "hir-guards-v1",
+            "fn f(x: i32, b: bool) -> i32 { match x { 1 if b => 2, _ => 3 } }",
+        ),
+        (
+            "hir-conditional-v1",
+            "fn f(x: i32) -> i32 { #[cfg(all())] let y = x; y }",
+        ),
+        (
+            "hir-loops-v1",
+            "fn f(mut x: i32, b: bool) -> i32 { while b { x = 1; break; } x }",
+        ),
+        (
+            "hir-calls-v1",
+            "fn f(x: i32) -> u32 { x.unsigned_abs().wrapping_mul(3) }",
+        ),
+    ] {
+        let facts = compile_selected(source, profile).remove(0);
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        assert_local_wire_schema(&pair);
+        rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
     }
 }
