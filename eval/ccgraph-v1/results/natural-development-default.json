@@ -1,0 +1,596 @@
+{
+  "canonical_pairs": [
+    {
+      "attributes": {
+        "behavioral_equivalence": "not established; semantic edits/width changes may change behavior",
+        "function_names": "source attribute only; not identity or clone criterion",
+        "refactoring_suitability": "unassessed"
+      },
+      "both_admitted": false,
+      "decision": null,
+      "detector_keys": [
+        "function:607fb5e1b34e07b874f0c114cc2023e7ebef1d1393e69991680e5a0c7e054678",
+        "function:9032aad6322d8122bb64dfb150ea365a02fe9cd66b50cbbb1a393f86ced5848b"
+      ],
+      "first": "natural-development:sample:clamp",
+      "groups": [
+        "rust-num/num-traits"
+      ],
+      "label": "ambiguous",
+      "rationale": "Two-bound clamp adds a conditional arm/interface; partial structural relatedness lacks whole-function correspondence under this protocol.",
+      "reasons": [
+        [
+          "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+          "Function-level generics are deferred, even for scalar bodies.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Return type is outside the resolved primitive interface.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Macro invocations are deferred; expansion cannot erase the source construct.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset."
+        ],
+        [
+          "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+          "Function-level generics are deferred, even for scalar bodies.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Return type is outside the resolved primitive interface.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Macro invocations are deferred; expansion cannot erase the source construct.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset."
+        ]
+      ],
+      "scope": "natural-development",
+      "second": "natural-development:sample:clamp_max",
+      "status": "excluded",
+      "stratum": "natural-structural"
+    },
+    {
+      "attributes": {
+        "behavioral_equivalence": "not established; semantic edits/width changes may change behavior",
+        "function_names": "source attribute only; not identity or clone criterion",
+        "refactoring_suitability": "unassessed"
+      },
+      "both_admitted": false,
+      "decision": null,
+      "detector_keys": [
+        "function:607fb5e1b34e07b874f0c114cc2023e7ebef1d1393e69991680e5a0c7e054678",
+        "function:db1748af11a1c080b257a8b8af17b546b17cfbe7e8e31fcb7fdab5b2cf6faa4a"
+      ],
+      "first": "natural-development:sample:clamp",
+      "groups": [
+        "rust-num/num-traits"
+      ],
+      "label": "ambiguous",
+      "rationale": "Two-bound clamp adds a conditional arm/interface; partial structural relatedness lacks whole-function correspondence under this protocol.",
+      "reasons": [
+        [
+          "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+          "Function-level generics are deferred, even for scalar bodies.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Return type is outside the resolved primitive interface.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Macro invocations are deferred; expansion cannot erase the source construct.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset."
+        ],
+        [
+          "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+          "Function-level generics are deferred, even for scalar bodies.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Return type is outside the resolved primitive interface.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Macro invocations are deferred; expansion cannot erase the source construct.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset."
+        ]
+      ],
+      "scope": "natural-development",
+      "second": "natural-development:sample:clamp_min",
+      "status": "excluded",
+      "stratum": "natural-structural"
+    },
+    {
+      "attributes": {
+        "behavioral_equivalence": "not established; semantic edits/width changes may change behavior",
+        "function_names": "source attribute only; not identity or clone criterion",
+        "refactoring_suitability": "unassessed"
+      },
+      "both_admitted": false,
+      "decision": null,
+      "detector_keys": [
+        "function:db1748af11a1c080b257a8b8af17b546b17cfbe7e8e31fcb7fdab5b2cf6faa4a",
+        "function:9032aad6322d8122bb64dfb150ea365a02fe9cd66b50cbbb1a393f86ced5848b"
+      ],
+      "first": "natural-development:sample:clamp_min",
+      "groups": [
+        "rust-num/num-traits"
+      ],
+      "label": "positive",
+      "rationale": "Source review: one bound assertion followed by one comparison and choice between input and bound; operand/operator changes retained as behavioral attributes.",
+      "reasons": [
+        [
+          "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+          "Function-level generics are deferred, even for scalar bodies.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Return type is outside the resolved primitive interface.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Macro invocations are deferred; expansion cannot erase the source construct.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset."
+        ],
+        [
+          "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+          "Function-level generics are deferred, even for scalar bodies.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Parameter type is outside the resolved primitive interface.",
+          "Return type is outside the resolved primitive interface.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Macro invocations are deferred; expansion cannot erase the source construct.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset.",
+          "Compiler-resolved value type is outside the primitive R0 subset."
+        ]
+      ],
+      "scope": "natural-development",
+      "second": "natural-development:sample:clamp_max",
+      "status": "excluded",
+      "stratum": "natural-width"
+    }
+  ],
+  "cost": {
+    "command": [
+      "cargo",
+      "rstyle",
+      "clones",
+      "--format",
+      "json",
+      "--all-targets",
+      "--locked",
+      "--offline",
+      "--jobs",
+      "2",
+      "--max-pairs",
+      "1000",
+      "--trace",
+      "--matching-config",
+      "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v1/default.json",
+      "--manifest-path",
+      "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v1/corpus/natural-development/Cargo.toml"
+    ],
+    "exit_code": 0,
+    "fresh_run_bytes": 669211,
+    "max_child_rss_kib": 122728,
+    "phase_timing": "combined compilation/capture/matching; command has no separate phase timers",
+    "rss_sampling_seconds": 0.05,
+    "sampled_process_group_peak_rss_bytes": 206831616,
+    "system_seconds": 0.29,
+    "user_seconds": 10.13,
+    "wall_seconds": 10.407993506873026
+  },
+  "declared_context_pair_universe": 15,
+  "emitted_pairs": 0,
+  "evaluated_pairs": 0,
+  "evidence_inventory_identity": "a8263a27a69ad68090bc5e6973e58143cd5eab25a28e44007a95c929a022de5b",
+  "functions": {
+    "assessed": 7,
+    "compiler_generated_observed": 1,
+    "observed": 7,
+    "outcomes": {
+      "excluded": 7
+    },
+    "selected": 6,
+    "selected_source_observed": 6,
+    "selected_source_outcomes": {
+      "excluded": 6
+    }
+  },
+  "groups": {
+    "rust-num/num-traits": {
+      "FN": 0,
+      "FP": 0,
+      "TN": 0,
+      "TP": 0,
+      "end_to_end_positive_yield": 0.0,
+      "evaluable_negative": 0,
+      "evaluable_positive": 0,
+      "f1": null,
+      "false_positive_rate": null,
+      "independent_groups": [],
+      "labels": {
+        "ambiguous": 2,
+        "positive": 1
+      },
+      "non_evaluable": {
+        "excluded": 3
+      },
+      "positive_admission_coverage": 0.0,
+      "positive_evaluability": 0.0,
+      "precision": null,
+      "recall": null,
+      "selected_pairs": 3,
+      "unlabeled_accepted": 0
+    }
+  },
+  "identities": {
+    "binaries": {
+      "cargo-rstyle": "fbfdb332c1c22a22c20e4f76e1c8a05c30d0c79c56e3eb623e68ba095f5cd2ab",
+      "rstyle-driver": "9e11d81f2f25def8e4d5eaa0b9e33e4bc79bc7f4670cb34092e83020718b7c6d"
+    },
+    "cargo": "cargo 1.101.0-nightly (3d7cf6e93 2026-09-25)\nrelease: 1.101.0-nightly\ncommit-hash: 3d7cf6e937d6127d0f49881bf689c560b36d35c4\ncommit-date: 2026-09-25\nhost: aarch64-unknown-linux-gnu\nlibgit2: 1.9.6 (sys:0.21.0 vendored)\nlibcurl: 8.21.0-DEV (sys:0.4.90+curl-8.21.0 vendored ssl:OpenSSL/3.6.3)\nssl: OpenSSL 3.6.3 9 Jun 2026\nos: Debian 13.0.0 (trixie) [64-bit]\n",
+    "compiler": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)\nbinary: rustc\ncommit-hash: 5c543b0b8c73c7b72bc8284ced4fb22ead15734d\ncommit-date: 2026-09-29\nhost: aarch64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 23.1.1\n",
+    "detector_revision": "06d7e8e81653aa0bd53147275555d774985c87dd",
+    "protocol_identity": "e1a9b49d94a5c507a9d6d1bf7b0b860f36df05469f9c66e06b0b53c22dd92124"
+  },
+  "incompatible_pairs": 0,
+  "mapping": [
+    {
+      "family": "compiler-generated",
+      "id": "compiler-generated:path+file:///home/dev/src/rstyle-main/rstyle/eval/ccgraph-v1/corpus/natural-development/sample#0.0.0:sample",
+      "key": "function:a4b23a9d371b750a2d3baeff680b86356812a6c36deb4c4d3d73b291d43a50e3",
+      "outcome": "excluded",
+      "provenance_group": "compiler-generated",
+      "reasons": [
+        "Macro-generated functions are deferred to rust.macros.",
+        "Required complete pre-expansion source and conditional-source resolution evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface.",
+        "Macro invocations are deferred; expansion cannot erase the source construct."
+      ],
+      "selected_source": false,
+      "test": true
+    },
+    {
+      "family": "rust-num/num-traits:clamp",
+      "id": "natural-development:sample:clamp",
+      "key": "function:607fb5e1b34e07b874f0c114cc2023e7ebef1d1393e69991680e5a0c7e054678",
+      "outcome": "excluded",
+      "provenance_group": "rust-num/num-traits",
+      "reasons": [
+        "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Return type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset."
+      ],
+      "selected_source": true,
+      "test": false
+    },
+    {
+      "family": "rust-num/num-traits:clamp",
+      "id": "natural-development:sample:clamp",
+      "key": "function:a6872585d093a997895b0afa70faf04523c60b5e5889b6c90d783c3998b2c8f3",
+      "outcome": "excluded",
+      "provenance_group": "rust-num/num-traits",
+      "reasons": [
+        "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Return type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset."
+      ],
+      "selected_source": true,
+      "test": true
+    },
+    {
+      "family": "rust-num/num-traits:clamp",
+      "id": "natural-development:sample:clamp_max",
+      "key": "function:9032aad6322d8122bb64dfb150ea365a02fe9cd66b50cbbb1a393f86ced5848b",
+      "outcome": "excluded",
+      "provenance_group": "rust-num/num-traits",
+      "reasons": [
+        "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Return type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset."
+      ],
+      "selected_source": true,
+      "test": false
+    },
+    {
+      "family": "rust-num/num-traits:clamp",
+      "id": "natural-development:sample:clamp_max",
+      "key": "function:2b6ca87b38b9042886b1c07924a8f77dd814142c31416a4d1c5773f96c4d9268",
+      "outcome": "excluded",
+      "provenance_group": "rust-num/num-traits",
+      "reasons": [
+        "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Return type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset."
+      ],
+      "selected_source": true,
+      "test": true
+    },
+    {
+      "family": "rust-num/num-traits:clamp",
+      "id": "natural-development:sample:clamp_min",
+      "key": "function:db1748af11a1c080b257a8b8af17b546b17cfbe7e8e31fcb7fdab5b2cf6faa4a",
+      "outcome": "excluded",
+      "provenance_group": "rust-num/num-traits",
+      "reasons": [
+        "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Return type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset."
+      ],
+      "selected_source": true,
+      "test": false
+    },
+    {
+      "family": "rust-num/num-traits:clamp",
+      "id": "natural-development:sample:clamp_min",
+      "key": "function:393d2f1973e024e1b6ea6dc5998bdeeecc1349e3537cd3f73830f3899b6db5eb",
+      "outcome": "excluded",
+      "provenance_group": "rust-num/num-traits",
+      "reasons": [
+        "Source construct is deferred to rust.macros; remove it or assess it under a later policy.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Return type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Compiler-resolved value type is outside the primitive R0 subset."
+      ],
+      "selected_source": true,
+      "test": true
+    }
+  ],
+  "matching_functions": [],
+  "metrics": {
+    "FN": 0,
+    "FP": 0,
+    "TN": 0,
+    "TP": 0,
+    "end_to_end_positive_yield": 0.0,
+    "evaluable_negative": 0,
+    "evaluable_positive": 0,
+    "f1": null,
+    "false_positive_rate": null,
+    "independent_groups": [],
+    "labels": {
+      "ambiguous": 2,
+      "positive": 1
+    },
+    "non_evaluable": {
+      "excluded": 3
+    },
+    "positive_admission_coverage": 0.0,
+    "positive_evaluability": 0.0,
+    "precision": null,
+    "recall": null,
+    "selected_pairs": 3,
+    "unlabeled_accepted": 0
+  },
+  "observed_function_pair_universe": 21,
+  "pairs": [],
+  "raw_directory": "eval/ccgraph-v1/artifacts/development-natural-development-default-20261012T051014Z",
+  "raw_report_sha256": "15d6537508d53c3368bb5fe5f02bdf0fb81861b23b23423dd2e302890f5e4bcb",
+  "scope": {
+    "all_targets": true,
+    "canonical_context": "test=false",
+    "id": "natural-development",
+    "manifest": "corpus/natural-development/Cargo.toml",
+    "population": "natural",
+    "selected_units": 2,
+    "source_functions": 3,
+    "split": "development"
+  },
+  "strata": {
+    "natural-structural": {
+      "FN": 0,
+      "FP": 0,
+      "TN": 0,
+      "TP": 0,
+      "end_to_end_positive_yield": null,
+      "evaluable_negative": 0,
+      "evaluable_positive": 0,
+      "f1": null,
+      "false_positive_rate": null,
+      "independent_groups": [],
+      "labels": {
+        "ambiguous": 2
+      },
+      "non_evaluable": {
+        "excluded": 2
+      },
+      "positive_admission_coverage": null,
+      "positive_evaluability": null,
+      "precision": null,
+      "recall": null,
+      "selected_pairs": 2,
+      "unlabeled_accepted": 0
+    },
+    "natural-width": {
+      "FN": 0,
+      "FP": 0,
+      "TN": 0,
+      "TP": 0,
+      "end_to_end_positive_yield": 0.0,
+      "evaluable_negative": 0,
+      "evaluable_positive": 0,
+      "f1": null,
+      "false_positive_rate": null,
+      "independent_groups": [],
+      "labels": {
+        "positive": 1
+      },
+      "non_evaluable": {
+        "excluded": 1
+      },
+      "positive_admission_coverage": 0.0,
+      "positive_evaluability": 0.0,
+      "precision": null,
+      "recall": null,
+      "selected_pairs": 1,
+      "unlabeled_accepted": 0
+    }
+  },
+  "study_revision": "3dc1c5bfb1815d58325a0a98bb1fe47b43d874b0",
+  "targets": {
+    "end_to_end_positive_yield": {
+      "descriptive_numerical_outcome": "not met",
+      "outcome": "insufficient evidence",
+      "threshold": 0.64,
+      "value": 0.0
+    },
+    "false_positive_rate": {
+      "descriptive_numerical_outcome": "insufficient evidence",
+      "outcome": "insufficient evidence",
+      "threshold": 0.1,
+      "value": null
+    },
+    "positive_admission_coverage": {
+      "descriptive_numerical_outcome": "not met",
+      "outcome": "insufficient evidence",
+      "threshold": 0.8,
+      "value": 0.0
+    },
+    "precision": {
+      "descriptive_numerical_outcome": "insufficient evidence",
+      "outcome": "insufficient evidence",
+      "threshold": 0.9,
+      "value": null
+    },
+    "recall": {
+      "descriptive_numerical_outcome": "insufficient evidence",
+      "outcome": "insufficient evidence",
+      "threshold": 0.8,
+      "value": null
+    }
+  },
+  "units": {
+    "observed": 2,
+    "selected": 2
+  },
+  "valid": true,
+  "variant": "default"
+}

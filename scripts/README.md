@@ -47,3 +47,21 @@ scripts/codenet_aggregate.py --seeds 1,2,3 --baseline none     # mean/sd over se
 | `codenet_drops.py` | Pairs where canonicalization adds/removes the most unmatched nodes (rule-defect hunting). |
 
 Canonicalizer rules: `ctor pred case exit counter cmp try`.
+
+## Strict CCGraph study
+
+`ccgraph_study.py` validates and executes the frozen independently source-labeled
+bounded study under `eval/ccgraph-v1`. It invokes the real `cargo rstyle clones`
+command with fresh compiler capture; it never consumes legacy miner predictions.
+`test_ccgraph_study.py` independently tests bookkeeping/failure expectations.
+`ccgraph_study_evidence.py` packages representative traces and inventories from
+preserved validated reports: run it after `ccgraph_study.py summarize`.
+See `eval/ccgraph-v1/README.md` for exact commands, exit behavior and retention.
+
+`ccgraph_followup.py` executes the v2 coverage/correctness study using the shared
+real-command runner and independently source-authored bounded oracles.
+`test_ccgraph_followup.py` tests its expectations, target denominators and project
+splits. `ccgraph_followup_evidence.py` verifies all retained artifact digests and
+raw/saved semantic aggregates, then packages the complete canonical scope traces.
+See `eval/ccgraph-v2/README.md`; target-check exit 1 means a valid missed primary
+coverage target, not a compiler failure.

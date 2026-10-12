@@ -1,0 +1,202 @@
+[
+  {
+    "adaptations": [
+      "Signature and body byte-identical; standalone module wrapper, crate-level lint allowances, no original function attributes or documentation. No dependencies."
+    ],
+    "excerpt_end": 23183,
+    "excerpt_sha256": "2c2a76359f732933cb12ecaae36356577ed2b5a7d6bec471c9ac3f560af27d33",
+    "excerpt_start": 23079,
+    "function": "lz4:sample:old",
+    "licenses": [
+      {
+        "path": "upstream/lz4/cc09800f0741fdecb01561138eae16691973640c/LICENSE",
+        "sha256": "0982c33390159842ecce8e9d6ce2e5e39961fe0e0ffbb2eec39c9ba46db6db10",
+        "url": "https://raw.githubusercontent.com/PSeitz/lz4_flex/cc09800f0741fdecb01561138eae16691973640c/LICENSE"
+      }
+    ],
+    "path": "src/block/compress.rs",
+    "repository": "https://github.com/PSeitz/lz4_flex",
+    "revision": "cc09800f0741fdecb01561138eae16691973640c",
+    "source_sha256": "c30d34aee1c40970dda62a2e89e7b0e0d385ca079f89f332b2e52ebd4f680fde"
+  },
+  {
+    "adaptations": [
+      "Signature and body byte-identical; standalone module wrapper, crate-level lint allowances, no original function attributes or documentation. No dependencies."
+    ],
+    "excerpt_end": 22302,
+    "excerpt_sha256": "663562123b0045f0a435df98f88675126b10a73bcbf0aa1b28f3967c4a6f2297",
+    "excerpt_start": 22182,
+    "function": "lz4:sample:current",
+    "licenses": [
+      {
+        "path": "upstream/lz4/f6251928e30af958243a3ef8f22e3071d241543d/LICENSE",
+        "sha256": "0982c33390159842ecce8e9d6ce2e5e39961fe0e0ffbb2eec39c9ba46db6db10",
+        "url": "https://raw.githubusercontent.com/PSeitz/lz4_flex/f6251928e30af958243a3ef8f22e3071d241543d/LICENSE"
+      }
+    ],
+    "path": "src/block/compress.rs",
+    "repository": "https://github.com/PSeitz/lz4_flex",
+    "revision": "f6251928e30af958243a3ef8f22e3071d241543d",
+    "source_sha256": "3b03c13d9b4e4dea0ef3c548de088746dc147b06b0a881a9aa33bd5fa823133c"
+  },
+  {
+    "adaptations": [
+      "Signature and body byte-identical; standalone module wrapper, crate-level lint allowances, no original function attributes or documentation. No dependencies."
+    ],
+    "excerpt_end": 8075,
+    "excerpt_sha256": "cfd75c1bf8a9abe16ffa862a003325d39801a68285436c23a3d6adef3434382f",
+    "excerpt_start": 7659,
+    "function": "lexical:sample:max_step_2",
+    "licenses": [
+      {
+        "path": "upstream/lexical/afb2efa651f42f63415a3bf3d51ced6143132b2b/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/Alexhuszagh/rust-lexical/afb2efa651f42f63415a3bf3d51ced6143132b2b/LICENSE-MIT"
+      },
+      {
+        "path": "upstream/lexical/afb2efa651f42f63415a3bf3d51ced6143132b2b/LICENSE-APACHE",
+        "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90",
+        "url": "https://raw.githubusercontent.com/Alexhuszagh/rust-lexical/afb2efa651f42f63415a3bf3d51ced6143132b2b/LICENSE-APACHE"
+      }
+    ],
+    "path": "lexical-util/src/step.rs",
+    "repository": "https://github.com/Alexhuszagh/rust-lexical",
+    "revision": "afb2efa651f42f63415a3bf3d51ced6143132b2b",
+    "source_sha256": "206c9420dcc0d6c2075f640afe3a8bcd3d87f3ca2a60e00f9d1002bc88bb2c02"
+  },
+  {
+    "adaptations": [
+      "Signature and body byte-identical; standalone module wrapper, crate-level lint allowances, no original function attributes or documentation. No dependencies."
+    ],
+    "excerpt_end": 8572,
+    "excerpt_sha256": "7e87714daf766406833687b812c1e87563b936ad1f820c4b6ed4a955c59bde79",
+    "excerpt_start": 8156,
+    "function": "lexical:sample:min_step_2",
+    "licenses": [
+      {
+        "path": "upstream/lexical/afb2efa651f42f63415a3bf3d51ced6143132b2b/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/Alexhuszagh/rust-lexical/afb2efa651f42f63415a3bf3d51ced6143132b2b/LICENSE-MIT"
+      },
+      {
+        "path": "upstream/lexical/afb2efa651f42f63415a3bf3d51ced6143132b2b/LICENSE-APACHE",
+        "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90",
+        "url": "https://raw.githubusercontent.com/Alexhuszagh/rust-lexical/afb2efa651f42f63415a3bf3d51ced6143132b2b/LICENSE-APACHE"
+      }
+    ],
+    "path": "lexical-util/src/step.rs",
+    "repository": "https://github.com/Alexhuszagh/rust-lexical",
+    "revision": "afb2efa651f42f63415a3bf3d51ced6143132b2b",
+    "source_sha256": "206c9420dcc0d6c2075f640afe3a8bcd3d87f3ca2a60e00f9d1002bc88bb2c02"
+  },
+  {
+    "adaptations": [
+      "Signature and body byte-identical; standalone module wrapper, crate-level lint allowances, no original function attributes or documentation. No dependencies."
+    ],
+    "excerpt_end": 5768,
+    "excerpt_sha256": "e614a35f1e02ab4d4b14f69704e0f37d07df60be0edf7ebaf48d4c2dbd93236a",
+    "excerpt_start": 4985,
+    "function": "regex:sample:leading",
+    "licenses": [
+      {
+        "path": "upstream/regex/72d650cb0a880a01ab6dc2137c0888e8f89740f7/LICENSE-MIT",
+        "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+        "url": "https://raw.githubusercontent.com/rust-lang/regex/72d650cb0a880a01ab6dc2137c0888e8f89740f7/LICENSE-MIT"
+      },
+      {
+        "path": "upstream/regex/72d650cb0a880a01ab6dc2137c0888e8f89740f7/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/rust-lang/regex/72d650cb0a880a01ab6dc2137c0888e8f89740f7/LICENSE-APACHE"
+      }
+    ],
+    "path": "regex-automata/src/util/utf8.rs",
+    "repository": "https://github.com/rust-lang/regex",
+    "revision": "72d650cb0a880a01ab6dc2137c0888e8f89740f7",
+    "source_sha256": "a02a559f0ec4013aa8bbc1a2d8717cfa0c82ed81577a4366fbbd8ef8660264fc"
+  },
+  {
+    "adaptations": [
+      "Signature and body byte-identical; standalone module wrapper, crate-level lint allowances, no original function attributes or documentation. No dependencies."
+    ],
+    "excerpt_end": 14833,
+    "excerpt_sha256": "812dead2b8a53a85162f0eafa5c0a489200701d78fd3f00eb404f0ca63940330",
+    "excerpt_start": 14611,
+    "function": "regex:sample:scalar",
+    "licenses": [
+      {
+        "path": "upstream/regex/72d650cb0a880a01ab6dc2137c0888e8f89740f7/LICENSE-MIT",
+        "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+        "url": "https://raw.githubusercontent.com/rust-lang/regex/72d650cb0a880a01ab6dc2137c0888e8f89740f7/LICENSE-MIT"
+      },
+      {
+        "path": "upstream/regex/72d650cb0a880a01ab6dc2137c0888e8f89740f7/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/rust-lang/regex/72d650cb0a880a01ab6dc2137c0888e8f89740f7/LICENSE-APACHE"
+      }
+    ],
+    "path": "regex-syntax/src/utf8.rs",
+    "repository": "https://github.com/rust-lang/regex",
+    "revision": "72d650cb0a880a01ab6dc2137c0888e8f89740f7",
+    "source_sha256": "193f280f3b48116ed6ca8b5fe80b9d6401b6e733dfa138caf64ec1b017b6f175"
+  },
+  {
+    "adaptations": [
+      "Signature and body byte-identical; standalone module wrapper, crate-level lint allowances, no original function attributes or documentation. No dependencies."
+    ],
+    "excerpt_end": 540,
+    "excerpt_sha256": "81e059c5e20d095cc4e1749b8842dad87db55f532dfd91cb0194d06a3c6acfdf",
+    "excerpt_start": 436,
+    "function": "time:sample:old17",
+    "licenses": [
+      {
+        "path": "upstream/time/d97594b9f5cfeab0335c16687e26a8b51c56a526/LICENSE-MIT",
+        "sha256": "04620bf27e4a643dd47bf27652320c205acdb776c1f9f24bb8c3bfaba10804c5",
+        "url": "https://raw.githubusercontent.com/time-rs/time/d97594b9f5cfeab0335c16687e26a8b51c56a526/LICENSE-MIT"
+      }
+    ],
+    "path": "time-core/src/util.rs",
+    "repository": "https://github.com/time-rs/time",
+    "revision": "d97594b9f5cfeab0335c16687e26a8b51c56a526",
+    "source_sha256": "52c1fbf68b71c3582caf0d9a8255378c6c14a737e2df8d7e6d6603b0eb12ca06"
+  },
+  {
+    "adaptations": [
+      "Signature and body byte-identical; standalone module wrapper, crate-level lint allowances, no original function attributes or documentation. No dependencies."
+    ],
+    "excerpt_end": 540,
+    "excerpt_sha256": "81e059c5e20d095cc4e1749b8842dad87db55f532dfd91cb0194d06a3c6acfdf",
+    "excerpt_start": 436,
+    "function": "time:sample:old36",
+    "licenses": [
+      {
+        "path": "upstream/time/3c3c546a661ac59e1a586a4edc65adff04fd1335/LICENSE-MIT",
+        "sha256": "231c837c45eb53f108fb48929e488965bc4fcc14e9ea21d35f50e6b99d98685b",
+        "url": "https://raw.githubusercontent.com/time-rs/time/3c3c546a661ac59e1a586a4edc65adff04fd1335/LICENSE-MIT"
+      }
+    ],
+    "path": "time-core/src/util.rs",
+    "repository": "https://github.com/time-rs/time",
+    "revision": "3c3c546a661ac59e1a586a4edc65adff04fd1335",
+    "source_sha256": "52c1fbf68b71c3582caf0d9a8255378c6c14a737e2df8d7e6d6603b0eb12ca06"
+  },
+  {
+    "adaptations": [
+      "Signature and body byte-identical; standalone module wrapper, crate-level lint allowances, no original function attributes or documentation. No dependencies."
+    ],
+    "excerpt_end": 2968,
+    "excerpt_sha256": "1ce6e6176f0a849e6d8dddfc9a0732cb2f856e3aadd9884448c8f09fd6d4aa99",
+    "excerpt_start": 2776,
+    "function": "time:sample:current",
+    "licenses": [
+      {
+        "path": "upstream/time/9b189628ecd0c5805b117a75729ad908626fd5f2/LICENSE-MIT",
+        "sha256": "2537228d9a1b44a5dc595241349cae7090b326c8de165aaf89bfddef4a00d0fc",
+        "url": "https://raw.githubusercontent.com/time-rs/time/9b189628ecd0c5805b117a75729ad908626fd5f2/LICENSE-MIT"
+      }
+    ],
+    "path": "time-core/src/util.rs",
+    "repository": "https://github.com/time-rs/time",
+    "revision": "9b189628ecd0c5805b117a75729ad908626fd5f2",
+    "source_sha256": "d8aea82023758a2d81c01ed28c08274cc56b3444ff95510af5d67b0cba54c171"
+  }
+]
