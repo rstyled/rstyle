@@ -815,12 +815,13 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
     let Some((pattern, children)) = arm.children.split_first() else {
         return evidence_gap(arm, "match arm correspondence");
     };
-    let valid = arm.kind == "match_arm"
-        && children.len() == 1
-        && ((last && pattern.kind == "pat_wild")
-            || (pattern.kind == "pat_literal"
-                && pattern.lit.is_some()
-                && node_norm(pattern) == node_norm(scrutinee)));
+    let guarded = children.len() == 2 && children[0].kind == "match_guard";
+    let shape = arm.kind == "match_arm" && (children.len() == 1 || guarded);
+    let pattern_valid = (pattern.kind == "pat_literal"
+        && pattern.lit.is_some()
+        && node_norm(pattern) == node_norm(scrutinee))
+        || (pattern.kind == "pat_wild" && (last || (guarded && ctx.profile.match_guards())));
+    let valid = shape && pattern_valid && (!guarded || ctx.profile.match_guards());
     let own = if valid {
         Outcome::ok()
     } else {
@@ -836,13 +837,7 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
             .iter()
             .map(|child| {
                 if child.kind == "match_guard" {
-                    Outcome::combine(
-                        child
-                            .children
-                            .iter()
-                            .map(|value| check_node(value, false, ctx))
-                            .collect(),
-                    )
+                    check_match_guard(child, ctx)
                 } else {
                     check_node(child, false, ctx)
                 }
@@ -851,6 +846,44 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
     );
 
     own.merge(body)
+}
+
+fn check_match_guard(wrapper: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let [guard] = wrapper.children.as_slice() else {
+        return evidence_gap(wrapper, "guard correspondence");
+    };
+    let result = if node_norm(guard) == Some("bool") {
+        Outcome::ok()
+    } else {
+        error(
+            "rust.scalar-match-guards",
+            "guard_type",
+            guard,
+            "Guard result must resolve to bool.",
+        )
+    };
+    result
+        .merge(check_guard_subset(guard))
+        .merge(check_node(guard, false, ctx))
+}
+
+fn check_guard_subset(node: &HirNode) -> Outcome {
+    let own = if matches!(
+        node.kind.as_str(),
+        "expr_lit" | "expr_path" | "expr_unary" | "expr_binary" | "expr_block" | "expr_if"
+    ) {
+        Outcome::ok()
+    } else {
+        error(
+            "rust.scalar-match-guards",
+            "guard_subset",
+            node,
+            "Guards are restricted to pure base scalar expressions; writes, declarations, casts, calls and returns remain excluded.",
+        )
+    };
+    own.merge(Outcome::combine(
+        node.children.iter().map(check_guard_subset).collect(),
+    ))
 }
 
 fn check_cast(node: &HirNode) -> Outcome {

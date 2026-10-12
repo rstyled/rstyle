@@ -537,11 +537,31 @@ impl Builder<'_> {
             } else {
                 empty_flow()
             };
-            let matched = if pattern.kind == "pat_literal" {
+            let mut matched = if pattern.kind == "pat_literal" {
                 arm(&selected, "true")
             } else {
                 selected
             };
+            if arm_node.children.len() == 3 {
+                let guard = &arm_node.children[1].children[0];
+                let evaluated = self.expression(guard, matched);
+                let operation = Operation {
+                    construct_span: node.span,
+                    role: format!("match_guard:{index}"),
+                    ty: "bool".into(),
+                    construct: Some("match.guard".into()),
+                    operands: self.operand(&evaluated.value),
+                    ..template(guard, NodeCategory::Control)
+                };
+                let predicate = self.emit(operation, evaluated);
+                if index == 0 && pattern.kind == "pat_wild" {
+                    controller = predicate.value.clone();
+                }
+                let failed = arm(&predicate, "false");
+                remaining.ends.extend(failed.ends);
+                remaining.normal |= failed.normal;
+                matched = arm(&predicate, "true");
+            }
             let body = self.expression(arm_node.children.last().expect("arm body"), matched);
             completed.push((index, body));
         }
