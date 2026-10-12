@@ -1422,3 +1422,119 @@ fn integer_casts_reject_other_domains_and_tampered_facts() {
     serialized.manifest.documents[0].sha256 = "sha256:0000".into();
     assert!(rstyle_pdg::producer::verify_serialized(&serialized, &facts).is_err());
 }
+
+#[test]
+fn scalar_match_has_independent_operation_flow_and_merge_expectations() {
+    let facts = compile_selected(
+        "fn f(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }",
+        "hir-match-v1",
+    )
+    .remove(0);
+    let graph = rstyle_pdg::producer::lower(&facts).unwrap();
+    assert_eq!(
+        graph
+            .nodes
+            .iter()
+            .map(|n| n.original_kind.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "pat_binding",
+            "expr_path",
+            "pat_literal",
+            "expr_lit",
+            "pat_wild",
+            "expr_lit",
+            "rstyle.hir-coverage.match_merge",
+            "expr_match"
+        ]
+    );
+    assert_eq!(
+        graph
+            .transfers
+            .iter()
+            .map(|e| (e.source.as_str(), e.target.as_str(), e.kind.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            ("E", "n1", "normal"),
+            ("n1", "n2", "normal"),
+            ("n2", "n3", "true"),
+            ("n2", "n4", "false"),
+            ("n3", "n7", "normal"),
+            ("n4", "n5", "normal"),
+            ("n5", "n7", "normal"),
+            ("n7", "X", "return")
+        ]
+    );
+    assert_eq!(graph.nodes[2].operands, ["n1"]);
+    assert_eq!(graph.nodes[2].construct.as_deref(), Some("match.literal"));
+    assert_eq!(graph.nodes[2].literal.as_deref(), Some("1"));
+    assert_eq!(graph.value_sites.len(), 1);
+    let site = &graph.value_sites[0];
+    assert_eq!(site.selection_kind.as_deref(), Some("ordered-match/1"));
+    assert_eq!(
+        site.alternatives
+            .iter()
+            .map(|a| (
+                a.outcome.as_str(),
+                a.value_pdg_node_id.as_str(),
+                a.completion_cfg_node_ids.as_slice()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("arm:0", "n3", ["n3".to_string()].as_slice()),
+            ("arm:1", "n5", ["n5".to_string()].as_slice())
+        ]
+    );
+    let analysis = rstyle_pdg::producer::analyze(&graph).unwrap();
+    assert_eq!(
+        analysis
+            .edges
+            .iter()
+            .filter(|e| e.family == rstyle_pdg::EdgeFamily::Control)
+            .map(|e| (e.source.as_str(), e.target.as_str(), e.outcome.as_deref()))
+            .collect::<Vec<_>>(),
+        [
+            ("n2", "n3", Some("true")),
+            ("n2", "n4", Some("false")),
+            ("n2", "n5", Some("false"))
+        ]
+    );
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let serialized = pair.serialize().unwrap();
+    rstyle_pdg::producer::verify_serialized(&serialized, &facts).unwrap();
+    rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+}
+
+#[test]
+fn scalar_match_keeps_writes_returns_and_unreachable_source() {
+    for source in [
+        "fn f(x: bool) -> i32 { match x { true => 1, _ => 2 } }",
+        "fn f(x: i32) -> i32 { match x { -1 => 0, 1 => 2, _ => 3 } }",
+        "fn f(x: i32) -> i32 { match x { 1 => return 7, _ => return 9 } }",
+        "fn f(x: i32, mut y: i32) -> i32 { match x { 1 => { y = 2; }, _ => { y = 3; } }; y }",
+        "fn f(x: i32, mut y: i32) -> i32 { match x { 1 => { let z = y; y = z; }, _ => {} }; y }",
+        "fn f(x: i32, b: bool) -> i32 { match x { 1 => { if b { 2 } else { 3 } }, _ => 4 } }",
+        "fn f(x: i32) -> i32 { return x; match x { 1 => 2, _ => 3 } }",
+    ] {
+        let facts = compile_selected(source, "hir-match-v1").remove(0);
+        let pair = rstyle_pdg::producer::produce(&facts)
+            .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+    }
+    for source in [
+        "fn f(x: i32) -> i32 { match x { y => y } }",
+        "fn f(x: i32) -> i32 { match x { 1 | 2 => 0, _ => 1 } }",
+        "fn f(x: i32) -> i32 { match x { 1..=2 => 0, _ => 1 } }",
+        "fn f(x: bool) -> i32 { match x { true => 0, false => 1 } }",
+        "fn f(x: i32) -> i32 { match x { 1 if x > 0 => 0, _ => 1 } }",
+        "fn f(x: i32) -> i32 { match x { _ => 0, 1 => g(x) } } fn g(x: i32) -> i32 { x }",
+        "fn f(x: &i32) -> i32 { match x { &1 => 0, _ => 1 } }",
+    ] {
+        let facts = compile_selected(source, "hir-match-v1").remove(0);
+        assert_eq!(
+            classify(&facts).status,
+            EligibilityVerdict::Ineligible,
+            "{source}"
+        );
+    }
+}

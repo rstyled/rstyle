@@ -1646,3 +1646,45 @@ fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaul
             .all(|f| f["outcome"] == "excluded")
     );
 }
+
+#[test]
+fn clones_scalar_match_is_versioned_and_evaluates_every_admitted_pair() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\npub fn g(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\npub fn h(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-match-v1",
+            "--all-targets",
+            "--jobs",
+            "2",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(report["extraction_policy"]["version"], "0.3.0");
+    assert_eq!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        6
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_eq!(report["pair_enumeration_complete"], true);
+    let (output, baseline) = clones(directory.path(), &["--extraction-profile", "hir-casts-v1"]);
+    assert!(output.status.success());
+    assert!(
+        baseline["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
