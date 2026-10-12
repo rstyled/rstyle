@@ -22,6 +22,7 @@ pub struct Target {
 
 #[derive(Serialize, Deserialize)]
 pub struct Plan {
+    pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub root: PathBuf,
     pub driver: PathBuf,
     pub targets: Vec<Target>,
@@ -55,10 +56,10 @@ pub struct Capture {
     pub expected_unit_graph: Value,
 }
 
-pub fn prepare(cli: &Cli) -> Result<Capture, String> {
+pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let metadata = selected_workspace(cli)?;
     let directory = run_directory(&metadata.target_directory)?;
-    let plan = plan(cli, metadata.workspace_root)?;
+    let plan = plan(cli, metadata.workspace_root, args.extraction_profile)?;
     write_json(&directory.join("plan.json"), &plan)?;
 
     Ok(new_capture(directory, plan))
@@ -96,13 +97,18 @@ fn run_directory(target: &Path) -> Result<PathBuf, String> {
         .keep())
 }
 
-fn plan(cli: &Cli, root: PathBuf) -> Result<Plan, String> {
+fn plan(
+    cli: &Cli,
+    root: PathBuf,
+    extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<Plan, String> {
     let driver = run::driver_path()?
         .canonicalize()
         .map_err(|e| e.to_string())?;
     let orchestrator = std::env::current_exe().map_err(|e| e.to_string())?;
 
     Ok(Plan {
+        extraction_profile,
         root,
         driver_sha256: file_digest(&driver)?,
         orchestrator_sha256: file_digest(&orchestrator)?,
@@ -483,7 +489,10 @@ pub fn wrapper(plan_path: &Path, invocation: Vec<String>) -> Result<u8, String> 
 fn driver_command(plan: &Plan, invocation: &[String]) -> Command {
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
-    command.args(invocation);
+    command.args(invocation).env(
+        "RSTYLE_HIR_EXTRACTION_PROFILE",
+        plan.extraction_profile.token(),
+    );
     command
 }
 

@@ -16,6 +16,9 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 pub struct Args {
+    /// Explicit versioned extraction selection, independent of matching settings.
+    #[arg(long, default_value = "r0")]
+    pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     /// JSON matching overrides, separate from legacy rstyle.toml.
     #[arg(long)]
     matching_config: Option<PathBuf>,
@@ -141,7 +144,7 @@ impl Handoff {
 
 pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
-    let mut capture = capture::prepare(cli)?;
+    let mut capture = capture::prepare(cli, args)?;
     if let Err(error) = capture::compile(&mut capture, cli, args) {
         capture.failures.push(error);
     }
@@ -241,6 +244,11 @@ fn verify_frontend_invocation(
     unit: &capture::Unit,
     capture: &capture::Capture,
 ) -> Result<(), String> {
+    if rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(facts)?
+        != capture.plan.extraction_profile
+    {
+        return Err("frontend extraction selection disagrees with run".into());
+    }
     let value = facts
         .build
         .frontend_options

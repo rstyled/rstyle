@@ -35,6 +35,8 @@ struct Report<'a> {
     cargo_identity: &'a str,
     contract_revision: &'static str,
     extraction_policy: Policy,
+    extraction_capabilities: &'static [&'static str],
+    call_summaries: &'static [&'static str],
     schema_versions: SchemaVersions,
     producer_name: &'static str,
     producer_version: &'static str,
@@ -55,8 +57,8 @@ struct Report<'a> {
 
 #[derive(Serialize)]
 struct Policy {
-    id: &'static str,
-    version: &'static str,
+    id: String,
+    version: String,
     semantics: &'static str,
 }
 
@@ -85,10 +87,12 @@ pub fn make(ctx: Context<'_>) -> Result<Value, String> {
         cargo_identity: &ctx.capture.plan.cargo_identity,
         contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
         extraction_policy: Policy {
-            id: "compat.rust.hir-r0",
-            version: "0.1.0",
+            id: ctx.args.extraction_profile.policy().id,
+            version: ctx.args.extraction_profile.policy().version,
             semantics: "bounded normal flow; exceptional transfers and cleanup omitted",
         },
+        extraction_capabilities: ctx.args.extraction_profile.capabilities(),
+        call_summaries: &[],
         schema_versions: SchemaVersions {
             pdg: "0.1.0",
             cfg: "0.2.0",
