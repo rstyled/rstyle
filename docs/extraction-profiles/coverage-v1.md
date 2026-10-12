@@ -98,11 +98,12 @@ cyclic admission remains excluded rather than reusing the R0 proof.
 
 Call registration follows the frozen eligibility inventory. Each named versioned
 summary pins resolved callee/type/signature, argument order/dependencies, scalar
-result, memory-free effects, panic/overflow/settings, returning behavior and
-provenance. Missing/mismatched facts reject. Names alone never resolve calls.
+result, memory-free effects, panic/overflow/settings and returning behavior.
+Compiler/core fingerprints are diagnostic provenance. Missing/mismatched semantic
+facts reject. Names alone never resolve calls.
 Call projects to STATE under the unchanged matching profile; no new WL labels.
 Fixtures distinguish same-spelled user methods, neighbors, wrong versions/types,
-settings and tampered effect/result/provenance. No arbitrary inlining or legacy
+settings and unsupported effects/results. No arbitrary inlining or legacy
 miner participation is permitted.
 
 ## Implemented cast wire facts
@@ -224,15 +225,15 @@ No other primitive method, free call, user method or trait dispatch is enabled.
 
 Summary identities are rstyle.primitive.unsigned-abs/1 (i32->u32, i64->u64) and
 rstyle.primitive.wrapping-mul/1 (u32,u32->u32, u64,u64->u64). Resolve exact core
-inherent callee paths on pinned rustc commit 5c543b0b8c73c7b72bc8284ced4fb22ead15734d;
-record that compiler/source provenance. Receiver and then arguments evaluate in
+inherent callee paths and concrete types; retain compiler/core provenance
+separately for diagnostics. Receiver and then arguments evaluate in
 Rust order and feed result operands 0 and 1 as applicable. Both operations are
 memory-free, nonmutating, always returning and nonpanicking under either overflow
 setting. unsigned_abs returns the magnitude including signed MIN; wrapping_mul
 returns low width bits modulo 2^width. No call is inferred from spelling alone.
 The call is a source-backed CALL/STATE node, retaining original expr_method_call,
 callee, Direct call form, original method syntax, resolved argument/result types and summary facts. Effects,
-returning behavior, callee/type/summary/commit and settings must match exactly.
+returning behavior, callee/type/summary and relevant semantic settings must match.
 
 Source inventory correspondence permits exact spans or surrounding-source-
 parentheses/1: a HIR span may enclose the parsed semantic span only with balanced
@@ -243,19 +244,22 @@ no computation, cast, read, label or dependency is normalized or removed.
 ## Registered selections and current limits
 
 All versions 0.1.0–0.7.0 listed above are now registered local policies.
-`clones --extraction-profile` accepts their tokens; `r0` remains the default.
+`clones --extraction-profile` accepts `r0` and the cumulative `hir-expanded-v1`
+selection; staged evidence tokens remain internal. `r0` remains the default.
 The descriptions headed “before registration” retain the obligations fixed before
 implementation. The registry and exact per-function evidence determine admission,
 never these descriptive headings or a caller's supported flag.
 
-The 0.7.0 registry is initially limited to aarch64-unknown-linux-gnu and the exact
-core crate/definition hashes, compiler commit and shipped core-source digests in
-primitive-summaries-v1.json. Other targets/versions require separately reviewed
-summary provenance and tests; matching a method spelling is insufficient. Resolved
-inherent calls use the schema's Direct call form, retaining method syntax in
-original_kind and frontend evidence. Both overflow-check settings and unwind/abort
-settings are captured. These summaries themselves neither overflow-panic nor
-unwind; no general exceptional-flow completeness is claimed.
+The summary registry separates portable operation contracts in
+primitive-summaries-v1.json from the historical source audit in
+primitive-summary-reference-provenance.json. Compiler commit, target and core
+crate/definition fingerprints do not authorize summaries. Resolution must identify
+one of the four core inherent callees with its supported scalar signature, not a
+same-spelled source method. Captured frontend evidence retains actual compiler,
+target and callee hashes for diagnosis. No adversarial authenticity claim is made.
+Both overflow-check settings and unwind/abort settings are captured; these four
+operations themselves neither overflow-panic nor unwind. No general exceptional-
+flow completeness is claimed.
 
 The conditional inventory covers original owned bodies and whole function
 presence in compiler-loaded owned source files, outside macro token definitions.
@@ -287,15 +291,12 @@ crates/cargo-rstyle/tests/cli.rs. Inventory bookkeeping fixtures live in
 eval/hir-coverage/test_inventory.py. No vendored contracts or matching thresholds,
 category rules, features or algorithms were changed to admit these slices.
 
-Local pair compatibility compares the exact selected policy/version and captured
-rustc commit, edition, target triple, data layout, pointer width, overflow checks,
-debug assertions, panic strategy and optimization level. It does not require
-identical package feature names: different packages naturally have different
-feature vocabularies. Each function must instead independently prove its original
-owned-source/resolved-HIR correspondence under its recorded cfg/features; removed
-or unresolved owned operations still fail closed. Primitive summaries additionally
-require exact registered core/compiler/target identities. Thus feature selections
-can differ only when both complete admitted scalar graphs describe their actual
-selected source semantics. This does not weaken the existing native-width or
-matching compatibility checks, and incompatible pairs remain explicitly enumerated
-with an ineligible validation outcome.
+Local pair compatibility compares the selected policy/version and captured
+semantic build settings: overflow checks, debug assertions and panic strategy.
+Native-width interfaces/operations separately require equal known pointer widths.
+Compiler version/commit, target triple, data layout, edition and optimization level
+remain recorded provenance rather than blanket compatibility gates. Resolved
+operations and types describe the source semantics; differing feature names do
+not prevent comparison when each function establishes its source/HIR correspondence.
+Incomplete removed-source resolution still fails closed. Matching categories,
+labels, algorithms and thresholds remain unchanged.

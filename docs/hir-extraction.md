@@ -70,12 +70,14 @@ match decisions and guard fallthrough retain source correspondence. Conditional
 source inventory never resolves removed semantics from spelling. Cyclic flow uses
 finite fixed points and divergence-sensitive postdominance without executable
 virtual exits; expression-value merges in loop-containing functions are excluded.
-The final profile admits only four primitive callee/type instantiations with
-pinned compiler/core/source provenance, initially on aarch64-unknown-linux-gnu.
-CI uses `ubuntu-24.04-arm` so the real-compiler positive summary fixtures run
-against that registered target. Cargo caches are partitioned by runner architecture.
-On unregistered targets, summary calls remain excluded; broader target support
-requires captured and verified compiler/core provenance, not changed test counts.
+The final profile admits only four resolved core primitive callee/type
+instantiations with portable fixed-width semantics. Compiler, target and core
+fingerprints are retained as diagnostic provenance, not summary authorization or
+pair-compatibility keys. The reference source audit is recorded separately in
+`extraction-profiles/primitive-summary-reference-provenance.json`.
+CI runs x86_64 and ARM jobs in parallel, with architecture-specific caches.
+Actual semantic differences still matter: native-width operations require equal
+known pointer widths, and overflow/debug-assertion/panic settings must agree.
 
 Every local paired document retains full captured frontend evidence and its
 registered policy. Verification regenerates exact source inventories, normal-flow
