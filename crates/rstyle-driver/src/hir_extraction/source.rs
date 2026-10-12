@@ -100,10 +100,7 @@ impl<'a> Visitor<'a> for Owned {
             self.reject(local.span, "rust.local-bindings", "declaration_shape");
         }
 
-        let previous = self.match_pattern;
-        self.match_pattern = false;
-        visit::walk_local(self, local);
-        self.match_pattern = previous;
+        self.walk_binding_local(local);
     }
 
     fn visit_arm(&mut self, arm: &'a ast::Arm) {
@@ -135,36 +132,30 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_expr(&mut self, expression: &'a ast::Expr) {
-        if self.profile.primitive_calls()
-            && matches!(expression.kind, ast::ExprKind::MethodCall(..))
+        if let Some((capability, construct)) = deferred(&expression.kind)
+            && !selected_expression(&expression.kind, self.profile)
         {
-            visit::walk_expr(self, expression);
-            return;
-        }
-        if self.profile.scalar_loops()
-            && matches!(
-                expression.kind,
-                ast::ExprKind::While(..)
-                    | ast::ExprKind::Loop(..)
-                    | ast::ExprKind::Break(..)
-                    | ast::ExprKind::Continue(..)
-            )
-        {
-            visit::walk_expr(self, expression);
-            return;
-        }
-        if (matches!(expression.kind, ast::ExprKind::Cast(..)) && self.profile.integer_casts())
-            || (matches!(expression.kind, ast::ExprKind::Match(..)) && self.profile.scalar_match())
-        {
-            visit::walk_expr(self, expression);
-            return;
-        }
-        if let Some((capability, construct)) = deferred(&expression.kind) {
             self.reject(expression.span, capability, construct);
             return;
         }
 
         visit::walk_expr(self, expression);
+    }
+}
+
+fn selected_expression(
+    kind: &ast::ExprKind,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> bool {
+    match kind {
+        ast::ExprKind::MethodCall(..) => profile.primitive_calls(),
+        ast::ExprKind::While(..)
+        | ast::ExprKind::Loop(..)
+        | ast::ExprKind::Break(..)
+        | ast::ExprKind::Continue(..) => profile.scalar_loops(),
+        ast::ExprKind::Cast(..) => profile.integer_casts(),
+        ast::ExprKind::Match(..) => profile.scalar_match(),
+        _ => false,
     }
 }
 
@@ -244,5 +235,13 @@ fn source_match_pattern(kind: &ast::PatKind) -> bool {
             _ => false,
         },
         _ => false,
+    }
+}
+
+impl Owned {
+    fn walk_binding_local(&mut self, local: &ast::Local) {
+        let previous = std::mem::replace(&mut self.match_pattern, false);
+        visit::walk_local(self, local);
+        self.match_pattern = previous;
     }
 }

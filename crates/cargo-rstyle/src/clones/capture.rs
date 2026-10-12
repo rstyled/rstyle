@@ -626,6 +626,7 @@ fn artifact_inventory(
             ]);
         }
     }
+
     files
         .into_iter()
         .map(|file| {

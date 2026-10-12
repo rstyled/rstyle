@@ -216,12 +216,8 @@ fn consume_unit(
         return Err("Unit extraction profile disagrees with plan".into());
     }
     capture::verify_inventory(unit)?;
-    if unit.extraction_profile.conditional_source() {
-        let inventory: Vec<Value> = read_json(&unit.directory.join("source-inventory.json"))?;
-        result.source_inventory.push(
-            json!({"compilation_unit":unit.target, "test":unit.test, "source_functions":inventory}),
-        );
-    }
+    collect_source_inventory(unit, result)?;
+
     let facts: Vec<HirFnFacts> = read_json(&unit.directory.join("facts.json"))?;
     for (index, function) in facts.into_iter().enumerate() {
         verify_frontend_invocation(&function, unit, capture)?;
@@ -229,25 +225,45 @@ fn consume_unit(
         if !result.keys.insert(key.clone()) {
             return Err(format!("duplicate function key {key}"));
         }
-        let mut record = Function {
-            key,
-            compilation_unit: format!(
-                "{}:{}:test={}",
-                unit.target.package, unit.target.name, unit.test
-            ),
-            artifact_prefix: unit.directory.join(format!("function-{index}")),
-            outcome: "assessed".into(),
-            reasons: Vec::new(),
-            facts: function,
-            document_manifest: None,
-            projection_trace: None,
-            extraction_evidence: None,
-        };
+        let mut record = function_record(function, key, unit, index);
         let input = FunctionInput { unit, index, trace };
         let admission = consume_function(&mut record, &input);
         result.add(record, admission);
     }
     Ok(())
+}
+
+fn collect_source_inventory(unit: &capture::Unit, result: &mut Handoff) -> Result<(), String> {
+    if unit.extraction_profile.conditional_source() {
+        let inventory: Vec<Value> = read_json(&unit.directory.join("source-inventory.json"))?;
+        result.source_inventory.push(
+            json!({"compilation_unit":unit.target, "test":unit.test, "source_functions":inventory}),
+        );
+    }
+
+    Ok(())
+}
+
+fn function_record(
+    function: HirFnFacts,
+    key: String,
+    unit: &capture::Unit,
+    index: usize,
+) -> Function {
+    Function {
+        key,
+        compilation_unit: format!(
+            "{}:{}:test={}",
+            unit.target.package, unit.target.name, unit.test
+        ),
+        artifact_prefix: unit.directory.join(format!("function-{index}")),
+        outcome: "assessed".into(),
+        reasons: Vec::new(),
+        facts: function,
+        document_manifest: None,
+        projection_trace: None,
+        extraction_evidence: None,
+    }
 }
 
 fn verify_frontend_invocation(
