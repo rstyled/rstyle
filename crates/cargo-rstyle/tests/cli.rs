@@ -1908,3 +1908,89 @@ fn clones_conditional_bom_inventory_preserves_original_file_offsets() {
     assert_eq!(definition["presence"], "active");
     assert_eq!(definition["active_functions"], serde_json::json!(["f"]));
 }
+
+#[test]
+fn clones_expanded_multi_package_targets_are_exhaustive_and_schedule_invariant() {
+    let directory = expanded_multi_package_workspace();
+    let (output, concurrent) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-calls-v1",
+            "--all-targets",
+            "--jobs",
+            "2",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "capture={} handoff={}",
+        concurrent["capture_failures"],
+        concurrent["handoff_failures"]
+    );
+    assert_eq!(concurrent["observed_units"].as_array().unwrap().len(), 4);
+    assert_eq!(
+        concurrent["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        8
+    );
+    assert_eq!(
+        concurrent["matching"]["pairs"].as_array().unwrap().len(),
+        28
+    );
+    assert_eq!(concurrent["pair_evaluation_complete"], true);
+    let (output, serial) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-calls-v1",
+            "--all-targets",
+            "--jobs",
+            "1",
+        ],
+    );
+    assert!(output.status.success());
+    assert_eq!(concurrent["matching"], serial["matching"]);
+    assert_expanded_release_package_scope(directory.path());
+}
+
+fn expanded_multi_package_workspace() -> TempDir {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(
+        directory.path().join("Cargo.toml"),
+        "[workspace]\nmembers=['a','b']\nresolver='2'\n",
+    )
+    .unwrap();
+    for package in ["a", "b"] {
+        let root = directory.path().join(package);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(
+            root.join("Cargo.toml"),
+            format!("[package]\nname='{package}'\nversion='0.1.0'\nedition='2021'\n"),
+        )
+        .unwrap();
+        std::fs::write(root.join("src/lib.rs"), "pub const fn f(x: i32, b: bool) -> u8 { #[cfg(all())] let y = x as u8; match y { 0 if b => 1, _ => y } }\npub fn g(mut x: u32, b: bool) -> u32 { while b { x = x.wrapping_mul(3); if x == 0 { break; } continue; } x }\npub fn forbidden(x: u32) -> u32 { x.wrapping_add(1) }\n").unwrap();
+    }
+    directory
+}
+
+fn assert_expanded_release_package_scope(directory: &Path) {
+    let (output, release) = clones(
+        directory,
+        &[
+            "--extraction-profile",
+            "hir-calls-v1",
+            "--all-targets",
+            "-p",
+            "a",
+            "--release",
+        ],
+    );
+    assert!(output.status.success());
+    assert_eq!(release["matching"]["pairs"].as_array().unwrap().len(), 6);
+    assert_eq!(release["pair_evaluation_complete"], true);
+}
