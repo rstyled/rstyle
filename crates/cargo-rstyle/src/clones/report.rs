@@ -93,7 +93,7 @@ pub fn make(ctx: Context<'_>) -> Result<Value, String> {
             semantics: "bounded normal flow; exceptional transfers and cleanup omitted",
         },
         extraction_capabilities: ctx.args.extraction_profile.capabilities(),
-        call_summaries: &[],
+        call_summaries: ctx.args.extraction_profile.summaries(),
         schema_versions: SchemaVersions {
             pdg: "0.1.0",
             cfg: "0.2.0",

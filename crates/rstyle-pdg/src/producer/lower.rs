@@ -1,5 +1,7 @@
 //! Operation lowering preserves source evaluation order and snapshot values.
 
+mod loops;
+
 use super::graph::*;
 use crate::{NodeCategory, frontend::*};
 
@@ -32,6 +34,7 @@ struct Arms {
 }
 
 struct Builder<'a> {
+    loops: Vec<loops::LoopFrame>,
     facts: &'a HirFnFacts,
     nodes: Vec<Operation>,
     transfers: Vec<Transfer>,
@@ -57,6 +60,7 @@ pub fn lower(facts: &HirFnFacts) -> Result<Graph, HirEligibility> {
         });
     }
     let mut builder = Builder {
+        loops: Vec::new(),
         facts,
         nodes: Vec::new(),
         transfers: Vec::new(),
@@ -163,6 +167,15 @@ impl Builder<'_> {
                 source: end.node.clone(),
                 target: id.to_string(),
                 kind: end.kind.clone(),
+                loop_role: if end.kind == "break"
+                    || (end.kind == "false"
+                        && self.nodes.iter().any(|node| {
+                            node.id == end.node && node.construct.as_deref() == Some("while")
+                        })) {
+                    Some("loop_exit".into())
+                } else {
+                    None
+                },
             });
         }
         for site in &mut self.sites {
@@ -278,10 +291,15 @@ impl Builder<'_> {
                 Operands { flow, values }
             },
         );
+        let category = if node.kind == "expr_method_call" {
+            NodeCategory::Call
+        } else {
+            NodeCategory::Computation
+        };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
             operands: evaluated.values,
-            ..template(node, NodeCategory::Computation)
+            ..template(node, category)
         };
 
         self.emit(operation, evaluated.flow)
@@ -682,6 +700,7 @@ impl Builder<'_> {
             source: id,
             target: "X".to_string(),
             kind: "return".to_string(),
+            loop_role: None,
         });
 
         Flow {
@@ -737,11 +756,14 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         {
             Builder::short_circuit
         }
-        "expr_binary" | "expr_unary" | "expr_cast" => Builder::computation,
+        "expr_binary" | "expr_unary" | "expr_cast" | "expr_method_call" => Builder::computation,
         "expr_assign" => Builder::assignment,
         "expr_assign_op" => Builder::compound,
         "expr_if" => Builder::branch,
         "expr_match" => Builder::scalar_match,
+        "expr_while" => Builder::while_loop,
+        "expr_loop" => Builder::infinite_loop,
+        "expr_break" | "expr_continue" => Builder::loop_exit,
         "expr_ret" => Builder::explicit_return,
         _ => unreachable!("eligibility rejects unsupported constructs"),
     }

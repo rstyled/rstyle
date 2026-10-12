@@ -31,6 +31,7 @@ pub struct Operation {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Transfer {
+    pub loop_role: Option<String>,
     pub source: String,
     pub target: String,
     pub kind: String,

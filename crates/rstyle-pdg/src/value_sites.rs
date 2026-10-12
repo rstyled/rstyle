@@ -63,6 +63,15 @@ pub fn validate_value_sites(
     pdg: &PdgDocument,
     cfg: &CfgDocument,
 ) -> Result<BTreeSet<String>, Vec<String>> {
+    if pdg.profile.id == crate::extraction_profile::LOCAL_ID
+        && matches!(pdg.profile.version.as_str(), "0.6.0" | "0.7.0")
+        && pdg
+            .nodes
+            .iter()
+            .any(|node| matches!(node.attributes.construct.as_deref(), Some("while" | "loop")))
+    {
+        return crate::cyclic_values::validate(pdg, cfg);
+    }
     let merges: Vec<_> = pdg
         .nodes
         .iter()
@@ -227,7 +236,7 @@ impl Context<'_> {
                 || self.pdg.profile.id != crate::extraction_profile::LOCAL_ID
                 || !matches!(
                     self.pdg.profile.version.as_str(),
-                    "0.3.0" | "0.4.0" | "0.5.0"
+                    "0.3.0" | "0.4.0" | "0.5.0" | "0.6.0" | "0.7.0"
                 )
             {
                 return Err("Unregistered value selection policy".into());

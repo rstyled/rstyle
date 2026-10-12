@@ -341,7 +341,10 @@ fn consume_function(
         return Ok(None);
     }
     if assessment["manifest_file"] != format!("function-{}.manifest.json", input.index) {
-        return Err(format!("missing or ambiguous assessment manifest; producer errors: {}", assessment["extraction_errors"]));
+        return Err(format!(
+            "missing or ambiguous assessment manifest; producer errors: {}",
+            assessment["extraction_errors"]
+        ));
     }
     if !record
         .facts

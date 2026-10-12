@@ -1,7 +1,7 @@
 //! Producer handoff checks using captured source/build evidence and the real
 //! interchange boundary. Producer conformance flags are never an input proof.
 
-use super::{Pair, analyze, emit, lower};
+use super::{Pair, analyze_facts, emit, lower};
 use crate::*;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -18,7 +18,7 @@ pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
             .map(|d| d.reason.clone())
             .collect::<Vec<_>>()
     })?;
-    let analysis = analyze(&graph).map_err(|e| vec![e])?;
+    let analysis = analyze_facts(&graph, facts).map_err(|e| vec![e])?;
     let revision = facts
         .build
         .producer_revision

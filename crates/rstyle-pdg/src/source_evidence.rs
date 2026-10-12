@@ -78,7 +78,13 @@ impl Inventory<'_> {
             end: offset(source, span.end()),
         };
         let mut candidates = Vec::new();
-        find(&self.facts.body, kind, span, &mut candidates);
+        find(
+            &self.facts.body,
+            kind,
+            span,
+            &self.facts.source.bytes,
+            &mut candidates,
+        );
         let hir = if candidates.len() == 1 {
             Some(candidates[0].clone())
         } else {
@@ -153,13 +159,32 @@ fn offset(source: &str, position: proc_macro2::LineColumn) -> u32 {
     u32::try_from(prefix + column).unwrap_or(u32::MAX)
 }
 
-fn find(node: &HirNode, kind: &str, span: ByteSpan, found: &mut Vec<HirRef>) {
-    if node.kind == kind && node.span == span {
+fn find(node: &HirNode, kind: &str, span: ByteSpan, source: &str, found: &mut Vec<HirRef>) {
+    if node.kind == kind && corresponding_span(source, span, node.span) {
         found.push(node.hir.clone());
     }
     for child in &node.children {
-        find(child, kind, span, found);
+        find(child, kind, span, source, found);
     }
+}
+
+fn corresponding_span(source: &str, syntax: ByteSpan, hir: ByteSpan) -> bool {
+    if syntax == hir {
+        return true;
+    }
+    if hir.start > syntax.start || hir.end < syntax.end {
+        return false;
+    }
+    let Some(before) = source.get(hir.start as usize..syntax.start as usize) else {
+        return false;
+    };
+    let Some(after) = source.get(syntax.end as usize..hir.end as usize) else {
+        return false;
+    };
+    before.chars().all(|ch| ch == '(' || ch.is_whitespace())
+        && after.chars().all(|ch| ch == ')' || ch.is_whitespace())
+        && before.chars().filter(|ch| *ch == '(').count()
+            == after.chars().filter(|ch| *ch == ')').count()
 }
 
 fn expression_kind(expression: &syn::Expr) -> Option<&'static str> {
@@ -209,6 +234,8 @@ pub fn diagnostics(facts: &HirFnFacts) -> Vec<crate::HirDiagnostic> {
         return Vec::new();
     };
     inventory.entries.into_iter().filter_map(|entry| {
+        if entry.kind == "expr_method_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.primitive_calls())
+            && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir, facts)) { return None; }
         let capability = match entry.kind.as_str() {
             "expr_call" | "expr_method_call" => "rust.call-summaries",
             "source_macro" => "rust.macros",
@@ -276,4 +303,12 @@ impl<'ast> Visit<'ast> for Definitions<'_> {
             self.add(&function.sig.ident, function.span());
         }
     }
+}
+
+fn resolved_summary(node: &HirNode, hir: &HirRef, facts: &HirFnFacts) -> bool {
+    (node.hir == *hir && crate::call_summaries::resolve(node, facts).is_some())
+        || node
+            .children
+            .iter()
+            .any(|child| resolved_summary(child, hir, facts))
 }

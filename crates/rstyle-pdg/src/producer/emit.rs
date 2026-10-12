@@ -140,6 +140,12 @@ pub fn emit(
         format!("{PREFIX}:exceptional-flow-assessment"),
         serde_json::to_value(&assessment).map_err(|e| e.to_string())?,
     );
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?.primitive_calls() {
+        extensions.insert(
+            crate::call_summaries::KEY.into(),
+            super::summaries::evidence(facts, graph)?,
+        );
+    }
     let metadata = DocumentMetadata {
         producer,
         extensions,
@@ -332,8 +338,12 @@ fn attributes(node: &Operation) -> NodeAttributes {
         write_form: node.write_form.clone(),
         position: node.position,
         exit_kind: (node.category == NodeCategory::Return).then_some(ExitKind::Normal),
-        callee: None,
-        call_form: None,
+        callee: if node.category == NodeCategory::Call {
+            node.operator.as_deref().map(StringFact::known)
+        } else {
+            None
+        },
+        call_form: (node.category == NodeCategory::Call).then_some(CallForm::Direct),
         outcomes: if node.category == NodeCategory::Control {
             vec!["true".to_string(), "false".to_string()]
         } else {
@@ -511,6 +521,7 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
     let capabilities = REQUIRED_CAPABILITIES.into_iter().map(|key| {
         let status = match key {
             "node_extraction" | "scalar_reaching_definitions" | "control_dependencies" | "execution_dependencies" | "returns" | "parameters" | "reference_counting" => CapabilityStatus::Supported,
+            "calls" if graph.nodes.iter().any(|node| node.category == NodeCategory::Call) => CapabilityStatus::Supported,
             "branch_merges" if !graph.value_sites.is_empty() => CapabilityStatus::Supported,
             "exceptional_flow" if !limitations.is_empty() => CapabilityStatus::Unsupported,
             _ => CapabilityStatus::NotApplicable,
@@ -700,10 +711,16 @@ fn cfg_edges(graph: &Graph) -> Vec<CfgEdge> {
                 "true" => CfgEdgeKind::True,
                 "false" => CfgEdgeKind::False,
                 "return" => CfgEdgeKind::Return,
+                "break" => CfgEdgeKind::Break,
+                "continue" => CfgEdgeKind::Continue,
                 _ => CfgEdgeKind::Normal,
             },
             case_value: None,
-            loop_role: None,
+            loop_role: match t.loop_role.as_deref() {
+                Some("back_edge") => Some(LoopRole::BackEdge),
+                Some("loop_exit") => Some(LoopRole::LoopExit),
+                _ => None,
+            },
             reason: None,
         })
         .collect()

@@ -15,6 +15,17 @@ pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
     let mut cfg: crate::CfgDocument = convert(&pair.cfg, &policy)?;
     cfg.profile.name = policy.id.clone();
     cfg.profile.version = policy.version.clone();
+    if profile.scalar_loops() {
+        cfg.profile.exit_policy =
+            "one normal exit; actual returns/fallthrough only; divergence remains cyclic".into();
+        let cyclic = json!({"reaching_definitions":"finite-monotone-kill-gen/1","postdominance":"all-maximal-paths-least-fixed-point/1","execution":"nearest-strict-entry-dominator/1","value_availability":"strict-dominance-without-conditional-value-merges/1","virtual_executable_exits":false});
+        pdg.extensions.insert(
+            "rstyle.hir-coverage:cyclic-flow-policy".into(),
+            cyclic.clone(),
+        );
+        cfg.extensions
+            .insert("rstyle.hir-coverage:cyclic-flow-policy".into(), cyclic);
+    }
     let evidence = json!({
         "profile": policy,
         "selection": profile.token(),

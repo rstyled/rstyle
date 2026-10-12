@@ -135,6 +135,24 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_expr(&mut self, expression: &'a ast::Expr) {
+        if self.profile.primitive_calls()
+            && matches!(expression.kind, ast::ExprKind::MethodCall(..))
+        {
+            visit::walk_expr(self, expression);
+            return;
+        }
+        if self.profile.scalar_loops()
+            && matches!(
+                expression.kind,
+                ast::ExprKind::While(..)
+                    | ast::ExprKind::Loop(..)
+                    | ast::ExprKind::Break(..)
+                    | ast::ExprKind::Continue(..)
+            )
+        {
+            visit::walk_expr(self, expression);
+            return;
+        }
         if (matches!(expression.kind, ast::ExprKind::Cast(..)) && self.profile.integer_casts())
             || (matches!(expression.kind, ast::ExprKind::Match(..)) && self.profile.scalar_match())
         {

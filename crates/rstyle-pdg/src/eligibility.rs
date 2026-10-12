@@ -105,6 +105,8 @@ impl Outcome {
 /// Read-only classifier context: binding cross-references.
 #[derive(Clone)]
 struct Ctx<'a> {
+    loops: Vec<crate::HirRef>,
+    facts: &'a HirFnFacts,
     profile: crate::extraction_profile::ExtractionProfile,
     bindings: BTreeMap<(u32, u32, u32), &'a BindingFact>,
     symbols: BTreeSet<&'a str>,
@@ -174,6 +176,8 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
         }
     };
     let ctx = Ctx {
+        facts,
+        loops: Vec::new(),
         profile,
         bindings: facts
             .bindings
@@ -193,6 +197,7 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
     };
 
     let outcome = Outcome::combine(vec![
+        check_loop_values(&facts.body, profile),
         check_source_scan(facts),
         check_signature(facts, &ctx),
         check_bindings(facts, &ctx),
@@ -499,6 +504,12 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
         return macro_diagnostic(node, site);
     }
 
+    if ctx.profile.scalar_loops() && matches!(node.kind.as_str(), "expr_loop" | "expr_while") {
+        return check_loop(node, ctx);
+    }
+    if ctx.profile.scalar_loops() && matches!(node.kind.as_str(), "expr_break" | "expr_continue") {
+        return check_loop_exit(node, ctx);
+    }
     if node.kind == "expr_match" && ctx.profile.scalar_match() {
         return check_match(node, ctx);
     }
@@ -541,6 +552,18 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     match node.kind.as_str() {
+        "expr_method_call" if ctx.profile.primitive_calls() => {
+            if crate::call_summaries::resolve(node, ctx.facts).is_some() {
+                Outcome::ok()
+            } else {
+                error(
+                    "rust.call-summaries",
+                    "unregistered_primitive_summary",
+                    node,
+                    "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+                )
+            }
+        }
         "expr_cast" if ctx.profile.integer_casts() => check_supported(node, ctx),
         "expr_block" | "stmt_expr" | "stmt_semi" | "stmt_let" | "expr_path" | "expr_lit"
         | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_assign_op"
@@ -777,6 +800,85 @@ fn builtin_or_reject(node: &HirNode, what: &str) -> Outcome {
             "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
         ),
     }
+}
+
+fn contains_loop(node: &HirNode) -> bool {
+    matches!(node.kind.as_str(), "expr_loop" | "expr_while")
+        || node.children.iter().any(contains_loop)
+}
+
+fn check_loop_values(
+    node: &HirNode,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Outcome {
+    if !profile.scalar_loops() || !contains_loop(node) {
+        return Outcome::ok();
+    }
+    check_no_loop_merges(node)
+}
+
+fn check_no_loop_merges(node: &HirNode) -> Outcome {
+    let branching = matches!(node.kind.as_str(), "expr_if" | "expr_match")
+        && !matches!(node_norm(node), Some("unit") | None)
+        && node.ty.as_ref().is_none_or(|ty| ty.observed != "!");
+    let short = node
+        .dispatch
+        .as_ref()
+        .is_some_and(|dispatch| matches!(dispatch.op.as_str(), "&&" | "||"));
+    let own = if branching || short {
+        error(
+            "rust.scalar-loops",
+            "loop_value_merges",
+            node,
+            "The initial cyclic policy excludes nonunit conditional and short-circuit value merges in loop-containing functions.",
+        )
+    } else {
+        Outcome::ok()
+    };
+    own.merge(Outcome::combine(
+        node.children.iter().map(check_no_loop_merges).collect(),
+    ))
+}
+
+fn check_loop(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let expected = if node.kind == "expr_while" { 2 } else { 1 };
+    if node.children.len() != expected {
+        return evidence_gap(node, "loop source/HIR correspondence");
+    }
+    let mut nested = ctx.clone();
+    nested.loops.push(node.hir.clone());
+    let own = if node.kind == "expr_while" && node_norm(&node.children[0]) != Some("bool") {
+        error(
+            "rust.scalar-loops",
+            "while_condition",
+            node,
+            "While condition must resolve to bool.",
+        )
+    } else {
+        Outcome::ok()
+    };
+    own.merge(Outcome::combine(
+        node.children
+            .iter()
+            .map(|child| check_node(child, false, &nested))
+            .collect(),
+    ))
+}
+
+fn check_loop_exit(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if !node.children.is_empty()
+        || node.res.as_ref().is_none_or(|resolution| {
+            resolution.kind != "innermost_loop" || resolution.target.as_ref() != ctx.loops.last()
+        })
+    {
+        return error(
+            "rust.scalar-loops",
+            "loop_exit",
+            node,
+            "Only resolved unlabelled valueless exits to the innermost loop are supported.",
+        );
+    }
+    Outcome::ok()
 }
 
 fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {

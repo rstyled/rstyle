@@ -9,6 +9,7 @@ mod graph;
 mod hazards;
 mod lower;
 mod profile;
+mod summaries;
 mod verify;
 pub use verify::verify;
 
@@ -20,7 +21,7 @@ pub fn produce(facts: &crate::HirFnFacts) -> Result<Pair, Vec<String>> {
             .map(|d| d.reason)
             .collect::<Vec<_>>()
     })?;
-    let analysis = analyze(&graph).map_err(|e| vec![e])?;
+    let analysis = analyze_facts(&graph, facts).map_err(|e| vec![e])?;
     let revision = facts
         .build
         .producer_revision
@@ -57,7 +58,20 @@ pub fn verify_serialized(
     Ok(pair)
 }
 
-pub use analysis::{Analysis, DefinitionSet, Dependence, analyze, reachability};
+pub use analysis::{Analysis, DefinitionSet, Dependence, analyze, analyze_cyclic, reachability};
+
+fn analyze_facts(graph: &Graph, facts: &crate::HirFnFacts) -> Result<Analysis, String> {
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?.scalar_loops()
+        && graph
+            .nodes
+            .iter()
+            .any(|node| matches!(node.construct.as_deref(), Some("while" | "loop")))
+    {
+        analyze_cyclic(graph)
+    } else {
+        analyze(graph)
+    }
+}
 pub use emit::{DocumentIdentity, Manifest, Pair, SerializedPair, emit};
 pub use graph::{Alternative, Atom, Graph, Guard, Operation, Transfer, ValueSite};
 pub use lower::lower;
