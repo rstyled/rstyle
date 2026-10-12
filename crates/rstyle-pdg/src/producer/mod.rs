@@ -34,14 +34,23 @@ pub fn produce(facts: &crate::HirFnFacts) -> Result<Pair, Vec<String>> {
     pair.pdg.extraction_evidence.conformance = vec![crate::Conformance {
         profile: pair.pdg.profile.clone(),
         status: crate::ConformanceStatus::Conformant,
-        reasons: vec![format!(
-            "Validated {}/{} bounded normal-flow extraction; local expansions are not pinned compat R0 conformance; exceptional flow/cleanup omitted, no purity or rewrite-safety claim",
-            profile.policy().id,
-            profile.policy().version
-        )],
+        reasons: vec![conformance_reason(profile)],
     }];
 
     Ok(pair)
+}
+
+/// Keep historical R0 wording distinct from local expansion conformance.
+fn conformance_reason(profile: crate::extraction_profile::ExtractionProfile) -> String {
+    if profile == crate::extraction_profile::ExtractionProfile::R0 {
+        return "Validated compat.rust.hir-r0/0.1.0 normal-flow extraction within the closed scalar subset exercised by the independent R0 fixtures; exceptional flow/cleanup omitted, no purity or rewrite-safety claim".to_string();
+    }
+    let policy = profile.policy();
+
+    format!(
+        "Validated {}/{} bounded normal-flow extraction; local expansions are not pinned compat R0 conformance; exceptional flow/cleanup omitted, no purity or rewrite-safety claim",
+        policy.id, policy.version
+    )
 }
 
 /// Verify exact serialized identities before decoding and checking the pair.
