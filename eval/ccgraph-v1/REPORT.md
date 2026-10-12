@@ -193,3 +193,10 @@ is authorized by this study. The constructed result alone cannot justify an
 abstraction consumer. No threshold calibration is supported by these natural
 exclusions; any later calibration needs its own preregistration and untouched
 holdout. Stop here without implementing that work.
+
+Publication: focused study commits are on local ccgraph/bounded-quality-study.
+Destination verified as github.com/rstyled/rstyle and that feature branch; HTTPS
+push failed because credentials were unavailable (terminal prompts disabled).
+SSH fetch had previously failed host-key verification. No remote branch, main or
+master was changed. External publication remains blocked by authentication;
+local committed study/results and all empirical executions are complete.
