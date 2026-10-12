@@ -226,3 +226,9 @@ returns low width bits modulo 2^width. No call is inferred from spelling alone.
 The call is a source-backed CALL/STATE node, retaining original expr_method_call,
 callee, method form, resolved argument/result types and summary facts. Effects,
 returning behavior, callee/type/summary/commit and settings must match exactly.
+
+Source inventory correspondence permits exact spans or surrounding-source-
+parentheses/1: a HIR span may enclose the parsed semantic span only with balanced
+parenthesis tokens and whitespace surrounding it. This handles rustc retaining
+parenthesized spans. The original HIR span and source bytes remain unchanged;
+no computation, cast, read, label or dependency is normalized or removed.
