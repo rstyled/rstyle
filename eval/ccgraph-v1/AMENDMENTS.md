@@ -29,3 +29,8 @@ is identical to 06d7e8e and the reviewed baseline. Report producer metadata and
 actual build hashes rather than claiming that the study commit itself is the
 original baseline. This repeat is infrastructure comparability work, not
 selection among successful results. Heldout not yet opened; will run once.
+
+After heldout: added saved-result consistency/resource checks to summary generation
+and an evidence-packaging script, with independent tests. These only validate and
+report preserved executions; no detector execution was repeated, no predictions
+changed, and frozen protocol/inputs remain unchanged.

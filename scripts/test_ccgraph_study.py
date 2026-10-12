@@ -5,6 +5,8 @@ import json
 import pathlib
 import tempfile
 import unittest
+from unittest.mock import patch
+import ccgraph_study_evidence as evidence
 import ccgraph_study as s
 
 class Bookkeeping(unittest.TestCase):
@@ -123,6 +125,36 @@ class Bookkeeping(unittest.TestCase):
         expected=self.assess()
         self.report['functions'].reverse(); self.report['observed_units'].reverse(); self.report['matching']['functions'].reverse(); self.report['matching']['pairs'].reverse()
         self.assertEqual(self.assess(),expected)
+
+    def test_saved_result_resource_and_aggregate_checks(self):
+        result=self.assess()
+        result['cost']={'exit_code':0,'wall_seconds':1,'fresh_run_bytes':1,'sampled_process_group_peak_rss_bytes':1}
+        s.validate_result(result,self.scope,self.manifest,'default')
+        for mutate in [lambda r:r['cost'].update(wall_seconds=181), lambda r:r['cost'].update(fresh_run_bytes=2*1024**3),
+                       lambda r:r['metrics'].update(TP=10), lambda r:r['canonical_pairs'][0].update(decision='Rejected'),
+                       lambda r:r['cost'].update(sampled_process_group_peak_rss_bytes=3*1024**3),lambda r:r['cost'].update(exit_code=2)]:
+            r=copy.deepcopy(result);mutate(r)
+            with self.assertRaises(s.Invalid):s.validate_result(r,self.scope,self.manifest,'default')
+
+    def test_evidence_packaging_and_raw_drift(self):
+        manifest_path=self.study/'manifest.json'; s.write(manifest_path,self.manifest)
+        for variant in ('default','cosine'):
+            result=self.assess();result['variant']=variant
+            rawdir=self.study/('raw-'+variant);rawdir.mkdir()
+            raw=copy.deepcopy(self.report)
+            raw.update(run_directory=str(rawdir/'run'),toolchain='pinned-test-compiler',compiler_identity='compiler',cargo_identity='cargo',extraction_policy={},schema_versions={},scope={})
+            for f in raw['functions']:f['facts']['build']['producer_revision']={'value':'fixture-revision'}
+            s.write(rawdir/'stdout.json',raw);s.write(rawdir/'evidence-inventory.json',{'facts':'digest'})
+            result.update(raw_directory=rawdir.name,raw_report_sha256=s.digest((rawdir/'stdout.json').read_bytes()),evidence_inventory_identity=s.identity({'facts':'digest'}),
+                          cost={'exit_code':0,'wall_seconds':1,'fresh_run_bytes':1,'sampled_process_group_peak_rss_bytes':1})
+            s.write(self.study/'results'/('scope-'+variant+'.json'),result)
+        with patch.object(s,'ROOT',self.study),patch.object(s,'STUDY',self.study),patch.object(s,'validate_freeze',return_value={}):
+            evidence.evidence()
+            index=s.read(self.study/'results/evidence-index.json')
+            self.assertEqual(index['scope-default']['producer_build_revisions'],['fixture-revision'])
+            self.assertEqual(index['scope-default']['inventory'],{'facts':'digest'})
+            (self.study/'raw-default/stdout.json').write_text('{}')
+            with self.assertRaisesRegex(s.Invalid,'raw report drift'):evidence.evidence()
 
     def test_configuration_drift(self):
         self.report['matching']['effective_config']['final_threshold']='1/2'

@@ -339,12 +339,40 @@ def run_split(split, smoke=False):
     if split == 'development' and not smoke:
         write(STUDY / 'results/development-binary-freeze.json', snap)
 
+def validate_result(result, scope, manifest, variant):
+    require(result.get('valid') is True and result['scope'] == scope and result['variant'] == variant, 'invalid saved result identity')
+    cost = result['cost']
+    require(cost['exit_code'] == 0 and 0 <= cost['wall_seconds'] <= 180 and 0 <= cost['fresh_run_bytes'] <= 1024**3, 'saved execution/resource failure')
+    rss = cost['sampled_process_group_peak_rss_bytes']
+    require(rss is None or 0 <= rss <= 2 * 1024**3, 'saved RSS resource failure')
+    mapped = {f['key']: f for f in result['mapping']}
+    require(len(mapped) == len(result['mapping']), 'duplicate saved mapping')
+    pseudo = {'matching': {'pairs': result['pairs'], 'functions': result['matching_functions']}}
+    pairs = verify_pairs(pseudo, mapped)
+    labels = {(l['first'], l['second']): l for l in manifest['labels'] if l['scope'] == scope['id']}
+    rows = result['canonical_pairs']; seen = set()
+    byid = {f['id']: f for f in mapped.values() if not f['test']}
+    for row in rows:
+        key = row['first'], row['second']
+        require(key in labels and key not in seen, 'duplicate/missing/out-of-scope saved source pair')
+        seen.add(key)
+        require(all(row[k] == v for k, v in labels[key].items()), 'saved label drift')
+        a, b = byid[row['first']], byid[row['second']]
+        pair = pairs.get(tuple(sorted((a['key'], b['key']))))
+        status = pair['evaluation_status'] if pair else '+'.join(sorted(set(f['outcome'] for f in (a, b) if f['outcome'] != 'admitted')))
+        require(row['status'] == status and row['decision'] == (pair['decision'] if pair else None), 'saved prediction drift')
+        require(row['both_admitted'] == (a['outcome'] == b['outcome'] == 'admitted'), 'saved coverage drift')
+    require(seen == set(labels), 'missing saved source pair')
+    require(result['metrics'] == metrics(rows) and result['targets'] == targets(metrics(rows)), 'saved aggregate drift')
+    require(result['emitted_pairs'] == len(pairs), 'saved pair count drift')
+
 def summarize():
     manifest = read(STUDY / 'manifest.json'); summaries = []
     for s in manifest['scopes']:
         for v in ('default', 'cosine'):
             result = read(STUDY / 'results' / f"{s['id']}-{v}.json")
-            require(result['valid'], 'invalid saved result')
+            validate_result(result, s, manifest, v)
+            require(result['identities'] == read(STUDY / 'results/development-binary-freeze.json'), 'saved binary/configuration drift')
             summaries.append({k: result[k] for k in ('scope', 'variant', 'units', 'functions', 'declared_context_pair_universe', 'emitted_pairs', 'evaluated_pairs', 'incompatible_pairs', 'metrics', 'strata', 'groups', 'targets', 'cost', 'identities', 'raw_report_sha256', 'evidence_inventory_identity')})
     write(STUDY / 'results/summary.json', summaries)
     primary = [s for s in summaries if s['scope']['split'] == 'heldout' and s['variant'] == 'default']
