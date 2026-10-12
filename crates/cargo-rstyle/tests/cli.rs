@@ -1612,3 +1612,37 @@ fn clones_const_expansion_is_explicit_and_inherited_selection_cannot_activate_it
     assert_eq!(inherited["extraction_policy"]["id"], "compat.rust.hir-r0");
     assert_eq!(inherited["matching"]["pairs"].as_array().unwrap().len(), 0);
 }
+
+#[test]
+fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaults() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub const fn f(x: i32) -> u8 { x as u8 }\npub fn g(x: i32) -> u8 { x as u8 }\npub fn h(x: i32) -> f64 { x as f64 }\n").unwrap();
+    let (output, expanded) = clones(directory.path(), &["--extraction-profile", "hir-casts-v1"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(expanded["extraction_policy"]["version"], "0.2.0");
+    assert_eq!(
+        expanded["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(expanded["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(expanded["matching"]["pairs"][0]["displayed_score"], "1");
+    let (output, baseline) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert_eq!(baseline["matching"]["pairs"].as_array().unwrap().len(), 0);
+    assert!(
+        baseline["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}

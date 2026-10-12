@@ -97,3 +97,52 @@ Call projects to STATE under the unchanged matching profile; no new WL labels.
 Fixtures distinguish same-spelled user methods, neighbors, wrong versions/types,
 settings and tampered effect/result/provenance. No arbitrary inlining or legacy
 miner participation is permitted.
+
+## Implemented cast wire facts
+
+`hir-casts-v1` selects local version 0.2.0 and includes 0.1.0. Both documents
+carry `rstyle.hir-coverage:integer-casts`, an exact inventory of computation-node
+IDs, operand IDs/types, result types, target pointer width, source span and
+`rust-integer-as/1` semantics. A cast is nonpanicking; unknown cast constants
+remain unknown in the conservative arithmetic proof engine. This may leave a
+later arithmetic panic bound unproved, never falsely discharged.
+
+## Match wire/flow specification before registration
+
+The initial bounded match subset requires a final unguarded wildcard, at most
+16 arms, integer/bool scrutinee and result types in the base scalar domain.
+Earlier arms have one literal or (in the guard slice) a guarded wildcard. No
+bindings/or/ranges/paths/destructuring are admitted as patterns, including forms
+that rustc lowers into related HIR. Negated integer literals are specified
+individually as literal patterns; no arbitrary const-expression pattern support.
+
+Evaluate the scrutinee once, keeping its snapshot. Each literal arm emits one
+source-backed CONTROL operation at its pattern span: original kind pat_literal,
+role match_pattern:<ordinal>, construct match.literal, constant literal evidence,
+resolved pattern type retained in frontend evidence, and saved scrutinee value at
+operand 0. True selects the arm, false proceeds to the next selector. A wildcard
+emits a source-backed unconditional CONTROL selection, original kind pat_wild,
+construct match.wildcard, then its body (or its guard when enabled). No source
+if/else label is used. Guard evaluation consumes only a matched pattern path;
+guard CONTROL consumes its already-evaluated bool at operand 0, construct
+match.guard. Failed-pattern and failed-guard frontiers join before the next arm,
+which is lowered exactly once. Earlier writes cannot cause scrutinee reevaluation.
+
+Guards are limited to memory-free literals, binding reads, built-in base
+unary/binary/short-circuit expressions, expression-only blocks and if expressions.
+Declarations, assignments, returns, casts, calls and other constructs in guards
+are excluded in this bounded version. Arm bodies retain ordinary base/selected
+cast semantics, local declarations/writes, returns and nested supported branching.
+All arms are scanned, including unreachable arms.
+
+A match expression merge is analysis-synthetic, with one alternative per normally
+completing nonunit arm, outcome arm:<ordinal> and operand position equal to that
+ordinal. Its wire value site carries the namespaced selection kind
+`rstyle.hir-coverage:selection-kind = ordered-match/1`. Alternative guards are
+DNF over actual boolean selectors/guards, partition normally completed paths,
+and retain exact completion frontiers and value snapshots. They do not pretend
+one boolean predicate alone identifies a guarded arm. Base if/short-circuit merge
+validation is unchanged. Nonunit single-completion matches reuse the saved value;
+unit matches have no value-operand merge. Binding reaching definitions remain
+fixed-point kill/gen over the actual acyclic CFG; data/control/execution rules
+are unchanged. New CONTROL/merge nodes legitimately change matching features.

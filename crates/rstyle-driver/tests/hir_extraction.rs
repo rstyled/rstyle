@@ -1252,3 +1252,173 @@ fn disclosed_historical_const_regressions_cross_serialized_admission() {
         }
     }
 }
+
+#[test]
+fn integer_cast_inventory_and_dependencies_cover_all_scalar_widths() {
+    let types = [
+        "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize",
+    ];
+    let mut source = String::new();
+    let mut expected = Vec::new();
+    for input in types {
+        for result in types {
+            let name = format!("f{}", expected.len());
+            source.push_str(&format!(
+                "fn {name}(x: {input}) -> {result} {{ x as {result} }}\n"
+            ));
+            expected.push((name, input, result));
+        }
+    }
+    let facts = compile_selected(&source, "hir-casts-v1");
+    for (name, input, result) in expected {
+        let function = facts.iter().find(|f| f.name == name).unwrap();
+        let graph = rstyle_pdg::producer::lower(function).unwrap();
+        assert_eq!(graph.nodes.len(), 4);
+        assert_eq!(
+            graph
+                .nodes
+                .iter()
+                .map(|n| n.original_kind.as_str())
+                .collect::<Vec<_>>(),
+            ["pat_binding", "expr_path", "expr_cast", "expr_cast"]
+        );
+        assert_eq!(graph.nodes[1].ty, input);
+        assert_eq!(graph.nodes[2].ty, result);
+        assert_eq!(graph.nodes[2].operator.as_deref(), Some("as"));
+        assert_eq!(graph.nodes[2].operands, ["n1"]);
+        assert_eq!(graph.nodes[3].operands, ["n2"]);
+        assert_eq!(
+            graph
+                .transfers
+                .iter()
+                .map(|e| (e.source.as_str(), e.target.as_str(), e.kind.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("E", "n1", "normal"),
+                ("n1", "n2", "normal"),
+                ("n2", "n3", "normal"),
+                ("n3", "X", "return")
+            ]
+        );
+        let analysis = rstyle_pdg::producer::analyze(&graph).unwrap();
+        assert_eq!(
+            analysis
+                .edges
+                .iter()
+                .filter(|e| e.family == rstyle_pdg::EdgeFamily::Data)
+                .map(|e| (e.source.as_str(), e.target.as_str(), e.position))
+                .collect::<Vec<_>>(),
+            [
+                ("n0", "n1", Some(0)),
+                ("n1", "n2", Some(0)),
+                ("n2", "n3", Some(0))
+            ]
+        );
+        let pair = rstyle_pdg::producer::produce(function).unwrap();
+        let evidence = &pair.pdg.extensions["rstyle.hir-coverage:integer-casts"];
+        assert_eq!(evidence.as_array().unwrap().len(), 1);
+        assert_eq!(evidence[0]["operand_type"], input);
+        assert_eq!(evidence[0]["result_type"], result);
+        assert_eq!(
+            evidence[0]["target_pointer_width"],
+            function.build.pointer_width.value.unwrap()
+        );
+        let serialized = pair.serialize().unwrap();
+        rstyle_pdg::producer::verify_serialized(&serialized, function).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, function).unwrap();
+    }
+}
+
+#[test]
+fn nested_cast_values_in_writes_branches_and_returns_are_retained() {
+    let source = "fn f(mut x: i64) -> u8 { x = (x as i8 as i32) as i64; if (x as u16) > 255 { return x as u8; } (x + 1) as u8 }";
+    let facts = compile_selected(source, "hir-casts-v1").remove(0);
+    let graph = rstyle_pdg::producer::lower(&facts).unwrap();
+    let casts: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter(|n| {
+            n.category == rstyle_pdg::NodeCategory::Computation && n.original_kind == "expr_cast"
+        })
+        .collect();
+    assert_eq!(casts.len(), 6);
+    assert_eq!(
+        casts.iter().map(|n| n.ty.as_str()).collect::<Vec<_>>(),
+        ["i8", "i32", "i64", "u16", "u8", "u8"]
+    );
+    for cast in casts {
+        assert_eq!(cast.operands.len(), 1);
+        assert!(
+            facts.source.bytes[cast.span.start as usize..cast.span.end as usize].contains(" as ")
+        );
+    }
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+    for profile in ["r0", "hir-const-v1"] {
+        assert_eq!(
+            classify(&compile_selected(source, profile)[0]).status,
+            EligibilityVerdict::Ineligible
+        );
+    }
+}
+
+#[test]
+fn integer_casts_reject_other_domains_and_tampered_facts() {
+    for source in [
+        "fn f(x: i32) -> f64 { x as f64 }",
+        "fn f(x: f64) -> i32 { x as i32 }",
+        "fn f(x: *const u8) -> usize { x as usize }",
+        "fn f(x: &i32) -> *const i32 { x as *const i32 }",
+        "fn f(x: bool) -> u8 { x as u8 }",
+        "fn f(x: i32) -> i32 { return x; (x as f64) as i32 }",
+    ] {
+        let facts = compile_selected(source, "hir-casts-v1").remove(0);
+        assert_eq!(classify(&facts).status, EligibilityVerdict::Ineligible);
+    }
+    let facts = compile_selected("fn f(x: i32) -> u8 { x as u8 }", "hir-casts-v1").remove(0);
+    let mut changed = facts.clone();
+    changed.body.children[0]
+        .dispatch
+        .as_mut()
+        .unwrap()
+        .operand_tys = vec!["u32".into()];
+    assert_eq!(classify(&changed).status, EligibilityVerdict::Unknown);
+    for mutation in 0..4 {
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        match mutation {
+            0 => {
+                pair.pdg
+                    .extensions
+                    .get_mut("rstyle.hir-coverage:integer-casts")
+                    .unwrap()[0]["target_pointer_width"] = serde_json::json!(32);
+            }
+            1 => {
+                pair.pdg.nodes[2].attributes.operator = Some(rstyle_pdg::StringFact::known("+"));
+            }
+            2 => {
+                pair.pdg
+                    .edges
+                    .retain(|e| !(e.source == "n1" && e.target == "n2"));
+            }
+            _ => {
+                pair.cfg
+                    .nodes
+                    .iter_mut()
+                    .flat_map(|n| &mut n.operations)
+                    .find(|o| o.original_kind == "expr_cast")
+                    .unwrap()
+                    .original_kind = "expr_path".into();
+            }
+        }
+        assert!(
+            rstyle_pdg::producer::verify(&pair, &facts).is_err(),
+            "mutation {mutation}"
+        );
+    }
+    let mut serialized = rstyle_pdg::producer::produce(&facts)
+        .unwrap()
+        .serialize()
+        .unwrap();
+    serialized.manifest.documents[0].sha256 = "sha256:0000".into();
+    assert!(rstyle_pdg::producer::verify_serialized(&serialized, &facts).is_err());
+}
