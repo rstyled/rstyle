@@ -14,6 +14,7 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 STUDY = ROOT / 'eval/ccgraph-v1'
+BIN_DIR = STUDY / 'artifacts/frozen-bin'
 CONTRACT = '04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f'
 FLAGS = ['capture_complete', 'assessment_complete', 'pair_enumeration_complete', 'pair_evaluation_complete']
 DEFAULTS = {'minimum_size_ratio': '4/5', 'numerical_threshold': '9/10', 'string_threshold': '1/2', 'final_threshold': '9/10'}
@@ -239,7 +240,7 @@ def assess(report, scope, manifest, variant, study=STUDY):
     return result
 
 def binaries():
-    paths = {name: ROOT / 'target/debug' / name for name in ('cargo-rstyle', 'rstyle-driver')}
+    paths = {name: BIN_DIR / name for name in ('cargo-rstyle', 'rstyle-driver')}
     require(all(p.is_file() for p in paths.values()), 'build the pinned binaries first')
     return {name: digest(path.read_bytes()) for name, path in paths.items()}
 
@@ -259,7 +260,7 @@ def tree_rss(pid):
 
 def execute(scope, variant, destination):
     destination.mkdir(parents=True, exist_ok=False)
-    env = dict(os.environ); env['PATH'] = str(ROOT / 'target/debug') + ':/home/dev/.cargo/bin:' + env.get('PATH', '')
+    env = dict(os.environ); env['PATH'] = str(BIN_DIR) + ':/home/dev/.cargo/bin:' + env.get('PATH', '')
     command = ['cargo', 'rstyle', 'clones', '--format', 'json', '--all-targets', '--locked', '--offline', '--jobs', '2',
                '--max-pairs', '1000', '--trace', '--matching-config', str(STUDY / (variant + '.json')),
                '--manifest-path', str(STUDY / scope['manifest'])]
