@@ -11,14 +11,14 @@ impl Builder<'_> {
     pub(super) fn while_loop(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let header = format!("n{}", self.nodes.len());
         let predicate = self.while_predicate(node, flow);
-        let literal = node.children[0].lit.as_deref();
-        let incoming = if literal == Some("false") {
+        let literal = literal_boolean(&node.children[0]);
+        let incoming = if literal == Some(false) {
             empty_flow()
         } else {
             arm(&predicate, "true")
         };
         let exits = self.loop_body(&node.children[1], incoming, &header);
-        let mut result = if literal == Some("true") {
+        let mut result = if literal == Some(true) {
             empty_flow()
         } else {
             arm(&predicate, "false")
@@ -127,5 +127,25 @@ impl Builder<'_> {
             });
         }
         empty_flow()
+    }
+}
+
+// HIR already proves this is a resolved bool literal; parse only its original
+// token value, allowing rustc spans that retain surrounding parentheses.
+fn literal_boolean(node: &HirNode) -> Option<bool> {
+    if node.kind != "expr_lit" || node.ty.as_ref()?.normalized.as_deref() != Some("bool") {
+        return None;
+    }
+    let mut expression = syn::parse_str::<syn::Expr>(node.lit.as_deref()?).ok()?;
+    loop {
+        expression = match expression {
+            syn::Expr::Paren(paren) => *paren.expr,
+            syn::Expr::Group(group) => *group.expr,
+            syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Bool(value),
+                ..
+            }) => return Some(value.value),
+            _ => return None,
+        };
     }
 }

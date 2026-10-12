@@ -1658,7 +1658,9 @@ fn scalar_loops_cover_exits_nested_ownership_and_divergence_without_fake_edges()
         "fn f(b: bool) { loop { while b { break; } if b { break; } } }",
         "fn f() -> i32 { loop {} }",
         "fn f() { while true {} }",
+        "fn f() { while ((true)) {} }",
         "fn f(mut x: i32) -> i32 { while false { x = 1; } x }",
+        "fn f(mut x: i32) -> i32 { while ((false)) { x = 1; } x }",
         "fn f(x: i32) -> i32 { loop { break; } x }",
     ] {
         let facts = compile_selected(source, "hir-loops-v1").remove(0);
@@ -1671,7 +1673,10 @@ fn scalar_loops_cover_exits_nested_ownership_and_divergence_without_fake_edges()
         let pair =
             rstyle_pdg::producer::produce(&facts).unwrap_or_else(|e| panic!("{source}: {e:?}"));
         rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
-        if source.contains("loop {}") || source.contains("while true {}") {
+        if source.contains("loop {}")
+            || source.contains("while true {}")
+            || source.contains("while ((true)) {}")
+        {
             assert!(
                 !rstyle_pdg::reachable_vertices(&pair.cfg).contains(&pair.cfg.exit_node_ids[0])
             );
@@ -1684,6 +1689,10 @@ fn scalar_loops_cover_exits_nested_ownership_and_divergence_without_fake_edges()
             );
         }
     }
+}
+
+#[test]
+fn scalar_loops_keep_additional_exit_forms_and_value_merges_excluded() {
     for source in [
         "fn f(b: bool) { 'outer: loop { if b { break 'outer; } } }",
         "fn f() -> i32 { loop { break 1; } }",

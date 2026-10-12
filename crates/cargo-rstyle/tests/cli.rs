@@ -1882,3 +1882,29 @@ fn assert_conditional_removed_unknowns(inactive: &Value) {
             .any(|f| f["facts"]["name"] == "present")
     );
 }
+
+#[test]
+fn clones_conditional_bom_inventory_preserves_original_file_offsets() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "\u{feff}pub fn f(x: i32) -> i32 { x }\r\n",
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-conditional-v1"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let definitions = report["owned_source_inventory"][0]["source_functions"]
+        .as_array()
+        .unwrap();
+    let definition = definitions.iter().find(|f| f["name"] == "f").unwrap();
+    assert_eq!(definition["span"]["start"], 3);
+    assert_eq!(definition["presence"], "active");
+    assert_eq!(definition["active_functions"], serde_json::json!(["f"]));
+}
