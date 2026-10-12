@@ -235,3 +235,48 @@ a completed report, and interrupted directories are never reused. The bounded
 quality study, calibration, held-out evaluation and abstraction mining remain
 out of scope. Freeze labeling rules, splits and acceptance targets before that
 separate study begins after this integration lands.
+
+## Opt-in local coverage expansions
+
+The pinned R0 ledger above remains historical R0 evidence. Local expansions use
+`rstyle.rust.hir-coverage`, not compat approval or an R0 scope correction. See
+[the versioned local contracts](docs/extraction-profiles/coverage-v1.md).
+
+| Explicit clones selection | Local version | Added capability |
+| --- | --- | --- |
+| `hir-const-v1` | 0.1.0 | ordinary scalar const bodies |
+| `hir-casts-v1` | 0.2.0 | resolved built-in integer casts |
+| `hir-match-v1` | 0.3.0 | 1–16 literal/wildcard scalar arms, final wildcard |
+| `hir-guards-v1` | 0.4.0 | ordered pure scalar guards |
+| `hir-conditional-v1` | 0.5.0 | original owned-source/HIR inventories |
+| `hir-loops-v1` | 0.6.0 | local scalar cycles and divergence-sensitive dependence |
+| `hir-calls-v1` | 0.7.0 | four pinned primitive instantiations |
+
+Selections are cumulative. R0 defaults and exclusions are unchanged. Matching
+remains pinned strict ccgraph with exhaustive unordered pairs, exact thresholds,
+overlap defaults and explicit experimental cosine. Local policies and semantic
+build contexts must match for comparison; mixed R0/local comparisons fail the
+pair compatibility gate. Const qualification alone adds no matching label.
+
+The frozen 60-definition eligibility inventory spans unmodified library targets
+of lz4_flex 0.14.0, regex-syntax 0.8.11 and time-core 0.1.9. It measures selected
+excerpts, not whole-package coverage. Baseline admitted 0; the final local bundle
+admits 5. Conditional correspondence accounts for four measured admissions and
+named primitive summaries for one additional admission. Const/cast support was
+necessary for some of these functions but its earlier slices alone admitted none.
+Loops add no measured admissions in this sample. See
+[the inventory report](eval/hir-coverage/REPORT.md) for complete outcomes,
+blocker combinations, identities, hypothetical bundles and retained failures.
+
+Removed operations without independent resolution remain unknown. The initial
+loop policy excludes expression-value merges in loop-containing functions.
+Primitive summaries are limited to the pinned aarch64 compiler/core identities
+and i32/i64 unsigned_abs plus u32/u64 wrapping_mul. Nonliteral match patterns,
+macros, arbitrary calls, aggregates, references, generics and iterator for remain
+excluded. Unsupported unreachable source still prevents certification.
+
+The original ccgraph-v1/v2 studies remain unchanged historical evidence. Their
+exposed examples are disclosed regressions. These coverage measurements and
+correctness fixtures establish no post-expansion heldout pair quality. A new
+preregistered quality study should use untouched project/family holdouts before
+making broader quality claims; no such study or abstraction mining was run here.

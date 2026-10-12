@@ -232,3 +232,50 @@ parentheses/1: a HIR span may enclose the parsed semantic span only with balance
 parenthesis tokens and whitespace surrounding it. This handles rustc retaining
 parenthesized spans. The original HIR span and source bytes remain unchanged;
 no computation, cast, read, label or dependency is normalized or removed.
+
+## Registered selections and current limits
+
+All versions 0.1.0–0.7.0 listed above are now registered local policies.
+`clones --extraction-profile` accepts their tokens; `r0` remains the default.
+The descriptions headed “before registration” retain the obligations fixed before
+implementation. The registry and exact per-function evidence determine admission,
+never these descriptive headings or a caller's supported flag.
+
+The 0.7.0 registry is initially limited to aarch64-unknown-linux-gnu and the exact
+core crate/definition hashes, compiler commit and shipped core-source digests in
+primitive-summaries-v1.json. Other targets/versions require separately reviewed
+summary provenance and tests; matching a method spelling is insufficient. Resolved
+inherent calls use the schema's Direct call form, retaining method syntax in
+original_kind and frontend evidence. Both overflow-check settings and unwind/abort
+settings are captured. These summaries themselves neither overflow-panic nor
+unwind; no general exceptional-flow completeness is claimed.
+
+The conditional inventory covers original owned bodies and whole function
+presence in compiler-loaded owned source files, outside macro token definitions.
+It does not claim discovery/resolution of cfg-disabled unloaded external modules
+or arbitrary macro-generated definitions. Every unmatched/removed source operation
+remains unknown unless independent resolution exists. This implementation does
+not supply a separate resolver for cfg-removed statements: even a removed literal
+is unknown. Known deferred removed source remains excluded. Active cfg source can
+pass exact original-source/HIR correspondence; source digests and feature/cfg
+selections are regenerated and checked. Whole-file inventory spans account for
+original BOM/CRLF offsets, and arithmetic span failures are explicit errors.
+
+For loops, direct compiler-resolved boolean literals have their semantic value
+read from the retained token span (including surrounding parentheses) without
+changing source spans, operation labels or dependencies. A literal true condition
+has no false transfer; literal false has no executable body transfer. Other
+conditions retain real true/false conditional transfers. These are source CFG
+alternatives, not a termination proof or a fabricated virtual exit. Cyclic value
+merges remain excluded; ordinary snapshots are checked with strict dominance.
+Producer dependence analysis and serialized verification use separate fixed-point
+implementations; the latter uses an independent dominance worklist. Exact fixture
+CFG, control/execution edges and reaching-definition sets are independently
+specified, not generated from producer output.
+
+Independent real-compiler fixture expectations live in
+crates/rstyle-driver/tests/hir_extraction.rs; real Cargo profile/default/trace,
+feature, concurrency and exhaustive-pair checks live in
+crates/cargo-rstyle/tests/cli.rs. Inventory bookkeeping fixtures live in
+eval/hir-coverage/test_inventory.py. No vendored contracts or matching thresholds,
+category rules, features or algorithms were changed to admit these slices.

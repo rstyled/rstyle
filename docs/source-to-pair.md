@@ -178,3 +178,27 @@ exceptional-flow support, quality claim, retrieval or abstraction proposal is ad
 After this integration lands, the bounded independently labeled quality study is
 separate work: freeze labeling rules, development/held-out splits and acceptance
 targets before calibration or held-out evaluation.
+
+## Explicit extraction expansion selection
+
+Use `cargo rstyle clones --extraction-profile hir-conditional-v1` (or another
+registered token in [the coverage ledger](../HIR_EXTRACTION_COVERAGE.md)) to opt in.
+Omitting the option selects R0. `style` and `patterns` retain their legacy paths;
+inherited `RSTYLE_*` values cannot select an extraction policy. No evidence cache
+or old-directory discovery is introduced.
+
+Reports record extraction selection, cumulative capabilities, registered policy,
+call-summary identities, effective unchanged matching configuration and all
+function exclusion/unknown/failure reasons. Conditional selections add original
+owned-source inventories and whole-function presence in loaded source files.
+Capture, assessment, enumeration and pair-evaluation completeness remain distinct.
+Trace mode records existing traces without changing decisions.
+
+Every scored local function crosses real compiler capture, paired serialized
+documents and exact manifests, frontend-evidence verification, registered producer
+verification, strict imported admission and unchanged projection. Every distinct
+unordered admitted pair is enumerated; incompatibilities are recorded at the
+validation gate rather than filtered to inflate successful pair counts. Mixed
+local policy versions, R0/local policies or incompatible semantic build settings
+cannot be compared. Failed compilation, missing/corrupt artifacts and explicit
+resource/arithmetic failures remain failed/incomplete evidence.
