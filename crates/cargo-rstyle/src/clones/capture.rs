@@ -2,6 +2,7 @@
 
 use super::{Args, read_json, write_json};
 use crate::{Cli, run};
+use rstyle_core::cli_args::flag_value;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -28,6 +29,7 @@ pub struct Plan {
     pub orchestrator_sha256: String,
     pub compiler_identity: String,
     pub cargo_identity: String,
+    pub primary_units: Vec<Value>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -108,6 +110,7 @@ fn plan(cli: &Cli, root: PathBuf) -> Result<Plan, String> {
         cargo_identity: tool_identity("cargo", "--version")?,
         driver,
         targets: targets(cli)?,
+        primary_units: Vec::new(),
     })
 }
 
@@ -270,8 +273,34 @@ fn build_args(args: &Args) -> Vec<std::ffi::OsString> {
 }
 
 pub fn compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
-    capture.expected_unit_graph = expected_units(capture, cli, args)?;
+    let graph = expected_units(capture, cli, args)?;
+    configure_capture(capture, graph)?;
     perform_compile(capture, cli, args)
+}
+
+fn configure_capture(capture: &mut Capture, graph: Value) -> Result<(), String> {
+    capture.plan.primary_units = primary_units(&graph)?;
+    capture.expected_unit_graph = graph;
+    write_json(&capture.directory.join("plan.json"), &capture.plan)
+}
+
+fn primary_units(graph: &Value) -> Result<Vec<Value>, String> {
+    let units = graph["units"].as_array().ok_or("missing Cargo units")?;
+    let roots = graph["roots"].as_array().ok_or("missing Cargo roots")?;
+
+    roots
+        .iter()
+        .map(|root| {
+            let index = root
+                .as_u64()
+                .and_then(|n| usize::try_from(n).ok())
+                .ok_or("invalid Cargo root index")?;
+            units
+                .get(index)
+                .cloned()
+                .ok_or_else(|| "Cargo root index outside unit inventory".into())
+        })
+        .collect()
 }
 
 fn perform_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
@@ -347,6 +376,9 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         else {
             continue;
         };
+        if !intended_artifact(capture, artifact, target) {
+            continue;
+        }
         verify_planned_context(capture, artifact, target)?;
         let test = artifact["profile"]["test"]
             .as_bool()
@@ -370,9 +402,7 @@ fn verify_planned_context(
     artifact: &Value,
     target: &Target,
 ) -> Result<(), String> {
-    let planned = capture.expected_unit_graph["units"]
-        .as_array()
-        .ok_or("missing planned units")?;
+    let planned = &capture.plan.primary_units;
     let agrees = planned.iter().any(|unit| {
         unit["pkg_id"] == target.package
             && unit["target"]["src_path"] == target.source.to_string_lossy().as_ref()
@@ -411,18 +441,16 @@ fn unit_ledger_path(capture: &Capture, target: &Target, test: bool) -> Result<Pa
 
 fn check_expected(capture: &mut Capture) {
     for target in &capture.plan.targets {
-        let expected = capture.expected_unit_graph["units"]
-            .as_array()
-            .map_or(0, |units| {
-                units
-                    .iter()
-                    .filter(|u| {
-                        u["pkg_id"] == target.package
-                            && u["target"]["src_path"] == target.source.to_string_lossy().as_ref()
-                            && u["target"]["name"] == target.name
-                    })
-                    .count()
-            });
+        let expected = capture
+            .plan
+            .primary_units
+            .iter()
+            .filter(|u| {
+                u["pkg_id"] == target.package
+                    && u["target"]["src_path"] == target.source.to_string_lossy().as_ref()
+                    && u["target"]["name"] == target.name
+            })
+            .count();
         let observed = capture
             .units
             .iter()
@@ -493,7 +521,8 @@ fn invocation_target(plan: &Plan, invocation: &[String]) -> Result<Option<Target
         .collect();
     match matches.as_slice() {
         [] => Ok(None),
-        [target] => Ok(Some(target.clone())),
+        [target] if intended_invocation(plan, target, invocation) => Ok(Some(target.clone())),
+        [_] => Ok(None),
         _ => Err("ambiguous target source in capture plan".into()),
     }
 }
@@ -618,4 +647,57 @@ pub fn verify_inventory(unit: &Unit) -> Result<(), String> {
         return Err("incomplete captured artifact inventory".into());
     }
     Ok(())
+}
+
+fn intended_artifact(capture: &Capture, artifact: &Value, target: &Target) -> bool {
+    let linked = artifact["filenames"].as_array().is_some_and(|files| {
+        files.iter().any(|file| {
+            file.as_str()
+                .is_some_and(|name| Path::new(name).extension().is_none_or(|ext| ext != "rmeta"))
+        })
+    });
+
+    let features = artifact["features"].as_array().cloned().unwrap_or_default();
+    intended_mode(&capture.plan, target, linked, &features)
+}
+
+fn intended_invocation(plan: &Plan, target: &Target, invocation: &[String]) -> bool {
+    let linked = flag_value(invocation, "--emit")
+        .is_some_and(|emit| emit.split(',').any(|kind| kind == "link"));
+
+    let features = invocation_features(invocation);
+    intended_mode(plan, target, linked, &features)
+}
+
+fn intended_mode(plan: &Plan, target: &Target, linked: bool, features: &[Value]) -> bool {
+    plan.primary_units.iter().any(|unit| {
+        unit["pkg_id"] == target.package
+            && unit["target"]["src_path"] == target.source.to_string_lossy().as_ref()
+            && unit["target"]["name"] == target.name
+            && unit["features"]
+                .as_array()
+                .is_some_and(|expected| expected == features)
+            && ((unit["mode"] == "check" && !linked) || (unit["mode"] == "build" && linked))
+    })
+}
+
+fn invocation_features(invocation: &[String]) -> Vec<Value> {
+    let mut features: Vec<_> = invocation
+        .iter()
+        .enumerate()
+        .filter_map(|(index, arg)| {
+            let cfg = arg.strip_prefix("--cfg=").or_else(|| {
+                (arg == "--cfg")
+                    .then(|| invocation.get(index + 1).map(String::as_str))
+                    .flatten()
+            })?;
+            cfg.strip_prefix("feature=\"")?
+                .strip_suffix('"')
+                .map(|feature| Value::String(feature.into()))
+        })
+        .collect();
+    features.sort_by(|a, b| a.as_str().cmp(&b.as_str()));
+    features.dedup();
+
+    features
 }

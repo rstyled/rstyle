@@ -1500,3 +1500,57 @@ fn interrupted_compiler_evidence_is_never_consumed_or_reused() {
     assert_ne!(interrupted["run_directory"], fresh["run_directory"]);
     assert_eq!(fresh["matching"]["pairs"].as_array().unwrap().len(), 3);
 }
+
+#[test]
+fn selected_package_build_dependency_compilation_is_outside_matching_scope() {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(
+        directory.path().join("Cargo.toml"),
+        "[workspace]\nmembers=['helper','app']\nresolver='2'\n",
+    )
+    .unwrap();
+    for package in ["helper", "app"] {
+        std::fs::create_dir_all(directory.path().join(package).join("src")).unwrap();
+    }
+    std::fs::write(
+        directory.path().join("helper/Cargo.toml"),
+        "[package]\nname='helper'\nversion='0.1.0'\nedition='2021'\n",
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("helper/src/lib.rs"),
+        "pub fn number() -> i32 { 1 }\n",
+    )
+    .unwrap();
+    std::fs::write(directory.path().join("app/Cargo.toml"), "[package]\nname='app'\nversion='0.1.0'\nedition='2021'\n[build-dependencies]\nhelper={path='../helper'}\n").unwrap();
+    std::fs::write(
+        directory.path().join("app/build.rs"),
+        "fn main() { assert_eq!(helper::number(), 1); }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("app/src/lib.rs"),
+        "pub fn idle() {}\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--jobs", "2"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(report["observed_units"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        report["intended_primary_units"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(report["functions"].as_array().unwrap().len(), 2);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert!(
+        report["expected_compilation_units"]["units"]
+            .as_array()
+            .unwrap()
+            .len()
+            > 2
+    );
+}

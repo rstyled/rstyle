@@ -22,6 +22,7 @@ mod mutations;
 mod pdg;
 mod sig;
 
+use rstyle_core::cli_args::flag_value;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::interface::Compiler;
 use rustc_middle::ty::TyCtxt;
@@ -34,29 +35,17 @@ struct Target {
     kind: &'static str,
 }
 
-/// Value following `flag`, in either `--flag value` or `--flag=value` form.
-fn flag_value(args: &[String], flag: &str) -> Option<String> {
-    let prefix = format!("{flag}=");
-    args.iter().enumerate().find_map(|(index, arg)| {
-        arg.strip_prefix(&prefix).map(str::to_string).or_else(|| {
-            (arg == flag)
-                .then(|| args.get(index + 1).cloned())
-                .flatten()
-        })
-    })
-}
-
 /// `None` for anything that is not a real crate compilation (probes, build scripts).
 fn target_of(args: &[String]) -> Option<Target> {
     let is_probe = args.iter().any(|arg| arg.starts_with("--print"));
-    let crate_name = flag_value(args, "--crate-name")?;
+    let crate_name = flag_value(args, "--crate-name")?.to_owned();
 
     if is_probe || crate_name == "build_script_build" {
         return None;
     }
     let kind = if args.iter().any(|arg| arg == "--test") {
         "test"
-    } else if flag_value(args, "--crate-type").as_deref() == Some("bin") {
+    } else if flag_value(args, "--crate-type") == Some("bin") {
         "bin"
     } else {
         "lib"

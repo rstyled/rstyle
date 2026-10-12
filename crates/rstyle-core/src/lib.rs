@@ -2,6 +2,7 @@
 
 pub mod align;
 pub mod candidates;
+pub mod cli_args;
 pub mod clip;
 pub mod cluster;
 pub mod config;
