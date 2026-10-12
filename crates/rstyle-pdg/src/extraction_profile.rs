@@ -14,6 +14,8 @@ pub enum ExtractionProfile {
     R0,
     #[serde(rename = "hir-const-v1")]
     ConstV1,
+    #[serde(rename = "hir-casts-v1")]
+    CastsV1,
 }
 
 impl ExtractionProfile {
@@ -21,6 +23,7 @@ impl ExtractionProfile {
         match value {
             "r0" => Ok(Self::R0),
             "hir-const-v1" => Ok(Self::ConstV1),
+            "hir-casts-v1" => Ok(Self::CastsV1),
             _ => Err(format!("Unregistered extraction profile {value:?}")),
         }
     }
@@ -39,6 +42,7 @@ impl ExtractionProfile {
         match self {
             Self::R0 => "r0",
             Self::ConstV1 => "hir-const-v1",
+            Self::CastsV1 => "hir-casts-v1",
         }
     }
 
@@ -49,21 +53,34 @@ impl ExtractionProfile {
                 id: LOCAL_ID.into(),
                 version: "0.1.0".into(),
             },
+            Self::CastsV1 => ProfileId {
+                id: LOCAL_ID.into(),
+                version: "0.2.0".into(),
+            },
         }
+    }
+
+    pub fn integer_casts(self) -> bool {
+        self == Self::CastsV1
     }
 
     pub fn capabilities(self) -> &'static [&'static str] {
         match self {
             Self::R0 => &[],
             Self::ConstV1 => &["rust.const-function-bodies"],
+            Self::CastsV1 => &["rust.const-function-bodies", "rust.integer-casts"],
         }
     }
 }
 
 pub fn registered(policy: &ProfileId) -> bool {
-    [ExtractionProfile::R0, ExtractionProfile::ConstV1]
-        .iter()
-        .any(|profile| profile.policy() == *policy)
+    [
+        ExtractionProfile::R0,
+        ExtractionProfile::ConstV1,
+        ExtractionProfile::CastsV1,
+    ]
+    .iter()
+    .any(|profile| profile.policy() == *policy)
 }
 
 impl std::str::FromStr for ExtractionProfile {

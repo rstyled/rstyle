@@ -125,6 +125,12 @@ pub fn emit(
     let assessment = super::hazards::assess(facts, graph, analysis);
     let producer = producer(facts, revision)?;
     let mut extensions = extensions(facts, graph, analysis)?;
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?.integer_casts() {
+        extensions.insert(
+            super::casts::KEY.into(),
+            super::casts::evidence(facts, graph)?,
+        );
+    }
     extensions.insert(
         format!("{PREFIX}:exceptional-flow-assessment"),
         serde_json::to_value(&assessment).map_err(|e| e.to_string())?,

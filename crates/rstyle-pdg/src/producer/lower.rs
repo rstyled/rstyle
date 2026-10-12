@@ -90,7 +90,7 @@ pub fn lower(facts: &HirFnFacts) -> Result<Graph, HirEligibility> {
 fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
     let count = node.children.len();
     let complete = match node.kind.as_str() {
-        "stmt_expr" | "stmt_semi" | "expr_unary" => count == 1,
+        "stmt_expr" | "stmt_semi" | "expr_unary" | "expr_cast" => count == 1,
         "expr_binary" | "expr_assign" | "expr_assign_op" => count == 2,
         "expr_if" => (2..=3).contains(&count),
         "expr_ret" => count <= 1,
@@ -609,7 +609,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         {
             Builder::short_circuit
         }
-        "expr_binary" | "expr_unary" => Builder::computation,
+        "expr_binary" | "expr_unary" | "expr_cast" => Builder::computation,
         "expr_assign" => Builder::assignment,
         "expr_assign_op" => Builder::compound,
         "expr_if" => Builder::branch,

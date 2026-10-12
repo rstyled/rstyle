@@ -253,6 +253,7 @@ impl<'tcx> Context<'tcx> {
                 (op.node.as_str().to_string(), vec![left, right])
             }
             ExprKind::Unary(op, value) => (op.as_str().to_string(), vec![value]),
+            ExprKind::Cast(value, _) => ("as".to_string(), vec![value]),
             _ => return None,
         };
         let operand_tys: Vec<String> = operands

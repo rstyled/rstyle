@@ -529,6 +529,7 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     match node.kind.as_str() {
+        "expr_cast" if ctx.profile.integer_casts() => check_supported(node, ctx),
         "expr_block" | "stmt_expr" | "stmt_semi" | "stmt_let" | "expr_path" | "expr_lit"
         | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_assign_op"
         | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
@@ -539,6 +540,7 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 /// Constructs that may be admitted once their evidence checks pass.
 fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     match node.kind.as_str() {
+        "expr_cast" if ctx.profile.integer_casts() => check_cast(node),
         "expr_block" => check_block(node),
         "stmt_expr" | "stmt_semi" => Outcome::ok(),
         "stmt_let" => check_let(node, ctx),
@@ -763,6 +765,48 @@ fn builtin_or_reject(node: &HirNode, what: &str) -> Outcome {
             "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
         ),
     }
+}
+
+fn check_cast(node: &HirNode) -> Outcome {
+    let Some(dispatch) = &node.dispatch else {
+        return evidence_gap(node, "resolved built-in integer cast");
+    };
+    let [operand] = node.children.as_slice() else {
+        return evidence_gap(node, "cast operand correspondence");
+    };
+    let Some(input) = node_norm(operand) else {
+        return error(
+            "rust.integer-casts",
+            "cast_operand",
+            node,
+            "Only resolved integer-to-integer casts are supported.",
+        );
+    };
+    let Some(result) = node_norm(node) else {
+        return error(
+            "rust.integer-casts",
+            "cast_result",
+            node,
+            "Only resolved integer-to-integer casts are supported.",
+        );
+    };
+    if !is_int(input) || !is_int(result) {
+        return error(
+            "rust.integer-casts",
+            "cast_domain",
+            node,
+            "Float, bool, unit, pointer and reference casts are excluded.",
+        );
+    }
+    if dispatch.kind != "builtin"
+        || dispatch.op != "as"
+        || dispatch.operand_tys != [input]
+        || dispatch.result_ty != result
+    {
+        return evidence_gap(node, "consistent resolved cast types and dispatch");
+    }
+
+    Outcome::ok()
 }
 
 fn check_binary(node: &HirNode) -> Outcome {

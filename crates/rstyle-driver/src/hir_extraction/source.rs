@@ -33,6 +33,7 @@ impl<'a> Visitor<'a> for Scan {
         let mut owned = Owned {
             findings: Vec::new(),
             conditional_source: false,
+            profile: selected_profile(),
         };
         owned.visit_block(body);
 
@@ -45,6 +46,7 @@ impl<'a> Visitor<'a> for Scan {
 }
 
 struct Owned {
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     findings: Vec<Finding>,
     conditional_source: bool,
 }
@@ -116,6 +118,10 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_expr(&mut self, expression: &'a ast::Expr) {
+        if matches!(expression.kind, ast::ExprKind::Cast(..)) && self.profile.integer_casts() {
+            visit::walk_expr(self, expression);
+            return;
+        }
         if let Some((capability, construct)) = deferred(&expression.kind) {
             self.reject(expression.span, capability, construct);
             return;
@@ -181,4 +187,11 @@ pub fn scan(krate: &ast::Crate) -> Vec<Function> {
     visit::walk_crate(&mut scan, krate);
 
     scan.functions
+}
+
+fn selected_profile() -> rstyle_pdg::extraction_profile::ExtractionProfile {
+    std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
+        .ok()
+        .and_then(|value| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&value).ok())
+        .unwrap_or_default()
 }

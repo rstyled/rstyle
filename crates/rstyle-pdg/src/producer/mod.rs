@@ -3,6 +3,7 @@
 //! separate stages; a successful compiler run is not a conformance claim.
 
 mod analysis;
+mod casts;
 mod emit;
 mod graph;
 mod hazards;
