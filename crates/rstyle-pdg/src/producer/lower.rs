@@ -505,16 +505,22 @@ impl Builder<'_> {
         controller: String,
         alternatives: Vec<Alternative>,
     ) -> String {
-        self.merge_selected(node, controller, alternatives, None)
+        self.merge_selected(
+            node,
+            MergeSelection {
+                controller,
+                alternatives,
+                selection_kind: None,
+            },
+        )
     }
 
-    fn merge_selected(
-        &mut self,
-        node: &HirNode,
-        controller: String,
-        alternatives: Vec<Alternative>,
-        selection_kind: Option<String>,
-    ) -> String {
+    fn merge_selected(&mut self, node: &HirNode, selection: MergeSelection) -> String {
+        let MergeSelection {
+            controller,
+            alternatives,
+            selection_kind,
+        } = selection;
         let id = format!("n{}", self.nodes.len());
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
         let mut merge = template(node, NodeCategory::Merge);
@@ -542,58 +548,127 @@ impl Builder<'_> {
     fn scalar_match(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let scrutinee = self.expression(&node.children[0], flow);
         let saved = scrutinee.value.clone().expect("eligible scalar scrutinee");
-        let mut remaining = scrutinee;
-        let mut completed = Vec::new();
-        let mut controller = None;
+        let mut state = MatchState {
+            remaining: scrutinee,
+            completed: Vec::new(),
+            controller: None,
+        };
         for (index, arm_node) in node.children[1..].iter().enumerate() {
-            let pattern = &arm_node.children[0];
-            let operation = self.match_selector(node, pattern, &saved, index);
-            let selected = self.emit(operation, remaining);
-            controller = controller.or_else(|| selected.value.clone());
-            remaining = if pattern.kind == "pat_literal" {
-                arm(&selected, "false")
-            } else {
-                empty_flow()
-            };
-            let mut matched = if pattern.kind == "pat_literal" {
-                arm(&selected, "true")
-            } else {
-                selected
-            };
-            if arm_node.children.len() == 3 {
-                let guard = &arm_node.children[1].children[0];
-                let evaluated = self.expression(guard, matched);
-                let operation = Operation {
-                    construct_span: node.span,
-                    role: format!("match_guard:{index}"),
-                    ty: "bool".into(),
-                    construct: Some("match.guard".into()),
-                    operands: self.operand(&evaluated.value),
-                    ..template(guard, NodeCategory::Control)
-                };
-                let predicate = self.emit(operation, evaluated);
-                if index == 0 && pattern.kind == "pat_wild" {
-                    controller = predicate.value.clone();
-                }
-                let failed = arm(&predicate, "false");
-                remaining.ends.extend(failed.ends);
-                remaining.normal |= failed.normal;
-                matched = arm(&predicate, "true");
-            }
-            let body = self.expression(arm_node.children.last().expect("arm body"), matched);
-            completed.push((index, body));
+            state = self.match_arm(
+                MatchArm {
+                    node,
+                    arm: arm_node,
+                    saved: &saved,
+                    index,
+                },
+                state,
+            );
         }
 
-        self.match_join(node, controller.expect("match selector"), completed)
+        self.match_join(
+            node,
+            state.controller.expect("match selector"),
+            state.completed,
+        )
     }
 
-    fn match_selector(
-        &self,
-        node: &HirNode,
-        pattern: &HirNode,
-        saved: &str,
-        index: usize,
-    ) -> Operation {
+    fn match_arm(&mut self, input: MatchArm<'_>, state: MatchState) -> MatchState {
+        let selection = self.match_selection(&input, state.remaining, state.controller);
+        let selection = self.guarded_selection(&input, selection);
+        let body = self.expression(
+            input.arm.children.last().expect("arm body"),
+            selection.matched,
+        );
+
+        MatchState {
+            remaining: selection.remaining,
+            controller: selection.controller,
+            completed: state
+                .completed
+                .into_iter()
+                .chain(std::iter::once((input.index, body)))
+                .collect(),
+        }
+    }
+
+    fn match_selection(
+        &mut self,
+        input: &MatchArm<'_>,
+        remaining: Flow,
+        controller: Option<String>,
+    ) -> ArmSelection {
+        let pattern = &input.arm.children[0];
+        let operation = self.match_selector(input);
+        let selected = self.emit(operation, remaining);
+        let controller = controller.or_else(|| selected.value.clone());
+        let remaining = if pattern.kind == "pat_literal" {
+            arm(&selected, "false")
+        } else {
+            empty_flow()
+        };
+        let matched = if pattern.kind == "pat_literal" {
+            arm(&selected, "true")
+        } else {
+            selected
+        };
+
+        ArmSelection {
+            remaining,
+            matched,
+            controller,
+        }
+    }
+
+    fn guarded_selection(&mut self, input: &MatchArm<'_>, selection: ArmSelection) -> ArmSelection {
+        if input.arm.children.len() != 3 {
+            return selection;
+        }
+        let (matched, failed, predicate) = self.match_guard(input, selection.matched);
+        let controller = if input.index == 0 && input.arm.children[0].kind == "pat_wild" {
+            Some(predicate)
+        } else {
+            selection.controller
+        };
+
+        ArmSelection {
+            remaining: combine_frontiers(selection.remaining, failed),
+            matched,
+            controller,
+        }
+    }
+
+    fn match_guard(&mut self, input: &MatchArm<'_>, matched: Flow) -> (Flow, Flow, String) {
+        let MatchArm {
+            node,
+            arm: arm_node,
+            index,
+            ..
+        } = input;
+        let guard = &arm_node.children[1].children[0];
+        let evaluated = self.expression(guard, matched);
+        let operation = Operation {
+            construct_span: node.span,
+            role: format!("match_guard:{index}"),
+            ty: "bool".into(),
+            construct: Some("match.guard".into()),
+            operands: self.operand(&evaluated.value),
+            ..template(guard, NodeCategory::Control)
+        };
+        let predicate = self.emit(operation, evaluated);
+
+        (
+            arm(&predicate, "true"),
+            arm(&predicate, "false"),
+            predicate.value.expect("guard predicate"),
+        )
+    }
+
+    fn match_selector(&self, input: &MatchArm<'_>) -> Operation {
+        let MatchArm {
+            node, saved, index, ..
+        } = input;
+        let pattern = &input.arm.children[0];
+
         Operation {
             construct_span: node.span,
             role: format!("match_pattern:{index}"),
@@ -608,7 +683,7 @@ impl Builder<'_> {
             ),
             literal: pattern.lit.clone(),
             operands: if pattern.kind == "pat_literal" {
-                vec![saved.into()]
+                vec![(*saved).into()]
             } else {
                 Vec::new()
             },
@@ -630,9 +705,11 @@ impl Builder<'_> {
         let value = if alternatives.len() > 1 {
             Some(self.merge_selected(
                 node,
-                controller,
-                alternatives,
-                Some("ordered-match/1".into()),
+                MergeSelection {
+                    controller,
+                    alternatives,
+                    selection_kind: Some("ordered-match/1".into()),
+                },
             ))
         } else {
             alternatives.first().map(|a| a.value_pdg_node_id.clone())
@@ -800,4 +877,36 @@ fn empty_flow() -> Flow {
         value: None,
         normal: false,
     }
+}
+
+fn combine_frontiers(mut remaining: Flow, failed: Flow) -> Flow {
+    remaining.ends.extend(failed.ends);
+    remaining.normal |= failed.normal;
+
+    remaining
+}
+
+struct MatchState {
+    remaining: Flow,
+    completed: Vec<(usize, Flow)>,
+    controller: Option<String>,
+}
+
+struct MatchArm<'a> {
+    node: &'a HirNode,
+    arm: &'a HirNode,
+    saved: &'a str,
+    index: usize,
+}
+
+struct ArmSelection {
+    remaining: Flow,
+    matched: Flow,
+    controller: Option<String>,
+}
+
+struct MergeSelection {
+    controller: String,
+    alternatives: Vec<Alternative>,
+    selection_kind: Option<String>,
 }

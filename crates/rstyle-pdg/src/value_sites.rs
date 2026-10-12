@@ -231,37 +231,8 @@ impl Context<'_> {
     }
 
     fn check_site(&self, site: &Site) -> Result<Option<String>, String> {
-        if let Some(kind) = &site.selection_kind {
-            if kind != "ordered-match/1"
-                || self.pdg.profile.id != crate::extraction_profile::LOCAL_ID
-                || !matches!(
-                    self.pdg.profile.version.as_str(),
-                    "0.3.0" | "0.4.0" | "0.5.0" | "0.6.0" | "0.7.0"
-                )
-            {
-                return Err("Unregistered value selection policy".into());
-            }
-        }
+        self.check_site_metadata(site)?;
         let node = self.node(&site.pdg_node_id)?;
-        if node.category != NodeCategory::Merge
-            || node
-                .annotations
-                .get(TYPE)
-                .and_then(known_type)
-                .is_none_or(|ty| ty == "unit")
-        {
-            return Err("Value site must name a nonunit merge".to_string());
-        }
-        if site.construct_span.start > site.construct_span.end {
-            return Err("Reversed construct span".to_string());
-        }
-        if node
-            .source_span
-            .as_ref()
-            .is_some_and(|span| span != &site.construct_span)
-        {
-            return Err("Merge construct/source span disagreement".to_string());
-        }
         self.check_guard(&site.annotations.guards)?;
         if node.annotations.get(GUARDS)
             != Some(&serde_json::to_value(&site.annotations.guards).map_err(|e| e.to_string())?)
@@ -286,6 +257,41 @@ impl Context<'_> {
         } else {
             Ok(None)
         }
+    }
+
+    fn check_site_metadata(&self, site: &Site) -> Result<(), String> {
+        if let Some(kind) = &site.selection_kind
+            && (kind != "ordered-match/1"
+                || self.pdg.profile.id != crate::extraction_profile::LOCAL_ID
+                || !matches!(
+                    self.pdg.profile.version.as_str(),
+                    "0.3.0" | "0.4.0" | "0.5.0" | "0.6.0" | "0.7.0"
+                ))
+        {
+            return Err("Unregistered value selection policy".into());
+        }
+        let node = self.node(&site.pdg_node_id)?;
+        if node.category != NodeCategory::Merge
+            || node
+                .annotations
+                .get(TYPE)
+                .and_then(known_type)
+                .is_none_or(|ty| ty == "unit")
+        {
+            return Err("Value site must name a nonunit merge".to_string());
+        }
+        if site.construct_span.start > site.construct_span.end {
+            return Err("Reversed construct span".to_string());
+        }
+        if node
+            .source_span
+            .as_ref()
+            .is_some_and(|span| span != &site.construct_span)
+        {
+            return Err("Merge construct/source span disagreement".to_string());
+        }
+
+        Ok(())
     }
 
     fn check_site_alternatives(&self, site: &Site) -> Result<(), String> {
@@ -375,6 +381,7 @@ impl Context<'_> {
         {
             return Ok(());
         }
+
         let [edge] = edges.as_slice() else {
             return Err("One alternative edge per semantic alternative is required".to_string());
         };

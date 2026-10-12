@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 type Definitions = BTreeMap<String, BTreeSet<String>>;
 type Flow = BTreeMap<String, Definitions>;
+type ReadEdge = (String, String, Option<String>, Option<String>, Option<u64>);
 type Sets = BTreeMap<String, BTreeSet<String>>;
 
 pub fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<String>, Vec<String>> {
@@ -25,7 +26,7 @@ pub fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<String>
     let reached = reachable_vertices(cfg);
     let predecessors = predecessors(cfg, &reached);
     let dominance = dominance(cfg, &reached, &predecessors);
-    let incoming = definitions(pdg, cfg, &mapping, &reached, &predecessors);
+    let incoming = definitions(pdg, cfg, &mapping, &predecessors);
     check_reads(pdg, &mapping, &reached, &incoming)?;
     check_values(pdg, &mapping, &reached, &dominance)?;
 
@@ -33,105 +34,83 @@ pub fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<String>
 }
 
 fn predecessors(cfg: &CfgDocument, reached: &BTreeSet<String>) -> Sets {
-    reached
+    let mut sets: Sets = reached
         .iter()
-        .map(|id| {
-            (
-                id.clone(),
-                cfg.edges
-                    .iter()
-                    .filter(|edge| &edge.target == id && reached.contains(&edge.source))
-                    .map(|edge| edge.source.clone())
-                    .collect(),
-            )
-        })
-        .collect()
+        .map(|id| (id.clone(), BTreeSet::new()))
+        .collect();
+    for edge in &cfg.edges {
+        if reached.contains(&edge.source)
+            && let Some(incoming) = sets.get_mut(&edge.target)
+        {
+            incoming.insert(edge.source.clone());
+        }
+    }
+
+    sets
 }
 
+// Independent worklist proof: unlike producer iteration, update only successors
+// of a changed dominance set. Every change strictly removes finite candidates.
 fn dominance(cfg: &CfgDocument, reached: &BTreeSet<String>, predecessors: &Sets) -> Sets {
     let mut sets: Sets = reached
         .iter()
-        .map(|id| {
-            (
-                id.clone(),
-                if id == &cfg.entry_node_id {
-                    BTreeSet::from([id.clone()])
-                } else {
-                    reached.clone()
-                },
-            )
-        })
+        .map(|id| (id.clone(), reached.clone()))
         .collect();
-    loop {
-        let next: Sets = reached
-            .iter()
-            .map(|id| {
-                let mut common = if id == &cfg.entry_node_id {
-                    BTreeSet::new()
-                } else {
-                    reached.clone()
-                };
-                for predecessor in &predecessors[id] {
-                    common.retain(|candidate| sets[predecessor].contains(candidate));
-                }
-                common.insert(id.clone());
-                (id.clone(), common)
-            })
-            .collect();
-        if sets == next {
-            return sets;
+    sets.insert(
+        cfg.entry_node_id.clone(),
+        BTreeSet::from([cfg.entry_node_id.clone()]),
+    );
+    let mut pending = reached.clone();
+    pending.remove(&cfg.entry_node_id);
+    while let Some(id) = pending.pop_first() {
+        let next = dominance_step(&id, reached, predecessors, &sets);
+        if next != sets[&id] {
+            sets.insert(id.clone(), next);
+            pending.extend(
+                cfg.edges
+                    .iter()
+                    .filter(|edge| {
+                        edge.source == id
+                            && edge.target != cfg.entry_node_id
+                            && reached.contains(&edge.target)
+                    })
+                    .map(|edge| edge.target.clone()),
+            );
         }
-        sets = next;
     }
+
+    sets
+}
+
+fn dominance_step(
+    id: &str,
+    reached: &BTreeSet<String>,
+    predecessors: &Sets,
+    sets: &Sets,
+) -> BTreeSet<String> {
+    let mut next = reached.clone();
+    for predecessor in &predecessors[id] {
+        next.retain(|candidate| sets[predecessor].contains(candidate));
+    }
+    next.insert(id.to_string());
+
+    next
 }
 
 fn definitions(
     pdg: &PdgDocument,
     cfg: &CfgDocument,
     mapping: &[OperationMapEntry],
-    reached: &BTreeSet<String>,
     predecessors: &Sets,
 ) -> Flow {
-    let inputs: Definitions = pdg
-        .nodes
-        .iter()
-        .filter(|node| node.category == NodeCategory::FormalInput)
-        .flat_map(|node| {
-            pdg.definitions
-                .iter()
-                .filter(move |definition| definition.node_id == node.id)
-        })
-        .filter_map(|definition| {
-            Some((
-                definition.symbol_id.clone()?,
-                BTreeSet::from([definition.id.clone()]),
-            ))
-        })
-        .collect();
+    let reached: BTreeSet<_> = predecessors.keys().cloned().collect();
+    let inputs = formal_definitions(pdg);
     let mut outputs: Flow = reached
         .iter()
         .map(|id| (id.clone(), Definitions::new()))
         .collect();
     loop {
-        let incoming: Flow = reached
-            .iter()
-            .map(|id| {
-                let mut definitions = Definitions::new();
-                if id == &cfg.entry_node_id {
-                    definitions = inputs.clone();
-                } else {
-                    for predecessor in &predecessors[id] {
-                        for (symbol, versions) in &outputs[predecessor] {
-                            definitions
-                                .entry(symbol.clone())
-                                .or_default()
-                                .extend(versions.iter().cloned());
-                        }
-                    }
-                }
-                (id.clone(), definitions)
-            })
-            .collect();
+        let incoming = incoming_definitions(cfg, &inputs, predecessors, &outputs);
         let mut next = incoming.clone();
         for entry in mapping
             .iter()
@@ -156,6 +135,51 @@ fn definitions(
     }
 }
 
+fn incoming_definitions(
+    cfg: &CfgDocument,
+    inputs: &Definitions,
+    predecessors: &Sets,
+    outputs: &Flow,
+) -> Flow {
+    predecessors
+        .keys()
+        .map(|id| {
+            let mut definitions = Definitions::new();
+            if id == &cfg.entry_node_id {
+                definitions = inputs.clone();
+            } else {
+                for predecessor in &predecessors[id] {
+                    for (symbol, versions) in &outputs[predecessor] {
+                        definitions
+                            .entry(symbol.clone())
+                            .or_default()
+                            .extend(versions.iter().cloned());
+                    }
+                }
+            }
+            (id.clone(), definitions)
+        })
+        .collect()
+}
+
+fn formal_definitions(pdg: &PdgDocument) -> Definitions {
+    pdg.nodes
+        .iter()
+        .filter(|node| node.category == NodeCategory::FormalInput)
+        .flat_map(|node| {
+            pdg.definitions
+                .iter()
+                .filter(move |definition| definition.node_id == node.id)
+        })
+        .filter_map(|definition| {
+            Some((
+                definition.symbol_id.clone()?,
+                BTreeSet::from([definition.id.clone()]),
+            ))
+        })
+        .collect()
+}
+
 fn check_reads(
     pdg: &PdgDocument,
     mapping: &[OperationMapEntry],
@@ -175,31 +199,9 @@ fn check_reads(
         if !reached.contains(&entry.cfg_node_id) {
             continue;
         }
-        for access in &node.attributes.reads {
-            let symbol = access
-                .symbol_id
-                .as_ref()
-                .ok_or_else(|| vec!["Cyclic read lacks a binding".into()])?;
-            let definitions = incoming[&entry.cfg_node_id]
-                .get(symbol)
-                .filter(|definitions| !definitions.is_empty())
-                .ok_or_else(|| vec!["Cyclic read has no reaching definition".into()])?;
-            for id in definitions {
-                let definition = pdg
-                    .definitions
-                    .iter()
-                    .find(|definition| &definition.id == id)
-                    .ok_or_else(|| vec!["Cyclic definition does not resolve".into()])?;
-                expected.push((
-                    definition.node_id.clone(),
-                    node.id.clone(),
-                    Some(id.clone()),
-                    Some(symbol.clone()),
-                    Some(0),
-                ));
-            }
-        }
+        expected.extend(expected_reads(pdg, node, &incoming[&entry.cfg_node_id])?);
     }
+
     let mut actual: Vec<_> = pdg
         .edges
         .iter()
@@ -225,54 +227,113 @@ fn check_reads(
     }
 }
 
+fn expected_reads(
+    pdg: &PdgDocument,
+    node: &PdgNode,
+    incoming: &Definitions,
+) -> Result<Vec<ReadEdge>, Vec<String>> {
+    let mut expected = Vec::new();
+    for access in &node.attributes.reads {
+        let symbol = access
+            .symbol_id
+            .as_ref()
+            .ok_or_else(|| vec!["Cyclic read lacks a binding".into()])?;
+        let definitions = incoming
+            .get(symbol)
+            .filter(|definitions| !definitions.is_empty())
+            .ok_or_else(|| vec!["Cyclic read has no reaching definition".into()])?;
+        for id in definitions {
+            let definition = pdg
+                .definitions
+                .iter()
+                .find(|definition| &definition.id == id)
+                .ok_or_else(|| vec!["Cyclic definition does not resolve".into()])?;
+            expected.push((
+                definition.node_id.clone(),
+                node.id.clone(),
+                Some(id.clone()),
+                Some(symbol.clone()),
+                Some(0),
+            ));
+        }
+    }
+
+    Ok(expected)
+}
+
 fn check_values(
     pdg: &PdgDocument,
     mapping: &[OperationMapEntry],
     reached: &BTreeSet<String>,
     dominance: &Sets,
 ) -> Result<(), Vec<String>> {
+    let proof = ValueProof {
+        pdg,
+        mapping,
+        reached,
+        dominance,
+    };
     for edge in pdg
         .edges
         .iter()
         .filter(|edge| edge.subkind == "value_operand")
     {
-        let consumer = mapping
-            .iter()
-            .find(|entry| entry.pdg_node_id == edge.target)
-            .ok_or_else(|| vec!["Missing cyclic value consumer".into()])?;
-        let node = pdg
-            .nodes
-            .iter()
-            .find(|node| node.id == edge.source)
-            .ok_or_else(|| vec!["Missing cyclic value producer".into()])?;
-        if !reached.contains(&consumer.cfg_node_id) {
-            return Err(vec![
-                "Unreachable cyclic consumer has executable value dependencies".into(),
-            ]);
-        }
-        if node
-            .annotations
-            .get("compat.rust.hir-r0:type")
-            .and_then(|value| value.get("value"))
-            .and_then(serde_json::Value::as_str)
-            == Some("unit")
-        {
-            return Err(vec!["Unit cyclic value operand".into()]);
-        }
-        if node.category == NodeCategory::FormalInput {
-            continue;
-        }
-        let producer = mapping
-            .iter()
-            .find(|entry| entry.pdg_node_id == edge.source)
-            .ok_or_else(|| vec!["Missing cyclic operand correspondence".into()])?;
-        if producer.cfg_node_id == consumer.cfg_node_id
-            || !dominance[&consumer.cfg_node_id].contains(&producer.cfg_node_id)
-        {
-            return Err(vec![
-                "Cyclic operand snapshot does not strictly dominate its consumer".into(),
-            ]);
-        }
+        check_value(edge, &proof)?;
+    }
+    Ok(())
+}
+
+struct ValueProof<'a> {
+    pdg: &'a PdgDocument,
+    mapping: &'a [OperationMapEntry],
+    reached: &'a BTreeSet<String>,
+    dominance: &'a Sets,
+}
+
+fn check_value(edge: &PdgEdge, proof: &ValueProof<'_>) -> Result<(), Vec<String>> {
+    let ValueProof {
+        pdg,
+        mapping,
+        reached,
+        dominance,
+    } = proof;
+
+    let consumer = mapping
+        .iter()
+        .find(|entry| entry.pdg_node_id == edge.target)
+        .ok_or_else(|| vec!["Missing cyclic value consumer".into()])?;
+    let node = pdg
+        .nodes
+        .iter()
+        .find(|node| node.id == edge.source)
+        .ok_or_else(|| vec!["Missing cyclic value producer".into()])?;
+    if !reached.contains(&consumer.cfg_node_id) {
+        return Err(vec![
+            "Unreachable cyclic consumer has executable value dependencies".into(),
+        ]);
+    }
+    if node
+        .annotations
+        .get("compat.rust.hir-r0:type")
+        .and_then(|value| value.get("value"))
+        .and_then(serde_json::Value::as_str)
+        == Some("unit")
+    {
+        return Err(vec!["Unit cyclic value operand".into()]);
+    }
+    if node.category == NodeCategory::FormalInput {
+        return Ok(());
+    }
+    let producer = mapping
+        .iter()
+        .find(|entry| entry.pdg_node_id == edge.source)
+        .ok_or_else(|| vec!["Missing cyclic operand correspondence".into()])?;
+    if producer.cfg_node_id == consumer.cfg_node_id
+        || !dominance[&consumer.cfg_node_id].contains(&producer.cfg_node_id)
+    {
+        return Err(vec![
+            "Cyclic operand snapshot does not strictly dominate its consumer".into(),
+        ]);
     }
     Ok(())
 }

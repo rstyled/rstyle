@@ -77,14 +77,8 @@ impl Inventory<'_> {
             start: offset(source, span.start()),
             end: offset(source, span.end()),
         };
-        let mut candidates = Vec::new();
-        find(
-            &self.facts.body,
-            kind,
-            span,
-            &self.facts.source.bytes,
-            &mut candidates,
-        );
+        let candidates = self.find(&self.facts.body, kind, span);
+
         let hir = if candidates.len() == 1 {
             Some(candidates[0].clone())
         } else {
@@ -159,12 +153,19 @@ fn offset(source: &str, position: proc_macro2::LineColumn) -> u32 {
     u32::try_from(prefix + column).unwrap_or(u32::MAX)
 }
 
-fn find(node: &HirNode, kind: &str, span: ByteSpan, source: &str, found: &mut Vec<HirRef>) {
-    if node.kind == kind && corresponding_span(source, span, node.span) {
-        found.push(node.hir.clone());
-    }
-    for child in &node.children {
-        find(child, kind, span, source, found);
+impl Inventory<'_> {
+    fn find(&self, node: &HirNode, kind: &str, span: ByteSpan) -> Vec<HirRef> {
+        let own = (node.kind == kind
+            && corresponding_span(&self.facts.source.bytes, span, node.span))
+        .then(|| node.hir.clone());
+
+        own.into_iter()
+            .chain(
+                node.children
+                    .iter()
+                    .flat_map(|child| self.find(child, kind, span)),
+            )
+            .collect()
     }
 }
 
@@ -181,6 +182,7 @@ fn corresponding_span(source: &str, syntax: ByteSpan, hir: ByteSpan) -> bool {
     let Some(after) = source.get(syntax.end as usize..hir.end as usize) else {
         return false;
     };
+
     before.chars().all(|ch| ch == '(' || ch.is_whitespace())
         && after.chars().all(|ch| ch == ')' || ch.is_whitespace())
         && before.chars().filter(|ch| *ch == '(').count()

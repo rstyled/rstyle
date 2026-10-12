@@ -58,6 +58,7 @@ pub fn resolve<'a>(node: &HirNode, facts: &HirFnFacts) -> Option<&'a Summary> {
     {
         return None;
     }
+
     let callee: Callee = serde_json::from_str(&resolution.description).ok()?;
     registry().iter().find(|summary| {
         summary.callee_path == dispatch.op

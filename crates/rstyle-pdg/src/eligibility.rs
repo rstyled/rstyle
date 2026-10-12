@@ -175,26 +175,7 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
             };
         }
     };
-    let ctx = Ctx {
-        facts,
-        loops: Vec::new(),
-        profile,
-        bindings: facts
-            .bindings
-            .iter()
-            .map(|binding| {
-                (
-                    (binding.hir.krate, binding.hir.owner, binding.hir.local),
-                    binding,
-                )
-            })
-            .collect(),
-        symbols: facts
-            .bindings
-            .iter()
-            .map(|binding| binding.symbol.as_str())
-            .collect(),
-    };
+    let ctx = context(facts, profile);
 
     let outcome = Outcome::combine(vec![
         check_loop_values(&facts.body, profile),
@@ -214,6 +195,29 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
     HirEligibility {
         status,
         diagnostics: outcome.diagnostics,
+    }
+}
+
+fn context(facts: &HirFnFacts, profile: crate::extraction_profile::ExtractionProfile) -> Ctx<'_> {
+    Ctx {
+        facts,
+        loops: Vec::new(),
+        profile,
+        bindings: facts
+            .bindings
+            .iter()
+            .map(|binding| {
+                (
+                    (binding.hir.krate, binding.hir.owner, binding.hir.local),
+                    binding,
+                )
+            })
+            .collect(),
+        symbols: facts
+            .bindings
+            .iter()
+            .map(|binding| binding.symbol.as_str())
+            .collect(),
     }
 }
 
@@ -845,6 +849,7 @@ fn check_loop(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     if node.children.len() != expected {
         return evidence_gap(node, "loop source/HIR correspondence");
     }
+
     let mut nested = ctx.clone();
     nested.loops.push(node.hir.clone());
     let own = if node.kind == "expr_while" && node_norm(&node.children[0]) != Some("bool") {
