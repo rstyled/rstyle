@@ -197,6 +197,8 @@ holdout. Stop here without implementing that work.
 Publication: focused study commits are on local ccgraph/bounded-quality-study.
 Destination verified as github.com/rstyled/rstyle and that feature branch; HTTPS
 push failed because credentials were unavailable (terminal prompts disabled).
-SSH fetch had previously failed host-key verification. No remote branch, main or
-master was changed. External publication remains blocked by authentication;
-local committed study/results and all empirical executions are complete.
+SSH fetch had previously failed host-key verification. That initial attempt changed no remote branch. On the user-requested retry,
+GitHub SSH host keys were verified using its HTTPS metadata API and the study
+was successfully published through SSH to ccgraph/bounded-quality-study. Main
+and master remain unchanged. Committed study/results and empirical executions
+are complete.
