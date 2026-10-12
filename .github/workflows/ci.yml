@@ -11,7 +11,11 @@ env:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # Primitive-call positive fixtures require the exact compiler/core provenance
+    # registered in docs/extraction-profiles/primitive-summaries-v1.json.
+    # Unregistered targets intentionally fail closed; do not relax admission to
+    # accommodate the runner architecture.
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
 
@@ -29,9 +33,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Fetch locked dependencies
         run: cargo fetch --locked

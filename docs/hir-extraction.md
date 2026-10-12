@@ -72,6 +72,10 @@ finite fixed points and divergence-sensitive postdominance without executable
 virtual exits; expression-value merges in loop-containing functions are excluded.
 The final profile admits only four primitive callee/type instantiations with
 pinned compiler/core/source provenance, initially on aarch64-unknown-linux-gnu.
+CI uses `ubuntu-24.04-arm` so the real-compiler positive summary fixtures run
+against that registered target. Cargo caches are partitioned by runner architecture.
+On unregistered targets, summary calls remain excluded; broader target support
+requires captured and verified compiler/core provenance, not changed test counts.
 
 Every local paired document retains full captured frontend evidence and its
 registered policy. Verification regenerates exact source inventories, normal-flow
