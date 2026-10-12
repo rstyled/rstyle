@@ -1,9 +1,5 @@
 """Aggregate frozen eligibility observations; never load detector predictions."""
-import argparse
 import collections
-import hashlib
-import json
-from pathlib import Path
 
 
 def identity(function):
@@ -30,17 +26,3 @@ def summarize(stages):
         if blockers:
             source_only[' + '.join(blockers)].append(list(identity(f)))
     return dict(slices=slices, remaining_reason_combinations=[dict(reasons=list(r), functions=n) for r, n in sorted(reasons.items())], remaining_source_syntax_combinations=[dict(capabilities=list(c), functions=n) for c, n in sorted(syntax.items())], hypothetical_source_syntax_bundles=dict(sorted(source_only.items())), claim='Source-syntax bundles are only hypothetical candidates; signatures, resolution, conditional evidence and explicitly excluded forms can independently block them. Only newly_admitted records are measured gains. No quality predictions or calibration.')
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('results', nargs='+', type=Path)
-    parser.add_argument('--output', type=Path, required=True)
-    args = parser.parse_args()
-    result = summarize([json.loads(path.read_text()) for path in args.results])
-    result['result_sha256'] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in args.results}
-    args.output.write_text(json.dumps(result, indent=2) + '\n')
-
-
-if __name__ == '__main__':
-    main()

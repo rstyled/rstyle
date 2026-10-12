@@ -2,10 +2,7 @@
 import copy
 import hashlib
 import unittest
-import gzip
-import tempfile
-from pathlib import Path
-import retain
+import reproduce
 import assess
 import summarize
 
@@ -47,15 +44,27 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             summarize.summarize([baseline, changed])
 
-    def test_retained_bytes_and_digest_are_exact(self):
-        with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory)/'document.json'
-            destination = Path(directory)/'document.json.gz'
-            data = b'{"original":"\\n"}\r\n'
-            source.write_bytes(data)
-            record = retain.retain(source, destination)
-            self.assertEqual(gzip.decompress(destination.read_bytes()), data)
-            self.assertEqual(record['original_sha256'], hashlib.sha256(data).hexdigest())
+    def test_inventory_budget_does_not_hide_capture_or_evaluation_failures(self):
+        report = dict(capture_complete=True, assessment_complete=True,
+                      capture_failures=[], handoff_failures=[],
+                      matching=dict(pairs=[], diagnostics=[
+                          'pair enumeration requires 6 pairs, exceeds explicit resource limit 0']))
+        reproduce.check_capture(report, 2)
+        reproduce.check_capture(dict(report, matching=dict(
+            pairs=[], diagnostics=[], incomplete=False)), 0)
+        for changed, exit_code in [
+            (dict(capture_complete=False), 2),
+            (dict(assessment_complete=False), 2),
+            (dict(handoff_failures=['missing manifest']), 2),
+            (dict(capture_failures=['compiler failed']), 2),
+            (dict(matching=dict(pairs=[{}], diagnostics=[])), 0),
+            (dict(matching=dict(pairs=[], diagnostics=['arithmetic overflow'])), 2),
+            (dict(matching=dict(pairs=[], diagnostics=['arithmetic overflow'], incomplete=False)), 0),
+            ({}, 1),
+        ]:
+            with self.subTest(changed=changed, exit_code=exit_code):
+                with self.assertRaises(ValueError):
+                    reproduce.check_capture(dict(report, **changed), exit_code)
 
 
 if __name__ == '__main__':

@@ -1,9 +1,5 @@
 """Compare frozen source selections; never inspect matching predictions."""
-import argparse
 import collections
-import hashlib
-import json
-from pathlib import Path
 
 from tree_sitter import Language, Parser
 import tree_sitter_rust
@@ -85,26 +81,3 @@ def assess(selection, reports):
             "source_blocker_combinations": [{"capabilities": list(combo), "functions": n}
                                             for combo, n in sorted(combinations.items())],
             "claim": "Measured selected-source eligibility; source blockers are syntax inventory, not resolved admission or hypothetical coverage gain"}
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("root", type=Path)
-    parser.add_argument("stage")
-    parser.add_argument("output", type=Path)
-    args = parser.parse_args()
-    selection = json.loads(Path(__file__).with_name("selection.json").read_text())
-    reports = {}
-    identities = {}
-    for package, version in sorted(set((f["package"], f["version"]) for f in selection)):
-        path = args.root / f"{package}-{version}" / f"{args.stage}.stdout.json"
-        data = path.read_bytes()
-        reports[package] = json.loads(data) if data else {"capture_complete": False}
-        identities[package] = hashlib.sha256(data).hexdigest()
-    result = assess(selection, reports)
-    result.update(stage=args.stage, report_sha256=identities)
-    args.output.write_text(json.dumps(result, indent=2) + "\n")
-
-
-if __name__ == "__main__":
-    main()
