@@ -214,6 +214,7 @@ fn assemble_function(
     let (width, native) = import_widths(pdg, ctx);
 
     Ok(ImportedFunction {
+        extraction_context: local_context(pdg)?,
         key,
         nodes: nodes.unwrap_or_default(),
         edges: import_edges(pdg),
@@ -224,6 +225,39 @@ fn assemble_function(
         target_pointer_width: width,
         native_width_involved: native,
     })
+}
+
+fn local_context(pdg: &PdgDocument) -> Result<Option<String>, Vec<String>> {
+    if pdg.profile.id != rstyle_pdg::extraction_profile::LOCAL_ID {
+        return Ok(None);
+    }
+    let build = pdg
+        .producer
+        .configuration
+        .get("captured_build")
+        .ok_or_else(|| vec!["Missing local captured build".into()])?;
+    let mut settings = BTreeMap::new();
+    for key in [
+        "rustc_commit",
+        "edition",
+        "target_triple",
+        "data_layout",
+        "pointer_width",
+        "overflow_checks",
+        "debug_assertions",
+        "panic_strategy",
+        "opt_level",
+    ] {
+        settings.insert(
+            key,
+            build
+                .get(key)
+                .ok_or_else(|| vec![format!("Missing compatible build setting {key}")])?,
+        );
+    }
+    let context = serde_json::json!([pdg.profile, settings]);
+
+    Ok(Some(context.to_string()))
 }
 
 /// PDG node id to CFG reachability, derived from the paired CFG entry through
@@ -492,7 +526,15 @@ fn import_widths(pdg: &PdgDocument, ctx: &ValidationContext) -> (Option<u16>, bo
         .filter_map(|param| param.type_fact.known_value())
         .any(|seen| seen == "isize" || seen == "usize");
 
-    (width, native)
+    let local_native = pdg.profile.id == rstyle_pdg::extraction_profile::LOCAL_ID
+        && pdg.nodes.iter().any(|n| {
+            n.annotations
+                .get("compat.rust.hir-r0:type")
+                .and_then(|v| v.get("value"))
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|ty| matches!(ty, "isize" | "usize"))
+        });
+    (width, native || local_native)
 }
 
 /// Evaluate validated document pairs through the real admission path.

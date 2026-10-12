@@ -97,6 +97,7 @@ fn projection_cases_retain_values_and_drop_only_boundaries() {
 
 fn projection_input(case: &serde_json::Value) -> ImportedFunction {
     ImportedFunction {
+        extraction_context: None,
         key: "projection-stage".to_string(),
         nodes: projection_nodes(case),
         edges: projection_edges(case),

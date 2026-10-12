@@ -85,6 +85,8 @@ pub struct ImportedEdge {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImportedFunction {
+    /// Verified local extraction/build compatibility; absent only on legacy/fixture inputs.
+    pub extraction_context: Option<String>,
     pub key: String,
     pub nodes: Vec<ImportedNode>,
     pub edges: Vec<ImportedEdge>,

@@ -20,6 +20,7 @@ pub fn compact_graph(nodes: &serde_json::Value, edges: &serde_json::Value) -> Im
         variadic: false,
     };
     ImportedFunction {
+        extraction_context: None,
         key: "stage".to_string(),
         nodes: compact_nodes(nodes),
         edges: compact_edges(edges),
