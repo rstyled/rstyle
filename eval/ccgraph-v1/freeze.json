@@ -1,0 +1,23 @@
+{
+  "detector_revision": "06d7e8e81653aa0bd53147275555d774985c87dd",
+  "files": {
+    "eval/ccgraph-v1/PROTOCOL.md": "f18621144027d464560d2ba5a86707cd4f37d09234a2025cbba25f955f31e0d5",
+    "eval/ccgraph-v1/provenance/byteorder/LICENSE-MIT": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f",
+    "eval/ccgraph-v1/provenance/byteorder/upstream-lib.rs": "788d06cf99b634ae4294f88f4d513070dc9fb41a700cd00223ace3d9acfab65c",
+    "eval/ccgraph-v1/provenance/num-traits/LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+    "eval/ccgraph-v1/provenance/num-traits/LICENSE-MIT": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+    "eval/ccgraph-v1/provenance/num-traits/upstream-lib.rs": "59ed83e1019346ab383ca00ee8409356c5d28bfad507874b372225f081f7a2d3",
+    "vendor-compat/rust-r0/ORIGIN.md": "c66382aa259dd1cbee4d006ff378f3dadeb5d5f59f47953b3901791468bcad8c",
+    "vendor-compat/rust-r0/README.md": "50b990f05bf9144ad73d3fee9a45632fe8b665a0694905699bb55ff085a25a01",
+    "vendor-compat/rust-r0/ccgraph-decisions.md": "81ddcf4dc9508d68d26ef5a532d13255c602e6cfad2f6d0942f38ca5ddc15578",
+    "vendor-compat/rust-r0/ccgraph-profile.json": "b71b950837ecf297887eb2dd4e7d3796692f28e4a02ffbf326bf70b16745733b",
+    "vendor-compat/rust-r0/ccgraph-profile.md": "b76d78fe4a755fdf35d23572b4fc62fccdeca1bf7f4f8b71b1ee3a6af05c3dc5",
+    "vendor-compat/rust-r0/cfg.schema.json": "a16b863b19fffc223899e73a8d50f2516c5b2d0e94e9b9d694bc7013c46b15fe",
+    "vendor-compat/rust-r0/fixtures/rust-r0-extraction.json": "f0af084da65c8393cc4257738d0f8097527ba5b20f54aacf35baa01e35c36d40",
+    "vendor-compat/rust-r0/pdg.schema.json": "fcfc476bfbed57eefb388a72dfeabf58b121f3233a89432a6d71e954a06a4582",
+    "vendor-compat/rust-r0/rust-capabilities.md": "130eb1896020781c6526d0f2ca71ee2c6194a169fccfa8cab61132f8fbbd5eb8",
+    "vendor-compat/rust-r0/rust-extraction-profile.md": "3963e0b66a36804434fb03eacd907f59e32a0222504b35c0e2b4fc36453f39b0"
+  },
+  "identity": "20e3561cc7e22bb57df8e7837b6fd9084193068ae0359f3455d7f4a6e08dac50",
+  "version": 1
+}
