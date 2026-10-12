@@ -1066,3 +1066,189 @@ fn name_feature_preserves_the_original_unicode_identifier_token() {
         Some(identifier)
     );
 }
+
+fn compile_selected(source: &str, profile: &str) -> Vec<HirFnFacts> {
+    let directory = directory();
+    let input = directory.join("input.rs");
+    let facts = directory.join("facts.json");
+    std::fs::write(&input, source).unwrap();
+    let output = invocation(&input, &facts)
+        .env("RSTYLE_HIR_EXTRACTION_PROFILE", profile)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let captured = serde_json::from_slice(&std::fs::read(facts).unwrap()).unwrap();
+    std::fs::remove_dir_all(directory).unwrap();
+
+    captured
+}
+
+#[test]
+fn local_const_profile_preserves_body_operations_and_const_evidence() {
+    let bodies = [
+        "fn f(x: i32) -> i32 { x }",
+        "fn f(x: bool) -> bool { if x { false } else { true } }",
+        "fn f(x: ()) { let y = x; y; }",
+        "fn f(mut x: u8, b: bool) -> u8 { if b { x = 1; } x }",
+    ];
+    for source in bodies {
+        let ordinary = compile_selected(source, "hir-const-v1").remove(0);
+        let qualified_source = format!("const {source}");
+        let qualified = compile_selected(&qualified_source, "hir-const-v1").remove(0);
+        assert!(qualified.signature.is_const);
+        assert!(!ordinary.signature.is_const);
+        assert_eq!(qualified.source.bytes, qualified_source);
+        assert_eq!(qualified.fn_span.start, 0);
+        assert_eq!(qualified.fn_span.end as usize, qualified_source.len());
+        let ordinary_graph = rstyle_pdg::producer::lower(&ordinary).unwrap();
+        let qualified_graph = rstyle_pdg::producer::lower(&qualified).unwrap();
+        assert_eq!(ordinary_graph.transfers, qualified_graph.transfers);
+        assert_eq!(
+            ordinary_graph.value_sites.len(),
+            qualified_graph.value_sites.len()
+        );
+        let semantic = |g: &rstyle_pdg::producer::Graph| {
+            g.nodes
+                .iter()
+                .map(|n| {
+                    (
+                        n.category,
+                        n.original_kind.clone(),
+                        n.ty.clone(),
+                        n.operator.clone(),
+                        n.operands.clone(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(semantic(&ordinary_graph), semantic(&qualified_graph));
+        assert_eq!(
+            rstyle_pdg::producer::analyze(&ordinary_graph)
+                .unwrap()
+                .edges,
+            rstyle_pdg::producer::analyze(&qualified_graph)
+                .unwrap()
+                .edges
+        );
+        let pair = rstyle_pdg::producer::produce(&qualified).unwrap();
+        assert_eq!(pair.pdg.profile.id, "rstyle.rust.hir-coverage");
+        let serialized = pair.serialize().unwrap();
+        rstyle_pdg::producer::verify_serialized(&serialized, &qualified).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, &qualified).unwrap();
+        let mut changed = qualified.clone();
+        changed.signature.is_const = false;
+        assert!(rstyle_pdg::producer::verify_serialized(&serialized, &changed).is_err());
+        for (schema, document) in [
+            (
+                include_str!("../../../vendor-compat/rust-r0/pdg.schema.json"),
+                serde_json::to_value(&pair.pdg).unwrap(),
+            ),
+            (
+                include_str!("../../../vendor-compat/rust-r0/cfg.schema.json"),
+                serde_json::to_value(&pair.cfg).unwrap(),
+            ),
+        ] {
+            let schema = serde_json::from_str(schema).unwrap();
+            assert!(
+                jsonschema::validator_for(&schema)
+                    .unwrap()
+                    .is_valid(&document)
+            );
+        }
+    }
+}
+
+#[test]
+fn const_expansion_keeps_r0_and_deferred_source_closed() {
+    let sources = [
+        "const fn f(x: i32) -> i32 { x as i32 }",
+        "const fn f() -> i32 { const { 1 } }",
+        "const fn f() -> i32 { const X: i32 = 1; X }",
+        "const fn f(x: i32) -> i32 { return x; x as i32 }",
+        "const fn f(x: i32) -> i32 { g(x) } const fn g(x: i32) -> i32 { x }",
+    ];
+    for source in sources {
+        let facts = compile_selected(source, "hir-const-v1").remove(0);
+        assert_eq!(classify(&facts).status, EligibilityVerdict::Ineligible);
+        assert!(rstyle_pdg::producer::produce(&facts).is_err());
+    }
+    let source = "const fn f(x: i32) -> i32 { x }";
+    let baseline = compile_selected(source, "r0").remove(0);
+    assert_eq!(classify(&baseline).status, EligibilityVerdict::Ineligible);
+    let unknown = compile_selected(source, "hir-loops-v1").remove(0);
+    assert_eq!(classify(&unknown).status, EligibilityVerdict::Unknown);
+}
+
+#[test]
+fn local_const_import_rejects_missing_or_tampered_policy_and_frontend_evidence() {
+    use rstyle_pdg::extraction_profile::EVIDENCE_KEY;
+    let facts = compile_selected("const fn f(x: i32) -> i32 { x }", "hir-const-v1").remove(0);
+    for mutation in 0..6 {
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        match mutation {
+            0 => {
+                pair.pdg.extensions.remove(EVIDENCE_KEY);
+            }
+            1 => {
+                pair.cfg.profile.version = "0.2.0".into();
+            }
+            2 => {
+                pair.pdg.extensions.get_mut(EVIDENCE_KEY).unwrap()["capabilities"] =
+                    serde_json::json!([]);
+            }
+            3 => {
+                pair.pdg.extensions.get_mut(EVIDENCE_KEY).unwrap()["frontend"]["signature"]["is_const"] =
+                    serde_json::json!(false);
+            }
+            4 => {
+                pair.pdg.nodes[0].evidence.policy = Some(rstyle_pdg::ProfileId::hir_r0());
+            }
+            _ => {
+                pair.cfg.edges.pop();
+            }
+        }
+        let sources = pair
+            .pdg
+            .sources
+            .iter()
+            .map(|s| (s.id.clone(), facts.source.bytes.as_bytes().to_vec()))
+            .collect();
+        let context = rstyle_pdg::ValidationContext::CompilerEvidence {
+            pointer_width_bits: 64,
+        };
+        let bundle = rstyle_ccgraph::StrictBundle {
+            pdg: &pair.pdg,
+            cfg: &pair.cfg,
+            source_bytes: &sources,
+            ctx: &context,
+        };
+        assert!(
+            rstyle_ccgraph::admit_strict(&bundle).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn disclosed_historical_const_regressions_cross_serialized_admission() {
+    for source in [
+        include_str!("../../../eval/ccgraph-v2/corpus/lz4/sample/src/lib.rs"),
+        include_str!("../../../eval/ccgraph-v2/corpus/time/sample/src/lib.rs"),
+    ] {
+        let facts = compile_selected(source, "hir-const-v1");
+        for function in facts.iter().filter(|f| f.name.contains("old")) {
+            assert!(function.signature.is_const);
+            let pair = rstyle_pdg::producer::produce(function).unwrap();
+            let serialized = pair.serialize().unwrap();
+            let decoded = rstyle_pdg::producer::verify_serialized(&serialized, function).unwrap();
+            rstyle_ccgraph::admit_produced(&decoded, function).unwrap();
+        }
+        for function in facts.iter().filter(|f| f.name.contains("current")) {
+            assert_eq!(classify(function).status, EligibilityVerdict::Ineligible);
+        }
+    }
+}

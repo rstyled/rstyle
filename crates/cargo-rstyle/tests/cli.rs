@@ -1554,3 +1554,61 @@ fn selected_package_build_dependency_compilation_is_outside_matching_scope() {
             > 2
     );
 }
+
+#[test]
+fn clones_const_expansion_is_explicit_and_inherited_selection_cannot_activate_it() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub const fn f(x: i32) -> i32 { x }\npub fn g(x: i32) -> i32 { x }\n",
+    )
+    .unwrap();
+    let (output, baseline) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert_eq!(
+        baseline["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        1
+    );
+    let (output, expanded) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-const-v1", "--trace"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        expanded["extraction_policy"]["id"],
+        "rstyle.rust.hir-coverage"
+    );
+    assert_eq!(expanded["extraction_policy"]["version"], "0.1.0");
+    assert_eq!(
+        expanded["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(expanded["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(expanded["matching"]["pairs"][0]["displayed_score"], "1");
+    let inherited = Command::new(cargo_bin("cargo-rstyle"))
+        .args(["clones", "--format", "json"])
+        .current_dir(directory.path())
+        .env("RSTYLE_DRIVER", driver())
+        .env("RSTYLE_HIR_EXTRACTION_PROFILE", "hir-const-v1")
+        .env_remove("CARGO_TARGET_DIR")
+        .output()
+        .unwrap();
+    assert!(inherited.status.success());
+    let inherited: Value = serde_json::from_slice(&inherited.stdout).unwrap();
+    assert_eq!(inherited["extraction_policy"]["id"], "compat.rust.hir-r0");
+    assert_eq!(inherited["matching"]["pairs"].as_array().unwrap().len(), 0);
+}
