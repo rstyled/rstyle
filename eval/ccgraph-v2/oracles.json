@@ -1,0 +1,98 @@
+[
+  {
+    "counts": {
+      "control": 0,
+      "formal_input": 1,
+      "merge": 0,
+      "read": 1,
+      "return": 1
+    },
+    "id": "lz4:sample:old",
+    "operators": [
+      "*",
+      "+",
+      "+",
+      "/"
+    ],
+    "rationale": "Direct source operation inventory; lazy decisions and value merges follow profile sections 3 and 4."
+  },
+  {
+    "counts": {
+      "control": 0,
+      "formal_input": 1,
+      "merge": 0,
+      "read": 1,
+      "return": 1
+    },
+    "id": "regex:sample:leading",
+    "operators": [
+      "!=",
+      "&"
+    ],
+    "rationale": "Direct source operation inventory; lazy decisions and value merges follow profile sections 3 and 4."
+  },
+  {
+    "counts": {
+      "control": 2,
+      "formal_input": 1,
+      "merge": 2,
+      "read": 3,
+      "return": 1
+    },
+    "id": "time:sample:old17",
+    "operators": [
+      "!=",
+      "%",
+      "%",
+      "%",
+      "==",
+      "=="
+    ],
+    "rationale": "Direct source operation inventory; lazy decisions and value merges follow profile sections 3 and 4."
+  },
+  {
+    "counts": {
+      "control": 2,
+      "formal_input": 1,
+      "merge": 2,
+      "read": 3,
+      "return": 1
+    },
+    "id": "time:sample:old36",
+    "operators": [
+      "!=",
+      "%",
+      "%",
+      "%",
+      "==",
+      "=="
+    ],
+    "rationale": "Direct source operation inventory; lazy decisions and value merges follow profile sections 3 and 4."
+  },
+  {
+    "counts": {
+      "control": 0,
+      "formal_input": 1,
+      "merge": 0,
+      "read": 1,
+      "return": 1
+    },
+    "id": "audit:sample:scalar",
+    "operators": [
+      "&"
+    ],
+    "rationale": "Direct source operation inventory; lazy decisions and value merges follow profile sections 3 and 4."
+  },
+  {
+    "counts": {
+      "control": 0,
+      "formal_input": 1,
+      "merge": 0,
+      "read": 0,
+      "return": 1
+    },
+    "id": "audit:sample:unit",
+    "operators": [],
+    "rationale": "Direct source operation inventory; lazy decisions and value merges follow profile sections 3 and 4."
+  }
+]
