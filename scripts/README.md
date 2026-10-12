@@ -47,3 +47,13 @@ scripts/codenet_aggregate.py --seeds 1,2,3 --baseline none     # mean/sd over se
 | `codenet_drops.py` | Pairs where canonicalization adds/removes the most unmatched nodes (rule-defect hunting). |
 
 Canonicalizer rules: `ctor pred case exit counter cmp try`.
+
+## Strict CCGraph study
+
+`ccgraph_study.py` validates and executes the frozen independently source-labeled
+bounded study under `eval/ccgraph-v1`. It invokes the real `cargo rstyle clones`
+command with fresh compiler capture; it never consumes legacy miner predictions.
+`test_ccgraph_study.py` independently tests bookkeeping/failure expectations.
+`ccgraph_study_evidence.py` packages representative traces and inventories from
+preserved validated reports: run it after `ccgraph_study.py summarize`.
+See `eval/ccgraph-v1/README.md` for exact commands, exit behavior and retention.
