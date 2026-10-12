@@ -7,6 +7,7 @@ mod emit;
 mod graph;
 mod hazards;
 mod lower;
+mod profile;
 mod verify;
 pub use verify::verify;
 
@@ -26,10 +27,16 @@ pub fn produce(facts: &crate::HirFnFacts) -> Result<Pair, Vec<String>> {
         .ok_or_else(|| vec!["Missing captured producer revision".to_string()])?;
     let mut pair = emit(facts, &graph, &analysis, revision).map_err(|e| vec![e])?;
     verify(&pair, facts)?;
+    let profile =
+        crate::extraction_profile::ExtractionProfile::from_facts(facts).map_err(|e| vec![e])?;
     pair.pdg.extraction_evidence.conformance = vec![crate::Conformance {
         profile: pair.pdg.profile.clone(),
         status: crate::ConformanceStatus::Conformant,
-        reasons: vec!["Validated compat.rust.hir-r0/0.1.0 normal-flow extraction within the closed scalar subset exercised by the independent R0 fixtures; exceptional flow/cleanup omitted, no purity or rewrite-safety claim".to_string()],
+        reasons: vec![format!(
+            "Validated {}/{} bounded normal-flow extraction; local expansions are not pinned compat R0 conformance; exceptional flow/cleanup omitted, no purity or rewrite-safety claim",
+            profile.policy().id,
+            profile.policy().version
+        )],
     }];
 
     Ok(pair)

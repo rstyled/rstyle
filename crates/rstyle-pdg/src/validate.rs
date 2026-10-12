@@ -244,7 +244,7 @@ fn check_policy_identity(doc: &PdgDocument, ctx: &ValidationContext) -> CheckOut
         );
     }
 
-    let known = doc.profile.id == R0_POLICY_ID && doc.profile.version == R0_POLICY_VERSION;
+    let known = crate::extraction_profile::registered(&doc.profile);
     if known {
         return clear();
     }

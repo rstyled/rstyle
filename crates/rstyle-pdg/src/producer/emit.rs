@@ -137,7 +137,7 @@ pub fn emit(
     let pdg = pdg_document(facts, graph, analysis, &metadata);
     let cfg = cfg_document(facts, graph, metadata);
 
-    Ok(Pair { pdg, cfg })
+    super::profile::apply(Pair { pdg, cfg }, facts)
 }
 
 fn pdg_document(

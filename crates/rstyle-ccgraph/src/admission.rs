@@ -80,6 +80,7 @@ pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<Strin
     } = bundle;
 
     require_compiler_evidence(ctx)?;
+    check_local_producer(pdg, cfg)?;
     check_pdg_eligibility(pdg, ctx, source_bytes)?;
 
     let admitted = AdmittedPair { pdg, cfg };
@@ -88,6 +89,31 @@ pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<Strin
     admitted.check_correspondence(&map)?;
 
     assemble_function(pdg, cfg, &map, ctx)
+}
+
+fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<String>> {
+    use rstyle_pdg::extraction_profile::{EVIDENCE_KEY, LOCAL_ID};
+    if pdg.profile.id != LOCAL_ID {
+        return Ok(());
+    }
+    if cfg.profile.name != pdg.profile.id || cfg.profile.version != pdg.profile.version {
+        return Err(vec!["Paired extraction profiles disagree".into()]);
+    }
+    let evidence = pdg
+        .extensions
+        .get(EVIDENCE_KEY)
+        .ok_or_else(|| vec!["Missing local producer frontend evidence".into()])?;
+    if cfg.extensions.get(EVIDENCE_KEY) != Some(evidence) {
+        return Err(vec!["Paired local frontend evidence disagrees".into()]);
+    }
+    let facts = serde_json::from_value(evidence["frontend"].clone())
+        .map_err(|e| vec![format!("Invalid local frontend evidence: {e}")])?;
+    let pair = rstyle_pdg::producer::Pair {
+        pdg: pdg.clone(),
+        cfg: cfg.clone(),
+    };
+
+    rstyle_pdg::producer::verify(&pair, &facts)
 }
 
 struct AdmittedPair<'a> {
