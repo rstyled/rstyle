@@ -87,13 +87,21 @@ fn function_build(
         std::env::current_dir().ok()?.join(path)
     };
     let mut build = evidence::build(tcx, invocation);
+    let identifier = tcx
+        .def_ident_span(id.to_def_id())
+        .and_then(|span| {
+            tcx.sess
+                .source_map()
+                .span_to_snippet(span.source_callsite())
+                .ok()
+        })
+        .map(|name| name.strip_prefix("r#").unwrap_or(&name).to_owned());
     build
         .frontend_options
         .insert("source_file".into(), serde_json::json!(path));
-    build.frontend_options.insert(
-        "source_identifier".into(),
-        serde_json::json!(tcx.item_name(id.to_def_id()).as_str()),
-    );
+    build
+        .frontend_options
+        .insert("source_identifier".into(), serde_json::json!(identifier));
 
     Some(build)
 }

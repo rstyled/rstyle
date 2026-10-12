@@ -1471,3 +1471,32 @@ fn concurrent_clone_commands_keep_independent_run_evidence() {
     assert_ne!(first.1["run_directory"], second.1["run_directory"]);
     assert_eq!(first.1["matching"], second.1["matching"]);
 }
+
+#[test]
+fn interrupted_compiler_evidence_is_never_consumed_or_reused() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = clone_workspace();
+    let shim = directory.path().join("interrupted-driver");
+    let real = driver().to_string_lossy().replace('\'', "'\\''");
+    let script = format!(
+        "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then kill -TERM $$; fi\nexit \"$code\"\n"
+    );
+    std::fs::write(&shim, script).unwrap();
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let output = Command::new(cargo_bin("cargo-rstyle"))
+        .args(["clones", "--format", "json"])
+        .current_dir(directory.path())
+        .env("RSTYLE_DRIVER", &shim)
+        .env_remove("CARGO_TARGET_DIR")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    let interrupted: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(interrupted["capture_complete"], false);
+    assert_eq!(interrupted["pair_evaluation_complete"], false);
+    assert_eq!(interrupted["functions"], serde_json::json!([]));
+    let (output, fresh) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert_ne!(interrupted["run_directory"], fresh["run_directory"]);
+    assert_eq!(fresh["matching"]["pairs"].as_array().unwrap().len(), 3);
+}

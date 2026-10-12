@@ -155,7 +155,7 @@ fn pdg_document(
         producer: metadata.producer.clone(),
         sources: vec![Source {
             id: "source".to_string(),
-            path: facts.name.clone(),
+            path: source_path(facts),
             content_identity: StringFact::known(&facts.source.digest),
         }],
         function: function(facts, graph, analysis),
@@ -486,6 +486,16 @@ fn source_identifier(facts: &HirFnFacts) -> &str {
         .trim_start_matches("r#")
 }
 
+fn source_path(facts: &HirFnFacts) -> String {
+    facts
+        .build
+        .frontend_options
+        .get("source_file")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(&facts.name)
+        .to_owned()
+}
+
 fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
     let capabilities = REQUIRED_CAPABILITIES.into_iter().map(|key| {
         let status = match key {
@@ -622,7 +632,7 @@ fn cfg_document(facts: &HirFnFacts, graph: &Graph, metadata: DocumentMetadata) -
         },
         sources: vec![CfgSource {
             id: "source".to_string(),
-            path: facts.name.clone(),
+            path: source_path(facts),
             content_identity: StringFact::known(&facts.source.digest),
             content: Some(facts.source.bytes.clone()),
         }],

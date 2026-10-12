@@ -1030,6 +1030,13 @@ fn source_identifiers_and_file_navigation_are_independent_of_module_paths() {
             function.source.bytes
         );
         let pair = rstyle_pdg::producer::produce(function).unwrap();
+        assert_eq!(
+            pair.pdg.sources[0].path,
+            function.build.frontend_options["source_file"]
+                .as_str()
+                .unwrap()
+        );
+        assert_eq!(pair.cfg.sources[0].path, pair.pdg.sources[0].path);
         let imported = rstyle_ccgraph::admit_produced(&pair, function).unwrap();
         assert_eq!(imported.name.as_deref(), Some("type"));
         assert_eq!(
@@ -1037,4 +1044,25 @@ fn source_identifiers_and_file_navigation_are_independent_of_module_paths() {
             Some(function.name.as_str())
         );
     }
+}
+
+#[test]
+fn name_feature_preserves_the_original_unicode_identifier_token() {
+    let identifier = "cafe\u{301}";
+    let source = format!("pub fn {identifier}(x: i32) -> i32 {{ x }}");
+    let (output, facts) = compile(&source);
+    assert!(output.status.success());
+    let facts = facts.unwrap();
+    assert_eq!(
+        facts[0].build.frontend_options["source_identifier"],
+        identifier
+    );
+    let pair = rstyle_pdg::producer::produce(&facts[0]).unwrap();
+    assert_eq!(
+        rstyle_ccgraph::admit_produced(&pair, &facts[0])
+            .unwrap()
+            .name
+            .as_deref(),
+        Some(identifier)
+    );
 }

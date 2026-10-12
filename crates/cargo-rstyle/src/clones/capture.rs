@@ -347,6 +347,7 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         else {
             continue;
         };
+        verify_planned_context(capture, artifact, target)?;
         let test = artifact["profile"]["test"]
             .as_bool()
             .ok_or("missing artifact test context")?;
@@ -361,6 +362,35 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         capture.units.push(unit);
     }
     check_expected(capture);
+    Ok(())
+}
+
+fn verify_planned_context(
+    capture: &Capture,
+    artifact: &Value,
+    target: &Target,
+) -> Result<(), String> {
+    let planned = capture.expected_unit_graph["units"]
+        .as_array()
+        .ok_or("missing planned units")?;
+    let agrees = planned.iter().any(|unit| {
+        unit["pkg_id"] == target.package
+            && unit["target"]["src_path"] == target.source.to_string_lossy().as_ref()
+            && unit["target"]["name"] == target.name
+            && unit["features"] == artifact["features"]
+            && [
+                "opt_level",
+                "debuginfo",
+                "debug_assertions",
+                "overflow_checks",
+            ]
+            .iter()
+            .all(|key| unit["profile"][key] == artifact["profile"][key])
+    });
+
+    if !agrees {
+        return Err("Cargo artifact build context disagrees with planned unit inventory".into());
+    }
     Ok(())
 }
 

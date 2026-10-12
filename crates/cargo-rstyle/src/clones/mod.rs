@@ -324,6 +324,16 @@ fn consume_function(
     if assessment["manifest_file"] != format!("function-{}.manifest.json", input.index) {
         return Err("missing or ambiguous assessment manifest".into());
     }
+    if !record
+        .facts
+        .build
+        .frontend_options
+        .get("source_identifier")
+        .and_then(Value::as_str)
+        .is_some_and(|name| !name.is_empty())
+    {
+        return Err("missing captured unqualified source identifier".into());
+    }
     admit_serialized(record, input).map(Some)
 }
 
