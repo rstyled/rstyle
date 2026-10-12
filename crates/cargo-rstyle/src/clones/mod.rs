@@ -1,9 +1,10 @@
 //! Opt-in, verified source-to-pair analysis; no legacy miner involvement.
 
 pub mod capture;
-use crate::{Cli, Format};
+mod report;
+use crate::Cli;
 use clap::Args as ClapArgs;
-use rstyle_ccgraph::{CcgraphConfig, Decision, ImportedFunction, RunReport};
+use rstyle_ccgraph::{CcgraphConfig, Decision, ImportedFunction};
 use rstyle_pdg::{EligibilityVerdict, HirFnFacts, classify, producer};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -24,6 +25,9 @@ pub struct Args {
     /// Exit 1 if any pair is accepted; similarity does not prove equivalence.
     #[arg(long)]
     fail_on_accepted_pairs: bool,
+    /// Execution budget: fail incomplete before enumeration if it requires more pairs.
+    #[arg(long)]
+    max_pairs: Option<usize>,
     #[arg(long)]
     pub release: bool,
     #[arg(long)]
@@ -76,11 +80,13 @@ fn configuration(cli: &Cli, args: &Args) -> Result<CcgraphConfig, String> {
 struct Function {
     key: String,
     compilation_unit: String,
+    artifact_prefix: PathBuf,
     outcome: String,
     reasons: Vec<String>,
     facts: HirFnFacts,
     document_manifest: Option<producer::Manifest>,
     projection_trace: Option<Value>,
+    extraction_evidence: Option<Value>,
 }
 
 struct Handoff {
@@ -90,12 +96,62 @@ struct Handoff {
     keys: BTreeSet<String>,
 }
 
+struct FunctionInput<'a> {
+    unit: &'a capture::Unit,
+    index: usize,
+    trace: bool,
+}
+
+impl FunctionInput<'_> {
+    fn prefix(&self) -> PathBuf {
+        self.unit.directory.join(format!("function-{}", self.index))
+    }
+}
+
+impl Function {
+    fn exclude(&mut self, eligibility: rstyle_pdg::HirEligibility) {
+        self.outcome = match eligibility.status {
+            EligibilityVerdict::Unknown => "unknown",
+            _ => "excluded",
+        }
+        .into();
+        self.reasons = eligibility
+            .diagnostics
+            .into_iter()
+            .map(|d| d.reason)
+            .collect();
+    }
+}
+
+impl Handoff {
+    fn add(&mut self, mut record: Function, result: Result<Option<ImportedFunction>, String>) {
+        match result {
+            Ok(Some(function)) => self.admitted.push(function),
+            Ok(None) => {}
+            Err(error) => {
+                record.outcome = "failed".into();
+                record.reasons.push(error.clone());
+                self.failures.push(error);
+            }
+        }
+
+        self.assessed.push(record);
+    }
+}
+
 pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
     let mut capture = capture::prepare(cli)?;
-    capture::compile(&mut capture, cli, args)?;
+    if let Err(error) = capture::compile(&mut capture, cli, args) {
+        capture.failures.push(error);
+    }
     let handoff = handoff(&capture, args.trace);
-    let matching = rstyle_ccgraph::evaluate_all(&handoff.admitted, &config);
+    let matching = rstyle_ccgraph::pipeline::evaluate_with_pair_limit(
+        &handoff.admitted,
+        &config,
+        args.max_pairs,
+    );
+
     let accepted = matching
         .pairs
         .iter()
@@ -103,14 +159,25 @@ pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         .count();
     let complete =
         capture.failures.is_empty() && handoff.failures.is_empty() && !matching.incomplete;
-    let report = report(cli, args, &capture, &handoff, &matching, complete)?;
+    let mut report = report::make(report::Context {
+        cli,
+        args,
+        capture: &capture,
+        handoff: &handoff,
+        matching: &matching,
+        complete,
+    })?;
+    if args.trace {
+        report::attach_wl_partitions(&mut report, &handoff)?;
+    }
     write_json(&capture.directory.join("report.json"), &report)?;
-    let output = render(cli.format, &report, accepted, &capture.directory)?;
+    let output = report::render(cli.format, &report, accepted, &capture.directory)?;
     let code = if !complete {
         2
     } else {
         u8::from(args.fail_on_accepted_pairs && accepted > 0)
     };
+
     Ok((output, code))
 }
 
@@ -124,6 +191,7 @@ fn handoff(capture: &capture::Capture, trace: bool) -> Handoff {
     if !capture.failures.is_empty() {
         return result;
     }
+
     for unit in &capture.units {
         if let Err(error) = consume_unit(unit, capture, trace, &mut result) {
             result.failures.push(error);
@@ -142,6 +210,7 @@ fn consume_unit(
     capture::verify_inventory(unit)?;
     let facts: Vec<HirFnFacts> = read_json(&unit.directory.join("facts.json"))?;
     for (index, function) in facts.into_iter().enumerate() {
+        verify_frontend_invocation(&function, unit, capture)?;
         let key = function_key(&function, unit, capture)?;
         if !result.keys.insert(key.clone()) {
             return Err(format!("duplicate function key {key}"));
@@ -152,19 +221,41 @@ fn consume_unit(
                 "{}:{}:test={}",
                 unit.target.package, unit.target.name, unit.test
             ),
+            artifact_prefix: unit.directory.join(format!("function-{index}")),
             outcome: "assessed".into(),
             reasons: Vec::new(),
             facts: function,
             document_manifest: None,
             projection_trace: None,
+            extraction_evidence: None,
         };
-        if let Err(error) = consume_function(&mut record, unit, index, trace, &mut result.admitted)
-        {
-            record.outcome = "failed".into();
-            record.reasons.push(error.clone());
-            result.failures.push(error);
-        }
-        result.assessed.push(record);
+        let input = FunctionInput { unit, index, trace };
+        let admission = consume_function(&mut record, &input);
+        result.add(record, admission);
+    }
+    Ok(())
+}
+
+fn verify_frontend_invocation(
+    facts: &HirFnFacts,
+    unit: &capture::Unit,
+    capture: &capture::Capture,
+) -> Result<(), String> {
+    let value = facts
+        .build
+        .frontend_options
+        .get("invocation")
+        .ok_or("missing captured invocation")?;
+    let actual: Vec<String> = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+    let suffix = actual
+        .strip_prefix(unit.invocation.as_slice())
+        .ok_or("frontend evidence belongs to another compiler invocation")?;
+    let sysroot_only = suffix.len() == 2 && suffix[0] == "--sysroot" && !suffix[1].is_empty();
+
+    if (!suffix.is_empty() && !sysroot_only)
+        || facts.build.rustc_version.known_value() != capture.plan.compiler_identity.lines().next()
+    {
+        return Err("frontend invocation or pinned compiler identity disagrees with run".into());
     }
     Ok(())
 }
@@ -181,6 +272,7 @@ fn function_key(
         .and_then(Value::as_str)
         .ok_or("missing captured source-file navigation")?;
     let mut build = serde_json::to_value(&facts.build).map_err(|e| e.to_string())?;
+
     build["frontend_options"]
         .as_object_mut()
         .ok_or("missing frontend options")?
@@ -209,64 +301,67 @@ fn function_key(
 
 fn consume_function(
     record: &mut Function,
-    unit: &capture::Unit,
-    index: usize,
-    trace: bool,
-    admitted: &mut Vec<ImportedFunction>,
-) -> Result<(), String> {
+    input: &FunctionInput<'_>,
+) -> Result<Option<ImportedFunction>, String> {
     let assessment: Value = read_json(
-        &unit
+        &input
+            .unit
             .directory
-            .join(format!("function-{index}.assessment.json")),
+            .join(format!("function-{}.assessment.json", input.index)),
     )?;
     if assessment["function"] != record.facts.name {
         return Err("assessment function mismatch".into());
     }
     let eligibility = classify(&record.facts);
+
     if eligibility.status != EligibilityVerdict::Eligible {
         if !assessment["manifest_file"].is_null() {
             return Err("unsupported function has a manifest".into());
         }
-        record.outcome = match eligibility.status {
-            EligibilityVerdict::Unknown => "unknown",
-            _ => "excluded",
-        }
-        .into();
-        record.reasons = eligibility
-            .diagnostics
-            .iter()
-            .map(|d| d.reason.clone())
-            .collect();
-        return Ok(());
+        record.exclude(eligibility);
+        return Ok(None);
     }
-    admit_serialized(record, unit, index, trace, admitted)
+    if assessment["manifest_file"] != format!("function-{}.manifest.json", input.index) {
+        return Err("missing or ambiguous assessment manifest".into());
+    }
+    admit_serialized(record, input).map(Some)
 }
 
 fn admit_serialized(
     record: &mut Function,
-    unit: &capture::Unit,
-    index: usize,
-    trace: bool,
-    admitted: &mut Vec<ImportedFunction>,
-) -> Result<(), String> {
-    let prefix = unit.directory.join(format!("function-{index}"));
-    let manifest: producer::Manifest = read_json(&prefix.with_extension("manifest.json"))?;
-    let serialized = producer::SerializedPair {
-        pdg_bytes: std::fs::read(prefix.with_extension("pdg.json")).map_err(|e| e.to_string())?,
-        cfg_bytes: std::fs::read(prefix.with_extension("cfg.json")).map_err(|e| e.to_string())?,
-        manifest: manifest.clone(),
-    };
+    input: &FunctionInput<'_>,
+) -> Result<ImportedFunction, String> {
+    let serialized = read_serialized(input)?;
     let pair = producer::verify_serialized(&serialized, &record.facts).map_err(|e| e.join("; "))?;
     let mut function =
         rstyle_ccgraph::admit_produced(&pair, &record.facts).map_err(|e| e.join("; "))?;
-    record.document_manifest = Some(manifest);
+
+    record.document_manifest = Some(serialized.manifest);
     function.key = record.key.clone();
-    if trace {
-        record.projection_trace = Some(projection_trace(&function));
-    }
+    record.projection_trace = input.trace.then(|| projection_trace(&function));
+    record_admission(record, &pair)?;
+
+    Ok(function)
+}
+
+fn record_admission(record: &mut Function, pair: &producer::Pair) -> Result<(), String> {
+    let cfg = serde_json::to_value(&pair.cfg.extraction_evidence).map_err(|e| e.to_string())?;
+    let pdg = serde_json::to_value(&pair.pdg.extraction_evidence).map_err(|e| e.to_string())?;
+    let evidence = serde_json::Map::from_iter([("cfg".into(), cfg), ("pdg".into(), pdg)]);
+
     record.outcome = "admitted".into();
-    admitted.push(function);
+    record.extraction_evidence = Some(Value::Object(evidence));
     Ok(())
+}
+
+fn read_serialized(input: &FunctionInput<'_>) -> Result<producer::SerializedPair, String> {
+    let prefix = input.prefix();
+
+    Ok(producer::SerializedPair {
+        pdg_bytes: std::fs::read(prefix.with_extension("pdg.json")).map_err(|e| e.to_string())?,
+        cfg_bytes: std::fs::read(prefix.with_extension("cfg.json")).map_err(|e| e.to_string())?,
+        manifest: read_json(&prefix.with_extension("manifest.json"))?,
+    })
 }
 
 fn projection_trace(function: &ImportedFunction) -> Value {
@@ -276,65 +371,5 @@ fn projection_trace(function: &ImportedFunction) -> Value {
             "nodes": projection.trace.nodes.iter().map(|(id, disposition)| json!({"id":id,"disposition":format!("{disposition:?}")})).collect::<Vec<_>>(),
             "edges": projection.trace.edges.iter().map(|e| json!({"origin":e.origin,"source":e.source,"target":e.target,"family":e.family,"disposition":format!("{:?}",e.disposition)})).collect::<Vec<_>>()
         }),
-    }
-}
-
-fn report(
-    cli: &Cli,
-    args: &Args,
-    capture: &capture::Capture,
-    handoff: &Handoff,
-    matching: &RunReport,
-    complete: bool,
-) -> Result<Value, String> {
-    let mut matching = serde_json::to_value(matching).map_err(|e| e.to_string())?;
-    if !args.trace {
-        strip_histograms(&mut matching);
-    }
-    Ok(json!({
-        "scope":{"packages":cli.packages,"all_targets":cli.all_targets,"manifest_path":cli.manifest_path,"build_options":args},
-        "run_directory":capture.directory,"toolchain":crate::run::pinned_toolchain(),
-        "contract_revision":"04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
-        "extraction_policy":{"id":"compat.rust.hir-r0","version":"0.1.0","semantics":"bounded normal flow; exceptional transfers and cleanup omitted"},
-        "expected_targets":capture.plan.targets,"observed_units":capture.units,
-        "capture_complete":capture.failures.is_empty(),"capture_failures":capture.failures,
-        "assessment_complete":capture.failures.is_empty() && handoff.failures.is_empty(),
-        "functions":handoff.assessed,"handoff_failures":handoff.failures,
-        "pair_evaluation_complete":complete,"matching":matching,
-        "claim":"Accepted pairs are similarity decisions, not equivalence or safe refactoring."
-    }))
-}
-
-fn strip_histograms(report: &mut Value) {
-    if let Some(pairs) = report["pairs"].as_array_mut() {
-        for pair in pairs {
-            if let Some(stages) = pair["stages"].as_array_mut() {
-                for stage in stages {
-                    if let Some(detail) = stage["detail"].as_object_mut() {
-                        detail.retain(|key, _| !key.starts_with("round_"));
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn render(
-    format: Format,
-    report: &Value,
-    accepted: usize,
-    directory: &Path,
-) -> Result<String, String> {
-    match format {
-        Format::Json => serde_json::to_string_pretty(report).map_err(|e| e.to_string()),
-        Format::Text => Ok(format!(
-            "CCGraph strict: {} assessed functions, {} pairs, {accepted} accepted; capture={}, assessment={}, pairs={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
-            report["functions"].as_array().map_or(0, Vec::len),
-            report["matching"]["pairs"].as_array().map_or(0, Vec::len),
-            report["capture_complete"],
-            report["assessment_complete"],
-            report["pair_evaluation_complete"],
-            directory.join("report.json").display()
-        )),
     }
 }

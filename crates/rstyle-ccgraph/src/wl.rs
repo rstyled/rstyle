@@ -97,6 +97,33 @@ pub fn refine(a: &ProjectedGraph, b: &ProjectedGraph, h: usize) -> WlRefinement 
     }
 }
 
+/// Node-to-shared-label conformance evidence using the scoring transitions.
+/// Numeric labels are local to this pair; their equality defines each partition.
+pub fn trace_partitions(a: &ProjectedGraph, b: &ProjectedGraph, h: usize) -> Vec<LabelPartition> {
+    let state = seed_both(a, b);
+    let initial = label_partition(&state);
+    let (_, partitions) = (0..h).fold((state, vec![initial]), |(state, mut partitions), _| {
+        let next = advance(a, b, state);
+        partitions.push(label_partition(&next));
+        (next, partitions)
+    });
+
+    partitions
+}
+
+#[derive(serde::Serialize)]
+pub struct LabelPartition {
+    pub first: BTreeMap<String, u64>,
+    pub second: BTreeMap<String, u64>,
+}
+
+fn label_partition(state: &RefineState) -> LabelPartition {
+    LabelPartition {
+        first: state.labels_a.clone(),
+        second: state.labels_b.clone(),
+    }
+}
+
 struct RefineState {
     labels_a: BTreeMap<String, u64>,
     labels_b: BTreeMap<String, u64>,

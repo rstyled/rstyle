@@ -147,15 +147,51 @@ struct ProjectionData {
 /// which admits validated PDG + CFG documents through the strict adapter.
 /// Fixture success here never certifies a producer.
 pub fn evaluate_all(functions: &[ImportedFunction], config: &CcgraphConfig) -> RunReport {
+    evaluate_with_pair_limit(functions, config, None)
+}
+
+/// An explicit execution limit fails the run before enumeration; it never
+/// changes matching policy or reports a truncated pair set as complete.
+/// Like `evaluate_all`, callers must separately establish production admission.
+pub fn evaluate_with_pair_limit(
+    functions: &[ImportedFunction],
+    config: &CcgraphConfig,
+    maximum_pairs: Option<usize>,
+) -> RunReport {
     let mut report = new_report(config);
     let duplicates = duplicate_keys(functions);
     flag_duplicates(&mut report, &duplicates);
 
     let prepared = prepare_all(functions, &duplicates);
     record_functions(&mut report, &prepared);
+    if let Err(error) = check_pair_limit(functions.len(), maximum_pairs) {
+        return execution_failure(report, error);
+    }
     enumerate_pairs(&mut report, &prepared, config);
 
     report
+}
+
+fn execution_failure(mut report: RunReport, error: String) -> RunReport {
+    report.incomplete = true;
+    report.diagnostics.push(error);
+
+    report
+}
+
+fn check_pair_limit(count: usize, maximum: Option<usize>) -> Result<(), String> {
+    let pairs = count
+        .checked_mul(count.saturating_sub(1))
+        .and_then(|n| n.checked_div(2))
+        .ok_or("pair-count arithmetic overflow")?;
+
+    if maximum.is_some_and(|limit| pairs > limit) {
+        return Err(format!(
+            "pair enumeration requires {pairs} pairs, exceeds explicit resource limit {}",
+            maximum.unwrap_or(0)
+        ));
+    }
+    Ok(())
 }
 
 fn new_report(config: &CcgraphConfig) -> RunReport {

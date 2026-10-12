@@ -23,9 +23,17 @@ pub struct Target {
 }
 
 pub fn load(manifest: Option<&Path>) -> Result<Metadata, String> {
+    load_with_toolchain(manifest, None)
+}
+
+pub fn load_with_toolchain(
+    manifest: Option<&Path>,
+    toolchain: Option<&str>,
+) -> Result<Metadata, String> {
     let mut cmd = Command::new("cargo");
 
-    cmd.args(["metadata", "--format-version", "1", "--no-deps"]);
+    cmd.args(["metadata", "--format-version", "1", "--no-deps"])
+        .envs(toolchain.map(|channel| ("RUSTUP_TOOLCHAIN", channel)));
     if let Some(path) = manifest {
         cmd.arg("--manifest-path").arg(path);
     }

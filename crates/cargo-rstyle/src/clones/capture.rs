@@ -9,7 +9,7 @@ use std::{
     process::Command,
 };
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Target {
     pub package: String,
     pub manifest_dir: PathBuf,
@@ -24,6 +24,10 @@ pub struct Plan {
     pub root: PathBuf,
     pub driver: PathBuf,
     pub targets: Vec<Target>,
+    pub driver_sha256: String,
+    pub orchestrator_sha256: String,
+    pub compiler_identity: String,
+    pub cargo_identity: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -46,32 +50,83 @@ pub struct Capture {
     pub plan: Plan,
     pub units: Vec<Unit>,
     pub failures: Vec<String>,
+    pub expected_unit_graph: Value,
 }
 
 pub fn prepare(cli: &Cli) -> Result<Capture, String> {
-    let metadata = crate::workspace::load(cli.manifest_path.as_deref())?;
+    let metadata = selected_workspace(cli)?;
+    let directory = run_directory(&metadata.target_directory)?;
+    let plan = plan(cli, metadata.workspace_root)?;
+    write_json(&directory.join("plan.json"), &plan)?;
+
+    Ok(new_capture(directory, plan))
+}
+
+fn selected_workspace(cli: &Cli) -> Result<crate::workspace::Metadata, String> {
+    let metadata = crate::workspace::load_with_toolchain(
+        cli.manifest_path.as_deref(),
+        Some(&run::pinned_toolchain()),
+    )?;
     if let Some(package) = metadata.unknown_packages(&cli.packages).first() {
         return Err(format!("unknown package {package}"));
     }
-    let parent = metadata.target_directory.join("rstyle/clones");
-    std::fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
-    let directory = tempfile::Builder::new()
-        .prefix("run-")
-        .tempdir_in(parent)
-        .map_err(|e| e.to_string())?
-        .keep();
-    let plan = Plan {
-        root: metadata.workspace_root,
-        driver: run::driver_path()?,
-        targets: targets(cli)?,
-    };
-    write_json(&directory.join("plan.json"), &plan)?;
-    Ok(Capture {
+    Ok(metadata)
+}
+
+fn new_capture(directory: PathBuf, plan: Plan) -> Capture {
+    Capture {
         directory,
         plan,
         units: Vec::new(),
         failures: Vec::new(),
+        expected_unit_graph: Value::Null,
+    }
+}
+
+fn run_directory(target: &Path) -> Result<PathBuf, String> {
+    let parent = target.join("rstyle/clones");
+    std::fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
+
+    Ok(tempfile::Builder::new()
+        .prefix("run-")
+        .tempdir_in(parent)
+        .map_err(|e| e.to_string())?
+        .keep())
+}
+
+fn plan(cli: &Cli, root: PathBuf) -> Result<Plan, String> {
+    let driver = run::driver_path()?
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let orchestrator = std::env::current_exe().map_err(|e| e.to_string())?;
+
+    Ok(Plan {
+        root,
+        driver_sha256: file_digest(&driver)?,
+        orchestrator_sha256: file_digest(&orchestrator)?,
+        compiler_identity: tool_identity("rustc", "-vV")?,
+        cargo_identity: tool_identity("cargo", "--version")?,
+        driver,
+        targets: targets(cli)?,
     })
+}
+
+fn file_digest(path: &Path) -> Result<String, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(super::digest(&bytes))
+}
+
+fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
+    let output = Command::new(tool)
+        .arg(argument)
+        .env("RUSTUP_TOOLCHAIN", run::pinned_toolchain())
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(format!("cannot determine pinned {tool} identity"));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
 fn targets(cli: &Cli) -> Result<Vec<Target>, String> {
@@ -82,6 +137,7 @@ fn targets(cli: &Cli) -> Result<Vec<Target>, String> {
     if let Some(path) = &cli.manifest_path {
         command.arg("--manifest-path").arg(path);
     }
+
     let output = command.output().map_err(|e| e.to_string())?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).into());
@@ -101,12 +157,6 @@ fn selected_targets(metadata: &Value, cli: &Cli) -> Result<Vec<Target>, String> 
             if !wanted_target(target, cli.all_targets) {
                 continue;
             }
-            if target["required-features"]
-                .as_array()
-                .is_some_and(|f| !f.is_empty())
-            {
-                return Err("targets with required-features are not supported yet".into());
-            }
             result.push(target_record(package, target)?);
         }
     }
@@ -119,8 +169,10 @@ fn selected_targets(metadata: &Value, cli: &Cli) -> Result<Vec<Target>, String> 
 fn wanted_target(target: &Value, all: bool) -> bool {
     target["kind"].as_array().is_some_and(|kinds| {
         kinds.iter().any(|kind| {
-            matches!(kind.as_str(), Some("lib" | "rlib" | "bin" | "proc-macro"))
-                || (all && matches!(kind.as_str(), Some("test" | "example" | "bench")))
+            matches!(
+                kind.as_str(),
+                Some("lib" | "rlib" | "dylib" | "cdylib" | "staticlib" | "bin" | "proc-macro")
+            ) || (all && matches!(kind.as_str(), Some("test" | "example" | "bench")))
         })
     })
 }
@@ -150,6 +202,7 @@ fn target_record(package: &Value, target: &Value) -> Result<Target, String> {
 fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String> {
     let mut command = Command::new("cargo");
     run::clear_rstyle_environment(&mut command);
+
     command
         .args(["check", "--message-format=json"])
         .env("RUSTUP_TOOLCHAIN", run::pinned_toolchain())
@@ -162,89 +215,126 @@ fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String>
         .env("CARGO_TARGET_DIR", capture.directory.join("build"))
         .env("CARGO_INCREMENTAL", "0")
         .env("RSTYLE_CAPTURE_PLAN", capture.directory.join("plan.json"));
-    selection_args(&mut command, cli);
-    build_args(&mut command, args);
+    command.args(selection_args(cli)).args(build_args(args));
+
     Ok(command)
 }
 
-fn selection_args(command: &mut Command, cli: &Cli) {
-    if cli.packages.is_empty() {
-        command.arg("--workspace");
-    }
-    for package in &cli.packages {
-        command.args(["-p", package]);
-    }
-    if cli.all_targets {
-        command.arg("--all-targets");
-    }
-    if let Some(path) = &cli.manifest_path {
-        command.arg("--manifest-path").arg(path);
-    }
+fn selection_args(cli: &Cli) -> Vec<std::ffi::OsString> {
+    let packages = if cli.packages.is_empty() {
+        vec!["--workspace".into()]
+    } else {
+        cli.packages
+            .iter()
+            .flat_map(|p| ["-p".into(), p.into()])
+            .collect()
+    };
+    let targets = cli.all_targets.then(|| "--all-targets".into());
+    let manifest = cli
+        .manifest_path
+        .as_ref()
+        .map(|p| ["--manifest-path".into(), p.as_os_str().to_owned()]);
+
+    packages
+        .into_iter()
+        .chain(targets)
+        .chain(manifest.into_iter().flatten())
+        .collect()
 }
 
-fn build_args(command: &mut Command, args: &Args) {
-    if args.release {
-        command.arg("--release");
-    }
-    if args.locked {
-        command.arg("--locked");
-    }
-    if args.offline {
-        command.arg("--offline");
-    }
-    if args.no_default_features {
-        command.arg("--no-default-features");
-    }
-    if args.all_features {
-        command.arg("--all-features");
-    }
-    if let Some(features) = &args.features {
-        command.args(["--features", features]);
-    }
-    if let Some(target) = &args.target {
-        command.args(["--target", target]);
-    }
-    if let Some(jobs) = args.jobs {
-        command.arg("--jobs").arg(jobs.to_string());
-    }
+fn build_args(args: &Args) -> Vec<std::ffi::OsString> {
+    let switches = [
+        (args.release, "--release"),
+        (args.locked, "--locked"),
+        (args.offline, "--offline"),
+        (args.no_default_features, "--no-default-features"),
+        (args.all_features, "--all-features"),
+    ];
+    let values = [
+        args.features.as_ref().map(|v| ("--features", v.clone())),
+        args.target.as_ref().map(|v| ("--target", v.clone())),
+        args.jobs.map(|v| ("--jobs", v.to_string())),
+    ];
+
+    switches
+        .into_iter()
+        .filter(|(enabled, _)| *enabled)
+        .map(|(_, key)| key.into())
+        .chain(
+            values
+                .into_iter()
+                .flatten()
+                .flat_map(|(key, value)| [key.into(), value.into()]),
+        )
+        .collect()
 }
 
 pub fn compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
+    capture.expected_unit_graph = expected_units(capture, cli, args)?;
+    perform_compile(capture, cli, args)
+}
+
+fn perform_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
     let output = command(capture, cli, args)?
         .output()
         .map_err(|e| e.to_string())?;
-    std::fs::write(capture.directory.join("cargo.jsonl"), &output.stdout)
-        .map_err(|e| e.to_string())?;
-    std::fs::write(capture.directory.join("cargo.stderr"), &output.stderr)
-        .map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        capture.failures.push(format!(
-            "Cargo compilation failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-        return Ok(());
-    }
-    if let Err(error) = reconcile(capture, &output.stdout, cli.all_targets) {
-        capture.failures.push(error);
-    }
+    save_logs(capture, &output)?;
+
+    compilation_result(capture, &output);
     Ok(())
 }
 
-fn reconcile(capture: &mut Capture, cargo: &[u8], all: bool) -> Result<(), String> {
+fn expected_units(capture: &Capture, cli: &Cli, args: &Args) -> Result<Value, String> {
+    let output = command(capture, cli, args)?
+        .args(["--unit-graph", "-Z", "unstable-options"])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err(format!(
+            "Cargo compilation planning failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let graph: Value = serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+
+    if graph["version"] != 1 || !graph["units"].is_array() {
+        return Err("unsupported Cargo unit graph".into());
+    }
+    write_json(&capture.directory.join("expected-unit-graph.json"), &graph)?;
+    Ok(graph)
+}
+
+fn compilation_result(capture: &mut Capture, output: &std::process::Output) {
+    if let Err(error) = cargo_result(capture, output) {
+        capture.failures.push(error);
+    }
+}
+
+fn cargo_result(capture: &mut Capture, output: &std::process::Output) -> Result<(), String> {
+    if !output.status.success() {
+        return Err(format!(
+            "Cargo compilation failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    reconcile(capture, &output.stdout)
+}
+
+fn save_logs(capture: &Capture, output: &std::process::Output) -> Result<(), String> {
+    std::fs::write(capture.directory.join("cargo.jsonl"), &output.stdout)
+        .map_err(|e| e.to_string())?;
+    std::fs::write(capture.directory.join("cargo.stderr"), &output.stderr)
+        .map_err(|e| e.to_string())
+}
+
+fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
     let artifacts: Vec<Value> = cargo
         .split(|b| *b == b'\n')
         .filter(|line| !line.is_empty())
         .map(serde_json::from_slice)
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
-    for target in &capture.plan.targets {
-        if !artifacts.iter().any(|a| matches_artifact(a, target)) {
-            capture.failures.push(format!(
-                "missing Cargo artifact for {}:{}",
-                target.package, target.name
-            ));
-        }
-    }
+
     for artifact in artifacts
         .iter()
         .filter(|a| a["reason"] == "compiler-artifact")
@@ -262,15 +352,15 @@ fn reconcile(capture: &mut Capture, cargo: &[u8], all: bool) -> Result<(), Strin
             .ok_or("missing artifact test context")?;
         let unit_path = unit_ledger_path(capture, target, test)?;
         let unit: Unit = read_json(&unit_path)?;
-        if unit.target.package != target.package
-            || unit.target.source != target.source
+        if &unit.target != target
             || unit.test != test
+            || unit.directory.parent() != Some(capture.directory.as_path())
         {
             return Err("compiler-unit ledger disagrees with Cargo artifact".into());
         }
         capture.units.push(unit);
     }
-    check_expected(capture, all);
+    check_expected(capture);
     Ok(())
 }
 
@@ -289,28 +379,33 @@ fn unit_ledger_path(capture: &Capture, target: &Target, test: bool) -> Result<Pa
     Ok(capture.directory.join(format!("unit-{key}.json")))
 }
 
-fn check_expected(capture: &mut Capture, all: bool) {
+fn check_expected(capture: &mut Capture) {
     for target in &capture.plan.targets {
-        let tests = all
-            && target.test
-            && target
-                .kind
-                .iter()
-                .any(|k| matches!(k.as_str(), "lib" | "bin"));
-        for test in std::iter::once(target.kind.iter().any(|k| k == "test" || k == "bench"))
-            .chain(tests.then_some(true))
-        {
-            if !capture.units.iter().any(|u| {
-                u.target.package == target.package
-                    && u.target.source == target.source
-                    && u.test == test
-            }) {
-                capture.failures.push(format!(
-                    "missing expected compilation unit {}:{} test={test}",
-                    target.package, target.name
-                ));
-            }
+        let expected = capture.expected_unit_graph["units"]
+            .as_array()
+            .map_or(0, |units| {
+                units
+                    .iter()
+                    .filter(|u| {
+                        u["pkg_id"] == target.package
+                            && u["target"]["src_path"] == target.source.to_string_lossy().as_ref()
+                            && u["target"]["name"] == target.name
+                    })
+                    .count()
+            });
+        let observed = capture
+            .units
+            .iter()
+            .filter(|u| u.target.package == target.package && u.target.source == target.source)
+            .count();
+        if expected != observed {
+            capture.failures.push(format!("compilation-unit inventory mismatch {}:{}: expected {expected}, observed {observed}", target.package, target.name));
         }
+    }
+    if capture.units.is_empty() {
+        capture
+            .failures
+            .push("selection produced no captured Rust compilation units".into());
     }
 }
 
@@ -319,18 +414,34 @@ fn check_expected(capture: &mut Capture, all: bool) {
 pub fn wrapper(plan_path: &Path, invocation: Vec<String>) -> Result<u8, String> {
     let plan: Plan = read_json(plan_path)?;
     let target = invocation_target(&plan, &invocation)?;
+    let command = driver_command(&plan, &invocation);
+
+    match target {
+        None => passthrough(command),
+        Some(target) => capture_unit(plan_path, target, invocation, command),
+    }
+}
+
+fn driver_command(plan: &Plan, invocation: &[String]) -> Command {
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
-    command.args(&invocation);
-    let Some(target) = target else {
-        let status = command.status().map_err(|e| e.to_string())?;
-        return Ok(if status.success() { 0 } else { 2 });
-    };
-    capture_unit(plan_path, target, invocation, command)
+    command.args(invocation);
+    command
+}
+
+fn passthrough(mut command: Command) -> Result<u8, String> {
+    let status = command.status().map_err(|e| e.to_string())?;
+    Ok(if status.success() { 0 } else { 2 })
 }
 
 fn invocation_target(plan: &Plan, invocation: &[String]) -> Result<Option<Target>, String> {
-    if invocation.iter().any(|a| a.starts_with("--print")) {
+    let build_script = invocation
+        .windows(2)
+        .any(|pair| pair[0] == "--crate-name" && pair[1] == "build_script_build")
+        || invocation
+            .iter()
+            .any(|arg| arg == "--crate-name=build_script_build");
+    if build_script || invocation.iter().any(|a| a.starts_with("--print")) {
         return Ok(None);
     }
     let Some(directory) = std::env::var_os("CARGO_MANIFEST_DIR") else {
@@ -338,6 +449,7 @@ fn invocation_target(plan: &Plan, invocation: &[String]) -> Result<Option<Target
     };
     let directory = PathBuf::from(directory);
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+
     let matches: Vec<_> = plan
         .targets
         .iter()
@@ -362,6 +474,12 @@ fn capture_unit(
     invocation: Vec<String>,
     mut command: Command,
 ) -> Result<u8, String> {
+    if invocation
+        .iter()
+        .any(|arg| arg.starts_with("incremental=") || arg.starts_with("-Cincremental="))
+    {
+        return Err("strict capture requires incremental compilation disabled; remove explicit -C incremental flags".into());
+    }
     let root = plan.parent().ok_or("missing run directory")?;
     let directory = tempfile::Builder::new()
         .prefix("invocation-")
@@ -376,26 +494,41 @@ fn capture_unit(
         directory,
         artifacts: Vec::new(),
     };
-    write_json(&unit.directory.join("started.json"), &unit)?;
-    command.env("RSTYLE_HIR_DOCUMENT_DIR", &unit.directory);
-    let status = command.status().map_err(|e| e.to_string())?;
+    let status = invoke_unit(&unit, &mut command)?;
+
     if !status.success() {
         return Ok(2);
     }
-    let mut unit = unit;
+    publish_unit(root, unit)?;
+    Ok(0)
+}
+
+fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitStatus, String> {
+    write_json(&unit.directory.join("started.json"), unit)?;
+    command.env("RSTYLE_HIR_DOCUMENT_DIR", &unit.directory);
+
+    command.status().map_err(|e| e.to_string())
+}
+
+fn publish_unit(root: &Path, mut unit: Unit) -> Result<(), String> {
     unit.artifacts = artifact_inventory(&unit.directory)?;
     let key = super::digest(
-        &serde_json::to_vec(&json!([unit.target.package, unit.target.source, test]))
+        &serde_json::to_vec(&json!([unit.target.package, unit.target.source, unit.test]))
             .map_err(|e| e.to_string())?,
     );
     let path = root.join(format!("unit-{key}.json"));
-    let file = std::fs::OpenOptions::new()
+
+    let file = reserve_ledger(&path)?;
+    serde_json::to_writer(file, &unit).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn reserve_ledger(path: &Path) -> Result<std::fs::File, String> {
+    std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(path)
-        .map_err(|e| format!("duplicate or missing unit ledger: {e}"))?;
-    serde_json::to_writer(file, &unit).map_err(|e| e.to_string())?;
-    Ok(0)
+        .map_err(|e| format!("duplicate or missing unit ledger: {e}"))
 }
 
 fn artifact_inventory(directory: &Path) -> Result<Vec<Artifact>, String> {
@@ -444,6 +577,7 @@ pub fn verify_inventory(unit: &Unit) -> Result<(), String> {
             ));
         }
     }
+
     let actual = artifact_inventory(&unit.directory)?;
     if actual
         .iter()
