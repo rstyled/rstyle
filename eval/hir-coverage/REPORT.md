@@ -38,8 +38,9 @@ generics, references/memory, arbitrary calls, macros and patterns, often togethe
 
 Run `uv run eval/hir-coverage/reproduce.py` from a checkout with rustup and the
 pinned aarch64 toolchain available. See [README.md](README.md) for requirements and
-output layout. The runner verifies package archives, dependency lockfiles and the
-complete frozen selection, builds the tools, captures every profile, checks actual
+output layout and historical-stage reproduction. The runner verifies package archives, dependency lockfiles and the
+complete frozen selection, builds the tools, captures R0 and the complete expanded
+profile, checks actual
 serialized documents against exact manifests and unchanged pinned schemas, and
 regenerates per-function assessments and the coverage comparison. All generated
 outputs belong under ignored `target/hir-coverage/`, not in Git. Compare semantic
@@ -55,7 +56,22 @@ still require exhaustive pair evaluation.
 
 ## Validation and limits
 
-Cleanup validation reran `uv run eval/hir-coverage/reproduce.py`: all 24 actual
+The current selection simplification passed `cargo test --workspace --locked`
+(494 tests across 23 suites, including 65 Cargo CLI and 43 pinned-compiler
+extraction tests), formatting, strict workspace/all-target Clippy, five inventory
+tests and 43 study/harness scripting tests. `cargo rstyle --format json` and
+`cargo rstyle patterns --format json --fail-on-candidates` both passed with zero
+violations/candidates. The new CLI regression rejects all seven retired staged
+tokens before capture; capability fixtures and historical strict admission remain.
+
+`uv run eval/hir-coverage/reproduce.py` completed six real Cargo captures under
+`r0` and `hir-expanded-v1`, verified 12 actual serialized documents, and reproduced
+the baseline/final counts above. The expanded choice resolves to the unchanged
+0.7.0 contract and retains its frozen frontend token; reports separately record
+the current CLI name in `extraction_selection`. No semantic extraction, matching
+or default-policy change is claimed by this interface simplification.
+
+Archive-cleanup validation at `e3261be` reran `uv run eval/hir-coverage/reproduce.py`: all 24 actual
 Cargo captures completed, all eight profile counts reproduced the table, and 28
 serialized documents passed exact-manifest and pinned-schema verification. The
 five inventory and 43 study/harness scripting tests passed. Both targeted Rust
@@ -66,7 +82,7 @@ regressions passed:
 
 `cargo fmt --all -- --check`, `cargo rstyle --format json` and
 `cargo rstyle patterns --format json --fail-on-candidates` passed with zero style
-violations and zero candidates. No Rust implementation changed in this cleanup;
+violations and zero candidates. No Rust implementation changed in that archive cleanup;
 the full workspace and Clippy results below belong to the implementation commit.
 
 Implementation validation at the commit above passed 493 workspace tests,

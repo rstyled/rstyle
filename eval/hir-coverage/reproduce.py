@@ -26,10 +26,7 @@ ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parents[1]
 HOST = "aarch64-unknown-linux-gnu"
 COMPILER = "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
-PROFILES = (
-    "r0", "hir-const-v1", "hir-casts-v1", "hir-match-v1", "hir-guards-v1",
-    "hir-conditional-v1", "hir-loops-v1", "hir-calls-v1",
-)
+PROFILES = ("r0", "hir-expanded-v1")
 
 
 def digest(data):

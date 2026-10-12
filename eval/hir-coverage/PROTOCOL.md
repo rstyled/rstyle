@@ -46,3 +46,7 @@ Do not commit raw run outputs or compare transient paths/log bytes as fixtures.
 Keep the compact report tied to its tested implementation revision. The corrected
 host and development failures are disclosed in AMENDMENTS.md. Runtime evidence
 verification remains strict; the two historical studies remain unchanged.
+
+Current development compares R0 with the complete `hir-expanded-v1` bundle.
+Intermediate stages are historical contracts, not production Cargo choices;
+README.md gives the immutable checkout for reproducing their original comparison.

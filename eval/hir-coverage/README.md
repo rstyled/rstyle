@@ -20,7 +20,7 @@ Packages use temporary directories outside the repository to avoid Cargo's
 enclosing-workspace discovery. Lockfiles are checked after capture as well.
 
 Each invocation creates a fresh ignored `target/hir-coverage/run-*` directory.
-It builds the actual driver and Cargo command, runs all eight cumulative profiles
+It builds the actual driver and Cargo command, runs R0 and the complete expanded profile
 with default features/debug settings, verifies capture/assessment completeness,
 and checks actual admitted PDG/CFG documents against their exact manifests and
 the unchanged pinned schemas. Inherited `RSTYLE_*` and build override variables
@@ -42,7 +42,7 @@ recreatable from the checked archives. No old run directory is discovered or reu
 Generated navigation paths into temporary sources expire after the run; frozen
 package/path/span identities remain available in selection and assessments.
 
-For a focused rerun, use `--profiles r0 hir-calls-v1` or another explicit subset.
+For a focused rerun, use `--profiles hir-expanded-v1` (or `--profiles r0`).
 Its summary describes that subset, not measured gains for omitted slices. Inventory
 commands use `--max-pairs 0`, never inspect predictions, and accept exit 2 only for
 the explicit pair budget with complete capture/assessment. Failed or unknown
@@ -60,3 +60,17 @@ Independent extraction/dependence, adversarial verification and real Cargo tests
 remain in the Rust suites. This inventory does not replace them, and no saved
 capture outputs are required by those tests. The two historical quality studies
 remain unchanged.
+
+The intermediate stage table in REPORT.md is historical. To reproduce all eight
+stages, use the lightweight runner at commit `e3261be7dc678351825f91301c1eab2c34e287e7`
+in a separate checkout. For example:
+
+```sh
+git worktree add --detach /tmp/rstyle-coverage-stages e3261be7dc678351825f91301c1eab2c34e287e7
+cd /tmp/rstyle-coverage-stages
+uv run eval/hir-coverage/reproduce.py
+```
+
+Current reproduction compares R0 with the same complete 0.7.0 semantics. Historical
+stage identities remain in verification and independent Rust fixtures, without
+requiring seven production extraction choices.
