@@ -1688,3 +1688,34 @@ fn clones_scalar_match_is_versioned_and_evaluates_every_admitted_pair() {
             .all(|f| f["outcome"] == "excluded")
     );
 }
+
+#[test]
+fn clones_guarded_match_capture_is_explicit_and_trace_invariant() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(x: i32, b: bool) -> i32 { match x { 1 if b => 7, 1 if !b => 8, _ => 9 } }\npub fn g(x: i32, b: bool) -> i32 { match x { 1 if b => 7, 1 if !b => 8, _ => 9 } }\n").unwrap();
+    let (output, ordinary) = clones(directory.path(), &["--extraction-profile", "hir-guards-v1"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let (output, traced) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-guards-v1", "--trace"],
+    );
+    assert!(output.status.success());
+    assert_eq!(ordinary["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        ordinary["matching"]["pairs"][0]["decision"],
+        traced["matching"]["pairs"][0]["decision"]
+    );
+    let (output, excluded) = clones(directory.path(), &["--extraction-profile", "hir-match-v1"]);
+    assert!(output.status.success());
+    assert!(
+        excluded["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}

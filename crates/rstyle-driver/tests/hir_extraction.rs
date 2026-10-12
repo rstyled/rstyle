@@ -1538,3 +1538,104 @@ fn scalar_match_keeps_writes_returns_and_unreachable_source() {
         );
     }
 }
+
+#[test]
+fn ordered_match_guards_fall_through_once_and_preserve_arm_values() {
+    let source = "fn f(x: i32, b: bool) -> i32 { match x { 1 if b => 7, 1 if !b => 8, _ => 9 } }";
+    let facts = compile_selected(source, "hir-guards-v1").remove(0);
+    let graph = rstyle_pdg::producer::lower(&facts).unwrap();
+    assert_eq!(
+        graph
+            .nodes
+            .iter()
+            .filter(|n| n.category == rstyle_pdg::NodeCategory::Read && n.ty == "i32")
+            .count(),
+        1
+    );
+    let selectors: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter(|n| n.construct.as_deref() == Some("match.literal"))
+        .collect();
+    let guards: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter(|n| n.construct.as_deref() == Some("match.guard"))
+        .collect();
+    assert_eq!(selectors.len(), 2);
+    assert_eq!(guards.len(), 2);
+    assert_eq!(selectors[0].operands, selectors[1].operands);
+    let next = &selectors[1].id;
+    assert!(
+        graph
+            .transfers
+            .iter()
+            .any(|e| &e.source == &selectors[0].id && &e.target == next && e.kind == "false")
+    );
+    assert!(
+        graph
+            .transfers
+            .iter()
+            .any(|e| &e.source == &guards[0].id && &e.target == next && e.kind == "false")
+    );
+    let site = graph.value_sites.last().unwrap();
+    assert_eq!(site.alternatives.len(), 3);
+    assert_eq!(site.alternatives[0].guards[0].len(), 2);
+    assert_eq!(
+        site.alternatives[0].guards[0]
+            .iter()
+            .map(|a| (a.controller_pdg_node_id.as_str(), a.outcome.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            (selectors[0].id.as_str(), "true"),
+            (guards[0].id.as_str(), "true")
+        ]
+    );
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+    let serialized = pair.serialize().unwrap();
+    rstyle_pdg::producer::verify_serialized(&serialized, &facts).unwrap();
+    let baseline = compile_selected(source, "hir-match-v1").remove(0);
+    assert_eq!(classify(&baseline).status, EligibilityVerdict::Ineligible);
+}
+
+#[test]
+fn guard_subset_and_tampered_fallthrough_are_fail_closed() {
+    for source in [
+        "fn f(x: i32, b: bool) -> i32 { match x { _ if b && x > 0 => 1, _ => 2 } }",
+        "fn f(x: i32, b: bool, mut y: i32) -> i32 { match x { 1 if b => { y = 1; }, _ => { y = 2; } }; y }",
+        "fn f(x: i32, b: bool) -> i32 { match x { 1 if if b { x > 0 } else { false } => return 7, _ => 9 } }",
+    ] {
+        let facts = compile_selected(source, "hir-guards-v1").remove(0);
+        let pair =
+            rstyle_pdg::producer::produce(&facts).unwrap_or_else(|e| panic!("{source}: {e:?}"));
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+    }
+    for source in [
+        "fn f(x: i32, mut b: bool) -> i32 { match x { 1 if { b = false; b } => 7, _ => 9 } }",
+        "fn f(x: i32) -> i32 { match x { 1 if (x as u32) > 0 => 7, _ => 9 } }",
+        "fn f(x: i32) -> i32 { match x { 1 if g(x) => 7, _ => 9 } } fn g(x: i32) -> bool { x > 0 }",
+        "fn f(x: i32) -> i32 { match x { 1 if true => 7, _ => 9, 2 if g(x) => 3 } } fn g(x: i32) -> bool { x > 0 }",
+    ] {
+        let facts = compile_selected(source, "hir-guards-v1").remove(0);
+        assert_eq!(classify(&facts).status, EligibilityVerdict::Ineligible);
+    }
+    let facts = compile_selected(
+        "fn f(x: i32, b: bool) -> i32 { match x { 1 if b => 7, _ => 9 } }",
+        "hir-guards-v1",
+    )
+    .remove(0);
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let guard = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|n| n.attributes.construct.as_deref() == Some("match.guard"))
+        .unwrap()
+        .id
+        .clone();
+    pair.cfg
+        .edges
+        .retain(|e| !(e.source == guard && e.kind == rstyle_pdg::CfgEdgeKind::False));
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+}
