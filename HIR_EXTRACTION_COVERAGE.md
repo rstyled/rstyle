@@ -265,8 +265,8 @@ admits 5. Conditional correspondence accounts for four measured admissions and
 named primitive summaries for one additional admission. Const/cast support was
 necessary for some of these functions but its earlier slices alone admitted none.
 Loops add no measured admissions in this sample. See
-[the inventory report](eval/hir-coverage/REPORT.md) for complete outcomes,
-blocker combinations, identities, hypothetical bundles and retained failures.
+[the inventory report](eval/hir-coverage/REPORT.md) for the measured outcomes, limits and a command to regenerate complete
+function assessments, blocker combinations and serialized-document checks.
 
 Removed operations without independent resolution remain unknown. The initial
 loop policy excludes expression-value merges in loop-containing functions.

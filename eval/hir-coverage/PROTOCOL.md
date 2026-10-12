@@ -36,3 +36,13 @@ by a proposed capability and potentially unlocked bundles. Potential unlocks
 are hypothetical until actual verified admission; diagnostic counts are not
 coverage gains. Freeze call-summary selection only after source review of this
 inventory. Preserve ccgraph-v1 and ccgraph-v2 without relabeling their evidence.
+
+## Development output policy
+
+Frozen inputs, provenance, dependency lockfiles and independent expectations are
+committed. Full captures, stage diagnostics and comparisons are regenerated with
+`uv run eval/hir-coverage/reproduce.py` into ignored `target/hir-coverage/`.
+Do not commit raw run outputs or compare transient paths/log bytes as fixtures.
+Keep the compact report tied to its tested implementation revision. The corrected
+host and development failures are disclosed in AMENDMENTS.md. Runtime evidence
+verification remains strict; the two historical studies remain unchanged.
