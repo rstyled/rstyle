@@ -57,3 +57,11 @@ command with fresh compiler capture; it never consumes legacy miner predictions.
 `ccgraph_study_evidence.py` packages representative traces and inventories from
 preserved validated reports: run it after `ccgraph_study.py summarize`.
 See `eval/ccgraph-v1/README.md` for exact commands, exit behavior and retention.
+
+`ccgraph_followup.py` executes the v2 coverage/correctness study using the shared
+real-command runner and independently source-authored bounded oracles.
+`test_ccgraph_followup.py` tests its expectations, target denominators and project
+splits. `ccgraph_followup_evidence.py` verifies all retained artifact digests and
+raw/saved semantic aggregates, then packages the complete canonical scope traces.
+See `eval/ccgraph-v2/README.md`; target-check exit 1 means a valid missed primary
+coverage target, not a compiler failure.

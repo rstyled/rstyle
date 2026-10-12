@@ -19,3 +19,7 @@ Strict source-to-pair CCGraph is evaluated separately in
 coverage denominators, exhaustive real-command pair inventories and fixed
 matching configurations. Legacy problem/refactoring labels above are not its
 clone ground truth.
+
+The separately preregistered coverage/correctness follow-up is
+[`ccgraph-v2/`](ccgraph-v2/README.md). Its report preserves missed admission targets,
+explicit extraction exclusions and insufficient natural pair-quality evidence.
