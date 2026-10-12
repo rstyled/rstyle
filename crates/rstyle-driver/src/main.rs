@@ -139,11 +139,11 @@ impl Callbacks for HirExtract {
             .expect("capture complete source-facing R0 evidence");
         if facts.first().is_some_and(|facts| {
             rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(facts)
-                .is_ok_and(|profile| profile.conditional_source())
+                .is_ok_and(|profile| profile.supports("rust.conditional-source-correspondence"))
         }) || std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
             .ok()
             .and_then(|token| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&token).ok())
-            .is_some_and(|profile| profile.conditional_source())
+            .is_some_and(|profile| profile.supports("rust.conditional-source-correspondence"))
         {
             let inventory = hir_extraction::source_inventory(tcx, &self.scanned, &facts)
                 .expect("capture owned source inventory");

@@ -296,7 +296,7 @@ fn selected_conditional() -> bool {
     std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
         .ok()
         .and_then(|value| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&value).ok())
-        .is_some_and(|profile| profile.conditional_source())
+        .is_some_and(|profile| profile.supports("rust.conditional-source-correspondence"))
 }
 
 pub fn source_inventory(

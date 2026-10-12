@@ -105,7 +105,7 @@ impl<'a> Visitor<'a> for Owned {
 
     fn visit_arm(&mut self, arm: &'a ast::Arm) {
         let previous = self.match_pattern;
-        self.match_pattern = self.profile.scalar_match();
+        self.match_pattern = self.profile.supports("rust.scalar-match");
         visit::walk_arm(self, arm);
         self.match_pattern = previous;
     }
@@ -148,13 +148,13 @@ fn selected_expression(
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> bool {
     match kind {
-        ast::ExprKind::MethodCall(..) => profile.primitive_calls(),
+        ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
         ast::ExprKind::While(..)
         | ast::ExprKind::Loop(..)
         | ast::ExprKind::Break(..)
-        | ast::ExprKind::Continue(..) => profile.scalar_loops(),
-        ast::ExprKind::Cast(..) => profile.integer_casts(),
-        ast::ExprKind::Match(..) => profile.scalar_match(),
+        | ast::ExprKind::Continue(..) => profile.supports("rust.scalar-loops"),
+        ast::ExprKind::Cast(..) => profile.supports("rust.integer-casts"),
+        ast::ExprKind::Match(..) => profile.supports("rust.scalar-match"),
         _ => false,
     }
 }

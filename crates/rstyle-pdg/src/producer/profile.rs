@@ -15,7 +15,7 @@ pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
     let mut cfg: crate::CfgDocument = convert(&pair.cfg, &policy)?;
     configure_cfg(&mut cfg, &policy, profile);
     let evidence = selection_evidence(facts, profile)?;
-    if profile.scalar_loops() {
+    if profile.supports("rust.scalar-loops") {
         let cyclic = cyclic_policy()?;
         pdg.extensions.insert(
             "rstyle.hir-coverage:cyclic-flow-policy".into(),
@@ -33,7 +33,7 @@ pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
 fn configure_cfg(cfg: &mut crate::CfgDocument, policy: &ProfileId, profile: ExtractionProfile) {
     cfg.profile.name = policy.id.clone();
     cfg.profile.version = policy.version.clone();
-    if profile.scalar_loops() {
+    if profile.supports("rust.scalar-loops") {
         cfg.profile.exit_policy =
             "one normal exit; actual returns/fallthrough only; divergence remains cyclic".into();
     }

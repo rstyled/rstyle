@@ -16,8 +16,8 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 pub struct Args {
-    /// Explicit versioned extraction selection, independent of matching settings.
-    #[arg(long, default_value = "r0")]
+    /// Extraction selection: r0 (default) or hir-expanded-v1 (all verified capabilities).
+    #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     /// JSON matching overrides, separate from legacy rstyle.toml.
     #[arg(long)]
@@ -216,7 +216,7 @@ fn consume_unit(
         return Err("Unit extraction profile disagrees with plan".into());
     }
     capture::verify_inventory(unit)?;
-    collect_source_inventory(unit, result)?;
+    result.source_inventory.extend(source_inventory(unit)?);
 
     let facts: Vec<HirFnFacts> = read_json(&unit.directory.join("facts.json"))?;
     for (index, function) in facts.into_iter().enumerate() {
@@ -233,15 +233,17 @@ fn consume_unit(
     Ok(())
 }
 
-fn collect_source_inventory(unit: &capture::Unit, result: &mut Handoff) -> Result<(), String> {
-    if unit.extraction_profile.conditional_source() {
-        let inventory: Vec<Value> = read_json(&unit.directory.join("source-inventory.json"))?;
-        result.source_inventory.push(
-            json!({"compilation_unit":unit.target, "test":unit.test, "source_functions":inventory}),
-        );
+fn source_inventory(unit: &capture::Unit) -> Result<Option<Value>, String> {
+    if !unit
+        .extraction_profile
+        .supports("rust.conditional-source-correspondence")
+    {
+        return Ok(None);
     }
-
-    Ok(())
+    let inventory: Vec<Value> = read_json(&unit.directory.join("source-inventory.json"))?;
+    Ok(Some(
+        json!({"compilation_unit":unit.target, "test":unit.test, "source_functions":inventory}),
+    ))
 }
 
 fn function_record(

@@ -242,7 +242,7 @@ The pinned R0 ledger above remains historical R0 evidence. Local expansions use
 `rstyle.rust.hir-coverage`, not compat approval or an R0 scope correction. See
 [the versioned local contracts](docs/extraction-profiles/coverage-v1.md).
 
-| Explicit clones selection | Local version | Added capability |
+| Historical evidence token | Local version | Added capability |
 | --- | --- | --- |
 | `hir-const-v1` | 0.1.0 | ordinary scalar const bodies |
 | `hir-casts-v1` | 0.2.0 | resolved built-in integer casts |
@@ -252,7 +252,11 @@ The pinned R0 ledger above remains historical R0 evidence. Local expansions use
 | `hir-loops-v1` | 0.6.0 | local scalar cycles and divergence-sensitive dependence |
 | `hir-calls-v1` | 0.7.0 | four pinned primitive instantiations |
 
-Selections are cumulative. R0 defaults and exclusions are unchanged. Matching
+Cargo now exposes only `r0` and `hir-expanded-v1`. The latter selects the complete
+0.7.0 bundle, including every capability above, and preserves its `hir-calls-v1`
+wire token. Intermediate identities remain registered for historical admission and
+independent staged regression fixtures; they cannot be selected through Cargo.
+R0 defaults and exclusions are unchanged. Matching
 remains pinned strict ccgraph with exhaustive unordered pairs, exact thresholds,
 overlap defaults and explicit experimental cosine. Local policies and semantic
 build contexts must match for comparison; mixed R0/local comparisons fail the

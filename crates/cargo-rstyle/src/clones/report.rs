@@ -34,6 +34,7 @@ struct Report<'a> {
     compiler_identity: &'a str,
     cargo_identity: &'a str,
     contract_revision: &'static str,
+    extraction_selection: &'static str,
     extraction_policy: Policy,
     extraction_capabilities: &'static [&'static str],
     call_summaries: &'static [&'static str],
@@ -69,6 +70,15 @@ struct SchemaVersions {
     cfg: &'static str,
 }
 
+// Report the CLI name separately from the frozen frontend evidence token.
+fn extraction_selection(args: &Args) -> &'static str {
+    if args.extraction_profile == rstyle_pdg::extraction_profile::ExtractionProfile::R0 {
+        "r0"
+    } else {
+        "hir-expanded-v1"
+    }
+}
+
 pub fn make(ctx: Context<'_>) -> Result<Value, String> {
     let matching = matching_report(ctx.matching, ctx.args.trace)?;
     let scope = Scope {
@@ -87,6 +97,7 @@ pub fn make(ctx: Context<'_>) -> Result<Value, String> {
         compiler_identity: &ctx.capture.plan.compiler_identity,
         cargo_identity: &ctx.capture.plan.cargo_identity,
         contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
+        extraction_selection: extraction_selection(ctx.args),
         extraction_policy: Policy {
             id: ctx.args.extraction_profile.policy().id,
             version: ctx.args.extraction_profile.policy().version,

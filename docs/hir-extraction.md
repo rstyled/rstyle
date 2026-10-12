@@ -55,10 +55,12 @@ producer to strict matching with isolated runs and verified serialized handoff.
 
 ## Versioned local coverage selections
 
-`cargo rstyle clones --extraction-profile hir-calls-v1` explicitly selects the
-largest current local bundle. The default remains pinned `r0`; smaller cumulative
-bundles are `hir-const-v1`, `hir-casts-v1`, `hir-match-v1`, `hir-guards-v1`,
-`hir-conditional-v1` and `hir-loops-v1`. Matching configuration is independent.
+`cargo rstyle clones --extraction-profile hir-expanded-v1` selects every currently
+verified local capability. The only other Cargo choice is pinned `r0`, which remains
+the default. Intermediate stages are historical evidence identities and regression
+fixtures, not user-facing modes. The expanded selection resolves to the existing
+`rstyle.rust.hir-coverage/0.7.0` contract and `hir-calls-v1` evidence token; its
+semantics and wire identities are unchanged. Matching configuration is independent.
 See [coverage contracts](extraction-profiles/coverage-v1.md) for complete syntax,
 type, source-operation, CFG, dependence, projection and verification boundaries.
 

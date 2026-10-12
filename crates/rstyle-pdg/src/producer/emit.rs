@@ -130,7 +130,9 @@ pub fn emit(
     let assessment = super::hazards::assess(facts, graph, analysis);
     let producer = producer(facts, revision)?;
     let mut extensions = extensions(facts, graph, analysis)?;
-    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?.integer_casts() {
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.integer-casts")
+    {
         extensions.insert(
             super::casts::KEY.into(),
             super::casts::evidence(facts, graph)?,
@@ -140,7 +142,9 @@ pub fn emit(
         format!("{PREFIX}:exceptional-flow-assessment"),
         serde_json::to_value(&assessment).map_err(|e| e.to_string())?,
     );
-    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?.primitive_calls() {
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.verified-primitive-summaries")
+    {
         extensions.insert(
             crate::call_summaries::KEY.into(),
             super::summaries::evidence(facts, graph)?,

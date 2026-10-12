@@ -229,7 +229,7 @@ fn check_source_scan(facts: &HirFnFacts) -> Outcome {
     };
 
     if crate::extraction_profile::ExtractionProfile::from_facts(facts)
-        .is_ok_and(|profile| profile.conditional_source())
+        .is_ok_and(|profile| profile.supports("rust.conditional-source-correspondence"))
     {
         return match crate::source_evidence::verify(facts) {
             Ok(()) => source,
@@ -508,13 +508,17 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
         return macro_diagnostic(node, site);
     }
 
-    if ctx.profile.scalar_loops() && matches!(node.kind.as_str(), "expr_loop" | "expr_while") {
+    if ctx.profile.supports("rust.scalar-loops")
+        && matches!(node.kind.as_str(), "expr_loop" | "expr_while")
+    {
         return check_loop(node, ctx);
     }
-    if ctx.profile.scalar_loops() && matches!(node.kind.as_str(), "expr_break" | "expr_continue") {
+    if ctx.profile.supports("rust.scalar-loops")
+        && matches!(node.kind.as_str(), "expr_break" | "expr_continue")
+    {
         return check_loop_exit(node, ctx);
     }
-    if node.kind == "expr_match" && ctx.profile.scalar_match() {
+    if node.kind == "expr_match" && ctx.profile.supports("rust.scalar-match") {
         return check_match(node, ctx);
     }
     let own = check_kind(node, ctx);
@@ -556,7 +560,7 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     match node.kind.as_str() {
-        "expr_method_call" if ctx.profile.primitive_calls() => {
+        "expr_method_call" if ctx.profile.supports("rust.verified-primitive-summaries") => {
             if crate::call_summaries::resolve(node, ctx.facts).is_some() {
                 Outcome::ok()
             } else {
@@ -568,7 +572,7 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
                 )
             }
         }
-        "expr_cast" if ctx.profile.integer_casts() => check_supported(node, ctx),
+        "expr_cast" if ctx.profile.supports("rust.integer-casts") => check_supported(node, ctx),
         "expr_block" | "stmt_expr" | "stmt_semi" | "stmt_let" | "expr_path" | "expr_lit"
         | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_assign_op"
         | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
@@ -579,7 +583,7 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 /// Constructs that may be admitted once their evidence checks pass.
 fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     match node.kind.as_str() {
-        "expr_cast" if ctx.profile.integer_casts() => check_cast(node),
+        "expr_cast" if ctx.profile.supports("rust.integer-casts") => check_cast(node),
         "expr_block" => check_block(node),
         "stmt_expr" | "stmt_semi" => Outcome::ok(),
         "stmt_let" => check_let(node, ctx),
@@ -815,7 +819,7 @@ fn check_loop_values(
     node: &HirNode,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Outcome {
-    if !profile.scalar_loops() || !contains_loop(node) {
+    if !profile.supports("rust.scalar-loops") || !contains_loop(node) {
         return Outcome::ok();
     }
     check_no_loop_merges(node)
@@ -936,8 +940,10 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
     let pattern_valid = (pattern.kind == "pat_literal"
         && pattern.lit.is_some()
         && node_norm(pattern) == node_norm(scrutinee))
-        || (pattern.kind == "pat_wild" && (last || (guarded && ctx.profile.match_guards())));
-    let valid = shape && pattern_valid && (!guarded || ctx.profile.match_guards());
+        || (pattern.kind == "pat_wild"
+            && (last || (guarded && ctx.profile.supports("rust.scalar-match-guards"))));
+    let valid =
+        shape && pattern_valid && (!guarded || ctx.profile.supports("rust.scalar-match-guards"));
     let own = if valid {
         Outcome::ok()
     } else {

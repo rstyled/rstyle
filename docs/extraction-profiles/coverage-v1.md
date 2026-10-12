@@ -13,6 +13,13 @@ registered only when its producer, document verifier and strict admission checks
 are implemented and independently tested. A planned version is not admission
 permission. CLI selection and reporting must distinguish implemented from planned.
 
+Current Cargo selection exposes `r0` and `hir-expanded-v1` only. The expanded
+choice resolves to the complete existing 0.7.0 contract and retains `hir-calls-v1`
+as its normalized frontend/document selection token. This is a CLI simplification,
+not a semantic contract change. Earlier tokens below describe immutable historical
+contracts, which remain registered for imported evidence and staged regression
+fixtures but are no longer Cargo choices.
+
 Base syntax, interfaces, bindings, snapshots, source-operation correspondence,
 acyclic data/control/execution dependence and omitted exceptional flow follow
 R0 unless a slice specifies otherwise. Existing compat.rust.hir-r0 namespaced

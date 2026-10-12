@@ -7,6 +7,19 @@ pub const SELECTION_KEY: &str = "extraction_profile";
 pub const EVIDENCE_KEY: &str = "rstyle.hir-coverage:selection";
 pub const LOCAL_ID: &str = "rstyle.rust.hir-coverage";
 
+const EXPANDED_CAPABILITIES: &[&str] = &[
+    "rust.const-function-bodies",
+    "rust.integer-casts",
+    "rust.scalar-match",
+    "rust.scalar-match-guards",
+    "rust.conditional-source-correspondence",
+    "rust.scalar-loops",
+    "rust.divergence",
+    "rust.verified-primitive-summaries",
+];
+
+/// Registered evidence identities, including historical staged contracts.
+/// Cargo selection exposes only R0 and the complete expanded contract.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExtractionProfile {
     #[default]
@@ -29,6 +42,16 @@ pub enum ExtractionProfile {
 }
 
 impl ExtractionProfile {
+    /// Select a supported Cargo extraction mode; historical tokens are evidence only.
+    pub fn select(value: &str) -> Result<Self, String> {
+        match value {
+            "r0" => Ok(Self::R0),
+            "hir-expanded-v1" => Ok(Self::CallsV1),
+            _ => Err("Extraction selection must be r0 or hir-expanded-v1".into()),
+        }
+    }
+
+    /// Interpret frozen frontend evidence, including historical staged tokens.
     pub fn parse(value: &str) -> Result<Self, String> {
         match value {
             "r0" => Ok(Self::R0),
@@ -66,58 +89,35 @@ impl ExtractionProfile {
         }
     }
 
-    pub fn policy(self) -> ProfileId {
+    fn local_contract(self) -> Option<(&'static str, usize)> {
         match self {
-            Self::R0 => ProfileId::hir_r0(),
-            Self::ConstV1 => ProfileId {
+            Self::R0 => None,
+            Self::ConstV1 => Some(("0.1.0", 1)),
+            Self::CastsV1 => Some(("0.2.0", 2)),
+            Self::MatchV1 => Some(("0.3.0", 3)),
+            Self::GuardsV1 => Some(("0.4.0", 4)),
+            Self::ConditionalV1 => Some(("0.5.0", 5)),
+            Self::LoopsV1 => Some(("0.6.0", 7)),
+            Self::CallsV1 => Some(("0.7.0", 8)),
+        }
+    }
+
+    pub fn policy(self) -> ProfileId {
+        match self.local_contract() {
+            None => ProfileId::hir_r0(),
+            Some((version, _)) => ProfileId {
                 id: LOCAL_ID.into(),
-                version: "0.1.0".into(),
-            },
-            Self::CallsV1 => ProfileId {
-                id: LOCAL_ID.into(),
-                version: "0.7.0".into(),
-            },
-            Self::LoopsV1 => ProfileId {
-                id: LOCAL_ID.into(),
-                version: "0.6.0".into(),
-            },
-            Self::ConditionalV1 => ProfileId {
-                id: LOCAL_ID.into(),
-                version: "0.5.0".into(),
-            },
-            Self::GuardsV1 => ProfileId {
-                id: LOCAL_ID.into(),
-                version: "0.4.0".into(),
-            },
-            Self::MatchV1 => ProfileId {
-                id: LOCAL_ID.into(),
-                version: "0.3.0".into(),
-            },
-            Self::CastsV1 => ProfileId {
-                id: LOCAL_ID.into(),
-                version: "0.2.0".into(),
+                version: version.into(),
             },
         }
     }
 
-    pub fn integer_casts(self) -> bool {
-        matches!(
-            self,
-            Self::CastsV1
-                | Self::MatchV1
-                | Self::GuardsV1
-                | Self::ConditionalV1
-                | Self::LoopsV1
-                | Self::CallsV1
-        )
-    }
-
-    pub fn primitive_calls(self) -> bool {
-        self == Self::CallsV1
+    pub fn supports(self, capability: &str) -> bool {
+        self.capabilities().contains(&capability)
     }
 
     pub fn summaries(self) -> &'static [&'static str] {
-        if self.primitive_calls() {
+        if self.supports("rust.verified-primitive-summaries") {
             &[
                 "rstyle.primitive.unsigned-abs/1",
                 "rstyle.primitive.wrapping-mul/1",
@@ -127,71 +127,9 @@ impl ExtractionProfile {
         }
     }
 
-    pub fn scalar_loops(self) -> bool {
-        matches!(self, Self::LoopsV1 | Self::CallsV1)
-    }
-
-    pub fn conditional_source(self) -> bool {
-        matches!(self, Self::ConditionalV1 | Self::LoopsV1 | Self::CallsV1)
-    }
-
-    pub fn match_guards(self) -> bool {
-        matches!(
-            self,
-            Self::GuardsV1 | Self::ConditionalV1 | Self::LoopsV1 | Self::CallsV1
-        )
-    }
-
-    pub fn scalar_match(self) -> bool {
-        matches!(
-            self,
-            Self::MatchV1 | Self::GuardsV1 | Self::ConditionalV1 | Self::LoopsV1 | Self::CallsV1
-        )
-    }
-
     pub fn capabilities(self) -> &'static [&'static str] {
-        match self {
-            Self::R0 => &[],
-            Self::ConstV1 => &["rust.const-function-bodies"],
-            Self::CastsV1 => &["rust.const-function-bodies", "rust.integer-casts"],
-            Self::CallsV1 => &[
-                "rust.const-function-bodies",
-                "rust.integer-casts",
-                "rust.scalar-match",
-                "rust.scalar-match-guards",
-                "rust.conditional-source-correspondence",
-                "rust.scalar-loops",
-                "rust.divergence",
-                "rust.verified-primitive-summaries",
-            ],
-            Self::LoopsV1 => &[
-                "rust.const-function-bodies",
-                "rust.integer-casts",
-                "rust.scalar-match",
-                "rust.scalar-match-guards",
-                "rust.conditional-source-correspondence",
-                "rust.scalar-loops",
-                "rust.divergence",
-            ],
-            Self::ConditionalV1 => &[
-                "rust.const-function-bodies",
-                "rust.integer-casts",
-                "rust.scalar-match",
-                "rust.scalar-match-guards",
-                "rust.conditional-source-correspondence",
-            ],
-            Self::GuardsV1 => &[
-                "rust.const-function-bodies",
-                "rust.integer-casts",
-                "rust.scalar-match",
-                "rust.scalar-match-guards",
-            ],
-            Self::MatchV1 => &[
-                "rust.const-function-bodies",
-                "rust.integer-casts",
-                "rust.scalar-match",
-            ],
-        }
+        let count = self.local_contract().map_or(0, |(_, count)| count);
+        &EXPANDED_CAPABILITIES[..count]
     }
 }
 

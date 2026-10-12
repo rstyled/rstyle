@@ -181,8 +181,8 @@ targets before calibration or held-out evaluation.
 
 ## Explicit extraction expansion selection
 
-Use `cargo rstyle clones --extraction-profile hir-conditional-v1` (or another
-registered token in [the coverage ledger](../HIR_EXTRACTION_COVERAGE.md)) to opt in.
+Use `cargo rstyle clones --extraction-profile hir-expanded-v1` to select all
+currently verified capabilities in [the coverage ledger](../HIR_EXTRACTION_COVERAGE.md).
 Omitting the option selects R0. `style` and `patterns` retain their legacy paths;
 inherited `RSTYLE_*` values cannot select an extraction policy. No evidence cache
 or old-directory discovery is introduced.

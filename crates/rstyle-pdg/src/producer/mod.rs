@@ -70,7 +70,8 @@ pub fn verify_serialized(
 pub use analysis::{Analysis, DefinitionSet, Dependence, analyze, analyze_cyclic, reachability};
 
 fn analyze_facts(graph: &Graph, facts: &crate::HirFnFacts) -> Result<Analysis, String> {
-    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?.scalar_loops()
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.scalar-loops")
         && graph
             .nodes
             .iter()

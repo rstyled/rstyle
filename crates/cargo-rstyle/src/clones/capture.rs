@@ -607,7 +607,7 @@ fn artifact_inventory(
 ) -> Result<Vec<Artifact>, String> {
     let facts: Vec<rstyle_pdg::HirFnFacts> = read_json(&directory.join("facts.json"))?;
     let mut files = vec!["facts.json".to_string()];
-    if profile.conditional_source() {
+    if profile.supports("rust.conditional-source-correspondence") {
         files.push("source-inventory.json".into());
     }
     for index in 0..facts.len() {

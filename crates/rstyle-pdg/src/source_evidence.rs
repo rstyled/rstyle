@@ -236,7 +236,7 @@ pub fn diagnostics(facts: &HirFnFacts) -> Vec<crate::HirDiagnostic> {
         return Vec::new();
     };
     inventory.entries.into_iter().filter_map(|entry| {
-        if entry.kind == "expr_method_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.primitive_calls())
+        if entry.kind == "expr_method_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-primitive-summaries"))
             && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir, facts)) { return None; }
         let capability = match entry.kind.as_str() {
             "expr_call" | "expr_method_call" => "rust.call-summaries",
