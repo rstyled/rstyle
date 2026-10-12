@@ -104,6 +104,15 @@ def mapping(report, scope, functions, study=STUDY):
                    and span == {'start': f['start'], 'end': f['end']}
                    and pathlib.Path(target['manifest_dir']).resolve() == (study / f['path']).parents[1].resolve()
                    and target['name'] == f['target'] and target['kind'] == ['lib']]
+        if not matches and span == {'start': 0, 'end': 0} and facts['source']['bytes'] == '' and unit['test'] is True:
+            require(record['outcome'] == 'excluded' and facts.get('source_scan_complete') is False
+                    and any('Macro-generated functions' in reason for reason in record['reasons']), 'unexpected generated function')
+            require(pathlib.Path(options['source_file']).resolve() == pathlib.Path(target['source']).resolve(), 'generated function outside target source')
+            generated_id = 'compiler-generated:' + target['package'] + ':' + target['name']
+            require(not any(f['id'] == generated_id for f in result.values()), 'duplicate generated entrypoint')
+            result[key] = {'id': generated_id, 'test': True, 'family': 'compiler-generated', 'provenance_group': 'compiler-generated',
+                           'outcome': record['outcome'], 'reasons': record['reasons'], 'key': key, 'selected_source': False}
+            continue
         require(len(matches) == 1, 'ambiguous/missing function mapping')
         f = matches[0]; context = (f['id'], unit['test'])
         require(type(unit['test']) is bool and context not in observations, 'duplicate compilation context mapping')
@@ -112,7 +121,7 @@ def mapping(report, scope, functions, study=STUDY):
         require(facts['source']['digest'] == 'sha256:' + f['sha256'], 'mapped source digest mismatch')
         require(record['outcome'] in ('admitted', 'excluded', 'unknown'), 'failed/unclassified function')
         result[key] = {'id': f['id'], 'test': unit['test'], 'family': f['family'], 'provenance_group': f['provenance_group'],
-                       'outcome': record['outcome'], 'reasons': record['reasons'], 'key': key}
+                       'outcome': record['outcome'], 'reasons': record['reasons'], 'key': key, 'selected_source': True}
     expected = {(f['id'], test) for f in selected for test in (False, True)}
     require(observations == expected, 'missing/extra selected function contexts')
     return result
@@ -214,8 +223,12 @@ def assess(report, scope, manifest, variant, study=STUDY):
     result = {'scope': scope, 'variant': variant, 'valid': True,
               'units': {'selected': scope['selected_units'], 'observed': len(report['observed_units'])},
               'functions': {'selected': 2 * scope['source_functions'], 'observed': len(mapped), 'assessed': len(mapped),
+                            'selected_source_observed': sum(f['selected_source'] for f in mapped.values()),
+                            'compiler_generated_observed': sum(not f['selected_source'] for f in mapped.values()),
+                            'selected_source_outcomes': dict(sorted(collections.Counter(f['outcome'] for f in mapped.values() if f['selected_source']).items())),
                             'outcomes': dict(sorted(collections.Counter(f['outcome'] for f in mapped.values()).items()))},
-              'declared_context_pair_universe': len(mapped) * (len(mapped) - 1) // 2,
+              'declared_context_pair_universe': (2 * scope['source_functions']) * (2 * scope['source_functions'] - 1) // 2,
+              'observed_function_pair_universe': len(mapped) * (len(mapped) - 1) // 2,
               'emitted_pairs': len(pairs), 'evaluated_pairs': sum(p['evaluation_status'] == 'evaluated' for p in pairs.values()),
               'incompatible_pairs': sum(p['evaluation_status'] == 'incompatible' for p in pairs.values()),
               'metrics': m, 'targets': targets(m), 'canonical_pairs': rows,

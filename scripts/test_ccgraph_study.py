@@ -57,6 +57,19 @@ class Bookkeeping(unittest.TestCase):
         self.manifest['functions'].append(copy.deepcopy(self.fs[0]))
         with self.assertRaisesRegex(s.Invalid,'ambiguous'): self.assess()
 
+    def test_generated_entrypoint_retained_only_when_excluded(self):
+        r=self.report
+        unit=r['observed_units'][1]; unit['target']['source']=str(self.study/'sample/src/lib.rs'); unit['target']['package']='sample-package'
+        generated=copy.deepcopy(r['functions'][0]); generated.update(key='generated',artifact_prefix=str(pathlib.Path(unit['directory'])/'entry'),outcome='excluded',reasons=['Macro-generated functions are deferred to rust.macros.'])
+        generated['facts'].update(fn_span={'start':0,'end':0},source={'bytes':'','digest':'sha256:'+s.digest(b'')},source_scan_complete=False)
+        r['functions'].append(generated)
+        result=self.assess()
+        self.assertEqual(result['functions']['selected_source_observed'],4)
+        self.assertEqual(result['functions']['compiler_generated_observed'],1)
+        self.assertEqual(result['declared_context_pair_universe'],6)
+        generated['outcome']='admitted'
+        with self.assertRaises(s.Invalid): self.assess()
+
     def test_pair_duplicate_missing_reverse_self_out_of_scope(self):
         for mutate in [lambda p:p.pop(),lambda p:p.append(copy.deepcopy(p[0])),lambda p:p.append(dict(p[0],first=p[0]['second'],second=p[0]['first'])),
                        lambda p:p[0].update(second=p[0]['first']),lambda p:p[0].update(second='alien')]:
