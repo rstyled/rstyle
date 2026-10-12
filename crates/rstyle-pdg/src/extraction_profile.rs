@@ -16,6 +16,8 @@ pub enum ExtractionProfile {
     ConstV1,
     #[serde(rename = "hir-casts-v1")]
     CastsV1,
+    #[serde(rename = "hir-match-v1")]
+    MatchV1,
 }
 
 impl ExtractionProfile {
@@ -24,6 +26,7 @@ impl ExtractionProfile {
             "r0" => Ok(Self::R0),
             "hir-const-v1" => Ok(Self::ConstV1),
             "hir-casts-v1" => Ok(Self::CastsV1),
+            "hir-match-v1" => Ok(Self::MatchV1),
             _ => Err(format!("Unregistered extraction profile {value:?}")),
         }
     }
@@ -43,6 +46,7 @@ impl ExtractionProfile {
             Self::R0 => "r0",
             Self::ConstV1 => "hir-const-v1",
             Self::CastsV1 => "hir-casts-v1",
+            Self::MatchV1 => "hir-match-v1",
         }
     }
 
@@ -53,6 +57,10 @@ impl ExtractionProfile {
                 id: LOCAL_ID.into(),
                 version: "0.1.0".into(),
             },
+            Self::MatchV1 => ProfileId {
+                id: LOCAL_ID.into(),
+                version: "0.3.0".into(),
+            },
             Self::CastsV1 => ProfileId {
                 id: LOCAL_ID.into(),
                 version: "0.2.0".into(),
@@ -61,7 +69,11 @@ impl ExtractionProfile {
     }
 
     pub fn integer_casts(self) -> bool {
-        self == Self::CastsV1
+        matches!(self, Self::CastsV1 | Self::MatchV1)
+    }
+
+    pub fn scalar_match(self) -> bool {
+        self == Self::MatchV1
     }
 
     pub fn capabilities(self) -> &'static [&'static str] {
@@ -69,6 +81,11 @@ impl ExtractionProfile {
             Self::R0 => &[],
             Self::ConstV1 => &["rust.const-function-bodies"],
             Self::CastsV1 => &["rust.const-function-bodies", "rust.integer-casts"],
+            Self::MatchV1 => &[
+                "rust.const-function-bodies",
+                "rust.integer-casts",
+                "rust.scalar-match",
+            ],
         }
     }
 }
@@ -78,6 +95,7 @@ pub fn registered(policy: &ProfileId) -> bool {
         ExtractionProfile::R0,
         ExtractionProfile::ConstV1,
         ExtractionProfile::CastsV1,
+        ExtractionProfile::MatchV1,
     ]
     .iter()
     .any(|profile| profile.policy() == *policy)

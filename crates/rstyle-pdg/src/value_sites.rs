@@ -29,6 +29,8 @@ struct Alternative {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Site {
+    #[serde(default, rename = "rstyle.hir-coverage:selection-kind")]
+    selection_kind: Option<String>,
     pdg_node_id: String,
     construct_span: Span,
     controller_pdg_node_id: String,
@@ -220,6 +222,17 @@ impl Context<'_> {
     }
 
     fn check_site(&self, site: &Site) -> Result<Option<String>, String> {
+        if let Some(kind) = &site.selection_kind {
+            if kind != "ordered-match/1"
+                || self.pdg.profile.id != crate::extraction_profile::LOCAL_ID
+                || !matches!(
+                    self.pdg.profile.version.as_str(),
+                    "0.3.0" | "0.4.0" | "0.5.0"
+                )
+            {
+                return Err("Unregistered value selection policy".into());
+            }
+        }
         let node = self.node(&site.pdg_node_id)?;
         if node.category != NodeCategory::Merge
             || node
@@ -281,7 +294,16 @@ impl Context<'_> {
             .iter()
             .filter(|edge| edge.target == site.pdg_node_id && edge.subkind == "value_alternative")
             .count()
-            != site.alternatives.len()
+            != if site.selection_kind.is_some()
+                && !self
+                    .paths
+                    .iter()
+                    .any(|path| path.vertices.contains(&site.cfg_successor_node_id))
+            {
+                0
+            } else {
+                site.alternatives.len()
+            }
         {
             return Err("Extra or missing merge alternative edges".to_string());
         }
@@ -335,11 +357,30 @@ impl Context<'_> {
                     && e.outcome.as_ref() == Some(&alternative.outcome)
             })
             .collect();
+        if site.selection_kind.is_some()
+            && edges.is_empty()
+            && !self
+                .paths
+                .iter()
+                .any(|path| path.vertices.contains(&site.cfg_successor_node_id))
+        {
+            return Ok(());
+        }
         let [edge] = edges.as_slice() else {
             return Err("One alternative edge per semantic alternative is required".to_string());
         };
+        let position = if site.selection_kind.is_some() {
+            alternative
+                .outcome
+                .strip_prefix("arm:")
+                .and_then(|index| index.parse::<u64>().ok())
+                .filter(|index| *index < 16)
+                .ok_or("Invalid match arm ordinal")?
+        } else {
+            if alternative.outcome == "true" { 0 } else { 1 }
+        };
         if edge.kind != EdgeFamily::Data
-            || edge.operand_position != Some(if alternative.outcome == "true" { 0 } else { 1 })
+            || edge.operand_position != Some(position)
             || edge.annotations.get(GUARDS)
                 != Some(
                     &serde_json::to_value(&alternative.annotations.guards)
@@ -378,7 +419,9 @@ impl Context<'_> {
             return Err("Merge alternative guards must partition available paths".to_string());
         }
         for alternative in selected {
-            if path.outcomes.get(&site.controller_pdg_node_id) != Some(&alternative.outcome) {
+            if site.selection_kind.is_none()
+                && path.outcomes.get(&site.controller_pdg_node_id) != Some(&alternative.outcome)
+            {
                 return Err("Alternative guard does not imply the controller outcome".to_string());
             }
             if !self.available(&alternative.value_pdg_node_id, &availability)? {

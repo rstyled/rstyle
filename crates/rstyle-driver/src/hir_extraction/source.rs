@@ -34,6 +34,7 @@ impl<'a> Visitor<'a> for Scan {
             findings: Vec::new(),
             conditional_source: false,
             profile: selected_profile(),
+            match_pattern: false,
         };
         owned.visit_block(body);
 
@@ -46,6 +47,7 @@ impl<'a> Visitor<'a> for Scan {
 }
 
 struct Owned {
+    match_pattern: bool,
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     findings: Vec<Finding>,
     conditional_source: bool,
@@ -96,10 +98,23 @@ impl<'a> Visitor<'a> for Owned {
             self.reject(local.span, "rust.local-bindings", "declaration_shape");
         }
 
+        let previous = self.match_pattern;
+        self.match_pattern = false;
         visit::walk_local(self, local);
+        self.match_pattern = previous;
+    }
+
+    fn visit_arm(&mut self, arm: &'a ast::Arm) {
+        let previous = self.match_pattern;
+        self.match_pattern = self.profile.scalar_match();
+        visit::walk_arm(self, arm);
+        self.match_pattern = previous;
     }
 
     fn visit_pat(&mut self, pattern: &'a ast::Pat) {
+        if self.match_pattern && source_match_pattern(&pattern.kind) {
+            return;
+        }
         if !matches!(
             pattern.kind,
             ast::PatKind::Ident(ast::BindingMode(ast::ByRef::No, _), _, None)
@@ -118,7 +133,9 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_expr(&mut self, expression: &'a ast::Expr) {
-        if matches!(expression.kind, ast::ExprKind::Cast(..)) && self.profile.integer_casts() {
+        if (matches!(expression.kind, ast::ExprKind::Cast(..)) && self.profile.integer_casts())
+            || (matches!(expression.kind, ast::ExprKind::Match(..)) && self.profile.scalar_match())
+        {
             visit::walk_expr(self, expression);
             return;
         }
@@ -194,4 +211,18 @@ fn selected_profile() -> rstyle_pdg::extraction_profile::ExtractionProfile {
         .ok()
         .and_then(|value| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&value).ok())
         .unwrap_or_default()
+}
+
+fn source_match_pattern(kind: &ast::PatKind) -> bool {
+    match kind {
+        ast::PatKind::Wild => true,
+        ast::PatKind::Expr(expression) => match &expression.kind {
+            ast::ExprKind::Lit(literal) => supported_literal(literal),
+            ast::ExprKind::Unary(ast::UnOp::Neg, value) => {
+                matches!(&value.kind, ast::ExprKind::Lit(literal) if supported_literal(literal))
+            }
+            _ => false,
+        },
+        _ => false,
+    }
 }

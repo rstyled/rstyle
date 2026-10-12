@@ -98,6 +98,11 @@ impl<'tcx> Context<'tcx> {
             }
             PatKind::Binding(..) => ("pat_binding_pattern", pat.span),
             PatKind::Wild => ("pat_wild", pat.span),
+            PatKind::Expr(expression)
+                if matches!(expression.kind, hir::PatExprKind::Lit { .. }) =>
+            {
+                ("pat_literal", pat.span)
+            }
             _ => ("pat_unsupported", pat.span),
         };
         let node = self.node(pat.hir_id, span, kind);
@@ -113,6 +118,7 @@ impl<'tcx> Context<'tcx> {
                 .map(|ty| resolved(ty, String::new())),
             binding,
             binding_mut,
+            lit: (kind == "pat_literal").then(|| self.snippet(pat.span)),
             ..node
         }
     }
@@ -192,10 +198,29 @@ impl<'tcx> Context<'tcx> {
                 .flatten()
                 .map(|e| self.expression(e))
                 .collect(),
+            ExprKind::Match(value, arms, hir::MatchSource::Normal) => {
+                std::iter::once(self.expression(value))
+                    .chain(arms.iter().map(|arm| self.match_arm(arm)))
+                    .collect()
+            }
             ExprKind::Ret(value) => value.into_iter().map(|e| self.expression(e)).collect(),
             ExprKind::Tup(values) => values.iter().map(|e| self.expression(e)).collect(),
             ExprKind::Call(_, args) => args.iter().map(|e| self.expression(e)).collect(),
             _ => Vec::new(),
+        }
+    }
+
+    fn match_arm(&self, arm: &hir::Arm<'tcx>) -> HirNode {
+        let guard = arm.guard.map(|guard| HirNode {
+            children: vec![self.expression(guard)],
+            ..self.node(guard.hir_id, guard.span, "match_guard")
+        });
+        HirNode {
+            children: std::iter::once(self.pattern(arm.pat))
+                .chain(guard)
+                .chain(std::iter::once(self.expression(arm.body)))
+                .collect(),
+            ..self.node(arm.hir_id, arm.span, "match_arm")
         }
     }
 

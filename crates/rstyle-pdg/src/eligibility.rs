@@ -490,6 +490,9 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
         return macro_diagnostic(node, site);
     }
 
+    if node.kind == "expr_match" && ctx.profile.scalar_match() {
+        return check_match(node, ctx);
+    }
     let own = check_kind(node, ctx);
 
     if node.kind == "expr_closure" || node.kind == "stmt_item" {
@@ -673,7 +676,7 @@ fn check_ty_node(node: &HirNode) -> Outcome {
 
 /// Every retained expression must carry a resolved primitive value type.
 fn check_expr_ty(node: &HirNode, what: &str) -> Outcome {
-    if matches!(node.kind.as_str(), "expr_block" | "expr_if")
+    if matches!(node.kind.as_str(), "expr_block" | "expr_if" | "expr_match")
         && node.ty.as_ref().is_some_and(|ty| ty.observed == "!")
     {
         return Outcome::ok();
@@ -765,6 +768,89 @@ fn builtin_or_reject(node: &HirNode, what: &str) -> Outcome {
             "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
         ),
     }
+}
+
+fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let Some((scrutinee, arms)) = node.children.split_first() else {
+        return evidence_gap(node, "match source/HIR correspondence");
+    };
+    let mut checks = vec![
+        check_expr_ty(node, "match_result"),
+        check_node(scrutinee, false, ctx),
+    ];
+    if !node_norm(scrutinee).is_some_and(|ty| is_int(ty) || ty == "bool") {
+        checks.push(error(
+            "rust.scalar-match",
+            "scrutinee",
+            scrutinee,
+            "Match requires a resolved integer or bool scrutinee.",
+        ));
+    }
+    if arms.is_empty()
+        || arms.len() > 16
+        || !arms
+            .last()
+            .is_some_and(|arm| arm.children.len() == 2 && arm.children[0].kind == "pat_wild")
+    {
+        checks.push(error(
+            "rust.scalar-match",
+            "match_boundary",
+            node,
+            "Bounded match requires 1..=16 arms and a final unguarded wildcard.",
+        ));
+    }
+    for (index, arm) in arms.iter().enumerate() {
+        checks.push(check_match_arm(
+            arm,
+            scrutinee,
+            index + 1 == arms.len(),
+            ctx,
+        ));
+    }
+
+    Outcome::combine(checks)
+}
+
+fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>) -> Outcome {
+    let Some((pattern, children)) = arm.children.split_first() else {
+        return evidence_gap(arm, "match arm correspondence");
+    };
+    let valid = arm.kind == "match_arm"
+        && children.len() == 1
+        && ((last && pattern.kind == "pat_wild")
+            || (pattern.kind == "pat_literal"
+                && pattern.lit.is_some()
+                && node_norm(pattern) == node_norm(scrutinee)));
+    let own = if valid {
+        Outcome::ok()
+    } else {
+        error(
+            "rust.scalar-match",
+            "arm_shape",
+            arm,
+            "Only literal arms and a final unguarded wildcard are supported; guards and other patterns require another registered slice.",
+        )
+    };
+    let body = Outcome::combine(
+        children
+            .iter()
+            .map(|child| {
+                if child.kind == "match_guard" {
+                    Outcome::combine(
+                        child
+                            .children
+                            .iter()
+                            .map(|value| check_node(value, false, ctx))
+                            .collect(),
+                    )
+                } else {
+                    check_node(child, false, ctx)
+                }
+            })
+            .collect(),
+    );
+
+    own.merge(body)
 }
 
 fn check_cast(node: &HirNode) -> Outcome {

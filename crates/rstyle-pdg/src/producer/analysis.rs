@@ -317,7 +317,11 @@ fn alternative_edges(graph: &Graph, reached: &BTreeSet<String>) -> Vec<Dependenc
         })
         .flat_map(|site| {
             site.alternatives.iter().map(move |a| Dependence {
-                position: Some(if a.outcome == "true" { 0 } else { 1 }),
+                position: if let Some(index) = a.outcome.strip_prefix("arm:") {
+                    index.parse().ok()
+                } else {
+                    Some(if a.outcome == "true" { 0 } else { 1 })
+                },
                 outcome: Some(a.outcome.clone()),
                 guards: Some(a.guards.clone()),
                 ..edge(

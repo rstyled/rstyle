@@ -63,6 +63,11 @@ struct WireAlternative<'a> {
 
 #[derive(Serialize)]
 struct WireSite<'a> {
+    #[serde(
+        rename = "rstyle.hir-coverage:selection-kind",
+        skip_serializing_if = "Option::is_none"
+    )]
+    selection_kind: &'a Option<String>,
     pdg_node_id: &'a str,
     construct_span: Span,
     controller_pdg_node_id: &'a str,
@@ -606,6 +611,7 @@ fn value_site(site: &super::ValueSite) -> Result<Value, String> {
         })
         .collect();
     let wire = WireSite {
+        selection_kind: &site.selection_kind,
         pdg_node_id: &site.pdg_node_id,
         construct_span: span(site.construct_span),
         controller_pdg_node_id: &site.controller_pdg_node_id,

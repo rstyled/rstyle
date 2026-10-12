@@ -487,13 +487,29 @@ impl Builder<'_> {
         controller: String,
         alternatives: Vec<Alternative>,
     ) -> String {
+        self.merge_selected(node, controller, alternatives, None)
+    }
+
+    fn merge_selected(
+        &mut self,
+        node: &HirNode,
+        controller: String,
+        alternatives: Vec<Alternative>,
+        selection_kind: Option<String>,
+    ) -> String {
         let id = format!("n{}", self.nodes.len());
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
         let mut merge = template(node, NodeCategory::Merge);
         merge.id = id.clone();
-        merge.original_kind = "compat.rust.hir-r0.expression_merge".to_string();
+        merge.original_kind = if selection_kind.is_some() {
+            "rstyle.hir-coverage.match_merge"
+        } else {
+            "compat.rust.hir-r0.expression_merge"
+        }
+        .to_string();
         self.nodes.push(merge);
         self.sites.push(ValueSite {
+            selection_kind,
             pdg_node_id: id.clone(),
             construct_span: node.span,
             controller_pdg_node_id: controller,
@@ -503,6 +519,98 @@ impl Builder<'_> {
         });
 
         id
+    }
+
+    fn scalar_match(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let scrutinee = self.expression(&node.children[0], flow);
+        let saved = scrutinee.value.clone().expect("eligible scalar scrutinee");
+        let mut remaining = scrutinee;
+        let mut completed = Vec::new();
+        let mut controller = None;
+        for (index, arm_node) in node.children[1..].iter().enumerate() {
+            let pattern = &arm_node.children[0];
+            let operation = self.match_selector(node, pattern, &saved, index);
+            let selected = self.emit(operation, remaining);
+            controller = controller.or_else(|| selected.value.clone());
+            remaining = if pattern.kind == "pat_literal" {
+                arm(&selected, "false")
+            } else {
+                empty_flow()
+            };
+            let matched = if pattern.kind == "pat_literal" {
+                arm(&selected, "true")
+            } else {
+                selected
+            };
+            let body = self.expression(arm_node.children.last().expect("arm body"), matched);
+            completed.push((index, body));
+        }
+
+        self.match_join(node, controller.expect("match selector"), completed)
+    }
+
+    fn match_selector(
+        &self,
+        node: &HirNode,
+        pattern: &HirNode,
+        saved: &str,
+        index: usize,
+    ) -> Operation {
+        Operation {
+            construct_span: node.span,
+            role: format!("match_pattern:{index}"),
+            ty: "bool".into(),
+            construct: Some(
+                if pattern.kind == "pat_literal" {
+                    "match.literal"
+                } else {
+                    "match.wildcard"
+                }
+                .into(),
+            ),
+            literal: pattern.lit.clone(),
+            operands: if pattern.kind == "pat_literal" {
+                vec![saved.into()]
+            } else {
+                Vec::new()
+            },
+            ..template(pattern, NodeCategory::Control)
+        }
+    }
+
+    fn match_join(
+        &mut self,
+        node: &HirNode,
+        controller: String,
+        completed: Vec<(usize, Flow)>,
+    ) -> Flow {
+        let alternatives: Vec<_> = completed
+            .iter()
+            .filter(|(_, f)| f.normal && !f.ends.is_empty())
+            .filter_map(|(index, flow)| self.alternative(&format!("arm:{index}"), flow))
+            .collect();
+        let value = if alternatives.len() > 1 {
+            Some(self.merge_selected(
+                node,
+                controller,
+                alternatives,
+                Some("ordered-match/1".into()),
+            ))
+        } else {
+            alternatives.first().map(|a| a.value_pdg_node_id.clone())
+        };
+        let normal = completed.iter().any(|(_, f)| f.normal);
+        let ends = completed
+            .into_iter()
+            .filter(|(_, f)| f.normal)
+            .flat_map(|(_, f)| f.ends)
+            .collect();
+
+        Flow {
+            ends,
+            value,
+            normal,
+        }
     }
 
     fn explicit_return(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -613,6 +721,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_assign" => Builder::assignment,
         "expr_assign_op" => Builder::compound,
         "expr_if" => Builder::branch,
+        "expr_match" => Builder::scalar_match,
         "expr_ret" => Builder::explicit_return,
         _ => unreachable!("eligibility rejects unsupported constructs"),
     }
@@ -640,5 +749,13 @@ fn template(node: &HirNode, category: NodeCategory) -> Operation {
         return_form: None,
         position: None,
         operands: Vec::new(),
+    }
+}
+
+fn empty_flow() -> Flow {
+    Flow {
+        ends: Vec::new(),
+        value: None,
+        normal: false,
     }
 }

@@ -46,6 +46,7 @@ pub struct Alternative {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValueSite {
+    pub selection_kind: Option<String>,
     pub pdg_node_id: String,
     pub construct_span: ByteSpan,
     pub controller_pdg_node_id: String,
