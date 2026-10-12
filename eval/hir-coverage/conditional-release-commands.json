@@ -1,0 +1,85 @@
+[
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "command": [
+      "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+      "rstyle",
+      "--manifest-path",
+      "/tmp/rstyle-coverage-inventory-v1/lz4_flex-0.14.0/Cargo.toml",
+      "clones",
+      "--format",
+      "json",
+      "--max-pairs",
+      "0",
+      "--extraction-profile",
+      "hir-conditional-v1"
+    ],
+    "exit_code": 2,
+    "report_sha256": "c8856526b9c68f9cc17732a5559077fa724772f9e66580906704138bfbfe75a8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "driver_sha256": "ca18e5b787739a70853e484d6df350f2401eb31a09992d13e2f2cef60630cf93",
+    "cargo_rstyle_sha256": "1500d0ecbd1aba665c6ee1250811ff6ce13612eb860cbfa21e65a38ed61752a1",
+    "capture_complete": false,
+    "assessment_complete": false,
+    "capture_failures": [
+      "Cargo compilation planning failed: warning: `package.homepage` is redundant with `package.repository`\n  --> Cargo.toml:36:12\n   |\n36 | homepage = \"https://github.com/pseitz/lz4_flex\"\n   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n46 | repository = \"https://github.com/pseitz/lz4_flex\"\n   |              ------------------------------------\n   |\n   = note: `cargo::redundant_homepage` is set to `warn` by default\nhelp: consider removing `package.homepage`\nwarning: `lz4_flex` (manifest) generated 1 warning\nerror: could not execute process `/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle (deleted) /home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/bin/rustc -vV` (never executed)\n\nCaused by:\n  No such file or directory (os error 2)\n"
+    ],
+    "handoff_failures": [],
+    "run_directory": "/tmp/rstyle-coverage-inventory-v1/lz4_flex-0.14.0/target/rstyle/clones/run-Nj9uY4"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "command": [
+      "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+      "rstyle",
+      "--manifest-path",
+      "/tmp/rstyle-coverage-inventory-v1/regex-syntax-0.8.11/Cargo.toml",
+      "clones",
+      "--format",
+      "json",
+      "--max-pairs",
+      "0",
+      "--extraction-profile",
+      "hir-conditional-v1"
+    ],
+    "exit_code": 0,
+    "report_sha256": "4ae1d24dc78e2b2dee0370a61612dec1eaf785ec82ff5f24f58e5bc58e4793cd",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "driver_sha256": "cd755c37926d0220b070f7211f578b6659883ce88a564b19077534d917732dff",
+    "cargo_rstyle_sha256": "1500d0ecbd1aba665c6ee1250811ff6ce13612eb860cbfa21e65a38ed61752a1",
+    "capture_complete": true,
+    "assessment_complete": true,
+    "capture_failures": [],
+    "handoff_failures": [],
+    "run_directory": "/tmp/rstyle-coverage-inventory-v1/regex-syntax-0.8.11/target/rstyle/clones/run-C19QZa"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "command": [
+      "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+      "rstyle",
+      "--manifest-path",
+      "/tmp/rstyle-coverage-inventory-v1/time-core-0.1.9/Cargo.toml",
+      "clones",
+      "--format",
+      "json",
+      "--max-pairs",
+      "0",
+      "--extraction-profile",
+      "hir-conditional-v1"
+    ],
+    "exit_code": 0,
+    "report_sha256": "4cb636d7d48547b929e2a0e0b6983c9a0c4e2e7185e8ed139fd17fc055d68fb4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "driver_sha256": "cd755c37926d0220b070f7211f578b6659883ce88a564b19077534d917732dff",
+    "cargo_rstyle_sha256": "1500d0ecbd1aba665c6ee1250811ff6ce13612eb860cbfa21e65a38ed61752a1",
+    "capture_complete": true,
+    "assessment_complete": true,
+    "capture_failures": [],
+    "handoff_failures": [],
+    "run_directory": "/tmp/rstyle-coverage-inventory-v1/time-core-0.1.9/target/rstyle/clones/run-PNcjge"
+  }
+]

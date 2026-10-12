@@ -1,0 +1,83 @@
+[
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "command": [
+      "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+      "rstyle",
+      "--manifest-path",
+      "/tmp/rstyle-coverage-inventory-v1/lz4_flex-0.14.0/Cargo.toml",
+      "clones",
+      "--format",
+      "json",
+      "--max-pairs",
+      "0",
+      "--extraction-profile",
+      "hir-conditional-v1"
+    ],
+    "exit_code": 2,
+    "report_sha256": "89c40b033375eec5ca206ee170cd8324d5c28f98e8448d266e420342ad612ea2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "driver_sha256": "7bd53c5b7b7ed5846f61b9b034613beae03e6877e2c1e0fd7fc783e8ddc1a8b8",
+    "cargo_rstyle_sha256": "b813af020bda8391df99f0e876689e347889b1d013afe3239a678c02039ef817",
+    "capture_complete": true,
+    "assessment_complete": true,
+    "capture_failures": [],
+    "handoff_failures": [],
+    "run_directory": "/tmp/rstyle-coverage-inventory-v1/lz4_flex-0.14.0/target/rstyle/clones/run-qZGaWk"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "command": [
+      "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+      "rstyle",
+      "--manifest-path",
+      "/tmp/rstyle-coverage-inventory-v1/regex-syntax-0.8.11/Cargo.toml",
+      "clones",
+      "--format",
+      "json",
+      "--max-pairs",
+      "0",
+      "--extraction-profile",
+      "hir-conditional-v1"
+    ],
+    "exit_code": 0,
+    "report_sha256": "7ba7ef70a98fffed8102df9e30b0b112990dc7fe7e76036ec3513243f1c366ad",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "driver_sha256": "7bd53c5b7b7ed5846f61b9b034613beae03e6877e2c1e0fd7fc783e8ddc1a8b8",
+    "cargo_rstyle_sha256": "b813af020bda8391df99f0e876689e347889b1d013afe3239a678c02039ef817",
+    "capture_complete": true,
+    "assessment_complete": true,
+    "capture_failures": [],
+    "handoff_failures": [],
+    "run_directory": "/tmp/rstyle-coverage-inventory-v1/regex-syntax-0.8.11/target/rstyle/clones/run-DFrf5M"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "command": [
+      "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+      "rstyle",
+      "--manifest-path",
+      "/tmp/rstyle-coverage-inventory-v1/time-core-0.1.9/Cargo.toml",
+      "clones",
+      "--format",
+      "json",
+      "--max-pairs",
+      "0",
+      "--extraction-profile",
+      "hir-conditional-v1"
+    ],
+    "exit_code": 0,
+    "report_sha256": "25334dc7a7bff3bc6d89361471e484e7af175d61a7a36a4e3a99c211efda447b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "driver_sha256": "7bd53c5b7b7ed5846f61b9b034613beae03e6877e2c1e0fd7fc783e8ddc1a8b8",
+    "cargo_rstyle_sha256": "b813af020bda8391df99f0e876689e347889b1d013afe3239a678c02039ef817",
+    "capture_complete": true,
+    "assessment_complete": true,
+    "capture_failures": [],
+    "handoff_failures": [],
+    "run_directory": "/tmp/rstyle-coverage-inventory-v1/time-core-0.1.9/target/rstyle/clones/run-CHQeFU"
+  }
+]

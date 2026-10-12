@@ -1,0 +1,1313 @@
+{
+  "slices": [
+    {
+      "stage": "baseline",
+      "counts": {
+        "unknown": 7,
+        "excluded": 52,
+        "failed": 1
+      },
+      "newly_admitted": [],
+      "lost_admissions": []
+    },
+    {
+      "stage": "const",
+      "counts": {
+        "unknown": 8,
+        "excluded": 51,
+        "failed": 1
+      },
+      "newly_admitted": [],
+      "lost_admissions": []
+    },
+    {
+      "stage": "casts",
+      "counts": {
+        "unknown": 11,
+        "excluded": 48,
+        "failed": 1
+      },
+      "newly_admitted": [],
+      "lost_admissions": []
+    },
+    {
+      "stage": "match",
+      "counts": {
+        "unknown": 11,
+        "excluded": 48,
+        "failed": 1
+      },
+      "newly_admitted": [],
+      "lost_admissions": []
+    },
+    {
+      "stage": "guards",
+      "counts": {
+        "unknown": 11,
+        "excluded": 48,
+        "failed": 1
+      },
+      "newly_admitted": [],
+      "lost_admissions": []
+    },
+    {
+      "stage": "conditional-validated",
+      "counts": {
+        "unknown": 7,
+        "excluded": 48,
+        "admitted": 4,
+        "failed": 1
+      },
+      "newly_admitted": [
+        {
+          "package": "lz4_flex",
+          "version": "0.14.0",
+          "path": "src/block/compress.rs",
+          "start": 2032,
+          "end": 2385,
+          "name": "token_from_literal",
+          "sha256": "52db5e641df6036c57ecbda25f915087f98fbbc2fdcb9fbda49527ff9d0b4cbf",
+          "outcome": "admitted",
+          "reasons": [],
+          "source_blockers": [
+            {
+              "capability": "rust.integer-casts",
+              "syntax": "type_cast_expression",
+              "start": 168,
+              "end": 181,
+              "source": "lit_len as u8"
+            }
+          ],
+          "frontend_diagnostics": [],
+          "source_scan_complete": false,
+          "function_key": "function:6c4cecce39b5ed850eefb9270883b7208e77cc9e251ec8d74f2680277cea4aa6",
+          "captured_source_digest": "sha256:52db5e641df6036c57ecbda25f915087f98fbbc2fdcb9fbda49527ff9d0b4cbf",
+          "document_manifest": {
+            "documents": [
+              {
+                "key": "sha256:52db5e641df6036c57ecbda25f915087f98fbbc2fdcb9fbda49527ff9d0b4cbf:block::compress::token_from_literal:pdg",
+                "sha256": "sha256:4f3976dabf683fc3618187f8fad82cfe14e9a36724f4f7ad6f49adee364a336c"
+              },
+              {
+                "key": "sha256:52db5e641df6036c57ecbda25f915087f98fbbc2fdcb9fbda49527ff9d0b4cbf:block::compress::token_from_literal:cfg",
+                "sha256": "sha256:a5e2b6e7b12024cc2bc4308fb687d961fa33f2d3218a66004d26a4c6a9e489f5"
+              }
+            ]
+          },
+          "build": null
+        },
+        {
+          "package": "lz4_flex",
+          "version": "0.14.0",
+          "path": "src/block/compress.rs",
+          "start": 2397,
+          "end": 3048,
+          "name": "token_from_literal_and_match_length",
+          "sha256": "7c133fc93859e3f6a2f7cac2eb29ce9356cc9a58893e97640f87a85f930f632b",
+          "outcome": "admitted",
+          "reasons": [],
+          "source_blockers": [
+            {
+              "capability": "rust.integer-casts",
+              "syntax": "type_cast_expression",
+              "start": 226,
+              "end": 239,
+              "source": "lit_len as u8"
+            },
+            {
+              "capability": "rust.integer-casts",
+              "syntax": "type_cast_expression",
+              "start": 492,
+              "end": 514,
+              "source": "duplicate_length as u8"
+            }
+          ],
+          "frontend_diagnostics": [],
+          "source_scan_complete": false,
+          "function_key": "function:1e4163c392a1094751c005097e88b6266e31b64f3e3054bb8083a372e1688599",
+          "captured_source_digest": "sha256:7c133fc93859e3f6a2f7cac2eb29ce9356cc9a58893e97640f87a85f930f632b",
+          "document_manifest": {
+            "documents": [
+              {
+                "key": "sha256:7c133fc93859e3f6a2f7cac2eb29ce9356cc9a58893e97640f87a85f930f632b:block::compress::token_from_literal_and_match_length:pdg",
+                "sha256": "sha256:8f03e0ccddd98424c68102b30382ab6676c016981437fe2d1c16efbc14625144"
+              },
+              {
+                "key": "sha256:7c133fc93859e3f6a2f7cac2eb29ce9356cc9a58893e97640f87a85f930f632b:block::compress::token_from_literal_and_match_length:cfg",
+                "sha256": "sha256:096d3447cb551ca1c8a39d99c07e981915ed4a96388c4c71e53a6f615bdf9890"
+              }
+            ]
+          },
+          "build": null
+        },
+        {
+          "package": "lz4_flex",
+          "version": "0.14.0",
+          "path": "src/block/compress.rs",
+          "start": 22182,
+          "end": 22302,
+          "name": "get_maximum_output_size",
+          "sha256": "663562123b0045f0a435df98f88675126b10a73bcbf0aa1b28f3967c4a6f2297",
+          "outcome": "admitted",
+          "reasons": [],
+          "source_blockers": [
+            {
+              "capability": "rust.integer-casts",
+              "syntax": "type_cast_expression",
+              "start": 79,
+              "end": 118,
+              "source": "(input_len as u64 * 110 / 100) as usize"
+            },
+            {
+              "capability": "rust.integer-casts",
+              "syntax": "type_cast_expression",
+              "start": 80,
+              "end": 96,
+              "source": "input_len as u64"
+            }
+          ],
+          "frontend_diagnostics": [],
+          "source_scan_complete": false,
+          "function_key": "function:cd5e25548359fc0aacb019df7881ac65d069d250eab6dd1c9b87336bd65d8520",
+          "captured_source_digest": "sha256:663562123b0045f0a435df98f88675126b10a73bcbf0aa1b28f3967c4a6f2297",
+          "document_manifest": {
+            "documents": [
+              {
+                "key": "sha256:663562123b0045f0a435df98f88675126b10a73bcbf0aa1b28f3967c4a6f2297:block::compress::get_maximum_output_size:pdg",
+                "sha256": "sha256:af86b9021a3572159b10149eb1b857946331421cdf4fb2546feeaf8405a41ace"
+              },
+              {
+                "key": "sha256:663562123b0045f0a435df98f88675126b10a73bcbf0aa1b28f3967c4a6f2297:block::compress::get_maximum_output_size:cfg",
+                "sha256": "sha256:c772194f05239044604d30d5cced807a1d89493d32a073f118158cf8f26df119"
+              }
+            ]
+          },
+          "build": null
+        },
+        {
+          "package": "time-core",
+          "version": "0.1.9",
+          "path": "src/hint.rs",
+          "start": 288,
+          "end": 322,
+          "name": "cold_path",
+          "sha256": "ee5e21e9be90ec75063fe20dee8b04c8dabb2407078b9c8281053edf5c3d35f4",
+          "outcome": "admitted",
+          "reasons": [],
+          "source_blockers": [],
+          "frontend_diagnostics": [],
+          "source_scan_complete": false,
+          "function_key": "function:3e0cfe0952ce661a91e298359cfdc77b23a4c6667479708b7481b5d96b684976",
+          "captured_source_digest": "sha256:ee5e21e9be90ec75063fe20dee8b04c8dabb2407078b9c8281053edf5c3d35f4",
+          "document_manifest": {
+            "documents": [
+              {
+                "key": "sha256:ee5e21e9be90ec75063fe20dee8b04c8dabb2407078b9c8281053edf5c3d35f4:hint::cold_path:pdg",
+                "sha256": "sha256:f41fb5de22d9a26f00288ebb95bb3d57fdf17b19c2812fca84bc161b61b8ea56"
+              },
+              {
+                "key": "sha256:ee5e21e9be90ec75063fe20dee8b04c8dabb2407078b9c8281053edf5c3d35f4:hint::cold_path:cfg",
+                "sha256": "sha256:209eb87a459ed3f71e8fbbc33815e8b393133b8e892bc4bda5187fcd96c393d3"
+              }
+            ]
+          },
+          "build": null
+        }
+      ],
+      "lost_admissions": []
+    },
+    {
+      "stage": "loops-validated",
+      "counts": {
+        "unknown": 7,
+        "excluded": 48,
+        "admitted": 4,
+        "failed": 1
+      },
+      "newly_admitted": [],
+      "lost_admissions": []
+    },
+    {
+      "stage": "calls-validated",
+      "counts": {
+        "unknown": 7,
+        "excluded": 47,
+        "admitted": 5,
+        "failed": 1
+      },
+      "newly_admitted": [
+        {
+          "package": "time-core",
+          "version": "0.1.9",
+          "path": "src/util.rs",
+          "start": 2776,
+          "end": 2968,
+          "name": "is_leap_year",
+          "sha256": "1ce6e6176f0a849e6d8dddfc9a0732cb2f856e3aadd9884448c8f09fd6d4aa99",
+          "outcome": "admitted",
+          "reasons": [],
+          "source_blockers": [
+            {
+              "capability": "rust.call-summaries",
+              "syntax": "call_expression",
+              "start": 51,
+              "end": 133,
+              "source": "(year as i64)\n        .unsigned_abs()\n        .wrapping_mul(0x4000_0000_28F5_C28F)"
+            },
+            {
+              "capability": "rust.call-summaries",
+              "syntax": "call_expression",
+              "start": 51,
+              "end": 88,
+              "source": "(year as i64)\n        .unsigned_abs()"
+            },
+            {
+              "capability": "rust.integer-casts",
+              "syntax": "type_cast_expression",
+              "start": 52,
+              "end": 63,
+              "source": "year as i64"
+            }
+          ],
+          "frontend_diagnostics": [],
+          "source_scan_complete": false,
+          "function_key": "function:4baab08e2d1c69e99dea9667fc21b85472c8801678dc8958774716f14a013076",
+          "captured_source_digest": "sha256:1ce6e6176f0a849e6d8dddfc9a0732cb2f856e3aadd9884448c8f09fd6d4aa99",
+          "document_manifest": {
+            "documents": [
+              {
+                "key": "sha256:1ce6e6176f0a849e6d8dddfc9a0732cb2f856e3aadd9884448c8f09fd6d4aa99:util::is_leap_year:pdg",
+                "sha256": "sha256:443afa0c165372380a9ee995d9a7ba464ffb3bfd26241d895167442646883c54"
+              },
+              {
+                "key": "sha256:1ce6e6176f0a849e6d8dddfc9a0732cb2f856e3aadd9884448c8f09fd6d4aa99:util::is_leap_year:cfg",
+                "sha256": "sha256:a2a07a436f5dcc68eb099ac85d8df5bbe2afe47b4da29b983471c89e8a653b33"
+              }
+            ]
+          },
+          "build": null
+        }
+      ],
+      "lost_admissions": []
+    }
+  ],
+  "remaining_reason_combinations": [
+    {
+      "reasons": [
+        "Ambiguous selected-definition correspondence"
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Binding type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Explicit dereference is outside R0.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Nested items are unsupported in R0; reject at declaration without incorporating the separately owned body.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.blocks; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Binding type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Only lexical binding reads are admitted; items and constants are outside R0.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.macros; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface.",
+        "The initial cyclic policy excludes nonunit conditional and short-circuit value merges in loop-containing functions.",
+        "Uninitialized declarations are rejected in R0."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Binding type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Only lexical binding reads are admitted; items and constants are outside R0.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Explicit dereference is outside R0.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Indirect and memory-backed writes are deferred to abstract memory.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Only lexical binding reads are admitted; items and constants are outside R0.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Match requires a resolved integer or bool scrutinee.",
+        "Nested items are unsupported in R0; reject at declaration without incorporating the separately owned body.",
+        "Only lexical binding reads are admitted; items and constants are outside R0.",
+        "Only literal arms and a final unguarded wildcard are supported; guards and other patterns require another registered slice.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.blocks; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Receiver syntax (self) is outside R0 even for primitive types.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Required binding target evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Receiver syntax (self) is outside R0 even for primitive types.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 3
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 6
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.macros; cfg removal cannot certify a supported remainder.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 6
+    },
+    {
+      "reasons": [
+        "Binding type is outside the resolved primitive interface.",
+        "Bounded match requires 1..=16 arms and a final unguarded wildcard.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Explicit dereference is outside R0.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Match requires a resolved integer or bool scrutinee.",
+        "Nested items are unsupported in R0; reject at declaration without incorporating the separately owned body.",
+        "Only literal arms and a final unguarded wildcard are supported; guards and other patterns require another registered slice.",
+        "Original owned source contains deferred rust.blocks; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.macros; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Receiver syntax (self) is outside R0 even for primitive types.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Binding type is outside the resolved primitive interface.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Original owned source contains deferred rust.macros; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Receiver syntax (self) is outside R0 even for primitive types.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 2
+    },
+    {
+      "reasons": [
+        "Closures are deferred; their separately owned body is excluded.",
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Construct is outside the R0 closed subset.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Receiver syntax (self) is outside R0 even for primitive types.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 2
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Construct is outside the R0 closed subset.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Construct is outside the R0 closed subset.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Explicit dereference is outside R0.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Indirect and memory-backed writes are deferred to abstract memory.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "The initial cyclic policy excludes nonunit conditional and short-circuit value merges in loop-containing functions."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Only the empty unit tuple is admitted; tuples are composite types.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Receiver syntax (self) is outside R0 even for primitive types.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Receiver syntax (self) is outside R0 even for primitive types.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 2
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Receiver syntax (self) is outside R0 even for primitive types.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 3
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Compiler-resolved value type is outside the primitive R0 subset.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Only lexical binding reads are admitted; items and constants are outside R0.",
+        "Parameter type is outside the resolved primitive interface.",
+        "R0 requires a named single binding for each parameter; no fabricated symbol for wildcard.",
+        "Return type is outside the resolved primitive interface."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Field, index, and borrow operations are deferred to abstract memory.",
+        "Function-level generics are deferred, even for scalar bodies.",
+        "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+        "Parameter type is outside the resolved primitive interface.",
+        "Receiver syntax (self) is outside R0 even for primitive types.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 2
+    },
+    {
+      "reasons": [
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Original owned source contains deferred rust.macros; cfg removal cannot certify a supported remainder.",
+        "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Only literal arms and a final unguarded wildcard are supported; guards and other patterns require another registered slice."
+      ],
+      "functions": 1
+    },
+    {
+      "reasons": [
+        "Selected source definition absent from captured HIR; conditional presence or unresolved capture"
+      ],
+      "functions": 7
+    }
+  ],
+  "remaining_source_syntax_combinations": [
+    {
+      "capabilities": [],
+      "functions": 7
+    },
+    {
+      "capabilities": [
+        "rust.abstract-memory"
+      ],
+      "functions": 3
+    },
+    {
+      "capabilities": [
+        "rust.abstract-memory",
+        "rust.blocks",
+        "rust.call-summaries",
+        "rust.for-iteration",
+        "rust.integer-casts"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.abstract-memory",
+        "rust.call-summaries"
+      ],
+      "functions": 7
+    },
+    {
+      "capabilities": [
+        "rust.abstract-memory",
+        "rust.call-summaries",
+        "rust.integer-casts"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.abstract-memory",
+        "rust.call-summaries",
+        "rust.integer-casts",
+        "rust.loops",
+        "rust.macros"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.abstract-memory",
+        "rust.call-summaries",
+        "rust.loops"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.abstract-memory",
+        "rust.loops"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.call-summaries"
+      ],
+      "functions": 17
+    },
+    {
+      "capabilities": [
+        "rust.call-summaries",
+        "rust.closures"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.call-summaries",
+        "rust.integer-casts",
+        "rust.loops"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.call-summaries",
+        "rust.integer-casts",
+        "rust.loops",
+        "rust.unsafe"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.call-summaries",
+        "rust.loops",
+        "rust.unsafe"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.call-summaries",
+        "rust.macros"
+      ],
+      "functions": 2
+    },
+    {
+      "capabilities": [
+        "rust.call-summaries",
+        "rust.macros",
+        "rust.match",
+        "rust.unsafe"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.call-summaries",
+        "rust.match"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.call-summaries",
+        "rust.unsafe"
+      ],
+      "functions": 4
+    },
+    {
+      "capabilities": [
+        "rust.macros"
+      ],
+      "functions": 2
+    },
+    {
+      "capabilities": [
+        "rust.macros",
+        "rust.match"
+      ],
+      "functions": 1
+    },
+    {
+      "capabilities": [
+        "rust.match"
+      ],
+      "functions": 1
+    }
+  ],
+  "hypothetical_source_syntax_bundles": {
+    "rust.abstract-memory": [
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        1076,
+        1135,
+        "44879138ffdd30e3dddaf716150a06e986b4f858ffcacc9e3e6a006881754817"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        1294,
+        1353,
+        "698dfb9b6790697c96a4d8540e81510fc8cf38baa02a6f36533889fa67239a58"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        1413,
+        1467,
+        "d06a6e75666a8b160b05e577c5d4c8fe2bc873dd27b7d2283c9015cc5fc51040"
+      ]
+    ],
+    "rust.abstract-memory + rust.blocks + rust.call-summaries + rust.for-iteration + rust.integer-casts": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        3491,
+        4831,
+        "f69c584f7e9aedb002dd2d2f246607d802dc9dc7d64866b89236652cb6ab7a7d"
+      ]
+    ],
+    "rust.abstract-memory + rust.call-summaries": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        1298,
+        1416,
+        "e0f27f872c07ac333635157dcb8866bedd20f9871d1ac872202df034398a9258"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        1784,
+        2020,
+        "15fb3015ac81edc5139d11679038a7e7f5d8292da7096b611681051a98889e2b"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        8010,
+        8366,
+        "32d43d304c6802e3a2b1f2f19af7d377fb4b0110a20019357ab839500cb2f723"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        18494,
+        18591,
+        "cfc53d6acded4c2180a4b3e8fec8de56dddd3ba0fe2199208a3a4a8cc8385ad7"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        18953,
+        19127,
+        "bb1b9d255e89f9f1f0b7b2751951413404edf58452d8112b5f927dba067087de"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        13416,
+        13529,
+        "90c030fcb5898d95a442de718c6143a550fc92bb01e9da147c44ce8c2cc70872"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        14532,
+        14622,
+        "5ed97771bdcde52bc4b3c63d994ab34a24a1c3bcb14a171a9818a7d3b770055f"
+      ]
+    ],
+    "rust.abstract-memory + rust.call-summaries + rust.integer-casts": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        20483,
+        21237,
+        "a576a2b675ea86a06871a41e33c707296fb163aa85a073726bb3e7044c4d8c5c"
+      ]
+    ],
+    "rust.abstract-memory + rust.call-summaries + rust.integer-casts + rust.loops + rust.macros": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        11127,
+        18127,
+        "7d00cedd22a800a96b687c4dbd93314be327f8c66683e06e95167b79ccd5f49b"
+      ]
+    ],
+    "rust.abstract-memory + rust.call-summaries + rust.loops": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        21568,
+        22049,
+        "d9d7ec2072ad9804ac8f392768706bc041121b1a8975c8ffde70ca4d8588e1a1"
+      ]
+    ],
+    "rust.abstract-memory + rust.loops": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        8505,
+        9088,
+        "4a831034700a0e4d29965cb4de0d953d501eeffb75c3e9300527762a596a3067"
+      ]
+    ],
+    "rust.call-summaries": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        18171,
+        18240,
+        "19775a526300730491ccae830fc8fd35b6a4f3b2e50aa26b21f50218dce30b2d"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        21375,
+        21556,
+        "8c33057d3e68fff1556f87312fa88e467a57ba343fa84348aab0a54c632b3538"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        8153,
+        8280,
+        "596619203529c06f1ea2d3c83cfc13bbb37ab4cb97531625b1051184dcc2d792"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        13564,
+        13657,
+        "d43d8dff208bb7ac62869f1ec67a4604d1076bfbaf65f098162932aee36a55ae"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        14661,
+        14758,
+        "7b51ca8e462b117faea14591448e24356a9329bda72ee274d8f81bfe05bc46e5"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        14995,
+        15066,
+        "5e4fb92183b0c3b033fc8e3aaf9a41809e6c2af59f4902c7c11fb295b406afa0"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        18990,
+        19064,
+        "8fa475c8bae49bebe0807305e4c6aa89f9206bd0f9fb621ca59e2d19519ba122"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        19105,
+        19177,
+        "70ec14fba7163ce9b84e2c5a04be19c0d0e321ec1979dc16ed374a5f89ce07fb"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        19220,
+        19295,
+        "b19be1ffbd04c312f5af32fe601d1bc9114f3c5a0121a91c39196b9e22aefbc9"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        19334,
+        19404,
+        "91782b658898e0cd8c1a3f991e5b7dfbb531dca626662f3c17a213320c82de27"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        19449,
+        19530,
+        "4575b5a1f8b4a4dbce03d026e695056ec99d481a4ce10a03a2da817624fd50d4"
+      ],
+      [
+        "time-core",
+        "0.1.9",
+        "src/hint.rs",
+        400,
+        492,
+        "33692cb9f855031be1e06d585400d89f13b7e28087cb46dd1e2b2c5cc91e82a4"
+      ],
+      [
+        "time-core",
+        "0.1.9",
+        "src/hint.rs",
+        571,
+        664,
+        "a09b492b02f4a3a6c2097e48f92afe00db6bc697e0b72854eca7046e56678dee"
+      ],
+      [
+        "time-core",
+        "0.1.9",
+        "src/util.rs",
+        1440,
+        1709,
+        "09c7491939a31b2c32e0d2259bd41983ea391f6b6f92ece92bd8ae4cd70018c7"
+      ],
+      [
+        "time-core",
+        "0.1.9",
+        "src/util.rs",
+        1974,
+        2272,
+        "e719a57e4e7625a71c9ca9995544ccc69783c57b5d141183dc6403e74b6deb8f"
+      ],
+      [
+        "time-core",
+        "0.1.9",
+        "src/util.rs",
+        3359,
+        3453,
+        "77ac0b33bc4ea9746f1b7700dec74297eaa8adef6723bcff5f892cd3571ac55d"
+      ],
+      [
+        "time-core",
+        "0.1.9",
+        "src/util.rs",
+        5072,
+        5180,
+        "6577e15fcbf972f3f2a236d01c51f793c401ff25a9f74039ca53522e3ccced1e"
+      ]
+    ],
+    "rust.call-summaries + rust.closures": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        4540,
+        4741,
+        "761eeefe72ab679461cc835e3dc399da7f999e6b67115f8344a8ab73d35d7554"
+      ]
+    ],
+    "rust.call-summaries + rust.integer-casts": [
+      [
+        "time-core",
+        "0.1.9",
+        "src/util.rs",
+        2776,
+        2968,
+        "1ce6e6176f0a849e6d8dddfc9a0732cb2f856e3aadd9884448c8f09fd6d4aa99"
+      ]
+    ],
+    "rust.call-summaries + rust.integer-casts + rust.loops": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        7521,
+        7947,
+        "40802d7deda72021b6b6b2d34d61321e401b006c44a8698ba010fa4d532525b7"
+      ]
+    ],
+    "rust.call-summaries + rust.integer-casts + rust.loops + rust.unsafe": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        5279,
+        7197,
+        "5b668487b4ed338d1b16b7a2164d12213de0cbc1da2c98a21270ca4bc2443308"
+      ]
+    ],
+    "rust.call-summaries + rust.loops + rust.unsafe": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        9232,
+        9589,
+        "6eee621ec5221557156414d131baeafcb1ecae1c2ba30c121f9e788d54d8c66a"
+      ]
+    ],
+    "rust.call-summaries + rust.macros": [
+      [
+        "time-core",
+        "0.1.9",
+        "src/util.rs",
+        728,
+        1104,
+        "f6f6c4045927d5a1f6ae34cd2f29d72c27fd62fc6baf3fa16ddb7fb409a2861f"
+      ],
+      [
+        "time-core",
+        "0.1.9",
+        "src/util.rs",
+        5427,
+        5695,
+        "f0d088e30b3f88a5299d62f9f108fccfbf3a43504520d1fcdad32898b92b39ff"
+      ]
+    ],
+    "rust.call-summaries + rust.macros + rust.match + rust.unsafe": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        19176,
+        20200,
+        "9c6489c96c917bee859d5a5cdaf5af39c71af402cd9b0557cdb2ad11297b0581"
+      ]
+    ],
+    "rust.call-summaries + rust.match": [
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        1830,
+        2180,
+        "554041e7495ac74d1a77bec7b72cb1b4d24daac8450c1ce787a06598727490fb"
+      ]
+    ],
+    "rust.call-summaries + rust.unsafe": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        1145,
+        1254,
+        "df7c142bac7d7c93195e1a51acc590255eda7e12de6ef62715aa011715274aea"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        1602,
+        1720,
+        "84ab1f106dda9e2154c572d9fba692802240184c7418522a16c2877bc6f66850"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        18289,
+        18450,
+        "61735164306fad2b5b037ae8efe54edb491561226de4a5d551edbd7dfaa05cc7"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        18640,
+        18841,
+        "a84b187512f53f88b633eb1156b7e312c339a4f6476219e0438ec91331923508"
+      ]
+    ],
+    "rust.integer-casts": [
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        2032,
+        2385,
+        "52db5e641df6036c57ecbda25f915087f98fbbc2fdcb9fbda49527ff9d0b4cbf"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        2397,
+        3048,
+        "7c133fc93859e3f6a2f7cac2eb29ce9356cc9a58893e97640f87a85f930f632b"
+      ],
+      [
+        "lz4_flex",
+        "0.14.0",
+        "src/block/compress.rs",
+        22182,
+        22302,
+        "663562123b0045f0a435df98f88675126b10a73bcbf0aa1b28f3967c4a6f2297"
+      ]
+    ],
+    "rust.macros": [
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        13252,
+        13388,
+        "e3db1402c49d87bcd3571158dcc3900907271305f8d456bbc2cc334478ec3b0e"
+      ],
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        14284,
+        14500,
+        "f251c51c392bab30e9946d8e6eeba27e454f94d6645e0a2244d0c323735e9f9c"
+      ]
+    ],
+    "rust.macros + rust.match": [
+      [
+        "regex-syntax",
+        "0.8.11",
+        "src/ast/mod.rs",
+        8328,
+        12786,
+        "440f7e12d054216f4869d561b39bb85d09deeabf7421032b4cd9b567de3e72e7"
+      ]
+    ],
+    "rust.match": [
+      [
+        "time-core",
+        "0.1.9",
+        "src/util.rs",
+        3712,
+        4781,
+        "3534485928ffb115f4eda7fc911c3adfa1bca7200f68167c8716d2ab2ba861fa"
+      ]
+    ]
+  },
+  "claim": "Source-syntax bundles are only hypothetical candidates; signatures, resolution, conditional evidence and explicitly excluded forms can independently block them. Only newly_admitted records are measured gains. No quality predictions or calibration.",
+  "result_sha256": {
+    "baseline.json": "6b6e2dce7d92e5b7f99a25eb42bc07ef2fb156a9436cf318c669206d509e6d99",
+    "const.json": "ccda1c948afe81b0ec63adc2e0de97fa41541cb719bfbc00a7cbf0ac4bea99ad",
+    "casts.json": "3d0d327ec2178df47198f2bc2d559e51726fb6c4b1039e9ebfd138193af39095",
+    "match.json": "f6920b3722095c24c3e6c9082a1e8e2798e219641b7f2ed2b3c3e7d1b77ab79a",
+    "guards.json": "2ff18282ba18c1e093a5b5a80ca53854ac127cfebbf62d44b368d88dd452d8f2",
+    "conditional-validated.json": "5b99521720214e3df9c1a5bf3b63d93d38543aeb7c531e9be0bdeabaf0580d06",
+    "loops-validated.json": "15b1cdda1ce96c01431b9840f2eca23b5d35e27908be4be927fd3e0a84d227e0",
+    "calls-validated.json": "50909e2e5d2a828529fd5e1c43afc4086e44c32278b70de98a649e74efb856aa"
+  }
+}
