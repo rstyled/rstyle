@@ -1781,3 +1781,96 @@ fn clones_conditional_profile_records_active_resolution_and_removed_unknowns() {
     );
 }
 
+#[test]
+fn clones_scalar_loops_use_verified_cycles_and_exhaustive_concurrent_capture() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(mut x: i32, b: bool) -> i32 { while b { x = 1; if x > 2 { break; } continue; } x }\npub fn g(mut x: i32, b: bool) -> i32 { while b { x = 1; if x > 2 { break; } continue; } x }\npub fn forever() { loop {} }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-loops-v1",
+            "--all-targets",
+            "--jobs",
+            "2",
+            "--trace",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "failures={} capture={} stderr={}",
+        report["handoff_failures"],
+        report["capture_failures"],
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        6
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    let (output, legacy) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+#[test]
+fn clones_named_primitive_summaries_cross_real_capture_and_preserve_r0_exclusions() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(x: i32, y: u32) -> u32 { x.unsigned_abs().wrapping_mul(y) }\npub fn g(x: i64, y: u64) -> u64 { x.unsigned_abs().wrapping_mul(y) }\npub fn unsupported(x: u32) -> u32 { x.wrapping_add(1) }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-calls-v1", "--trace"],
+    );
+    assert!(
+        output.status.success(),
+        "failures={} capture={} stderr={}",
+        report["handoff_failures"],
+        report["capture_failures"],
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    assert!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "unsupported" && f["outcome"] == "excluded")
+    );
+    let (output, plain) = clones(directory.path(), &["--extraction-profile", "hir-calls-v1"]);
+    assert!(output.status.success());
+    assert_eq!(
+        report["matching"]["pairs"][0]["decision"],
+        plain["matching"]["pairs"][0]["decision"]
+    );
+    let (output, legacy) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}

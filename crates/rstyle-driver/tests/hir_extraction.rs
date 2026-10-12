@@ -1729,3 +1729,386 @@ fn conditional_evidence_inventory_cfg_and_resolution_tampering_are_rejected() {
     }
 }
 
+#[test]
+fn scalar_loop_cfg_and_reaching_definitions_match_independent_fixed_point_expectations() {
+    let facts = compile_selected(
+        "fn f(mut x: i32, b: bool) -> i32 { while b { x = 1; } x }",
+        "hir-loops-v1",
+    )
+    .remove(0);
+    assert_eq!(
+        classify(&facts).status,
+        EligibilityVerdict::Eligible,
+        "{:?}",
+        classify(&facts)
+    );
+    let graph = rstyle_pdg::producer::lower(&facts).unwrap();
+    assert_eq!(
+        graph
+            .nodes
+            .iter()
+            .map(|n| n.original_kind.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "pat_binding",
+            "pat_binding",
+            "expr_path",
+            "expr_while",
+            "expr_lit",
+            "expr_assign",
+            "expr_path",
+            "expr_path"
+        ]
+    );
+    assert_eq!(
+        {
+            let mut edges = graph
+                .transfers
+                .iter()
+                .map(|e| {
+                    (
+                        e.source.as_str(),
+                        e.target.as_str(),
+                        e.kind.as_str(),
+                        e.loop_role.as_deref(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            edges.sort();
+            edges
+        },
+        [
+            ("E", "n2", "normal", None),
+            ("n2", "n3", "normal", None),
+            ("n3", "n4", "true", None),
+            ("n3", "n6", "false", Some("loop_exit")),
+            ("n4", "n5", "normal", None),
+            ("n5", "n2", "normal", Some("back_edge")),
+            ("n6", "n7", "normal", None),
+            ("n7", "X", "return", None)
+        ]
+    );
+    let analysis = rstyle_pdg::producer::analyze_cyclic(&graph).unwrap();
+    let mut control: Vec<_> = analysis
+        .edges
+        .iter()
+        .filter(|edge| edge.family == rstyle_pdg::EdgeFamily::Control)
+        .map(|edge| {
+            (
+                edge.source.as_str(),
+                edge.target.as_str(),
+                edge.outcome.as_deref(),
+            )
+        })
+        .collect();
+    control.sort();
+    assert_eq!(
+        control,
+        [
+            ("n3", "n2", Some("true")),
+            ("n3", "n3", Some("true")),
+            ("n3", "n4", Some("true")),
+            ("n3", "n5", Some("true")),
+            ("n3", "n6", Some("false")),
+            ("n3", "n7", Some("false"))
+        ]
+    );
+    let mut execution: Vec<_> = analysis
+        .edges
+        .iter()
+        .filter(|edge| edge.family == rstyle_pdg::EdgeFamily::Execution)
+        .map(|edge| (edge.source.as_str(), edge.target.as_str()))
+        .collect();
+    execution.sort();
+    assert_eq!(
+        execution,
+        [
+            ("n2", "n3"),
+            ("n3", "n4"),
+            ("n3", "n6"),
+            ("n4", "n5"),
+            ("n6", "n7")
+        ]
+    );
+    let x = &facts.signature.params[0].symbol;
+    assert_eq!(
+        analysis.definition_in["n6"][x]
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["d0", "d5"]
+    );
+    assert_eq!(
+        analysis.definition_out["n5"][x]
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["d5"]
+    );
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
+    rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+    let sources = pair
+        .pdg
+        .sources
+        .iter()
+        .map(|s| (s.id.clone(), facts.source.bytes.as_bytes().to_vec()))
+        .collect();
+    let context = rstyle_pdg::ValidationContext::CompilerEvidence {
+        pointer_width_bits: 64,
+    };
+    rstyle_ccgraph::admit_strict(&rstyle_ccgraph::StrictBundle {
+        pdg: &pair.pdg,
+        cfg: &pair.cfg,
+        source_bytes: &sources,
+        ctx: &context,
+    })
+    .unwrap();
+}
+
+#[test]
+fn scalar_loops_cover_exits_nested_ownership_and_divergence_without_fake_edges() {
+    for source in [
+        "fn f(mut x: i32, b: bool) -> i32 { while b { x += 1; if x > 2 { break; } continue; } x }",
+        "fn f(b: bool) -> i32 { loop { if b { return 1; } continue; } }",
+        "fn f(b: bool) { loop { while b { break; } if b { break; } } }",
+        "fn f() -> i32 { loop {} }",
+        "fn f() { while true {} }",
+        "fn f(mut x: i32) -> i32 { while false { x = 1; } x }",
+        "fn f(x: i32) -> i32 { loop { break; } x }",
+    ] {
+        let facts = compile_selected(source, "hir-loops-v1").remove(0);
+        assert_eq!(
+            classify(&facts).status,
+            EligibilityVerdict::Eligible,
+            "{source}: {:?}",
+            classify(&facts)
+        );
+        let pair =
+            rstyle_pdg::producer::produce(&facts).unwrap_or_else(|e| panic!("{source}: {e:?}"));
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+        if source.contains("loop {}") || source.contains("while true {}") {
+            assert!(
+                !rstyle_pdg::reachable_vertices(&pair.cfg).contains(&pair.cfg.exit_node_ids[0])
+            );
+            assert!(
+                !pair
+                    .cfg
+                    .edges
+                    .iter()
+                    .any(|edge| pair.cfg.exit_node_ids.contains(&edge.target))
+            );
+        }
+    }
+    for source in [
+        "fn f(b: bool) { 'outer: loop { if b { break 'outer; } } }",
+        "fn f() -> i32 { loop { break 1; } }",
+        "fn f(b: bool) -> i32 { while b {} if b { 1 } else { 2 } }",
+        "fn f(a: bool, b: bool) { while a && b {} }",
+        "fn f() { while false { missing(); } } fn missing() {}",
+        "fn f() { for x in 0..3 { let y = x; } }",
+    ] {
+        let facts = compile_selected(source, "hir-loops-v1").remove(0);
+        assert_eq!(
+            classify(&facts).status,
+            EligibilityVerdict::Ineligible,
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn cyclic_serialized_verifier_rejects_back_edges_and_definition_set_tampering() {
+    let facts = compile_selected(
+        "fn f(mut x: i32, b: bool) -> i32 { while b { x = 1; } x }",
+        "hir-loops-v1",
+    )
+    .remove(0);
+    for mutation in 0..4 {
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        match mutation {
+            0 => {
+                pair.cfg
+                    .edges
+                    .retain(|edge| edge.loop_role != Some(rstyle_pdg::LoopRole::BackEdge));
+            }
+            1 => {
+                let edge = pair
+                    .cfg
+                    .edges
+                    .iter()
+                    .find(|edge| edge.loop_role == Some(rstyle_pdg::LoopRole::BackEdge))
+                    .unwrap()
+                    .clone();
+                pair.cfg.edges.push(edge);
+            }
+            2 => {
+                pair.pdg.edges.retain(|edge| {
+                    !(edge.target == "n6" && edge.definition_id.as_deref() == Some("d5"))
+                });
+            }
+            _ => {
+                pair.pdg
+                    .extensions
+                    .get_mut("rstyle.hir-coverage:cyclic-flow-policy")
+                    .unwrap()["virtual_executable_exits"] = serde_json::json!(true);
+            }
+        }
+        assert!(
+            rstyle_pdg::producer::verify(&pair, &facts).is_err(),
+            "mutation {mutation}"
+        );
+        if mutation == 2 {
+            assert!(rstyle_pdg::validate_value_sites(&pair.pdg, &pair.cfg).is_err());
+        }
+    }
+}
+
+#[test]
+fn source_correspondence_preserves_parentheses_unicode_and_original_crlf_spans() {
+    for source in [
+        "/// docs\npub const fn f(x: usize) -> usize { 16 + 4 + (x as u64 * 110 / 100) as usize }",
+        "fn f(é: i32) -> i32 { #[cfg(all())] let λ = ((é)); (λ + 1) }",
+        "fn f(x: i32) -> i32 {\r\n    #[cfg(all())] let y = x;\r\n    (y + 1)\r\n}",
+    ] {
+        let facts = compile_selected(source, "hir-conditional-v1").remove(0);
+        assert_eq!(
+            classify(&facts).status,
+            EligibilityVerdict::Eligible,
+            "{source}: {:?}",
+            classify(&facts)
+        );
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+    }
+}
+
+#[test]
+fn primitive_summaries_preserve_receiver_argument_order_and_independent_dependencies() {
+    for (signed, unsigned) in [("i32", "u32"), ("i64", "u64")] {
+        let source = format!(
+            "fn f(x: {signed}, y: {unsigned}) -> {unsigned} {{ x.unsigned_abs().wrapping_mul(y) }}"
+        );
+        let facts = compile_selected(&source, "hir-calls-v1").remove(0);
+        assert_eq!(
+            classify(&facts).status,
+            EligibilityVerdict::Eligible,
+            "{:?}",
+            classify(&facts)
+        );
+        let graph = rstyle_pdg::producer::lower(&facts).unwrap();
+        assert_eq!(
+            graph
+                .nodes
+                .iter()
+                .map(|n| n.original_kind.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "pat_binding",
+                "pat_binding",
+                "expr_path",
+                "expr_method_call",
+                "expr_path",
+                "expr_method_call",
+                "expr_method_call"
+            ]
+        );
+        assert_eq!(graph.nodes[3].operands, ["n2"]);
+        assert_eq!(graph.nodes[5].operands, ["n3", "n4"]);
+        assert_eq!(graph.nodes[3].category, rstyle_pdg::NodeCategory::Call);
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+        let summaries = pair.pdg.extensions[rstyle_pdg::call_summaries::KEY]
+            .as_array()
+            .unwrap();
+        assert_eq!(summaries.len(), 2);
+        assert_eq!(
+            summaries[0]["summary"]["overflow_behavior"],
+            "unsigned-magnitude-including-min"
+        );
+        assert_eq!(
+            summaries[1]["summary"]["overflow_behavior"],
+            "modulo-result-width"
+        );
+        assert_eq!(
+            summaries[1]["operand_pdg_node_ids"],
+            serde_json::json!(["n3", "n4"])
+        );
+        let r0 = compile_selected(&source, "r0").remove(0);
+        assert_eq!(classify(&r0).status, EligibilityVerdict::Ineligible);
+    }
+}
+
+#[test]
+fn primitive_summaries_fail_closed_on_neighbors_and_callee_or_build_tampering() {
+    for source in [
+        "fn f(x: i16) -> u16 { x.unsigned_abs() }",
+        "fn f(x: u32) -> u32 { x.wrapping_add(1) }",
+        "fn f(x: i32) -> i32 { x.abs() }",
+        "struct S; impl S { fn unsigned_abs(self) -> u32 { 1 } } fn f(x: S) -> u32 { x.unsigned_abs() }",
+    ] {
+        let facts = compile_selected(source, "hir-calls-v1");
+        assert!(
+            facts
+                .iter()
+                .filter(|f| f.name == "f")
+                .all(|f| classify(f).status == EligibilityVerdict::Ineligible),
+            "{source}"
+        );
+    }
+    let facts =
+        compile_selected("fn f(x: i32) -> u32 { x.unsigned_abs() }", "hir-calls-v1").remove(0);
+    for mutation in 0..4 {
+        let mut changed = facts.clone();
+        match mutation {
+            0 => changed.build.rustc_commit = rstyle_pdg::StringFact::known("wrong"),
+            1 => {
+                changed.build.target_triple =
+                    rstyle_pdg::StringFact::known("x86_64-unknown-linux-gnu")
+            }
+            2 => change_call_provenance(&mut changed.body),
+            _ => change_call_result_type(&mut changed.body),
+        }
+        assert_eq!(
+            classify(&changed).status,
+            EligibilityVerdict::Ineligible,
+            "mutation {mutation}"
+        );
+    }
+    for field in [
+        "version",
+        "memory_effects",
+        "may_panic",
+        "source_sha256",
+        "always_returns",
+    ] {
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        pair.pdg
+            .extensions
+            .get_mut(rstyle_pdg::call_summaries::KEY)
+            .unwrap()[0]["summary"][field] = serde_json::json!("tampered");
+        assert!(
+            rstyle_pdg::producer::verify(&pair, &facts).is_err(),
+            "{field}"
+        );
+    }
+}
+
+fn change_call_provenance(node: &mut rstyle_pdg::HirNode) {
+    if node.kind == "expr_method_call" {
+        node.res.as_mut().unwrap().description = "{}".into();
+    }
+    for child in &mut node.children {
+        change_call_provenance(child);
+    }
+}
+
+fn change_call_result_type(node: &mut rstyle_pdg::HirNode) {
+    if node.kind == "expr_method_call" {
+        node.dispatch.as_mut().unwrap().result_ty = "u64".into();
+    }
+    for child in &mut node.children {
+        change_call_result_type(child);
+    }
+}
