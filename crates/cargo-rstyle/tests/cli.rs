@@ -897,3 +897,208 @@ fn fail_on_candidates_exits_one_until_every_candidate_is_dismissed() {
     assert_eq!(clean.status.code(), Some(0), "{}", stdout(&clean));
     assert_eq!(rstyle(dir.path(), &["patterns"]).status.code(), Some(0));
 }
+
+fn clone_workspace() -> TempDir {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::create_dir(directory.path().join("src")).unwrap();
+    std::fs::write(
+        directory.path().join("Cargo.toml"),
+        "[package]\nname='clone_fixture'\nversion='0.1.0'\nedition='2021'\n[workspace]\n",
+    )
+    .unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn first(a: i32) -> i32 { a }\npub fn second(a: i32) -> i32 { a }\npub fn small() {}\npub fn unsupported(a: i32) -> i32 { first(a) }\n").unwrap();
+    directory
+}
+
+fn clones(directory: &Path, arguments: &[&str]) -> (Output, Value) {
+    let mut args = vec!["clones", "--format", "json"];
+    args.extend_from_slice(arguments);
+    let output = rstyle(directory, &args);
+    let report = serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| panic!("{error}: {}", String::from_utf8_lossy(&output.stderr)));
+    (output, report)
+}
+
+#[test]
+fn clones_real_source_handoff_has_independent_features_and_gate_expectations() {
+    let directory = clone_workspace();
+    let (output, report) = clones(directory.path(), &["--trace"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 4);
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        3
+    );
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["outcome"] == "excluded")
+            .count(),
+        1
+    );
+    let pairs = report["matching"]["pairs"].as_array().unwrap();
+    assert_eq!(pairs.len(), 3);
+    assert_eq!(
+        pairs.iter().filter(|p| p["decision"] == "Accepted").count(),
+        1
+    );
+    for function in report["matching"]["functions"].as_array().unwrap() {
+        if function["projection"]["name"] == "first" || function["projection"]["name"] == "second" {
+            assert_eq!(
+                function["projection"]["features"],
+                serde_json::json!([0, 1, 2, 0, 0, 0, 0, 3, 1])
+            );
+            assert_eq!(function["projection"]["reference_count"], 1);
+        }
+    }
+    for pair in pairs {
+        if pair["decision"] == "Accepted" {
+            assert!(
+                pair["stages"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|s| s["outcome"] == "Passed")
+            );
+            assert_eq!(pair["stages"][6]["detail"]["score"], "1/1");
+        } else {
+            assert!(pair["stages"][3]["outcome"]["Rejected"].is_object());
+            assert_eq!(pair["stages"][4]["outcome"], "NotEvaluated");
+        }
+    }
+}
+
+#[test]
+fn clones_warm_runs_recapture_and_do_not_keep_deleted_functions() {
+    let directory = clone_workspace();
+    let (first_output, first) = clones(directory.path(), &[]);
+    let (second_output, second) = clones(directory.path(), &[]);
+    assert!(first_output.status.success() && second_output.status.success());
+    assert_ne!(first["run_directory"], second["run_directory"]);
+    assert_eq!(first["matching"], second["matching"]);
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn first(a: i32) -> i32 { a }\n",
+    )
+    .unwrap();
+    let (output, edited) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert_eq!(edited["functions"].as_array().unwrap().len(), 1);
+    assert_eq!(edited["matching"]["pairs"], serde_json::json!([]));
+}
+
+#[test]
+fn clones_failure_is_not_a_complete_zero_pair_run() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn broken() { absent(); }",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &[]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(report["capture_complete"], false);
+    assert_eq!(report["assessment_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(!report["capture_failures"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn clones_exact_threshold_ingestion_and_explicit_cosine() {
+    let directory = clone_workspace();
+    let config = directory.path().join("matching.json");
+    std::fs::write(
+        &config,
+        r#"{"string_threshold":0.50000000000000001,"scoring":"cross_product_cosine"}"#,
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--matching-config", config.to_str().unwrap()],
+    );
+    assert!(output.status.success());
+    assert_eq!(
+        report["matching"]["effective_config"]["string_threshold"],
+        "50000000000000001/100000000000000000"
+    );
+    assert_eq!(report["matching"]["scoring"], "cross_product_cosine");
+    std::fs::write(&config, r#"{"final_threshold":1.00000000000000001}"#).unwrap();
+    let output = rstyle(
+        directory.path(),
+        &["clones", "--matching-config", config.to_str().unwrap()],
+    );
+    assert_eq!(output.status.code(), Some(2));
+}
+
+#[test]
+fn clones_all_targets_keep_compilation_contexts_distinct() {
+    let directory = clone_workspace();
+    let (output, report) = clones(directory.path(), &["--all-targets", "--jobs", "2"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(report["observed_units"].as_array().unwrap().len(), 2);
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["facts"]["name"] != "main")
+            .count(),
+        8
+    );
+    assert!(
+        functions
+            .iter()
+            .filter(|f| f["facts"]["name"] == "main")
+            .all(|f| f["outcome"] == "excluded")
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    let keys: std::collections::BTreeSet<_> = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["key"].as_str().unwrap())
+        .collect();
+    assert_eq!(keys.len(), functions.len());
+}
+
+#[test]
+fn inherited_hir_destinations_do_not_change_legacy_commands() {
+    let directory = clone_workspace();
+    let poison = directory.path().join("must-not-exist");
+    for args in [
+        vec!["--format", "json"],
+        vec!["patterns", "--format", "json"],
+    ] {
+        let output = Command::new(cargo_bin("cargo-rstyle"))
+            .args(args)
+            .current_dir(directory.path())
+            .env("RSTYLE_DRIVER", driver())
+            .env("RSTYLE_HIR_DOCUMENT_DIR", &poison)
+            .env("RSTYLE_HIR_FACTS_FILE", poison.join("facts.json"))
+            .env_remove("CARGO_TARGET_DIR")
+            .output()
+            .unwrap();
+        assert_ne!(
+            output.status.code(),
+            Some(2),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let _: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert!(!poison.exists());
+    }
+}

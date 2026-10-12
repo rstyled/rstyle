@@ -2,6 +2,7 @@
 //!
 //! Exit codes: 0 clean, 1 violations found, 2 tool/config/compile error.
 
+mod clones;
 mod collect;
 mod ignore;
 mod run;
@@ -44,6 +45,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Capture HIR R0 evidence and evaluate exhaustive strict similarity pairs.
+    Clones(clones::Args),
     /// Mine the workspace for latent shared abstractions (signature groups).
     Patterns(PatternsArgs),
     /// Dismiss a merge candidate you reviewed, list the ledger, or prune dead entries.
@@ -331,6 +334,18 @@ fn exit_with(result: Result<(String, u8), String>) -> ExitCode {
 
 // rstyle-allow(side_effect_density): process boundary: prints the report and sets the exit code
 fn main() -> ExitCode {
+    if let Some(plan) = std::env::var_os("RSTYLE_CAPTURE_PLAN") {
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        if args.first().is_some_and(|a| a.ends_with("rustc")) {
+            return match clones::capture::wrapper(Path::new(&plan), args) {
+                Ok(code) => ExitCode::from(code),
+                Err(error) => {
+                    eprintln!("{error}");
+                    ExitCode::from(2)
+                }
+            };
+        }
+    }
     // `cargo rstyle ...` invokes `cargo-rstyle rstyle ...`; drop that echo.
     let args = std::env::args()
         .enumerate()
@@ -341,6 +356,7 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     match &cli.command {
+        Some(Command::Clones(args)) => return exit_with(clones::run(&cli, args)),
         Some(Command::Patterns(args)) => return exit_with(patterns(&cli, args)),
         Some(Command::Ignore(args)) => {
             return exit_with(ignore_cmd(&cli, args).map(|output| (output, 0)));

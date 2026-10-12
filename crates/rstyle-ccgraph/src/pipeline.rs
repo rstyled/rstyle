@@ -17,12 +17,13 @@ use crate::interface::{
 use crate::projection::{Projection, ProjectionFault, project};
 use crate::scoring::{Histogram, RoundScores, cosine_score, overlap_score, score_rounds};
 use crate::wl::{diameter, pair_depth, refine, weights};
+use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const PROFILE_ID: &str = "compat.ccgraph.strict";
 pub const PROFILE_VERSION: &str = "0.1.0";
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize)]
 pub enum StageName {
     Validation,
     Projection,
@@ -59,7 +60,7 @@ impl StageName {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum StageOutcome {
     Passed,
     Rejected { reason: String },
@@ -68,14 +69,14 @@ pub enum StageOutcome {
     Error { reason: String },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct StageRecord {
     pub stage: StageName,
     pub outcome: StageOutcome,
     pub detail: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct FunctionProjection {
     pub projected_nodes: usize,
     pub diameter: usize,
@@ -90,7 +91,7 @@ pub struct FunctionProjection {
     pub ignored_label_inputs: &'static str,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct FunctionRecord {
     pub key: String,
     pub eligible: bool,
@@ -98,13 +99,13 @@ pub struct FunctionRecord {
     pub projection: Option<FunctionProjection>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 pub enum Decision {
     Accepted,
     Rejected,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct PairRecord {
     pub first: String,
     pub second: String,
@@ -113,7 +114,7 @@ pub struct PairRecord {
     pub displayed_score: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct RunReport {
     pub profile_id: String,
     pub profile_version: String,
