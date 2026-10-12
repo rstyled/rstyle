@@ -107,8 +107,10 @@ All-target rstyle also reports test/example violations, including the IO-heavy
 compiler harness; default production rstyle is checked separately. No suppressions
 or thresholds were changed.
 
-Source-to-pair orchestration, miner activation, the bounded quality study, R1,
-exceptional flow implementation and matching-profile changes have not started.
+At the producer milestone, source-to-pair orchestration had not started; its
+subsequent integration is recorded below. Miner activation, the bounded quality
+study, R1, exceptional flow implementation and matching-profile changes remain
+outside this work.
 
 ## Validation commands and outcomes
 
@@ -187,3 +189,49 @@ record construction remain at their original call sites.
 The default style check reports zero violations, and the default pattern check
 with `--fail-on-candidates` reports zero candidates. No new suppressions or
 ignore entries were introduced.
+
+## Opt-in source-to-pair integration
+
+`cargo rstyle clones` now connects captured HIR/source/build facts to exact
+serialized-document verification, `admit_produced`, strict imported admission,
+conservative projection and exhaustive unordered pair decisions. See
+[the Cargo workflow](docs/source-to-pair.md) for selection, identity, evidence,
+reporting, resource budgets and exit behavior. Legacy defaults remain unchanged.
+
+Runs use fresh Cargo target directories with incremental compilation disabled,
+independent compiler-invocation artifact destinations, Cargo unit-graph planning,
+completion ledgers and byte-digest inventories. No evidence cache or prior-run
+artifact discovery is used. Source navigation captures real filenames and
+file-relative spans; matching Name uses the unqualified source identifier. Global
+keys preserve compilation contexts and distinct identical-source definitions.
+
+Real-command temporary-workspace tests exercise supported/unsupported mixtures,
+independent feature and gate expectations, small/unit/unused-input functions,
+reachable merges, package/module/raw-identifier identity, concurrent compilers and
+commands, warm recapture, edits/deletion, stale evidence, selection/build-feature
+changes, required-feature targets, failed compilation, missing/corrupt artifacts,
+manifest mismatch, exact threshold lexemes, overlap/cosine, explicit resource and
+arithmetic failure, deterministic semantic results across compiler scheduling,
+traces and fail-on-pairs behavior. Literal edits exercise the deliberately ignored
+matching labels; these assertions are not an empirical quality study. Legacy style
+and patterns retain their behavior with inherited HIR settings. Conditional source
+with incomplete resolution remains unknown, with its evidence gap visible.
+
+Validation on the pinned compiler:
+
+- `cargo test --workspace --locked`: 459 tests passed, including real compiler tests.
+- `cargo test -p rstyle-driver --test hir_extraction --locked`: 18 tests passed.
+- `cargo test -p rstyle-ccgraph --locked`: 44 imported matching tests passed.
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+- Default production style: zero violations; legacy patterns: zero candidates on
+  the integration binary, without changing thresholds, suppressions or ignore entries.
+
+Remaining obligations: independently exhaustive cross-target/operator/settings
+coverage and the producer obligations listed above remain unclaimed. Compiler
+contexts that cannot be distinguished by the initial completion-ledger identity
+fail explicitly; they are not silently deduplicated. OS termination cannot publish
+a completed report, and interrupted directories are never reused. The bounded
+quality study, calibration, held-out evaluation and abstraction mining remain
+out of scope. Freeze labeling rules, splits and acceptance targets before that
+separate study begins after this integration lands.
