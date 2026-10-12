@@ -224,7 +224,7 @@ memory-free, nonmutating, always returning and nonpanicking under either overflo
 setting. unsigned_abs returns the magnitude including signed MIN; wrapping_mul
 returns low width bits modulo 2^width. No call is inferred from spelling alone.
 The call is a source-backed CALL/STATE node, retaining original expr_method_call,
-callee, method form, resolved argument/result types and summary facts. Effects,
+callee, Direct call form, original method syntax, resolved argument/result types and summary facts. Effects,
 returning behavior, callee/type/summary/commit and settings must match exactly.
 
 Source inventory correspondence permits exact spans or surrounding-source-
@@ -279,3 +279,16 @@ feature, concurrency and exhaustive-pair checks live in
 crates/cargo-rstyle/tests/cli.rs. Inventory bookkeeping fixtures live in
 eval/hir-coverage/test_inventory.py. No vendored contracts or matching thresholds,
 category rules, features or algorithms were changed to admit these slices.
+
+Local pair compatibility compares the exact selected policy/version and captured
+rustc commit, edition, target triple, data layout, pointer width, overflow checks,
+debug assertions, panic strategy and optimization level. It does not require
+identical package feature names: different packages naturally have different
+feature vocabularies. Each function must instead independently prove its original
+owned-source/resolved-HIR correspondence under its recorded cfg/features; removed
+or unresolved owned operations still fail closed. Primitive summaries additionally
+require exact registered core/compiler/target identities. Thus feature selections
+can differ only when both complete admitted scalar graphs describe their actual
+selected source semantics. This does not weaken the existing native-width or
+matching compatibility checks, and incompatible pairs remain explicitly enumerated
+with an ineligible validation outcome.

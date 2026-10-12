@@ -279,4 +279,4 @@ The original ccgraph-v1/v2 studies remain unchanged historical evidence. Their
 exposed examples are disclosed regressions. These coverage measurements and
 correctness fixtures establish no post-expansion heldout pair quality. A new
 preregistered quality study should use untouched project/family holdouts before
-making broader quality claims; no such study or abstraction mining was run here.
+making broader quality claims; no such study or HIR abstraction-mining workflow was activated here.

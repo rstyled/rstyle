@@ -1,0 +1,52 @@
+{
+  "commands": [
+    {
+      "command": "cargo test --workspace --locked",
+      "exit_code": 0,
+      "artifact": "validation/0.log.gz",
+      "original_sha256": "f3f402bbe85d579ab6395eba04e4c51ae6693888d66534d26fe8933ff6adda47",
+      "compressed_sha256": "83dcbd000342758db5a1ac5c5d2ca4ba9d6dd32c421276da0559ee7a7b103ae4"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "exit_code": 0,
+      "artifact": "validation/1.log.gz",
+      "original_sha256": "57c7ffbdeedca293c384a8c33ba214d121695116489c907f7a4b57c146a5d887",
+      "compressed_sha256": "8a31830d413b78ee4cefee15b5aad700a042b5af25b0fb84ddc4995144c88bc1"
+    },
+    {
+      "command": "cargo rstyle --format json",
+      "exit_code": 0,
+      "artifact": "validation/2.log.gz",
+      "original_sha256": "0647f6cdbca1a908505b75ec15ab612391c952c0f87159f9271eae6a8e1146d2",
+      "compressed_sha256": "9c9f378142e0176b7dced7d75342524724044d527c540b7b0f1ff51a2387dea8"
+    },
+    {
+      "command": "cargo rstyle patterns --format json --fail-on-candidates",
+      "exit_code": 0,
+      "artifact": "validation/3.log.gz",
+      "original_sha256": "8e8d7c5821582fc734a761604aa876f916c1e83deb1ba6f7a51351159276f3c6",
+      "compressed_sha256": "fff795558446fba354a11a662524f2c28b31666bbabf88785d1dd9b23d8ae6e7"
+    }
+  ],
+  "workspace_tests": 493,
+  "style_summary": {
+    "functions": 1325,
+    "violations": 0,
+    "mean_density_milli": 81,
+    "max_density_milli": 12000,
+    "effect_counts": {
+      "io": 102,
+      "mutation": 189,
+      "panic": 1,
+      "unknown": 9
+    }
+  },
+  "pattern_candidates": 0,
+  "additional_passed_commands": [
+    "cargo fmt --all -- --check",
+    "43 scripting tests with pinned uv dependencies",
+    "5 inventory bookkeeping tests",
+    "76 retained serialized documents validated against unchanged pinned schemas"
+  ]
+}
