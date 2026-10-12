@@ -64,10 +64,46 @@ fn function(
         signature: signature(&ctx, sig, params, id),
         bindings,
         body,
-        build: evidence::build(tcx, invocation),
+        build: function_build(tcx, id, function_span, invocation)?,
         source_diagnostics,
         source_scan_complete: scan.is_some_and(|scan| !scan.conditional_source),
     })
+}
+
+fn function_build(
+    tcx: TyCtxt<'_>,
+    id: LocalDefId,
+    span: rustc_span::Span,
+    invocation: &[String],
+) -> Option<BuildFacts> {
+    let file = tcx.sess.source_map().lookup_source_file(span.lo());
+    let rustc_span::FileName::Real(real) = &file.name else {
+        return None;
+    };
+    let path = real.local_path()?;
+    let path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir().ok()?.join(path)
+    };
+    let mut build = evidence::build(tcx, invocation);
+    let identifier = tcx
+        .def_ident_span(id.to_def_id())
+        .and_then(|span| {
+            tcx.sess
+                .source_map()
+                .span_to_snippet(span.source_callsite())
+                .ok()
+        })
+        .map(|name| name.strip_prefix("r#").unwrap_or(&name).to_owned());
+    build
+        .frontend_options
+        .insert("source_file".into(), serde_json::json!(path));
+    build
+        .frontend_options
+        .insert("source_identifier".into(), serde_json::json!(identifier));
+
+    Some(build)
 }
 
 /// Recover the compiler's original input using its recorded normalization map.

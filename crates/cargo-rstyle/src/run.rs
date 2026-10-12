@@ -115,14 +115,27 @@ fn command(paths: &Paths<'_>, selection: &Selection<'_>) -> Command {
     // Only `patterns` asks for dependence graphs; a stale value must never leak into style runs.
     let pdg = paths.pdg.then_some(("RSTYLE_PDG", OsStr::new("1")));
     let mut cmd = Command::new("cargo");
+    clear_rstyle_environment(&mut cmd);
     cmd.args(cargo_args(selection))
         .args(manifest)
         .envs(envs)
         .env("RSTYLE_ROOT", paths.root)
         .env_remove("RUSTC")
+        .env_remove("RSTYLE_HIR_DOCUMENT_DIR")
+        .env_remove("RSTYLE_HIR_FACTS_FILE")
         .env_remove("RSTYLE_PDG")
         .envs(pdg);
     cmd
+}
+
+/// Commands select their own extraction mode; inherited producer settings cannot
+/// change it. Resolve RSTYLE_DRIVER before calling this helper.
+pub fn clear_rstyle_environment(command: &mut Command) {
+    for (key, _) in std::env::vars_os() {
+        if key.to_string_lossy().starts_with("RSTYLE_") {
+            command.env_remove(key);
+        }
+    }
 }
 
 /// Compiles the selected crates so the driver writes its facts files.
@@ -147,6 +160,30 @@ mod tests {
     #[test]
     fn toolchain_is_pinned_nightly() {
         assert!(pinned_toolchain().starts_with("nightly-"));
+    }
+
+    #[test]
+    fn legacy_command_explicitly_removes_hir_destinations() {
+        let paths = Paths {
+            driver: Path::new("driver"),
+            root: Path::new("root"),
+            target_dir: Path::new("build"),
+            out_dir: Path::new("facts"),
+            pdg: false,
+        };
+        let selection = Selection {
+            packages: &[],
+            all_targets: false,
+            manifest: None,
+        };
+        let command = command(&paths, &selection);
+        for key in ["RSTYLE_HIR_DOCUMENT_DIR", "RSTYLE_HIR_FACTS_FILE"] {
+            assert!(
+                command
+                    .get_envs()
+                    .any(|(name, value)| name == key && value.is_none())
+            );
+        }
     }
 
     #[test]

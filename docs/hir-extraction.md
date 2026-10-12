@@ -49,3 +49,6 @@ cargo rstyle patterns --format json
 
 Legacy extraction remains the default. Source-to-pair orchestration and detection
 quality evaluation are outside this producer milestone.
+
+The opt-in [Cargo source-to-pair workflow](source-to-pair.md) now connects this
+producer to strict matching with isolated runs and verified serialized handoff.

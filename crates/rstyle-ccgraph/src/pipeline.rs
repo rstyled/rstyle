@@ -17,12 +17,13 @@ use crate::interface::{
 use crate::projection::{Projection, ProjectionFault, project};
 use crate::scoring::{Histogram, RoundScores, cosine_score, overlap_score, score_rounds};
 use crate::wl::{diameter, pair_depth, refine, weights};
+use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const PROFILE_ID: &str = "compat.ccgraph.strict";
 pub const PROFILE_VERSION: &str = "0.1.0";
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize)]
 pub enum StageName {
     Validation,
     Projection,
@@ -59,7 +60,7 @@ impl StageName {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum StageOutcome {
     Passed,
     Rejected { reason: String },
@@ -68,14 +69,14 @@ pub enum StageOutcome {
     Error { reason: String },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct StageRecord {
     pub stage: StageName,
     pub outcome: StageOutcome,
     pub detail: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct FunctionProjection {
     pub projected_nodes: usize,
     pub diameter: usize,
@@ -90,7 +91,7 @@ pub struct FunctionProjection {
     pub ignored_label_inputs: &'static str,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct FunctionRecord {
     pub key: String,
     pub eligible: bool,
@@ -98,13 +99,13 @@ pub struct FunctionRecord {
     pub projection: Option<FunctionProjection>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 pub enum Decision {
     Accepted,
     Rejected,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct PairRecord {
     pub first: String,
     pub second: String,
@@ -113,7 +114,7 @@ pub struct PairRecord {
     pub displayed_score: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct RunReport {
     pub profile_id: String,
     pub profile_version: String,
@@ -146,15 +147,51 @@ struct ProjectionData {
 /// which admits validated PDG + CFG documents through the strict adapter.
 /// Fixture success here never certifies a producer.
 pub fn evaluate_all(functions: &[ImportedFunction], config: &CcgraphConfig) -> RunReport {
+    evaluate_with_pair_limit(functions, config, None)
+}
+
+/// An explicit execution limit fails the run before enumeration; it never
+/// changes matching policy or reports a truncated pair set as complete.
+/// Like `evaluate_all`, callers must separately establish production admission.
+pub fn evaluate_with_pair_limit(
+    functions: &[ImportedFunction],
+    config: &CcgraphConfig,
+    maximum_pairs: Option<usize>,
+) -> RunReport {
     let mut report = new_report(config);
     let duplicates = duplicate_keys(functions);
     flag_duplicates(&mut report, &duplicates);
 
     let prepared = prepare_all(functions, &duplicates);
     record_functions(&mut report, &prepared);
+    if let Err(error) = check_pair_limit(functions.len(), maximum_pairs) {
+        return execution_failure(report, error);
+    }
     enumerate_pairs(&mut report, &prepared, config);
 
     report
+}
+
+fn execution_failure(mut report: RunReport, error: String) -> RunReport {
+    report.incomplete = true;
+    report.diagnostics.push(error);
+
+    report
+}
+
+fn check_pair_limit(count: usize, maximum: Option<usize>) -> Result<(), String> {
+    let pairs = count
+        .checked_mul(count.saturating_sub(1))
+        .and_then(|n| n.checked_div(2))
+        .ok_or("pair-count arithmetic overflow")?;
+
+    if maximum.is_some_and(|limit| pairs > limit) {
+        return Err(format!(
+            "pair enumeration requires {pairs} pairs, exceeds explicit resource limit {}",
+            maximum.unwrap_or(0)
+        ));
+    }
+    Ok(())
 }
 
 fn new_report(config: &CcgraphConfig) -> RunReport {

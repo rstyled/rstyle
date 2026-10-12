@@ -12,6 +12,10 @@ Rust style checker built on rustc HIR (resolved names and types, not just syntax
 
 See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
 
+Opt-in strict source-to-pair analysis is available with `cargo rstyle clones`.
+See [the integration workflow](docs/source-to-pair.md) for build selection,
+verified evidence, reports and exit codes. It does not activate abstraction mining.
+
 Other top-level folders:
 
 | Folder | What it is |

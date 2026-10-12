@@ -186,9 +186,12 @@ dependencies = [
  "assert_cmd",
  "clap",
  "insta",
+ "rstyle-ccgraph",
  "rstyle-core",
+ "rstyle-pdg",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "toml",
 ]
