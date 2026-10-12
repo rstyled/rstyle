@@ -1,0 +1,65 @@
+{
+  "packages": [
+    {
+      "package": "lz4_flex",
+      "version": "0.14.0",
+      "archive": "https://static.crates.io/crates/lz4_flex/lz4_flex-0.14.0.crate",
+      "archive_sha256": "ecbdfe44b1bd960b68170b417450a628c43f7cf56bb3c5317e61cb230ee7f226",
+      "license": "MIT",
+      "repository": "https://github.com/pseitz/lz4_flex",
+      "license_files": [
+        {
+          "path": "licenses/lz4_flex-0.14.0/LICENSE",
+          "sha256": "0982c33390159842ecce8e9d6ce2e5e39961fe0e0ffbb2eec39c9ba46db6db10"
+        }
+      ],
+      "selected_functions": 24,
+      "lockfile": "locks/lz4_flex-0.14.0.lock",
+      "lockfile_sha256": "574adf1d2c5eee72c814d61dd8cad955cf38c96b942b7d61fba7cdbf2df7aacd"
+    },
+    {
+      "package": "regex-syntax",
+      "version": "0.8.11",
+      "archive": "https://static.crates.io/crates/regex-syntax/regex-syntax-0.8.11.crate",
+      "archive_sha256": "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/rust-lang/regex",
+      "license_files": [
+        {
+          "path": "licenses/regex-syntax-0.8.11/LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "licenses/regex-syntax-0.8.11/LICENSE-MIT",
+          "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
+        }
+      ],
+      "selected_functions": 24,
+      "lockfile": "locks/regex-syntax-0.8.11.lock",
+      "lockfile_sha256": "44d2a00bcc4bbcfcd5443d80781c42a4b8bfedc7b8720d0b30442e569143aa2f"
+    },
+    {
+      "package": "time-core",
+      "version": "0.1.9",
+      "archive": "https://static.crates.io/crates/time-core/time-core-0.1.9.crate",
+      "archive_sha256": "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/time-rs/time",
+      "license_files": [
+        {
+          "path": "licenses/time-core-0.1.9/LICENSE-Apache",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        },
+        {
+          "path": "licenses/time-core-0.1.9/LICENSE-MIT",
+          "sha256": "2537228d9a1b44a5dc595241349cae7090b326c8de165aaf89bfddef4a00d0fc"
+        }
+      ],
+      "selected_functions": 12,
+      "lockfile": "locks/time-core-0.1.9.lock",
+      "lockfile_sha256": "05e04805f5ae445d8f18e9a765bda47bc36b35b7488792d72e6c47154b3ac7c9"
+    }
+  ],
+  "selection_sha256": "489217b33f698a47f851774a6e61221db7d83005f5d7ab727f5f4222b77c8dd6",
+  "source_claim": "Complete frozen selected-definition inventory, whole unmodified library compilation, source excerpts outside macro token definitions; no quality study."
+}

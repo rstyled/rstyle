@@ -22,6 +22,7 @@ pub struct Target {
 
 #[derive(Serialize, Deserialize)]
 pub struct Plan {
+    pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub root: PathBuf,
     pub driver: PathBuf,
     pub targets: Vec<Target>,
@@ -34,6 +35,7 @@ pub struct Plan {
 
 #[derive(Serialize, Deserialize)]
 pub struct Unit {
+    pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub target: Target,
     pub test: bool,
     pub invocation: Vec<String>,
@@ -55,10 +57,10 @@ pub struct Capture {
     pub expected_unit_graph: Value,
 }
 
-pub fn prepare(cli: &Cli) -> Result<Capture, String> {
+pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let metadata = selected_workspace(cli)?;
     let directory = run_directory(&metadata.target_directory)?;
-    let plan = plan(cli, metadata.workspace_root)?;
+    let plan = plan(cli, metadata.workspace_root, args.extraction_profile)?;
     write_json(&directory.join("plan.json"), &plan)?;
 
     Ok(new_capture(directory, plan))
@@ -96,13 +98,18 @@ fn run_directory(target: &Path) -> Result<PathBuf, String> {
         .keep())
 }
 
-fn plan(cli: &Cli, root: PathBuf) -> Result<Plan, String> {
+fn plan(
+    cli: &Cli,
+    root: PathBuf,
+    extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<Plan, String> {
     let driver = run::driver_path()?
         .canonicalize()
         .map_err(|e| e.to_string())?;
     let orchestrator = std::env::current_exe().map_err(|e| e.to_string())?;
 
     Ok(Plan {
+        extraction_profile,
         root,
         driver_sha256: file_digest(&driver)?,
         orchestrator_sha256: file_digest(&orchestrator)?,
@@ -483,7 +490,10 @@ pub fn wrapper(plan_path: &Path, invocation: Vec<String>) -> Result<u8, String> 
 fn driver_command(plan: &Plan, invocation: &[String]) -> Command {
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
-    command.args(invocation);
+    command.args(invocation).env(
+        "RSTYLE_HIR_EXTRACTION_PROFILE",
+        plan.extraction_profile.token(),
+    );
     command
 }
 
@@ -547,6 +557,7 @@ fn capture_unit(
         .keep();
     let test = invocation.iter().any(|a| a == "--test");
     let unit = Unit {
+        extraction_profile: read_json::<Plan>(plan)?.extraction_profile,
         target,
         test,
         invocation,
@@ -570,7 +581,7 @@ fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitS
 }
 
 fn publish_unit(root: &Path, mut unit: Unit) -> Result<(), String> {
-    unit.artifacts = artifact_inventory(&unit.directory)?;
+    unit.artifacts = artifact_inventory(&unit.directory, unit.extraction_profile)?;
     let key = super::digest(
         &serde_json::to_vec(&json!([unit.target.package, unit.target.source, unit.test]))
             .map_err(|e| e.to_string())?,
@@ -590,9 +601,15 @@ fn reserve_ledger(path: &Path) -> Result<std::fs::File, String> {
         .map_err(|e| format!("duplicate or missing unit ledger: {e}"))
 }
 
-fn artifact_inventory(directory: &Path) -> Result<Vec<Artifact>, String> {
+fn artifact_inventory(
+    directory: &Path,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<Vec<Artifact>, String> {
     let facts: Vec<rstyle_pdg::HirFnFacts> = read_json(&directory.join("facts.json"))?;
     let mut files = vec!["facts.json".to_string()];
+    if profile.supports("rust.conditional-source-correspondence") {
+        files.push("source-inventory.json".into());
+    }
     for index in 0..facts.len() {
         let assessment = format!("function-{index}.assessment.json");
         let value: Value = read_json(&directory.join(&assessment))?;
@@ -609,6 +626,7 @@ fn artifact_inventory(directory: &Path) -> Result<Vec<Artifact>, String> {
             ]);
         }
     }
+
     files
         .into_iter()
         .map(|file| {
@@ -637,7 +655,7 @@ pub fn verify_inventory(unit: &Unit) -> Result<(), String> {
         }
     }
 
-    let actual = artifact_inventory(&unit.directory)?;
+    let actual = artifact_inventory(&unit.directory, unit.extraction_profile)?;
     if actual
         .iter()
         .map(|a| &a.file)

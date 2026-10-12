@@ -549,7 +549,9 @@ fn pair_record(input: &GateInput, stages: Vec<StageRecord>) -> PairRecord {
 fn gate_validation(input: &GateInput) -> GateResult {
     let mut detail = BTreeMap::new();
     let pair_ok = widths_compatible(&input.first.imported, &input.second.imported, &mut detail);
-    let ok = input.first.valid && input.second.valid && pair_ok;
+    let context_ok =
+        contexts_compatible(&input.first.imported, &input.second.imported, &mut detail);
+    let ok = input.first.valid && input.second.valid && pair_ok && context_ok;
 
     if ok {
         return gate_record(StageName::Validation, StageOutcome::Passed, detail);
@@ -570,6 +572,9 @@ fn validation_failure(input: &GateInput, detail: &BTreeMap<String, String>) -> S
         .cloned()
         .collect();
     if let Some(note) = detail.get("widths") {
+        reasons.push(note.clone());
+    }
+    if let Some(note) = detail.get("extraction_context") {
         reasons.push(note.clone());
     }
     StageOutcome::Ineligible {
@@ -748,6 +753,21 @@ fn record_of(prepared: &PreparedFunction) -> &FunctionProjection {
         Ok(data) => &data.record,
         Err(_) => panic_projection_checked(),
     }
+}
+
+fn contexts_compatible(
+    first: &ImportedFunction,
+    second: &ImportedFunction,
+    detail: &mut BTreeMap<String, String>,
+) -> bool {
+    if first.extraction_context == second.extraction_context {
+        return true;
+    }
+    detail.insert(
+        "extraction_context".into(),
+        "Incompatible registered extraction policies or semantic build settings".into(),
+    );
+    false
 }
 
 /// Native-width interfaces or operations need equal known pointer widths.

@@ -14,6 +14,7 @@ pub struct Finding {
 }
 
 pub struct Function {
+    pub body_span: Span,
     pub span: Span,
     pub findings: Vec<Finding>,
     pub conditional_source: bool,
@@ -33,10 +34,13 @@ impl<'a> Visitor<'a> for Scan {
         let mut owned = Owned {
             findings: Vec::new(),
             conditional_source: false,
+            profile: selected_profile(),
+            match_pattern: false,
         };
         owned.visit_block(body);
 
         self.functions.push(Function {
+            body_span: body.span,
             span,
             findings: owned.findings,
             conditional_source: owned.conditional_source,
@@ -45,6 +49,8 @@ impl<'a> Visitor<'a> for Scan {
 }
 
 struct Owned {
+    match_pattern: bool,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     findings: Vec<Finding>,
     conditional_source: bool,
 }
@@ -94,10 +100,20 @@ impl<'a> Visitor<'a> for Owned {
             self.reject(local.span, "rust.local-bindings", "declaration_shape");
         }
 
-        visit::walk_local(self, local);
+        self.walk_binding_local(local);
+    }
+
+    fn visit_arm(&mut self, arm: &'a ast::Arm) {
+        let previous = self.match_pattern;
+        self.match_pattern = self.profile.supports("rust.scalar-match");
+        visit::walk_arm(self, arm);
+        self.match_pattern = previous;
     }
 
     fn visit_pat(&mut self, pattern: &'a ast::Pat) {
+        if self.match_pattern && source_match_pattern(&pattern.kind) {
+            return;
+        }
         if !matches!(
             pattern.kind,
             ast::PatKind::Ident(ast::BindingMode(ast::ByRef::No, _), _, None)
@@ -116,12 +132,30 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_expr(&mut self, expression: &'a ast::Expr) {
-        if let Some((capability, construct)) = deferred(&expression.kind) {
+        if let Some((capability, construct)) = deferred(&expression.kind)
+            && !selected_expression(&expression.kind, self.profile)
+        {
             self.reject(expression.span, capability, construct);
             return;
         }
 
         visit::walk_expr(self, expression);
+    }
+}
+
+fn selected_expression(
+    kind: &ast::ExprKind,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> bool {
+    match kind {
+        ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
+        ast::ExprKind::While(..)
+        | ast::ExprKind::Loop(..)
+        | ast::ExprKind::Break(..)
+        | ast::ExprKind::Continue(..) => profile.supports("rust.scalar-loops"),
+        ast::ExprKind::Cast(..) => profile.supports("rust.integer-casts"),
+        ast::ExprKind::Match(..) => profile.supports("rust.scalar-match"),
+        _ => false,
     }
 }
 
@@ -181,4 +215,33 @@ pub fn scan(krate: &ast::Crate) -> Vec<Function> {
     visit::walk_crate(&mut scan, krate);
 
     scan.functions
+}
+
+fn selected_profile() -> rstyle_pdg::extraction_profile::ExtractionProfile {
+    std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
+        .ok()
+        .and_then(|value| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&value).ok())
+        .unwrap_or_default()
+}
+
+fn source_match_pattern(kind: &ast::PatKind) -> bool {
+    match kind {
+        ast::PatKind::Wild => true,
+        ast::PatKind::Expr(expression) => match &expression.kind {
+            ast::ExprKind::Lit(literal) => supported_literal(literal),
+            ast::ExprKind::Unary(ast::UnOp::Neg, value) => {
+                matches!(&value.kind, ast::ExprKind::Lit(literal) if supported_literal(literal))
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+impl Owned {
+    fn walk_binding_local(&mut self, local: &ast::Local) {
+        let previous = std::mem::replace(&mut self.match_pattern, false);
+        visit::walk_local(self, local);
+        self.match_pattern = previous;
+    }
 }

@@ -25,6 +25,13 @@ struct Assessment<'a> {
 }
 
 impl Destination {
+    pub fn write_source_inventory(&self, value: &serde_json::Value) -> io::Result<()> {
+        if let Some(directory) = &self.document_directory {
+            std::fs::create_dir_all(directory)?;
+            write_json(&directory.join("source-inventory.json"), value)?;
+        }
+        Ok(())
+    }
     pub fn write(&self, facts: &[HirFnFacts]) -> io::Result<()> {
         if let Some(directory) = &self.document_directory {
             write(directory, facts)?;

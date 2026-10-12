@@ -7,12 +7,16 @@
 //! compiler-independent fact records ([`frontend`]) and their analysis live
 //! here.
 
+pub mod call_summaries;
 pub mod cfg;
 pub mod collection;
+mod cyclic_values;
 pub mod eligibility;
+pub mod extraction_profile;
 pub mod frontend;
 pub mod model;
 pub mod producer;
+pub mod source_evidence;
 pub mod validate;
 pub mod value_sites;
 pub use value_sites::validate_value_sites;

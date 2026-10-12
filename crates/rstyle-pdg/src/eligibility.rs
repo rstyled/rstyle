@@ -103,7 +103,10 @@ impl Outcome {
 }
 
 /// Read-only classifier context: binding cross-references.
+#[derive(Clone)]
 struct Ctx<'a> {
+    loops: Vec<crate::HirRef>,
+    profile: crate::extraction_profile::ExtractionProfile,
     bindings: BTreeMap<(u32, u32, u32), &'a BindingFact>,
     symbols: BTreeSet<&'a str>,
 }
@@ -157,25 +160,24 @@ fn node_norm(node: &HirNode) -> Option<&str> {
 
 /// Classify one assessed function.
 pub fn classify(facts: &HirFnFacts) -> HirEligibility {
-    let ctx = Ctx {
-        bindings: facts
-            .bindings
-            .iter()
-            .map(|binding| {
-                (
-                    (binding.hir.krate, binding.hir.owner, binding.hir.local),
-                    binding,
-                )
-            })
-            .collect(),
-        symbols: facts
-            .bindings
-            .iter()
-            .map(|binding| binding.symbol.as_str())
-            .collect(),
+    let profile = match crate::extraction_profile::ExtractionProfile::from_facts(facts) {
+        Ok(profile) => profile,
+        Err(reason) => {
+            return HirEligibility {
+                status: EligibilityVerdict::Unknown,
+                diagnostics: vec![diagnostic(
+                    "rust.extraction-profile",
+                    "profile",
+                    &site_of(&facts.body),
+                    &reason,
+                )],
+            };
+        }
     };
+    let ctx = context(facts, profile);
 
     let outcome = Outcome::combine(vec![
+        check_loop_values(&facts.body, profile),
         check_source_scan(facts),
         check_signature(facts, &ctx),
         check_bindings(facts, &ctx),
@@ -195,6 +197,28 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
     }
 }
 
+fn context(facts: &HirFnFacts, profile: crate::extraction_profile::ExtractionProfile) -> Ctx<'_> {
+    Ctx {
+        loops: Vec::new(),
+        profile,
+        bindings: facts
+            .bindings
+            .iter()
+            .map(|binding| {
+                (
+                    (binding.hir.krate, binding.hir.owner, binding.hir.local),
+                    binding,
+                )
+            })
+            .collect(),
+        symbols: facts
+            .bindings
+            .iter()
+            .map(|binding| binding.symbol.as_str())
+            .collect(),
+    }
+}
+
 fn check_source_scan(facts: &HirFnFacts) -> Outcome {
     let source = Outcome {
         diagnostics: facts.source_diagnostics.clone(),
@@ -202,6 +226,14 @@ fn check_source_scan(facts: &HirFnFacts) -> Outcome {
         rejected: !facts.source_diagnostics.is_empty(),
     };
 
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)
+        .is_ok_and(|profile| profile.supports("rust.conditional-source-correspondence"))
+    {
+        return match crate::source_evidence::verify(facts) {
+            Ok(()) => source,
+            Err(reason) => source.merge(evidence_gap(&facts.body, &reason)),
+        };
+    }
     if facts.source_scan_complete {
         source
     } else {
@@ -246,7 +278,7 @@ fn signature_node(signature: &SignatureFacts) -> HirNode {
 fn check_signature(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
     Outcome::combine(vec![
         check_sig_subject(&facts.signature),
-        check_sig_header(&facts.signature),
+        check_sig_header(&facts.signature, ctx.profile),
         check_sig_params(&facts.signature, ctx),
         check_sig_return(&facts.signature),
     ])
@@ -300,8 +332,11 @@ fn check_sig_subject(signature: &SignatureFacts) -> Outcome {
 }
 
 /// Calling convention and evaluation context: one normal Rust function.
-fn check_sig_header(signature: &SignatureFacts) -> Outcome {
-    check_sig_abi(signature).merge(check_sig_flags(signature))
+fn check_sig_header(
+    signature: &SignatureFacts,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Outcome {
+    check_sig_abi(signature).merge(check_sig_flags(signature, profile))
 }
 
 fn check_sig_abi(signature: &SignatureFacts) -> Outcome {
@@ -327,7 +362,10 @@ fn check_sig_abi(signature: &SignatureFacts) -> Outcome {
     Outcome::combine(abi.into_iter().collect())
 }
 
-fn check_sig_flags(signature: &SignatureFacts) -> Outcome {
+fn check_sig_flags(
+    signature: &SignatureFacts,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Outcome {
     let anchor = signature_node(signature);
     let flags = [
         (
@@ -349,7 +387,7 @@ fn check_sig_flags(signature: &SignatureFacts) -> Outcome {
             "Unsafe functions are deferred to rust.unsafe.",
         ),
         (
-            signature.is_const,
+            signature.is_const && profile == crate::extraction_profile::ExtractionProfile::R0,
             "rust.additional-types",
             "const_fn",
             "Const evaluation context is outside R0.",
@@ -468,6 +506,19 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
         return macro_diagnostic(node, site);
     }
 
+    if ctx.profile.supports("rust.scalar-loops")
+        && matches!(node.kind.as_str(), "expr_loop" | "expr_while")
+    {
+        return check_loop(node, ctx);
+    }
+    if ctx.profile.supports("rust.scalar-loops")
+        && matches!(node.kind.as_str(), "expr_break" | "expr_continue")
+    {
+        return check_loop_exit(node, ctx);
+    }
+    if node.kind == "expr_match" && ctx.profile.supports("rust.scalar-match") {
+        return check_match(node, ctx);
+    }
     let own = check_kind(node, ctx);
 
     if node.kind == "expr_closure" || node.kind == "stmt_item" {
@@ -507,6 +558,19 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     match node.kind.as_str() {
+        "expr_method_call" if ctx.profile.supports("rust.verified-primitive-summaries") => {
+            if crate::call_summaries::resolve(node).is_some() {
+                Outcome::ok()
+            } else {
+                error(
+                    "rust.call-summaries",
+                    "unregistered_primitive_summary",
+                    node,
+                    "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+                )
+            }
+        }
+        "expr_cast" if ctx.profile.supports("rust.integer-casts") => check_supported(node, ctx),
         "expr_block" | "stmt_expr" | "stmt_semi" | "stmt_let" | "expr_path" | "expr_lit"
         | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_assign_op"
         | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
@@ -517,6 +581,7 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 /// Constructs that may be admitted once their evidence checks pass.
 fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     match node.kind.as_str() {
+        "expr_cast" if ctx.profile.supports("rust.integer-casts") => check_cast(node),
         "expr_block" => check_block(node),
         "stmt_expr" | "stmt_semi" => Outcome::ok(),
         "stmt_let" => check_let(node, ctx),
@@ -649,7 +714,7 @@ fn check_ty_node(node: &HirNode) -> Outcome {
 
 /// Every retained expression must carry a resolved primitive value type.
 fn check_expr_ty(node: &HirNode, what: &str) -> Outcome {
-    if matches!(node.kind.as_str(), "expr_block" | "expr_if")
+    if matches!(node.kind.as_str(), "expr_block" | "expr_if" | "expr_match")
         && node.ty.as_ref().is_some_and(|ty| ty.observed == "!")
     {
         return Outcome::ok();
@@ -741,6 +806,246 @@ fn builtin_or_reject(node: &HirNode, what: &str) -> Outcome {
             "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
         ),
     }
+}
+
+fn contains_loop(node: &HirNode) -> bool {
+    matches!(node.kind.as_str(), "expr_loop" | "expr_while")
+        || node.children.iter().any(contains_loop)
+}
+
+fn check_loop_values(
+    node: &HirNode,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Outcome {
+    if !profile.supports("rust.scalar-loops") || !contains_loop(node) {
+        return Outcome::ok();
+    }
+    check_no_loop_merges(node)
+}
+
+fn check_no_loop_merges(node: &HirNode) -> Outcome {
+    let branching = matches!(node.kind.as_str(), "expr_if" | "expr_match")
+        && !matches!(node_norm(node), Some("unit") | None)
+        && node.ty.as_ref().is_none_or(|ty| ty.observed != "!");
+    let short = node
+        .dispatch
+        .as_ref()
+        .is_some_and(|dispatch| matches!(dispatch.op.as_str(), "&&" | "||"));
+    let own = if branching || short {
+        error(
+            "rust.scalar-loops",
+            "loop_value_merges",
+            node,
+            "The initial cyclic policy excludes nonunit conditional and short-circuit value merges in loop-containing functions.",
+        )
+    } else {
+        Outcome::ok()
+    };
+    own.merge(Outcome::combine(
+        node.children.iter().map(check_no_loop_merges).collect(),
+    ))
+}
+
+fn check_loop(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let expected = if node.kind == "expr_while" { 2 } else { 1 };
+    if node.children.len() != expected {
+        return evidence_gap(node, "loop source/HIR correspondence");
+    }
+
+    let mut nested = ctx.clone();
+    nested.loops.push(node.hir.clone());
+    let own = if node.kind == "expr_while" && node_norm(&node.children[0]) != Some("bool") {
+        error(
+            "rust.scalar-loops",
+            "while_condition",
+            node,
+            "While condition must resolve to bool.",
+        )
+    } else {
+        Outcome::ok()
+    };
+    own.merge(Outcome::combine(
+        node.children
+            .iter()
+            .map(|child| check_node(child, false, &nested))
+            .collect(),
+    ))
+}
+
+fn check_loop_exit(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if !node.children.is_empty()
+        || node.res.as_ref().is_none_or(|resolution| {
+            resolution.kind != "innermost_loop" || resolution.target.as_ref() != ctx.loops.last()
+        })
+    {
+        return error(
+            "rust.scalar-loops",
+            "loop_exit",
+            node,
+            "Only resolved unlabelled valueless exits to the innermost loop are supported.",
+        );
+    }
+    Outcome::ok()
+}
+
+fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let Some((scrutinee, arms)) = node.children.split_first() else {
+        return evidence_gap(node, "match source/HIR correspondence");
+    };
+    let mut checks = vec![
+        check_expr_ty(node, "match_result"),
+        check_node(scrutinee, false, ctx),
+    ];
+    if !node_norm(scrutinee).is_some_and(|ty| is_int(ty) || ty == "bool") {
+        checks.push(error(
+            "rust.scalar-match",
+            "scrutinee",
+            scrutinee,
+            "Match requires a resolved integer or bool scrutinee.",
+        ));
+    }
+    if arms.is_empty()
+        || arms.len() > 16
+        || !arms
+            .last()
+            .is_some_and(|arm| arm.children.len() == 2 && arm.children[0].kind == "pat_wild")
+    {
+        checks.push(error(
+            "rust.scalar-match",
+            "match_boundary",
+            node,
+            "Bounded match requires 1..=16 arms and a final unguarded wildcard.",
+        ));
+    }
+    for (index, arm) in arms.iter().enumerate() {
+        checks.push(check_match_arm(
+            arm,
+            scrutinee,
+            index + 1 == arms.len(),
+            ctx,
+        ));
+    }
+
+    Outcome::combine(checks)
+}
+
+fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>) -> Outcome {
+    let Some((pattern, children)) = arm.children.split_first() else {
+        return evidence_gap(arm, "match arm correspondence");
+    };
+    let guarded = children.len() == 2 && children[0].kind == "match_guard";
+    let shape = arm.kind == "match_arm" && (children.len() == 1 || guarded);
+    let pattern_valid = (pattern.kind == "pat_literal"
+        && pattern.lit.is_some()
+        && node_norm(pattern) == node_norm(scrutinee))
+        || (pattern.kind == "pat_wild"
+            && (last || (guarded && ctx.profile.supports("rust.scalar-match-guards"))));
+    let valid =
+        shape && pattern_valid && (!guarded || ctx.profile.supports("rust.scalar-match-guards"));
+    let own = if valid {
+        Outcome::ok()
+    } else {
+        error(
+            "rust.scalar-match",
+            "arm_shape",
+            arm,
+            "Only literal arms and a final unguarded wildcard are supported; guards and other patterns require another registered slice.",
+        )
+    };
+    let body = Outcome::combine(
+        children
+            .iter()
+            .map(|child| {
+                if child.kind == "match_guard" {
+                    check_match_guard(child, ctx)
+                } else {
+                    check_node(child, false, ctx)
+                }
+            })
+            .collect(),
+    );
+
+    own.merge(body)
+}
+
+fn check_match_guard(wrapper: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let [guard] = wrapper.children.as_slice() else {
+        return evidence_gap(wrapper, "guard correspondence");
+    };
+    let result = if node_norm(guard) == Some("bool") {
+        Outcome::ok()
+    } else {
+        error(
+            "rust.scalar-match-guards",
+            "guard_type",
+            guard,
+            "Guard result must resolve to bool.",
+        )
+    };
+    result
+        .merge(check_guard_subset(guard))
+        .merge(check_node(guard, false, ctx))
+}
+
+fn check_guard_subset(node: &HirNode) -> Outcome {
+    let own = if matches!(
+        node.kind.as_str(),
+        "expr_lit" | "expr_path" | "expr_unary" | "expr_binary" | "expr_block" | "expr_if"
+    ) {
+        Outcome::ok()
+    } else {
+        error(
+            "rust.scalar-match-guards",
+            "guard_subset",
+            node,
+            "Guards are restricted to pure base scalar expressions; writes, declarations, casts, calls and returns remain excluded.",
+        )
+    };
+    own.merge(Outcome::combine(
+        node.children.iter().map(check_guard_subset).collect(),
+    ))
+}
+
+fn check_cast(node: &HirNode) -> Outcome {
+    let Some(dispatch) = &node.dispatch else {
+        return evidence_gap(node, "resolved built-in integer cast");
+    };
+    let [operand] = node.children.as_slice() else {
+        return evidence_gap(node, "cast operand correspondence");
+    };
+    let Some(input) = node_norm(operand) else {
+        return error(
+            "rust.integer-casts",
+            "cast_operand",
+            node,
+            "Only resolved integer-to-integer casts are supported.",
+        );
+    };
+    let Some(result) = node_norm(node) else {
+        return error(
+            "rust.integer-casts",
+            "cast_result",
+            node,
+            "Only resolved integer-to-integer casts are supported.",
+        );
+    };
+    if !is_int(input) || !is_int(result) {
+        return error(
+            "rust.integer-casts",
+            "cast_domain",
+            node,
+            "Float, bool, unit, pointer and reference casts are excluded.",
+        );
+    }
+    if dispatch.kind != "builtin"
+        || dispatch.op != "as"
+        || dispatch.operand_tys != [input]
+        || dispatch.result_ty != result
+    {
+        return evidence_gap(node, "consistent resolved cast types and dispatch");
+    }
+
+    Outcome::ok()
 }
 
 fn check_binary(node: &HirNode) -> Outcome {

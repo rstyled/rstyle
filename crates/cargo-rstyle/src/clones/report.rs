@@ -34,7 +34,10 @@ struct Report<'a> {
     compiler_identity: &'a str,
     cargo_identity: &'a str,
     contract_revision: &'static str,
+    extraction_selection: &'static str,
     extraction_policy: Policy,
+    extraction_capabilities: &'static [&'static str],
+    call_summaries: &'static [&'static str],
     schema_versions: SchemaVersions,
     producer_name: &'static str,
     producer_version: &'static str,
@@ -46,6 +49,7 @@ struct Report<'a> {
     capture_failures: &'a [String],
     assessment_complete: bool,
     functions: &'a [super::Function],
+    owned_source_inventory: &'a [Value],
     handoff_failures: &'a [String],
     pair_evaluation_complete: bool,
     pair_enumeration_complete: bool,
@@ -55,8 +59,8 @@ struct Report<'a> {
 
 #[derive(Serialize)]
 struct Policy {
-    id: &'static str,
-    version: &'static str,
+    id: String,
+    version: String,
     semantics: &'static str,
 }
 
@@ -64,6 +68,15 @@ struct Policy {
 struct SchemaVersions {
     pdg: &'static str,
     cfg: &'static str,
+}
+
+// Report the CLI name separately from the frozen frontend evidence token.
+fn extraction_selection(args: &Args) -> &'static str {
+    if args.extraction_profile == rstyle_pdg::extraction_profile::ExtractionProfile::R0 {
+        "r0"
+    } else {
+        "hir-expanded-v1"
+    }
 }
 
 pub fn make(ctx: Context<'_>) -> Result<Value, String> {
@@ -84,11 +97,14 @@ pub fn make(ctx: Context<'_>) -> Result<Value, String> {
         compiler_identity: &ctx.capture.plan.compiler_identity,
         cargo_identity: &ctx.capture.plan.cargo_identity,
         contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
+        extraction_selection: extraction_selection(ctx.args),
         extraction_policy: Policy {
-            id: "compat.rust.hir-r0",
-            version: "0.1.0",
+            id: ctx.args.extraction_profile.policy().id,
+            version: ctx.args.extraction_profile.policy().version,
             semantics: "bounded normal flow; exceptional transfers and cleanup omitted",
         },
+        extraction_capabilities: ctx.args.extraction_profile.capabilities(),
+        call_summaries: ctx.args.extraction_profile.summaries(),
         schema_versions: SchemaVersions {
             pdg: "0.1.0",
             cfg: "0.2.0",
@@ -103,6 +119,7 @@ pub fn make(ctx: Context<'_>) -> Result<Value, String> {
         capture_failures: &ctx.capture.failures,
         assessment_complete: ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty(),
         functions: &ctx.handoff.assessed,
+        owned_source_inventory: &ctx.handoff.source_inventory,
         handoff_failures: &ctx.handoff.failures,
         pair_evaluation_complete: ctx.complete,
         pair_enumeration_complete: enumeration_complete(&ctx),

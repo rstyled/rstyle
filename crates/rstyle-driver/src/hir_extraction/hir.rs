@@ -98,6 +98,11 @@ impl<'tcx> Context<'tcx> {
             }
             PatKind::Binding(..) => ("pat_binding_pattern", pat.span),
             PatKind::Wild => ("pat_wild", pat.span),
+            PatKind::Expr(expression)
+                if matches!(expression.kind, hir::PatExprKind::Lit { .. }) =>
+            {
+                ("pat_literal", pat.span)
+            }
             _ => ("pat_unsupported", pat.span),
         };
         let node = self.node(pat.hir_id, span, kind);
@@ -113,6 +118,7 @@ impl<'tcx> Context<'tcx> {
                 .map(|ty| resolved(ty, String::new())),
             binding,
             binding_mut,
+            lit: (kind == "pat_literal").then(|| self.snippet(pat.span)),
             ..node
         }
     }
@@ -127,7 +133,13 @@ impl<'tcx> Context<'tcx> {
         } else {
             self.typeck.expr_ty(expr)
         };
-        let base = self.node(expr.hir_id, expr.span, kind(&expr.kind));
+        let tag = match expr.kind {
+            ExprKind::Loop(_, Some(_), _, _) => "expr_labelled_loop",
+            ExprKind::Loop(_, None, hir::LoopSource::While, _) => "expr_while",
+            ExprKind::Loop(_, None, hir::LoopSource::ForLoop, _) => "expr_for",
+            _ => kind(&expr.kind),
+        };
+        let base = self.node(expr.hir_id, expr.span, tag);
         let expansion = expr.span.from_expansion().then(|| ExpansionSite {
             callsite: self.span(expr.span.source_callsite()),
             snippet: self.snippet(expr.span),
@@ -161,6 +173,20 @@ impl<'tcx> Context<'tcx> {
                     description: format!("{res:?}"),
                 })
             }
+            ExprKind::MethodCall(..) => self.typeck.type_dependent_def_id(expr.hir_id).map(|callee| PathRes {
+                kind: "resolved_callee".into(), target: None,
+                description: serde_json::json!({"path":self.tcx.def_path_str(callee),"crate":self.tcx.crate_name(callee.krate).to_string(),"crate_hash":if callee.is_local() { "local-unencoded".to_string() } else { self.tcx.crate_hash(callee.krate).to_string() },"definition_hash":format!("{:?}", self.tcx.def_path_hash(callee))}).to_string(),
+            }),
+            ExprKind::Break(destination, _) | ExprKind::Continue(destination) => Some(PathRes {
+                kind: if destination.label.is_none() {
+                    "innermost_loop"
+                } else {
+                    "labelled_loop"
+                }
+                .into(),
+                target: destination.target_id.ok().map(reference),
+                description: "Compiler-resolved loop exit destination".into(),
+            }),
             _ => None,
         };
         let lit = matches!(expr.kind, ExprKind::Lit(_)).then(|| self.snippet(expr.span));
@@ -178,6 +204,16 @@ impl<'tcx> Context<'tcx> {
 
     fn children(&self, expr: &Expr<'tcx>) -> Vec<HirNode> {
         match expr.kind {
+            ExprKind::Loop(block, None, hir::LoopSource::Loop, _) => vec![self.loop_block(block)],
+            ExprKind::Loop(block, None, hir::LoopSource::While, _) => {
+                match block.expr.map(|e| &e.kind) {
+                    Some(ExprKind::If(condition, body, _)) => {
+                        vec![self.expression(condition), self.expression(body)]
+                    }
+                    _ => Vec::new(),
+                }
+            }
+            ExprKind::Break(_, value) => value.into_iter().map(|e| self.expression(e)).collect(),
             ExprKind::Block(block, _) => self.block_children(block),
             ExprKind::Binary(_, left, right)
             | ExprKind::Assign(left, right, _)
@@ -192,10 +228,42 @@ impl<'tcx> Context<'tcx> {
                 .flatten()
                 .map(|e| self.expression(e))
                 .collect(),
+            ExprKind::Match(value, arms, hir::MatchSource::Normal) => {
+                std::iter::once(self.expression(value))
+                    .chain(arms.iter().map(|arm| self.match_arm(arm)))
+                    .collect()
+            }
             ExprKind::Ret(value) => value.into_iter().map(|e| self.expression(e)).collect(),
             ExprKind::Tup(values) => values.iter().map(|e| self.expression(e)).collect(),
+            ExprKind::MethodCall(_, receiver, args, _) => {
+                std::iter::once(self.expression(receiver))
+                    .chain(args.iter().map(|e| self.expression(e)))
+                    .collect()
+            }
             ExprKind::Call(_, args) => args.iter().map(|e| self.expression(e)).collect(),
             _ => Vec::new(),
+        }
+    }
+
+    fn loop_block(&self, block: &hir::Block<'tcx>) -> HirNode {
+        HirNode {
+            children: self.block_children(block),
+            ty: Some(resolved(self.tcx.types.unit, String::new())),
+            ..self.node(block.hir_id, block.span, "expr_block")
+        }
+    }
+
+    fn match_arm(&self, arm: &hir::Arm<'tcx>) -> HirNode {
+        let guard = arm.guard.map(|guard| HirNode {
+            children: vec![self.expression(guard)],
+            ..self.node(guard.hir_id, guard.span, "match_guard")
+        });
+        HirNode {
+            children: std::iter::once(self.pattern(arm.pat))
+                .chain(guard)
+                .chain(std::iter::once(self.expression(arm.body)))
+                .collect(),
+            ..self.node(arm.hir_id, arm.span, "match_arm")
         }
     }
 
@@ -253,6 +321,12 @@ impl<'tcx> Context<'tcx> {
                 (op.node.as_str().to_string(), vec![left, right])
             }
             ExprKind::Unary(op, value) => (op.as_str().to_string(), vec![value]),
+            ExprKind::Cast(value, _) => ("as".to_string(), vec![value]),
+            ExprKind::MethodCall(_, receiver, args, _) => (
+                self.tcx
+                    .def_path_str(self.typeck.type_dependent_def_id(expr.hir_id)?),
+                std::iter::once(receiver).chain(args.iter()).collect(),
+            ),
             _ => return None,
         };
         let operand_tys: Vec<String> = operands
@@ -266,7 +340,14 @@ impl<'tcx> Context<'tcx> {
         let overloaded = self.typeck.type_dependent_def_id(expr.hir_id).is_some();
 
         Some(Dispatch {
-            kind: if overloaded { "overloaded" } else { "builtin" }.to_string(),
+            kind: if matches!(expr.kind, ExprKind::MethodCall(..)) {
+                "resolved_method"
+            } else if overloaded {
+                "overloaded"
+            } else {
+                "builtin"
+            }
+            .to_string(),
             op,
             operand_tys,
             result_ty: resolved(self.typeck.expr_ty(expr), String::new())
@@ -298,6 +379,8 @@ fn kind(kind: &ExprKind<'_>) -> &'static str {
         ExprKind::Loop(..) => "expr_loop",
         ExprKind::Match(..) => "expr_match",
         ExprKind::Cast(..) => "expr_cast",
+        ExprKind::Break(..) => "expr_break",
+        ExprKind::Continue(..) => "expr_continue",
         ExprKind::Let(..) => "expr_let",
         ExprKind::Yield(..) => "expr_yield",
         ExprKind::Array(..) => "expr_array",

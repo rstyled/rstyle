@@ -1554,3 +1554,477 @@ fn selected_package_build_dependency_compilation_is_outside_matching_scope() {
             > 2
     );
 }
+
+#[test]
+fn clones_const_expansion_is_explicit_and_inherited_selection_cannot_activate_it() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub const fn f(x: i32) -> i32 { x }\npub fn g(x: i32) -> i32 { x }\n",
+    )
+    .unwrap();
+    let (output, baseline) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert_eq!(
+        baseline["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        1
+    );
+    let (output, expanded) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-expanded-v1", "--trace"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        expanded["extraction_policy"]["id"],
+        "rstyle.rust.hir-coverage"
+    );
+    assert_eq!(expanded["extraction_policy"]["version"], "0.7.0");
+    assert_eq!(expanded["extraction_selection"], "hir-expanded-v1");
+    assert_eq!(baseline["extraction_selection"], "r0");
+    assert_eq!(
+        expanded["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(expanded["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(expanded["matching"]["pairs"][0]["displayed_score"], "1");
+    assert_inherited_expanded_selection_is_ignored(directory.path());
+}
+
+#[test]
+fn clones_rejects_retired_staged_selections_before_capture() {
+    let directory = clone_workspace();
+    for profile in [
+        "hir-const-v1",
+        "hir-casts-v1",
+        "hir-match-v1",
+        "hir-guards-v1",
+        "hir-conditional-v1",
+        "hir-loops-v1",
+        "hir-calls-v1",
+    ] {
+        let output = Command::new(cargo_bin("cargo-rstyle"))
+            .args(["clones", "--extraction-profile", profile])
+            .current_dir(directory.path())
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("r0 or hir-expanded-v1"));
+        assert!(!directory.path().join("target/rstyle/clones").exists());
+    }
+}
+
+#[test]
+fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaults() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub const fn f(x: i32) -> u8 { x as u8 }\npub fn g(x: i32) -> u8 { x as u8 }\npub fn h(x: i32) -> f64 { x as f64 }\n").unwrap();
+    let (output, expanded) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-expanded-v1"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(expanded["extraction_policy"]["version"], "0.7.0");
+    assert_eq!(
+        expanded["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(expanded["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(expanded["matching"]["pairs"][0]["displayed_score"], "1");
+    let (output, baseline) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert_eq!(baseline["matching"]["pairs"].as_array().unwrap().len(), 0);
+    assert!(
+        baseline["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+#[test]
+fn clones_scalar_match_is_versioned_and_evaluates_every_admitted_pair() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\npub fn g(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\npub fn h(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-expanded-v1",
+            "--all-targets",
+            "--jobs",
+            "2",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(report["extraction_policy"]["version"], "0.7.0");
+    assert_eq!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        6
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_eq!(report["pair_enumeration_complete"], true);
+    let (output, baseline) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert!(
+        baseline["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+#[test]
+fn clones_guarded_match_capture_is_explicit_and_trace_invariant() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(x: i32, b: bool) -> i32 { match x { 1 if b => 7, 1 if !b => 8, _ => 9 } }\npub fn g(x: i32, b: bool) -> i32 { match x { 1 if b => 7, 1 if !b => 8, _ => 9 } }\n").unwrap();
+    let (output, ordinary) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-expanded-v1"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let (output, traced) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-expanded-v1", "--trace"],
+    );
+    assert!(output.status.success());
+    assert_eq!(ordinary["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        ordinary["matching"]["pairs"][0]["decision"],
+        traced["matching"]["pairs"][0]["decision"]
+    );
+    let (output, excluded) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert!(
+        excluded["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+#[test]
+fn clones_conditional_profile_records_active_resolution_and_removed_unknowns() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("Cargo.toml"), "[package]\nname='conditional_fixture'\nversion='0.1.0'\nedition='2021'\n[features]\nextra=[]\n[workspace]\n").unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), "/// documented\n#[inline]\npub const fn f(x: i32) -> i32 { #[cfg(feature=\"extra\")] let y = x; x }\n#[cfg(feature=\"extra\")] pub fn present(x: i32) -> i32 { x }\npub fn unsupported() { #[cfg(any())] missing(); }\n").unwrap();
+    let args = ["--extraction-profile", "hir-expanded-v1"];
+    let (output, inactive) = clones(directory.path(), &args);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_conditional_removed_unknowns(&inactive);
+    let (output, active) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-expanded-v1",
+            "--features",
+            "extra",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stderr={} failures={} capture={}",
+        String::from_utf8_lossy(&output.stderr),
+        active["handoff_failures"],
+        active["capture_failures"]
+    );
+    assert_eq!(
+        active["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(active["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert!(
+        active["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "unsupported" && f["outcome"] == "excluded")
+    );
+}
+
+#[test]
+fn clones_scalar_loops_use_verified_cycles_and_exhaustive_concurrent_capture() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(mut x: i32, b: bool) -> i32 { while b { x = 1; if x > 2 { break; } continue; } x }\npub fn g(mut x: i32, b: bool) -> i32 { while b { x = 1; if x > 2 { break; } continue; } x }\npub fn forever() { loop {} }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-expanded-v1",
+            "--all-targets",
+            "--jobs",
+            "2",
+            "--trace",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "failures={} capture={} stderr={}",
+        report["handoff_failures"],
+        report["capture_failures"],
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        6
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    let (output, legacy) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+#[test]
+fn clones_named_primitive_summaries_cross_real_capture_and_preserve_r0_exclusions() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(x: i32, y: u32) -> u32 { x.unsigned_abs().wrapping_mul(y) }\npub fn g(x: i64, y: u64) -> u64 { x.unsigned_abs().wrapping_mul(y) }\npub fn unsupported(x: u32) -> u32 { x.wrapping_add(1) }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-expanded-v1", "--trace"],
+    );
+    assert!(
+        output.status.success(),
+        "failures={} capture={} stderr={}",
+        report["handoff_failures"],
+        report["capture_failures"],
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    assert!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "unsupported" && f["outcome"] == "excluded")
+    );
+    let (output, plain) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-expanded-v1"],
+    );
+    assert!(output.status.success());
+    assert_eq!(
+        report["matching"]["pairs"][0]["decision"],
+        plain["matching"]["pairs"][0]["decision"]
+    );
+    let (output, legacy) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+fn assert_inherited_expanded_selection_is_ignored(directory: &std::path::Path) {
+    let inherited = Command::new(cargo_bin("cargo-rstyle"))
+        .args(["clones", "--format", "json"])
+        .current_dir(directory)
+        .env("RSTYLE_DRIVER", driver())
+        .env("RSTYLE_HIR_EXTRACTION_PROFILE", "hir-calls-v1")
+        .env_remove("CARGO_TARGET_DIR")
+        .output()
+        .unwrap();
+    assert!(inherited.status.success());
+    let inherited: Value = serde_json::from_slice(&inherited.stdout).unwrap();
+    assert_eq!(inherited["extraction_policy"]["id"], "compat.rust.hir-r0");
+    assert_eq!(inherited["matching"]["pairs"].as_array().unwrap().len(), 0);
+}
+
+fn assert_conditional_removed_unknowns(inactive: &Value) {
+    assert!(
+        inactive["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "f" && f["outcome"] == "unknown")
+    );
+    assert!(
+        !inactive["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "present")
+    );
+}
+
+#[test]
+fn clones_conditional_bom_inventory_preserves_original_file_offsets() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "\u{feff}pub fn f(x: i32) -> i32 { x }\r\n",
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-expanded-v1"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let definitions = report["owned_source_inventory"][0]["source_functions"]
+        .as_array()
+        .unwrap();
+    let definition = definitions.iter().find(|f| f["name"] == "f").unwrap();
+    assert_eq!(definition["span"]["start"], 3);
+    assert_eq!(definition["presence"], "active");
+    assert_eq!(definition["active_functions"], serde_json::json!(["f"]));
+}
+
+#[test]
+fn clones_expanded_multi_package_targets_are_exhaustive_and_schedule_invariant() {
+    let directory = expanded_multi_package_workspace();
+    let (output, concurrent) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-expanded-v1",
+            "--all-targets",
+            "--jobs",
+            "2",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "capture={} handoff={}",
+        concurrent["capture_failures"],
+        concurrent["handoff_failures"]
+    );
+    assert_eq!(concurrent["observed_units"].as_array().unwrap().len(), 4);
+    assert_eq!(
+        concurrent["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        8
+    );
+    assert_eq!(
+        concurrent["matching"]["pairs"].as_array().unwrap().len(),
+        28
+    );
+    assert_eq!(concurrent["pair_evaluation_complete"], true);
+    let (output, serial) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-expanded-v1",
+            "--all-targets",
+            "--jobs",
+            "1",
+        ],
+    );
+    assert!(output.status.success());
+    assert_eq!(concurrent["matching"], serial["matching"]);
+    assert_expanded_release_package_scope(directory.path());
+}
+
+fn expanded_multi_package_workspace() -> TempDir {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(
+        directory.path().join("Cargo.toml"),
+        "[workspace]\nmembers=['a','b']\nresolver='2'\n",
+    )
+    .unwrap();
+    for package in ["a", "b"] {
+        let root = directory.path().join(package);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(
+            root.join("Cargo.toml"),
+            format!("[package]\nname='{package}'\nversion='0.1.0'\nedition='2021'\n"),
+        )
+        .unwrap();
+        std::fs::write(root.join("src/lib.rs"), "pub const fn f(x: i32, b: bool) -> u8 { #[cfg(all())] let y = x as u8; match y { 0 if b => 1, _ => y } }\npub fn g(mut x: u32, b: bool) -> u32 { while b { x = x.wrapping_mul(3); if x == 0 { break; } continue; } x }\npub fn forbidden(x: u32) -> u32 { x.wrapping_add(1) }\n").unwrap();
+    }
+    directory
+}
+
+fn assert_expanded_release_package_scope(directory: &Path) {
+    let (output, release) = clones(
+        directory,
+        &[
+            "--extraction-profile",
+            "hir-expanded-v1",
+            "--all-targets",
+            "-p",
+            "a",
+            "--release",
+        ],
+    );
+    assert!(output.status.success());
+    assert_eq!(release["matching"]["pairs"].as_array().unwrap().len(), 6);
+    assert_eq!(release["pair_evaluation_complete"], true);
+}

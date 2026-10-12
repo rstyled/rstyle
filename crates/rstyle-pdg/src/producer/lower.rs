@@ -1,5 +1,7 @@
 //! Operation lowering preserves source evaluation order and snapshot values.
 
+mod loops;
+
 use super::graph::*;
 use crate::{NodeCategory, frontend::*};
 
@@ -32,6 +34,7 @@ struct Arms {
 }
 
 struct Builder<'a> {
+    loops: Vec<loops::LoopFrame>,
     facts: &'a HirFnFacts,
     nodes: Vec<Operation>,
     transfers: Vec<Transfer>,
@@ -57,6 +60,7 @@ pub fn lower(facts: &HirFnFacts) -> Result<Graph, HirEligibility> {
         });
     }
     let mut builder = Builder {
+        loops: Vec::new(),
         facts,
         nodes: Vec::new(),
         transfers: Vec::new(),
@@ -90,7 +94,7 @@ pub fn lower(facts: &HirFnFacts) -> Result<Graph, HirEligibility> {
 fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
     let count = node.children.len();
     let complete = match node.kind.as_str() {
-        "stmt_expr" | "stmt_semi" | "expr_unary" => count == 1,
+        "stmt_expr" | "stmt_semi" | "expr_unary" | "expr_cast" => count == 1,
         "expr_binary" | "expr_assign" | "expr_assign_op" => count == 2,
         "expr_if" => (2..=3).contains(&count),
         "expr_ret" => count <= 1,
@@ -163,6 +167,15 @@ impl Builder<'_> {
                 source: end.node.clone(),
                 target: id.to_string(),
                 kind: end.kind.clone(),
+                loop_role: if end.kind == "break"
+                    || (end.kind == "false"
+                        && self.nodes.iter().any(|node| {
+                            node.id == end.node && node.construct.as_deref() == Some("while")
+                        })) {
+                    Some("loop_exit".into())
+                } else {
+                    None
+                },
             });
         }
         for site in &mut self.sites {
@@ -278,10 +291,15 @@ impl Builder<'_> {
                 Operands { flow, values }
             },
         );
+        let category = if node.kind == "expr_method_call" {
+            NodeCategory::Call
+        } else {
+            NodeCategory::Computation
+        };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
             operands: evaluated.values,
-            ..template(node, NodeCategory::Computation)
+            ..template(node, category)
         };
 
         self.emit(operation, evaluated.flow)
@@ -487,13 +505,35 @@ impl Builder<'_> {
         controller: String,
         alternatives: Vec<Alternative>,
     ) -> String {
+        self.merge_selected(
+            node,
+            MergeSelection {
+                controller,
+                alternatives,
+                selection_kind: None,
+            },
+        )
+    }
+
+    fn merge_selected(&mut self, node: &HirNode, selection: MergeSelection) -> String {
+        let MergeSelection {
+            controller,
+            alternatives,
+            selection_kind,
+        } = selection;
         let id = format!("n{}", self.nodes.len());
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
         let mut merge = template(node, NodeCategory::Merge);
         merge.id = id.clone();
-        merge.original_kind = "compat.rust.hir-r0.expression_merge".to_string();
+        merge.original_kind = if selection_kind.is_some() {
+            "rstyle.hir-coverage.match_merge"
+        } else {
+            "compat.rust.hir-r0.expression_merge"
+        }
+        .to_string();
         self.nodes.push(merge);
         self.sites.push(ValueSite {
+            selection_kind,
             pdg_node_id: id.clone(),
             construct_span: node.span,
             controller_pdg_node_id: controller,
@@ -503,6 +543,189 @@ impl Builder<'_> {
         });
 
         id
+    }
+
+    fn scalar_match(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let scrutinee = self.expression(&node.children[0], flow);
+        let saved = scrutinee.value.clone().expect("eligible scalar scrutinee");
+        let mut state = MatchState {
+            remaining: scrutinee,
+            completed: Vec::new(),
+            controller: None,
+        };
+        for (index, arm_node) in node.children[1..].iter().enumerate() {
+            state = self.match_arm(
+                MatchArm {
+                    node,
+                    arm: arm_node,
+                    saved: &saved,
+                    index,
+                },
+                state,
+            );
+        }
+
+        self.match_join(
+            node,
+            state.controller.expect("match selector"),
+            state.completed,
+        )
+    }
+
+    fn match_arm(&mut self, input: MatchArm<'_>, state: MatchState) -> MatchState {
+        let selection = self.match_selection(&input, state.remaining, state.controller);
+        let selection = self.guarded_selection(&input, selection);
+        let body = self.expression(
+            input.arm.children.last().expect("arm body"),
+            selection.matched,
+        );
+
+        MatchState {
+            remaining: selection.remaining,
+            controller: selection.controller,
+            completed: state
+                .completed
+                .into_iter()
+                .chain(std::iter::once((input.index, body)))
+                .collect(),
+        }
+    }
+
+    fn match_selection(
+        &mut self,
+        input: &MatchArm<'_>,
+        remaining: Flow,
+        controller: Option<String>,
+    ) -> ArmSelection {
+        let pattern = &input.arm.children[0];
+        let operation = self.match_selector(input);
+        let selected = self.emit(operation, remaining);
+        let controller = controller.or_else(|| selected.value.clone());
+        let remaining = if pattern.kind == "pat_literal" {
+            arm(&selected, "false")
+        } else {
+            empty_flow()
+        };
+        let matched = if pattern.kind == "pat_literal" {
+            arm(&selected, "true")
+        } else {
+            selected
+        };
+
+        ArmSelection {
+            remaining,
+            matched,
+            controller,
+        }
+    }
+
+    fn guarded_selection(&mut self, input: &MatchArm<'_>, selection: ArmSelection) -> ArmSelection {
+        if input.arm.children.len() != 3 {
+            return selection;
+        }
+        let (matched, failed, predicate) = self.match_guard(input, selection.matched);
+        let controller = if input.index == 0 && input.arm.children[0].kind == "pat_wild" {
+            Some(predicate)
+        } else {
+            selection.controller
+        };
+
+        ArmSelection {
+            remaining: combine_frontiers(selection.remaining, failed),
+            matched,
+            controller,
+        }
+    }
+
+    fn match_guard(&mut self, input: &MatchArm<'_>, matched: Flow) -> (Flow, Flow, String) {
+        let MatchArm {
+            node,
+            arm: arm_node,
+            index,
+            ..
+        } = input;
+        let guard = &arm_node.children[1].children[0];
+        let evaluated = self.expression(guard, matched);
+        let operation = Operation {
+            construct_span: node.span,
+            role: format!("match_guard:{index}"),
+            ty: "bool".into(),
+            construct: Some("match.guard".into()),
+            operands: self.operand(&evaluated.value),
+            ..template(guard, NodeCategory::Control)
+        };
+        let predicate = self.emit(operation, evaluated);
+
+        (
+            arm(&predicate, "true"),
+            arm(&predicate, "false"),
+            predicate.value.expect("guard predicate"),
+        )
+    }
+
+    fn match_selector(&self, input: &MatchArm<'_>) -> Operation {
+        let MatchArm {
+            node, saved, index, ..
+        } = input;
+        let pattern = &input.arm.children[0];
+
+        Operation {
+            construct_span: node.span,
+            role: format!("match_pattern:{index}"),
+            ty: "bool".into(),
+            construct: Some(
+                if pattern.kind == "pat_literal" {
+                    "match.literal"
+                } else {
+                    "match.wildcard"
+                }
+                .into(),
+            ),
+            literal: pattern.lit.clone(),
+            operands: if pattern.kind == "pat_literal" {
+                vec![(*saved).into()]
+            } else {
+                Vec::new()
+            },
+            ..template(pattern, NodeCategory::Control)
+        }
+    }
+
+    fn match_join(
+        &mut self,
+        node: &HirNode,
+        controller: String,
+        completed: Vec<(usize, Flow)>,
+    ) -> Flow {
+        let alternatives: Vec<_> = completed
+            .iter()
+            .filter(|(_, f)| f.normal && !f.ends.is_empty())
+            .filter_map(|(index, flow)| self.alternative(&format!("arm:{index}"), flow))
+            .collect();
+        let value = if alternatives.len() > 1 {
+            Some(self.merge_selected(
+                node,
+                MergeSelection {
+                    controller,
+                    alternatives,
+                    selection_kind: Some("ordered-match/1".into()),
+                },
+            ))
+        } else {
+            alternatives.first().map(|a| a.value_pdg_node_id.clone())
+        };
+        let normal = completed.iter().any(|(_, f)| f.normal);
+        let ends = completed
+            .into_iter()
+            .filter(|(_, f)| f.normal)
+            .flat_map(|(_, f)| f.ends)
+            .collect();
+
+        Flow {
+            ends,
+            value,
+            normal,
+        }
     }
 
     fn explicit_return(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -554,6 +777,7 @@ impl Builder<'_> {
             source: id,
             target: "X".to_string(),
             kind: "return".to_string(),
+            loop_role: None,
         });
 
         Flow {
@@ -609,10 +833,14 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         {
             Builder::short_circuit
         }
-        "expr_binary" | "expr_unary" => Builder::computation,
+        "expr_binary" | "expr_unary" | "expr_cast" | "expr_method_call" => Builder::computation,
         "expr_assign" => Builder::assignment,
         "expr_assign_op" => Builder::compound,
         "expr_if" => Builder::branch,
+        "expr_match" => Builder::scalar_match,
+        "expr_while" => Builder::while_loop,
+        "expr_loop" => Builder::infinite_loop,
+        "expr_break" | "expr_continue" => Builder::loop_exit,
         "expr_ret" => Builder::explicit_return,
         _ => unreachable!("eligibility rejects unsupported constructs"),
     }
@@ -641,4 +869,44 @@ fn template(node: &HirNode, category: NodeCategory) -> Operation {
         position: None,
         operands: Vec::new(),
     }
+}
+
+fn empty_flow() -> Flow {
+    Flow {
+        ends: Vec::new(),
+        value: None,
+        normal: false,
+    }
+}
+
+fn combine_frontiers(mut remaining: Flow, failed: Flow) -> Flow {
+    remaining.ends.extend(failed.ends);
+    remaining.normal |= failed.normal;
+
+    remaining
+}
+
+struct MatchState {
+    remaining: Flow,
+    completed: Vec<(usize, Flow)>,
+    controller: Option<String>,
+}
+
+struct MatchArm<'a> {
+    node: &'a HirNode,
+    arm: &'a HirNode,
+    saved: &'a str,
+    index: usize,
+}
+
+struct ArmSelection {
+    remaining: Flow,
+    matched: Flow,
+    controller: Option<String>,
+}
+
+struct MergeSelection {
+    controller: String,
+    alternatives: Vec<Alternative>,
+    selection_kind: Option<String>,
 }

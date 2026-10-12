@@ -1,0 +1,602 @@
+[
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 1145,
+    "end": 1254,
+    "name": "get_batch",
+    "source": "pub(super) fn get_batch(input: &[u8], n: usize) -> u32 {\n    unsafe { read_u32_ptr(input.as_ptr().add(n)) }\n}",
+    "sha256": "df7c142bac7d7c93195e1a51acc590255eda7e12de6ef62715aa011715274aea"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 1298,
+    "end": 1416,
+    "name": "get_batch",
+    "source": "pub(super) fn get_batch(input: &[u8], n: usize) -> u32 {\n    u32::from_ne_bytes(input[n..n + 4].try_into().unwrap())\n}",
+    "sha256": "e0f27f872c07ac333635157dcb8866bedd20f9871d1ac872202df034398a9258"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 1602,
+    "end": 1720,
+    "name": "get_batch_arch",
+    "source": "pub(super) fn get_batch_arch(input: &[u8], n: usize) -> usize {\n    unsafe { read_usize_ptr(input.as_ptr().add(n)) }\n}",
+    "sha256": "84ab1f106dda9e2154c572d9fba692802240184c7418522a16c2877bc6f66850"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 1784,
+    "end": 2020,
+    "name": "get_batch_arch",
+    "source": "pub(super) fn get_batch_arch(input: &[u8], n: usize) -> usize {\n    const USIZE_SIZE: usize = core::mem::size_of::<usize>();\n    let arr: &[u8; USIZE_SIZE] = input[n..n + USIZE_SIZE].try_into().unwrap();\n    usize::from_ne_bytes(*arr)\n}",
+    "sha256": "15fb3015ac81edc5139d11679038a7e7f5d8292da7096b611681051a98889e2b"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 2032,
+    "end": 2385,
+    "name": "token_from_literal",
+    "source": "fn token_from_literal(lit_len: usize) -> u8 {\n    if lit_len < 0xF {\n        // Since we can fit the literals length into it, there is no need for saturation.\n        (lit_len as u8) << 4\n    } else {\n        // We were unable to fit the literals into it, so we saturate to 0xF. We will later\n        // write the extensional value.\n        0xF0\n    }\n}",
+    "sha256": "52db5e641df6036c57ecbda25f915087f98fbbc2fdcb9fbda49527ff9d0b4cbf"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 2397,
+    "end": 3048,
+    "name": "token_from_literal_and_match_length",
+    "source": "fn token_from_literal_and_match_length(lit_len: usize, duplicate_length: usize) -> u8 {\n    let mut token = if lit_len < 0xF {\n        // Since we can fit the literals length into it, there is no need for saturation.\n        (lit_len as u8) << 4\n    } else {\n        // We were unable to fit the literals into it, so we saturate to 0xF. We will later\n        // write the extensional value.\n        0xF0\n    };\n\n    token |= if duplicate_length < 0xF {\n        // We could fit it in.\n        duplicate_length as u8\n    } else {\n        // We were unable to fit it in, so we default to 0xF, which will later be extended.\n        0xF\n    };\n\n    token\n}",
+    "sha256": "7c133fc93859e3f6a2f7cac2eb29ce9356cc9a58893e97640f87a85f930f632b"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 3491,
+    "end": 4831,
+    "name": "count_same_bytes",
+    "source": "fn count_same_bytes(input: &[u8], cur: &mut usize, source: &[u8], candidate: usize) -> usize {\n    const USIZE_SIZE: usize = core::mem::size_of::<usize>();\n    let cur_slice = &input[*cur..input.len() - END_OFFSET];\n    let cand_slice = &source[candidate..];\n\n    let mut num = 0;\n    for (block1, block2) in cur_slice\n        .chunks_exact(USIZE_SIZE)\n        .zip(cand_slice.chunks_exact(USIZE_SIZE))\n    {\n        let input_block = usize::from_ne_bytes(block1.try_into().unwrap());\n        let match_block = usize::from_ne_bytes(block2.try_into().unwrap());\n\n        if input_block == match_block {\n            num += USIZE_SIZE;\n        } else {\n            let diff = input_block ^ match_block;\n            num += (diff.to_le().trailing_zeros() / 8) as usize;\n            *cur += num;\n            return num;\n        }\n    }\n\n    // If we're here we may have 1 to 7 bytes left to check close to the end of input\n    // or source slices. Since this is rare occurrence we mark it cold to get better\n    // ~5% better performance.\n    #[cold]\n    fn count_same_bytes_tail(a: &[u8], b: &[u8], offset: usize) -> usize {\n        a.iter()\n            .zip(b)\n            .skip(offset)\n            .take_while(|(a, b)| a == b)\n            .count()\n    }\n    num += count_same_bytes_tail(cur_slice, cand_slice, num);\n\n    *cur += num;\n    num\n}",
+    "sha256": "f69c584f7e9aedb002dd2d2f246607d802dc9dc7d64866b89236652cb6ab7a7d"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 4540,
+    "end": 4741,
+    "name": "count_same_bytes_tail",
+    "source": "fn count_same_bytes_tail(a: &[u8], b: &[u8], offset: usize) -> usize {\n        a.iter()\n            .zip(b)\n            .skip(offset)\n            .take_while(|(a, b)| a == b)\n            .count()\n    }",
+    "sha256": "761eeefe72ab679461cc835e3dc399da7f999e6b67115f8344a8ab73d35d7554"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 5279,
+    "end": 7197,
+    "name": "count_same_bytes",
+    "source": "fn count_same_bytes(input: &[u8], cur: &mut usize, source: &[u8], candidate: usize) -> usize {\n    let max_input_match = input.len().saturating_sub(*cur + END_OFFSET);\n    let max_candidate_match = source.len() - candidate;\n    // Considering both limits calc how far we may match in input.\n    let input_end = *cur + max_input_match.min(max_candidate_match);\n\n    let start = *cur;\n    let mut source_ptr = unsafe { source.as_ptr().add(candidate) };\n\n    // compare 4/8 bytes blocks depending on the arch\n    const STEP_SIZE: usize = core::mem::size_of::<usize>();\n    while *cur + STEP_SIZE <= input_end {\n        let diff = read_usize_ptr(unsafe { input.as_ptr().add(*cur) }) ^ read_usize_ptr(source_ptr);\n\n        if diff == 0 {\n            *cur += STEP_SIZE;\n            unsafe {\n                source_ptr = source_ptr.add(STEP_SIZE);\n            }\n        } else {\n            *cur += (diff.to_le().trailing_zeros() / 8) as usize;\n            return *cur - start;\n        }\n    }\n\n    // compare 4 bytes block\n    #[cfg(target_pointer_width = \"64\")]\n    {\n        if input_end - *cur >= 4 {\n            let diff = read_u32_ptr(unsafe { input.as_ptr().add(*cur) }) ^ read_u32_ptr(source_ptr);\n\n            if diff == 0 {\n                *cur += 4;\n                unsafe {\n                    source_ptr = source_ptr.add(4);\n                }\n            } else {\n                *cur += (diff.to_le().trailing_zeros() / 8) as usize;\n                return *cur - start;\n            }\n        }\n    }\n\n    // compare 2 bytes block\n    if input_end - *cur >= 2\n        && unsafe { read_u16_ptr(input.as_ptr().add(*cur)) == read_u16_ptr(source_ptr) }\n    {\n        *cur += 2;\n        unsafe {\n            source_ptr = source_ptr.add(2);\n        }\n    }\n\n    if *cur < input_end\n        && unsafe { input.as_ptr().add(*cur).read() } == unsafe { source_ptr.read() }\n    {\n        *cur += 1;\n    }\n\n    *cur - start\n}",
+    "sha256": "5b668487b4ed338d1b16b7a2164d12213de0cbc1da2c98a21270ca4bc2443308"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 7521,
+    "end": 7947,
+    "name": "write_integer",
+    "source": "pub(super) fn write_integer(output: &mut impl Sink, mut n: usize) {\n    // Note: Since `n` is usually < 0xFF and writing multiple bytes to the output\n    // requires 2 branches of bound check (due to the possibility of add overflows)\n    // the simple byte at a time implementation below is faster in most cases.\n    while n >= 0xFF {\n        n -= 0xFF;\n        push_byte(output, 0xFF);\n    }\n    push_byte(output, n as u8);\n}",
+    "sha256": "40802d7deda72021b6b6b2d34d61321e401b006c44a8698ba010fa4d532525b7"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 8010,
+    "end": 8366,
+    "name": "handle_last_literals",
+    "source": "fn handle_last_literals(output: &mut impl Sink, input: &[u8], start: usize) {\n    let lit_len = input.len() - start;\n\n    let token = token_from_literal(lit_len);\n    push_byte(output, token);\n    if lit_len >= 0xF {\n        write_integer(output, lit_len - 0xF);\n    }\n    // Now, write the actual literals.\n    output.extend_from_slice(&input[start..]);\n}",
+    "sha256": "32d43d304c6802e3a2b1f2f19af7d377fb4b0110a20019357ab839500cb2f723"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 8505,
+    "end": 9088,
+    "name": "backtrack_match",
+    "source": "fn backtrack_match(\n    input: &[u8],\n    cur: &mut usize,\n    literal_start: usize,\n    source: &[u8],\n    candidate: &mut usize,\n) {\n    // Note: Even if iterator version of this loop has less branches inside the loop it has more\n    // branches before the loop. That in practice seems to make it slower than the while version\n    // bellow. TODO: It should be possible remove all bounds checks, since we are walking\n    // backwards\n    while *candidate > 0 && *cur > literal_start && input[*cur - 1] == source[*candidate - 1] {\n        *cur -= 1;\n        *candidate -= 1;\n    }\n}",
+    "sha256": "4a831034700a0e4d29965cb4de0d953d501eeffb75c3e9300527762a596a3067"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 9232,
+    "end": 9589,
+    "name": "backtrack_match",
+    "source": "fn backtrack_match(\n    input: &[u8],\n    cur: &mut usize,\n    literal_start: usize,\n    source: &[u8],\n    candidate: &mut usize,\n) {\n    while unsafe {\n        *candidate > 0\n            && *cur > literal_start\n            && input.get_unchecked(*cur - 1) == source.get_unchecked(*candidate - 1)\n    } {\n        *cur -= 1;\n        *candidate -= 1;\n    }\n}",
+    "sha256": "6eee621ec5221557156414d131baeafcb1ecae1c2ba30c121f9e788d54d8c66a"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 11127,
+    "end": 18127,
+    "name": "compress_internal",
+    "source": "pub(crate) fn compress_internal<T: HashTable, const USE_DICT: bool, S: Sink>(\n    input: &[u8],\n    input_pos: usize,\n    output: &mut S,\n    dict: &mut T,\n    ext_dict: &[u8],\n    input_stream_offset: usize,\n) -> Result<usize, CompressError> {\n    assert!(input_pos <= input.len());\n    if USE_DICT {\n        assert!(ext_dict.len() <= super::WINDOW_SIZE);\n        assert!(ext_dict.len() <= input_stream_offset);\n        // Check for overflow hazard when using ext_dict\n        assert!(input_stream_offset\n            .checked_add(input.len())\n            .and_then(|i| i.checked_add(ext_dict.len()))\n            .is_some_and(|i| i <= isize::MAX as usize));\n    } else {\n        assert!(ext_dict.is_empty());\n    }\n    if output.capacity() - output.pos() < get_maximum_output_size(input.len() - input_pos) {\n        return Err(CompressError::OutputTooSmall);\n    }\n\n    let output_start_pos = output.pos();\n    if input.len() - input_pos < LZ4_MIN_LENGTH {\n        handle_last_literals(output, input, input_pos);\n        return Ok(output.pos() - output_start_pos);\n    }\n\n    let ext_dict_stream_offset = input_stream_offset - ext_dict.len();\n    let end_pos_check = input.len() - MFLIMIT;\n    let mut literal_start = input_pos;\n    let mut cur = input_pos;\n\n    if cur == 0 && input_stream_offset == 0 {\n        // According to the spec we can't start with a match,\n        // except when referencing another block.\n        let hash = T::get_hash_at(input, 0);\n        dict.put_at(hash, 0);\n        cur = 1;\n    }\n\n    loop {\n        // Read the next block into two sections, the literals and the duplicates.\n        let mut step_size;\n        let mut candidate;\n        let mut candidate_source;\n        let mut offset;\n        let mut non_match_count = 1 << INCREASE_STEPSIZE_BITSHIFT;\n        // The number of bytes before our cursor, where the duplicate starts.\n        let mut next_cur = cur;\n\n        // In this loop we search for duplicates via the hashtable. 4bytes or 8bytes are hashed and\n        // compared.\n        loop {\n            step_size = non_match_count >> INCREASE_STEPSIZE_BITSHIFT;\n            non_match_count += 1;\n\n            cur = next_cur;\n            next_cur += step_size;\n\n            // Same as cur + MFLIMIT > input.len()\n            if cur > end_pos_check {\n                handle_last_literals(output, input, literal_start);\n                return Ok(output.pos() - output_start_pos);\n            }\n            // Find a candidate in the dictionary with the hash of the current four bytes.\n            // Unchecked is safe as long as the values from the hash function don't exceed the size\n            // of the table. This is ensured by right shifting the hash values\n            // (`dict_bitshift`) to fit them in the table\n\n            // [Bounds Check]: Can be elided due to `end_pos_check` above\n            let hash = T::get_hash_at(input, cur);\n            candidate = dict.get_at(hash);\n            dict.put_at(hash, cur + input_stream_offset);\n\n            // Sanity check: Matches can't be ahead of `cur`.\n            debug_assert!(candidate <= input_stream_offset + cur);\n\n            // Two requirements to the candidate exists:\n            // - We should not return a position which is merely a hash collision, so that the\n            //   candidate actually matches what we search for.\n            // - We can address up to 16-bit offset, hence we are only able to address the candidate\n            //   if its offset is less than or equals to 0xFFFF.\n            if input_stream_offset + cur - candidate > MAX_DISTANCE {\n                continue;\n            }\n\n            if candidate >= input_stream_offset {\n                // match within input\n                offset = (input_stream_offset + cur - candidate) as u16;\n                candidate -= input_stream_offset;\n                candidate_source = input;\n            } else if USE_DICT {\n                // Sanity check, which may fail if we lost history beyond MAX_DISTANCE\n                debug_assert!(\n                    candidate >= ext_dict_stream_offset,\n                    \"Lost history in ext dict mode\"\n                );\n                // match within ext dict\n                offset = (input_stream_offset + cur - candidate) as u16;\n                candidate -= ext_dict_stream_offset;\n                candidate_source = ext_dict;\n            } else {\n                // Match is not reachable anymore\n                // eg. compressing an independent block frame w/o clearing\n                // the matches tables, only increasing input_stream_offset.\n                // Sanity check\n                debug_assert!(input_pos == 0, \"Lost history in prefix mode\");\n                continue;\n            }\n            // [Bounds Check]: Candidate is coming from the Hashmap. It can't be out of bounds, but\n            // impossible to prove for the compiler and remove the bounds checks.\n            let cand_bytes: u32 = get_batch(candidate_source, candidate);\n            // [Bounds Check]: Should be able to be elided due to `end_pos_check`.\n            let curr_bytes: u32 = get_batch(input, cur);\n\n            if cand_bytes == curr_bytes {\n                break;\n            }\n        }\n\n        // Extend the match backwards if we can\n        backtrack_match(\n            input,\n            &mut cur,\n            literal_start,\n            candidate_source,\n            &mut candidate,\n        );\n\n        // The length (in bytes) of the literals section.\n        let lit_len = cur - literal_start;\n\n        // Generate the higher half of the token.\n        cur += MINMATCH;\n        candidate += MINMATCH;\n        let duplicate_length = count_same_bytes(input, &mut cur, candidate_source, candidate);\n\n        // Note: The `- 2` offset was copied from the reference implementation, it could be\n        // arbitrary.\n        let hash = T::get_hash_at(input, cur - 2);\n        dict.put_at(hash, cur - 2 + input_stream_offset);\n\n        let token = token_from_literal_and_match_length(lit_len, duplicate_length);\n\n        // Push the token to the output stream.\n        push_byte(output, token);\n        // If we were unable to fit the literals length into the token, write the extensional\n        // part.\n        if lit_len >= 0xF {\n            write_integer(output, lit_len - 0xF);\n        }\n\n        // Now, write the actual literals.\n        //\n        // The unsafe version copies blocks of 8bytes, and therefore may copy up to 7bytes more than\n        // needed. This is safe, because the last 12 bytes (MF_LIMIT) are handled in\n        // handle_last_literals.\n        copy_literals_wild(output, input, literal_start, lit_len);\n        // write the offset in little endian.\n        push_u16(output, offset);\n\n        // If we were unable to fit the duplicates length into the token, write the\n        // extensional part.\n        if duplicate_length >= 0xF {\n            write_integer(output, duplicate_length - 0xF);\n        }\n        literal_start = cur;\n    }\n}",
+    "sha256": "7d00cedd22a800a96b687c4dbd93314be327f8c66683e06e95167b79ccd5f49b"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 18171,
+    "end": 18240,
+    "name": "push_byte",
+    "source": "fn push_byte(output: &mut impl Sink, el: u8) {\n    output.push(el);\n}",
+    "sha256": "19775a526300730491ccae830fc8fd35b6a4f3b2e50aa26b21f50218dce30b2d"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 18289,
+    "end": 18450,
+    "name": "push_byte",
+    "source": "fn push_byte(output: &mut impl Sink, el: u8) {\n    unsafe {\n        core::ptr::write(output.pos_mut_ptr(), el);\n        output.set_pos(output.pos() + 1);\n    }\n}",
+    "sha256": "61735164306fad2b5b037ae8efe54edb491561226de4a5d551edbd7dfaa05cc7"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 18494,
+    "end": 18591,
+    "name": "push_u16",
+    "source": "fn push_u16(output: &mut impl Sink, el: u16) {\n    output.extend_from_slice(&el.to_le_bytes());\n}",
+    "sha256": "cfc53d6acded4c2180a4b3e8fec8de56dddd3ba0fe2199208a3a4a8cc8385ad7"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 18640,
+    "end": 18841,
+    "name": "push_u16",
+    "source": "fn push_u16(output: &mut impl Sink, el: u16) {\n    unsafe {\n        core::ptr::copy_nonoverlapping(el.to_le_bytes().as_ptr(), output.pos_mut_ptr(), 2);\n        output.set_pos(output.pos() + 2);\n    }\n}",
+    "sha256": "a84b187512f53f88b633eb1156b7e312c339a4f6476219e0438ec91331923508"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 18953,
+    "end": 19127,
+    "name": "copy_literals_wild",
+    "source": "fn copy_literals_wild(output: &mut impl Sink, input: &[u8], input_start: usize, len: usize) {\n    output.extend_from_slice_wild(&input[input_start..input_start + len], len)\n}",
+    "sha256": "bb1b9d255e89f9f1f0b7b2751951413404edf58452d8112b5f927dba067087de"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 19176,
+    "end": 20200,
+    "name": "copy_literals_wild",
+    "source": "fn copy_literals_wild(output: &mut impl Sink, input: &[u8], input_start: usize, len: usize) {\n    debug_assert!(input_start + len / 8 * 8 + ((len % 8) != 0) as usize * 8 <= input.len());\n    debug_assert!(output.pos() + len / 8 * 8 + ((len % 8) != 0) as usize * 8 <= output.capacity());\n    unsafe {\n        // Note: This used to be a wild copy loop of 8 bytes, but the compiler consistently\n        // transformed it into a call to memcopy, which hurts performance significantly for\n        // small copies, which are common.\n        let start_ptr = input.as_ptr().add(input_start);\n        match len {\n            0..=8 => core::ptr::copy_nonoverlapping(start_ptr, output.pos_mut_ptr(), 8),\n            9..=16 => core::ptr::copy_nonoverlapping(start_ptr, output.pos_mut_ptr(), 16),\n            17..=24 => core::ptr::copy_nonoverlapping(start_ptr, output.pos_mut_ptr(), 24),\n            _ => core::ptr::copy_nonoverlapping(start_ptr, output.pos_mut_ptr(), len),\n        }\n        output.set_pos(output.pos() + len);\n    }\n}",
+    "sha256": "9c6489c96c917bee859d5a5cdaf5af39c71af402cd9b0557cdb2ad11297b0581"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 20483,
+    "end": 21237,
+    "name": "compress_into_sink_with_dict",
+    "source": "pub(crate) fn compress_into_sink_with_dict<const USE_DICT: bool>(\n    input: &[u8],\n    output: &mut impl Sink,\n    mut dict_data: &[u8],\n) -> Result<usize, CompressError> {\n    if USE_DICT && dict_data.len() < MINMATCH {\n        return compress_into_sink_without_dict(input, output);\n    }\n\n    if dict_data.len() + input.len() < u16::MAX as usize {\n        let mut dict = HashTable4KU16::new();\n        init_dict(&mut dict, &mut dict_data);\n        compress_internal::<_, USE_DICT, _>(input, 0, output, &mut dict, dict_data, dict_data.len())\n    } else {\n        let mut dict = HashTable4K::new();\n        init_dict(&mut dict, &mut dict_data);\n        compress_internal::<_, USE_DICT, _>(input, 0, output, &mut dict, dict_data, dict_data.len())\n    }\n}",
+    "sha256": "a576a2b675ea86a06871a41e33c707296fb163aa85a073726bb3e7044c4d8c5c"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 21375,
+    "end": 21556,
+    "name": "compress_into_sink_without_dict",
+    "source": "fn compress_into_sink_without_dict(\n    input: &[u8],\n    output: &mut impl Sink,\n) -> Result<usize, CompressError> {\n    compress_into_sink_with_dict::<false>(input, output, b\"\")\n}",
+    "sha256": "8c33057d3e68fff1556f87312fa88e467a57ba343fa84348aab0a54c632b3538"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 21568,
+    "end": 22049,
+    "name": "init_dict",
+    "source": "fn init_dict<T: HashTable>(dict: &mut T, dict_data: &mut &[u8]) {\n    if dict_data.len() > WINDOW_SIZE {\n        *dict_data = &dict_data[dict_data.len() - WINDOW_SIZE..];\n    }\n    let mut i = 0usize;\n    while i + core::mem::size_of::<usize>() <= dict_data.len() {\n        let hash = T::get_hash_at(dict_data, i);\n        dict.put_at(hash, i);\n        // Note: The 3 byte step was copied from the reference implementation, it could be\n        // arbitrary.\n        i += 3;\n    }\n}",
+    "sha256": "d9d7ec2072ad9804ac8f392768706bc041121b1a8975c8ffde70ca4d8588e1a1"
+  },
+  {
+    "package": "lz4_flex",
+    "version": "0.14.0",
+    "path": "src/block/compress.rs",
+    "start": 22182,
+    "end": 22302,
+    "name": "get_maximum_output_size",
+    "source": "pub const fn get_maximum_output_size(input_len: usize) -> usize {\n    16 + 4 + (input_len as u64 * 110 / 100) as usize\n}",
+    "sha256": "663562123b0045f0a435df98f88675126b10a73bcbf0aa1b28f3967c4a6f2297"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 1076,
+    "end": 1135,
+    "name": "kind",
+    "source": "pub fn kind(&self) -> &ErrorKind {\n        &self.kind\n    }",
+    "sha256": "44879138ffdd30e3dddaf716150a06e986b4f858ffcacc9e3e6a006881754817"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 1294,
+    "end": 1353,
+    "name": "pattern",
+    "source": "pub fn pattern(&self) -> &str {\n        &self.pattern\n    }",
+    "sha256": "698dfb9b6790697c96a4d8540e81510fc8cf38baa02a6f36533889fa67239a58"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 1413,
+    "end": 1467,
+    "name": "span",
+    "source": "pub fn span(&self) -> &Span {\n        &self.span\n    }",
+    "sha256": "d06a6e75666a8b160b05e577c5d4c8fe2bc873dd27b7d2283c9015cc5fc51040"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 1830,
+    "end": 2180,
+    "name": "auxiliary_span",
+    "source": "pub fn auxiliary_span(&self) -> Option<&Span> {\n        use self::ErrorKind::*;\n        match self.kind {\n            FlagDuplicate { ref original } => Some(original),\n            FlagRepeatedNegation { ref original, .. } => Some(original),\n            GroupNameDuplicate { ref original, .. } => Some(original),\n            _ => None,\n        }\n    }",
+    "sha256": "554041e7495ac74d1a77bec7b72cb1b4d24daac8450c1ce787a06598727490fb"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 8153,
+    "end": 8280,
+    "name": "fmt",
+    "source": "fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {\n        crate::error::Formatter::from(self).fmt(f)\n    }",
+    "sha256": "596619203529c06f1ea2d3c83cfc13bbb37ab4cb97531625b1051184dcc2d792"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 8328,
+    "end": 12786,
+    "name": "fmt",
+    "source": "fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {\n        use self::ErrorKind::*;\n        match *self {\n            CaptureLimitExceeded => write!(\n                f,\n                \"exceeded the maximum number of \\\n                 capturing groups ({})\",\n                u32::MAX\n            ),\n            ClassEscapeInvalid => {\n                write!(f, \"invalid escape sequence found in character class\")\n            }\n            ClassRangeInvalid => write!(\n                f,\n                \"invalid character class range, \\\n                 the start must be <= the end\"\n            ),\n            ClassRangeLiteral => {\n                write!(f, \"invalid range boundary, must be a literal\")\n            }\n            ClassUnclosed => write!(f, \"unclosed character class\"),\n            DecimalEmpty => write!(f, \"decimal literal empty\"),\n            DecimalInvalid => write!(f, \"decimal literal invalid\"),\n            EscapeHexEmpty => write!(f, \"hexadecimal literal empty\"),\n            EscapeHexInvalid => {\n                write!(f, \"hexadecimal literal is not a Unicode scalar value\")\n            }\n            EscapeHexInvalidDigit => write!(f, \"invalid hexadecimal digit\"),\n            EscapeUnexpectedEof => write!(\n                f,\n                \"incomplete escape sequence, \\\n                 reached end of pattern prematurely\"\n            ),\n            EscapeUnrecognized => write!(f, \"unrecognized escape sequence\"),\n            FlagDanglingNegation => {\n                write!(f, \"dangling flag negation operator\")\n            }\n            FlagDuplicate { .. } => write!(f, \"duplicate flag\"),\n            FlagRepeatedNegation { .. } => {\n                write!(f, \"flag negation operator repeated\")\n            }\n            FlagUnexpectedEof => {\n                write!(f, \"expected flag but got end of regex\")\n            }\n            FlagUnrecognized => write!(f, \"unrecognized flag\"),\n            GroupNameDuplicate { .. } => {\n                write!(f, \"duplicate capture group name\")\n            }\n            GroupNameEmpty => write!(f, \"empty capture group name\"),\n            GroupNameInvalid => write!(f, \"invalid capture group character\"),\n            GroupNameUnexpectedEof => write!(f, \"unclosed capture group name\"),\n            GroupUnclosed => write!(f, \"unclosed group\"),\n            GroupUnopened => write!(f, \"unopened group\"),\n            NestLimitExceeded(limit) => write!(\n                f,\n                \"exceed the maximum number of \\\n                 nested parentheses/brackets ({})\",\n                limit\n            ),\n            RepetitionCountInvalid => write!(\n                f,\n                \"invalid repetition count range, \\\n                 the start must be <= the end\"\n            ),\n            RepetitionCountDecimalEmpty => {\n                write!(f, \"repetition quantifier expects a valid decimal\")\n            }\n            RepetitionCountUnclosed => {\n                write!(f, \"unclosed counted repetition\")\n            }\n            RepetitionMissing => {\n                write!(f, \"repetition operator missing expression\")\n            }\n            SpecialWordBoundaryUnclosed => {\n                write!(\n                    f,\n                    \"special word boundary assertion is either \\\n                     unclosed or contains an invalid character\",\n                )\n            }\n            SpecialWordBoundaryUnrecognized => {\n                write!(\n                    f,\n                    \"unrecognized special word boundary assertion, \\\n                     valid choices are: start, end, start-half \\\n                     or end-half\",\n                )\n            }\n            SpecialWordOrRepetitionUnexpectedEof => {\n                write!(\n                    f,\n                    \"found either the beginning of a special word \\\n                     boundary or a bounded repetition on a \\\\b with \\\n                     an opening brace, but no closing brace\",\n                )\n            }\n            UnicodeClassInvalid => {\n                write!(f, \"invalid Unicode character class\")\n            }\n            UnsupportedBackreference => {\n                write!(f, \"backreferences are not supported\")\n            }\n            UnsupportedLookAround => write!(\n                f,\n                \"look-around, including look-ahead and look-behind, \\\n                 is not supported\"\n            ),\n        }\n    }",
+    "sha256": "440f7e12d054216f4869d561b39bb85d09deeabf7421032b4cd9b567de3e72e7"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 13252,
+    "end": 13388,
+    "name": "fmt",
+    "source": "fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {\n        write!(f, \"Span({:?}, {:?})\", self.start, self.end)\n    }",
+    "sha256": "e3db1402c49d87bcd3571158dcc3900907271305f8d456bbc2cc334478ec3b0e"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 13416,
+    "end": 13529,
+    "name": "cmp",
+    "source": "fn cmp(&self, other: &Span) -> Ordering {\n        (&self.start, &self.end).cmp(&(&other.start, &other.end))\n    }",
+    "sha256": "90c030fcb5898d95a442de718c6143a550fc92bb01e9da147c44ce8c2cc70872"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 13564,
+    "end": 13657,
+    "name": "partial_cmp",
+    "source": "fn partial_cmp(&self, other: &Span) -> Option<Ordering> {\n        Some(self.cmp(other))\n    }",
+    "sha256": "d43d8dff208bb7ac62869f1ec67a4604d1076bfbaf65f098162932aee36a55ae"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 14284,
+    "end": 14500,
+    "name": "fmt",
+    "source": "fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {\n        write!(\n            f,\n            \"Position(o: {:?}, l: {:?}, c: {:?})\",\n            self.offset, self.line, self.column\n        )\n    }",
+    "sha256": "f251c51c392bab30e9946d8e6eeba27e454f94d6645e0a2244d0c323735e9f9c"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 14532,
+    "end": 14622,
+    "name": "cmp",
+    "source": "fn cmp(&self, other: &Position) -> Ordering {\n        self.offset.cmp(&other.offset)\n    }",
+    "sha256": "5ed97771bdcde52bc4b3c63d994ab34a24a1c3bcb14a171a9818a7d3b770055f"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 14661,
+    "end": 14758,
+    "name": "partial_cmp",
+    "source": "fn partial_cmp(&self, other: &Position) -> Option<Ordering> {\n        Some(self.cmp(other))\n    }",
+    "sha256": "7b51ca8e462b117faea14591448e24356a9329bda72ee274d8f81bfe05bc46e5"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 14830,
+    "end": 14916,
+    "name": "new",
+    "source": "pub fn new(start: Position, end: Position) -> Span {\n        Span { start, end }\n    }",
+    "sha256": "eaecf04414b11da1940708c1ca386537f92c1fa271055db203b7c45e92d132a2"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 14995,
+    "end": 15066,
+    "name": "splat",
+    "source": "pub fn splat(pos: Position) -> Span {\n        Span::new(pos, pos)\n    }",
+    "sha256": "5e4fb92183b0c3b033fc8e3aaf9a41809e6c2af59f4902c7c11fb295b406afa0"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 15165,
+    "end": 15255,
+    "name": "with_start",
+    "source": "pub fn with_start(self, pos: Position) -> Span {\n        Span { start: pos, ..self }\n    }",
+    "sha256": "2e112b065c7220cb98d037f3a3bda22061438f8f492a3de753391027118c645c"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 15352,
+    "end": 15438,
+    "name": "with_end",
+    "source": "pub fn with_end(self, pos: Position) -> Span {\n        Span { end: pos, ..self }\n    }",
+    "sha256": "fdf6e2c413bf3d5543398a97c79b9e86cd65379e3c86b043dd53984f5cad1c60"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 15515,
+    "end": 15597,
+    "name": "is_one_line",
+    "source": "pub fn is_one_line(&self) -> bool {\n        self.start.line == self.end.line\n    }",
+    "sha256": "1f782bcb848613a263195bf8421881fa112f72d49da0317e89392db8ee998f7f"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 15755,
+    "end": 15838,
+    "name": "is_empty",
+    "source": "pub fn is_empty(&self) -> bool {\n        self.start.offset == self.end.offset\n    }",
+    "sha256": "3ce0bb8cd5ecd1ca55973d2e62e5fbf92f570bd879b08da3f72de3253d716a10"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 16206,
+    "end": 16321,
+    "name": "new",
+    "source": "pub fn new(offset: usize, line: usize, column: usize) -> Position {\n        Position { offset, line, column }\n    }",
+    "sha256": "903881cf008ee18107fb22d2ff64fa4bec24f90173714e0f5e69736e6a5994dd"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 18990,
+    "end": 19064,
+    "name": "empty",
+    "source": "pub fn empty(span: Span) -> Ast {\n        Ast::Empty(Box::new(span))\n    }",
+    "sha256": "8fa475c8bae49bebe0807305e4c6aa89f9206bd0f9fb621ca59e2d19519ba122"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 19105,
+    "end": 19177,
+    "name": "flags",
+    "source": "pub fn flags(e: SetFlags) -> Ast {\n        Ast::Flags(Box::new(e))\n    }",
+    "sha256": "70ec14fba7163ce9b84e2c5a04be19c0d0e321ec1979dc16ed374a5f89ce07fb"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 19220,
+    "end": 19295,
+    "name": "literal",
+    "source": "pub fn literal(e: Literal) -> Ast {\n        Ast::Literal(Box::new(e))\n    }",
+    "sha256": "b19be1ffbd04c312f5af32fe601d1bc9114f3c5a0121a91c39196b9e22aefbc9"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 19334,
+    "end": 19404,
+    "name": "dot",
+    "source": "pub fn dot(span: Span) -> Ast {\n        Ast::Dot(Box::new(span))\n    }",
+    "sha256": "91782b658898e0cd8c1a3f991e5b7dfbb531dca626662f3c17a213320c82de27"
+  },
+  {
+    "package": "regex-syntax",
+    "version": "0.8.11",
+    "path": "src/ast/mod.rs",
+    "start": 19449,
+    "end": 19530,
+    "name": "assertion",
+    "source": "pub fn assertion(e: Assertion) -> Ast {\n        Ast::Assertion(Box::new(e))\n    }",
+    "sha256": "4575b5a1f8b4a4dbce03d026e695056ec99d481a4ce10a03a2da817624fd50d4"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/hint.rs",
+    "start": 288,
+    "end": 322,
+    "name": "cold_path",
+    "source": "pub(crate) const fn cold_path() {}",
+    "sha256": "ee5e21e9be90ec75063fe20dee8b04c8dabb2407078b9c8281053edf5c3d35f4"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/hint.rs",
+    "start": 400,
+    "end": 492,
+    "name": "likely",
+    "source": "pub(crate) const fn likely(b: bool) -> bool {\n    if !b {\n        cold_path();\n    }\n    b\n}",
+    "sha256": "33692cb9f855031be1e06d585400d89f13b7e28087cb46dd1e2b2c5cc91e82a4"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/hint.rs",
+    "start": 571,
+    "end": 664,
+    "name": "unlikely",
+    "source": "pub(crate) const fn unlikely(b: bool) -> bool {\n    if b {\n        cold_path();\n    }\n    b\n}",
+    "sha256": "a09b492b02f4a3a6c2097e48f92afe00db6bc697e0b72854eca7046e56678dee"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/unit.rs",
+    "start": 6139,
+    "end": 6255,
+    "name": "multiple_of_value",
+    "source": "const fn multiple_of_value<T, U, Output>(_: T) -> Output\nwhere\n    T: MultipleOf<U, Output> + Copy,\n{\n    T::VALUE\n}",
+    "sha256": "38e2f395edec21963b79373a72aa639985f4c3ba212cc5e10ab50dfec2932ec5"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/util.rs",
+    "start": 728,
+    "end": 1104,
+    "name": "is_leap_year",
+    "source": "pub const fn is_leap_year(year: i32) -> bool {\n        #[cfg(feature = \"large-dates\")]\n        {\n            super::is_leap_year(year)\n        }\n        #[cfg(not(feature = \"large-dates\"))]\n        {\n            debug_assert!(year >= -9999);\n            debug_assert!(year <= 9999);\n            year.unsigned_abs().wrapping_mul(0x20003D7) & 0x6007C0F <= 0x7C00\n        }\n    }",
+    "sha256": "f6f6c4045927d5a1f6ae34cd2f29d72c27fd62fc6baf3fa16ddb7fb409a2861f"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/util.rs",
+    "start": 1440,
+    "end": 1709,
+    "name": "days_in_year",
+    "source": "pub const fn days_in_year(year: i32) -> u16 {\n        #[cfg(feature = \"large-dates\")]\n        {\n            super::days_in_year(year)\n        }\n        #[cfg(not(feature = \"large-dates\"))]\n        {\n            if is_leap_year(year) { 366 } else { 365 }\n        }\n    }",
+    "sha256": "09c7491939a31b2c32e0d2259bd41983ea391f6b6f92ece92bd8ae4cd70018c7"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/util.rs",
+    "start": 1974,
+    "end": 2272,
+    "name": "days_in_month",
+    "source": "pub const fn days_in_month(month: u8, year: i32) -> u8 {\n        #[cfg(feature = \"large-dates\")]\n        {\n            super::days_in_month(month, year)\n        }\n        #[cfg(not(feature = \"large-dates\"))]\n        {\n            super::days_in_month_leap(month, is_leap_year(year))\n        }\n    }",
+    "sha256": "e719a57e4e7625a71c9ca9995544ccc69783c57b5d141183dc6403e74b6deb8f"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/util.rs",
+    "start": 2776,
+    "end": 2968,
+    "name": "is_leap_year",
+    "source": "pub const fn is_leap_year(year: i32) -> bool {\n    (year as i64)\n        .unsigned_abs()\n        .wrapping_mul(0x4000_0000_28F5_C28F)\n        & 0xC000_000F_8000_000F\n        <= 0xF_8000_0000\n}",
+    "sha256": "1ce6e6176f0a849e6d8dddfc9a0732cb2f856e3aadd9884448c8f09fd6d4aa99"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/util.rs",
+    "start": 3359,
+    "end": 3453,
+    "name": "days_in_year",
+    "source": "pub const fn days_in_year(year: i32) -> u16 {\n    if is_leap_year(year) { 366 } else { 365 }\n}",
+    "sha256": "77ac0b33bc4ea9746f1b7700dec74297eaa8adef6723bcff5f892cd3571ac55d"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/util.rs",
+    "start": 3712,
+    "end": 4781,
+    "name": "weeks_in_year",
+    "source": "pub const fn weeks_in_year(year: i32) -> u8 {\n    match year % 400 {\n        -396 | -391 | -385 | -380 | -374 | -368 | -363 | -357 | -352 | -346 | -340 | -335\n        | -329 | -324 | -318 | -312 | -307 | -301 | -295 | -289 | -284 | -278 | -272 | -267\n        | -261 | -256 | -250 | -244 | -239 | -233 | -228 | -222 | -216 | -211 | -205 | -199\n        | -193 | -188 | -182 | -176 | -171 | -165 | -160 | -154 | -148 | -143 | -137 | -132\n        | -126 | -120 | -115 | -109 | -104 | -97 | -92 | -86 | -80 | -75 | -69 | -64 | -58\n        | -52 | -47 | -41 | -36 | -30 | -24 | -19 | -13 | -8 | -2 | 4 | 9 | 15 | 20 | 26 | 32\n        | 37 | 43 | 48 | 54 | 60 | 65 | 71 | 76 | 82 | 88 | 93 | 99 | 105 | 111 | 116 | 122\n        | 128 | 133 | 139 | 144 | 150 | 156 | 161 | 167 | 172 | 178 | 184 | 189 | 195 | 201\n        | 207 | 212 | 218 | 224 | 229 | 235 | 240 | 246 | 252 | 257 | 263 | 268 | 274 | 280\n        | 285 | 291 | 296 | 303 | 308 | 314 | 320 | 325 | 331 | 336 | 342 | 348 | 353 | 359\n        | 364 | 370 | 376 | 381 | 387 | 392 | 398 => 53,\n        _ => 52,\n    }\n}",
+    "sha256": "3534485928ffb115f4eda7fc911c3adfa1bca7200f68167c8716d2ab2ba861fa"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/util.rs",
+    "start": 5072,
+    "end": 5180,
+    "name": "days_in_month",
+    "source": "pub const fn days_in_month(month: u8, year: i32) -> u8 {\n    days_in_month_leap(month, is_leap_year(year))\n}",
+    "sha256": "6577e15fcbf972f3f2a236d01c51f793c401ff25a9f74039ca53522e3ccced1e"
+  },
+  {
+    "package": "time-core",
+    "version": "0.1.9",
+    "path": "src/util.rs",
+    "start": 5427,
+    "end": 5695,
+    "name": "days_in_month_leap",
+    "source": "pub const fn days_in_month_leap(month: u8, is_leap_year: bool) -> u8 {\n    debug_assert!(month >= 1);\n    debug_assert!(month <= 12);\n\n    if hint::unlikely(month == 2) {\n        if is_leap_year { 29 } else { 28 }\n    } else {\n        30 | month ^ (month >> 3)\n    }\n}",
+    "sha256": "f0d088e30b3f88a5299d62f9f108fccfbf3a43504520d1fcdad32898b92b39ff"
+  }
+]

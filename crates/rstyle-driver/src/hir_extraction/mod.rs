@@ -49,12 +49,10 @@ fn function(
         .flat_map(|p| hir::bindings(&p.pat, &scope))
         .chain(hir::bindings(&body, &scope))
         .collect();
-    let scan = scanned
-        .iter()
-        .find(|scan| scan.span.source_callsite() == function_span);
+    let scan = find_source_scan(&ctx, scanned, body_source_span(tcx, id));
     let source_diagnostics = source_findings(&ctx, scan, sig.span);
 
-    Some(HirFnFacts {
+    let mut facts = HirFnFacts {
         name: tcx.def_path_str(id.to_def_id()),
         fn_span,
         source: SourceFacts {
@@ -67,7 +65,51 @@ fn function(
         build: function_build(tcx, id, function_span, invocation)?,
         source_diagnostics,
         source_scan_complete: scan.is_some_and(|scan| !scan.conditional_source),
+    };
+    capture_correspondence(&mut facts);
+
+    Some(facts)
+}
+
+fn body_source_span(tcx: TyCtxt<'_>, id: LocalDefId) -> rustc_span::Span {
+    let node = tcx.hir_node_by_def_id(id);
+    tcx.hir_body(node.body_id().expect("function body"))
+        .value
+        .span
+        .source_callsite()
+}
+
+fn find_source_scan<'a>(
+    ctx: &hir::Context<'_>,
+    scanned: &'a [source::Function],
+    body_span: rustc_span::Span,
+) -> Option<&'a source::Function> {
+    scanned.iter().find(|scan| {
+        scan.span.source_callsite() == ctx.function_span
+            || (selected_conditional() && scan.body_span.source_callsite() == body_span)
     })
+}
+
+fn capture_correspondence(facts: &mut HirFnFacts) {
+    if selected_conditional() {
+        facts
+            .source_diagnostics
+            .extend(rstyle_pdg::source_evidence::diagnostics(facts));
+        match rstyle_pdg::source_evidence::capture(facts) {
+            Ok(evidence) => {
+                facts.build.frontend_options.insert(
+                    rstyle_pdg::source_evidence::KEY.into(),
+                    serde_json::json!(evidence),
+                );
+            }
+            Err(error) => {
+                facts.build.frontend_options.insert(
+                    "source_correspondence_failure".into(),
+                    serde_json::json!(error),
+                );
+            }
+        }
+    }
 }
 
 fn function_build(
@@ -87,6 +129,12 @@ fn function_build(
         std::env::current_dir().ok()?.join(path)
     };
     let mut build = evidence::build(tcx, invocation);
+    if let Ok(selection) = std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE") {
+        build.frontend_options.insert(
+            rstyle_pdg::extraction_profile::SELECTION_KEY.into(),
+            serde_json::json!(selection),
+        );
+    }
     let identifier = tcx
         .def_ident_span(id.to_def_id())
         .and_then(|span| {
@@ -242,4 +290,163 @@ fn source_findings(
             ),
         })
         .collect()
+}
+
+fn selected_conditional() -> bool {
+    std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
+        .ok()
+        .and_then(|value| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&value).ok())
+        .is_some_and(|profile| profile.supports("rust.conditional-source-correspondence"))
+}
+
+pub fn source_inventory(
+    tcx: TyCtxt<'_>,
+    scanned: &[source::Function],
+    facts: &[HirFnFacts],
+) -> Result<serde_json::Value, String> {
+    let files = inventory_files(tcx, scanned)?;
+    let records = files
+        .into_iter()
+        .map(|(path, span)| inventory_file(tcx, &path, span, facts))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(serde_json::json!(
+        records.into_iter().flatten().collect::<Vec<_>>()
+    ))
+}
+
+fn inventory_files(
+    tcx: TyCtxt<'_>,
+    scanned: &[source::Function],
+) -> Result<std::collections::BTreeMap<std::path::PathBuf, rustc_span::Span>, String> {
+    let mut files = std::collections::BTreeMap::new();
+    for span in scanned.iter().map(|f| f.span.source_callsite()).chain(
+        tcx.hir_body_owners()
+            .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
+            .filter_map(|id| {
+                tcx.hir_node_by_def_id(id)
+                    .fn_sig()
+                    .map(|sig| sig.span.source_callsite())
+            }),
+    ) {
+        let file = tcx.sess.source_map().lookup_source_file(span.lo());
+        let rustc_span::FileName::Real(real) = &file.name else {
+            continue;
+        };
+        let Some(path) = real.local_path() else {
+            continue;
+        };
+        let path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .map_err(|e| e.to_string())?
+                .join(path)
+        };
+        files.insert(
+            path,
+            rustc_span::Span::with_root_ctxt(file.start_pos, file.end_position()),
+        );
+    }
+
+    Ok(files)
+}
+
+fn inventory_file(
+    tcx: TyCtxt<'_>,
+    path: &std::path::Path,
+    span: rustc_span::Span,
+    facts: &[HirFnFacts],
+) -> Result<Vec<serde_json::Value>, String> {
+    let (source, original_span) =
+        original_source(tcx, span).ok_or("Original compiler file buffer unavailable")?;
+    let definitions = match rstyle_pdg::source_evidence::functions(&source) {
+        Ok(definitions) => definitions,
+        Err(reason) => {
+            return Ok(vec![
+                serde_json::to_value(UnknownInventory {
+                    source_file: path,
+                    source_digest: evidence::digest(source.as_bytes()),
+                    inventory_status: "unknown",
+                    reason,
+                })
+                .map_err(|e| e.to_string())?,
+            ]);
+        }
+    };
+
+    definitions
+        .into_iter()
+        .map(|mut definition| {
+            definition.span.start = definition
+                .span
+                .start
+                .checked_add(original_span.start)
+                .ok_or("Source inventory span overflow")?;
+            definition.span.end = definition
+                .span
+                .end
+                .checked_add(original_span.start)
+                .ok_or("Source inventory span overflow")?;
+            inventory_definition(path, definition, facts)
+        })
+        .collect::<Result<Vec<_>, String>>()
+}
+
+fn inventory_definition(
+    path: &std::path::Path,
+    definition: rstyle_pdg::source_evidence::SourceDefinition,
+    facts: &[HirFnFacts],
+) -> Result<serde_json::Value, String> {
+    let active: Vec<_> = facts
+        .iter()
+        .filter(|fact| {
+            fact.fn_span.start >= definition.span.start
+                && fact.fn_span.end <= definition.span.end
+                && fact
+                    .build
+                    .frontend_options
+                    .get("source_file")
+                    .and_then(serde_json::Value::as_str)
+                    == path.to_str()
+        })
+        .map(|fact| &fact.name)
+        .collect();
+
+    let presence = if active.is_empty() {
+        "absent_from_resolved_hir"
+    } else {
+        "active"
+    };
+    serde_json::to_value(DefinitionInventory {
+        source_file: path,
+        name: definition.name,
+        span: definition.span,
+        source_digest: evidence::digest(definition.source.as_bytes()),
+        source: definition.source,
+        active_functions: active,
+        presence,
+        inventory_status: "complete_for_source_definitions_outside_macro_tokens",
+    })
+    .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+struct UnknownInventory<'a> {
+    source_file: &'a std::path::Path,
+    source_digest: String,
+    inventory_status: &'static str,
+    reason: String,
+}
+
+#[derive(serde::Serialize)]
+struct DefinitionInventory<'a> {
+    source_file: &'a std::path::Path,
+    name: String,
+    span: rstyle_pdg::ByteSpan,
+    source_digest: String,
+    source: String,
+    active_functions: Vec<&'a String>,
+    presence: &'static str,
+    inventory_status: &'static str,
 }

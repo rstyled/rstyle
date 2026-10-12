@@ -34,6 +34,7 @@ pub fn stage_function(
 ) -> ImportedFunction {
     let reference_count = distinct_reads(&nodes);
     ImportedFunction {
+        extraction_context: None,
         key: key.to_string(),
         nodes,
         edges: edges

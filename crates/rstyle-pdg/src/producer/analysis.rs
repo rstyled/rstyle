@@ -30,16 +30,34 @@ pub struct Analysis {
 }
 
 pub fn analyze(graph: &Graph) -> Result<Analysis, String> {
+    analyze_policy(graph, false)
+}
+
+pub fn analyze_cyclic(graph: &Graph) -> Result<Analysis, String> {
+    analyze_policy(graph, true)
+}
+
+fn analyze_policy(graph: &Graph, cyclic: bool) -> Result<Analysis, String> {
     let reachable = reachability(graph);
-    check_acyclic_exit(graph, &reachable)?;
+    if !cyclic {
+        check_acyclic_exit(graph, &reachable)?;
+    }
     let predecessors = neighbours(graph, &reachable, false);
     let successors = neighbours(graph, &reachable, true);
     let dom = dominators(&reachable, &predecessors, "E");
-    let post = dominators(&reachable, &successors, "X");
+    let post = if cyclic {
+        divergence_postdominators(&reachable, &successors)
+    } else {
+        dominators(&reachable, &successors, "X")
+    };
     let (definition_in, definition_out) = reaching(graph, &reachable, &predecessors);
     let edges = data_edges(graph, &reachable, &definition_in)?;
     let execution = execution_edges(graph, &reachable, &dom);
-    let control = control_edges(graph, &reachable, &post);
+    let control = if cyclic {
+        cyclic_control_edges(graph, &reachable, &post)
+    } else {
+        control_edges(graph, &reachable, &post)
+    };
 
     Ok(Analysis {
         edges: edges.into_iter().chain(execution).chain(control).collect(),
@@ -317,7 +335,11 @@ fn alternative_edges(graph: &Graph, reached: &BTreeSet<String>) -> Vec<Dependenc
         })
         .flat_map(|site| {
             site.alternatives.iter().map(move |a| Dependence {
-                position: Some(if a.outcome == "true" { 0 } else { 1 }),
+                position: if let Some(index) = a.outcome.strip_prefix("arm:") {
+                    index.parse().ok()
+                } else {
+                    Some(if a.outcome == "true" { 0 } else { 1 })
+                },
                 outcome: Some(a.outcome.clone()),
                 guards: Some(a.guards.clone()),
                 ..edge(
@@ -412,6 +434,68 @@ fn control_edges(graph: &Graph, reached: &BTreeSet<String>, post: &Sets) -> Vec<
                 current = immediate(&id, post);
             }
             edges
+        })
+        .collect()
+}
+
+fn divergence_postdominators(vertices: &BTreeSet<String>, successors: &Sets) -> Sets {
+    let mut result: Sets = vertices
+        .iter()
+        .map(|id| (id.clone(), BTreeSet::new()))
+        .collect();
+    for candidate in vertices {
+        let mut must_encounter = BTreeSet::from([candidate.clone()]);
+        loop {
+            let next: BTreeSet<_> = must_encounter
+                .iter()
+                .cloned()
+                .chain(
+                    successors
+                        .iter()
+                        .filter(|(_, next)| !next.is_empty() && next.is_subset(&must_encounter))
+                        .map(|(id, _)| id.clone()),
+                )
+                .collect();
+            if next == must_encounter {
+                break;
+            }
+            must_encounter = next;
+        }
+        for vertex in must_encounter {
+            result
+                .get_mut(&vertex)
+                .expect("reachable vertex")
+                .insert(candidate.clone());
+        }
+    }
+    result
+}
+
+fn cyclic_control_edges(graph: &Graph, reached: &BTreeSet<String>, post: &Sets) -> Vec<Dependence> {
+    graph
+        .transfers
+        .iter()
+        .filter(|transfer| {
+            reached.contains(&transfer.source)
+                && reached.contains(&transfer.target)
+                && matches!(transfer.kind.as_str(), "true" | "false")
+        })
+        .flat_map(|transfer| {
+            post[&transfer.target]
+                .iter()
+                .filter(move |id| {
+                    (id.as_str() == transfer.source || !post[&transfer.source].contains(*id))
+                        && !matches!(id.as_str(), "E" | "X")
+                })
+                .map(move |id| Dependence {
+                    outcome: Some(transfer.kind.clone()),
+                    ..edge(
+                        &transfer.source,
+                        id,
+                        EdgeFamily::Control,
+                        "divergence_sensitive_postdominance",
+                    )
+                })
         })
         .collect()
 }

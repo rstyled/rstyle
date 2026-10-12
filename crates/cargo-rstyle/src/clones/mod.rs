@@ -16,6 +16,9 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 pub struct Args {
+    /// Extraction selection: r0 (default) or hir-expanded-v1 (all verified capabilities).
+    #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
+    pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     /// JSON matching overrides, separate from legacy rstyle.toml.
     #[arg(long)]
     matching_config: Option<PathBuf>,
@@ -90,6 +93,7 @@ struct Function {
 }
 
 struct Handoff {
+    source_inventory: Vec<Value>,
     assessed: Vec<Function>,
     admitted: Vec<ImportedFunction>,
     failures: Vec<String>,
@@ -141,7 +145,7 @@ impl Handoff {
 
 pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
-    let mut capture = capture::prepare(cli)?;
+    let mut capture = capture::prepare(cli, args)?;
     if let Err(error) = capture::compile(&mut capture, cli, args) {
         capture.failures.push(error);
     }
@@ -183,6 +187,7 @@ pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 
 fn handoff(capture: &capture::Capture, trace: bool) -> Handoff {
     let mut result = Handoff {
+        source_inventory: Vec::new(),
         assessed: Vec::new(),
         admitted: Vec::new(),
         failures: Vec::new(),
@@ -207,7 +212,12 @@ fn consume_unit(
     trace: bool,
     result: &mut Handoff,
 ) -> Result<(), String> {
+    if unit.extraction_profile != capture.plan.extraction_profile {
+        return Err("Unit extraction profile disagrees with plan".into());
+    }
     capture::verify_inventory(unit)?;
+    result.source_inventory.extend(source_inventory(unit)?);
+
     let facts: Vec<HirFnFacts> = read_json(&unit.directory.join("facts.json"))?;
     for (index, function) in facts.into_iter().enumerate() {
         verify_frontend_invocation(&function, unit, capture)?;
@@ -215,20 +225,7 @@ fn consume_unit(
         if !result.keys.insert(key.clone()) {
             return Err(format!("duplicate function key {key}"));
         }
-        let mut record = Function {
-            key,
-            compilation_unit: format!(
-                "{}:{}:test={}",
-                unit.target.package, unit.target.name, unit.test
-            ),
-            artifact_prefix: unit.directory.join(format!("function-{index}")),
-            outcome: "assessed".into(),
-            reasons: Vec::new(),
-            facts: function,
-            document_manifest: None,
-            projection_trace: None,
-            extraction_evidence: None,
-        };
+        let mut record = function_record(function, key, unit, index);
         let input = FunctionInput { unit, index, trace };
         let admission = consume_function(&mut record, &input);
         result.add(record, admission);
@@ -236,11 +233,51 @@ fn consume_unit(
     Ok(())
 }
 
+fn source_inventory(unit: &capture::Unit) -> Result<Option<Value>, String> {
+    if !unit
+        .extraction_profile
+        .supports("rust.conditional-source-correspondence")
+    {
+        return Ok(None);
+    }
+    let inventory: Vec<Value> = read_json(&unit.directory.join("source-inventory.json"))?;
+    Ok(Some(
+        json!({"compilation_unit":unit.target, "test":unit.test, "source_functions":inventory}),
+    ))
+}
+
+fn function_record(
+    function: HirFnFacts,
+    key: String,
+    unit: &capture::Unit,
+    index: usize,
+) -> Function {
+    Function {
+        key,
+        compilation_unit: format!(
+            "{}:{}:test={}",
+            unit.target.package, unit.target.name, unit.test
+        ),
+        artifact_prefix: unit.directory.join(format!("function-{index}")),
+        outcome: "assessed".into(),
+        reasons: Vec::new(),
+        facts: function,
+        document_manifest: None,
+        projection_trace: None,
+        extraction_evidence: None,
+    }
+}
+
 fn verify_frontend_invocation(
     facts: &HirFnFacts,
     unit: &capture::Unit,
     capture: &capture::Capture,
 ) -> Result<(), String> {
+    if rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(facts)?
+        != capture.plan.extraction_profile
+    {
+        return Err("frontend extraction selection disagrees with run".into());
+    }
     let value = facts
         .build
         .frontend_options
@@ -322,7 +359,10 @@ fn consume_function(
         return Ok(None);
     }
     if assessment["manifest_file"] != format!("function-{}.manifest.json", input.index) {
-        return Err("missing or ambiguous assessment manifest".into());
+        return Err(format!(
+            "missing or ambiguous assessment manifest; producer errors: {}",
+            assessment["extraction_errors"]
+        ));
     }
     if !record
         .facts

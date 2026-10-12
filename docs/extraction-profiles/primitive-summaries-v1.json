@@ -1,0 +1,64 @@
+[
+  {
+    "id": "rstyle.primitive.unsigned-abs",
+    "version": "1",
+    "callee_path": "core::num::<impl i32>::unsigned_abs",
+    "callee_crate": "core",
+    "argument_types": [
+      "i32"
+    ],
+    "result_type": "u32",
+    "memory_effects": false,
+    "mutates_arguments": false,
+    "may_panic": false,
+    "always_returns": true,
+    "overflow_behavior": "unsigned-magnitude-including-min"
+  },
+  {
+    "id": "rstyle.primitive.unsigned-abs",
+    "version": "1",
+    "callee_path": "core::num::<impl i64>::unsigned_abs",
+    "callee_crate": "core",
+    "argument_types": [
+      "i64"
+    ],
+    "result_type": "u64",
+    "memory_effects": false,
+    "mutates_arguments": false,
+    "may_panic": false,
+    "always_returns": true,
+    "overflow_behavior": "unsigned-magnitude-including-min"
+  },
+  {
+    "id": "rstyle.primitive.wrapping-mul",
+    "version": "1",
+    "callee_path": "core::num::<impl u32>::wrapping_mul",
+    "callee_crate": "core",
+    "argument_types": [
+      "u32",
+      "u32"
+    ],
+    "result_type": "u32",
+    "memory_effects": false,
+    "mutates_arguments": false,
+    "may_panic": false,
+    "always_returns": true,
+    "overflow_behavior": "modulo-result-width"
+  },
+  {
+    "id": "rstyle.primitive.wrapping-mul",
+    "version": "1",
+    "callee_path": "core::num::<impl u64>::wrapping_mul",
+    "callee_crate": "core",
+    "argument_types": [
+      "u64",
+      "u64"
+    ],
+    "result_type": "u64",
+    "memory_effects": false,
+    "mutates_arguments": false,
+    "may_panic": false,
+    "always_returns": true,
+    "overflow_behavior": "modulo-result-width"
+  }
+]

@@ -31,6 +31,7 @@ pub struct Operation {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Transfer {
+    pub loop_role: Option<String>,
     pub source: String,
     pub target: String,
     pub kind: String,
@@ -46,6 +47,7 @@ pub struct Alternative {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValueSite {
+    pub selection_kind: Option<String>,
     pub pdg_node_id: String,
     pub construct_span: ByteSpan,
     pub controller_pdg_node_id: String,
