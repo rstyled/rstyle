@@ -73,6 +73,10 @@ def assess(selection, reports):
                                           for d in record["facts"]["source_diagnostics"]],
                     source_scan_complete=bool(records) and all(
                         record["facts"]["source_scan_complete"] for record in records))
+        if len(records) == 1:
+            item.update(function_key=records[0]["key"], captured_source_digest=records[0]["facts"]["source"]["digest"],
+                        document_manifest=records[0].get("document_manifest"),
+                        build=records[0]["facts"]["build"])
         outcomes.append(item)
     counts = collections.Counter(item["outcome"] for item in outcomes)
     combinations = collections.Counter(tuple(sorted(set(

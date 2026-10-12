@@ -146,3 +146,83 @@ validation is unchanged. Nonunit single-completion matches reuse the saved value
 unit matches have no value-operand merge. Binding reaching definitions remain
 fixed-point kill/gen over the actual acyclic CFG; data/control/execution rules
 are unchanged. New CONTROL/merge nodes legitimately change matching features.
+
+## Conditional correspondence implementation boundary
+
+Local 0.5.0 independently reparses original owned function bytes solely to check
+source inventory (never to extract matching graphs). Each semantic source entry
+carries its exact byte span/kind and a unique resolved HIR reference, together
+with source digest and captured cfg/features. The verifier recomputes this
+inventory and correspondence rather than trusting source_scan_complete. Match
+patterns retain distinct pattern entries; grouping/block wrappers add no runtime
+operations. A unique original body-span match recovers pre-expansion scanning for
+function headers with documentation/attributes; macro-generated source is excluded.
+
+A conditional statement whose source entries all occur in active resolved HIR
+can be complete. A removed operation has no independent resolution in this
+implementation, even if its spelling is an integer literal; it remains unknown.
+No standalone compilation under invented cfg environments is used as evidence.
+Unsupported removed constructs are still rejected by the strict pre-expansion
+scan. This deliberately defers admission of cfg-disabled supported statements;
+resolution under removed lexical/type environments is a remaining obligation.
+Whole-function absence stays visible in the frozen source inventory; active
+functions retain actual cfg/features and file-relative identity. This is an
+eligibility improvement, not complete conditional-compilation coverage.
+
+## Initial cyclic slice contract (0.6.0)
+
+The initial cycle slice is intentionally narrower than all scalar Rust loops.
+It permits source while/loop, local scalar state, unlabelled valueless break and
+continue resolved to the innermost loop, nested loops and early return. Iterator
+for, labels, value-carrying break and nonunit conditional/short-circuit/match
+value merges anywhere in a loop-containing function remain excluded in this
+version. This excludes loop-epoch-sensitive value merges, rather than treating
+acyclic guard histories as valid across iterations. Ordinary scalar snapshots
+within each iteration and unit control branching are supported. Condition
+operations are reevaluated on every while back edge; loop headers and break/
+continue retain distinct source operations. A while false edge and actual break
+frontiers reach the next operation; an infinite loop adds no fallthrough edge.
+
+Reaching definitions use monotone finite kill/gen fixed points over actual CFG
+edges, including zero-iteration, back-edge and continue paths. Dominance is the
+entry-rooted greatest fixed point on the finite reachable vertex set. For each
+candidate operation z, divergence-sensitive postdominance is the *least* fixed
+point starting with {z}, adding a vertex only when it has nonempty successors
+and all successors are already in the set. Thus every maximal finite or infinite
+path from that vertex must encounter z. Exitless cycles that can avoid z never
+receive fabricated exit reachability. Mutual postdominance in unavoidable cycles
+is permitted; no acyclic immediate-postdominator chain is followed. An outcome
+edge x->y induces control dependence on each real operation in post(y) excluding
+strict postdominators of x. Self control dependence is retained when justified.
+Execution dependence remains the nearest strict entry dominator. These meanings
+remain control/data/execution under unchanged matching category rules.
+
+The serialized cycle verifier independently computes CFG dominance and kill/gen
+fixed points. Value operands must be formal inputs or strictly dominating real
+operations; merges in loop-containing functions are excluded. Each read's
+reaching-definition edges must agree exactly with the computed definition set.
+Convergence follows finite monotone sets; there are no path/iteration samples or
+silent caps. Explicit resource/arithmetic failures must remain failed evidence.
+Normal exit boundaries may be unreachable; only actual returns/fallthrough have
+execution transfers. Cycle policies and actual loop annotations must be recorded
+in both documents and checked against captured source/HIR/build facts.
+
+## Frozen primitive-summary choice
+
+Source review of the frozen inventory identifies both i32::unsigned_abs followed
+by u32::wrapping_mul and i64::unsigned_abs followed by u64::wrapping_mul in the
+selected time-core is_leap_year definitions. Freeze only these four instantiations
+for the initial summary set, before admitting or inspecting detector predictions.
+No other primitive method, free call, user method or trait dispatch is enabled.
+
+Summary identities are rstyle.primitive.unsigned-abs/1 (i32->u32, i64->u64) and
+rstyle.primitive.wrapping-mul/1 (u32,u32->u32, u64,u64->u64). Resolve exact core
+inherent callee paths on pinned rustc commit 5c543b0b8c73c7b72bc8284ced4fb22ead15734d;
+record that compiler/source provenance. Receiver and then arguments evaluate in
+Rust order and feed result operands 0 and 1 as applicable. Both operations are
+memory-free, nonmutating, always returning and nonpanicking under either overflow
+setting. unsigned_abs returns the magnitude including signed MIN; wrapping_mul
+returns low width bits modulo 2^width. No call is inferred from spelling alone.
+The call is a source-backed CALL/STATE node, retaining original expr_method_call,
+callee, method form, resolved argument/result types and summary facts. Effects,
+returning behavior, callee/type/summary/commit and settings must match exactly.

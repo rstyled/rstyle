@@ -137,6 +137,20 @@ impl Callbacks for HirExtract {
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
         let facts = hir_extraction::crate_facts(tcx, &self.scanned, &self.invocation)
             .expect("capture complete source-facing R0 evidence");
+        if facts.first().is_some_and(|facts| {
+            rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(facts)
+                .is_ok_and(|profile| profile.conditional_source())
+        }) || std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
+            .ok()
+            .and_then(|token| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&token).ok())
+            .is_some_and(|profile| profile.conditional_source())
+        {
+            let inventory = hir_extraction::source_inventory(tcx, &self.scanned, &facts)
+                .expect("capture owned source inventory");
+            self.output
+                .write_source_inventory(&inventory)
+                .expect("write owned source inventory");
+        }
         self.output
             .write(&facts)
             .expect("write R0 evidence and optional documents");

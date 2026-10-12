@@ -14,6 +14,7 @@ pub struct Finding {
 }
 
 pub struct Function {
+    pub body_span: Span,
     pub span: Span,
     pub findings: Vec<Finding>,
     pub conditional_source: bool,
@@ -39,6 +40,7 @@ impl<'a> Visitor<'a> for Scan {
         owned.visit_block(body);
 
         self.functions.push(Function {
+            body_span: body.span,
             span,
             findings: owned.findings,
             conditional_source: owned.conditional_source,

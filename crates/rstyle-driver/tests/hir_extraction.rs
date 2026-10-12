@@ -1179,7 +1179,7 @@ fn const_expansion_keeps_r0_and_deferred_source_closed() {
     let source = "const fn f(x: i32) -> i32 { x }";
     let baseline = compile_selected(source, "r0").remove(0);
     assert_eq!(classify(&baseline).status, EligibilityVerdict::Ineligible);
-    let unknown = compile_selected(source, "hir-loops-v1").remove(0);
+    let unknown = compile_selected(source, "hir-unregistered-v1").remove(0);
     assert_eq!(classify(&unknown).status, EligibilityVerdict::Unknown);
 }
 
@@ -1639,3 +1639,93 @@ fn guard_subset_and_tampered_fallthrough_are_fail_closed() {
         .retain(|e| !(e.source == guard && e.kind == rstyle_pdg::CfgEdgeKind::False));
     assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
 }
+
+#[test]
+fn conditional_source_correspondence_keeps_removed_resolution_unknown() {
+    let supported = [
+        "/// documented\n#[inline]\npub const fn f(x: i32) -> i32 { x }",
+        "fn f(x: i32) -> i32 { #[cfg(all())] let y = x; y }",
+        "fn f(x: i32) -> i32 { #[cfg(all())] { let y = x; y; } x }",
+        "fn f(x: bool) -> i32 { match x { true => 1, _ => 2 } }",
+    ];
+    for source in supported {
+        let facts = compile_selected(source, "hir-conditional-v1").remove(0);
+        assert_eq!(
+            classify(&facts).status,
+            EligibilityVerdict::Eligible,
+            "{source}: {:?}",
+            classify(&facts)
+        );
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+    }
+    for source in [
+        "fn f() { #[cfg(any())] let x = 1; }",
+        "fn f() { #[cfg(any())] let x = unresolved; }",
+        "fn f() { #[cfg(any())] { #[cfg(all())] let x = 1; } }",
+    ] {
+        let facts = compile_selected(source, "hir-conditional-v1").remove(0);
+        assert_eq!(classify(&facts).status, EligibilityVerdict::Unknown);
+    }
+    for source in [
+        "/// documented\nfn f() { #[cfg(any())] missing(); }",
+        "fn f() { #[cfg(any())] unavailable!(); }",
+        "fn f() { #[cfg(any())] const X: i32 = 1; }",
+    ] {
+        let facts = compile_selected(source, "hir-conditional-v1").remove(0);
+        assert_eq!(classify(&facts).status, EligibilityVerdict::Ineligible);
+    }
+}
+
+#[test]
+fn conditional_evidence_inventory_cfg_and_resolution_tampering_are_rejected() {
+    let facts = compile_selected(
+        "fn f(x: i32) -> i32 { #[cfg(all())] let y = x; y }",
+        "hir-conditional-v1",
+    )
+    .remove(0);
+    assert_eq!(classify(&facts).status, EligibilityVerdict::Eligible);
+    for mutation in 0..5 {
+        let mut changed = facts.clone();
+        match mutation {
+            0 => {
+                changed
+                    .build
+                    .frontend_options
+                    .remove(rstyle_pdg::source_evidence::KEY);
+            }
+            1 => {
+                changed
+                    .build
+                    .frontend_options
+                    .get_mut(rstyle_pdg::source_evidence::KEY)
+                    .unwrap()["entries"] = serde_json::json!([]);
+            }
+            2 => {
+                changed.build.cfgs.push("feature=\"different\"".into());
+            }
+            3 => {
+                changed
+                    .build
+                    .frontend_options
+                    .get_mut(rstyle_pdg::source_evidence::KEY)
+                    .unwrap()["entries"][0]["hir"] = serde_json::json!(null);
+            }
+            _ => {
+                changed
+                    .build
+                    .frontend_options
+                    .get_mut(rstyle_pdg::source_evidence::KEY)
+                    .unwrap()["source_digest"] = serde_json::json!("sha256:0000");
+            }
+        }
+        assert_eq!(
+            classify(&changed).status,
+            EligibilityVerdict::Unknown,
+            "mutation {mutation}"
+        );
+        assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    }
+}
+

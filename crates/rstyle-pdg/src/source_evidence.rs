@@ -1,0 +1,279 @@
+//! Independent original-source inventory checks; graph extraction remains HIR-only.
+
+use crate::{ByteSpan, HirFnFacts, HirNode, HirRef};
+use serde::{Deserialize, Serialize};
+use syn::{
+    spanned::Spanned,
+    visit::{self, Visit},
+};
+
+pub const KEY: &str = "source_correspondence";
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Entry {
+    pub kind: String,
+    pub span: ByteSpan,
+    pub hir: Option<HirRef>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Correspondence {
+    pub source_digest: String,
+    pub cfgs: Vec<String>,
+    pub features: Vec<String>,
+    pub entries: Vec<Entry>,
+}
+
+struct Inventory<'a> {
+    facts: &'a HirFnFacts,
+    entries: Vec<Entry>,
+}
+
+pub fn capture(facts: &HirFnFacts) -> Result<Correspondence, String> {
+    let function: syn::ItemFn = syn::parse_str(&facts.source.bytes)
+        .map_err(|error| format!("Original owned source inventory unavailable: {error}"))?;
+    let mut inventory = Inventory {
+        facts,
+        entries: Vec::new(),
+    };
+    inventory.visit_block(&function.block);
+
+    Ok(Correspondence {
+        source_digest: facts.source.digest.clone(),
+        cfgs: facts.build.cfgs.clone(),
+        features: facts.build.features.clone(),
+        entries: inventory.entries,
+    })
+}
+
+pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
+    let value = facts
+        .build
+        .frontend_options
+        .get(KEY)
+        .ok_or("Missing original-source correspondence evidence")?;
+    let actual: Correspondence = serde_json::from_value(value.clone())
+        .map_err(|error| format!("Invalid source correspondence: {error}"))?;
+    let expected = capture(facts)?;
+    if actual != expected {
+        return Err(
+            "Original source inventory, resolved HIR correspondence or cfg/features disagree"
+                .into(),
+        );
+    }
+    if expected.entries.iter().any(|entry| entry.hir.is_none()) {
+        return Err("Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown".into());
+    }
+
+    Ok(())
+}
+
+impl Inventory<'_> {
+    fn add(&mut self, kind: &str, span: proc_macro2::Span) {
+        let source = &self.facts.source.bytes;
+        let span = ByteSpan {
+            start: offset(source, span.start()),
+            end: offset(source, span.end()),
+        };
+        let mut candidates = Vec::new();
+        find(&self.facts.body, kind, span, &mut candidates);
+        let hir = if candidates.len() == 1 {
+            Some(candidates[0].clone())
+        } else {
+            None
+        };
+        self.entries.push(Entry {
+            kind: kind.into(),
+            span,
+            hir,
+        });
+    }
+}
+
+impl<'ast> Visit<'ast> for Inventory<'_> {
+    fn visit_expr(&mut self, expression: &'ast syn::Expr) {
+        let kind = expression_kind(expression);
+        if let Some(kind) = kind {
+            self.add(kind, expression.span());
+        }
+        if matches!(
+            expression,
+            syn::Expr::Closure(_) | syn::Expr::Async(_) | syn::Expr::Const(_)
+        ) {
+            return;
+        }
+        visit::visit_expr(self, expression);
+    }
+
+    fn visit_pat(&mut self, pattern: &'ast syn::Pat) {
+        match pattern {
+            syn::Pat::Lit(_) => self.add("pat_literal", pattern.span()),
+            syn::Pat::Wild(_) => self.add("pat_wild", pattern.span()),
+            _ => {}
+        }
+    }
+
+    fn visit_stmt(&mut self, statement: &'ast syn::Stmt) {
+        if matches!(statement, syn::Stmt::Macro(_)) {
+            self.add("source_macro", statement.span());
+            return;
+        }
+        visit::visit_stmt(self, statement);
+    }
+
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        let span = local
+            .let_token
+            .span
+            .join(local.semi_token.span)
+            .unwrap_or(local.let_token.span);
+        self.add("stmt_let", span);
+        visit::visit_local(self, local);
+    }
+
+    fn visit_item(&mut self, item: &'ast syn::Item) {
+        self.add("stmt_item", item.span());
+    }
+}
+
+fn offset(source: &str, position: proc_macro2::LineColumn) -> u32 {
+    let prefix: usize = source
+        .split_inclusive('\n')
+        .take(position.line.saturating_sub(1))
+        .map(str::len)
+        .sum();
+    let line = source.get(prefix..).unwrap_or_default();
+    let column = line
+        .char_indices()
+        .nth(position.column)
+        .map_or(line.len(), |(offset, _)| offset);
+
+    u32::try_from(prefix + column).unwrap_or(u32::MAX)
+}
+
+fn find(node: &HirNode, kind: &str, span: ByteSpan, found: &mut Vec<HirRef>) {
+    if node.kind == kind && node.span == span {
+        found.push(node.hir.clone());
+    }
+    for child in &node.children {
+        find(child, kind, span, found);
+    }
+}
+
+fn expression_kind(expression: &syn::Expr) -> Option<&'static str> {
+    Some(match expression {
+        syn::Expr::Paren(_) | syn::Expr::Group(_) | syn::Expr::Block(_) => return None,
+        syn::Expr::Lit(_) => "expr_lit",
+        syn::Expr::Path(_) => "expr_path",
+        syn::Expr::Binary(binary)
+            if matches!(
+                binary.op,
+                syn::BinOp::AddAssign(_)
+                    | syn::BinOp::SubAssign(_)
+                    | syn::BinOp::MulAssign(_)
+                    | syn::BinOp::DivAssign(_)
+                    | syn::BinOp::RemAssign(_)
+                    | syn::BinOp::BitXorAssign(_)
+                    | syn::BinOp::BitAndAssign(_)
+                    | syn::BinOp::BitOrAssign(_)
+                    | syn::BinOp::ShlAssign(_)
+                    | syn::BinOp::ShrAssign(_)
+            ) =>
+        {
+            "expr_assign_op"
+        }
+        syn::Expr::Binary(_) => "expr_binary",
+        syn::Expr::Unary(_) => "expr_unary",
+        syn::Expr::Assign(_) => "expr_assign",
+        syn::Expr::Cast(_) => "expr_cast",
+        syn::Expr::If(_) => "expr_if",
+        syn::Expr::Match(_) => "expr_match",
+        syn::Expr::Return(_) => "expr_ret",
+        syn::Expr::Tuple(_) => "expr_tup",
+        syn::Expr::While(_) => "expr_while",
+        syn::Expr::Loop(_) => "expr_loop",
+        syn::Expr::Break(_) => "expr_break",
+        syn::Expr::Continue(_) => "expr_continue",
+        syn::Expr::Call(_) => "expr_call",
+        syn::Expr::MethodCall(_) => "expr_method_call",
+        syn::Expr::Macro(_) => "source_macro",
+        _ => "source_deferred",
+    })
+}
+
+/// Deferred source constructs remain exclusions even when cfg removes their HIR.
+pub fn diagnostics(facts: &HirFnFacts) -> Vec<crate::HirDiagnostic> {
+    let Ok(inventory) = capture(facts) else {
+        return Vec::new();
+    };
+    inventory.entries.into_iter().filter_map(|entry| {
+        let capability = match entry.kind.as_str() {
+            "expr_call" | "expr_method_call" => "rust.call-summaries",
+            "source_macro" => "rust.macros",
+            "stmt_item" => "rust.blocks",
+            "source_deferred" => "rust.additional-types",
+            _ => return None,
+        };
+        Some(crate::HirDiagnostic {
+            capability: capability.into(), construct: entry.kind, span: entry.span,
+            snippet: facts.source.bytes.get(entry.span.start as usize..entry.span.end as usize).unwrap_or_default().into(),
+            severity: "error".into(), reason: format!("Original owned source contains deferred {capability}; cfg removal cannot certify a supported remainder."),
+        })
+    }).collect()
+}
+
+#[derive(Serialize)]
+pub struct SourceDefinition {
+    pub name: String,
+    pub span: ByteSpan,
+    pub source: String,
+}
+
+struct Definitions<'a> {
+    source: &'a str,
+    entries: Vec<SourceDefinition>,
+}
+
+pub fn functions(source: &str) -> Result<Vec<SourceDefinition>, String> {
+    let file = syn::parse_file(source).map_err(|error| error.to_string())?;
+    let mut definitions = Definitions {
+        source,
+        entries: Vec::new(),
+    };
+    definitions.visit_file(&file);
+    Ok(definitions.entries)
+}
+
+impl Definitions<'_> {
+    fn add(&mut self, name: &syn::Ident, span: proc_macro2::Span) {
+        let start = offset(self.source, span.start());
+        let end = offset(self.source, span.end());
+        self.entries.push(SourceDefinition {
+            name: name.to_string(),
+            span: ByteSpan { start, end },
+            source: self
+                .source
+                .get(start as usize..end as usize)
+                .unwrap_or_default()
+                .into(),
+        });
+    }
+}
+
+impl<'ast> Visit<'ast> for Definitions<'_> {
+    fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
+        self.add(&function.sig.ident, function.span());
+    }
+
+    fn visit_impl_item_fn(&mut self, function: &'ast syn::ImplItemFn) {
+        self.add(&function.sig.ident, function.span());
+    }
+
+    fn visit_trait_item_fn(&mut self, function: &'ast syn::TraitItemFn) {
+        if function.default.is_some() {
+            self.add(&function.sig.ident, function.span());
+        }
+    }
+}

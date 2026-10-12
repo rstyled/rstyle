@@ -1719,3 +1719,65 @@ fn clones_guarded_match_capture_is_explicit_and_trace_invariant() {
             .all(|f| f["outcome"] == "excluded")
     );
 }
+
+#[test]
+fn clones_conditional_profile_records_active_resolution_and_removed_unknowns() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("Cargo.toml"), "[package]\nname='conditional_fixture'\nversion='0.1.0'\nedition='2021'\n[features]\nextra=[]\n[workspace]\n").unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), "/// documented\n#[inline]\npub const fn f(x: i32) -> i32 { #[cfg(feature=\"extra\")] let y = x; x }\n#[cfg(feature=\"extra\")] pub fn present(x: i32) -> i32 { x }\npub fn unsupported() { #[cfg(any())] missing(); }\n").unwrap();
+    let args = ["--extraction-profile", "hir-conditional-v1"];
+    let (output, inactive) = clones(directory.path(), &args);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        inactive["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "f" && f["outcome"] == "unknown")
+    );
+    assert!(
+        !inactive["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "present")
+    );
+    let (output, active) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-conditional-v1",
+            "--features",
+            "extra",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stderr={} failures={} capture={}",
+        String::from_utf8_lossy(&output.stderr),
+        active["handoff_failures"],
+        active["capture_failures"]
+    );
+    assert_eq!(
+        active["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(active["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert!(
+        active["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "unsupported" && f["outcome"] == "excluded")
+    );
+}
+

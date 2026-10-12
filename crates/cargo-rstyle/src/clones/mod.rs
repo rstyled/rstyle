@@ -93,6 +93,7 @@ struct Function {
 }
 
 struct Handoff {
+    source_inventory: Vec<Value>,
     assessed: Vec<Function>,
     admitted: Vec<ImportedFunction>,
     failures: Vec<String>,
@@ -186,6 +187,7 @@ pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 
 fn handoff(capture: &capture::Capture, trace: bool) -> Handoff {
     let mut result = Handoff {
+        source_inventory: Vec::new(),
         assessed: Vec::new(),
         admitted: Vec::new(),
         failures: Vec::new(),
@@ -210,7 +212,16 @@ fn consume_unit(
     trace: bool,
     result: &mut Handoff,
 ) -> Result<(), String> {
+    if unit.extraction_profile != capture.plan.extraction_profile {
+        return Err("Unit extraction profile disagrees with plan".into());
+    }
     capture::verify_inventory(unit)?;
+    if unit.extraction_profile.conditional_source() {
+        let inventory: Vec<Value> = read_json(&unit.directory.join("source-inventory.json"))?;
+        result.source_inventory.push(
+            json!({"compilation_unit":unit.target, "test":unit.test, "source_functions":inventory}),
+        );
+    }
     let facts: Vec<HirFnFacts> = read_json(&unit.directory.join("facts.json"))?;
     for (index, function) in facts.into_iter().enumerate() {
         verify_frontend_invocation(&function, unit, capture)?;
@@ -330,7 +341,7 @@ fn consume_function(
         return Ok(None);
     }
     if assessment["manifest_file"] != format!("function-{}.manifest.json", input.index) {
-        return Err("missing or ambiguous assessment manifest".into());
+        return Err(format!("missing or ambiguous assessment manifest; producer errors: {}", assessment["extraction_errors"]));
     }
     if !record
         .facts

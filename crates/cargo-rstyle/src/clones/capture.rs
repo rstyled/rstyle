@@ -35,6 +35,7 @@ pub struct Plan {
 
 #[derive(Serialize, Deserialize)]
 pub struct Unit {
+    pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub target: Target,
     pub test: bool,
     pub invocation: Vec<String>,
@@ -556,6 +557,7 @@ fn capture_unit(
         .keep();
     let test = invocation.iter().any(|a| a == "--test");
     let unit = Unit {
+        extraction_profile: read_json::<Plan>(plan)?.extraction_profile,
         target,
         test,
         invocation,
@@ -579,7 +581,7 @@ fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitS
 }
 
 fn publish_unit(root: &Path, mut unit: Unit) -> Result<(), String> {
-    unit.artifacts = artifact_inventory(&unit.directory)?;
+    unit.artifacts = artifact_inventory(&unit.directory, unit.extraction_profile)?;
     let key = super::digest(
         &serde_json::to_vec(&json!([unit.target.package, unit.target.source, unit.test]))
             .map_err(|e| e.to_string())?,
@@ -599,9 +601,15 @@ fn reserve_ledger(path: &Path) -> Result<std::fs::File, String> {
         .map_err(|e| format!("duplicate or missing unit ledger: {e}"))
 }
 
-fn artifact_inventory(directory: &Path) -> Result<Vec<Artifact>, String> {
+fn artifact_inventory(
+    directory: &Path,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<Vec<Artifact>, String> {
     let facts: Vec<rstyle_pdg::HirFnFacts> = read_json(&directory.join("facts.json"))?;
     let mut files = vec!["facts.json".to_string()];
+    if profile.conditional_source() {
+        files.push("source-inventory.json".into());
+    }
     for index in 0..facts.len() {
         let assessment = format!("function-{index}.assessment.json");
         let value: Value = read_json(&directory.join(&assessment))?;
@@ -646,7 +654,7 @@ pub fn verify_inventory(unit: &Unit) -> Result<(), String> {
         }
     }
 
-    let actual = artifact_inventory(&unit.directory)?;
+    let actual = artifact_inventory(&unit.directory, unit.extraction_profile)?;
     if actual
         .iter()
         .map(|a| &a.file)

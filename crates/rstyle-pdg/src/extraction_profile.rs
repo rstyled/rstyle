@@ -20,6 +20,8 @@ pub enum ExtractionProfile {
     MatchV1,
     #[serde(rename = "hir-guards-v1")]
     GuardsV1,
+    #[serde(rename = "hir-conditional-v1")]
+    ConditionalV1,
 }
 
 impl ExtractionProfile {
@@ -30,6 +32,7 @@ impl ExtractionProfile {
             "hir-casts-v1" => Ok(Self::CastsV1),
             "hir-match-v1" => Ok(Self::MatchV1),
             "hir-guards-v1" => Ok(Self::GuardsV1),
+            "hir-conditional-v1" => Ok(Self::ConditionalV1),
             _ => Err(format!("Unregistered extraction profile {value:?}")),
         }
     }
@@ -51,6 +54,7 @@ impl ExtractionProfile {
             Self::CastsV1 => "hir-casts-v1",
             Self::MatchV1 => "hir-match-v1",
             Self::GuardsV1 => "hir-guards-v1",
+            Self::ConditionalV1 => "hir-conditional-v1",
         }
     }
 
@@ -60,6 +64,10 @@ impl ExtractionProfile {
             Self::ConstV1 => ProfileId {
                 id: LOCAL_ID.into(),
                 version: "0.1.0".into(),
+            },
+            Self::ConditionalV1 => ProfileId {
+                id: LOCAL_ID.into(),
+                version: "0.5.0".into(),
             },
             Self::GuardsV1 => ProfileId {
                 id: LOCAL_ID.into(),
@@ -77,15 +85,25 @@ impl ExtractionProfile {
     }
 
     pub fn integer_casts(self) -> bool {
-        matches!(self, Self::CastsV1 | Self::MatchV1 | Self::GuardsV1)
+        matches!(
+            self,
+            Self::CastsV1 | Self::MatchV1 | Self::GuardsV1 | Self::ConditionalV1
+        )
+    }
+
+    pub fn conditional_source(self) -> bool {
+        matches!(self, Self::ConditionalV1)
     }
 
     pub fn match_guards(self) -> bool {
-        self == Self::GuardsV1
+        matches!(self, Self::GuardsV1 | Self::ConditionalV1)
     }
 
     pub fn scalar_match(self) -> bool {
-        matches!(self, Self::MatchV1 | Self::GuardsV1)
+        matches!(
+            self,
+            Self::MatchV1 | Self::GuardsV1 | Self::ConditionalV1
+        )
     }
 
     pub fn capabilities(self) -> &'static [&'static str] {
@@ -93,6 +111,13 @@ impl ExtractionProfile {
             Self::R0 => &[],
             Self::ConstV1 => &["rust.const-function-bodies"],
             Self::CastsV1 => &["rust.const-function-bodies", "rust.integer-casts"],
+            Self::ConditionalV1 => &[
+                "rust.const-function-bodies",
+                "rust.integer-casts",
+                "rust.scalar-match",
+                "rust.scalar-match-guards",
+                "rust.conditional-source-correspondence",
+            ],
             Self::GuardsV1 => &[
                 "rust.const-function-bodies",
                 "rust.integer-casts",
@@ -115,6 +140,7 @@ pub fn registered(policy: &ProfileId) -> bool {
         ExtractionProfile::CastsV1,
         ExtractionProfile::MatchV1,
         ExtractionProfile::GuardsV1,
+        ExtractionProfile::ConditionalV1,
     ]
     .iter()
     .any(|profile| profile.policy() == *policy)

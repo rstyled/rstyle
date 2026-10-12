@@ -103,6 +103,7 @@ impl Outcome {
 }
 
 /// Read-only classifier context: binding cross-references.
+#[derive(Clone)]
 struct Ctx<'a> {
     profile: crate::extraction_profile::ExtractionProfile,
     bindings: BTreeMap<(u32, u32, u32), &'a BindingFact>,
@@ -218,6 +219,14 @@ fn check_source_scan(facts: &HirFnFacts) -> Outcome {
         rejected: !facts.source_diagnostics.is_empty(),
     };
 
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)
+        .is_ok_and(|profile| profile.conditional_source())
+    {
+        return match crate::source_evidence::verify(facts) {
+            Ok(()) => source,
+            Err(reason) => source.merge(evidence_gap(&facts.body, &reason)),
+        };
+    }
     if facts.source_scan_complete {
         source
     } else {
