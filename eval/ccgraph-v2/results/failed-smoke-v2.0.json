@@ -1,0 +1,297 @@
+{
+  "cause": "Reserved keyword in study module wrapper; Cargo compiler failure before capture.",
+  "cost": {
+    "command": [
+      "cargo",
+      "rstyle",
+      "clones",
+      "--format",
+      "json",
+      "--all-targets",
+      "--locked",
+      "--offline",
+      "--jobs",
+      "2",
+      "--max-pairs",
+      "1000",
+      "--trace",
+      "--matching-config",
+      "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/default.json",
+      "--manifest-path",
+      "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample/Cargo.toml"
+    ],
+    "exit_code": 2,
+    "max_child_rss_kib": 123400,
+    "phase_timing": "combined compilation/capture/matching; command has no separate phase timers",
+    "rss_sampling_seconds": 0.05,
+    "sampled_process_group_peak_rss_bytes": 127467520,
+    "system_seconds": 0.29,
+    "user_seconds": 9.93,
+    "wall_seconds": 10.250846711918712
+  },
+  "invalid": {
+    "identities": {
+      "amendment_sha256": "8a745f18995b971b32ef08f60b730ef192a1653f626ca68121e76a407e762af3",
+      "binaries": {
+        "cargo-rstyle": "7c2e24c86dc729e8942f570c9a9a3537d5d1a5486f3142ca9a8ecaf0895c01fb",
+        "rstyle-driver": "d7689f1b7f8b1c7145e941f9d9af594929bb658c544292dc18298b109bea9f4a"
+      },
+      "cargo": "cargo 1.101.0-nightly (3d7cf6e93 2026-09-25)\nrelease: 1.101.0-nightly\ncommit-hash: 3d7cf6e937d6127d0f49881bf689c560b36d35c4\ncommit-date: 2026-09-25\nhost: aarch64-unknown-linux-gnu\nlibgit2: 1.9.6 (sys:0.21.0 vendored)\nlibcurl: 8.21.0-DEV (sys:0.4.90+curl-8.21.0 vendored ssl:OpenSSL/3.6.3)\nssl: OpenSSL 3.6.3 9 Jun 2026\nos: Debian 13.0.0 (trixie) [64-bit]\n",
+      "compiler": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)\nbinary: rustc\ncommit-hash: 5c543b0b8c73c7b72bc8284ced4fb22ead15734d\ncommit-date: 2026-09-29\nhost: aarch64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 23.1.1\n",
+      "detector_revision": "06d7e8e81653aa0bd53147275555d774985c87dd",
+      "harness_sha256": "1bfd0dafa7b171d6f4bd9e2a7208e8b17f7d3ea4978134e2d0dd81096b5c2c03",
+      "protocol_identity": "ee1709c10015ce1f6cbe1800baeaa58fb97bf047cd11c62408ea6db88bdac65b"
+    },
+    "reason": "real command failed; raw output retained",
+    "retry_requires_documented_cause": true,
+    "valid": false
+  },
+  "raw_directory": "eval/ccgraph-v2/artifacts/smoke-audit-default-20261012T143031Z",
+  "raw_report_sha256": "46a9e319e85bcdfed42684d4ffd2d0d434625aa9c14bbe9833235553bc99b14a",
+  "report": {
+    "assessment_complete": false,
+    "capture_complete": false,
+    "capture_failures": [
+      "Cargo compilation failed:     Checking sample v0.0.0 (/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample)\nerror: could not compile `sample` (lib test) due to 1 previous error\nwarning: build failed, waiting for other jobs to finish...\nerror: could not compile `sample` (lib) due to 1 previous error\n"
+    ],
+    "cargo_identity": "cargo 1.101.0-nightly (3d7cf6e93 2026-09-25)",
+    "claim": "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
+    "compiler_identity": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)\nbinary: rustc\ncommit-hash: 5c543b0b8c73c7b72bc8284ced4fb22ead15734d\ncommit-date: 2026-09-29\nhost: aarch64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 23.1.1",
+    "contract_revision": "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
+    "expected_compilation_units": {
+      "roots": [
+        0,
+        1
+      ],
+      "units": [
+        {
+          "dependencies": [],
+          "features": [],
+          "mode": "check",
+          "pkg_id": "path+file:///home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample#0.0.0",
+          "platform": null,
+          "profile": {
+            "codegen_backend": null,
+            "codegen_units": null,
+            "debug_assertions": true,
+            "debuginfo": 2,
+            "incremental": false,
+            "lto": "false",
+            "name": "dev",
+            "opt_level": "0",
+            "overflow_checks": true,
+            "panic": "unwind",
+            "rpath": false,
+            "split_debuginfo": null,
+            "strip": {
+              "deferred": "None"
+            },
+            "trim_paths": "none"
+          },
+          "target": {
+            "crate_types": [
+              "lib"
+            ],
+            "doc": true,
+            "doctest": true,
+            "edition": "2021",
+            "kind": [
+              "lib"
+            ],
+            "name": "sample",
+            "src_path": "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample/src/lib.rs",
+            "test": true
+          }
+        },
+        {
+          "dependencies": [],
+          "features": [],
+          "mode": "check",
+          "pkg_id": "path+file:///home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample#0.0.0",
+          "platform": null,
+          "profile": {
+            "codegen_backend": null,
+            "codegen_units": null,
+            "debug_assertions": true,
+            "debuginfo": 2,
+            "incremental": false,
+            "lto": "false",
+            "name": "dev",
+            "opt_level": "0",
+            "overflow_checks": true,
+            "panic": "unwind",
+            "rpath": false,
+            "split_debuginfo": null,
+            "strip": {
+              "deferred": "None"
+            },
+            "trim_paths": "none"
+          },
+          "target": {
+            "crate_types": [
+              "lib"
+            ],
+            "doc": true,
+            "doctest": true,
+            "edition": "2021",
+            "kind": [
+              "lib"
+            ],
+            "name": "sample",
+            "src_path": "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample/src/lib.rs",
+            "test": true
+          }
+        }
+      ],
+      "version": 1
+    },
+    "expected_targets": [
+      {
+        "kind": [
+          "lib"
+        ],
+        "manifest_dir": "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample",
+        "name": "sample",
+        "package": "path+file:///home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample#0.0.0",
+        "source": "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample/src/lib.rs",
+        "test": true
+      }
+    ],
+    "extraction_policy": {
+      "id": "compat.rust.hir-r0",
+      "semantics": "bounded normal flow; exceptional transfers and cleanup omitted",
+      "version": "0.1.0"
+    },
+    "functions": [],
+    "handoff_failures": [],
+    "intended_primary_units": [
+      {
+        "dependencies": [],
+        "features": [],
+        "mode": "check",
+        "pkg_id": "path+file:///home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample#0.0.0",
+        "platform": null,
+        "profile": {
+          "codegen_backend": null,
+          "codegen_units": null,
+          "debug_assertions": true,
+          "debuginfo": 2,
+          "incremental": false,
+          "lto": "false",
+          "name": "dev",
+          "opt_level": "0",
+          "overflow_checks": true,
+          "panic": "unwind",
+          "rpath": false,
+          "split_debuginfo": null,
+          "strip": {
+            "deferred": "None"
+          },
+          "trim_paths": "none"
+        },
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2021",
+          "kind": [
+            "lib"
+          ],
+          "name": "sample",
+          "src_path": "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample/src/lib.rs",
+          "test": true
+        }
+      },
+      {
+        "dependencies": [],
+        "features": [],
+        "mode": "check",
+        "pkg_id": "path+file:///home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample#0.0.0",
+        "platform": null,
+        "profile": {
+          "codegen_backend": null,
+          "codegen_units": null,
+          "debug_assertions": true,
+          "debuginfo": 2,
+          "incremental": false,
+          "lto": "false",
+          "name": "dev",
+          "opt_level": "0",
+          "overflow_checks": true,
+          "panic": "unwind",
+          "rpath": false,
+          "split_debuginfo": null,
+          "strip": {
+            "deferred": "None"
+          },
+          "trim_paths": "none"
+        },
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2021",
+          "kind": [
+            "lib"
+          ],
+          "name": "sample",
+          "src_path": "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample/src/lib.rs",
+          "test": true
+        }
+      }
+    ],
+    "matching": {
+      "diagnostics": [],
+      "effective_config": {
+        "final_threshold": "9/10",
+        "minimum_size_ratio": "4/5",
+        "numerical_threshold": "9/10",
+        "scoring": "smaller_graph_overlap",
+        "string_threshold": "1/2"
+      },
+      "functions": [],
+      "incomplete": false,
+      "pairs": [],
+      "profile_id": "compat.ccgraph.strict",
+      "profile_version": "0.1.0",
+      "scoring": "smaller_graph_overlap"
+    },
+    "observed_units": [],
+    "orchestration_binary_sha256": "7c2e24c86dc729e8942f570c9a9a3537d5d1a5486f3142ca9a8ecaf0895c01fb",
+    "pair_enumeration_complete": false,
+    "pair_evaluation_complete": false,
+    "producer_binary_sha256": "d7689f1b7f8b1c7145e941f9d9af594929bb658c544292dc18298b109bea9f4a",
+    "producer_name": "rstyle-hir-extraction",
+    "producer_version": "0.1.0",
+    "run_directory": "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample/target/rstyle/clones/run-1pyHA5",
+    "schema_versions": {
+      "cfg": "0.2.0",
+      "pdg": "0.1.0"
+    },
+    "scope": {
+      "all_targets": true,
+      "build_options": {
+        "all_features": false,
+        "fail_on_accepted_pairs": false,
+        "features": null,
+        "jobs": 2,
+        "locked": true,
+        "matching_config": "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/default.json",
+        "max_pairs": 1000,
+        "no_default_features": false,
+        "offline": true,
+        "release": false,
+        "target": null,
+        "trace": true
+      },
+      "manifest_path": "/home/dev/src/rstyle-main/rstyle/eval/ccgraph-v2/corpus/audit/sample/Cargo.toml",
+      "packages": []
+    },
+    "toolchain": "nightly-2026-09-30"
+  },
+  "valid": false
+}

@@ -207,7 +207,7 @@
     {
       "behavior": "equivalence and refactoring suitability unassessed",
       "edit": "audit-control",
-      "end": 262,
+      "end": 264,
       "expectation_rationale": "Pre-expansion macro unsupported.",
       "expected_outcome": "excluded",
       "family": "audit",
@@ -218,13 +218,13 @@
       "provenance_group": "audit",
       "scope": "audit",
       "sha256": "698de957b49bc5b6fb01eeb39b7e5240ef29fff69610cc0feb75b5b7b01df44f",
-      "start": 217,
+      "start": 219,
       "target": "sample"
     },
     {
       "behavior": "equivalence and refactoring suitability unassessed",
       "edit": "audit-control",
-      "end": 354,
+      "end": 356,
       "expectation_rationale": "Disabled owned source cannot be evidenced from resolved HIR; no unsupported construct.",
       "expected_outcome": "unknown",
       "family": "audit",
@@ -235,13 +235,13 @@
       "provenance_group": "audit",
       "scope": "audit",
       "sha256": "886c6b36e29e4e1e73e2ae05012cccbf393030e3b4e89a91217e297eeb29d568",
-      "start": 284,
+      "start": 286,
       "target": "sample"
     },
     {
       "behavior": "equivalence and refactoring suitability unassessed",
       "edit": "audit-control",
-      "end": 463,
+      "end": 465,
       "expectation_rationale": "Disabled owned source prevents complete resolution; no unsupported construct.",
       "expected_outcome": "unknown",
       "family": "audit",
@@ -252,7 +252,7 @@
       "provenance_group": "audit",
       "scope": "audit",
       "sha256": "9f1fe0d43a59d3b1930a3ebbe569d81d211d67ad4c7092cb6c800d809709b08d",
-      "start": 381,
+      "start": 383,
       "target": "sample"
     }
   ],

@@ -1,12 +1,14 @@
 {
+  "amendment_version": "2.1",
   "baseline_reviewed": "6a81a3b3edbcb2a209e6ba72b350ccf1425f33c2",
   "contract_revision": "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
   "detector_revision": "06d7e8e81653aa0bd53147275555d774985c87dd",
   "files": {
+    "eval/ccgraph-v2/AMENDMENTS.md": "557fed0552741280400945245f4a87b8329c52a88c2249c0900c36b608f24b52",
     "eval/ccgraph-v2/PROTOCOL.md": "6f16f8a43e7d010111ede5b34f044ca8f7d00cc73bb019c982b9a225505e8bba",
     "eval/ccgraph-v2/corpus/audit/sample/Cargo.lock": "c110af3add3eab17da998ef74e6d7e9abaa74e28f93b9a54a2faf2a6150f2bcb",
     "eval/ccgraph-v2/corpus/audit/sample/Cargo.toml": "8c969715c3cd0a01cdaed2b17dc8fa933502d8d12c278b3c5e53bd012e585c96",
-    "eval/ccgraph-v2/corpus/audit/sample/src/lib.rs": "af5485320e78d39d2dced60514a5f1ebc25612168f11aaf53ef662443928e40e",
+    "eval/ccgraph-v2/corpus/audit/sample/src/lib.rs": "ccb7eba7b9910dae294cf0aca0dafb20a7ded23fdfb584561ff837c79306b961",
     "eval/ccgraph-v2/corpus/lexical/sample/Cargo.lock": "c110af3add3eab17da998ef74e6d7e9abaa74e28f93b9a54a2faf2a6150f2bcb",
     "eval/ccgraph-v2/corpus/lexical/sample/Cargo.toml": "8c969715c3cd0a01cdaed2b17dc8fa933502d8d12c278b3c5e53bd012e585c96",
     "eval/ccgraph-v2/corpus/lexical/sample/src/lib.rs": "f98b606fb256a1a523faf675a149dba14533cea16348210b629f0105b4aff502",
@@ -21,7 +23,7 @@
     "eval/ccgraph-v2/corpus/time/sample/src/lib.rs": "4a5cfc076b3dba10868405d560f4b75b448d8cb565bb7e9a13aeb07b5ee50558",
     "eval/ccgraph-v2/cosine.json": "f2ce4d2681fb60356e5629c3a4393b325ad3a771821ac6a808e8e7682acdd9ee",
     "eval/ccgraph-v2/default.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
-    "eval/ccgraph-v2/manifest.json": "c2634638047ed07f29486ea4ab61f1fa0b0acf48cd4bffa6d53ad4301d607e79",
+    "eval/ccgraph-v2/manifest.json": "e720e855a4196fcc24707e00a63202ec12ee5e3f5f6ab7272516cc16aaed79c4",
     "eval/ccgraph-v2/oracles.json": "b72c7dcebf71424e3d4d911970d05dd9e54a1347bed5f2d8be68af282a23a4d4",
     "eval/ccgraph-v2/provenance.json": "a849f7fa2f50ac79a75d67793c98650631b1ec19ded86ed26eafbce66ebcdb7e",
     "eval/ccgraph-v2/upstream/lexical/afb2efa651f42f63415a3bf3d51ced6143132b2b/LICENSE-APACHE": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90",
@@ -53,7 +55,8 @@
     "vendor-compat/rust-r0/rust-capabilities.md": "130eb1896020781c6526d0f2ca71ee2c6194a169fccfa8cab61132f8fbbd5eb8",
     "vendor-compat/rust-r0/rust-extraction-profile.md": "3963e0b66a36804434fb03eacd907f59e32a0222504b35c0e2b4fc36453f39b0"
   },
-  "identity": "ee1709c10015ce1f6cbe1800baeaa58fb97bf047cd11c62408ea6db88bdac65b",
+  "identity": "34df8fd29e6df09c15c4ccb7802f0b1e38516b1baeec4b50df7070b914971c32",
   "pre_study_revision": "3d17e78dce130893164af333eb449b2ce5545153",
+  "prior_protocol_identity": "ee1709c10015ce1f6cbe1800baeaa58fb97bf047cd11c62408ea6db88bdac65b",
   "version": 2
 }

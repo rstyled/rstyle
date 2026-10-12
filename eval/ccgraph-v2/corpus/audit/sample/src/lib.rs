@@ -12,7 +12,7 @@ mod generic {
 pub fn generic<T>(x: T) -> T { x }
 }
 
-mod macro {
+mod r#macro {
 pub fn macro_value(x: i32) -> i32 { dbg!(x) }
 }
 
