@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reusable CFG interchange draft",
+  "description": "Versioned, function-level control-flow graph. Edges describe possible immediate execution transfers, not PDG control, data, or execution dependencies. Structural validation does not prove extraction completeness or semantic correctness.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile", "producer", "sources", "function", "entry_node_id", "exit_node_ids", "nodes", "edges", "extraction_evidence"],
+  "properties": {
+    "schema_version": {"const": "0.2.0", "description": "CFG interchange version, independent of producer and extraction-profile versions."},
+    "profile": {"$ref": "#/$defs/profile", "description": "Versioned construction policy, including granularity, exits, and evaluation-order handling."},
+    "producer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "version", "language", "language_version", "configuration"],
+      "description": "Frontend identity and settings affecting graph extraction.",
+      "properties": {
+        "name": {"$ref": "#/$defs/id", "description": "Producer name; a hand-authored example must not claim compiler extraction."},
+        "version": {"$ref": "#/$defs/id", "description": "Producer version or pinned revision."},
+        "language": {"$ref": "#/$defs/id", "description": "Source language identity."},
+        "language_version": {"$ref": "#/$defs/stringFact", "description": "Known language version or explicit missing evidence."},
+        "configuration": {"type": "object", "description": "Build flags, frontend options, and other extraction settings. Keys are producer-specific."}
+      }
+    },
+    "sources": {
+      "type": "array", "minItems": 1,
+      "description": "Source artifacts referenced by spans. Embedded content is optional and useful for self-contained fixtures.",
+      "items": {"$ref": "#/$defs/source"}
+    },
+    "function": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "source_span"],
+      "description": "Identity and source boundary of the single function represented by this graph.",
+      "properties": {
+        "id": {"$ref": "#/$defs/id", "description": "Opaque function identity, not a clone-matching label."},
+        "name": {"$ref": "#/$defs/stringFact", "description": "Known function name, or a reason it is unavailable."},
+        "source_span": {"$ref": "#/$defs/span", "description": "Function range in its source, using half-open UTF-8 byte offsets."}
+      }
+    },
+    "entry_node_id": {"$ref": "#/$defs/id", "description": "ID of the unique synthetic entry node. Semantic validation checks that it exists and has no incoming edges."},
+    "exit_node_ids": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/id"},
+      "description": "IDs of synthetic exit nodes, including distinct normal and exceptional exits when represented. An exit may be unreachable; divergence must not be given a fabricated execution edge to an exit."
+    },
+    "nodes": {
+      "type": "array", "minItems": 2, "items": {"$ref": "#/$defs/node"},
+      "description": "Unordered node collection. Each non-boundary node contains one operation or an ordered basic block under the profile. IDs are graph-local."
+    },
+    "edges": {
+      "type": "array", "items": {"$ref": "#/$defs/edge"},
+      "description": "Unordered directed multigraph edges representing immediate possible transfers. Parallel edges preserve distinct branch outcomes; array order has no execution meaning."
+    },
+    "extraction_evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "limitations"],
+      "description": "Explicit coverage evidence. A complete claim must be independently checked against the declared profile; an empty edge list is not evidence of no flow.",
+      "properties": {
+        "status": {"enum": ["complete", "partial", "unknown"], "description": "Whether all flow required by the profile is represented for this function."},
+        "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "Omitted constructs, conservative approximations, and unavailable facts. Empty only when no limitations are known."}
+      },
+      "allOf": [{"if": {"properties": {"status": {"enum": ["partial", "unknown"]}}}, "then": {"properties": {"limitations": {"minItems": 1}}}}]
+    },
+    "extensions": {"type": "object", "description": "Optional namespaced facts or links to a PDG. These do not change base CFG semantics without a named profile."}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "description": "Nonempty opaque identifier; identity is separate from semantic equality."},
+    "stringFact": {
+      "description": "A known string or explicit missing evidence; unknown must not be silently treated as an empty value.",
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["status", "value"], "properties": {"status": {"const": "known", "description": "The value is available."}, "value": {"type": "string", "description": "Recorded value; an empty string is a known empty value."}}},
+        {"type": "object", "additionalProperties": false, "required": ["status", "reason"], "properties": {"status": {"enum": ["unknown", "unsupported", "not_applicable"], "description": "Why a value is not recorded."}, "reason": {"type": "string", "minLength": 1, "description": "Actionable explanation of missing or inapplicable evidence."}}}
+      ]
+    },
+    "span": {
+      "type": "object", "additionalProperties": false, "required": ["source_id", "start", "end"],
+      "description": "Half-open UTF-8 byte range [start, end). Semantic validation checks source existence and 0 <= start <= end <= source byte length.",
+      "properties": {
+        "source_id": {"$ref": "#/$defs/id", "description": "ID of the containing source artifact."},
+        "start": {"type": "integer", "minimum": 0, "description": "Inclusive byte offset, not a character or line number."},
+        "end": {"type": "integer", "minimum": 0, "description": "Exclusive byte offset."}
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["id", "path", "content_identity"],
+      "description": "A source artifact with navigation and stale-span detection evidence.",
+      "properties": {
+        "id": {"$ref": "#/$defs/id", "description": "Document-local source identity."},
+        "path": {"$ref": "#/$defs/id", "description": "Navigation path, not a semantic matching label."},
+        "content_identity": {"$ref": "#/$defs/stringFact", "description": "Algorithm-qualified digest of exact source bytes, or explicit unavailable evidence."},
+        "content": {"type": "string", "description": "Optional exact source text. Byte offsets address this string encoded as UTF-8, not JSON escape sequences."}
+      }
+    },
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "version", "granularity", "evaluation_order", "exceptional_flow", "exit_policy", "unreachable_code"],
+      "description": "Extraction policy identity and essential construction decisions. Referenced policy documents must specify supported constructs; this is not a TinyPDG or CCGraph reproduction claim.",
+      "properties": {
+        "name": {"$ref": "#/$defs/id", "description": "Name of the independently documented extraction policy."},
+        "version": {"$ref": "#/$defs/id", "description": "Version of that policy."},
+        "granularity": {"enum": ["operation", "basic_block"], "description": "Operation mode requires one operation per non-boundary node; basic-block mode permits ordered operations with no internal branching."},
+        "evaluation_order": {"$ref": "#/$defs/evaluationOrder", "description": "Machine-checkable policy choices for sequencing and conditional evaluation. Semantic validation must still check the graph against these choices."},
+        "exceptional_flow": {"enum": ["explicit", "conservative", "omitted"], "description": "Whether exceptional transfers are explicitly modeled, overapproximated, or excluded. Omissions affecting this function require partial extraction evidence."},
+        "exit_policy": {"type": "string", "minLength": 1, "description": "Normal/exceptional termination, nonreturning calls, and divergence policy. Analysis-only virtual exits must not masquerade as executable edges."},
+        "unreachable_code": {"enum": ["preserve", "omit"], "description": "Whether unreachable source operations are retained as disconnected nodes or omitted; reachability is derived from entry."}
+      }
+    },
+    "evaluationOrder": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sequencing", "short_circuit", "unspecified_order"],
+      "description": "Evaluation-order policy, not a claim that source order universally equals execution order. Choices apply to the source language under the versioned extraction profile.",
+      "properties": {
+        "sequencing": {
+          "const": "language_defined",
+          "description": "Preserve language-mandated sequencing. Do not impose a global left-to-right or right-to-left order on constructs whose ordering is not specified by the language. Operations within a basic block remain execution-ordered."
+        },
+        "short_circuit": {
+          "enum": ["explicit_branches", "reject"],
+          "description": "explicit_branches splits conditional evaluation into CFG paths so skipped operands are not executed unconditionally. This covers logical short-circuit operators and conditional expressions where applicable. reject requires a diagnostic and non-complete extraction evidence if such a construct is encountered."
+        },
+        "unspecified_order": {
+          "enum": ["overapproximate", "reject"],
+          "description": "overapproximate represents all language-permitted relative evaluation orders without asserting an arbitrary mandatory order; extra paths must be disclosed as approximations. reject requires a diagnostic and non-complete extraction evidence when unspecified or indeterminately sequenced evaluations are encountered. A single chosen order is not a supported policy."
+        }
+      }
+    },
+    "node": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "origin", "operations"],
+      "description": "CFG vertex. A condition node ends in a predicate; transfer nodes end in an abrupt transfer. Source-backed operations carry spans; synthetic boundaries carry origin explanations.",
+      "properties": {
+        "id": {"$ref": "#/$defs/id", "description": "Graph-local node identity; stable snapshots may sort nodes by ID."},
+        "kind": {"enum": ["entry", "exit", "block", "condition", "transfer"], "description": "Boundary, straight-line operation/block, branching predicate, or abrupt transfer such as return/break/continue/throw."},
+        "origin": {"type": "string", "minLength": 1, "description": "How this node was extracted or synthesized, including frontend/lowering provenance where relevant."},
+        "exit_kind": {"enum": ["normal", "exceptional", "process_termination"], "description": "Termination category; present only on exit nodes. Divergence is not an exit."},
+        "operations": {"type": "array", "items": {"$ref": "#/$defs/operation"}, "description": "Execution-ordered operations, empty on entry/exit nodes. Internal branches must be split into separate nodes."}
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"enum": ["entry", "exit"]}}}, "then": {"properties": {"operations": {"maxItems": 0}}}, "else": {"properties": {"operations": {"minItems": 1}}}},
+        {"if": {"properties": {"kind": {"const": "exit"}}}, "then": {"required": ["exit_kind"]}, "else": {"not": {"required": ["exit_kind"]}}}
+      ]
+    },
+    "operation": {
+      "type": "object", "additionalProperties": false, "required": ["id", "original_kind", "text", "source_span"],
+      "description": "Source-backed operation or predicate. This draft does not supply binding, def/use, alias, or call-effect facts; those are additional inputs to PDG construction.",
+      "properties": {
+        "id": {"$ref": "#/$defs/id", "description": "Document-local operation identity, usable in a later CFG-to-PDG correspondence."},
+        "original_kind": {"$ref": "#/$defs/id", "description": "Original frontend or language-specific operation kind; not a universal PDG label."},
+        "text": {"type": "string", "description": "Human-readable source or display text; not an authoritative semantic label or substitute for binding facts."},
+        "source_span": {"$ref": "#/$defs/span", "description": "Source origin of this operation. Synthetic lowered operations need a future profile extension rather than invented source ranges."}
+      }
+    },
+    "edge": {
+      "type": "object", "additionalProperties": false, "required": ["id", "source", "target", "kind"],
+      "description": "Possible immediate control transfer from source to target. Cycles are allowed. A loop back edge is an ordinary transfer with optional loop-role metadata, not a dependence edge.",
+      "properties": {
+        "id": {"$ref": "#/$defs/id", "description": "Graph-local edge identity, preserving distinct parallel transfers."},
+        "source": {"$ref": "#/$defs/id", "description": "ID of predecessor node."},
+        "target": {"$ref": "#/$defs/id", "description": "ID of successor node."},
+        "kind": {"enum": ["normal", "true", "false", "case", "default", "return", "break", "continue", "exception", "terminate"], "description": "Transfer kind: normal fallthrough/unconditional flow, predicate outcome, switch outcome, or abrupt transfer. Return edges target a normal exit unless cleanup intervenes."},
+        "case_value": {"type": "string", "minLength": 1, "description": "Case outcome under the profile's serialization policy, present exactly when kind is case."},
+        "loop_role": {"enum": ["back_edge", "loop_exit"], "description": "Optional loop-structure annotation checked against the extraction policy. Omission means unrecorded, not that the edge is outside a loop."},
+        "reason": {"type": "string", "minLength": 1, "description": "Optional explanation, particularly for conservative exceptional or termination transfers."}
+      },
+      "allOf": [{"if": {"properties": {"kind": {"const": "case"}}}, "then": {"required": ["case_value"]}, "else": {"not": {"required": ["case_value"]}}}]
+    }
+  }
+}

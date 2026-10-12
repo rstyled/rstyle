@@ -24,7 +24,7 @@ pub enum Eligibility {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProducerConformance {
-    /// This milestone implements no HIR producer; conformance stays unevaluated.
+    /// Imported structural validation does not establish producer conformance.
     NotEvaluated,
 }
 
@@ -89,6 +89,7 @@ pub fn validate(
         check_schema_version(doc),
         check_unique_ids(doc),
         check_policy_identity(doc, ctx),
+        check_record_policies(doc),
         check_function_identity(doc),
         check_interface(doc),
         check_reference_count(doc),
@@ -131,13 +132,54 @@ fn eligibility_of(blocking: &[Issue]) -> Eligibility {
     }
 }
 
+fn check_record_policies(doc: &PdgDocument) -> CheckOutput {
+    let optional = std::iter::once(doc.function.reference_count.policy.as_ref())
+        .chain(std::iter::once(
+            doc.function.interface_completeness.policy.as_ref(),
+        ))
+        .chain(
+            doc.extraction_evidence
+                .capabilities
+                .values()
+                .map(|c| c.policy.as_ref()),
+        )
+        .chain(
+            doc.nodes
+                .iter()
+                .flat_map(|n| [n.evidence.policy.as_ref(), n.provenance.policy.as_ref()]),
+        )
+        .chain(
+            doc.edges
+                .iter()
+                .flat_map(|e| [e.evidence.policy.as_ref(), e.provenance.policy.as_ref()]),
+        )
+        .chain(
+            doc.memory_locations
+                .iter()
+                .map(|m| m.evidence.policy.as_ref()),
+        );
+    let disagree = optional
+        .flatten()
+        .chain(doc.edges.iter().map(|e| &e.policy))
+        .any(|policy| policy != &doc.profile);
+
+    if disagree {
+        blocked(
+            "pdg.record-policy",
+            "record policy disagrees with document profile".to_string(),
+        )
+    } else {
+        clear()
+    }
+}
+
 fn producer_note(ctx: &ValidationContext) -> &str {
     match ctx {
         ValidationContext::FixtureOnly { .. } => {
             "fixture-only input: producer conformance not_evaluated, never conformant"
         }
         ValidationContext::CompilerEvidence { .. } => {
-            "compiler evidence required: no HIR producer implemented, not_evaluated"
+            "compiler evidence checked separately from producer conformance, not_evaluated"
         }
     }
 }

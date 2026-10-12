@@ -3,11 +3,27 @@
 //! This crate owns the typed interchange models (facts, unknown evidence,
 //! provenance, definitions, extensions, directed edge multiplicity) and the
 //! structural plus milestone semantic validation. Matching semantics live in
-//! `rstyle-ccgraph`; no HIR producer lives here.
+//! `rstyle-ccgraph`. The rustc HIR walk lives in `rstyle-driver`; only its
+//! compiler-independent fact records ([`frontend`]) and their analysis live
+//! here.
 
 pub mod cfg;
+pub mod collection;
+pub mod eligibility;
+pub mod frontend;
 pub mod model;
+pub mod producer;
 pub mod validate;
+pub mod value_sites;
+pub use value_sites::validate_value_sites;
+
+pub use eligibility::{classify, span};
+pub use frontend::{
+    BindingFact, BuildFacts, ByteSpan, Dispatch, EligibilityVerdict, ExpansionSite, GenericFact,
+    HirDiagnostic, HirEligibility, HirFnFacts, HirNode, HirRef, ParamFact, PathRes, ReceiverFact,
+    ResolvedTy, SignatureFacts, SourceFacts, known_bool, known_count, known_str, unknown_bool,
+    unknown_count, unknown_str,
+};
 
 pub use cfg::{
     CfgDocument, CfgEdge, CfgEdgeKind, CfgExitKind, CfgExtractionEvidence, CfgFunction, CfgIssue,

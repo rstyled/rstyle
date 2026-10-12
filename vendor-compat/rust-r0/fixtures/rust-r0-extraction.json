@@ -1,0 +1,484 @@
+{
+  "fixture_format": {"id": "compat.rust.hir-r0.fixture-expectations", "version": "0.1.0"},
+  "extraction_profile": {"id": "compat.rust.hir-r0", "version": "0.1.0"},
+  "schema_targets": {"cfg": "0.2.0", "pdg": "0.1.0"},
+  "authoring": "Independent hand-authored expectations; not emitted CFG/PDG documents or analyzer snapshots.",
+  "validation": {"execution_status": "not_run", "semantic_support": "unknown", "conformance": "not_evaluated"},
+  "configuration": {
+    "language": "Rust", "edition": "2021", "overflow_checks": true,
+    "debug_assertions": true, "panic_strategy": "unwind", "optimization": "none",
+    "cfg": [], "cargo_features": [],
+    "target_pointer_width": 64,
+    "rustc_toolchain": {"status": "unknown", "reason": "A future harness must pin a rustc version and commit; none was run to author these expectations."},
+    "target_triple": {"status": "unknown", "reason": "A future harness must pin a 64-bit target and record its data layout."},
+    "preconditions": "Accepted-case expectations assume compiler-valid resolved primitive types and verified producer/configuration evidence. This template alone is insufficient for a conformant graph. Unsupported-source rejection does not depend on completing that evidence."
+  },
+  "encoding": {
+    "source": "Exact per-case UTF-8 source; expected digest is sha256 of these bytes, without an added newline. Spans resolve from selectors into half-open UTF-8 byte offsets.",
+    "node_tuple": ["alias", "PDG category", "source selector or null for analysis merge"],
+    "source_selector": "[exact Rust token sequence, 1-based occurrence among matching contiguous token sequences in source order]. Ignore whitespace between tokens, but span includes it. Overlapping selectors are legal. Comments/strings are not tokenized as identifier occurrences. Implicit-return selectors anchor the actual tail or closing-brace token.",
+    "boundaries": "E and X are administrative CFG entry and one normal exit, not entries in the node tuples. They contain no operations or definitions. Other CFG aliases equal the corresponding PDG operation aliases; a future harness must verify one CFG operation per non-boundary vertex and the explicit operation-map extension.",
+    "formal_inputs": "Nodes categorized formal_input are nonexecuting, synthetic interface values with initial definitions; they have no CFG vertices. Each has source-order position and retained parameter kind.",
+    "definition_tuple": ["definition ID", "symbol alias", "defining node alias"],
+    "symbol_tuple": ["symbol alias", "declared source name", "resolved type", "role", "declaring identifier selector"],
+    "cfg_edge_tuple": ["source alias", "target alias", "CFG kind"],
+    "reaching_definition_edge_tuple": ["defining node", "read node", "definition ID"],
+    "reaching_definition_attributes": "kind=data, subkind=reaching_definition, operand_position=0, symbol_id from definition, loop_carried=false",
+    "value_edge_tuple": ["producer", "consumer", "operand position"],
+    "value_attributes": "kind=data, subkind=value_operand; no definition_id; omit every unit-typed transferred value even when explicitly produced. Retain unit binding reaching_definition edges and source operations; no unit merges or unit value_alternative edges.",
+    "alternative_edge_tuple": ["producer", "merge", "alternative position", "outcome", "controller"],
+    "alternative_attributes": "kind=data, subkind=value_alternative; positions true=0/false=1; annotations[compat.rust.hir-r0:guards] mirrors the alternative in value_sites. One edge per semantic producer/merge/position/outcome, never one per completion frontier member or guard term.",
+        "guards": "compat.rust.hir-r0:guards is a DNF array of conjunction arrays of atoms {controller_pdg_node_id,outcome}, with outcome true/false strings. [] is impossible; [[]] is unconditional. An atom requires its controller to have executed and selected that outcome. Value-site annotations mirror merge-node annotations; alternative annotations mirror value_alternative edge annotations.",
+    "execution_edge_tuple": ["prerequisite", "target"],
+    "execution_attributes": "kind=execution, subkind=nearest_dominating_operation",
+    "control_edge_tuple": ["controller", "controlled operation", "outcome"],
+    "control_attributes": "kind=control, subkind=postdominance",
+    "local_definition_sets": "Exact per-symbol IN sets at the listed CFG operations, and exact generated OUT sets after each listed write. read_definitions lists the entire IN set for that read. No hidden phi/definition is permitted.",
+    "exactness": "For every case with exact_graph=true, node inventory, reachable CFG transfers, all three reachable PDG edge families and definitions are exact multisets, not subsets. No unspecified exec/control/data edges are allowed. Derive required source spans, original kinds, operator/literal/write attributes, policy and provenance from the normative profile; aliases are not semantic labels. Unreachable diagnostic operand edges are specified separately if retained.",
+    "value_site": "Encodes compat.rust.hir-r0:value-sites metadata. completion_cfg_node_ids is the exact nonempty duplicate-free frontier of real operations with immediate CFG edges to cfg_successor_node_id under the alternative guard. Nested merge values can have multiple completion nodes. Availability/selection DNF guards are explicit on every site and alternative. Merge and formal_input nodes never receive CFG, execution or operation-control edges.",
+    "matching_labels": {"declaration": "DECL", "assignment": "ASSIGN", "control": "CTRL", "call": "STATE", "read": "OTHER", "computation": "OTHER", "formal_input": "OTHER", "return": "OTHER", "formal_output": "OTHER", "merge": "OTHER", "other": "OTHER"},
+    "edge_labels": "Preserve data/control/execution and direction independently of coincident node labels; preserve multiplicity. Boundary removal drops incident edges without splicing. No formal_output graph nodes occur in R0."
+  },
+  "cases": [
+    {
+      "id": "straightline-integer-input-and-tail",
+      "source": "fn f(a: i32) -> i32 { let x = a + 1; x }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true,
+        "cfg_evidence_status": "partial",
+        "limitations": ["With overflow checks enabled, a + 1 can panic for i32::MAX; exceptional transfer and unwinding are omitted. Normal-flow profile conformance is separately evaluated."],
+        "symbols": [["a", "a", "i32", "parameter", ["a", 1]], ["x", "x", "i32", "local", ["x", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["ra", "read", ["a", 2]], ["one", "computation", ["1", 1]], ["add", "computation", ["a + 1", 1]], ["dx", "declaration", ["let x = a + 1;", 1]], ["rx", "read", ["x", 2]], ["ret", "return", ["x", 2]]],
+        "definitions": [["da", "a", "fa"], ["dx0", "x", "dx"]],
+        "read_definitions": {"ra": ["da"], "rx": ["dx0"]},
+        "local_definition_sets": {"in": {"dx": {"x": []}, "rx": {"x": ["dx0"]}}, "out": {"dx": {"x": ["dx0"]}}},
+        "cfg_edges": [["E", "ra", "normal"], ["ra", "one", "normal"], ["one", "add", "normal"], ["add", "dx", "normal"], ["dx", "rx", "normal"], ["rx", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fa", "ra", "da"], ["dx", "rx", "dx0"]],
+          "value_operand": [["ra", "add", 0], ["one", "add", 1], ["add", "dx", 0], ["rx", "ret", 0]],
+          "value_alternative": [],
+          "execution": [["ra", "one"], ["one", "add"], ["add", "dx"], ["dx", "rx"], ["rx", "ret"]],
+          "control": []
+        },
+        "value_sites": [], "reference_count": 2,
+        "outputs": [{"position": 0, "role": "return", "type": "i32"}],
+        "forbidden": ["CFG vertex fa", "execution fa -> ra", "execution ra -> add (dominance closure)", "formal_output node", "pure or panic-free claim"]
+      }
+    },
+    {
+      "id": "two-arm-reassignment-reaching-set",
+      "source": "fn f(a: i32, b: bool) -> i32 { let mut x = a; if b { x = 1; } else { x = 2; } x }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["a", "a", "i32", "parameter", ["a", 1]], ["b", "b", "bool", "parameter", ["b", 1]], ["x", "x", "i32", "local", ["x", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["fb", "formal_input", ["b", 1]], ["ra", "read", ["a", 2]], ["d0", "declaration", ["let mut x = a;", 1]], ["rb", "read", ["b", 2]], ["p", "control", ["b", 2]], ["one", "computation", ["1", 1]], ["w1", "assignment", ["x = 1", 1]], ["two", "computation", ["2", 1]], ["w2", "assignment", ["x = 2", 1]], ["rx", "read", ["x", 4]], ["ret", "return", ["x", 4]]],
+        "definitions": [["da", "a", "fa"], ["db", "b", "fb"], ["dx0", "x", "d0"], ["dx1", "x", "w1"], ["dx2", "x", "w2"]],
+        "read_definitions": {"ra": ["da"], "rb": ["db"], "rx": ["dx1", "dx2"]},
+        "local_definition_sets": {
+          "in": {"d0": {"x": []}, "p": {"x": ["dx0"]}, "w1": {"x": ["dx0"]}, "w2": {"x": ["dx0"]}, "rx": {"x": ["dx1", "dx2"]}},
+          "out": {"d0": {"x": ["dx0"]}, "w1": {"x": ["dx1"]}, "w2": {"x": ["dx2"]}}
+        },
+        "cfg_edges": [["E", "ra", "normal"], ["ra", "d0", "normal"], ["d0", "rb", "normal"], ["rb", "p", "normal"], ["p", "one", "true"], ["p", "two", "false"], ["one", "w1", "normal"], ["two", "w2", "normal"], ["w1", "rx", "normal"], ["w2", "rx", "normal"], ["rx", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fa", "ra", "da"], ["fb", "rb", "db"], ["w1", "rx", "dx1"], ["w2", "rx", "dx2"]],
+          "value_operand": [["ra", "d0", 0], ["rb", "p", 0], ["one", "w1", 0], ["two", "w2", 0], ["rx", "ret", 0]],
+          "value_alternative": [],
+          "execution": [["ra", "d0"], ["d0", "rb"], ["rb", "p"], ["p", "one"], ["one", "w1"], ["p", "two"], ["two", "w2"], ["p", "rx"], ["rx", "ret"]],
+          "control": [["p", "one", "true"], ["p", "w1", "true"], ["p", "two", "false"], ["p", "w2", "false"]]
+        },
+        "value_sites": [], "reference_count": 3,
+        "forbidden": ["dx0 reaches rx", "SSA phi for x", "execution w1 -> rx", "execution w2 -> rx", "control p -> rx", "execution fa -> fb", "assignment-target read"]
+      }
+    },
+    {
+      "id": "short-circuit-and-saved-left",
+      "source": "fn f(a: bool, b: bool) -> bool { a && b }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["a", "a", "bool", "parameter", ["a", 1]], ["b", "b", "bool", "parameter", ["b", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["fb", "formal_input", ["b", 1]], ["ra", "read", ["a", 2]], ["p", "control", ["a && b", 1]], ["rb", "read", ["b", 2]], ["m", "merge", null], ["ret", "return", ["a && b", 1]]],
+        "definitions": [["da", "a", "fa"], ["db", "b", "fb"]],
+        "read_definitions": {"ra": ["da"], "rb": ["db"]},
+        "cfg_edges": [["E", "ra", "normal"], ["ra", "p", "normal"], ["p", "rb", "true"], ["p", "ret", "false"], ["rb", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fa", "ra", "da"], ["fb", "rb", "db"]],
+          "value_operand": [["ra", "p", 0], ["m", "ret", 0]],
+          "value_alternative": [["rb", "m", 0, "true", "p"], ["ra", "m", 1, "false", "p"]],
+          "execution": [["ra", "p"], ["p", "rb"], ["p", "ret"]],
+          "control": [["p", "rb", "true"]]
+        },
+        "value_sites": [{"pdg_node_id": "m", "construct_selector": ["a && b", 1], "controller_pdg_node_id": "p", "cfg_successor_node_id": "ret", "annotations": {"compat.rust.hir-r0:guards": [[]]}, "alternatives": [{"value_pdg_node_id": "rb", "outcome": "true", "completion_cfg_node_ids": ["rb"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "p", "outcome": "true"}]]}}, {"value_pdg_node_id": "ra", "outcome": "false", "completion_cfg_node_ids": ["p"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "p", "outcome": "false"}]]}}]}],
+        "reference_count": 2,
+        "forbidden": ["CFG vertex m", "execution m -> ret", "control p -> m", "unconditional rb", "new false literal", "predicate p as result producer", "left reread"]
+      }
+    },
+    {
+      "id": "short-circuit-or-outcomes",
+      "source": "fn f(a: bool, b: bool) -> bool { a || b }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["a", "a", "bool", "parameter", ["a", 1]], ["b", "b", "bool", "parameter", ["b", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["fb", "formal_input", ["b", 1]], ["ra", "read", ["a", 2]], ["p", "control", ["a || b", 1]], ["rb", "read", ["b", 2]], ["m", "merge", null], ["ret", "return", ["a || b", 1]]],
+        "definitions": [["da", "a", "fa"], ["db", "b", "fb"]],
+        "read_definitions": {"ra": ["da"], "rb": ["db"]},
+        "cfg_edges": [["E", "ra", "normal"], ["ra", "p", "normal"], ["p", "ret", "true"], ["p", "rb", "false"], ["rb", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fa", "ra", "da"], ["fb", "rb", "db"]],
+          "value_operand": [["ra", "p", 0], ["m", "ret", 0]],
+          "value_alternative": [["ra", "m", 0, "true", "p"], ["rb", "m", 1, "false", "p"]],
+          "execution": [["ra", "p"], ["p", "rb"], ["p", "ret"]],
+          "control": [["p", "rb", "false"]]
+        },
+        "value_sites": [{"pdg_node_id": "m", "construct_selector": ["a || b", 1], "controller_pdg_node_id": "p", "cfg_successor_node_id": "ret", "annotations": {"compat.rust.hir-r0:guards": [[]]}, "alternatives": [{"value_pdg_node_id": "ra", "outcome": "true", "completion_cfg_node_ids": ["p"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "p", "outcome": "true"}]]}}, {"value_pdg_node_id": "rb", "outcome": "false", "completion_cfg_node_ids": ["rb"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "p", "outcome": "false"}]]}}]}],
+        "reference_count": 2,
+        "forbidden": ["AND outcome policy", "new true literal", "formal-input execution edge", "synthetic merge CFG operation"]
+      }
+    },
+    {
+      "id": "early-return-controls-continuation",
+      "source": "fn f(a: i32, b: bool) -> i32 { if b { return a; } a }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["a", "a", "i32", "parameter", ["a", 1]], ["b", "b", "bool", "parameter", ["b", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["fb", "formal_input", ["b", 1]], ["rb", "read", ["b", 2]], ["p", "control", ["b", 2]], ["ra1", "read", ["a", 2]], ["ret1", "return", ["return a", 1]], ["ra2", "read", ["a", 3]], ["ret2", "return", ["a", 3]]],
+        "definitions": [["da", "a", "fa"], ["db", "b", "fb"]],
+        "read_definitions": {"rb": ["db"], "ra1": ["da"], "ra2": ["da"]},
+        "cfg_edges": [["E", "rb", "normal"], ["rb", "p", "normal"], ["p", "ra1", "true"], ["p", "ra2", "false"], ["ra1", "ret1", "normal"], ["ret1", "X", "return"], ["ra2", "ret2", "normal"], ["ret2", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fb", "rb", "db"], ["fa", "ra1", "da"], ["fa", "ra2", "da"]],
+          "value_operand": [["rb", "p", 0], ["ra1", "ret1", 0], ["ra2", "ret2", 0]],
+          "value_alternative": [],
+          "execution": [["rb", "p"], ["p", "ra1"], ["ra1", "ret1"], ["p", "ra2"], ["ra2", "ret2"]],
+          "control": [["p", "ra1", "true"], ["p", "ret1", "true"], ["p", "ra2", "false"], ["p", "ret2", "false"]]
+        },
+        "value_sites": [], "reference_count": 2,
+        "forbidden": ["ret1 -> ra2 CFG transfer", "merge between return values", "third implicit return", "syntactic nesting omits false control on ra2/ret2"]
+      }
+    },
+    {
+      "id": "returning-arm-does-not-execute-continuation-declaration",
+      "source": "fn f(a: i32, b: bool) -> i32 { let x = if b { return a; } else { 1 }; x }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["a", "a", "i32", "parameter", ["a", 1]], ["b", "b", "bool", "parameter", ["b", 1]], ["x", "x", "i32", "local", ["x", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["fb", "formal_input", ["b", 1]], ["rb", "read", ["b", 2]], ["p", "control", ["b", 2]], ["ra", "read", ["a", 2]], ["ret1", "return", ["return a", 1]], ["one", "computation", ["1", 1]], ["dx", "declaration", ["let x = if b { return a; } else { 1 };", 1]], ["rx", "read", ["x", 2]], ["ret2", "return", ["x", 2]]],
+        "definitions": [["da", "a", "fa"], ["db", "b", "fb"], ["dx0", "x", "dx"]],
+        "read_definitions": {"rb": ["db"], "ra": ["da"], "rx": ["dx0"]},
+        "local_definition_sets": {"in": {"dx": {"x": []}, "rx": {"x": ["dx0"]}}, "out": {"dx": {"x": ["dx0"]}}},
+        "cfg_edges": [["E", "rb", "normal"], ["rb", "p", "normal"], ["p", "ra", "true"], ["p", "one", "false"], ["ra", "ret1", "normal"], ["ret1", "X", "return"], ["one", "dx", "normal"], ["dx", "rx", "normal"], ["rx", "ret2", "normal"], ["ret2", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fb", "rb", "db"], ["fa", "ra", "da"], ["dx", "rx", "dx0"]],
+          "value_operand": [["rb", "p", 0], ["ra", "ret1", 0], ["one", "dx", 0], ["rx", "ret2", 0]], "value_alternative": [],
+          "execution": [["rb", "p"], ["p", "ra"], ["ra", "ret1"], ["p", "one"], ["one", "dx"], ["dx", "rx"], ["rx", "ret2"]],
+          "control": [["p", "ra", "true"], ["p", "ret1", "true"], ["p", "one", "false"], ["p", "dx", "false"], ["p", "rx", "false"], ["p", "ret2", "false"]]
+        },
+        "value_sites": [], "reference_count": 3,
+        "forbidden": ["returning arm supplies an expression value", "merge for a single normal alternative", "ret1 -> dx CFG transfer", "continuation declaration hoisted onto true arm", "control p -> dx omitted"]
+      }
+    },
+    {
+      "id": "if-value-effectful-declaration-site",
+      "source": "fn f(a: i32, b: bool) -> i32 { let mut x = 0; let y = if b { a } else { 1 }; x = 2; y }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["a", "a", "i32", "parameter", ["a", 1]], ["b", "b", "bool", "parameter", ["b", 1]], ["x", "x", "i32", "local", ["x", 1]], ["y", "y", "i32", "local", ["y", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["fb", "formal_input", ["b", 1]], ["zero", "computation", ["0", 1]], ["dx", "declaration", ["let mut x = 0;", 1]], ["rb", "read", ["b", 2]], ["p", "control", ["b", 2]], ["ra", "read", ["a", 2]], ["one", "computation", ["1", 1]], ["m", "merge", null], ["dy", "declaration", ["let y = if b { a } else { 1 };", 1]], ["two", "computation", ["2", 1]], ["wx", "assignment", ["x = 2", 1]], ["ry", "read", ["y", 2]], ["ret", "return", ["y", 2]]],
+        "definitions": [["da", "a", "fa"], ["db", "b", "fb"], ["dx0", "x", "dx"], ["dy0", "y", "dy"], ["dx1", "x", "wx"]],
+        "read_definitions": {"rb": ["db"], "ra": ["da"], "ry": ["dy0"]},
+        "local_definition_sets": {
+          "in": {"p": {"x": ["dx0"], "y": []}, "dy": {"x": ["dx0"], "y": []}, "wx": {"x": ["dx0"], "y": ["dy0"]}, "ry": {"x": ["dx1"], "y": ["dy0"]}},
+          "out": {"dx": {"x": ["dx0"], "y": []}, "dy": {"x": ["dx0"], "y": ["dy0"]}, "wx": {"x": ["dx1"], "y": ["dy0"]}}
+        },
+        "cfg_edges": [["E", "zero", "normal"], ["zero", "dx", "normal"], ["dx", "rb", "normal"], ["rb", "p", "normal"], ["p", "ra", "true"], ["p", "one", "false"], ["ra", "dy", "normal"], ["one", "dy", "normal"], ["dy", "two", "normal"], ["two", "wx", "normal"], ["wx", "ry", "normal"], ["ry", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fb", "rb", "db"], ["fa", "ra", "da"], ["dy", "ry", "dy0"]],
+          "value_operand": [["zero", "dx", 0], ["rb", "p", 0], ["m", "dy", 0], ["two", "wx", 0], ["ry", "ret", 0]],
+          "value_alternative": [["ra", "m", 0, "true", "p"], ["one", "m", 1, "false", "p"]],
+          "execution": [["zero", "dx"], ["dx", "rb"], ["rb", "p"], ["p", "ra"], ["p", "one"], ["p", "dy"], ["dy", "two"], ["two", "wx"], ["wx", "ry"], ["ry", "ret"]],
+          "control": [["p", "ra", "true"], ["p", "one", "false"]]
+        },
+        "value_sites": [{"pdg_node_id": "m", "construct_selector": ["if b { a } else { 1 }", 1], "controller_pdg_node_id": "p", "cfg_successor_node_id": "dy", "annotations": {"compat.rust.hir-r0:guards": [[]]}, "alternatives": [{"value_pdg_node_id": "ra", "outcome": "true", "completion_cfg_node_ids": ["ra"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "p", "outcome": "true"}]]}}, {"value_pdg_node_id": "one", "outcome": "false", "completion_cfg_node_ids": ["one"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "p", "outcome": "false"}]]}}]}],
+        "reference_count": 3,
+        "forbidden": ["definition produced by m", "CFG join no-op", "execution m -> dy", "control p -> dy", "extra declaration computation wrapper", "x counted as read"]
+      }
+    },
+    {
+      "id": "saved-left-value-before-branching-operand",
+      "source": "fn f(a: i32, b: bool) -> i32 { a + if b { 1 } else { 2 } }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "partial",
+        "limitations": ["The addition can overflow for some i32 inputs with overflow checks enabled; panic flow is omitted."],
+        "symbols": [["a", "a", "i32", "parameter", ["a", 1]], ["b", "b", "bool", "parameter", ["b", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["fb", "formal_input", ["b", 1]], ["ra", "read", ["a", 2]], ["rb", "read", ["b", 2]], ["p", "control", ["b", 2]], ["one", "computation", ["1", 1]], ["two", "computation", ["2", 1]], ["m", "merge", null], ["add", "computation", ["a + if b { 1 } else { 2 }", 1]], ["ret", "return", ["a + if b { 1 } else { 2 }", 1]]],
+        "definitions": [["da", "a", "fa"], ["db", "b", "fb"]],
+        "read_definitions": {"ra": ["da"], "rb": ["db"]},
+        "cfg_edges": [["E", "ra", "normal"], ["ra", "rb", "normal"], ["rb", "p", "normal"], ["p", "one", "true"], ["p", "two", "false"], ["one", "add", "normal"], ["two", "add", "normal"], ["add", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fa", "ra", "da"], ["fb", "rb", "db"]],
+          "value_operand": [["rb", "p", 0], ["ra", "add", 0], ["m", "add", 1], ["add", "ret", 0]],
+          "value_alternative": [["one", "m", 0, "true", "p"], ["two", "m", 1, "false", "p"]],
+          "execution": [["ra", "rb"], ["rb", "p"], ["p", "one"], ["p", "two"], ["p", "add"], ["add", "ret"]],
+          "control": [["p", "one", "true"], ["p", "two", "false"]]
+        },
+        "value_sites": [{"pdg_node_id": "m", "construct_selector": ["if b { 1 } else { 2 }", 1], "controller_pdg_node_id": "p", "cfg_successor_node_id": "add", "annotations": {"compat.rust.hir-r0:guards": [[]]}, "alternatives": [{"value_pdg_node_id": "one", "outcome": "true", "completion_cfg_node_ids": ["one"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "p", "outcome": "true"}]]}}, {"value_pdg_node_id": "two", "outcome": "false", "completion_cfg_node_ids": ["two"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "p", "outcome": "false"}]]}}]}],
+        "reference_count": 2,
+        "forbidden": ["late reread of a", "predicate p feeds add as value", "execution one -> add", "execution two -> add"]
+      }
+    },
+    {
+      "id": "nested-if-merges-share-site-with-distinct-availability",
+      "source": "fn f(a: bool, b: bool) -> i32 { if a { if b { 1 } else { 2 } } else { 3 } }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["a", "a", "bool", "parameter", ["a", 1]], ["b", "b", "bool", "parameter", ["b", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["fb", "formal_input", ["b", 1]], ["ra", "read", ["a", 2]], ["po", "control", ["a", 2]], ["rb", "read", ["b", 2]], ["pi", "control", ["b", 2]], ["one", "computation", ["1", 1]], ["two", "computation", ["2", 1]], ["three", "computation", ["3", 1]], ["mi", "merge", null], ["mo", "merge", null], ["ret", "return", ["if a { if b { 1 } else { 2 } } else { 3 }", 1]]],
+        "definitions": [["da", "a", "fa"], ["db", "b", "fb"]],
+        "read_definitions": {"ra": ["da"], "rb": ["db"]},
+        "literal_attributes": {"one": "1", "two": "2", "three": "3"},
+        "cfg_edges": [["E", "ra", "normal"], ["ra", "po", "normal"], ["po", "rb", "true"], ["po", "three", "false"], ["rb", "pi", "normal"], ["pi", "one", "true"], ["pi", "two", "false"], ["one", "ret", "normal"], ["two", "ret", "normal"], ["three", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fa", "ra", "da"], ["fb", "rb", "db"]],
+          "value_operand": [["ra", "po", 0], ["rb", "pi", 0], ["mo", "ret", 0]],
+          "value_alternative": [["one", "mi", 0, "true", "pi"], ["two", "mi", 1, "false", "pi"], ["mi", "mo", 0, "true", "po"], ["three", "mo", 1, "false", "po"]],
+          "execution": [["ra", "po"], ["po", "rb"], ["rb", "pi"], ["pi", "one"], ["pi", "two"], ["po", "three"], ["po", "ret"]],
+          "control": [["po", "rb", "true"], ["po", "pi", "true"], ["po", "three", "false"], ["pi", "one", "true"], ["pi", "two", "false"]]
+        },
+        "value_sites": [
+          {"pdg_node_id": "mi", "construct_selector": ["if b { 1 } else { 2 }", 1], "controller_pdg_node_id": "pi", "cfg_successor_node_id": "ret", "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "po", "outcome": "true"}]]}, "alternatives": [
+            {"value_pdg_node_id": "one", "outcome": "true", "completion_cfg_node_ids": ["one"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "po", "outcome": "true"}, {"controller_pdg_node_id": "pi", "outcome": "true"}]]}},
+            {"value_pdg_node_id": "two", "outcome": "false", "completion_cfg_node_ids": ["two"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "po", "outcome": "true"}, {"controller_pdg_node_id": "pi", "outcome": "false"}]]}}
+          ]},
+          {"pdg_node_id": "mo", "construct_selector": ["if a { if b { 1 } else { 2 } } else { 3 }", 1], "controller_pdg_node_id": "po", "cfg_successor_node_id": "ret", "annotations": {"compat.rust.hir-r0:guards": [[]]}, "alternatives": [
+            {"value_pdg_node_id": "mi", "outcome": "true", "completion_cfg_node_ids": ["one", "two"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "po", "outcome": "true"}]]}},
+            {"value_pdg_node_id": "three", "outcome": "false", "completion_cfg_node_ids": ["three"], "annotations": {"compat.rust.hir-r0:guards": [[{"controller_pdg_node_id": "po", "outcome": "false"}]]}}
+          ]}
+        ],
+        "reference_count": 2,
+        "forbidden": ["single representative completion node for outer true alternative", "duplicate mi -> mo edge per completion node", "inner merge available under outer false outcome", "invented pi outcome when pi was skipped", "CFG vertex mi or mo", "execution/control edges to merges", "transitive control po -> one or po -> two", "control po -> ret"]
+      }
+    },
+    {
+      "id": "rhs-first-primitive-compound-write",
+      "source": "fn f() -> i32 { let mut x = 1; x += { x = 2; x }; x }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "exceptional_flow_evidence_required": "On normal execution, both the saved RHS and post-RHS target read are exactly 2, so i32 addition produces 4 without overflow. This concrete proof is not a general purity claim.",
+        "symbols": [["x", "x", "i32", "local", ["x", 1]]],
+        "nodes": [["one", "computation", ["1", 1]], ["d0", "declaration", ["let mut x = 1;", 1]], ["two", "computation", ["2", 1]], ["inner", "assignment", ["x = 2", 1]], ["rhs", "read", ["x", 4]], ["target", "read", ["x", 2]], ["add", "computation", ["x += { x = 2; x }", 1]], ["outer", "assignment", ["x += { x = 2; x }", 1]], ["tail", "read", ["x", 5]], ["ret", "return", ["x", 5]]],
+        "definitions": [["dx0", "x", "d0"], ["dx1", "x", "inner"], ["dx2", "x", "outer"]],
+        "read_definitions": {"rhs": ["dx1"], "target": ["dx1"], "tail": ["dx2"]},
+        "local_definition_sets": {
+          "in": {"d0": {"x": []}, "inner": {"x": ["dx0"]}, "rhs": {"x": ["dx1"]}, "target": {"x": ["dx1"]}, "outer": {"x": ["dx1"]}, "tail": {"x": ["dx2"]}},
+          "out": {"d0": {"x": ["dx0"]}, "inner": {"x": ["dx1"]}, "outer": {"x": ["dx2"]}}
+        },
+        "cfg_edges": [["E", "one", "normal"], ["one", "d0", "normal"], ["d0", "two", "normal"], ["two", "inner", "normal"], ["inner", "rhs", "normal"], ["rhs", "target", "normal"], ["target", "add", "normal"], ["add", "outer", "normal"], ["outer", "tail", "normal"], ["tail", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["inner", "rhs", "dx1"], ["inner", "target", "dx1"], ["outer", "tail", "dx2"]],
+          "value_operand": [["one", "d0", 0], ["two", "inner", 0], ["target", "add", 0], ["rhs", "add", 1], ["add", "outer", 0], ["tail", "ret", 0]],
+          "value_alternative": [],
+          "execution": [["one", "d0"], ["d0", "two"], ["two", "inner"], ["inner", "rhs"], ["rhs", "target"], ["target", "add"], ["add", "outer"], ["outer", "tail"], ["tail", "ret"]],
+          "control": []
+        },
+        "value_sites": [], "reference_count": 1,
+        "operator_attributes": {"add": "+", "inner": "=", "outer": "+="},
+        "source_operation_roles": {"target": "compound_target_read", "add": "compound_computation", "outer": "compound_write"},
+        "forbidden": ["target before RHS", "dx0 reaches target", "RHS at operand 0", "block wrapper computation", "data dx0 -> inner from killed value"]
+      }
+    },
+    {
+      "id": "ordinary-binary-old-value-snapshot",
+      "source": "fn f() -> i32 { let mut x = 1; x + { x = 2; x } }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "exceptional_flow_evidence_required": "Left snapshot is 1, RHS snapshot is 2, and their i32 sum 3 cannot overflow; this is fixture-local evidence.",
+        "symbols": [["x", "x", "i32", "local", ["x", 1]]],
+        "nodes": [["one", "computation", ["1", 1]], ["d0", "declaration", ["let mut x = 1;", 1]], ["left", "read", ["x", 2]], ["two", "computation", ["2", 1]], ["w", "assignment", ["x = 2", 1]], ["right", "read", ["x", 4]], ["add", "computation", ["x + { x = 2; x }", 1]], ["ret", "return", ["x + { x = 2; x }", 1]]],
+        "definitions": [["dx0", "x", "d0"], ["dx1", "x", "w"]],
+        "read_definitions": {"left": ["dx0"], "right": ["dx1"]},
+        "local_definition_sets": {"in": {"left": {"x": ["dx0"]}, "w": {"x": ["dx0"]}, "right": {"x": ["dx1"]}}, "out": {"d0": {"x": ["dx0"]}, "w": {"x": ["dx1"]}}},
+        "cfg_edges": [["E", "one", "normal"], ["one", "d0", "normal"], ["d0", "left", "normal"], ["left", "two", "normal"], ["two", "w", "normal"], ["w", "right", "normal"], ["right", "add", "normal"], ["add", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["d0", "left", "dx0"], ["w", "right", "dx1"]],
+          "value_operand": [["one", "d0", 0], ["two", "w", 0], ["left", "add", 0], ["right", "add", 1], ["add", "ret", 0]],
+          "value_alternative": [],
+          "execution": [["one", "d0"], ["d0", "left"], ["left", "two"], ["two", "w"], ["w", "right"], ["right", "add"], ["add", "ret"]],
+          "control": []
+        },
+        "value_sites": [], "reference_count": 1,
+        "forbidden": ["dx1 reaches left", "left reread after w", "collapse repeated x occurrences", "compound RHS-first rule applied to ordinary +"]
+      }
+    },
+    {
+      "id": "parameter-shadow-initializer-reads-old-binding",
+      "source": "fn f(x: i32) -> i32 { let x = x; x }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["outer_x", "x", "i32", "parameter", ["x", 1]], ["inner_x", "x", "i32", "local", ["x", 2]]],
+        "nodes": [["fx", "formal_input", ["x", 1]], ["old", "read", ["x", 3]], ["dx", "declaration", ["let x = x;", 1]], ["new", "read", ["x", 4]], ["ret", "return", ["x", 4]]],
+        "definitions": [["douter", "outer_x", "fx"], ["dinner", "inner_x", "dx"]],
+        "read_definitions": {"old": ["douter"], "new": ["dinner"]},
+        "local_definition_sets": {"in": {"old": {"inner_x": []}, "new": {"inner_x": ["dinner"]}}, "out": {"dx": {"inner_x": ["dinner"]}}},
+        "cfg_edges": [["E", "old", "normal"], ["old", "dx", "normal"], ["dx", "new", "normal"], ["new", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {
+          "reaching_definition": [["fx", "old", "douter"], ["dx", "new", "dinner"]],
+          "value_operand": [["old", "dx", 0], ["new", "ret", 0]], "value_alternative": [],
+          "execution": [["old", "dx"], ["dx", "new"], ["new", "ret"]], "control": []
+        },
+        "value_sites": [], "reference_count": 2,
+        "forbidden": ["one symbol for both source x bindings", "dinner reaches initializer", "declared name used as node label", "execution fx -> old"]
+      }
+    },
+    {
+      "id": "empty-unit-body-retains-unused-interface",
+      "source": "fn f(a: bool) {}",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["a", "a", "bool", "parameter", ["a", 1]]],
+        "nodes": [["fa", "formal_input", ["a", 1]], ["ret", "return", ["}", 1]]],
+        "definitions": [["da", "a", "fa"]], "read_definitions": {},
+        "cfg_edges": [["E", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {"reaching_definition": [], "value_operand": [], "value_alternative": [], "execution": [], "control": []},
+        "value_sites": [], "reference_count": 0,
+        "outputs": [{"position": 0, "role": "return", "type": "()"}],
+        "forbidden": ["unit materializer for body wrapper", "formal_output node", "formal input removed merely because unused", "execution fa -> ret", "unit return data input"]
+      }
+    },
+    {
+      "id": "unit-binding-retains-definition-not-value-operands",
+      "source": "fn f() { let u = (); u }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [["u", "u", "()", "local", ["u", 1]]],
+        "nodes": [["unit", "computation", ["()", 2]], ["du", "declaration", ["let u = ();", 1]], ["ru", "read", ["u", 2]], ["ret", "return", ["u", 2]]],
+        "definitions": [["du0", "u", "du"]], "read_definitions": {"ru": ["du0"]},
+        "local_definition_sets": {"in": {"du": {"u": []}, "ru": {"u": ["du0"]}}, "out": {"du": {"u": ["du0"]}}},
+        "literal_attributes": {"unit": "()"},
+        "cfg_edges": [["E", "unit", "normal"], ["unit", "du", "normal"], ["du", "ru", "normal"], ["ru", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {"reaching_definition": [["du", "ru", "du0"]], "value_operand": [], "value_alternative": [], "execution": [["unit", "du"], ["du", "ru"], ["ru", "ret"]], "control": []},
+        "value_sites": [], "reference_count": 1,
+        "outputs": [{"position": 0, "role": "return", "type": "()"}],
+        "forbidden": ["value_operand unit -> du", "value_operand ru -> ret", "unit merge", "discard unit binding reaching_definition edge", "delete explicit unit literal/read/declaration operation"]
+      }
+    },
+    {
+      "id": "explicit-unit-literal-return",
+      "source": "fn f() { return (); }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [], "definitions": [], "read_definitions": {},
+        "nodes": [["unit", "computation", ["()", 2]], ["ret", "return", ["return ()", 1]]],
+        "literal_attributes": {"unit": "()"},
+        "cfg_edges": [["E", "unit", "normal"], ["unit", "ret", "normal"], ["ret", "X", "return"]],
+        "pdg_edges": {"reaching_definition": [], "value_operand": [], "value_alternative": [], "execution": [["unit", "ret"]], "control": []},
+        "value_sites": [], "reference_count": 0,
+        "outputs": [{"position": 0, "role": "return", "type": "()"}],
+        "forbidden": ["data unit -> ret", "extra implicit return", "delete explicit unit literal computation"]
+      }
+    },
+    {
+      "id": "unreachable-supported-source-preserved",
+      "source": "fn f() -> i32 { return 1; 2 }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "eligible_under_verified_normal_flow_profile", "exact_graph": true, "cfg_evidence_status": "complete",
+        "symbols": [], "definitions": [], "read_definitions": {},
+        "nodes": [["one", "computation", ["1", 1]], ["ret1", "return", ["return 1", 1]], ["two", "computation", ["2", 1]], ["ret2", "return", ["2", 1]]],
+        "reachable_operations": ["one", "ret1"], "unreachable_operations": ["two", "ret2"],
+        "cfg_edges": [["E", "one", "normal"], ["one", "ret1", "normal"], ["ret1", "X", "return"], ["two", "ret2", "normal"], ["ret2", "X", "return"]],
+        "pdg_edges": {"reaching_definition": [], "value_operand": [["one", "ret1", 0]], "value_alternative": [], "execution": [["one", "ret1"]], "control": []},
+        "unreachable_diagnostic_value_edges": {"allowed": [["two", "ret2", 0]], "required": false, "certified_reachable_edges": false},
+        "value_sites": [], "reference_count": 0,
+        "projection_removed_operations": ["two", "ret2"],
+        "forbidden": ["CFG ret1 -> two", "execution ret1 -> two", "certified dominance edge two -> ret2", "remove source evidence for unreachable two"]
+      }
+    },
+    {
+      "id": "unsupported-unit-comparison-not-builtin",
+      "source": "fn f() -> bool { () == () }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "ineligible", "conformance": "non_conformant",
+        "diagnostics": [{"capability": "rust.scalar-computation", "selector": ["() == ()", 1], "severity": "error", "reason": "Unit equality uses the standard-library PartialEq implementation, not an admitted built-in integer/boolean comparison; the unit-comparison exception is deferred and unimplemented."}],
+        "forbidden": ["unit comparison admitted as built-in computation", "underlying trait call silently smuggled into computation", "implicit PartialEq call treated as supported call", "unit-typed value_operand edges", "conformant remainder graph"]
+      }
+    },
+    {
+      "id": "unsupported-direct-call",
+      "source": "fn f(a: i32) -> i32 { g(a) }",
+      "context": "Assume g resolves to an ordinary function fn g(i32) -> i32; no call summary is admitted by R0.",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "ineligible", "conformance": "non_conformant",
+        "diagnostics": [{"capability": "rust.call-summaries", "selector": ["g(a)", 1], "severity": "error", "reason": "Arbitrary calls are unsupported even with known signature or presumed purity."}],
+        "forbidden": ["conformant remainder graph", "empty call effects treated as pure", "STATE source-call support inferred from matching category map"]
+      }
+    },
+    {
+      "id": "unsupported-call-after-return",
+      "source": "fn f() -> i32 { return 1; g() }",
+      "context": "Assume g resolves to fn g() -> i32; source after return is still owned and scanned.",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "ineligible", "conformance": "non_conformant",
+        "diagnostics": [{"capability": "rust.call-summaries", "selector": ["g()", 1], "severity": "error", "reason": "Unsupported call remains disqualifying in entry-unreachable source."}],
+        "forbidden": ["ignore call using reachability", "certify only return 1 remainder"]
+      }
+    },
+    {
+      "id": "unsupported-short-circuit-macro",
+      "source": "fn f() -> bool { false && panic!() }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "ineligible", "conformance": "non_conformant",
+        "diagnostics": [{"capability": "rust.macros", "selector": ["panic!()", 1], "severity": "error", "reason": "Strict scan rejects macro source even when the left operand determines that RHS is skipped."}],
+        "forbidden": ["constant-fold macro away", "certify macro-expanded scalar remainder", "claim macros not_applicable"]
+      }
+    },
+    {
+      "id": "unsupported-nested-item-owner",
+      "source": "fn f() -> i32 { fn nested() { g(); } 1 }",
+      "context": "Assume g resolves independently. The nested body's call is not an operation owned by f.",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "ineligible", "conformance": "non_conformant",
+        "diagnostics": [{"capability": "rust.blocks", "selector": ["fn nested() { g(); }", 1], "severity": "error", "reason": "Nested items are unsupported in R0; reject at declaration without incorporating the separately owned body."}],
+        "outer_function_operation_exclusions": [["g()", 1]],
+        "forbidden": ["eligible outer remainder", "g call attributed to outer CFG", "nested function inlined"]
+      }
+    },
+    {
+      "id": "unsupported-unnamed-parameter",
+      "source": "fn f(_: i32) -> i32 { 1 }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "ineligible", "conformance": "non_conformant",
+        "diagnostics": [{"capability": "rust.scalar-interface", "selector": ["_", 1], "severity": "error", "reason": "R0 requires a named single binding for each parameter; no fabricated symbol for wildcard."}]
+      }
+    },
+    {
+      "id": "unsupported-reference-interface",
+      "source": "fn f(a: &i32) -> i32 { *a }",
+      "execution_status": "not_run",
+      "expected": {
+        "eligibility": "ineligible", "conformance": "non_conformant",
+        "diagnostics": [{"capability": "rust.additional-types", "selector": ["&i32", 1], "severity": "error", "reason": "Reference interface type is outside R0."}, {"capability": "rust.abstract-memory", "selector": ["*a", 1], "severity": "error", "reason": "Explicit dereference is outside R0."}],
+        "forbidden": ["unknown memory effects treated as scalar read"]
+      }
+    }
+  ]
+}

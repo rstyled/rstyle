@@ -1,0 +1,996 @@
+//! Strict R0 eligibility over frontend facts.
+//!
+//! Default-deny classifier for the closed R0 subset from the pinned
+//! extraction profile. It accepts only ordinary synchronous safe functions
+//! over resolved primitive integer, boolean, and unit types with the
+//! enumerated bindings, writes, operators, blocks, branches, short-circuits,
+//! and returns. Anything else yields an actionable diagnostic naming the
+//! stable capability ID, construct, exact source span, and reason. Missing
+//! required evidence yields `Unknown`, never an eligible empty graph.
+//!
+//! Driver contract for `HirNode.kind` strings: expression nodes use
+//! `expr_<lowercase HIR variant>` (`expr_binary`, `expr_call`, ...),
+//! statements use `stmt_<variant>` (`stmt_let`, `stmt_item`, ...),
+//! patterns use `pat_<variant>` (`pat_binding`, `pat_wild`, ...), and type
+//! annotations use `ty_<variant>`. Unlisted kinds are rejected by the
+//! fallback arm; the walk stays total over future HIR variants.
+
+use crate::frontend::{
+    BindingFact, ByteSpan, EligibilityVerdict, ExpansionSite, HirDiagnostic, HirEligibility,
+    HirFnFacts, HirNode, ParamFact, ResolvedTy, SignatureFacts,
+};
+use crate::model::{FactStatus, StringFact};
+use std::collections::{BTreeMap, BTreeSet};
+
+/// Resolved primitive types admitted by R0 (unit included as a type).
+const PRIMITIVE_TYS: [&str; 14] = [
+    "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize", "bool",
+    "unit",
+];
+
+/// Signed integer types admitting unary negation.
+const SIGNED_INTS: [&str; 6] = ["i8", "i16", "i32", "i64", "i128", "isize"];
+
+/// Unsigned integer types.
+const UNSIGNED_INTS: [&str; 6] = ["u8", "u16", "u32", "u64", "u128", "usize"];
+
+/// Ordinary integer binary operators (comparisons included).
+const INT_OPS: [&str; 16] = [
+    "+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>", "==", "!=", "<", "<=", ">", ">=",
+];
+
+/// Eager boolean binary operators (comparisons included).
+const BOOL_EAGER_OPS: [&str; 9] = ["&", "|", "^", "==", "!=", "<", "<=", ">", ">="];
+
+/// Comparison operators (the only ones even considered for unit operands).
+const COMPARISONS: [&str; 6] = ["==", "!=", "<", "<=", ">", ">="];
+
+/// Primitive compound assignment operators (`target OP= rhs`).
+const COMPOUND_OPS: [&str; 10] = ["+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="];
+
+/// One classifier finding: diagnostics plus an evidence-gap flag.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Outcome {
+    diagnostics: Vec<HirDiagnostic>,
+    gap: bool,
+    rejected: bool,
+}
+
+impl Outcome {
+    fn ok() -> Self {
+        Self {
+            diagnostics: Vec::new(),
+            gap: false,
+            rejected: false,
+        }
+    }
+
+    fn reject(diagnostic: HirDiagnostic) -> Self {
+        Self {
+            diagnostics: vec![diagnostic],
+            gap: false,
+            rejected: true,
+        }
+    }
+
+    fn gap(diagnostic: HirDiagnostic) -> Self {
+        Self {
+            diagnostics: vec![diagnostic],
+            gap: true,
+            rejected: false,
+        }
+    }
+
+    fn merge(self, other: Self) -> Self {
+        Self {
+            diagnostics: self
+                .diagnostics
+                .into_iter()
+                .chain(other.diagnostics)
+                .collect(),
+            gap: self.gap || other.gap,
+            rejected: self.rejected || other.rejected,
+        }
+    }
+
+    fn combine(outcomes: Vec<Self>) -> Self {
+        outcomes.into_iter().fold(Self::ok(), Self::merge)
+    }
+
+    fn check_each<'a, T>(items: &'a [T], check: impl FnMut(&'a T) -> Self) -> Self {
+        items.iter().map(check).fold(Self::ok(), Self::merge)
+    }
+}
+
+/// Read-only classifier context: binding cross-references.
+struct Ctx<'a> {
+    bindings: BTreeMap<(u32, u32, u32), &'a BindingFact>,
+    symbols: BTreeSet<&'a str>,
+}
+
+/// Diagnostic site: exact span plus its source text.
+struct Site {
+    span: ByteSpan,
+    snippet: String,
+}
+
+fn site_of(node: &HirNode) -> Site {
+    Site {
+        span: node.span,
+        snippet: node.snippet.clone(),
+    }
+}
+
+fn diagnostic(capability: &str, construct: &str, site: &Site, reason: &str) -> HirDiagnostic {
+    HirDiagnostic {
+        capability: capability.to_string(),
+        construct: construct.to_string(),
+        span: site.span,
+        snippet: site.snippet.clone(),
+        severity: "error".to_string(),
+        reason: reason.to_string(),
+    }
+}
+
+fn error(capability: &str, construct: &str, node: &HirNode, reason: &str) -> Outcome {
+    Outcome::reject(diagnostic(capability, construct, &site_of(node), reason))
+}
+
+fn evidence_gap(node: &HirNode, what: &str) -> Outcome {
+    Outcome::gap(diagnostic(
+        "rust.scalar-computation",
+        &node.kind,
+        &site_of(node),
+        &format!("Required {what} evidence is unavailable; cannot certify this operation."),
+    ))
+}
+
+/// Normalized primitive token of a resolved type, if admitted.
+fn norm(ty: &ResolvedTy) -> Option<&str> {
+    ty.normalized.as_deref()
+}
+
+/// Normalized primitive token of a node's value type, if present.
+fn node_norm(node: &HirNode) -> Option<&str> {
+    node.ty.as_ref().and_then(norm)
+}
+
+/// Classify one assessed function.
+pub fn classify(facts: &HirFnFacts) -> HirEligibility {
+    let ctx = Ctx {
+        bindings: facts
+            .bindings
+            .iter()
+            .map(|binding| {
+                (
+                    (binding.hir.krate, binding.hir.owner, binding.hir.local),
+                    binding,
+                )
+            })
+            .collect(),
+        symbols: facts
+            .bindings
+            .iter()
+            .map(|binding| binding.symbol.as_str())
+            .collect(),
+    };
+
+    let outcome = Outcome::combine(vec![
+        check_source_scan(facts),
+        check_signature(facts, &ctx),
+        check_bindings(facts, &ctx),
+        check_node(&facts.body, false, &ctx),
+    ]);
+    let status = if outcome.rejected {
+        EligibilityVerdict::Ineligible
+    } else if outcome.gap {
+        EligibilityVerdict::Unknown
+    } else {
+        EligibilityVerdict::Eligible
+    };
+
+    HirEligibility {
+        status,
+        diagnostics: outcome.diagnostics,
+    }
+}
+
+fn check_source_scan(facts: &HirFnFacts) -> Outcome {
+    let source = Outcome {
+        diagnostics: facts.source_diagnostics.clone(),
+        gap: false,
+        rejected: !facts.source_diagnostics.is_empty(),
+    };
+
+    if facts.source_scan_complete {
+        source
+    } else {
+        source.merge(evidence_gap(
+            &facts.body,
+            "complete pre-expansion source and conditional-source resolution",
+        ))
+    }
+}
+
+fn known_str(value: &StringFact) -> Option<&str> {
+    match value.status {
+        FactStatus::Known => value.value.as_deref(),
+        _ => None,
+    }
+}
+
+/// Signature-shape diagnostics anchor on the signature span.
+fn signature_node(signature: &SignatureFacts) -> HirNode {
+    HirNode {
+        hir: crate::frontend::HirRef {
+            krate: 0,
+            owner: 0,
+            local: 0,
+        },
+        kind: "signature".to_string(),
+        span: signature.sig_span,
+        snippet: String::new(),
+        ty: None,
+        res: None,
+        dispatch: None,
+        expansion: None,
+        binding: None,
+        binding_mut: None,
+        lit: None,
+        param_index: None,
+        is_unsafe_block: false,
+        children: Vec::new(),
+    }
+}
+
+fn check_signature(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
+    Outcome::combine(vec![
+        check_sig_subject(&facts.signature),
+        check_sig_header(&facts.signature),
+        check_sig_params(&facts.signature, ctx),
+        check_sig_return(&facts.signature),
+    ])
+}
+
+/// Receiver and generic parameters: rejected with their own spans.
+fn check_sig_subject(signature: &SignatureFacts) -> Outcome {
+    let anchor = signature_node(signature);
+    let receiver = signature.receiver.as_ref().map(|found| {
+        let site = Site {
+            span: found.span,
+            snippet: found.snippet.clone(),
+        };
+
+        Outcome::reject(diagnostic(
+            "rust.scalar-interface",
+            "receiver",
+            &site,
+            "Receiver syntax (self) is outside R0 even for primitive types.",
+        ))
+    });
+    let missing = (signature.has_self && signature.receiver.is_none()).then(|| {
+        error(
+            "rust.scalar-interface",
+            "receiver",
+            &anchor,
+            "Receiver syntax (self) is outside R0 even for primitive types.",
+        )
+    });
+    let generics = signature.generics.iter().map(|generic| {
+        let site = Site {
+            span: generic.span,
+            snippet: generic.name.clone(),
+        };
+
+        Outcome::reject(diagnostic(
+            "rust.additional-types",
+            "generic_parameter",
+            &site,
+            "Function-level generics are deferred, even for scalar bodies.",
+        ))
+    });
+
+    Outcome::combine(
+        receiver
+            .into_iter()
+            .chain(missing)
+            .chain(generics)
+            .collect(),
+    )
+}
+
+/// Calling convention and evaluation context: one normal Rust function.
+fn check_sig_header(signature: &SignatureFacts) -> Outcome {
+    check_sig_abi(signature).merge(check_sig_flags(signature))
+}
+
+fn check_sig_abi(signature: &SignatureFacts) -> Outcome {
+    let anchor = signature_node(signature);
+    let abi = match known_str(&signature.abi) {
+        Some("Rust") => None,
+        Some(_) => Some(error(
+            "rust.additional-types",
+            "abi",
+            &anchor,
+            "Non-Rust ABIs are outside R0.",
+        )),
+        None => Some(Outcome::gap(diagnostic(
+            "rust.additional-types",
+            "abi",
+            &Site {
+                span: signature.sig_span,
+                snippet: String::new(),
+            },
+            "Required ABI evidence is unavailable; cannot certify this operation.",
+        ))),
+    };
+    Outcome::combine(abi.into_iter().collect())
+}
+
+fn check_sig_flags(signature: &SignatureFacts) -> Outcome {
+    let anchor = signature_node(signature);
+    let flags = [
+        (
+            signature.is_variadic,
+            "rust.additional-types",
+            "variadic_signature",
+            "Variadic signatures are outside R0.",
+        ),
+        (
+            signature.is_async,
+            "rust.async",
+            "async_fn",
+            "Async functions are deferred to rust.async.",
+        ),
+        (
+            signature.is_unsafe,
+            "rust.unsafe",
+            "unsafe_fn",
+            "Unsafe functions are deferred to rust.unsafe.",
+        ),
+        (
+            signature.is_const,
+            "rust.additional-types",
+            "const_fn",
+            "Const evaluation context is outside R0.",
+        ),
+    ];
+    let header = flags
+        .into_iter()
+        .filter(|flag| flag.0)
+        .map(|flag| error(flag.1, flag.2, &anchor, flag.3));
+
+    Outcome::combine(header.collect())
+}
+
+fn check_sig_params(signature: &SignatureFacts, ctx: &Ctx<'_>) -> Outcome {
+    Outcome::check_each(&signature.params, |param| check_param(param, ctx))
+}
+
+fn check_sig_return(signature: &SignatureFacts) -> Outcome {
+    match norm(&signature.return_ty) {
+        Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
+        _ => Outcome::reject(diagnostic(
+            "rust.additional-types",
+            "return_type",
+            &Site {
+                span: signature.return_ty_span,
+                snippet: signature.return_ty.spelling.clone(),
+            },
+            "Return type is outside the resolved primitive interface.",
+        )),
+    }
+}
+
+fn check_param(param: &ParamFact, ctx: &Ctx<'_>) -> Outcome {
+    let pat = check_pat_node(&param.pat, ctx);
+    let ty = match norm(&param.ty) {
+        Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
+        _ => Outcome::reject(diagnostic(
+            "rust.additional-types",
+            "parameter_type",
+            &Site {
+                span: param.ty_span,
+                snippet: param.ty.spelling.clone(),
+            },
+            "Parameter type is outside the resolved primitive interface.",
+        )),
+    };
+
+    Outcome::combine(vec![pat, ty])
+}
+
+fn check_bindings(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
+
+    Outcome::check_each(&facts.bindings, |binding| {
+        let duplicate = if seen.insert(binding.symbol.as_str()) {
+            Outcome::ok()
+        } else {
+            Outcome::reject(diagnostic(
+                "rust.local-bindings",
+                "binding",
+                &Site {
+                    span: binding.decl_span,
+                    snippet: binding.name.clone(),
+                },
+                "Duplicate binding symbol; each definition needs its own ID.",
+            ))
+        };
+        let table = if ctx.symbols.contains(binding.symbol.as_str()) {
+            Outcome::ok()
+        } else {
+            evidence_gap(&binding_node(binding), "binding table entry")
+        };
+        let ty = match norm(&binding.ty) {
+            Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
+            // Parameter interface types are diagnosed at the signature;
+            // the table keeps the entry so reads still resolve.
+            _ if binding.is_param => Outcome::ok(),
+            _ => Outcome::reject(diagnostic(
+                "rust.additional-types",
+                "binding_type",
+                &Site {
+                    span: binding.decl_span,
+                    snippet: binding.name.clone(),
+                },
+                "Binding type is outside the resolved primitive interface.",
+            )),
+        };
+
+        Outcome::combine(vec![duplicate, table, ty])
+    })
+}
+
+fn binding_node(binding: &BindingFact) -> HirNode {
+    HirNode {
+        hir: binding.hir.clone(),
+        kind: "binding".to_string(),
+        span: binding.decl_span,
+        snippet: binding.name.clone(),
+        ty: None,
+        res: None,
+        dispatch: None,
+        expansion: None,
+        binding: None,
+        binding_mut: None,
+        lit: None,
+        param_index: None,
+        is_unsafe_block: false,
+        children: Vec::new(),
+    }
+}
+
+/// Check one construct; expanded subtrees report once at the outermost site.
+/// Closures own their bodies separately, so their subtrees are excluded too.
+fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if !in_expansion && let Some(site) = &node.expansion {
+        return macro_diagnostic(node, site);
+    }
+
+    let own = check_kind(node, ctx);
+
+    if node.kind == "expr_closure" || node.kind == "stmt_item" {
+        return own;
+    }
+
+    let inner = in_expansion || node.expansion.is_some();
+    let children = Outcome::combine(
+        node.children
+            .iter()
+            .map(|child| check_node(child, inner, ctx))
+            .collect(),
+    );
+
+    own.merge(children)
+}
+
+fn macro_diagnostic(node: &HirNode, site: &ExpansionSite) -> Outcome {
+    Outcome::reject(diagnostic(
+        "rust.macros",
+        &node.kind,
+        &Site {
+            span: site.callsite,
+            snippet: site.snippet.clone(),
+        },
+        "Macro invocations are deferred; expansion cannot erase the source construct.",
+    ))
+}
+
+fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if node.kind.starts_with("pat_") {
+        return check_pat_node(node, ctx);
+    }
+
+    if node.kind.starts_with("ty_") {
+        return check_ty_node(node);
+    }
+
+    match node.kind.as_str() {
+        "expr_block" | "stmt_expr" | "stmt_semi" | "stmt_let" | "expr_path" | "expr_lit"
+        | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_assign_op"
+        | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
+        _ => check_deferred(node),
+    }
+}
+
+/// Constructs that may be admitted once their evidence checks pass.
+fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match node.kind.as_str() {
+        "expr_block" => check_block(node),
+        "stmt_expr" | "stmt_semi" => Outcome::ok(),
+        "stmt_let" => check_let(node, ctx),
+        "expr_path" => check_path(node, ctx),
+        "expr_lit" => check_expr_ty(node, "literal"),
+        "expr_tup" => check_tup(node),
+        "expr_binary" => check_binary(node),
+        "expr_unary" => check_unary(node),
+        "expr_assign" => check_assign(node, ctx),
+        "expr_assign_op" => check_assign_op(node, ctx),
+        "expr_if" => check_if(node),
+        "expr_ret" => check_expr_ty(node, "return"),
+        // The `if` arm owns the `if let` rejection; the wrapper stays quiet so
+        // one condition yields one diagnostic while its scrutinee still scans.
+        "expr_let" => Outcome::ok(),
+        _ => evidence_gap(node, "supported-kind dispatch"),
+    }
+}
+
+/// Deferred constructs: each maps to its stable capability ID.
+fn check_deferred(node: &HirNode) -> Outcome {
+    match node.kind.as_str() {
+        "stmt_item" => error(
+            "rust.blocks",
+            "nested_item",
+            node,
+            "Nested items are unsupported in R0; reject at declaration without incorporating the separately owned body.",
+        ),
+        "expr_call" | "expr_method_call" => error(
+            "rust.call-summaries",
+            "call",
+            node,
+            "Arbitrary calls are unsupported even with known signature or presumed purity.",
+        ),
+        _ => check_deferred_expression(node),
+    }
+}
+
+fn check_deferred_expression(node: &HirNode) -> Outcome {
+    match node.kind.as_str() {
+        "expr_field" | "expr_index" | "expr_addr_of" => error(
+            "rust.abstract-memory",
+            node.kind.as_str(),
+            node,
+            "Field, index, and borrow operations are deferred to abstract memory.",
+        ),
+        "expr_cast" => error(
+            "rust.additional-types",
+            "cast",
+            node,
+            "Cast expressions are deferred in R0, including built-in `as` casts.",
+        ),
+        "expr_loop" | "expr_while" | "expr_break" | "expr_continue" => error(
+            "rust.loops",
+            node.kind.as_str(),
+            node,
+            "Loops are deferred to rust.loops.",
+        ),
+        "expr_match" => error(
+            "rust.match",
+            "match",
+            node,
+            "Match is deferred to rust.match.",
+        ),
+        _ => check_deferred_owned_body(node),
+    }
+}
+
+fn check_deferred_owned_body(node: &HirNode) -> Outcome {
+    match node.kind.as_str() {
+        "expr_closure" => error(
+            "rust.closures",
+            "closure",
+            node,
+            "Closures are deferred; their separately owned body is excluded.",
+        ),
+        "expr_yield" => error(
+            "rust.async",
+            "yield",
+            node,
+            "Async constructs are deferred.",
+        ),
+        "expr_const_block" => error(
+            "rust.additional-types",
+            "const_block",
+            node,
+            "Const blocks are outside R0.",
+        ),
+        "expr_struct" | "expr_array" | "expr_repeat" => error(
+            "rust.additional-types",
+            node.kind.as_str(),
+            node,
+            "Composite construction is outside the scalar interface.",
+        ),
+        "expr_err" => evidence_gap(node, "typeck error recovery"),
+        _ => error(
+            "rust.additional-types",
+            node.kind.as_str(),
+            node,
+            "Construct is outside the R0 closed subset.",
+        ),
+    }
+}
+
+/// Pattern nodes are leaves: the outermost shape decides, children excluded.
+fn check_pat_node(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match node.kind.as_str() {
+        "pat_binding" => match &node.binding {
+            Some(symbol) if ctx.symbols.contains(symbol.as_str()) => Outcome::ok(),
+            _ => evidence_gap(node, "binding definition"),
+        },
+        "pat_wild" => error(
+            "rust.scalar-interface",
+            "wildcard_pattern",
+            node,
+            "R0 requires a named single binding for each parameter; no fabricated symbol for wildcard.",
+        ),
+        _ => error(
+            "rust.scalar-interface",
+            node.kind.as_str(),
+            node,
+            "Only a single identifier, optionally `mut`, is an accepted binding pattern.",
+        ),
+    }
+}
+
+fn check_ty_node(node: &HirNode) -> Outcome {
+    check_scalar_type(node, "annotation_type", "annotation type")
+}
+
+/// Every retained expression must carry a resolved primitive value type.
+fn check_expr_ty(node: &HirNode, what: &str) -> Outcome {
+    if matches!(node.kind.as_str(), "expr_block" | "expr_if")
+        && node.ty.as_ref().is_some_and(|ty| ty.observed == "!")
+    {
+        return Outcome::ok();
+    }
+
+    check_scalar_type(node, what, "expression type")
+}
+
+fn check_scalar_type(node: &HirNode, construct: &str, evidence: &str) -> Outcome {
+    match node_norm(node) {
+        Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
+        Some(_) => error(
+            "rust.additional-types",
+            construct,
+            node,
+            "Type is outside the resolved primitive interface.",
+        ),
+        None if node.ty.is_none() => evidence_gap(node, evidence),
+        None => error(
+            "rust.additional-types",
+            construct,
+            node,
+            "Compiler-resolved value type is outside the primitive R0 subset.",
+        ),
+    }
+}
+
+fn check_block(node: &HirNode) -> Outcome {
+    if node.is_unsafe_block {
+        return error(
+            "rust.unsafe",
+            "unsafe_block",
+            node,
+            "Unsafe blocks are deferred to rust.unsafe.",
+        );
+    }
+
+    check_expr_ty(node, "block")
+}
+
+fn check_tup(node: &HirNode) -> Outcome {
+    if !node.children.is_empty() {
+        return error(
+            "rust.additional-types",
+            "tuple",
+            node,
+            "Only the empty unit tuple is admitted; tuples are composite types.",
+        );
+    }
+
+    check_expr_ty(node, "unit")
+}
+
+fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let resolution = match &node.res {
+        None => return evidence_gap(node, "path resolution"),
+        Some(res) => res,
+    };
+
+    if resolution.kind != "local" {
+        return error(
+            "rust.additional-types",
+            "non_binding_path",
+            node,
+            "Only lexical binding reads are admitted; items and constants are outside R0.",
+        );
+    }
+
+    match &resolution.target {
+        Some(target)
+            if ctx
+                .bindings
+                .contains_key(&(target.krate, target.owner, target.local)) =>
+        {
+            check_expr_ty(node, "read")
+        }
+        _ => evidence_gap(node, "binding target"),
+    }
+}
+
+fn builtin_or_reject(node: &HirNode, what: &str) -> Outcome {
+    match &node.dispatch {
+        None => evidence_gap(node, "operator dispatch"),
+        Some(dispatch) if dispatch.kind == "builtin" => Outcome::ok(),
+        Some(_) => error(
+            "rust.scalar-computation",
+            what,
+            node,
+            "Overloaded operators are not admitted; built-in dispatch must be evidenced.",
+        ),
+    }
+}
+
+fn check_binary(node: &HirNode) -> Outcome {
+    let dispatch = builtin_or_reject(node, "binary");
+    if !dispatch.diagnostics.is_empty() || dispatch.gap {
+        return dispatch;
+    }
+
+    let dispatch = node.dispatch.clone().expect("dispatch evidenced");
+    let operands: Vec<&str> = dispatch.operand_tys.iter().map(String::as_str).collect();
+    let [left, right] = operands.as_slice() else {
+        return evidence_gap(node, "binary operand types");
+    };
+
+    if *left == "unit" || *right == "unit" {
+        return unit_comparison(node, &dispatch.op);
+    }
+
+    if !operands_supported(&dispatch.op, left, right) {
+        return error(
+            "rust.additional-types",
+            "binary",
+            node,
+            "Operand types are outside the admitted built-in combinations.",
+        );
+    }
+
+    check_expr_ty(node, "binary")
+}
+
+/// Unit comparisons use library traits, not built-in scalar operations.
+fn unit_comparison(node: &HirNode, op: &str) -> Outcome {
+    if COMPARISONS.contains(&op) {
+        return error(
+            "rust.scalar-computation",
+            "unit_comparison",
+            node,
+            "Unit equality uses the standard-library PartialEq implementation, not an admitted built-in integer/boolean comparison; the unit-comparison exception is deferred and unimplemented.",
+        );
+    }
+
+    error(
+        "rust.additional-types",
+        "unit_operation",
+        node,
+        "Unit-typed operands are outside the admitted built-in combinations.",
+    )
+}
+
+fn operands_supported(op: &str, left: &str, right: &str) -> bool {
+    if is_int(left) && is_int(right) {
+        return INT_OPS.contains(&op);
+    }
+
+    if left == "bool" && right == "bool" {
+        return BOOL_EAGER_OPS.contains(&op) || op == "&&" || op == "||";
+    }
+
+    false
+}
+
+fn is_int(ty: &str) -> bool {
+    SIGNED_INTS.contains(&ty) || UNSIGNED_INTS.contains(&ty)
+}
+
+fn check_unary(node: &HirNode) -> Outcome {
+    let dispatch = builtin_or_reject(node, "unary");
+    if !dispatch.diagnostics.is_empty() || dispatch.gap {
+        return dispatch;
+    }
+
+    let dispatch = node.dispatch.clone().expect("dispatch evidenced");
+    let operands: Vec<&str> = dispatch.operand_tys.iter().map(String::as_str).collect();
+    let [operand] = operands.as_slice() else {
+        return evidence_gap(node, "unary operand type");
+    };
+
+    match dispatch.op.as_str() {
+        "*" => error(
+            "rust.abstract-memory",
+            "deref",
+            node,
+            "Explicit dereference is outside R0.",
+        ),
+        "!" if *operand == "bool" || is_int(operand) => check_expr_ty(node, "unary"),
+        "-" if SIGNED_INTS.contains(operand) => check_expr_ty(node, "unary"),
+        _ => error(
+            "rust.additional-types",
+            "unary",
+            node,
+            "Unary operator is outside the admitted built-in combinations.",
+        ),
+    }
+}
+
+/// Direct assignment target must be a lexical binding path (never a read).
+fn check_assign(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let [target, _value] = node.children.as_slice() else {
+        return evidence_gap(node, "assignment shape");
+    };
+
+    if target.kind != "expr_path" {
+        return error(
+            "rust.abstract-memory",
+            "indirect_write",
+            node,
+            "Indirect and memory-backed writes are deferred to abstract memory.",
+        );
+    }
+
+    let target_check = check_path(target, ctx);
+    if !target_check.diagnostics.is_empty() || target_check.gap {
+        return target_check;
+    }
+
+    check_expr_ty(node, "assignment")
+}
+
+fn check_assign_op(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let dispatch = builtin_or_reject(node, "compound_assignment");
+    if !dispatch.diagnostics.is_empty() || dispatch.gap {
+        return dispatch;
+    }
+
+    let dispatch = node.dispatch.clone().expect("dispatch evidenced");
+    if !COMPOUND_OPS.contains(&dispatch.op.as_str()) {
+        return error(
+            "rust.additional-types",
+            "compound_assignment",
+            node,
+            "Compound operator is outside the admitted set.",
+        );
+    }
+
+    let [target, _rhs] = node.children.as_slice() else {
+        return evidence_gap(node, "compound shape");
+    };
+
+    if target.kind != "expr_path" {
+        return error(
+            "rust.abstract-memory",
+            "indirect_write",
+            node,
+            "Indirect and memory-backed writes are deferred to abstract memory.",
+        );
+    }
+
+    let target_check = check_path(target, ctx);
+    if !target_check.diagnostics.is_empty() || target_check.gap {
+        return target_check;
+    }
+
+    check_expr_ty(node, "compound_assignment")
+}
+
+fn check_if(node: &HirNode) -> Outcome {
+    let [cond, ..] = node.children.as_slice() else {
+        return evidence_gap(node, "branch shape");
+    };
+
+    if cond.kind == "expr_let" {
+        return error(
+            "rust.branching",
+            "let_condition",
+            cond,
+            "`if let` and let chains are rejected in R0.",
+        );
+    }
+
+    match node_norm(cond) {
+        Some("bool") => check_expr_ty(node, "if"),
+        Some(_) => error(
+            "rust.additional-types",
+            "condition",
+            cond,
+            "Branch conditions must resolve to `bool`.",
+        ),
+        None => evidence_gap(cond, "condition type"),
+    }
+}
+
+fn check_let(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let pats = node
+        .children
+        .iter()
+        .filter(|child| child.kind.starts_with("pat_"));
+    let anns = node
+        .children
+        .iter()
+        .filter(|child| child.kind.starts_with("ty_"));
+    let elses = node
+        .children
+        .iter()
+        .filter(|child| child.kind == "let_else");
+    let pat = pats.map(|pat| check_pat_node(pat, ctx)).collect();
+    let ann = anns.map(check_ty_node).collect();
+    let els = elses
+        .map(|found| {
+            error(
+                "rust.local-bindings",
+                "let_else",
+                found,
+                "`let else` is rejected in R0.",
+            )
+        })
+        .collect();
+    let shape = shape_outcome(node);
+
+    Outcome::combine(vec![
+        Outcome::combine(pat),
+        Outcome::combine(ann),
+        Outcome::combine(els),
+        shape,
+    ])
+}
+
+/// A declaration needs its pattern and a single initializer value.
+fn shape_outcome(node: &HirNode) -> Outcome {
+    let pats = node
+        .children
+        .iter()
+        .filter(|child| child.kind.starts_with("pat_"))
+        .count();
+    let values = node
+        .children
+        .iter()
+        .filter(|child| {
+            !child.kind.starts_with("pat_")
+                && !child.kind.starts_with("ty_")
+                && child.kind != "let_else"
+        })
+        .count();
+
+    if pats == 0 {
+        return evidence_gap(node, "declaration pattern");
+    }
+
+    if values == 0 {
+        return error(
+            "rust.local-bindings",
+            "uninitialized_declaration",
+            node,
+            "Uninitialized declarations are rejected in R0.",
+        );
+    }
+
+    Outcome::ok()
+}
+
+/// Function-relative span constructor for tests and signature facts.
+pub fn span(start: u32, end: u32) -> ByteSpan {
+    ByteSpan { start, end }
+}

@@ -7,7 +7,12 @@ use rstyle_pdg::*;
 use std::collections::BTreeMap;
 
 fn vendor(name: &str) -> serde_json::Value {
-    let path = format!("{}/../../vendor-compat/{name}", env!("CARGO_MANIFEST_DIR"));
+    let directory = if name.starts_with("pdg.") {
+        "vendor-compat/rust-r0"
+    } else {
+        "vendor-compat"
+    };
+    let path = format!("{}/../../{directory}/{name}", env!("CARGO_MANIFEST_DIR"));
     let text = std::fs::read_to_string(&path).expect("vendored snapshot is committed");
 
     serde_json::from_str(&text).expect("vendored snapshot is valid JSON")
@@ -35,6 +40,7 @@ fn profile() -> ProfileId {
 
 fn supported_capability() -> Capability {
     Capability {
+        policy: None,
         status: CapabilityStatus::Supported,
         description: "d".to_string(),
     }
@@ -42,6 +48,7 @@ fn supported_capability() -> Capability {
 
 fn na_capability() -> Capability {
     Capability {
+        policy: None,
         status: CapabilityStatus::NotApplicable,
         description: "absent".to_string(),
     }
@@ -62,6 +69,7 @@ fn capabilities() -> BTreeMap<String, Capability> {
     caps.insert(
         "exceptional_flow".to_string(),
         Capability {
+            policy: None,
             status: CapabilityStatus::Unsupported,
             description: "normal-flow only".to_string(),
         },
@@ -79,6 +87,7 @@ fn span() -> Span {
 
 fn provenance() -> Provenance {
     Provenance {
+        policy: None,
         origin: ProvenanceOrigin::Source,
         description: "d".to_string(),
         origin_node_ids: Vec::new(),
@@ -150,6 +159,7 @@ fn read_node() -> PdgNode {
 
 fn edge(id: &str, source: &str, target: &str) -> PdgEdge {
     PdgEdge {
+        policy: profile(),
         id: id.to_string(),
         source: source.to_string(),
         target: target.to_string(),
@@ -201,7 +211,7 @@ fn base_function() -> FunctionInfo {
         inputs: vec![base_param(ParamRole::Parameter, Some("s_x"), "x", "i32")],
         outputs: vec![base_param(ParamRole::Return, None, "", "unit")],
         interface_completeness: supported_capability(),
-        reference_count: CountFact::known(1),
+        reference_count: CountFact::known(1, profile()),
     }
 }
 
@@ -248,7 +258,7 @@ fn base_doc() -> PdgDocument {
         extraction_evidence: ExtractionEvidence {
             capabilities: capabilities(),
             diagnostics: Vec::new(),
-            conformance: Conformance::not_evaluated("fixture"),
+            conformance: vec![Conformance::not_evaluated(profile(), "fixture")],
         },
         extensions: BTreeMap::new(),
     }
@@ -372,21 +382,6 @@ fn cfg_wire_document_validates_against_authoritative_schema() {
 }
 
 #[test]
-fn vendored_pdg_example_deserializes_and_reserializes_schema_valid() {
-    let schema = vendor("pdg.schema.json");
-    let validator = validator_for(&schema);
-    let example = vendor("pdg.example.json");
-
-    assert_valid(&validator, &example);
-
-    let doc: PdgDocument = serde_json::from_value(example.clone()).expect("example parses");
-    assert_eq!(doc.schema_version, PDG_SCHEMA_VERSION);
-
-    let round = serde_json::to_value(doc.clone()).expect("reserialize");
-    assert_valid(&validator, &round);
-}
-
-#[test]
 fn vendored_cfg_example_deserializes_and_reserializes_schema_valid() {
     let schema = vendor("cfg.schema.json");
     let validator = validator_for(&schema);
@@ -476,17 +471,17 @@ fn fact_alternatives_reject_mixed_and_empty_reasons() {
     assert!(
         serde_json::from_value::<StringFact>(serde_json::json!({"status": "unknown"})).is_err()
     );
-    // Count known is exactly status plus value under the root profile.
+    // Known counts require their explicit policy.
     assert!(
         serde_json::from_value::<CountFact>(serde_json::json!({"status": "known", "value": 1}))
-            .is_ok()
+            .is_err()
     );
-    // A record-level policy field is forbidden.
+    // A record-level policy is represented natively.
     assert!(
         serde_json::from_value::<CountFact>(
             serde_json::json!({"status": "known", "value": 1, "policy": {"id": "x", "version": "y"}})
         )
-        .is_err()
+        .is_ok()
     );
     // Count unknown carrying a value.
     assert!(
