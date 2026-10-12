@@ -40,3 +40,6 @@ CODENET_PLAN.md
 HANDOFF.md
 Project_CodeNet/
 Project_CodeNet.tar.gz
+
+# Raw CCGraph study reports/evidence retained locally with committed identities.
+eval/ccgraph-v1/artifacts/
