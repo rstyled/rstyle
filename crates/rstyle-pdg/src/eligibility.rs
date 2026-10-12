@@ -106,7 +106,6 @@ impl Outcome {
 #[derive(Clone)]
 struct Ctx<'a> {
     loops: Vec<crate::HirRef>,
-    facts: &'a HirFnFacts,
     profile: crate::extraction_profile::ExtractionProfile,
     bindings: BTreeMap<(u32, u32, u32), &'a BindingFact>,
     symbols: BTreeSet<&'a str>,
@@ -200,7 +199,6 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
 
 fn context(facts: &HirFnFacts, profile: crate::extraction_profile::ExtractionProfile) -> Ctx<'_> {
     Ctx {
-        facts,
         loops: Vec::new(),
         profile,
         bindings: facts
@@ -561,7 +559,7 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 
     match node.kind.as_str() {
         "expr_method_call" if ctx.profile.supports("rust.verified-primitive-summaries") => {
-            if crate::call_summaries::resolve(node, ctx.facts).is_some() {
+            if crate::call_summaries::resolve(node).is_some() {
                 Outcome::ok()
             } else {
                 error(

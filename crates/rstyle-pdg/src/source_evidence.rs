@@ -237,7 +237,7 @@ pub fn diagnostics(facts: &HirFnFacts) -> Vec<crate::HirDiagnostic> {
     };
     inventory.entries.into_iter().filter_map(|entry| {
         if entry.kind == "expr_method_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-primitive-summaries"))
-            && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir, facts)) { return None; }
+            && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir)) { return None; }
         let capability = match entry.kind.as_str() {
             "expr_call" | "expr_method_call" => "rust.call-summaries",
             "source_macro" => "rust.macros",
@@ -307,10 +307,10 @@ impl<'ast> Visit<'ast> for Definitions<'_> {
     }
 }
 
-fn resolved_summary(node: &HirNode, hir: &HirRef, facts: &HirFnFacts) -> bool {
-    (node.hir == *hir && crate::call_summaries::resolve(node, facts).is_some())
+fn resolved_summary(node: &HirNode, hir: &HirRef) -> bool {
+    (node.hir == *hir && crate::call_summaries::resolve(node).is_some())
         || node
             .children
             .iter()
-            .any(|child| resolved_summary(child, hir, facts))
+            .any(|child| resolved_summary(child, hir))
 }

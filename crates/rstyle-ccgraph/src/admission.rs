@@ -237,17 +237,9 @@ fn local_context(pdg: &PdgDocument) -> Result<Option<String>, Vec<String>> {
         .get("captured_build")
         .ok_or_else(|| vec!["Missing local captured build".into()])?;
     let mut settings = BTreeMap::new();
-    for key in [
-        "rustc_commit",
-        "edition",
-        "target_triple",
-        "data_layout",
-        "pointer_width",
-        "overflow_checks",
-        "debug_assertions",
-        "panic_strategy",
-        "opt_level",
-    ] {
+    // Captured compiler/target identities remain diagnostic metadata. Native
+    // widths are checked separately only when the function uses native types.
+    for key in ["overflow_checks", "debug_assertions", "panic_strategy"] {
         settings.insert(
             key,
             build

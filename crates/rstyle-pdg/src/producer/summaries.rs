@@ -53,8 +53,7 @@ impl SummaryCapture<'_> {
         let [operation] = operations.as_slice() else {
             return Err("Ambiguous or missing call source/HIR correspondence".into());
         };
-        let summary = call_summaries::resolve(node, self.facts)
-            .ok_or("Missing verified primitive summary")?;
+        let summary = call_summaries::resolve(node).ok_or("Missing verified primitive summary")?;
 
         serde_json::to_value(SummaryRecord {
             pdg_node_id: &operation.id,

@@ -1838,18 +1838,13 @@ fn primitive_summaries_fail_closed_on_neighbors_and_callee_or_build_tampering() 
 }
 
 #[test]
-fn primitive_summaries_reject_tampered_build_callee_and_registry() {
+fn primitive_summaries_require_resolved_callee_types_and_registered_semantics() {
     let facts =
         compile_selected("fn f(x: i32) -> u32 { x.unsigned_abs() }", "hir-calls-v1").remove(0);
-    for mutation in 0..4 {
+    for mutation in 0..2 {
         let mut changed = facts.clone();
         match mutation {
-            0 => changed.build.rustc_commit = rstyle_pdg::StringFact::known("wrong"),
-            1 => {
-                changed.build.target_triple =
-                    rstyle_pdg::StringFact::known("x86_64-unknown-linux-gnu")
-            }
-            2 => change_call_provenance(&mut changed.body),
+            0 => change_call_provenance(&mut changed.body),
             _ => change_call_result_type(&mut changed.body),
         }
         assert_eq!(
@@ -1858,13 +1853,7 @@ fn primitive_summaries_reject_tampered_build_callee_and_registry() {
             "mutation {mutation}"
         );
     }
-    for field in [
-        "version",
-        "memory_effects",
-        "may_panic",
-        "source_sha256",
-        "always_returns",
-    ] {
+    for field in ["version", "memory_effects", "may_panic", "always_returns"] {
         let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
         pair.pdg
             .extensions
@@ -2191,7 +2180,7 @@ fn assert_primitive_summary_inventory(pair: &rstyle_pdg::producer::Pair) {
 }
 
 #[test]
-fn primitive_summaries_pin_sources_and_accept_both_overflow_settings() {
+fn primitive_summary_reference_sources_and_both_overflow_settings() {
     use sha2::{Digest, Sha256};
     let output = Command::new("rustc")
         .args(["--print", "sysroot"])
@@ -2199,17 +2188,23 @@ fn primitive_summaries_pin_sources_and_accept_both_overflow_settings() {
         .unwrap();
     assert!(output.status.success());
     let sysroot = PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
-    for summary in rstyle_pdg::call_summaries::registry() {
+    let reference: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        "../../../docs/extraction-profiles/primitive-summary-reference-provenance.json"
+    ))
+    .unwrap();
+    for summary in reference {
         let source = std::fs::read(
             sysroot
                 .join("lib/rustlib/src/rust")
-                .join(&summary.source_path),
+                .join(summary["source_path"].as_str().unwrap()),
         )
         .unwrap();
         assert_eq!(
             format!("{:x}", Sha256::digest(source)),
-            summary.source_sha256
+            summary["source_sha256"].as_str().unwrap()
         );
+    }
+    for summary in rstyle_pdg::call_summaries::registry() {
         assert!(!summary.memory_effects && !summary.mutates_arguments && !summary.may_panic);
         assert!(summary.always_returns);
     }
@@ -2261,6 +2256,64 @@ fn expanded_pair_compatibility_rejects_mixed_profiles_and_build_settings() {
             rstyle_ccgraph::StageOutcome::Ineligible { .. }
         ));
     }
+}
+
+#[test]
+fn primitive_graphs_compare_across_diagnostic_provenance() {
+    let source = "fn f(x: i32, y: u32) -> u32 { x.unsigned_abs().wrapping_mul(y) }";
+    let original = compile_selected(source, "hir-calls-v1").remove(0);
+    // Model a second capture's diagnostic identities; this is not a cross-target run.
+    let mut changed = original.clone();
+    changed.build.rustc_commit = rstyle_pdg::StringFact::known("different-compiler");
+    changed.build.target_triple = rstyle_pdg::StringFact::known("different-target");
+    changed.build.data_layout = rstyle_pdg::StringFact::known("different-layout");
+    change_callee_diagnostics(&mut changed.body);
+    let first = rstyle_pdg::producer::produce(&original).unwrap();
+    let second = rstyle_pdg::producer::produce(&changed).unwrap();
+    assert_eq!(first.pdg.nodes, second.pdg.nodes);
+    assert_eq!(first.pdg.edges, second.pdg.edges);
+    assert_ne!(
+        first.pdg.producer.configuration,
+        second.pdg.producer.configuration
+    );
+    assert_semantic_pair_compares(&original, &changed);
+}
+
+fn change_callee_diagnostics(node: &mut rstyle_pdg::HirNode) {
+    if node.kind == "expr_method_call" {
+        let resolution = node.res.as_mut().unwrap();
+        let mut callee: serde_json::Value = serde_json::from_str(&resolution.description).unwrap();
+        callee["crate_hash"] = serde_json::json!("different-core");
+        callee["definition_hash"] = serde_json::json!("different-definition");
+        resolution.description = callee.to_string();
+    }
+    for child in &mut node.children {
+        change_callee_diagnostics(child);
+    }
+}
+
+fn assert_semantic_pair_compares(first: &HirFnFacts, second: &HirFnFacts) {
+    let mut functions = [first, second].map(|facts| {
+        let pair = rstyle_pdg::producer::produce(facts).unwrap();
+        rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), facts).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, facts).unwrap()
+    });
+    functions[0].key = "first".into();
+    functions[1].key = "second".into();
+    let report =
+        rstyle_ccgraph::evaluate_all(&functions, &rstyle_ccgraph::CcgraphConfig::default());
+    assert_eq!(report.pairs.len(), 1);
+    assert_eq!(report.pairs[0].decision, rstyle_ccgraph::Decision::Accepted);
+}
+
+#[test]
+fn primitive_graphs_compare_across_real_optimization_settings() {
+    let source = "fn f(x: i32, y: u32) -> u32 { x.unsigned_abs().wrapping_mul(y) }";
+    let first = compile_selected(source, "hir-calls-v1").remove(0);
+    let second =
+        compile_selected_settings(source, "hir-calls-v1", &["-C", "opt-level=2"]).remove(0);
+    assert_ne!(first.build.opt_level, second.build.opt_level);
+    assert_semantic_pair_compares(&first, &second);
 }
 
 #[test]
