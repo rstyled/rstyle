@@ -1599,18 +1599,7 @@ fn clones_const_expansion_is_explicit_and_inherited_selection_cannot_activate_it
     );
     assert_eq!(expanded["matching"]["pairs"].as_array().unwrap().len(), 1);
     assert_eq!(expanded["matching"]["pairs"][0]["displayed_score"], "1");
-    let inherited = Command::new(cargo_bin("cargo-rstyle"))
-        .args(["clones", "--format", "json"])
-        .current_dir(directory.path())
-        .env("RSTYLE_DRIVER", driver())
-        .env("RSTYLE_HIR_EXTRACTION_PROFILE", "hir-const-v1")
-        .env_remove("CARGO_TARGET_DIR")
-        .output()
-        .unwrap();
-    assert!(inherited.status.success());
-    let inherited: Value = serde_json::from_slice(&inherited.stdout).unwrap();
-    assert_eq!(inherited["extraction_policy"]["id"], "compat.rust.hir-r0");
-    assert_eq!(inherited["matching"]["pairs"].as_array().unwrap().len(), 0);
+    assert_inherited_const_selection_is_ignored(directory.path());
 }
 
 #[test]
@@ -1732,20 +1721,7 @@ fn clones_conditional_profile_records_active_resolution_and_removed_unknowns() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(
-        inactive["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|f| f["facts"]["name"] == "f" && f["outcome"] == "unknown")
-    );
-    assert!(
-        !inactive["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|f| f["facts"]["name"] == "present")
-    );
+    assert_conditional_removed_unknowns(&inactive);
     let (output, active) = clones(
         directory.path(),
         &[
@@ -1872,5 +1848,37 @@ fn clones_named_primitive_summaries_cross_real_capture_and_preserve_r0_exclusion
             .unwrap()
             .iter()
             .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+fn assert_inherited_const_selection_is_ignored(directory: &std::path::Path) {
+    let inherited = Command::new(cargo_bin("cargo-rstyle"))
+        .args(["clones", "--format", "json"])
+        .current_dir(directory)
+        .env("RSTYLE_DRIVER", driver())
+        .env("RSTYLE_HIR_EXTRACTION_PROFILE", "hir-const-v1")
+        .env_remove("CARGO_TARGET_DIR")
+        .output()
+        .unwrap();
+    assert!(inherited.status.success());
+    let inherited: Value = serde_json::from_slice(&inherited.stdout).unwrap();
+    assert_eq!(inherited["extraction_policy"]["id"], "compat.rust.hir-r0");
+    assert_eq!(inherited["matching"]["pairs"].as_array().unwrap().len(), 0);
+}
+
+fn assert_conditional_removed_unknowns(inactive: &Value) {
+    assert!(
+        inactive["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "f" && f["outcome"] == "unknown")
+    );
+    assert!(
+        !inactive["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["facts"]["name"] == "present")
     );
 }

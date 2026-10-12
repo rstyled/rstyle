@@ -1068,11 +1068,16 @@ fn name_feature_preserves_the_original_unicode_identifier_token() {
 }
 
 fn compile_selected(source: &str, profile: &str) -> Vec<HirFnFacts> {
+    compile_selected_settings(source, profile, &[])
+}
+
+fn compile_selected_settings(source: &str, profile: &str, settings: &[&str]) -> Vec<HirFnFacts> {
     let directory = directory();
     let input = directory.join("input.rs");
     let facts = directory.join("facts.json");
     std::fs::write(&input, source).unwrap();
     let output = invocation(&input, &facts)
+        .args(settings)
         .env("RSTYLE_HIR_EXTRACTION_PROFILE", profile)
         .output()
         .unwrap();
@@ -1104,36 +1109,7 @@ fn local_const_profile_preserves_body_operations_and_const_evidence() {
         assert_eq!(qualified.source.bytes, qualified_source);
         assert_eq!(qualified.fn_span.start, 0);
         assert_eq!(qualified.fn_span.end as usize, qualified_source.len());
-        let ordinary_graph = rstyle_pdg::producer::lower(&ordinary).unwrap();
-        let qualified_graph = rstyle_pdg::producer::lower(&qualified).unwrap();
-        assert_eq!(ordinary_graph.transfers, qualified_graph.transfers);
-        assert_eq!(
-            ordinary_graph.value_sites.len(),
-            qualified_graph.value_sites.len()
-        );
-        let semantic = |g: &rstyle_pdg::producer::Graph| {
-            g.nodes
-                .iter()
-                .map(|n| {
-                    (
-                        n.category,
-                        n.original_kind.clone(),
-                        n.ty.clone(),
-                        n.operator.clone(),
-                        n.operands.clone(),
-                    )
-                })
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(semantic(&ordinary_graph), semantic(&qualified_graph));
-        assert_eq!(
-            rstyle_pdg::producer::analyze(&ordinary_graph)
-                .unwrap()
-                .edges,
-            rstyle_pdg::producer::analyze(&qualified_graph)
-                .unwrap()
-                .edges
-        );
+        assert_const_graph_equivalence(&ordinary, &qualified);
         let pair = rstyle_pdg::producer::produce(&qualified).unwrap();
         assert_eq!(pair.pdg.profile.id, "rstyle.rust.hir-coverage");
         let serialized = pair.serialize().unwrap();
@@ -1142,23 +1118,7 @@ fn local_const_profile_preserves_body_operations_and_const_evidence() {
         let mut changed = qualified.clone();
         changed.signature.is_const = false;
         assert!(rstyle_pdg::producer::verify_serialized(&serialized, &changed).is_err());
-        for (schema, document) in [
-            (
-                include_str!("../../../vendor-compat/rust-r0/pdg.schema.json"),
-                serde_json::to_value(&pair.pdg).unwrap(),
-            ),
-            (
-                include_str!("../../../vendor-compat/rust-r0/cfg.schema.json"),
-                serde_json::to_value(&pair.cfg).unwrap(),
-            ),
-        ] {
-            let schema = serde_json::from_str(schema).unwrap();
-            assert!(
-                jsonschema::validator_for(&schema)
-                    .unwrap()
-                    .is_valid(&document)
-            );
-        }
+        assert_local_wire_schema(&pair);
     }
 }
 
@@ -1272,48 +1232,7 @@ fn integer_cast_inventory_and_dependencies_cover_all_scalar_widths() {
     let facts = compile_selected(&source, "hir-casts-v1");
     for (name, input, result) in expected {
         let function = facts.iter().find(|f| f.name == name).unwrap();
-        let graph = rstyle_pdg::producer::lower(function).unwrap();
-        assert_eq!(graph.nodes.len(), 4);
-        assert_eq!(
-            graph
-                .nodes
-                .iter()
-                .map(|n| n.original_kind.as_str())
-                .collect::<Vec<_>>(),
-            ["pat_binding", "expr_path", "expr_cast", "expr_cast"]
-        );
-        assert_eq!(graph.nodes[1].ty, input);
-        assert_eq!(graph.nodes[2].ty, result);
-        assert_eq!(graph.nodes[2].operator.as_deref(), Some("as"));
-        assert_eq!(graph.nodes[2].operands, ["n1"]);
-        assert_eq!(graph.nodes[3].operands, ["n2"]);
-        assert_eq!(
-            graph
-                .transfers
-                .iter()
-                .map(|e| (e.source.as_str(), e.target.as_str(), e.kind.as_str()))
-                .collect::<Vec<_>>(),
-            [
-                ("E", "n1", "normal"),
-                ("n1", "n2", "normal"),
-                ("n2", "n3", "normal"),
-                ("n3", "X", "return")
-            ]
-        );
-        let analysis = rstyle_pdg::producer::analyze(&graph).unwrap();
-        assert_eq!(
-            analysis
-                .edges
-                .iter()
-                .filter(|e| e.family == rstyle_pdg::EdgeFamily::Data)
-                .map(|e| (e.source.as_str(), e.target.as_str(), e.position))
-                .collect::<Vec<_>>(),
-            [
-                ("n0", "n1", Some(0)),
-                ("n1", "n2", Some(0)),
-                ("n2", "n3", Some(0))
-            ]
-        );
+        assert_cast_graph(function, input, result);
         let pair = rstyle_pdg::producer::produce(function).unwrap();
         let evidence = &pair.pdg.extensions["rstyle.hir-coverage:integer-casts"];
         assert_eq!(evidence.as_array().unwrap().len(), 1);
@@ -1375,6 +1294,10 @@ fn integer_casts_reject_other_domains_and_tampered_facts() {
         let facts = compile_selected(source, "hir-casts-v1").remove(0);
         assert_eq!(classify(&facts).status, EligibilityVerdict::Ineligible);
     }
+}
+
+#[test]
+fn integer_casts_reject_tampered_facts_and_documents() {
     let facts = compile_selected("fn f(x: i32) -> u8 { x as u8 }", "hir-casts-v1").remove(0);
     let mut changed = facts.clone();
     changed.body.children[0]
@@ -1431,40 +1354,7 @@ fn scalar_match_has_independent_operation_flow_and_merge_expectations() {
     )
     .remove(0);
     let graph = rstyle_pdg::producer::lower(&facts).unwrap();
-    assert_eq!(
-        graph
-            .nodes
-            .iter()
-            .map(|n| n.original_kind.as_str())
-            .collect::<Vec<_>>(),
-        [
-            "pat_binding",
-            "expr_path",
-            "pat_literal",
-            "expr_lit",
-            "pat_wild",
-            "expr_lit",
-            "rstyle.hir-coverage.match_merge",
-            "expr_match"
-        ]
-    );
-    assert_eq!(
-        graph
-            .transfers
-            .iter()
-            .map(|e| (e.source.as_str(), e.target.as_str(), e.kind.as_str()))
-            .collect::<Vec<_>>(),
-        [
-            ("E", "n1", "normal"),
-            ("n1", "n2", "normal"),
-            ("n2", "n3", "true"),
-            ("n2", "n4", "false"),
-            ("n3", "n7", "normal"),
-            ("n4", "n5", "normal"),
-            ("n5", "n7", "normal"),
-            ("n7", "X", "return")
-        ]
-    );
+    assert_literal_match_inventory(&graph);
     assert_eq!(graph.nodes[2].operands, ["n1"]);
     assert_eq!(graph.nodes[2].construct.as_deref(), Some("match.literal"));
     assert_eq!(graph.nodes[2].literal.as_deref(), Some("1"));
@@ -1544,14 +1434,7 @@ fn ordered_match_guards_fall_through_once_and_preserve_arm_values() {
     let source = "fn f(x: i32, b: bool) -> i32 { match x { 1 if b => 7, 1 if !b => 8, _ => 9 } }";
     let facts = compile_selected(source, "hir-guards-v1").remove(0);
     let graph = rstyle_pdg::producer::lower(&facts).unwrap();
-    assert_eq!(
-        graph
-            .nodes
-            .iter()
-            .filter(|n| n.category == rstyle_pdg::NodeCategory::Read && n.ty == "i32")
-            .count(),
-        1
-    );
+    assert_guard_fallthrough(&graph);
     let selectors: Vec<_> = graph
         .nodes
         .iter()
@@ -1562,22 +1445,6 @@ fn ordered_match_guards_fall_through_once_and_preserve_arm_values() {
         .iter()
         .filter(|n| n.construct.as_deref() == Some("match.guard"))
         .collect();
-    assert_eq!(selectors.len(), 2);
-    assert_eq!(guards.len(), 2);
-    assert_eq!(selectors[0].operands, selectors[1].operands);
-    let next = &selectors[1].id;
-    assert!(
-        graph
-            .transfers
-            .iter()
-            .any(|e| &e.source == &selectors[0].id && &e.target == next && e.kind == "false")
-    );
-    assert!(
-        graph
-            .transfers
-            .iter()
-            .any(|e| &e.source == &guards[0].id && &e.target == next && e.kind == "false")
-    );
     let site = graph.value_sites.last().unwrap();
     assert_eq!(site.alternatives.len(), 3);
     assert_eq!(site.alternatives[0].guards[0].len(), 2);
@@ -1743,93 +1610,10 @@ fn scalar_loop_cfg_and_reaching_definitions_match_independent_fixed_point_expect
         classify(&facts)
     );
     let graph = rstyle_pdg::producer::lower(&facts).unwrap();
-    assert_eq!(
-        graph
-            .nodes
-            .iter()
-            .map(|n| n.original_kind.as_str())
-            .collect::<Vec<_>>(),
-        [
-            "pat_binding",
-            "pat_binding",
-            "expr_path",
-            "expr_while",
-            "expr_lit",
-            "expr_assign",
-            "expr_path",
-            "expr_path"
-        ]
-    );
-    assert_eq!(
-        {
-            let mut edges = graph
-                .transfers
-                .iter()
-                .map(|e| {
-                    (
-                        e.source.as_str(),
-                        e.target.as_str(),
-                        e.kind.as_str(),
-                        e.loop_role.as_deref(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            edges.sort();
-            edges
-        },
-        [
-            ("E", "n2", "normal", None),
-            ("n2", "n3", "normal", None),
-            ("n3", "n4", "true", None),
-            ("n3", "n6", "false", Some("loop_exit")),
-            ("n4", "n5", "normal", None),
-            ("n5", "n2", "normal", Some("back_edge")),
-            ("n6", "n7", "normal", None),
-            ("n7", "X", "return", None)
-        ]
-    );
+    assert_loop_inventory(&graph);
     let analysis = rstyle_pdg::producer::analyze_cyclic(&graph).unwrap();
-    let mut control: Vec<_> = analysis
-        .edges
-        .iter()
-        .filter(|edge| edge.family == rstyle_pdg::EdgeFamily::Control)
-        .map(|edge| {
-            (
-                edge.source.as_str(),
-                edge.target.as_str(),
-                edge.outcome.as_deref(),
-            )
-        })
-        .collect();
-    control.sort();
-    assert_eq!(
-        control,
-        [
-            ("n3", "n2", Some("true")),
-            ("n3", "n3", Some("true")),
-            ("n3", "n4", Some("true")),
-            ("n3", "n5", Some("true")),
-            ("n3", "n6", Some("false")),
-            ("n3", "n7", Some("false"))
-        ]
-    );
-    let mut execution: Vec<_> = analysis
-        .edges
-        .iter()
-        .filter(|edge| edge.family == rstyle_pdg::EdgeFamily::Execution)
-        .map(|edge| (edge.source.as_str(), edge.target.as_str()))
-        .collect();
-    execution.sort();
-    assert_eq!(
-        execution,
-        [
-            ("n2", "n3"),
-            ("n3", "n4"),
-            ("n3", "n6"),
-            ("n4", "n5"),
-            ("n6", "n7")
-        ]
-    );
+    assert_loop_control(&analysis);
+    assert_loop_execution(&analysis);
     let x = &facts.signature.params[0].symbol;
     assert_eq!(
         analysis.definition_in["n6"][x]
@@ -2019,22 +1803,7 @@ fn primitive_summaries_preserve_receiver_argument_order_and_independent_dependen
         let pair = rstyle_pdg::producer::produce(&facts).unwrap();
         rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
         rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
-        let summaries = pair.pdg.extensions[rstyle_pdg::call_summaries::KEY]
-            .as_array()
-            .unwrap();
-        assert_eq!(summaries.len(), 2);
-        assert_eq!(
-            summaries[0]["summary"]["overflow_behavior"],
-            "unsigned-magnitude-including-min"
-        );
-        assert_eq!(
-            summaries[1]["summary"]["overflow_behavior"],
-            "modulo-result-width"
-        );
-        assert_eq!(
-            summaries[1]["operand_pdg_node_ids"],
-            serde_json::json!(["n3", "n4"])
-        );
+        assert_primitive_summary_inventory(&pair);
         let r0 = compile_selected(&source, "r0").remove(0);
         assert_eq!(classify(&r0).status, EligibilityVerdict::Ineligible);
     }
@@ -2057,6 +1826,10 @@ fn primitive_summaries_fail_closed_on_neighbors_and_callee_or_build_tampering() 
             "{source}"
         );
     }
+}
+
+#[test]
+fn primitive_summaries_reject_tampered_build_callee_and_registry() {
     let facts =
         compile_selected("fn f(x: i32) -> u32 { x.unsigned_abs() }", "hir-calls-v1").remove(0);
     for mutation in 0..4 {
@@ -2110,5 +1883,372 @@ fn change_call_result_type(node: &mut rstyle_pdg::HirNode) {
     }
     for child in &mut node.children {
         change_call_result_type(child);
+    }
+}
+
+fn assert_const_graph_equivalence(ordinary: &HirFnFacts, qualified: &HirFnFacts) {
+    let ordinary_graph = rstyle_pdg::producer::lower(ordinary).unwrap();
+    let qualified_graph = rstyle_pdg::producer::lower(qualified).unwrap();
+    assert_eq!(ordinary_graph.transfers, qualified_graph.transfers);
+    assert_eq!(
+        ordinary_graph.value_sites.len(),
+        qualified_graph.value_sites.len()
+    );
+    let semantic = |g: &rstyle_pdg::producer::Graph| {
+        g.nodes
+            .iter()
+            .map(|n| {
+                (
+                    n.category,
+                    n.original_kind.clone(),
+                    n.ty.clone(),
+                    n.operator.clone(),
+                    n.operands.clone(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(semantic(&ordinary_graph), semantic(&qualified_graph));
+    assert_eq!(
+        rstyle_pdg::producer::analyze(&ordinary_graph)
+            .unwrap()
+            .edges,
+        rstyle_pdg::producer::analyze(&qualified_graph)
+            .unwrap()
+            .edges
+    );
+}
+
+fn assert_local_wire_schema(pair: &rstyle_pdg::producer::Pair) {
+    for (schema, document) in [
+        (
+            include_str!("../../../vendor-compat/rust-r0/pdg.schema.json"),
+            serde_json::to_value(&pair.pdg).unwrap(),
+        ),
+        (
+            include_str!("../../../vendor-compat/rust-r0/cfg.schema.json"),
+            serde_json::to_value(&pair.cfg).unwrap(),
+        ),
+    ] {
+        let schema = serde_json::from_str(schema).unwrap();
+        assert!(
+            jsonschema::validator_for(&schema)
+                .unwrap()
+                .is_valid(&document)
+        );
+    }
+}
+
+fn assert_cast_graph(function: &HirFnFacts, input: &str, result: &str) {
+    let graph = rstyle_pdg::producer::lower(function).unwrap();
+    assert_eq!(graph.nodes.len(), 4);
+    assert_eq!(
+        graph
+            .nodes
+            .iter()
+            .map(|n| n.original_kind.as_str())
+            .collect::<Vec<_>>(),
+        ["pat_binding", "expr_path", "expr_cast", "expr_cast"]
+    );
+    assert_eq!(graph.nodes[1].ty, input);
+    assert_eq!(graph.nodes[2].ty, result);
+    assert_eq!(graph.nodes[2].operator.as_deref(), Some("as"));
+    assert_eq!(graph.nodes[2].operands, ["n1"]);
+    assert_eq!(graph.nodes[3].operands, ["n2"]);
+    assert_eq!(
+        graph
+            .transfers
+            .iter()
+            .map(|e| (e.source.as_str(), e.target.as_str(), e.kind.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            ("E", "n1", "normal"),
+            ("n1", "n2", "normal"),
+            ("n2", "n3", "normal"),
+            ("n3", "X", "return")
+        ]
+    );
+    assert_cast_data(&graph);
+}
+
+fn assert_cast_data(graph: &rstyle_pdg::producer::Graph) {
+    let analysis = rstyle_pdg::producer::analyze(graph).unwrap();
+    assert_eq!(
+        analysis
+            .edges
+            .iter()
+            .filter(|e| e.family == rstyle_pdg::EdgeFamily::Data)
+            .map(|e| (e.source.as_str(), e.target.as_str(), e.position))
+            .collect::<Vec<_>>(),
+        [
+            ("n0", "n1", Some(0)),
+            ("n1", "n2", Some(0)),
+            ("n2", "n3", Some(0))
+        ]
+    );
+}
+
+fn assert_literal_match_inventory(graph: &rstyle_pdg::producer::Graph) {
+    assert_eq!(
+        graph
+            .nodes
+            .iter()
+            .map(|n| n.original_kind.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "pat_binding",
+            "expr_path",
+            "pat_literal",
+            "expr_lit",
+            "pat_wild",
+            "expr_lit",
+            "rstyle.hir-coverage.match_merge",
+            "expr_match"
+        ]
+    );
+    assert_eq!(
+        graph
+            .transfers
+            .iter()
+            .map(|e| (e.source.as_str(), e.target.as_str(), e.kind.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            ("E", "n1", "normal"),
+            ("n1", "n2", "normal"),
+            ("n2", "n3", "true"),
+            ("n2", "n4", "false"),
+            ("n3", "n7", "normal"),
+            ("n4", "n5", "normal"),
+            ("n5", "n7", "normal"),
+            ("n7", "X", "return")
+        ]
+    );
+}
+
+fn assert_guard_fallthrough(graph: &rstyle_pdg::producer::Graph) {
+    assert_eq!(
+        graph
+            .nodes
+            .iter()
+            .filter(|n| n.category == rstyle_pdg::NodeCategory::Read && n.ty == "i32")
+            .count(),
+        1
+    );
+    let selectors: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter(|n| n.construct.as_deref() == Some("match.literal"))
+        .collect();
+    let guards: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter(|n| n.construct.as_deref() == Some("match.guard"))
+        .collect();
+    assert_eq!(selectors.len(), 2);
+    assert_eq!(guards.len(), 2);
+    assert_eq!(selectors[0].operands, selectors[1].operands);
+    let next = &selectors[1].id;
+    assert!(
+        graph
+            .transfers
+            .iter()
+            .any(|e| e.source == selectors[0].id && &e.target == next && e.kind == "false")
+    );
+    assert!(
+        graph
+            .transfers
+            .iter()
+            .any(|e| e.source == guards[0].id && &e.target == next && e.kind == "false")
+    );
+}
+
+fn assert_loop_inventory(graph: &rstyle_pdg::producer::Graph) {
+    assert_eq!(
+        graph
+            .nodes
+            .iter()
+            .map(|n| n.original_kind.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "pat_binding",
+            "pat_binding",
+            "expr_path",
+            "expr_while",
+            "expr_lit",
+            "expr_assign",
+            "expr_path",
+            "expr_path"
+        ]
+    );
+    assert_loop_transfers(graph);
+}
+
+fn assert_loop_control(analysis: &rstyle_pdg::producer::Analysis) {
+    let mut control: Vec<_> = analysis
+        .edges
+        .iter()
+        .filter(|edge| edge.family == rstyle_pdg::EdgeFamily::Control)
+        .map(|edge| {
+            (
+                edge.source.as_str(),
+                edge.target.as_str(),
+                edge.outcome.as_deref(),
+            )
+        })
+        .collect();
+    control.sort();
+    assert_eq!(
+        control,
+        [
+            ("n3", "n2", Some("true")),
+            ("n3", "n3", Some("true")),
+            ("n3", "n4", Some("true")),
+            ("n3", "n5", Some("true")),
+            ("n3", "n6", Some("false")),
+            ("n3", "n7", Some("false"))
+        ]
+    );
+}
+
+fn assert_loop_execution(analysis: &rstyle_pdg::producer::Analysis) {
+    let mut execution: Vec<_> = analysis
+        .edges
+        .iter()
+        .filter(|edge| edge.family == rstyle_pdg::EdgeFamily::Execution)
+        .map(|edge| (edge.source.as_str(), edge.target.as_str()))
+        .collect();
+    execution.sort();
+    assert_eq!(
+        execution,
+        [
+            ("n2", "n3"),
+            ("n3", "n4"),
+            ("n3", "n6"),
+            ("n4", "n5"),
+            ("n6", "n7")
+        ]
+    );
+}
+
+fn assert_loop_transfers(graph: &rstyle_pdg::producer::Graph) {
+    assert_eq!(
+        {
+            let mut edges = graph
+                .transfers
+                .iter()
+                .map(|e| {
+                    (
+                        e.source.as_str(),
+                        e.target.as_str(),
+                        e.kind.as_str(),
+                        e.loop_role.as_deref(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            edges.sort();
+            edges
+        },
+        [
+            ("E", "n2", "normal", None),
+            ("n2", "n3", "normal", None),
+            ("n3", "n4", "true", None),
+            ("n3", "n6", "false", Some("loop_exit")),
+            ("n4", "n5", "normal", None),
+            ("n5", "n2", "normal", Some("back_edge")),
+            ("n6", "n7", "normal", None),
+            ("n7", "X", "return", None)
+        ]
+    );
+}
+
+fn assert_primitive_summary_inventory(pair: &rstyle_pdg::producer::Pair) {
+    let summaries = pair.pdg.extensions[rstyle_pdg::call_summaries::KEY]
+        .as_array()
+        .unwrap();
+    assert_eq!(summaries.len(), 2);
+    assert_eq!(
+        summaries[0]["summary"]["overflow_behavior"],
+        "unsigned-magnitude-including-min"
+    );
+    assert_eq!(
+        summaries[1]["summary"]["overflow_behavior"],
+        "modulo-result-width"
+    );
+    assert_eq!(
+        summaries[1]["operand_pdg_node_ids"],
+        serde_json::json!(["n3", "n4"])
+    );
+}
+
+#[test]
+fn primitive_summaries_pin_sources_and_accept_both_overflow_settings() {
+    use sha2::{Digest, Sha256};
+    let output = Command::new("rustc")
+        .args(["--print", "sysroot"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let sysroot = PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
+    for summary in rstyle_pdg::call_summaries::registry() {
+        let source = std::fs::read(
+            sysroot
+                .join("lib/rustlib/src/rust")
+                .join(&summary.source_path),
+        )
+        .unwrap();
+        assert_eq!(
+            format!("{:x}", Sha256::digest(source)),
+            summary.source_sha256
+        );
+        assert!(!summary.memory_effects && !summary.mutates_arguments && !summary.may_panic);
+        assert!(summary.always_returns);
+    }
+    for settings in [
+        vec!["-C", "overflow-checks=yes", "-C", "panic=unwind"],
+        vec!["-C", "overflow-checks=no", "-C", "panic=abort"],
+    ] {
+        let facts = compile_selected_settings(
+            "fn f() -> u32 { (-2147483648i32).unsigned_abs().wrapping_mul(4294967295u32) }",
+            "hir-calls-v1",
+            &settings,
+        )
+        .remove(0);
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+        let mut changed = facts.clone();
+        changed.build.overflow_checks.value = Some(!facts.build.overflow_checks.value.unwrap());
+        assert!(rstyle_pdg::producer::verify(&pair, &changed).is_err());
+    }
+}
+
+#[test]
+fn expanded_pair_compatibility_rejects_mixed_profiles_and_build_settings() {
+    let source = "fn f(x: i32) -> i32 { x }";
+    let r0 = compile_selected(source, "r0").remove(0);
+    let local = compile_selected(source, "hir-calls-v1").remove(0);
+    let altered =
+        compile_selected_settings(source, "hir-calls-v1", &["-C", "overflow-checks=no"]).remove(0);
+    for other in [r0, altered] {
+        let functions = [&local, &other]
+            .into_iter()
+            .map(|facts| {
+                rstyle_ccgraph::admit_produced(
+                    &rstyle_pdg::producer::produce(facts).unwrap(),
+                    facts,
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let mut functions = functions;
+        functions[0].key = "a".into();
+        functions[1].key = "b".into();
+        let report =
+            rstyle_ccgraph::evaluate_all(&functions, &rstyle_ccgraph::CcgraphConfig::default());
+        assert_eq!(report.pairs.len(), 1);
+        assert_ne!(report.pairs[0].decision, rstyle_ccgraph::Decision::Accepted);
+        assert!(matches!(
+            report.pairs[0].stages[0].outcome,
+            rstyle_ccgraph::StageOutcome::Ineligible { .. }
+        ));
     }
 }
