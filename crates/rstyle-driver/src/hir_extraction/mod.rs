@@ -87,6 +87,12 @@ fn function_build(
         std::env::current_dir().ok()?.join(path)
     };
     let mut build = evidence::build(tcx, invocation);
+    if let Ok(selection) = std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE") {
+        build.frontend_options.insert(
+            rstyle_pdg::extraction_profile::SELECTION_KEY.into(),
+            serde_json::json!(selection),
+        );
+    }
     let identifier = tcx
         .def_ident_span(id.to_def_id())
         .and_then(|span| {

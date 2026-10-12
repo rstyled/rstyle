@@ -104,6 +104,7 @@ impl Outcome {
 
 /// Read-only classifier context: binding cross-references.
 struct Ctx<'a> {
+    profile: crate::extraction_profile::ExtractionProfile,
     bindings: BTreeMap<(u32, u32, u32), &'a BindingFact>,
     symbols: BTreeSet<&'a str>,
 }
@@ -157,7 +158,22 @@ fn node_norm(node: &HirNode) -> Option<&str> {
 
 /// Classify one assessed function.
 pub fn classify(facts: &HirFnFacts) -> HirEligibility {
+    let profile = match crate::extraction_profile::ExtractionProfile::from_facts(facts) {
+        Ok(profile) => profile,
+        Err(reason) => {
+            return HirEligibility {
+                status: EligibilityVerdict::Unknown,
+                diagnostics: vec![diagnostic(
+                    "rust.extraction-profile",
+                    "profile",
+                    &site_of(&facts.body),
+                    &reason,
+                )],
+            };
+        }
+    };
     let ctx = Ctx {
+        profile,
         bindings: facts
             .bindings
             .iter()
@@ -246,7 +262,7 @@ fn signature_node(signature: &SignatureFacts) -> HirNode {
 fn check_signature(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
     Outcome::combine(vec![
         check_sig_subject(&facts.signature),
-        check_sig_header(&facts.signature),
+        check_sig_header(&facts.signature, ctx.profile),
         check_sig_params(&facts.signature, ctx),
         check_sig_return(&facts.signature),
     ])
@@ -300,8 +316,11 @@ fn check_sig_subject(signature: &SignatureFacts) -> Outcome {
 }
 
 /// Calling convention and evaluation context: one normal Rust function.
-fn check_sig_header(signature: &SignatureFacts) -> Outcome {
-    check_sig_abi(signature).merge(check_sig_flags(signature))
+fn check_sig_header(
+    signature: &SignatureFacts,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Outcome {
+    check_sig_abi(signature).merge(check_sig_flags(signature, profile))
 }
 
 fn check_sig_abi(signature: &SignatureFacts) -> Outcome {
@@ -327,7 +346,10 @@ fn check_sig_abi(signature: &SignatureFacts) -> Outcome {
     Outcome::combine(abi.into_iter().collect())
 }
 
-fn check_sig_flags(signature: &SignatureFacts) -> Outcome {
+fn check_sig_flags(
+    signature: &SignatureFacts,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Outcome {
     let anchor = signature_node(signature);
     let flags = [
         (
@@ -349,7 +371,7 @@ fn check_sig_flags(signature: &SignatureFacts) -> Outcome {
             "Unsafe functions are deferred to rust.unsafe.",
         ),
         (
-            signature.is_const,
+            signature.is_const && profile == crate::extraction_profile::ExtractionProfile::R0,
             "rust.additional-types",
             "const_fn",
             "Const evaluation context is outside R0.",

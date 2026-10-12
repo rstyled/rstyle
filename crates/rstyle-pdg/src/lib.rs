@@ -10,6 +10,7 @@
 pub mod cfg;
 pub mod collection;
 pub mod eligibility;
+pub mod extraction_profile;
 pub mod frontend;
 pub mod model;
 pub mod producer;

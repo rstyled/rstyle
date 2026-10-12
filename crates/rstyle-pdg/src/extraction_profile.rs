@@ -1,0 +1,75 @@
+//! Registered local extraction policies; matching configuration is independent.
+
+use crate::{HirFnFacts, ProfileId};
+use serde::{Deserialize, Serialize};
+
+pub const SELECTION_KEY: &str = "extraction_profile";
+pub const EVIDENCE_KEY: &str = "rstyle.hir-coverage:selection";
+pub const LOCAL_ID: &str = "rstyle.rust.hir-coverage";
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExtractionProfile {
+    #[default]
+    #[serde(rename = "r0")]
+    R0,
+    #[serde(rename = "hir-const-v1")]
+    ConstV1,
+}
+
+impl ExtractionProfile {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "r0" => Ok(Self::R0),
+            "hir-const-v1" => Ok(Self::ConstV1),
+            _ => Err(format!("Unregistered extraction profile {value:?}")),
+        }
+    }
+
+    pub fn from_facts(facts: &HirFnFacts) -> Result<Self, String> {
+        match facts.build.frontend_options.get(SELECTION_KEY) {
+            None => Ok(Self::R0),
+            Some(value) => value
+                .as_str()
+                .ok_or_else(|| "Malformed extraction profile evidence".to_string())
+                .and_then(Self::parse),
+        }
+    }
+
+    pub fn token(self) -> &'static str {
+        match self {
+            Self::R0 => "r0",
+            Self::ConstV1 => "hir-const-v1",
+        }
+    }
+
+    pub fn policy(self) -> ProfileId {
+        match self {
+            Self::R0 => ProfileId::hir_r0(),
+            Self::ConstV1 => ProfileId {
+                id: LOCAL_ID.into(),
+                version: "0.1.0".into(),
+            },
+        }
+    }
+
+    pub fn capabilities(self) -> &'static [&'static str] {
+        match self {
+            Self::R0 => &[],
+            Self::ConstV1 => &["rust.const-function-bodies"],
+        }
+    }
+}
+
+pub fn registered(policy: &ProfileId) -> bool {
+    [ExtractionProfile::R0, ExtractionProfile::ConstV1]
+        .iter()
+        .any(|profile| profile.policy() == *policy)
+}
+
+impl std::str::FromStr for ExtractionProfile {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::parse(value)
+    }
+}
