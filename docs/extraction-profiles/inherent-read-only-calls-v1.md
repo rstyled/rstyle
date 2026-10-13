@@ -53,8 +53,11 @@ Borrowed memory-reading results, construction/reference-result components,
 by-value memory substitutions, unsupported callees and interior mutability remain
 unavailable. Shared input types alone cannot establish immutable effects.
 
-Keep each original method operation as one source-backed CALL with method call
-form; keep UFCS as a direct CALL. Never inline callee operations into the caller.
+Keep each original method operation as one source-backed CALL with original kind
+`expr_method_call`; keep UFCS original kind `expr_call`. Both have statically
+resolved `call_form: direct`, within the unchanged closed schema vocabulary.
+The source kind and original invocation evidence distinguish their syntax.
+Never inline callee operations into the caller.
 Substitute read locations from independently verified actual referent origins,
 preserving exact nominal field identities, ordered paths, alternatives, alias
 uncertainty and multiplicity. No writes or invented independence. Argument/value
