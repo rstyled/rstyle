@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 pub fn verify(facts: &HirFnFacts) -> Result<Capture, String> {
     let value = facts.build.frontend_options.get(KEY);
-    if ExtractionProfile::from_facts(facts)? != ExtractionProfile::DataV1 {
+    if !ExtractionProfile::from_facts(facts)?.is_data() {
         return if value.is_none() {
             Ok(empty())
         } else {

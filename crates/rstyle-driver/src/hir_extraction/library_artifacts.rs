@@ -15,7 +15,7 @@ pub fn capture(
     options: &Options<'_>,
     facts: &mut [HirFnFacts],
 ) -> Result<(), String> {
-    if options.selected() != rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 {
+    if !options.selected().is_data() {
         return Ok(());
     }
     let mut callees = BTreeMap::new();

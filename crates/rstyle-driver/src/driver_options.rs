@@ -51,8 +51,8 @@ fn selected_unit(
         .transpose()?;
 
     if context.is_some() {
-        if profile != Some(ExtractionProfile::DataV1) {
-            return Err("Selected-unit context requires hir-data-v1".into());
+        if !profile.is_some_and(ExtractionProfile::is_data) {
+            return Err("Selected-unit context requires a Data extraction profile".into());
         }
         arguments.remove(0);
     }

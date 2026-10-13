@@ -37,9 +37,7 @@ fn source_token(
     facts: &HirFnFacts,
     op: &Operation,
 ) -> Result<Option<String>, String> {
-    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
-        != crate::extraction_profile::ExtractionProfile::DataV1
-    {
+    if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?.is_data() {
         return Ok(None);
     }
     let artifacts = super::verify_evidence(facts)?;

@@ -16,7 +16,7 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 pub struct Args {
-    /// Extraction selection: r0, hir-expanded-v1, or verified local hir-helpers-v1.
+    /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1 or hir-data-v2.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     /// JSON matching overrides, separate from legacy rstyle.toml.
@@ -146,10 +146,14 @@ impl Handoff {
 }
 
 fn matching_profile(args: &Args) -> rstyle_ccgraph::MatchingProfile {
-    if args.extraction_profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 {
-        rstyle_ccgraph::MatchingProfile::DataV1
-    } else {
-        rstyle_ccgraph::MatchingProfile::ScalarV1
+    match args.extraction_profile {
+        rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 => {
+            rstyle_ccgraph::MatchingProfile::DataV1
+        }
+        rstyle_pdg::extraction_profile::ExtractionProfile::DataV2 => {
+            rstyle_ccgraph::MatchingProfile::DataCallsV1
+        }
+        _ => rstyle_ccgraph::MatchingProfile::ScalarV1,
     }
 }
 
@@ -254,7 +258,7 @@ fn verify_receiver_inventory(
     facts: &HirFnFacts,
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> Result<(), String> {
-    if profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+    if profile.is_data()
         && !facts
             .build
             .frontend_options
@@ -359,8 +363,7 @@ fn verify_data_compiler_commit(
     facts: &HirFnFacts,
     capture: &capture::Capture,
 ) -> Result<(), String> {
-    if capture.plan.extraction_profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
-    {
+    if !capture.plan.extraction_profile.is_data() {
         return Ok(());
     }
     let expected = capture
@@ -378,7 +381,7 @@ fn verify_data_compiler_commit(
 fn verify_selected_unit(facts: &HirFnFacts, unit: &capture::Unit) -> Result<(), String> {
     use rstyle_pdg::nominal_boundary::{CONTEXT_KEY, UnitContext};
     let context = facts.build.frontend_options.get(CONTEXT_KEY);
-    if unit.extraction_profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 {
+    if !unit.extraction_profile.is_data() {
         return if context.is_none() {
             Ok(())
         } else {

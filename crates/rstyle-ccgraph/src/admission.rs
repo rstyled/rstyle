@@ -218,11 +218,7 @@ fn assemble_function(
     let (width, native) = import_widths(pdg, ctx)?;
 
     Ok(ImportedFunction {
-        matching_profile: if data {
-            crate::graph::MatchingProfile::DataV1
-        } else {
-            crate::graph::MatchingProfile::ScalarV1
-        },
+        matching_profile: imported_matching_profile(pdg),
         extraction_context: local_context(pdg)?,
         key,
         nodes: nodes.unwrap_or_default(),
@@ -234,6 +230,15 @@ fn assemble_function(
         target_pointer_width: width,
         native_width_involved: native,
     })
+}
+
+fn imported_matching_profile(pdg: &PdgDocument) -> crate::graph::MatchingProfile {
+    use crate::graph::MatchingProfile;
+    match (pdg.profile.id.as_str(), pdg.profile.version.as_str()) {
+        (rstyle_pdg::extraction_profile::DATA_ID, "2.0.0") => MatchingProfile::DataCallsV1,
+        (rstyle_pdg::extraction_profile::DATA_ID, _) => MatchingProfile::DataV1,
+        _ => MatchingProfile::ScalarV1,
+    }
 }
 
 fn local_context(pdg: &PdgDocument) -> Result<Option<String>, Vec<String>> {

@@ -47,6 +47,30 @@ fn local_data_registration_preserves_historical_capability_sets() {
 }
 
 #[test]
+fn read_only_call_registration_keeps_data_v1_distinct() {
+    use rstyle_pdg::extraction_profile::ExtractionProfile;
+    let profile = ExtractionProfile::select("hir-data-v2").unwrap();
+    assert_eq!(profile, ExtractionProfile::DataV2);
+    assert_eq!(profile.policy().id, "rstyle.rust.hir-data");
+    assert_eq!(profile.policy().version, "2.0.0");
+    assert_eq!(
+        profile.data_matching(),
+        Some("rstyle.ccgraph.data-calls/1.0.0")
+    );
+    assert_eq!(
+        ExtractionProfile::DataV1.data_matching(),
+        Some("rstyle.ccgraph.data/1.0.0")
+    );
+    assert_eq!(profile.capabilities().len(), 11);
+    assert_eq!(ExtractionProfile::DataV1.capabilities().len(), 10);
+    assert!(!ExtractionProfile::DataV1.supports("rust.verified-read-only-helper-calls"));
+    assert!(profile.supports("rust.verified-read-only-helper-calls"));
+    assert!(rstyle_pdg::extraction_profile::registered(
+        &profile.policy()
+    ));
+}
+
+#[test]
 fn token_serialization_cannot_turn_a_resource_failure_into_observational_success() {
     let tree = TypeTree::Tuple(vec![TypeTree::Scalar("u8".into()); 3000]);
     rstyle_pdg::concrete_types::validate(&tree).unwrap();

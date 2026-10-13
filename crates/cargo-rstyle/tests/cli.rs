@@ -4699,6 +4699,39 @@ fn check_shared_result_projection(report: &Value) {
     );
 }
 
+#[test]
+fn clones_data_v2_registers_separately_and_preserves_verified_data_paths() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub struct Data { pub field: u8 }\npub fn getter(value: &Data) -> u8 { value.field }\npub fn caller(value: &Data) -> u8 { getter(value) }\npub fn empty(value: &str) -> bool { value.is_empty() }\npub fn identity(value: &str) -> &str { value }\npub fn via(value: &str) -> &str { identity(value) }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v2", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["extraction_selection"], "hir-data-v2");
+    assert_eq!(report["extraction_policy"]["version"], "2.0.0");
+    assert_eq!(
+        report["matching"]["profile_id"],
+        "rstyle.ccgraph.data-calls"
+    );
+    for function in report["functions"].as_array().unwrap() {
+        let expected = if function["facts"]["name"] == "caller" {
+            "excluded"
+        } else {
+            "admitted"
+        };
+        assert_eq!(function["outcome"], expected, "{function}");
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 6);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    let (output, old) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{old}");
+    assert_eq!(old["matching"]["profile_id"], "rstyle.ccgraph.data");
+    assert_eq!(old["extraction_policy"]["version"], "1.0.0");
+    assert_eq!(old["matching"]["pairs"].as_array().unwrap().len(), 6);
+}
+
 fn check_shared_result_tampering(
     pair: &rstyle_pdg::producer::Pair,
     facts: &rstyle_pdg::HirFnFacts,

@@ -1,11 +1,12 @@
 # Source-body read-only calls and Data-calls matching, version 1
 
-Frozen before implementation at `da98cf5`. Prospective selection:
+Frozen before implementation at `da98cf5`. Opt-in selection:
 `cargo rstyle clones --extraction-profile hir-data-v2 --format json`.
 Extraction: `rstyle.rust.hir-data/2.0.0`.
 Matching: `rstyle.ccgraph.data-calls/1.0.0`.
-Status: not available for admission until independently verified connected slices
-below are implemented. This is a local extension, not pinned compat conformance.
+Status: profile registration and the existing verified Data paths are connected.
+Memory-reading helper calls remain unavailable for admission until the independently
+verified connected slices below are implemented. This is a local extension, not pinned compat conformance.
 R0, expanded, helper and `hir-data-v1` identities and semantics remain unchanged.
 
 ## Syntax, types and evidence

@@ -9,6 +9,7 @@ pub const DRIVER_SELECTION_FLAG: &str = "--rstyle-extraction-profile";
 pub const EVIDENCE_KEY: &str = "rstyle.hir-coverage:selection";
 pub const DATA_ID: &str = "rstyle.rust.hir-data";
 pub const DATA_MATCHING_ID: &str = "rstyle.ccgraph.data/1.0.0";
+pub const DATA_CALLS_MATCHING_ID: &str = "rstyle.ccgraph.data-calls/1.0.0";
 pub const LOCAL_ID: &str = "rstyle.rust.hir-coverage";
 
 const EXPANDED_CAPABILITIES: &[&str] = &[
@@ -22,6 +23,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.verified-primitive-summaries",
     "rust.verified-helper-calls",
     "rust.concrete-read-only-data",
+    "rust.verified-read-only-helper-calls",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -49,6 +51,8 @@ pub enum ExtractionProfile {
     HelpersV1,
     #[serde(rename = "hir-data-v1")]
     DataV1,
+    #[serde(rename = "hir-data-v2")]
+    DataV2,
 }
 
 impl ExtractionProfile {
@@ -59,8 +63,9 @@ impl ExtractionProfile {
             "hir-expanded-v1" => Ok(Self::CallsV1),
             "hir-helpers-v1" => Ok(Self::HelpersV1),
             "hir-data-v1" => Ok(Self::DataV1),
+            "hir-data-v2" => Ok(Self::DataV2),
             _ => {
-                Err("Extraction selection must be r0 or hir-expanded-v1, or hir-helpers-v1, or hir-data-v1".into())
+                Err("Extraction selection must be r0 or hir-expanded-v1, or hir-helpers-v1, or hir-data-v1, or hir-data-v2".into())
             }
         }
     }
@@ -78,6 +83,7 @@ impl ExtractionProfile {
             "hir-calls-v1" => Ok(Self::CallsV1),
             "hir-helpers-v1" => Ok(Self::HelpersV1),
             "hir-data-v1" => Ok(Self::DataV1),
+            "hir-data-v2" => Ok(Self::DataV2),
             _ => Err(format!("Unregistered extraction profile {value:?}")),
         }
     }
@@ -104,6 +110,7 @@ impl ExtractionProfile {
             Self::CallsV1 => "hir-calls-v1",
             Self::HelpersV1 => "hir-helpers-v1",
             Self::DataV1 => "hir-data-v1",
+            Self::DataV2 => "hir-data-v2",
         }
     }
 
@@ -119,6 +126,7 @@ impl ExtractionProfile {
             Self::CallsV1 => Some(("0.7.0", 8)),
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
+            Self::DataV2 => Some(("2.0.0", 11)),
         }
     }
 
@@ -126,7 +134,7 @@ impl ExtractionProfile {
         match self.local_contract() {
             None => ProfileId::hir_r0(),
             Some((version, _)) => ProfileId {
-                id: if self == Self::DataV1 {
+                id: if self.is_data() {
                     DATA_ID
                 } else if self == Self::HelpersV1 {
                     "rstyle.rust.hir-helpers"
@@ -143,7 +151,32 @@ impl ExtractionProfile {
         self.capabilities().contains(&capability)
     }
 
+    pub fn is_data(self) -> bool {
+        matches!(self, Self::DataV1 | Self::DataV2)
+    }
+
+    pub fn data_matching(self) -> Option<&'static str> {
+        match self {
+            Self::DataV1 => Some(DATA_MATCHING_ID),
+            Self::DataV2 => Some(DATA_CALLS_MATCHING_ID),
+            _ => None,
+        }
+    }
+
     pub fn summaries(self) -> &'static [&'static str] {
+        if self == Self::DataV2 {
+            return &[
+                "rstyle.primitive.unsigned-abs/1",
+                "rstyle.primitive.wrapping-mul/1",
+                "rstyle.helper.source-body/1",
+                "rstyle.helper.shared-return/1",
+                "rstyle.helper.read-only-body/1",
+                "rstyle.data.slice.len/1",
+                "rstyle.data.slice.is-empty/1",
+                "rstyle.data.str.len/1",
+                "rstyle.data.str.is-empty/1",
+            ];
+        }
         if self == Self::DataV1 {
             return &[
                 "rstyle.primitive.unsigned-abs/1",
@@ -185,7 +218,7 @@ pub fn registered(policy: &ProfileId) -> bool {
         .any(|profile| profile.policy() == *policy)
 }
 
-fn registered_profiles() -> [ExtractionProfile; 10] {
+fn registered_profiles() -> [ExtractionProfile; 11] {
     [
         ExtractionProfile::R0,
         ExtractionProfile::ConstV1,
@@ -197,6 +230,7 @@ fn registered_profiles() -> [ExtractionProfile; 10] {
         ExtractionProfile::CallsV1,
         ExtractionProfile::HelpersV1,
         ExtractionProfile::DataV1,
+        ExtractionProfile::DataV2,
     ]
 }
 

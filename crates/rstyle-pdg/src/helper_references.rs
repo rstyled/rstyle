@@ -11,7 +11,7 @@ use crate::{
 use std::collections::BTreeSet;
 
 pub fn supported_result(facts: &HirFnFacts) -> Result<bool, String> {
-    if ExtractionProfile::from_facts(facts)? != ExtractionProfile::DataV1 {
+    if !ExtractionProfile::from_facts(facts)?.is_data() {
         return Ok(true);
     }
     let result = result_type(facts)?;
@@ -30,7 +30,7 @@ fn result_type(facts: &HirFnFacts) -> Result<TypeToken, String> {
 }
 
 pub fn returned(facts: &HirFnFacts, pair: &Pair) -> Result<Option<Vec<Origin>>, String> {
-    if ExtractionProfile::from_facts(facts)? != ExtractionProfile::DataV1 {
+    if !ExtractionProfile::from_facts(facts)?.is_data() {
         return Ok(None);
     }
     let result = result_type(facts)?;
@@ -92,7 +92,7 @@ fn verify_formal(origin: &Origin, facts: &HirFnFacts, result: &TypeToken) -> Res
 }
 
 pub fn parameters(call: &HirNode, facts: &HirFnFacts) -> Result<Vec<u32>, String> {
-    if ExtractionProfile::from_facts(facts)? != ExtractionProfile::DataV1 {
+    if !ExtractionProfile::from_facts(facts)?.is_data() {
         return Err("Shared helper result requires the Data profile".into());
     }
     let dependency = crate::helper_calls::verify(call, facts)?;

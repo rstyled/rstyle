@@ -230,14 +230,14 @@ fn check_pair_limit(count: usize, maximum: Option<usize>) -> Result<(), String> 
 }
 
 fn selected_report(functions: &[ImportedFunction], config: &CcgraphConfig) -> RunReport {
-    let mut report = new_report(config);
-    if !functions.is_empty()
+    let report = new_report(config);
+    if let Some(first) = functions.first()
+        && first.matching_profile.is_data()
         && functions
             .iter()
-            .all(|function| function.matching_profile == crate::graph::MatchingProfile::DataV1)
+            .all(|function| function.matching_profile == first.matching_profile)
     {
-        report.profile_id = "rstyle.ccgraph.data".into();
-        report.profile_version = "1.0.0".into();
+        return profile_report(report, first.matching_profile);
     }
     report
 }
@@ -282,8 +282,10 @@ fn record_functions(report: &mut RunReport, prepared: &BTreeMap<String, Prepared
     for (key, item) in prepared {
         report.functions.push(FunctionRecord {
             key: key.clone(),
-            matching_profile: (item.imported.matching_profile
-                == crate::graph::MatchingProfile::DataV1)
+            matching_profile: item
+                .imported
+                .matching_profile
+                .is_data()
                 .then(|| item.imported.matching_profile.identity().into()),
             eligible: item.valid && item.projection.is_ok(),
             reasons: item.reasons.clone(),
@@ -463,7 +465,7 @@ fn check_interface(func: &ImportedFunction, reasons: &mut Vec<String>) {
             reasons.push(format!("unknown interface role {:?}", element.role));
         }
         if !is_supported_type(&element.normalized_type)
-            && !(func.matching_profile == crate::graph::MatchingProfile::DataV1
+            && !(func.matching_profile.is_data()
                 && rstyle_pdg::data_types::parse(&element.normalized_type).is_ok())
         {
             reasons.push(format!(
@@ -852,7 +854,7 @@ fn native_involved(func: &ImportedFunction) -> bool {
     func.native_width_involved
         || func.inputs.iter().chain(func.outputs.iter()).any(|e| {
             is_native_width(&e.normalized_type)
-                || func.matching_profile == crate::graph::MatchingProfile::DataV1
+                || func.matching_profile.is_data()
                     && rstyle_pdg::data_types::parse(&e.normalized_type)
                         .is_ok_and(|token| token.native_width())
         })

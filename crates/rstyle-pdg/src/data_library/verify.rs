@@ -8,7 +8,7 @@ use crate::{
 };
 
 pub fn verify_evidence(facts: &HirFnFacts) -> Result<Artifacts, String> {
-    if ExtractionProfile::from_facts(facts)? != ExtractionProfile::DataV1 {
+    if !ExtractionProfile::from_facts(facts)?.is_data() {
         return if facts.build.frontend_options.contains_key(KEY) {
             Err("Library artifact evidence is restricted to Data".into())
         } else {

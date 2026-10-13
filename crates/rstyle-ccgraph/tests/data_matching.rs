@@ -78,3 +78,63 @@ fn data_pair_resource_limit_is_incomplete_execution() {
     assert!(report.pairs.is_empty());
     assert!(report.diagnostics[0].contains("requires 1 pairs"));
 }
+
+fn call_reader(key: &str, profile: MatchingProfile, count: u64) -> ImportedFunction {
+    let mut read = common::plain_node("read", NodeCategory::Read);
+    read.read_symbols = vec!["binding:argument".into()];
+    let mut call = common::plain_node("call", NodeCategory::Call);
+    call.read_symbols = vec!["location:argument.field".into(); 2];
+    call.reads_or_writes = true;
+    let mut function = common::stage_function(
+        key,
+        vec![
+            read,
+            call,
+            common::plain_node("return", NodeCategory::Return),
+        ],
+        vec![
+            ("read", "call", EdgeFamily::Data),
+            ("call", "return", EdgeFamily::Data),
+        ],
+        "access",
+    );
+    function.matching_profile = profile;
+    function.reference_count = Some(count);
+    function
+}
+
+#[test]
+fn data_calls_projection_counts_distinct_call_reads_without_changing_legacy_counts() {
+    let data = call_reader("calls", MatchingProfile::DataCallsV1, 2);
+    let projection = rstyle_ccgraph::projection::project(&data).unwrap();
+    assert_eq!(projection.facts.reference_count, 2);
+    assert_eq!(projection.facts.category_counts["STATE"], 1);
+    assert_eq!(projection.facts.category_counts["OTHER"], 2);
+    assert_eq!(
+        rstyle_ccgraph::features::numerical_features(&projection.graph, 2),
+        [0, 0, 2, 0, 0, 0, 1, 2, 2]
+    );
+    let old = call_reader("old", MatchingProfile::DataV1, 1);
+    assert_eq!(
+        rstyle_ccgraph::projection::project(&old)
+            .unwrap()
+            .facts
+            .reference_count,
+        1
+    );
+    assert!(
+        rstyle_ccgraph::projection::project(&call_reader("bad", MatchingProfile::DataV1, 2))
+            .is_err()
+    );
+    let report = evaluate_all(
+        &[
+            data.clone(),
+            call_reader("same", MatchingProfile::DataCallsV1, 2),
+        ],
+        &CcgraphConfig::default(),
+    );
+    assert_eq!(report.profile_id, "rstyle.ccgraph.data-calls");
+    assert_eq!(report.pairs[0].decision, rstyle_ccgraph::Decision::Accepted);
+    let mixed = evaluate_all(&[data, old], &CcgraphConfig::default());
+    assert_ne!(mixed.pairs[0].decision, rstyle_ccgraph::Decision::Accepted);
+}

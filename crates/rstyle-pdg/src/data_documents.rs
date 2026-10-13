@@ -12,7 +12,7 @@ pub const POLICY_KEY: &str = "rstyle.data:matching-profile";
 
 pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
     let mut pair = install_locations(pair, facts)?;
-    install_policy(&mut pair);
+    install_policy(&mut pair, facts)?;
     install_evidence(&mut pair.pdg, facts)?;
     origins::install(&mut pair, facts)?;
 
@@ -62,17 +62,24 @@ fn install_field(
     Ok((id, location))
 }
 
-fn install_policy(pair: &mut Pair) {
-    let policy = json!(crate::extraction_profile::DATA_MATCHING_ID);
+fn install_policy(pair: &mut Pair, facts: &HirFnFacts) -> Result<(), String> {
+    let policy = json!(matching_identity(facts)?);
     pair.pdg
         .extensions
         .insert(POLICY_KEY.into(), policy.clone());
     pair.cfg.extensions.insert(POLICY_KEY.into(), policy);
+    Ok(())
+}
+
+fn matching_identity(facts: &HirFnFacts) -> Result<&'static str, String> {
+    crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .data_matching()
+        .ok_or_else(|| "Missing registered Data matching identity".into())
 }
 
 fn install_evidence(pdg: &mut crate::PdgDocument, facts: &HirFnFacts) -> Result<(), String> {
     let aliases = json!(crate::data_origins::aliases(facts)?);
-    let capability = memory_evidence();
+    let capability = memory_evidence(facts)?;
     pdg.extensions
         .insert("rstyle.data:possible-formal-aliases".into(), aliases);
     pdg.extraction_evidence
@@ -82,12 +89,12 @@ fn install_evidence(pdg: &mut crate::PdgDocument, facts: &HirFnFacts) -> Result<
     Ok(())
 }
 
-fn memory_evidence() -> crate::Capability {
-    crate::Capability {
-        policy: Some(crate::extraction_profile::ExtractionProfile::DataV1.policy()),
+fn memory_evidence(facts: &HirFnFacts) -> Result<crate::Capability, String> {
+    Ok(crate::Capability {
+        policy: Some(crate::extraction_profile::ExtractionProfile::from_facts(facts)?.policy()),
         status: crate::CapabilityStatus::Supported,
         description: "Verified formal read locations; shared inputs may alias; no disjointness or memory writes".into(),
-    }
+    })
 }
 
 pub fn read_keys(node: &crate::PdgNode) -> Vec<String> {
@@ -141,7 +148,9 @@ fn location(
             abstraction: "rstyle.formal-field/1".into(),
             description: "Read-only formal projection; shared roots may alias".into(),
             evidence: crate::Capability {
-                policy: Some(crate::extraction_profile::ExtractionProfile::DataV1.policy()),
+                policy: Some(
+                    crate::extraction_profile::ExtractionProfile::from_facts(facts)?.policy(),
+                ),
                 status: crate::CapabilityStatus::Supported,
                 description: "Independent source/resolved field and immutable concrete type proof"
                     .into(),
@@ -167,8 +176,7 @@ pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
     crate::data_library::verify_documents(pair, facts)?;
     crate::data_frontend::verify(facts)?;
     verify_interface(pair, facts)?;
-    if pair.pdg.extensions.get(POLICY_KEY)
-        != Some(&json!(crate::extraction_profile::DATA_MATCHING_ID))
+    if pair.pdg.extensions.get(POLICY_KEY) != Some(&json!(matching_identity(facts)?))
         || pair.cfg.extensions.get(POLICY_KEY) != pair.pdg.extensions.get(POLICY_KEY)
     {
         return Err("Data matching registration disagrees".into());
@@ -277,6 +285,10 @@ fn verify_reads(pair: &Pair, fields: usize) -> Result<(), String> {
 }
 
 fn read_count(pair: &Pair) -> Result<u64, String> {
+    let calls = crate::extraction_profile::policy_supports(
+        &pair.pdg.profile,
+        "rust.verified-read-only-helper-calls",
+    );
     let reachable = crate::reachable_vertices(&pair.cfg);
     let map = crate::read_operation_map(&pair.pdg.extensions)?;
     let nodes: BTreeSet<_> = map
@@ -289,7 +301,10 @@ fn read_count(pair: &Pair) -> Result<u64, String> {
         .pdg
         .nodes
         .iter()
-        .filter(|node| node.category == NodeCategory::Read && nodes.contains(&node.id))
+        .filter(|node| {
+            (node.category == NodeCategory::Read || calls && node.category == NodeCategory::Call)
+                && nodes.contains(&node.id)
+        })
         .flat_map(read_keys)
         .collect();
     Ok(keys.len() as u64)

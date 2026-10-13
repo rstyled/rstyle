@@ -89,6 +89,7 @@ pub enum MatchingProfile {
     #[default]
     ScalarV1,
     DataV1,
+    DataCallsV1,
 }
 
 impl MatchingProfile {
@@ -96,7 +97,12 @@ impl MatchingProfile {
         match self {
             Self::ScalarV1 => "compat.ccgraph.strict/0.1.0",
             Self::DataV1 => rstyle_pdg::extraction_profile::DATA_MATCHING_ID,
+            Self::DataCallsV1 => rstyle_pdg::extraction_profile::DATA_CALLS_MATCHING_ID,
         }
+    }
+
+    pub fn is_data(self) -> bool {
+        matches!(self, Self::DataV1 | Self::DataCallsV1)
     }
 }
 

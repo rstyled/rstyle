@@ -92,8 +92,7 @@ fn identity(facts: &HirFnFacts) -> Option<&str> {
 /// Native-width semantics propagate through verified dependencies, even when
 /// a caller's own interface and operations have only fixed-width scalar types.
 pub fn native_width(facts: &HirFnFacts) -> Result<bool, String> {
-    let data = crate::extraction_profile::ExtractionProfile::from_facts(facts)?
-        == crate::extraction_profile::ExtractionProfile::DataV1;
+    let data = crate::extraction_profile::ExtractionProfile::from_facts(facts)?.is_data();
     let interface = facts
         .signature
         .params
@@ -405,7 +404,7 @@ fn same_build(caller: &HirFnFacts, callee: &HirFnFacts) -> Result<bool, String> 
         && caller.build.panic_strategy == callee.build.panic_strategy
         && caller.build.pointer_width == callee.build.pointer_width
         && profile == crate::extraction_profile::ExtractionProfile::from_facts(callee)?;
-    if profile != crate::extraction_profile::ExtractionProfile::DataV1 {
+    if !profile.is_data() {
         return Ok(compatible);
     }
     Ok(compatible && crate::helper_references::same_unit(caller, callee)?)

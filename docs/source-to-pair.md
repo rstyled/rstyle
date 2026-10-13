@@ -258,14 +258,15 @@ locations before this classification. Consecutive implicit shared dereferences
 without referent-storage read evidence remain explicitly unavailable.
 The four core slice/str len/is_empty methods now retain source CALLs with verified
 receiver origins/adjustments, exact instantiated signatures and a tested pinned
-core registry. The initial registry supports nightly-2026-09-30 on
-aarch64-unknown-linux-gnu; other core builds remain unavailable. Length counts
+core registry. Separately verified registries support nightly-2026-09-30 on
+aarch64-unknown-linux-gnu and x86_64-unknown-linux-gnu; other core builds remain unavailable. Length counts
 slice elements or UTF-8 bytes, with no invented buffer read/write or panic edge.
 Stored fields, grouped explicit field borrows, scalar helper calls, scalar loops
 and borrowed branching outputs compose through the existing command. All fifteen
 functions in the independent family admit and all 105 pairs receive decisions;
 this is correctness evidence only. See `read-only-length-registry-v1.md` for exact
-provenance, signatures/effects and independent CALL verification obligations.
+provenance, signatures/effects and independent CALL verification obligations,
+and `read-only-lengths-x86_64-v1.md` for the separate x86_64 core authority.
 Same-unit direct helpers additionally support shared inputs with scalar/unit
 results under the existing verified memory-free boundary. Whole shared-formal
 results require `rstyle.helper.shared-return/1` and an exact verified return-origin
@@ -273,6 +274,15 @@ summary. Source and serialized graph proofs substitute only the selected actual
 argument origins, including aliases and stored-field arguments; helper results
 can feed registered metadata calls. The ten-function family reaches all 45 pairs.
 See `read-only-helper-calls-v1.md` for build, summary and origin obligations.
+
+The separately registered `--extraction-profile hir-data-v2` selects
+`rstyle.rust.hir-data/2.0.0` and `rstyle.ccgraph.data-calls/1.0.0`.
+It currently admits the same verified paths described above. Its frozen contract
+in `docs/extraction-profiles/data-calls-v1.md` additionally specifies verified
+source-body read effects on CALLs and their reference-count interpretation.
+Memory-reading helper callers remain excluded pending the connected summary,
+location-substitution and independent document-verification implementation.
+Data-v1 retains its existing reference-count interpretation and decisions.
 Memory-reading helper callees, aggregate reference-valued result components,
 inherent-method helper dispatch and cross-unit linking remain unavailable.
 Aggregate construction, local reference rebindings, other library summaries,

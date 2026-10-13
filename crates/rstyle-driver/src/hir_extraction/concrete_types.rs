@@ -308,7 +308,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             arguments,
         } = instance;
         let tcx = self.ctx.tcx;
-        if self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+        if self.ctx.profile.is_data()
             && arguments.len() > MAX_FIELDS
             && arguments
                 .iter()
@@ -348,7 +348,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             arguments,
         } = instance;
         let source = self.declaration(definition.did())?;
-        if self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 {
+        if self.ctx.profile.is_data() {
             let count = lifetimes::declaration_count(&source).map_err(Failure::Unsupported)?;
             if count != arguments.len() {
                 return Err(unsupported(
@@ -374,7 +374,7 @@ impl<'tcx> Capture<'_, 'tcx> {
 
     fn supported_arguments(&self, arguments: ty::GenericArgsRef<'tcx>) -> bool {
         arguments.is_empty()
-            || self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+            || self.ctx.profile.is_data()
                 && arguments
                     .iter()
                     .all(|argument| matches!(argument.kind(), ty::GenericArgKind::Lifetime(_)))
@@ -487,7 +487,7 @@ impl<'tcx> Capture<'_, 'tcx> {
 }
 
 fn nominal(ctx: &Context<'_>, definition_path: String, source: &str) -> Result<Nominal, Failure> {
-    if ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 {
+    if ctx.profile.is_data() {
         let context = ctx
             .unit_context
             .as_ref()

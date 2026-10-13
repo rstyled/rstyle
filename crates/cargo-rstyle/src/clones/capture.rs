@@ -615,7 +615,7 @@ fn driver_arguments(
         rstyle_pdg::extraction_profile::DRIVER_SELECTION_FLAG,
         plan.extraction_profile.token()
     )];
-    if plan.extraction_profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+    if plan.extraction_profile.is_data()
         && let Some(target) = target
     {
         let context = selected_unit_context(target, invocation)?;

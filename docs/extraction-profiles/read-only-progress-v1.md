@@ -717,6 +717,30 @@ Producer/imported-matching regressions and the real primitive-summary/R0 exclusi
 test passed after relocation. Style and patterns remain at zero; fmt and workspace
 all-target clippy passed. Logs: `target/code-owned-primitive-registry-*`.
 
+The separate `hir-data-v2` extraction and `rstyle.ccgraph.data-calls/1.0.0`
+matching registration are connected without widening Data-v1. The real five-body
+registration fixture admits the same four getter/metadata/identity/borrowed bodies
+under both selections, excludes its memory-reading caller and evaluates all six
+pairs. Independent projection expectations count CALL read keys only under the
+new matching registration, retaining distinct binding/location keys and collapsing
+repeated keys. Those graph-stage fixtures do not certify memory-reading callers;
+summary derivation and exact location substitution remain unavailable pending
+implementation. The contract is `data-calls-v1.md`.
+
+Ubuntu CI exposed the original aarch64-only library authority. The separately
+verified x86_64 authority now binds the official target's exact core hash,
+definition fingerprints and rmeta/rlib digests. Cross-target real capture admits
+the four metadata operations (six pairs) and the full disclosed fifteen-function
+BOM/CRLF family (105 pairs). Warm/trace-off decisions agree. All thirty family
+documents validate unchanged pinned schemas. No native CI test was disabled;
+native x86_64 CI still needs to confirm the push.
+
+Combined validation passes 591 workspace tests including all 104 real-command
+tests, with zero failed/ignored. Formatting and workspace all-target Clippy pass;
+style reports 1,656 functions and zero violations, patterns zero candidates.
+Inventory and harness scripting tests pass eleven and forty-three tests.
+Logs: `target/data-v2-registration-*` and `target/x86-core-*`.
+
 Whole Data admission remains incomplete. Outstanding work includes memory-reading
 and inherent-method verified calls across modules/packages, aggregate construction/local reference
 bindings, element reads/subslicing/checked Option, assertion provenance, scalar

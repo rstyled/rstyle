@@ -79,14 +79,14 @@ fn extraction_selection(args: &Args) -> &'static str {
     {
         "hir-helpers-v1"
     } else if ctx_profile_is_data(args) {
-        "hir-data-v1"
+        args.extraction_profile.token()
     } else {
         "hir-expanded-v1"
     }
 }
 
 fn ctx_profile_is_data(args: &Args) -> bool {
-    args.extraction_profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+    args.extraction_profile.is_data()
 }
 
 pub fn make(ctx: Context<'_>) -> Result<Value, String> {
