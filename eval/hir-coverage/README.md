@@ -74,3 +74,11 @@ uv run eval/hir-coverage/reproduce.py
 Current reproduction compares R0 with the same complete 0.7.0 semantics. Historical
 stage identities remain in verification and independent Rust fixtures, without
 requiring seven production extraction choices.
+# Assessment version 2
+
+Current reproduction uses exact source ownership and compilation contexts, rather
+than interval containment. See [REPORT-v2.md](REPORT-v2.md) for corrected baseline
+measurements; [REPORT.md](REPORT.md) retains historical conclusions. All frozen
+selected definitions remain in the denominator. Missing capture is unknown, never
+proof of cfg inactivity. Multiple contexts retain separate outcomes; missing or
+duplicate identity evidence fails closed.

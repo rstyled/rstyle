@@ -258,6 +258,9 @@ pub struct SourceDefinition {
     pub name: String,
     pub span: ByteSpan,
     pub source: String,
+    /// Exact signature/body ownership, excluding documentation and attributes.
+    pub function_span: ByteSpan,
+    pub function_source: String,
 }
 
 struct Definitions<'a> {
@@ -276,7 +279,7 @@ pub fn functions(source: &str) -> Result<Vec<SourceDefinition>, String> {
 }
 
 impl Definitions<'_> {
-    fn add(&mut self, name: &syn::Ident, span: proc_macro2::Span) {
+    fn add(&mut self, name: &syn::Ident, span: proc_macro2::Span, owned: proc_macro2::Span) {
         let start = offset(self.source, span.start());
         let end = offset(self.source, span.end());
         self.entries.push(SourceDefinition {
@@ -287,24 +290,60 @@ impl Definitions<'_> {
                 .get(start as usize..end as usize)
                 .unwrap_or_default()
                 .into(),
+            function_span: ByteSpan {
+                start: offset(self.source, owned.start()),
+                end: offset(self.source, owned.end()),
+            },
+            function_source: self
+                .source
+                .get(
+                    offset(self.source, owned.start()) as usize
+                        ..offset(self.source, owned.end()) as usize,
+                )
+                .unwrap_or_default()
+                .into(),
         });
     }
 }
 
 impl<'ast> Visit<'ast> for Definitions<'_> {
     fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
-        self.add(&function.sig.ident, function.span());
+        let owned = owned_function_span(&function.vis, &function.sig, function.block.span());
+        self.add(&function.sig.ident, function.span(), owned);
+        self.visit_block(&function.block);
     }
 
     fn visit_impl_item_fn(&mut self, function: &'ast syn::ImplItemFn) {
-        self.add(&function.sig.ident, function.span());
+        let owned = owned_function_span(&function.vis, &function.sig, function.block.span());
+        self.add(&function.sig.ident, function.span(), owned);
+        self.visit_block(&function.block);
     }
 
     fn visit_trait_item_fn(&mut self, function: &'ast syn::TraitItemFn) {
-        if function.default.is_some() {
-            self.add(&function.sig.ident, function.span());
+        if let Some(block) = &function.default {
+            let owned = function
+                .sig
+                .span()
+                .join(block.span())
+                .unwrap_or(function.sig.span());
+            self.add(&function.sig.ident, function.span(), owned);
+            self.visit_block(block);
         }
     }
+}
+
+fn owned_function_span(
+    visibility: &syn::Visibility,
+    signature: &syn::Signature,
+    body: proc_macro2::Span,
+) -> proc_macro2::Span {
+    let start = if matches!(visibility, syn::Visibility::Inherited) {
+        signature.span()
+    } else {
+        visibility.span()
+    };
+
+    start.join(body).unwrap_or(start)
 }
 
 fn resolved_summary(node: &HirNode, hir: &HirRef) -> bool {

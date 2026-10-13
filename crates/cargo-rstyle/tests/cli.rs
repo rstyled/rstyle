@@ -1944,6 +1944,38 @@ fn clones_conditional_bom_inventory_preserves_original_file_offsets() {
 }
 
 #[test]
+fn clones_source_inventory_keeps_nested_function_ownership_separate() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "#[inline]\npub fn outer() { fn inner() {} inner(); }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-expanded-v1"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let definitions = report["owned_source_inventory"][0]["source_functions"]
+        .as_array()
+        .unwrap();
+    assert_eq!(definitions.len(), 2);
+    let outer = definitions.iter().find(|f| f["name"] == "outer").unwrap();
+    let inner = definitions.iter().find(|f| f["name"] == "inner").unwrap();
+    assert_eq!(outer["active_functions"], serde_json::json!(["outer"]));
+    assert_eq!(
+        inner["active_functions"],
+        serde_json::json!(["outer::inner"])
+    );
+    assert_eq!(outer["function_span"]["start"], 10);
+    assert_eq!(inner["function_span"]["start"], 27);
+}
+
+#[test]
 fn clones_expanded_multi_package_targets_are_exhaustive_and_schedule_invariant() {
     let directory = expanded_multi_package_workspace();
     let (output, concurrent) = clones(

@@ -5,25 +5,27 @@ import unittest
 import reproduce
 import assess
 import summarize
+import correspondence
 
 
 class InventoryTests(unittest.TestCase):
     def setUp(self):
         source = 'fn f(x: i32) -> i32 { x as i32 }'
         self.selected = dict(package='p', version='1', path='src/lib.rs', start=0, end=len(source), source=source, name='f', sha256=hashlib.sha256(source.encode()).hexdigest())
-        self.record = dict(outcome='excluded', reasons=['casts', 'conditional evidence'], key='f', facts=dict(fn_span=dict(start=0, end=len(source)), source=dict(digest='sha256:'+self.selected['sha256']), source_diagnostics=[dict(capability='rust.integer-casts')], source_scan_complete=False, build=dict(frontend_options=dict(source_file='/p/src/lib.rs'))))
-        self.report = dict(capture_complete=True, functions=[self.record])
+        self.unit = dict(target=dict(package='p', name='p', manifest_dir='/p'), test=False)
+        self.record = dict(outcome='excluded', reasons=['casts', 'conditional evidence'], key='f', compilation_unit=correspondence.context_key(self.unit), facts=dict(fn_span=dict(start=0, end=len(source)), source=dict(bytes=source, digest='sha256:'+self.selected['sha256']), source_diagnostics=[dict(capability='rust.integer-casts')], source_scan_complete=False, build=dict(frontend_options=dict(source_file='/p/src/lib.rs', source_identifier='f'))))
+        self.report = dict(capture_complete=True, functions=[self.record], observed_units=[self.unit])
 
     def test_all_reasons_and_source_blockers_survive(self):
         result = assess.assess([self.selected], {'p': self.report})
         f = result['functions'][0]
-        self.assertEqual(f['reasons'], ['casts', 'conditional evidence'])
+        self.assertEqual(set(f['reasons']), {'casts', 'conditional evidence'})
         self.assertEqual(f['source_blockers'][0]['capability'], 'rust.integer-casts')
         self.assertFalse(f['source_scan_complete'])
 
     def test_missing_ambiguous_and_failed_capture(self):
         for records, complete, expected in [([], True, 'unknown'), ([self.record, self.record], True, 'failed'), ([self.record], False, 'failed')]:
-            result = assess.assess([self.selected], {'p': dict(capture_complete=complete, functions=records, capture_failures=['compiler failed'])})
+            result = assess.assess([self.selected], {'p': dict(self.report, capture_complete=complete, functions=records, capture_failures=['compiler failed'])})
             self.assertEqual(result['functions'][0]['outcome'], expected)
 
     def test_syntax_inventory_keeps_unreachable_blocker_combinations(self):

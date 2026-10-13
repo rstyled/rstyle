@@ -388,6 +388,16 @@ fn inventory_file(
                 .end
                 .checked_add(original_span.start)
                 .ok_or("Source inventory span overflow")?;
+            definition.function_span.start = definition
+                .function_span
+                .start
+                .checked_add(original_span.start)
+                .ok_or("Source inventory span overflow")?;
+            definition.function_span.end = definition
+                .function_span
+                .end
+                .checked_add(original_span.start)
+                .ok_or("Source inventory span overflow")?;
             inventory_definition(path, definition, facts)
         })
         .collect::<Result<Vec<_>, String>>()
@@ -401,8 +411,14 @@ fn inventory_definition(
     let active: Vec<_> = facts
         .iter()
         .filter(|fact| {
-            fact.fn_span.start >= definition.span.start
-                && fact.fn_span.end <= definition.span.end
+            fact.fn_span == definition.function_span
+                && fact.source.bytes == definition.function_source
+                && fact
+                    .build
+                    .frontend_options
+                    .get("source_identifier")
+                    .and_then(serde_json::Value::as_str)
+                    == Some(definition.name.trim_start_matches("r#"))
                 && fact
                     .build
                     .frontend_options
@@ -412,6 +428,10 @@ fn inventory_definition(
         })
         .map(|fact| &fact.name)
         .collect();
+
+    if active.len() > 1 {
+        return Err("Ambiguous exact owned-source function correspondence".into());
+    }
 
     let presence = if active.is_empty() {
         "absent_from_resolved_hir"
@@ -424,6 +444,8 @@ fn inventory_definition(
         span: definition.span,
         source_digest: evidence::digest(definition.source.as_bytes()),
         source: definition.source,
+        function_span: definition.function_span,
+        function_source_digest: evidence::digest(definition.function_source.as_bytes()),
         active_functions: active,
         presence,
         inventory_status: "complete_for_source_definitions_outside_macro_tokens",
@@ -446,6 +468,8 @@ struct DefinitionInventory<'a> {
     span: rstyle_pdg::ByteSpan,
     source_digest: String,
     source: String,
+    function_span: rstyle_pdg::ByteSpan,
+    function_source_digest: String,
     active_functions: Vec<&'a String>,
     presence: &'static str,
     inventory_status: &'static str,
