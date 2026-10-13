@@ -30,7 +30,6 @@ pub(super) fn check(source: &syn::Type, resolved: &TypeTree) -> Result<(), Strin
 }
 
 fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String> {
-    super::lifetimes::verify_path(source, resolved)?;
     // A named path may be a resolved alias. Spelling alone proves neither
     // nominal identity nor the alias referent; this observation cannot admit it.
     if source.qself.is_some()
@@ -39,6 +38,7 @@ fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String>
     {
         return Ok(());
     }
+    super::lifetimes::verify_path(source, resolved)?;
     let segment = &source.path.segments[0];
     let token = segment.ident.to_string();
     if scalar(&token) && resolved != &TypeTree::Scalar(token.clone()) {

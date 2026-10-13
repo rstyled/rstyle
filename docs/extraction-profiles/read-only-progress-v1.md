@@ -434,3 +434,22 @@ boundary still rejects unsupported trait/expansion items; successful fixture
 admission does not establish natural-crate majority coverage. Whole data admission
 is still active and incomplete. Historical evidence and vendored contracts remain
 unchanged; thresholds, grouping and mining were not activated.
+
+Legacy observation separation follow-up (baseline `caad2d4`): permissive helper
+type observations again accept their historical nongeneric where clauses and
+qualified associated field spellings. These observations still authorize no Data
+admission. Strict Data declaration/census/source-path checks separately reject
+both unsupported cases. A new real-command regression checks capture completeness,
+the helper's captured observation, and the excluded outcomes under both profiles.
+
+Validation: workspace tests passed 571 tests, zero failures or ignored tests,
+including all 92 real-command tests. Formatting and workspace all-target clippy
+passed. Style reports zero violations across 1,588 functions; patterns reports
+zero candidates. Logs: `target/lifetime-observation-legacy-{real,workspace,clippy}.log`
+and `lifetime-observation-legacy-{style,patterns}.json`. Earlier inventory and
+study/harness checks remain 11 and 43 passed; their scripts were not changed.
+
+The prospective `read-only-lengths-v1.md` contract is frozen, but the four discovery
+library calls remain excluded pending their full proof/registry implementation.
+Field place-versus-value context is being audited before that next admission slice.
+No broader data completion or natural coverage claim is made.

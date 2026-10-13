@@ -188,7 +188,8 @@ fn check_declaration(nominal: &Nominal, source: &str, fields: &[Field]) -> Resul
     let declaration: syn::ItemStruct = syn::parse_str(source)
         .map_err(|error| format!("Invalid concrete struct declaration: {error}"))?;
     if nominal.definition_path.rsplit("::").next() != Some(declaration.ident.to_string().as_str())
-        || lifetimes::parameter_count(&declaration.generics).is_err()
+        || !declaration.generics.params.is_empty()
+            && lifetimes::parameter_count(&declaration.generics).is_err()
         || declaration.fields.len() != fields.len()
     {
         return Err("Concrete struct name, generics or field inventory disagrees".into());

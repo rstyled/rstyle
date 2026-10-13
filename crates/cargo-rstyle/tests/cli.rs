@@ -3722,6 +3722,34 @@ fn clones_data_lifetime_argument_budget_is_incomplete_capture() {
     );
 }
 
+#[test]
+fn clones_helpers_preserve_permissive_concrete_observations_without_data_admission() {
+    for source in [
+        "pub struct Plain where i32: Copy { pub value: i32 }\npub fn read(value: &Plain) -> i32 { value.value }\n",
+        "pub trait Value { type Output; }\nimpl Value for i32 { type Output = i32; }\npub struct Plain { pub value: <i32 as Value>::Output }\npub fn read(value: &Plain) -> i32 { value.value }\n",
+    ] {
+        let directory = clone_workspace();
+        std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+        for profile in ["hir-helpers-v1", "hir-data-v1"] {
+            let (output, report) = clones(directory.path(), &["--extraction-profile", profile]);
+            assert!(output.status.success(), "{report}");
+            assert_eq!(report["capture_complete"], true);
+            assert_eq!(report["assessment_complete"], true);
+            let functions = report["functions"].as_array().unwrap();
+            assert_eq!(functions.len(), 1);
+            assert_eq!(functions[0]["outcome"], "excluded", "{report}");
+            if profile == "hir-helpers-v1" {
+                assert_eq!(
+                    functions[0]["facts"]["build"]["frontend_options"]
+                        [rstyle_pdg::concrete_types::KEY]["parameters"][0]["status"],
+                    "Captured",
+                    "{report}"
+                );
+            }
+        }
+    }
+}
+
 fn check_lifetime_interface_pair(report: &Value) {
     let functions = report["functions"].as_array().unwrap();
     let value = functions
