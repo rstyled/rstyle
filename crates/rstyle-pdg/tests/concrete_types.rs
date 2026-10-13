@@ -106,3 +106,125 @@ fn concrete_field_source_offsets_handle_unicode_and_crlf() {
         ]
     );
 }
+
+fn composite_field(declaration: &str, ty: TypeTree) -> TypeTree {
+    let source = format!("pub struct Counter {{ pub value: {declaration} }}");
+    let mut tree = structure(&source);
+    let TypeTree::Struct { fields, .. } = &mut tree else {
+        unreachable!()
+    };
+    fields[0].declaration = declaration.into();
+    fields[0].ty = ty;
+
+    tree
+}
+
+#[test]
+fn composite_field_source_structure_checks_widths_lengths_and_referents() {
+    let cases = [
+        (
+            "(i16, bool)",
+            TypeTree::Tuple(vec![
+                TypeTree::Scalar("i16".into()),
+                TypeTree::Scalar("bool".into()),
+            ]),
+        ),
+        (
+            "[u8; 0x03]",
+            TypeTree::Array {
+                element: Box::new(TypeTree::Scalar("u8".into())),
+                length: 3,
+            },
+        ),
+        (
+            "&'static [u8]",
+            TypeTree::Shared(Box::new(TypeTree::Slice(Box::new(TypeTree::Scalar(
+                "u8".into(),
+            ))))),
+        ),
+        ("&'static str", TypeTree::Shared(Box::new(TypeTree::Str))),
+        ("()", TypeTree::Scalar("unit".into())),
+        ("(i32)", TypeTree::Scalar("i32".into())),
+    ];
+    for (declaration, resolved) in cases {
+        validate(&composite_field(declaration, resolved.clone())).unwrap();
+        assert!(
+            validate(&composite_field(
+                declaration,
+                TypeTree::Scalar("u64".into())
+            ))
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn nested_composite_field_tampering_cannot_hide_behind_source_digest() {
+    let original = TypeTree::Shared(Box::new(TypeTree::Tuple(vec![
+        TypeTree::Array {
+            element: Box::new(TypeTree::Scalar("i16".into())),
+            length: 3,
+        },
+        TypeTree::Shared(Box::new(TypeTree::Str)),
+    ])));
+    let declaration = "&'static ([i16; 3], &'static str)";
+    validate(&composite_field(declaration, original.clone())).unwrap();
+    let TypeTree::Shared(tuple) = original else {
+        unreachable!()
+    };
+    let TypeTree::Tuple(elements) = *tuple else {
+        unreachable!()
+    };
+    for change in ["width", "length", "arity", "reference", "string"] {
+        let mut changed = elements.clone();
+        match change {
+            "width" => {
+                changed[0] = TypeTree::Array {
+                    element: Box::new(TypeTree::Scalar("u16".into())),
+                    length: 3,
+                }
+            }
+            "length" => {
+                changed[0] = TypeTree::Array {
+                    element: Box::new(TypeTree::Scalar("i16".into())),
+                    length: 4,
+                }
+            }
+            "arity" => {
+                changed.pop();
+            }
+            "reference" => changed[1] = TypeTree::Str,
+            "string" => {
+                changed[1] = TypeTree::Shared(Box::new(TypeTree::Slice(Box::new(
+                    TypeTree::Scalar("u8".into()),
+                ))))
+            }
+            _ => unreachable!(),
+        }
+        let changed = TypeTree::Shared(Box::new(TypeTree::Tuple(changed)));
+        assert!(
+            validate(&composite_field(declaration, changed)).is_err(),
+            "{change}"
+        );
+    }
+}
+
+#[test]
+fn unsupported_source_reference_shapes_remain_outside_observation_checks() {
+    for declaration in [
+        "&'static mut i32",
+        "*const i32",
+        "*mut i32",
+        "dyn Send",
+        "fn() -> i32",
+    ] {
+        assert!(
+            validate(&composite_field(
+                declaration,
+                TypeTree::Shared(Box::new(TypeTree::Scalar("i32".into())))
+            ))
+            .is_err(),
+            "{declaration}"
+        );
+    }
+}

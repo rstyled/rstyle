@@ -1,5 +1,7 @@
 //! Bounded, observational concrete type evidence. Never authorizes admission.
 
+mod declarations;
+
 use crate::source_evidence::byte_offset;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -217,24 +219,7 @@ fn check_field(
         );
     }
 
-    check_declared_scalar(&declared.ty, &captured.ty)?;
-
-    Ok(())
-}
-
-fn check_declared_scalar(declaration: &syn::Type, captured: &TypeTree) -> Result<(), String> {
-    if let syn::Type::Path(path) = declaration
-        && path.qself.is_none()
-        && path.path.leading_colon.is_none()
-        && path.path.segments.len() == 1
-    {
-        let token = path.path.segments[0].ident.to_string();
-        if scalar(&token) && captured != &TypeTree::Scalar(token) {
-            return Err(
-                "Declared primitive field type contradicts resolved scalar evidence".into(),
-            );
-        }
-    }
+    declarations::check(&declared.ty, &captured.ty)?;
 
     Ok(())
 }
