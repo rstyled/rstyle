@@ -277,13 +277,18 @@ See `read-only-helper-calls-v1.md` for build, summary and origin obligations.
 
 The separately registered `--extraction-profile hir-data-v2` selects
 `rstyle.rust.hir-data/2.0.0` and `rstyle.ccgraph.data-calls/1.0.0`.
-It currently admits the same verified paths described above. Its frozen contract
-in `docs/extraction-profiles/data-calls-v1.md` additionally specifies verified
-source-body read effects on CALLs and their reference-count interpretation.
-Memory-reading helper callers remain excluded pending the connected summary,
-location-substitution and independent document-verification implementation.
+It additionally admits same-unit direct helpers reading verified shared formal
+fields with scalar/unit results. `rstyle.helper.read-only-body/1` retains exact
+callee read occurrences and substitutes actual shared-reference origins into
+caller locations, preserving aliases and stored-reference dereferences. Source
+CALLs retain their argument edges and exact read accesses; no callee nodes are
+inlined. Independent document verification checks summaries, locations and CALL
+effects. The twenty-function composition family reaches all 190 pair decisions,
+including field borrows, qualified aliases, repeated/aliased reads, branching
+reference arguments, metadata calls, casts and caller scalar loops. Its frozen
+contract is `docs/extraction-profiles/data-calls-v1.md`.
 Data-v1 retains its existing reference-count interpretation and decisions.
-Memory-reading helper callees, aggregate reference-valued result components,
+By-value or borrowed-result memory-reading helper callees, aggregate reference-valued result components,
 inherent-method helper dispatch and cross-unit linking remain unavailable.
 Aggregate construction, local reference rebindings, other library summaries,
 slice indexing/subslicing, and assertions are still

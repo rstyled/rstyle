@@ -33,6 +33,8 @@ pub struct Summary {
     pub result_dependence: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference_outputs: Option<Vec<crate::data_origins::Origin>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_reads: Option<Vec<crate::helper_reads::Read>>,
 }
 
 fn summary(facts: &HirFnFacts, pair: &producer::Pair) -> Result<Summary, String> {
@@ -57,8 +59,12 @@ fn summary(facts: &HirFnFacts, pair: &producer::Pair) -> Result<Summary, String>
 
     let reference_outputs = crate::helper_references::returned(facts, pair)?;
     let references = reference_outputs.is_some();
+    let memory_reads = crate::helper_reads::derive(facts, pair)?;
+    let reads = memory_reads.is_some();
     Ok(Summary {
-        identity: if references {
+        identity: if reads {
+            "rstyle.helper.read-only-body/1"
+        } else if references {
             "rstyle.helper.shared-return/1"
         } else {
             "rstyle.helper.source-body/1"
@@ -67,7 +73,7 @@ fn summary(facts: &HirFnFacts, pair: &producer::Pair) -> Result<Summary, String>
         argument_types,
         result_type,
         mutates_arguments: false,
-        memory_effects: false,
+        memory_effects: reads,
         may_panic: false,
         always_returns: true,
         argument_evaluation: "source-order-once/1".into(),
@@ -78,6 +84,7 @@ fn summary(facts: &HirFnFacts, pair: &producer::Pair) -> Result<Summary, String>
         }
         .into(),
         reference_outputs,
+        memory_reads,
     })
 }
 
@@ -160,7 +167,12 @@ pub fn capture(facts: &mut [HirFnFacts]) -> Result<(), String> {
         }
     }
     // Unsupported or recursive callees remain explicit call exclusions.
-    attach_all(facts, &state.verified)
+    attach_all(facts, &state.verified)?;
+
+    for function in facts {
+        crate::helper_reads::check_budgets(function)?;
+    }
+    Ok(())
 }
 
 struct CaptureState {
@@ -291,7 +303,7 @@ fn certify(facts: &HirFnFacts) -> Result<Option<Dependency>, String> {
         return Ok(None);
     }
     let pair = producer::produce(facts).map_err(|errors| errors.join("; "))?;
-    if check_boundary(&pair).is_err() {
+    if check_boundary(&pair, facts).is_err() {
         return Ok(None);
     }
     let serialized = pair.serialize().map_err(|error| error.to_string())?;
@@ -305,9 +317,9 @@ fn certify(facts: &HirFnFacts) -> Result<Option<Dependency>, String> {
     }))
 }
 
-fn check_boundary(pair: &producer::Pair) -> Result<(), Vec<String>> {
+fn check_boundary(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
-        || !pair.pdg.memory_locations.is_empty()
+        || !pair.pdg.memory_locations.is_empty() && !crate::helper_reads::supported(facts, pair)
         || pair
             .pdg
             .nodes
@@ -315,7 +327,7 @@ fn check_boundary(pair: &producer::Pair) -> Result<(), Vec<String>> {
             .any(|node| matches!(node.attributes.construct.as_deref(), Some("loop" | "while")))
     {
         return Err(vec![
-            "Helper summary requires verified memory-free, nonpanicking, acyclic returning flow"
+            "Helper summary requires verified memory-free or registered shared read-only effects, nonpanicking acyclic returning flow"
                 .into(),
         ]);
     }
@@ -344,10 +356,11 @@ pub fn verify(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String>
     };
     let pair = producer::verify_serialized(&serialized, &dependency.frontend)
         .map_err(|errors| errors.join("; "))?;
-    check_boundary(&pair).map_err(|errors| errors.join("; "))?;
+    check_boundary(&pair, &dependency.frontend).map_err(|errors| errors.join("; "))?;
     if dependency.summary != summary(&dependency.frontend, &pair)? {
         return Err("Helper summary signature, effects or returning behavior contradict verified callee evidence".into());
     }
+    crate::helper_reads::verify_arguments(&dependency.summary, node, caller)?;
 
     Ok(dependency)
 }
@@ -498,6 +511,7 @@ fn verify_document_call(
         return Err("Missing or duplicate serialized helper summary".into());
     };
 
+    crate::helper_reads::verify_effects(node, call, facts, &dependency.summary)?;
     verify_call_metadata(node, call, record, dependency)?;
     verify_call_operands(pair, node, call, record)
 }

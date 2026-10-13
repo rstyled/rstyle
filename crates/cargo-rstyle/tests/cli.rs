@@ -4716,20 +4716,336 @@ fn clones_data_v2_registers_separately_and_preserves_verified_data_paths() {
         "rstyle.ccgraph.data-calls"
     );
     for function in report["functions"].as_array().unwrap() {
-        let expected = if function["facts"]["name"] == "caller" {
-            "excluded"
-        } else {
-            "admitted"
-        };
-        assert_eq!(function["outcome"], expected, "{function}");
+        assert_eq!(function["outcome"], "admitted", "{function}");
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 6);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
     assert_eq!(report["pair_evaluation_complete"], true);
     let (output, old) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{old}");
     assert_eq!(old["matching"]["profile_id"], "rstyle.ccgraph.data");
     assert_eq!(old["extraction_policy"]["version"], "1.0.0");
     assert_eq!(old["matching"]["pairs"].as_array().unwrap().len(), 6);
+}
+
+const DATA_READ_CALL_FAMILY: &str = "pub struct Inner { pub n: u8, pub other: u8 }\npub struct Data { pub inner: Inner, pub extra: u8 }\npub struct Holder<'a> { pub ptr: &'a Data }\npub fn get(v: &Data) -> u8 { v.inner.n }\npub fn wrap(v: &Data) -> u8 { get(v) }\npub fn third(v: &Data) -> u8 { wrap(v) }\npub fn equal(left: &Data, right: &Data) -> bool { get(left) == get(right) }\npub fn alias_inputs(v: &Data) -> bool { equal(v, v) }\npub fn repeated(v: &Data) -> bool { v.inner.n == v.inner.n }\npub fn repeat_wrap(v: &Data) -> bool { repeated(v) }\npub mod access { use super::Data; pub fn read(v: &Data) -> u8 { v.extra } }\nuse access::read as imported;\npub fn qualified(v: &Data) -> u8 { access::read(v) }\npub fn aliased(v: &Data) -> u8 { imported(v) }\npub fn read_inner(v: &Inner) -> u8 { v.n }\npub fn nested(v: &Data) -> u8 { read_inner(&v.inner) }\npub fn choose<'a>(flag: bool, left: &'a Data, right: &'a Data) -> &'a Data { if flag { left } else { right } }\npub fn choose_get(flag: bool, left: &Data, right: &Data) -> u8 { get(choose(flag, left, right)) }\npub fn stored(v: &Holder<'_>) -> u8 { get(v.ptr) }\npub fn consume(v: &Data) { get(v); }\npub fn conditional(v: &Data, flag: bool) { if flag { consume(v); } }\npub fn casted(v: &Data) -> u32 { get(v) as u32 }\npub fn with_length(v: &Data, text: &str) -> bool { get(v) == 0 && text.is_empty() }\npub fn looped(v: &Data) -> u8 { let mut n = 0u8; while n < get(v) { n += 1; } n }\n";
+
+#[test]
+fn clones_data_read_calls_compose_complete_shared_field_helper_families() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), DATA_READ_CALL_FAMILY).unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v2", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 20);
+    for function in functions {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+        let (pair, facts) = data_pair(function);
+        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 190);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    check_read_call_locations(&report);
+    check_read_call_tampering(read_call_function(&report, "wrap"));
+    let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{warm}");
+    assert_eq!(pair_decisions(&report), pair_decisions(&warm));
+    check_read_call_edit(directory.path(), &report);
+}
+
+fn read_call_function<'a>(report: &'a Value, name: &str) -> &'a Value {
+    report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == name)
+        .unwrap()
+}
+
+#[test]
+fn clones_data_read_calls_keep_unproved_callee_boundaries_closed() {
+    let directory = clone_workspace();
+    let source = "pub struct Data { pub n: u8 }\n\
+pub fn get(v: &Data) -> u8 { v.n }\n\
+pub fn supported(v: &Data) -> u8 { get(v) }\n\
+pub fn by_value(v: Data) -> u8 { v.n }\n\
+pub fn value_call(v: Data) -> u8 { by_value(v) }\n\
+pub fn borrowed(v: &Data) -> &u8 { &v.n }\n\
+pub fn borrowed_call(v: &Data) -> &u8 { borrowed(v) }\n\
+pub fn checked(v: &Data) -> u8 { v.n + 1 }\n\
+pub fn checked_call(v: &Data) -> u8 { checked(v) }\n\
+pub fn recursive(v: &Data) -> u8 { recursive(v) }\n\
+pub fn recursive_call(v: &Data) -> u8 { recursive(v) }\n\
+pub fn divergent(v: &Data) -> u8 { loop {} }\n\
+pub fn divergent_call(v: &Data) -> u8 { divergent(v) }\n";
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(
+        read_call_function(&report, "supported")["outcome"],
+        "admitted"
+    );
+    for name in [
+        "value_call",
+        "borrowed_call",
+        "checked_call",
+        "recursive",
+        "recursive_call",
+        "divergent_call",
+    ] {
+        assert_eq!(
+            read_call_function(&report, name)["outcome"],
+            "excluded",
+            "{name}: {report}"
+        );
+    }
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    assert_eq!(report["pair_evaluation_complete"], true);
+}
+
+fn check_read_call_locations(report: &Value) {
+    let wrapper = read_call_function(report, "wrap");
+    let projected = report["matching"]["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["key"] == wrapper["key"])
+        .unwrap();
+    // Input, argument READ, source CALL and return; the binding and referent
+    // location are two distinct keys. No callee nodes appear in this graph.
+    assert_eq!(
+        projected["projection"]["features"],
+        serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 2])
+    );
+    for (name, reads, locations) in [
+        ("wrap", 1, 1),
+        ("third", 1, 1),
+        ("alias_inputs", 2, 1),
+        ("repeat_wrap", 2, 1),
+        ("choose_get", 2, 2),
+    ] {
+        let (pair, _) = data_pair(read_call_function(report, name));
+        assert_eq!(
+            pair.pdg
+                .nodes
+                .iter()
+                .filter(|node| node.category == rstyle_pdg::NodeCategory::Call)
+                .map(|node| node.attributes.reads.len())
+                .sum::<usize>(),
+            reads,
+            "{name}"
+        );
+        assert_eq!(pair.pdg.memory_locations.len(), locations, "{name}");
+        for location in &pair.pdg.memory_locations {
+            let evidence = &location.extensions[rstyle_pdg::data_documents::LOCATION_KEY];
+            assert_eq!(evidence["path"][0]["kind"], "SharedReferent");
+            assert_eq!(evidence["path"][1]["name"], "inner");
+            assert_eq!(evidence["path"][2]["name"], "n");
+            assert_eq!(
+                evidence["type"],
+                serde_json::json!({"kind":"scalar", "value":"u8"})
+            );
+        }
+    }
+    check_stored_read_path(read_call_function(report, "stored"));
+}
+
+fn check_stored_read_path(function: &Value) {
+    let (stored, _) = data_pair(function);
+    let path = &stored
+        .pdg
+        .memory_locations
+        .iter()
+        .find(|location| {
+            location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+                .as_array()
+                .unwrap()
+                .len()
+                == 5
+        })
+        .unwrap()
+        .extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"];
+    assert_eq!(path[1]["name"], "ptr");
+    assert_eq!(path[2]["kind"], "SharedReferent");
+    assert_eq!(path[3]["name"], "inner");
+    assert_eq!(path[4]["name"], "n");
+}
+
+fn check_read_call_tampering(function: &Value) {
+    let (pair, facts) = data_pair(function);
+    for change in [
+        "missing",
+        "extra",
+        "root",
+        "location",
+        "position",
+        "unresolved",
+        "write",
+        "binding",
+    ] {
+        let mut changed = rstyle_pdg::producer::Pair {
+            pdg: pair.pdg.clone(),
+            cfg: pair.cfg.clone(),
+        };
+        let call = changed
+            .pdg
+            .nodes
+            .iter_mut()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Call)
+            .unwrap();
+        tamper_read_call(call, change);
+        assert!(
+            rstyle_pdg::helper_calls::verify_documents(&changed, &facts).is_err(),
+            "{change}"
+        );
+    }
+    for change in ["removed", "duplicate", "path", "type", "binding-read"] {
+        let mut changed = rstyle_pdg::producer::Pair {
+            pdg: pair.pdg.clone(),
+            cfg: pair.cfg.clone(),
+        };
+        tamper_read_location(&mut changed, change);
+        assert!(
+            rstyle_pdg::data_documents::verify(&changed, &facts).is_err(),
+            "{change}"
+        );
+    }
+    check_read_summary_tampering(&facts);
+}
+
+fn check_read_summary_tampering(facts: &rstyle_pdg::HirFnFacts) {
+    for change in [
+        "missing",
+        "empty",
+        "extra",
+        "operation",
+        "access",
+        "parameter",
+        "path",
+        "type",
+        "effect",
+        "identity",
+    ] {
+        let mut changed = facts.clone();
+        assert!(tamper_read_summary(&mut changed.body, change));
+        assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
+    }
+    for change in ["manifest", "source", "signature", "effects"] {
+        let mut changed = facts.clone();
+        assert!(corrupt_helper(&mut changed.body, change));
+        assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
+    }
+}
+
+fn tamper_read_call(call: &mut rstyle_pdg::PdgNode, change: &str) {
+    match change {
+        "missing" => call.attributes.reads.clear(),
+        "extra" => call.attributes.reads.push(call.attributes.reads[0].clone()),
+        "root" => call.attributes.reads[0].symbol_id = Some("other".into()),
+        "location" => call.attributes.reads[0].location_id = None,
+        "position" => call.attributes.reads[0].operand_position = Some(1),
+        "unresolved" => call.attributes.reads[0].unresolved_reason = Some("unknown".into()),
+        "write" => call
+            .attributes
+            .writes
+            .push(call.attributes.reads[0].clone()),
+        "binding" => call.attributes.symbol_ids.push("invented".into()),
+        _ => unreachable!(),
+    }
+}
+
+fn tamper_read_location(pair: &mut rstyle_pdg::producer::Pair, change: &str) {
+    let key = rstyle_pdg::data_documents::LOCATION_KEY;
+    match change {
+        "removed" => pair.pdg.memory_locations.clear(),
+        "duplicate" => pair
+            .pdg
+            .memory_locations
+            .push(pair.pdg.memory_locations[0].clone()),
+        "path" => {
+            pair.pdg.memory_locations[0]
+                .extensions
+                .get_mut(key)
+                .unwrap()["path"][2]["name"] = serde_json::json!("other")
+        }
+        "type" => {
+            pair.pdg.memory_locations[0]
+                .extensions
+                .get_mut(key)
+                .unwrap()["type"]["value"] = serde_json::json!("u16")
+        }
+        "binding-read" => {
+            let location = pair.pdg.memory_locations[0].id.clone();
+            pair.pdg
+                .nodes
+                .iter_mut()
+                .find(|node| node.category == rstyle_pdg::NodeCategory::Read)
+                .unwrap()
+                .attributes
+                .reads[0]
+                .location_id = Some(location);
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn tamper_read_summary(node: &mut rstyle_pdg::HirNode, change: &str) -> bool {
+    if node.kind != "expr_call" {
+        return node
+            .children
+            .iter_mut()
+            .any(|child| tamper_read_summary(child, change));
+    }
+    let resolution = node.res.as_mut().unwrap();
+    let mut value: Value = serde_json::from_str(&resolution.description).unwrap();
+    let summary = &mut value[rstyle_pdg::helper_calls::KEY]["summary"];
+    match change {
+        "missing" => {
+            summary.as_object_mut().unwrap().remove("memory_reads");
+        }
+        "empty" => summary["memory_reads"] = serde_json::json!([]),
+        "extra" => {
+            let read = summary["memory_reads"][0].clone();
+            summary["memory_reads"].as_array_mut().unwrap().push(read);
+        }
+        "operation" => summary["memory_reads"][0]["operation"] = serde_json::json!("forged"),
+        "access" => summary["memory_reads"][0]["access"] = serde_json::json!(1),
+        "parameter" => summary["memory_reads"][0]["parameter"] = serde_json::json!(1),
+        "path" => summary["memory_reads"][0]["path"] = serde_json::json!([]),
+        "type" => summary["memory_reads"][0]["value"]["value"] = serde_json::json!("u16"),
+        "effect" => summary["memory_effects"] = serde_json::json!(false),
+        "identity" => summary["identity"] = serde_json::json!("rstyle.helper.source-body/1"),
+        _ => unreachable!(),
+    }
+    resolution.description = serde_json::to_string(&value).unwrap();
+    true
+}
+
+fn check_read_call_edit(directory: &Path, previous: &Value) {
+    let source = DATA_READ_CALL_FAMILY.replace(
+        "pub fn get(v: &Data) -> u8 { v.inner.n }",
+        "pub fn get(v: &Data) -> u8 { v.inner.other }",
+    );
+    std::fs::write(directory.join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory, &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{report}");
+    for name in ["wrap", "third"] {
+        let old = read_call_function(previous, name);
+        let new = read_call_function(&report, name);
+        assert_ne!(old["document_manifest"], new["document_manifest"]);
+        let (pair, _) = data_pair(new);
+        assert_eq!(
+            pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+                [2]["name"],
+            "other"
+        );
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 190);
+    assert_eq!(report["pair_evaluation_complete"], true);
 }
 
 fn check_shared_result_tampering(

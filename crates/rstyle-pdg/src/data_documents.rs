@@ -21,11 +21,19 @@ pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
 
 fn install_locations(mut pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
     let fields = observations(facts)?;
-    let locations = fields
+    let mut locations = fields
         .operations
         .iter()
         .map(|field| install_field(&mut pair.pdg, field, facts))
         .collect::<Result<BTreeMap<_, _>, _>>()?;
+    crate::helper_reads::install(&mut pair, facts, &mut locations)?;
+    finish_locations(pair, locations)
+}
+
+fn finish_locations(
+    mut pair: Pair,
+    locations: BTreeMap<String, crate::MemoryLocation>,
+) -> Result<Pair, String> {
     pair.pdg.memory_locations = locations.into_values().collect();
     pair.pdg.function.reference_count.value = Some(read_count(&pair)?);
 
@@ -137,7 +145,27 @@ fn location(
         return Err("Missing field origin".into());
     };
 
-    let root = &facts.signature.params[*parameter as usize].symbol;
+    formal_location(
+        *parameter,
+        path,
+        crate::data_types::TypeToken::from_tree(value),
+        facts,
+    )
+}
+
+pub(crate) fn formal_location(
+    parameter: u32,
+    path: &[Projection],
+    value: crate::data_types::TypeToken,
+    facts: &HirFnFacts,
+) -> Result<(String, crate::MemoryLocation), String> {
+    let root = &facts
+        .signature
+        .params
+        .get(parameter as usize)
+        .ok_or("Unknown formal location root")?
+        .symbol;
+
     let identity = json!([root, path]);
     let bytes = serde_json::to_vec(&identity).map_err(|error| error.to_string())?;
     let id = format!("location:{}", crate::concrete_types::digest(&bytes));
@@ -158,10 +186,10 @@ fn location(
             extensions: BTreeMap::from([(
                 LOCATION_KEY.into(),
                 serde_json::to_value(LocationEvidence {
-                    parameter: *parameter,
+                    parameter,
                     root_symbol: root,
                     path,
-                    value: crate::data_types::TypeToken::from_tree(value),
+                    value,
                 })
                 .map_err(|error| error.to_string())?,
             )]),
@@ -187,6 +215,7 @@ pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
     for field in &fields.operations {
         verify_field(pair, facts, field, &mut expected)?;
     }
+    crate::helper_reads::verify_locations(pair, facts, &mut expected)?;
 
     let actual: BTreeMap<_, _> = pair
         .pdg
@@ -269,12 +298,11 @@ fn verify_reads(pair: &Pair, fields: usize) -> Result<(), String> {
         })
         .count()
         != fields
-        || pair.pdg.nodes.iter().any(|node| {
-            node.attributes
-                .writes
-                .iter()
-                .any(|access| access.location_id.is_some())
-        })
+        || pair
+            .pdg
+            .nodes
+            .iter()
+            .any(|node| invalid_memory_access(node, pair))
     {
         return Err("Data operation inventory or read-only effects disagree".into());
     }
@@ -282,6 +310,28 @@ fn verify_reads(pair: &Pair, fields: usize) -> Result<(), String> {
         return Err("Data reference count disagrees with verified read locations".into());
     }
     Ok(())
+}
+
+fn invalid_memory_access(node: &crate::PdgNode, pair: &Pair) -> bool {
+    let field = node.category == NodeCategory::Read
+        && node.original_kind.known_value() == Some("expr_field");
+    let call = node.category == NodeCategory::Call
+        && node.original_kind.known_value() == Some("expr_call")
+        && crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            "rust.verified-read-only-helper-calls",
+        );
+    node.attributes
+        .writes
+        .iter()
+        .any(|access| access.location_id.is_some())
+        || !field
+            && !call
+            && node
+                .attributes
+                .reads
+                .iter()
+                .any(|access| access.location_id.is_some())
 }
 
 fn read_count(pair: &Pair) -> Result<u64, String> {

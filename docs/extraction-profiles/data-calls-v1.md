@@ -4,9 +4,10 @@ Frozen before implementation at `da98cf5`. Opt-in selection:
 `cargo rstyle clones --extraction-profile hir-data-v2 --format json`.
 Extraction: `rstyle.rust.hir-data/2.0.0`.
 Matching: `rstyle.ccgraph.data-calls/1.0.0`.
-Status: profile registration and the existing verified Data paths are connected.
-Memory-reading helper calls remain unavailable for admission until the independently
-verified connected slices below are implemented. This is a local extension, not pinned compat conformance.
+Status: same-unit direct shared-input memory-reading helpers with scalar/unit
+results are connected through the real source-to-pair command. Resolved inherent
+method calls and cross-unit linking remain unavailable. This is a local extension,
+not pinned compat conformance.
 R0, expanded, helper and `hir-data-v1` identities and semantics remain unchanged.
 
 ## Syntax, types and evidence
@@ -97,8 +98,8 @@ pair, including explicit incompatible/rejected decisions, without hidden caps.
 
 ## Bounds, exclusions and required validation
 
-Retain depth-eight and eight-MiB per-call dependency budgets. Bound summarized read
-occurrences by the concrete evidence entry budget; excess is explicit incomplete
+Retain depth-eight and eight-MiB per-call dependency budgets. Bound summarized and
+substituted per-CALL read occurrences at 4096 entries; excess is explicit incomplete
 execution, never truncation. Artifact, arithmetic, verification and resource
 failures remain incomplete execution. Unsupported constructs remain exclusions.
 

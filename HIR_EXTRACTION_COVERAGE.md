@@ -316,7 +316,11 @@ summary, selected actual-argument substitution and independent source/graph
 verification. Qualified aliases, multi-level calls, argument permutations,
 branching origins and stored-field actual arguments compose with registered
 metadata operations. The ten-function borrowed-result family reaches all 45 pairs;
-memory-reading callees, aggregate reference-result components, inherent-method
+Data-v2 additionally admits direct shared-input memory-reading helpers with
+scalar/unit results, exact per-occurrence callee read summaries, independently
+verified actual-origin substitution and CALL effects. The twenty-function
+composition family reaches all 190 pairs without inlining. By-value or
+borrowed-result memory-reading callees, aggregate reference-result components, inherent-method
 helper dispatch and cross-unit summaries remain unavailable.
 Construction, local reference correspondence, other library methods and
 indexing/subslicing remain unfinished; the broader

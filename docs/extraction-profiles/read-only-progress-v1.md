@@ -748,3 +748,57 @@ constants/patterns, merges outside versus inside loop cycles, scoped nominal eff
 proof and the broader preregistered contemporary-crate inventory with measured
 targets. Historical reports and the unidentified user-observed 6/50 remain distinct
 from these fixtures. No mining/grouping/calibration or quality study was enabled.
+
+## Same-unit source-backed memory-reading direct calls
+
+Implementation baseline: `383e477` on `ccgraph/read-only-api-coverage`, with a
+clean working tree before this slice. The preceding x86_64 registry and Data-v2
+registration checkpoint passed both Ubuntu x86_64 and ARM jobs in run
+`38471863840`. This supplements the earlier pending CI record above.
+
+Only Data-v2 derives `rstyle.helper.read-only-body/1` from independently verified
+callee documents. Each read occurrence preserves its operation/access identity,
+formal position, ordered resolved path and exact value type. Actual shared
+referent origins replace exactly the leading callee shared-reference projection;
+stored-reference dereferences, alternative origins and possible aliases remain.
+Source-backed CALLs retain argument edges and exact substituted read accesses;
+no callee graph is inlined or projected into the caller. Independent serialized
+checks reconstruct locations and CALL effects and reject binding READs claiming
+referent accesses. Existing Data-v1 still excludes these callers.
+
+The twenty-function family reaches all 190 pairs, composing nested getters,
+multi-level wrappers, aliases and qualified paths, multiple/identical shared
+inputs, repeated reads, borrowed field arguments, branching memory-free shared
+results, stored references, unit helpers, scalar casts/loops and metadata calls.
+Independent expectations specify the wrapper's nine features and exact read
+multiplicity/location paths. Tampering checks cover CALL accesses, locations,
+summary occurrences and dependency manifests/source/signatures/effects. Warm
+trace-off runs preserve pair decisions; callee edits change dependent manifests
+and exact caller locations. A separate mixed family retains explicit exclusions
+for by-value and borrowed-result memory-reading callees, recursion, potentially
+panicking arithmetic and nonreturning callees.
+
+Native ARM and x86_64 three-function direct-call chains each admit all three
+functions and enumerate/evaluate all three pairs with complete capture and
+assessment. All six documents per target validate unchanged vendored schemas.
+These are connected coverage/correctness fixtures, not the historical or broader
+natural applicability inventory and not a detection-quality result.
+
+The explicit read-occurrence budget is 4096 per derived summary and substituted
+CALL, alongside existing depth-eight and eight-MiB dependency limits. Exhaustion
+fails capture rather than admitting truncated evidence. Read-budget-specific
+real-command stress coverage remains an obligation of the broader resource audit.
+Inherent methods, cross-unit linking and the other outstanding Data bundles above
+remain unavailable or unfinished. Whole Data admission is not complete.
+
+Validation: `cargo test --workspace --locked` passes 594 tests, including all 106
+real-command tests, with zero failed/ignored. The final enriched family test also
+passes independently. `cargo fmt --all -- --check` and
+`cargo clippy --workspace --all-targets --locked -- -D warnings` pass. Style checks
+report 1,679 functions and zero violations; patterns report zero candidates.
+The documented `uv` inventory command passes eleven tests; scripting passes
+forty-three with Cargo on PATH. Initial Python attempts without dependencies/PATH
+are preserved in the logs. An initial workspace attempt was invalidated when an
+overlapping targeted Cargo build replaced its live orchestration executable;
+the isolated final rerun passes all five affected tests and the complete suite.
+Logs and retained schema reports are under `target/data-read-calls-*`.
