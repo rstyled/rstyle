@@ -248,8 +248,10 @@ Shared field borrows preserve exact locations and borrowed outputs, including
 conditional outputs. Their address projections do not invent referent reads.
 Stored shared-reference fields and by-value non-generic struct/tuple values now
 retain exact nominal field origins, including nested conditional outputs. Loading
-a stored reference records a field read and its referent path. Reference-bearing
-array elements and lifetime-generic declarations remain excluded.
+a stored reference records a field read and its referent path. Lifetime-only
+local nominal declarations/impls use exact region instantiation and declaration/
+path-argument arity proof. Reference-bearing array elements, type/const generics
+and bounded lifetime impls remain excluded.
 Aggregate construction, local reference rebindings,
 read-only library summaries, slice indexing/subslicing, and assertions are still
 unavailable in this implementation. Their observations do not admit them. This

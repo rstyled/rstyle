@@ -103,15 +103,7 @@ fn path_proof(
     tree: &TypeTree,
     resolution: &impl PathResolution,
 ) -> Result<(), String> {
-    if path.qself.is_some()
-        || path
-            .path
-            .segments
-            .iter()
-            .any(|segment| !matches!(segment.arguments, syn::PathArguments::None))
-    {
-        return Err("Qualified-self or generic source path lacks a data contract".into());
-    }
+    super::lifetimes::verify_path(path, tree)?;
     if path.path.leading_colon.is_none() && path.path.segments.len() == 1 {
         let token = path.path.segments[0].ident.to_string();
         if (super::scalar(&token) && token != "unit") || token == "str" {

@@ -3234,6 +3234,7 @@ fn clones_data_trace_collection_preserves_pair_decisions_on_fresh_warm_runs() {
         DATA_TUPLE_FAMILY,
         DATA_BORROW_FAMILY,
         DATA_STORED_REFERENCE_FAMILY,
+        DATA_LIFETIME_FAMILY,
     ] {
         check_data_trace_invariance(source);
     }
@@ -3607,18 +3608,160 @@ fn check_stored_reference_path(origin: &rstyle_pdg::data_origins::Origin, name: 
 }
 
 #[test]
-fn clones_data_reference_element_and_lifetime_generic_boundaries_fail_closed() {
+fn clones_data_reference_element_and_type_generic_boundaries_fail_closed() {
     for (source, count) in [
         (
             "pub struct Mixed { pub direct: &'static i32, pub elements: [&'static i32; 2] }\npub fn mixed(value: Mixed) -> Mixed { value }\npub fn unused(value: Mixed) -> i32 { 1 }\npub fn scalar(x: i32) -> i32 { x }\n",
             3,
         ),
         (
-            "pub struct Generic<'a> { pub text: &'a str }\npub fn generic(value: Generic<'_>) -> &str { value.text }\npub fn scalar(x: i32) -> i32 { x }\n",
+            "pub struct Generic<T> { pub value: T }\npub fn generic(value: Generic<i32>) -> i32 { value.value }\npub fn scalar(x: i32) -> i32 { x }\n",
             2,
         ),
     ] {
         check_unavailable_reference_fields(source, count);
+    }
+}
+
+const DATA_LIFETIME_FAMILY: &str = "mod model { pub struct View<'a> { pub text: &'a str, pub bytes: &'a [u8], pub value: &'a i32 } pub struct Outer<'a> { pub inner: View<'a> } impl<'a> View<'a> { pub fn text(&self) -> &'a str { self.text } pub fn bytes(&self) -> &'a [u8] { self.bytes } } }\nuse model::{View as Alias, Outer};\npub fn value(view: Alias<'_>) -> &i32 { view.value }\npub fn inner<'a>(outer: Outer<'a>) -> Alias<'a> { outer.inner }\npub fn nested(outer: Outer<'_>) -> &str { outer.inner.text }\npub fn choose<'a>(a: Outer<'a>, b: Outer<'a>, flag: bool) -> Alias<'a> { if flag { a.inner } else { b.inner } }\npub fn identity(view: Alias<'_>) -> Alias<'_> { view }\npub fn static_value(view: Alias<'static>) -> &'static i32 { view.value }\n";
+
+#[test]
+fn clones_data_lifetime_nominals_resolve_aliases_receivers_and_all_pairs() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), DATA_LIFETIME_FAMILY).unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 8);
+    assert!(
+        functions
+            .iter()
+            .all(|function| function["outcome"] == "admitted"),
+        "{report}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 28);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    for name in ["inner", "nested", "choose", "identity"] {
+        check_stored_reference_origins(
+            functions
+                .iter()
+                .find(|f| f["facts"]["name"] == name)
+                .unwrap(),
+            name,
+        );
+    }
+    check_lifetime_interface_pair(&report);
+    let getter = functions
+        .iter()
+        .find(|f| f["facts"]["name"] == "value")
+        .unwrap();
+    check_lifetime_source_tampering(getter);
+    check_data_document_tampering(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"].as_str().unwrap().ends_with("::text"))
+            .unwrap(),
+    );
+}
+
+#[test]
+fn clones_data_lifetime_bounds_and_legacy_profiles_remain_unavailable() {
+    for source in [
+        "pub struct Bounds<'a, 'b> { pub a: &'a i32, pub b: &'b i32 }\nimpl<'a: 'b,'b> Bounds<'a,'b> { pub fn get(&self) -> &'a i32 { self.a } }\npub fn scalar(x: i32) -> i32 { x }\n",
+        "pub struct Bounded<'a> where 'a: 'static { pub value: &'a i32 }\npub fn get(value: Bounded<'static>) -> &'static i32 { value.value }\npub fn scalar(x: i32) -> i32 { x }\n",
+        "pub struct Generic<const N: usize> { pub bytes: [u8;N] }\npub fn get(value: Generic<8>) -> [u8;8] { value.bytes }\npub fn scalar(x: i32) -> i32 { x }\n",
+    ] {
+        check_unavailable_reference_fields(source, 2);
+    }
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), DATA_LIFETIME_FAMILY).unwrap();
+    for selection in ["hir-helpers-v1", "hir-expanded-v1", "r0"] {
+        let (output, report) = clones(directory.path(), &["--extraction-profile", selection]);
+        assert!(output.status.success(), "{report}");
+        let functions = report["functions"].as_array().unwrap();
+        assert_eq!(functions.len(), 8);
+        assert!(
+            functions.iter().all(|f| f["outcome"] == "excluded"),
+            "{report}"
+        );
+    }
+}
+
+#[test]
+fn clones_data_lifetime_argument_budget_is_incomplete_capture() {
+    let directory = clone_workspace();
+    let count = rstyle_pdg::concrete_types::MAX_FIELDS + 1;
+    let parameters = (0..count)
+        .map(|position| format!("'a{position}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let fields = (0..count)
+        .map(|position| format!("&'a{position} i32"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let source = format!(
+        "pub struct Many<{parameters}> {{ pub refs: ({fields},) }}\nimpl<{parameters}> Many<{parameters}> {{ pub fn get(&self) -> &Self {{ self }} }}\n"
+    );
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert_eq!(output.status.code(), Some(2), "{report}");
+    assert_eq!(report["capture_complete"], false);
+    assert_eq!(report["assessment_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(
+        report["functions"].as_array().unwrap().is_empty(),
+        "{report}"
+    );
+    assert!(
+        format!("{} {report}", String::from_utf8_lossy(&output.stderr))
+            .contains("Nominal lifetime arguments exceed count budget"),
+        "{report}"
+    );
+}
+
+fn check_lifetime_interface_pair(report: &Value) {
+    let functions = report["functions"].as_array().unwrap();
+    let value = functions
+        .iter()
+        .find(|f| f["facts"]["name"] == "value")
+        .unwrap();
+    let other = functions
+        .iter()
+        .find(|f| f["facts"]["name"] == "static_value")
+        .unwrap();
+    let pair = report["matching"]["pairs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|pair| {
+            (pair["first"] == value["key"] && pair["second"] == other["key"])
+                || (pair["first"] == other["key"] && pair["second"] == value["key"])
+        })
+        .unwrap();
+    assert_eq!(pair["decision"], "Accepted");
+    assert_eq!(pair["stages"][6]["detail"]["score"], "1/1");
+}
+
+fn check_lifetime_source_tampering(function: &Value) {
+    let (_, facts) = data_pair(function);
+    rstyle_pdg::data_frontend::verify(&facts).unwrap();
+    let observed: rstyle_pdg::concrete_types::InterfaceObservations = serde_json::from_value(
+        facts.build.frontend_options[rstyle_pdg::concrete_types::KEY].clone(),
+    )
+    .unwrap();
+    let rstyle_pdg::concrete_types::Observation::Captured { ty } = &observed.parameters[0] else {
+        panic!("{observed:?}")
+    };
+    let resolution = rstyle_pdg::nominal_boundary::resolution::verify(&facts, &observed).unwrap();
+    for path in ["Alias<'a,'b>", "Alias<i32>", "model<'a>::View", "Alias<3>"] {
+        assert!(
+            rstyle_pdg::concrete_types::source_proof::verify_top_spelling(path, ty, &resolution)
+                .is_err(),
+            "{path}"
+        );
     }
 }
 

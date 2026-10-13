@@ -297,8 +297,9 @@ reaches all ten pairs. Shared field borrows now retain address projections and
 conditional borrowed outputs through verified source-to-pair evaluation.
 Stored shared-reference fields and by-value reference-bearing struct/tuple
 values also preserve nested nominal origins; their seven-function fixture reaches
-all 21 pairs. Reference-bearing array elements and lifetime-generic nominal
-declarations remain explicitly unavailable.
+all 21 pairs. Lifetime-only nominal declarations and inherent impls additionally
+reach all 28 pairs in an eight-function module/alias/API fixture. Reference-bearing
+array elements, type/const generics and bounded lifetime impls remain unavailable.
 Construction, local reference
 correspondence and read-only slice/string operations remain unfinished; the broader
 data goal and natural-coverage targets are not achieved. See the versioned local

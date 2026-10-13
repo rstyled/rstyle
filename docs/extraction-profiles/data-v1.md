@@ -17,6 +17,8 @@ Shared borrows of verified formal field places are registered in
 Stored shared-reference fields and reference-bearing struct/tuple values require
 the origin proof in `stored-reference-fields-v1.md`. Field-value origins include
 the stored reference's referent projection, unlike field-storage borrows.
+Lifetime-only nominal declarations/impls additionally require
+`lifetime-nominals-v1.md`; type/const substitution remains unavailable.
 Construction, dereference, local/temporary borrows, slicing and library operations
 remain unavailable until their complete obligations are implemented. No successful observation authorizes these operations.
 
@@ -29,7 +31,7 @@ structural erasure or compiler debug strings are allowed. Lifetimes are excluded
 from matching text but remain subject to original-source and origin verification.
 
 For every formal and result, verify the exact original source spelling against
-captured resolved trees. Literal array lengths only; unresolved aliases, generic
+captured resolved trees. Literal array lengths only; unresolved aliases, type/const generic
 paths, mutable references, raw pointers and arbitrary const evaluation fail closed.
 The finite grammar of scalars, tuples, literal arrays and shared references proves
 its own drop-free immutable referent boundary recursively; nominal trees do not.

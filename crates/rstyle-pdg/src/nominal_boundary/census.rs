@@ -237,9 +237,7 @@ fn boundary_item(item: &syn::Item) -> Result<(), String> {
 
 fn boundary_impl(item: &syn::ItemImpl) -> Result<(), String> {
     boundary_attributes(&item.attrs)?;
-    if !item.generics.params.is_empty() || item.generics.where_clause.is_some() {
-        return Err("Generic impl requires unavailable nominal evidence".into());
-    }
+    crate::concrete_types::lifetimes::parameter_count(&item.generics)?;
     for member in &item.items {
         match member {
             syn::ImplItem::Fn(function) if function.sig.unsafety.is_none() => {

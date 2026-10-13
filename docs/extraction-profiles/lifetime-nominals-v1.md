@@ -17,6 +17,10 @@ source/build context. Lifetime arguments on nonterminal path segments, type/cons
 arguments, qualified-self paths, impl lifetime bounds and where clauses are outside
 this initial slice.
 
+The initial lifetime-argument/parameter budget is 128, reusing the finite nominal
+field-count budget. Exceeding it during capture of an otherwise lifetime-only
+instantiation is incomplete execution, not ordinary exclusion or truncated proof.
+
 Nominal identity still includes package source/version/manifest and exact
 declaration path/digest. Lifetime spelling is not a matching type discriminator:
 regions do not change fields or layout in this finite model. This is the existing

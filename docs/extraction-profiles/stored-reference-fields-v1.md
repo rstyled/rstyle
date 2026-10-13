@@ -3,6 +3,9 @@
 Implementation baseline: `9306ff3`. This supplement extends only the separately
 registered local `hir-data-v1` extraction and matching contracts. It does not
 change pinned compat, historical scalar profiles, scoring or thresholds.
+The later `lifetime-nominals-v1.md` local supplement supersedes only the initial
+lifetime-parametric declaration exclusion below; stored-reference origin rules
+and reference-bearing element exclusions remain unchanged.
 
 The first slice supports non-generic concrete drop-free structs and tuples with
 supported stored shared references, passed by value or through shared inputs.

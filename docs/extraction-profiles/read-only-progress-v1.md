@@ -391,3 +391,46 @@ local bindings, resolved read-only library operations, reference-aware verified
 calls and cross-unit summaries, assertions/constants/patterns, cyclic value proof,
 and the preregistered broader natural inventory. Whole data admission remains
 unfinished; historical reports, defaults and pinned artifacts remain unchanged.
+
+Connected lifetime-only nominal slice (implementation baseline `6d30c00`, contract
+frozen in `e34ebec`): Data capture now permits only concrete region arguments for
+local nominal structs, instantiates each field with the exact resolved arguments,
+and independently checks lifetime-only declarations, impl ownership and terminal
+path argument arity. Type/const arguments, lifetime bounds and nominal where
+clauses remain unavailable. Historical helper captures retain their no-generic
+argument rule. Nominal/source identity and stored-reference/location proof remain
+exact; matching omits region spelling without erasing nominal identity.
+
+The eight-function family contains module aliases, lifetime-only shared receivers,
+stored scalar/str/slice references, nested by-value values, conditional outputs,
+and elided versus explicit static instantiations. All eight admit/project and all
+28 pairs receive decisions. The two scalar-reference getters with distinct lifetime
+spellings score exactly `1/1` through unchanged matching. R0, expanded and helper
+profiles exclude this same family. Bounded lifetime impls, nominal where clauses,
+type/const generic values and malformed source path arguments fail closed. A
+129-lifetime instantiation demonstrates explicit incomplete capture under the
+128-argument budget, with no assessed or scored remainder. Trace on/off outcomes
+agree for all four Data families. This is correctness evidence, not natural
+coverage or a detection-quality result.
+
+Validation: `cargo test --workspace --locked` passed 570 tests, zero failures or
+ignored tests, including all 91 real-command tests. Formatting and workspace
+all-target clippy passed. Repository style reports 1,588 functions and zero
+violations; patterns reports zero candidates. Inventory tests: 11 passed;
+study/harness tests: 43 passed. A fresh BOM/CRLF Cargo smoke run admitted eight and
+decided all 28 pairs; all sixteen paired documents validated against unchanged
+vendored schemas with jsonschema 4.25.1. Initial test API/profile-token/method-name/
+field-path assumptions and a clippy argument-count failure were corrected before
+the final workspace run; earlier logs remain available. Final evidence:
+`target/lifetime-nominals-workspace.log`, `lifetime-nominals-clippy-verified.log`,
+`lifetime-nominals-{inventory,scripting}.log`,
+`lifetime-nominals-{style,patterns}.json`, and `lifetime-nominals-smoke.json`.
+
+Remaining: aggregate construction and local bindings, read-only library/slice
+operations, reference-aware method/cross-unit summaries, assertions and ordinary
+scalar constants/patterns, cyclic value correspondence, and a preregistered broader
+natural inventory with measured targets. The conservative closed-unit nominal
+boundary still rejects unsupported trait/expansion items; successful fixture
+admission does not establish natural-crate majority coverage. Whole data admission
+is still active and incomplete. Historical evidence and vendored contracts remain
+unchanged; thresholds, grouping and mining were not activated.

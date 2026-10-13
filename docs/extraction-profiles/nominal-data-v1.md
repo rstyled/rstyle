@@ -3,6 +3,9 @@
 Implementation baseline: `e6eca47`, clean `ccgraph/read-only-api-coverage`.
 This is a registered local supplement to `hir-data-v1`, not pinned compat/R0 or
 historical helper admission. The broader compositional-data goal remains intact.
+The separately versioned `lifetime-nominals-v1.md` supplement supersedes only this
+local data contract's lifetime-only generic exclusions. Type/const generics remain
+unavailable; historical captures and profiles are unchanged.
 
 The driver receives an explicit typed selected-unit context before rustc arguments:
 Cargo's frozen package snapshot, root source path and observed crate name. No

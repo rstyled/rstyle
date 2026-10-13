@@ -100,8 +100,7 @@ impl Index {
                 syn::Item::Struct(item) => {
                     let mut key = module.namespace.clone();
                     key.push(item.ident.to_string());
-                    if !item.generics.params.is_empty()
-                        || item.generics.where_clause.is_some()
+                    if concrete_types::lifetimes::parameter_count(&item.generics).is_err()
                         || self
                             .declarations
                             .insert(
@@ -405,16 +404,10 @@ impl PathResolution for Resolution {
 
 impl PathResolution for Scoped<'_> {
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
-        if path.qself.is_some()
-            || path.path.leading_colon.is_some()
-            || path
-                .path
-                .segments
-                .iter()
-                .any(|part| !matches!(part.arguments, syn::PathArguments::None))
-        {
+        if path.qself.is_some() || path.path.leading_colon.is_some() {
             return Err("Unsupported nominal type path".into());
         }
+        concrete_types::lifetimes::arguments(path)?;
 
         let mut names: Namespace = path
             .path
@@ -423,6 +416,9 @@ impl PathResolution for Scoped<'_> {
             .map(|segment| segment.ident.to_string())
             .collect();
         if names == ["Self"] {
+            if concrete_types::lifetimes::arguments(path)?.is_some() {
+                return Err("Self cannot carry explicit nominal lifetime arguments".into());
+            }
             return self
                 .resolution
                 .receiver
@@ -442,10 +438,13 @@ impl PathResolution for Scoped<'_> {
         } else {
             names = anchored(names, self.namespace, false)?;
         }
-        self.resolution
+        let tree = self
+            .resolution
             .trees
             .get(&names)
             .cloned()
-            .ok_or_else(|| "Named type lacks exact captured lexical declaration".into())
+            .ok_or_else(|| "Named type lacks exact captured lexical declaration".to_string())?;
+        concrete_types::lifetimes::verify_path(path, &tree)?;
+        Ok(tree)
     }
 }

@@ -5,6 +5,12 @@ use rstyle_pdg::{HirFnFacts, concrete_types::*};
 use rustc_hir::{Mutability, Node, def_id::DefId};
 use rustc_middle::ty::{self, Ty, consts::ConstExt};
 
+#[derive(Clone, Copy)]
+struct Instance<'tcx> {
+    definition: ty::AdtDef<'tcx>,
+    arguments: ty::GenericArgsRef<'tcx>,
+}
+
 enum Failure {
     Unsupported(String),
     Budget(String),
@@ -253,10 +259,53 @@ impl<'tcx> Capture<'_, 'tcx> {
         arguments: ty::GenericArgsRef<'tcx>,
         depth: usize,
     ) -> Result<TypeTree, Failure> {
+        let instance = Instance {
+            definition,
+            arguments,
+        };
+        self.check_structure(instance)?;
+        let source = self.concrete_declaration(instance)?;
+        let fields = &definition.non_enum_variant().fields;
+        let declarations = field_declarations(&source).map_err(Failure::Unsupported)?;
+        if declarations.len() != fields.len() {
+            return Err(unsupported("Concrete field/source inventory disagrees"));
+        }
+        let captured = self.struct_fields(instance, declarations, depth);
+
+        let nominal = nominal(
+            self.ctx,
+            self.ctx.tcx.def_path_str(definition.did()),
+            &source,
+        )?;
+        self.origin(definition.did(), &nominal)?;
+
+        Ok(TypeTree::Struct {
+            nominal,
+            source,
+            fields: captured?,
+        })
+    }
+
+    fn check_structure(&self, instance: Instance<'tcx>) -> Result<(), Failure> {
+        let Instance {
+            definition,
+            arguments,
+        } = instance;
         let tcx = self.ctx.tcx;
+        if self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+            && arguments.len() > MAX_FIELDS
+            && arguments
+                .iter()
+                .all(|argument| matches!(argument.kind(), ty::GenericArgKind::Lifetime(_)))
+        {
+            return Err(Failure::Budget(
+                "Nominal lifetime arguments exceed count budget".into(),
+            ));
+        }
+
         if !definition.is_struct()
             || !definition.did().is_local()
-            || !arguments.is_empty()
+            || !self.supported_arguments(arguments)
             || definition.has_dtor(tcx)
             || tcx.lang_items().unsafe_cell_type() == Some(definition.did())
         {
@@ -269,44 +318,50 @@ impl<'tcx> Capture<'_, 'tcx> {
                 "Recursive concrete type expansion is unavailable",
             ));
         }
-        let fields = &definition.non_enum_variant().fields;
-        if fields.len() > MAX_FIELDS {
+        if definition.non_enum_variant().fields.len() > MAX_FIELDS {
             return Err(Failure::Budget(
                 "Concrete struct exceeds field budget".into(),
             ));
         }
+        Ok(())
+    }
+
+    fn concrete_declaration(&self, instance: Instance<'tcx>) -> Result<String, Failure> {
+        let Instance {
+            definition,
+            arguments,
+        } = instance;
         let source = self.declaration(definition.did())?;
-        let declarations = field_declarations(&source).map_err(Failure::Unsupported)?;
-        if declarations.len() != fields.len() {
-            return Err(unsupported("Concrete field/source inventory disagrees"));
+        if self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 {
+            let count = lifetimes::declaration_count(&source).map_err(Failure::Unsupported)?;
+            if count != arguments.len() {
+                return Err(unsupported(
+                    "Nominal declaration/resolved lifetime arity disagrees",
+                ));
+            }
         }
-        let captured = self.struct_fields(definition, declarations, depth);
-
-        let nominal = nominal(self.ctx, tcx.def_path_str(definition.did()), &source)?;
-        self.origin(definition.did(), &nominal)?;
-
-        Ok(TypeTree::Struct {
-            nominal,
-            source,
-            fields: captured?,
-        })
+        Ok(source)
     }
 
     fn struct_fields(
         &mut self,
-        definition: ty::AdtDef<'tcx>,
+        instance: Instance<'tcx>,
         declarations: Vec<(String, String)>,
         depth: usize,
     ) -> Result<Vec<Field>, Failure> {
-        self.visiting.push(definition.did());
-        let captured = self.fields(
-            definition.non_enum_variant().fields.iter(),
-            declarations,
-            depth,
-        );
+        self.visiting.push(instance.definition.did());
+        let captured = self.fields(instance, declarations, depth);
         self.visiting.pop();
 
         captured
+    }
+
+    fn supported_arguments(&self, arguments: ty::GenericArgsRef<'tcx>) -> bool {
+        arguments.is_empty()
+            || self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+                && arguments
+                    .iter()
+                    .all(|argument| matches!(argument.kind(), ty::GenericArgKind::Lifetime(_)))
     }
 
     fn origin(&mut self, id: DefId, nominal: &Nominal) -> Result<(), Failure> {
@@ -375,13 +430,17 @@ impl<'tcx> Capture<'_, 'tcx> {
         Ok(source)
     }
 
-    fn fields<'a>(
+    fn fields(
         &mut self,
-        fields: impl Iterator<Item = &'a ty::FieldDef>,
+        instance: Instance<'tcx>,
         declarations: Vec<(String, String)>,
         depth: usize,
     ) -> Result<Vec<Field>, Failure> {
-        fields
+        instance
+            .definition
+            .non_enum_variant()
+            .fields
+            .iter()
             .zip(declarations)
             .enumerate()
             .map(|(position, (field, (name, declaration)))| {
@@ -396,7 +455,7 @@ impl<'tcx> Capture<'_, 'tcx> {
                 let resolved = tcx
                     .try_normalize_erasing_regions(
                         environment,
-                        tcx.type_of(field.did).instantiate_identity(),
+                        tcx.type_of(field.did).instantiate(tcx, instance.arguments),
                     )
                     .map_err(|_| unsupported("Concrete field type cannot be resolved"))?;
                 let ty = self.tree(resolved, depth + 1)?;
