@@ -37,10 +37,8 @@ struct Callee {
 pub fn registry() -> &'static [Summary] {
     static SUMMARIES: OnceLock<Vec<Summary>> = OnceLock::new();
     SUMMARIES.get_or_init(|| {
-        serde_json::from_str(include_str!(
-            "../../../docs/extraction-profiles/primitive-summaries-v1.json"
-        ))
-        .expect("independently tested summary registry")
+        serde_json::from_str(include_str!("../contracts/primitive-summaries-v1.json"))
+            .expect("independently tested summary registry")
     })
 }
 
@@ -82,4 +80,18 @@ pub fn resolve_for(node: &HirNode, facts: &crate::HirFnFacts) -> Result<Option<S
         return Ok(Some(summary.clone()));
     }
     crate::data_library::resolve(node, facts)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn code_owned_registry_preserves_frozen_primitive_contract_bytes() {
+        assert_eq!(
+            crate::concrete_types::digest(include_bytes!(
+                "../contracts/primitive-summaries-v1.json"
+            )),
+            "sha256:d0b0b8a8f43f26584cedeff2e3abfab9ba1b5bd6e2c4304c00aa2cce11e42504"
+        );
+        assert_eq!(super::registry().len(), 4);
+    }
 }

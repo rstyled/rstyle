@@ -708,6 +708,15 @@ two-function named-lifetime discovery run also admitted both and evaluated their
 pair; it remains disclosed fixture evidence, not a natural-inventory gain.
 These are disclosed correctness fixtures, not natural coverage or quality gains.
 
+The historical primitive registry is now a byte-identical code-owned artifact at
+`crates/rstyle-pdg/contracts/primitive-summaries-v1.json`; its existing docs JSON
+remains an unchanged historical snapshot. The loader no longer compiles a docs
+path into the implementation. A frozen SHA-256 test preserves the exact original
+bytes (`d0b0b8a8f43f26584cedeff2e3abfab9ba1b5bd6e2c4304c00aa2cce11e42504`).
+Producer/imported-matching regressions and the real primitive-summary/R0 exclusion
+test passed after relocation. Style and patterns remain at zero; fmt and workspace
+all-target clippy passed. Logs: `target/code-owned-primitive-registry-*`.
+
 Whole Data admission remains incomplete. Outstanding work includes memory-reading
 and inherent-method verified calls across modules/packages, aggregate construction/local reference
 bindings, element reads/subslicing/checked Option, assertion provenance, scalar
