@@ -584,7 +584,7 @@ fn check_expected(capture: &mut Capture) {
 pub fn wrapper(plan_path: &Path, invocation: Vec<String>) -> Result<u8, String> {
     let plan: Plan = read_json(plan_path)?;
     let target = invocation_target(&plan, &invocation)?;
-    let command = driver_command(&plan, &invocation);
+    let command = driver_command(&plan, &invocation, target.as_ref())?;
 
     match target {
         None => passthrough(command),
@@ -592,17 +592,58 @@ pub fn wrapper(plan_path: &Path, invocation: Vec<String>) -> Result<u8, String> 
     }
 }
 
-fn driver_command(plan: &Plan, invocation: &[String]) -> Command {
+fn driver_command(
+    plan: &Plan,
+    invocation: &[String],
+    target: Option<&Target>,
+) -> Result<Command, String> {
+    let arguments = driver_arguments(plan, invocation, target)?;
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
-    command
-        .arg(format!(
+
+    command.args(arguments);
+    Ok(command)
+}
+
+fn driver_arguments(
+    plan: &Plan,
+    invocation: &[String],
+    target: Option<&Target>,
+) -> Result<Vec<String>, String> {
+    let mut arguments = vec![format!(
+        "{}={}",
+        rstyle_pdg::extraction_profile::DRIVER_SELECTION_FLAG,
+        plan.extraction_profile.token()
+    )];
+    if plan.extraction_profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+        && let Some(target) = target
+    {
+        let context = selected_unit_context(target, invocation)?;
+        arguments.push(format!(
             "{}={}",
-            rstyle_pdg::extraction_profile::DRIVER_SELECTION_FLAG,
-            plan.extraction_profile.token()
-        ))
-        .args(invocation);
-    command
+            rstyle_pdg::nominal_boundary::CONTEXT_FLAG,
+            context.transport()?
+        ));
+    }
+
+    arguments.extend_from_slice(invocation);
+    Ok(arguments)
+}
+
+pub fn selected_unit_context(
+    target: &Target,
+    invocation: &[String],
+) -> Result<rstyle_pdg::nominal_boundary::UnitContext, String> {
+    Ok(rstyle_pdg::nominal_boundary::UnitContext {
+        package: target
+            .package_context
+            .clone()
+            .ok_or("Missing selected Cargo package context")?,
+        root_source: target.source.clone(),
+        crate_name: flag_value(invocation, "--crate-name")
+            .ok_or("Missing observed crate name")?
+            .into(),
+    })
 }
 
 fn passthrough(mut command: Command) -> Result<u8, String> {

@@ -37,6 +37,8 @@ pub enum TypeTree {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Nominal {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_identity: Option<String>,
     pub package_name: String,
     pub package_version: String,
     pub manifest_digest: String,

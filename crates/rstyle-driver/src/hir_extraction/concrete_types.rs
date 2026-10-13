@@ -282,7 +282,7 @@ impl<'tcx> Capture<'_, 'tcx> {
         }
         let captured = self.struct_fields(definition, declarations, depth);
 
-        let nominal = nominal(tcx.def_path_str(definition.did()), &source)?;
+        let nominal = nominal(self.ctx, tcx.def_path_str(definition.did()), &source)?;
         self.origin(definition.did(), &nominal)?;
 
         Ok(TypeTree::Struct {
@@ -411,7 +411,21 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 }
 
-fn nominal(definition_path: String, source: &str) -> Result<Nominal, Failure> {
+fn nominal(ctx: &Context<'_>, definition_path: String, source: &str) -> Result<Nominal, Failure> {
+    if ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 {
+        let context = ctx
+            .unit_context
+            .as_ref()
+            .ok_or_else(|| unsupported("Missing explicit selected-unit context"))?;
+        return Ok(Nominal {
+            package_name: context.package.name.clone(),
+            package_version: context.package.version.clone(),
+            manifest_digest: context.package.manifest_digest.clone(),
+            source_identity: Some(context.package.package_id.clone()),
+            definition_path,
+            declaration_digest: digest(source.as_bytes()),
+        });
+    }
     let package_name = std::env::var("CARGO_PKG_NAME")
         .map_err(|_| unsupported("Missing Cargo package identity"))?;
     let package_version = std::env::var("CARGO_PKG_VERSION")
@@ -423,6 +437,7 @@ fn nominal(definition_path: String, source: &str) -> Result<Nominal, Failure> {
 
     Ok(Nominal {
         package_name,
+        source_identity: None,
         package_version,
         manifest_digest: digest(&manifest),
         definition_path,

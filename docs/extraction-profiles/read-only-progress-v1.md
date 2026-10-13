@@ -259,3 +259,18 @@ documents validated against both unchanged vendored closed schemas using
 jsonschema 4.25.1. Logs/artifacts are under `target/data-admission-*` and the
 per-invocation Cargo run directory. None of these fixture counts identifies the
 historical user-observed 6/50 inventory.
+
+Selected-unit nominal context slice (baseline `4dffdd5`): the data driver now
+receives a bounded typed private argument containing the frozen Cargo package,
+selected root and observed crate name. The source-to-pair handoff checks it against
+the selected ledger and invocation. Data nominal observations preserve opaque
+Cargo package source identity; historical helper observations omit the new field.
+This context is a prerequisite, not drop/namespace certification or new nominal
+admission. Closed source and independent resolution remain required.
+
+Validation: three real data command tests passed; driver argument tests and PDG
+context/namespace/concrete-type tests passed. Workspace clippy passed. Repository
+style reported 1,524 functions and zero violations; patterns reported zero
+candidates. Logs: `target/nominal-context-{real-final,driver,pdg,clippy}.log`,
+`target/nominal-context-{style,patterns}.json`. Historical inventory was not rerun
+or replaced in this slice.

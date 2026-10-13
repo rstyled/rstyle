@@ -3,6 +3,7 @@ use rstyle_pdg::concrete_types::*;
 fn structure(source: &str) -> TypeTree {
     TypeTree::Struct {
         nominal: Nominal {
+            source_identity: None,
             package_name: "sample".into(),
             package_version: "1.0.0".into(),
             manifest_digest: digest(b"independent package manifest"),

@@ -334,6 +334,27 @@ fn verify_frontend_invocation(
     {
         return Err("frontend invocation or pinned compiler identity disagrees with run".into());
     }
+    verify_selected_unit(facts, unit)
+}
+
+fn verify_selected_unit(facts: &HirFnFacts, unit: &capture::Unit) -> Result<(), String> {
+    use rstyle_pdg::nominal_boundary::{CONTEXT_KEY, UnitContext};
+    let context = facts.build.frontend_options.get(CONTEXT_KEY);
+    if unit.extraction_profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 {
+        return if context.is_none() {
+            Ok(())
+        } else {
+            Err("Unexpected selected-unit data context".into())
+        };
+    }
+    let actual: UnitContext =
+        serde_json::from_value(context.ok_or("Missing selected-unit data context")?.clone())
+            .map_err(|e| e.to_string())?;
+
+    actual.transport()?;
+    if actual != capture::selected_unit_context(&unit.target, &unit.invocation)? {
+        return Err("Selected-unit context disagrees with frozen Cargo plan or invocation".into());
+    }
     Ok(())
 }
 

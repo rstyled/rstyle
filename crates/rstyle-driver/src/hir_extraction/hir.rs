@@ -10,6 +10,7 @@ pub struct Context<'tcx> {
     pub typeck: &'tcx TypeckResults<'tcx>,
     pub function_span: Span,
     pub source_bytes: String,
+    pub unit_context: Option<rstyle_pdg::nominal_boundary::UnitContext>,
     pub result: Ty<'tcx>,
     pub profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 }

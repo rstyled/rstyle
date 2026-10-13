@@ -24,6 +24,7 @@ pub mod frontend;
 pub mod helper_calls;
 pub mod model;
 pub mod nominal_binding;
+pub mod nominal_boundary;
 pub mod producer;
 pub mod source_evidence;
 pub mod validate;

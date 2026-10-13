@@ -127,7 +127,11 @@ fn bind_declaration(
     files: &mut BTreeMap<PathBuf, String>,
 ) -> Result<BoundDeclaration, String> {
     let nominal = &origin.nominal;
-    if nominal.package_name != context.name
+    if nominal
+        .source_identity
+        .as_ref()
+        .is_some_and(|id| id != &context.package_id)
+        || nominal.package_name != context.name
         || nominal.package_version != context.version
         || nominal.manifest_digest != context.manifest_digest
     {
@@ -240,6 +244,7 @@ mod tests {
         let source = "pub struct Counter;";
         declaration_origins::Origin {
             nominal: Nominal {
+                source_identity: None,
                 package_name: context.name.clone(),
                 package_version: context.version.clone(),
                 manifest_digest: context.manifest_digest.clone(),
@@ -274,6 +279,22 @@ mod tests {
         assert_eq!(a.nominal, b.nominal);
         assert_ne!(a.source_file, b.source_file);
         assert!(bind_declaration(&origin(&first), &second, &mut BTreeMap::new()).is_err());
+    }
+
+    #[test]
+    fn data_nominal_namespaces_bind_to_the_exact_selected_package() {
+        let first = context("/one/sample");
+        let second = context("/two/sample");
+        let mut a = origin(&first);
+        let mut b = origin(&second);
+        let historical = serde_json::to_value(&a.nominal).unwrap();
+        assert!(historical.get("source_identity").is_none());
+        a.nominal.source_identity = Some(first.package_id.clone());
+        b.nominal.source_identity = Some(second.package_id.clone());
+        assert_ne!(a.nominal, b.nominal);
+        bind_declaration(&a, &first, &mut BTreeMap::new()).unwrap();
+        a.nominal.source_identity = b.nominal.source_identity;
+        assert!(bind_declaration(&a, &first, &mut BTreeMap::new()).is_err());
     }
 
     #[test]

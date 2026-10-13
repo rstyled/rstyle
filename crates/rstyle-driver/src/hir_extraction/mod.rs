@@ -14,6 +14,7 @@ use rustc_middle::ty::TyCtxt;
 pub struct Options<'a> {
     pub profile: Option<ExtractionProfile>,
     pub invocation: &'a [String],
+    pub unit_context: Option<&'a rstyle_pdg::nominal_boundary::UnitContext>,
 }
 
 impl Options<'_> {
@@ -74,6 +75,7 @@ fn function_source<'tcx>(
         function_span,
         source_bytes: source_bytes.clone(),
         result,
+        unit_context: options.unit_context.cloned(),
         profile: options.selected(),
     };
     let params = parameters(&ctx, sig, body);
@@ -169,6 +171,12 @@ fn function_build(
         build.frontend_options.insert(
             rstyle_pdg::extraction_profile::SELECTION_KEY.into(),
             serde_json::json!(selection.token()),
+        );
+    }
+    if let Some(context) = options.unit_context {
+        build.frontend_options.insert(
+            rstyle_pdg::nominal_boundary::CONTEXT_KEY.into(),
+            serde_json::to_value(context).ok()?,
         );
     }
     let identifier = tcx
