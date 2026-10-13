@@ -76,10 +76,35 @@ pub fn registry() -> &'static Registry {
     })
 }
 
+pub fn registries() -> [&'static Registry; 2] {
+    static X86_64: OnceLock<Registry> = OnceLock::new();
+    let x86_64 = X86_64.get_or_init(|| {
+        serde_json::from_str(include_str!(
+            "../contracts/read-only-lengths-x86_64-v1.json"
+        ))
+        .expect("independently tested x86_64 read-only library registry")
+    });
+    [registry(), x86_64]
+}
+
+pub fn registry_for(facts: &crate::HirFnFacts) -> Option<&'static Registry> {
+    registries().into_iter().find(|registry| {
+        facts.build.rustc_commit.known_value() == Some(registry.rustc_commit.as_str())
+            && facts.build.target_triple.known_value() == Some(registry.target.as_str())
+            && facts.build.pointer_width.value == Some(registry.pointer_width)
+    })
+}
+
 pub fn operation(node: &HirNode) -> Option<&'static Operation> {
     let dispatch = node.dispatch.as_ref()?;
     (node.kind == "expr_method_call" && dispatch.kind == "resolved_method").then_some(())?;
-    registry()
+    let authority = callee(node).ok().and_then(|callee| {
+        registries()
+            .into_iter()
+            .find(|registry| registry.core_hash == callee.crate_hash)
+    });
+    authority
+        .unwrap_or_else(registry)
         .operations
         .iter()
         .find(|op| op.path == dispatch.op)
@@ -113,6 +138,25 @@ mod tests {
     }
 
     #[test]
+    fn target_authorities_share_semantics_but_not_definition_or_artifact_identity() {
+        let [arm, x86] = registries();
+        assert_ne!(arm.identity, x86.identity);
+        assert_ne!(arm.target, x86.target);
+        assert_ne!(arm.core_hash, x86.core_hash);
+        assert_ne!(arm.artifacts, x86.artifacts);
+        assert_eq!(arm.rustc_commit, x86.rustc_commit);
+        assert_eq!(arm.source_digests, x86.source_digests);
+        assert_eq!(arm.operations.len(), x86.operations.len());
+        for (left, right) in arm.operations.iter().zip(&x86.operations) {
+            assert_eq!(
+                (&left.id, &left.path, &left.referent, &left.result),
+                (&right.id, &right.path, &right.referent, &right.result)
+            );
+            assert_ne!(left.definition_hash, right.definition_hash);
+        }
+    }
+
+    #[test]
     fn registered_semantics_bind_the_reviewed_pinned_core_source_modules() {
         let output = std::process::Command::new("rustc")
             .args(["--print", "sysroot"])
@@ -120,12 +164,14 @@ mod tests {
             .unwrap();
         assert!(output.status.success());
         let sysroot = String::from_utf8(output.stdout).unwrap();
-        for (module, expected) in &registry().source_digests {
-            let path = std::path::Path::new(sysroot.trim()).join(format!(
-                "lib/rustlib/src/rust/library/core/src/{module}/mod.rs"
-            ));
-            let source = std::fs::read(path).unwrap();
-            assert_eq!(&crate::concrete_types::digest(&source), expected);
+        for registry in registries() {
+            for (module, expected) in &registry.source_digests {
+                let path = std::path::Path::new(sysroot.trim()).join(format!(
+                    "lib/rustlib/src/rust/library/core/src/{module}/mod.rs"
+                ));
+                let source = std::fs::read(path).unwrap();
+                assert_eq!(&crate::concrete_types::digest(&source), expected);
+            }
         }
     }
 }

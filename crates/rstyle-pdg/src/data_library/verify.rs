@@ -81,14 +81,9 @@ pub(super) fn registered_build_with(
     facts: &HirFnFacts,
     artifacts: &Artifacts,
 ) -> Result<bool, String> {
-    let registry = registry();
-    let build = &facts.build;
-    if build.rustc_commit.known_value() != Some(registry.rustc_commit.as_str())
-        || build.target_triple.known_value() != Some(registry.target.as_str())
-        || build.pointer_width.value != Some(registry.pointer_width)
-    {
+    let Some(registry) = registry_for(facts) else {
         return Ok(false);
-    }
+    };
     let Some(library) = artifacts.libraries.first() else {
         return Ok(false);
     };

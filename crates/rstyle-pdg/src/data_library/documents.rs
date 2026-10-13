@@ -6,6 +6,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 pub fn evidence(node: &HirNode, facts: &HirFnFacts) -> Result<Value, String> {
+    let registry = registry_for(facts).ok_or("Unregistered library build")?;
     let capture = crate::data_receivers::verify(facts)?;
     let receiver = capture
         .methods
@@ -13,8 +14,8 @@ pub fn evidence(node: &HirNode, facts: &HirFnFacts) -> Result<Value, String> {
         .find(|record| record.call == node.hir)
         .ok_or("Missing library receiver evidence")?;
     serde_json::to_value(LibraryEvidence {
-        registry_identity: &registry().identity,
-        semantic_source_digests: &registry().source_digests,
+        registry_identity: &registry.identity,
+        semantic_source_digests: &registry.source_digests,
         core_artifacts: verify_evidence(facts)?,
         callee: callee(node)?,
         receiver,

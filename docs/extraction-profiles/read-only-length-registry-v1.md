@@ -11,6 +11,10 @@ Initially register the official `nightly-2026-09-30` core build for
 core builds remain unavailable until separately specified and tested. Actual
 selected-unit build facts must agree; an observed display path is not authority.
 
+The separately specified and tested x86_64 target authority is registered in
+[read-only-lengths-x86_64-v1.md](read-only-lengths-x86_64-v1.md). Its distinct
+core/artifact/definition identities preserve this original aarch64 registration.
+
 Core crate hash: `bdb4eda0487b663ec13960d84fc76cc8`.
 Compiler-resolved definition hashes (each has common first Fingerprint component
 `5614226571623188065`):
