@@ -28,6 +28,12 @@ pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     let renaming = correspondence(pair, &expected)?;
     compare_documents(pair, &expected, &renaming)?;
 
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)
+        .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
+    {
+        crate::helper_calls::verify_documents(pair, facts).map_err(|error| vec![error])?;
+    }
+
     validate_boundary(pair, facts)
 }
 

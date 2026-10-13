@@ -93,7 +93,7 @@ pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<Strin
 
 fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<String>> {
     use rstyle_pdg::extraction_profile::{EVIDENCE_KEY, LOCAL_ID};
-    if pdg.profile.id != LOCAL_ID {
+    if pdg.profile.id != LOCAL_ID && pdg.profile.id != "rstyle.rust.hir-helpers" {
         return Ok(());
     }
     if cfg.profile.name != pdg.profile.id || cfg.profile.version != pdg.profile.version {
@@ -211,7 +211,7 @@ fn assemble_function(
     }
 
     let key = import_key(pdg);
-    let (width, native) = import_widths(pdg, ctx);
+    let (width, native) = import_widths(pdg, ctx)?;
 
     Ok(ImportedFunction {
         extraction_context: local_context(pdg)?,
@@ -228,7 +228,9 @@ fn assemble_function(
 }
 
 fn local_context(pdg: &PdgDocument) -> Result<Option<String>, Vec<String>> {
-    if pdg.profile.id != rstyle_pdg::extraction_profile::LOCAL_ID {
+    if pdg.profile.id != rstyle_pdg::extraction_profile::LOCAL_ID
+        && pdg.profile.id != "rstyle.rust.hir-helpers"
+    {
         return Ok(None);
     }
     let build = pdg
@@ -503,7 +505,10 @@ fn import_key(pdg: &PdgDocument) -> String {
         .unwrap_or_else(|| pdg.function.id.clone())
 }
 
-fn import_widths(pdg: &PdgDocument, ctx: &ValidationContext) -> (Option<u16>, bool) {
+fn import_widths(
+    pdg: &PdgDocument,
+    ctx: &ValidationContext,
+) -> Result<(Option<u16>, bool), Vec<String>> {
     let width = match ctx {
         ValidationContext::CompilerEvidence { pointer_width_bits } => {
             Some(*pointer_width_bits as u16)
@@ -518,7 +523,8 @@ fn import_widths(pdg: &PdgDocument, ctx: &ValidationContext) -> (Option<u16>, bo
         .filter_map(|param| param.type_fact.known_value())
         .any(|seen| seen == "isize" || seen == "usize");
 
-    let local_native = pdg.profile.id == rstyle_pdg::extraction_profile::LOCAL_ID
+    let local_native = (pdg.profile.id == rstyle_pdg::extraction_profile::LOCAL_ID
+        || pdg.profile.id == "rstyle.rust.hir-helpers")
         && pdg.nodes.iter().any(|n| {
             n.annotations
                 .get("compat.rust.hir-r0:type")
@@ -526,7 +532,23 @@ fn import_widths(pdg: &PdgDocument, ctx: &ValidationContext) -> (Option<u16>, bo
                 .and_then(serde_json::Value::as_str)
                 .is_some_and(|ty| matches!(ty, "isize" | "usize"))
         });
-    (width, native || local_native)
+    let transitive_native = helper_native_width(pdg)?;
+
+    Ok((width, native || local_native || transitive_native))
+}
+
+fn helper_native_width(pdg: &PdgDocument) -> Result<bool, Vec<String>> {
+    if pdg.profile.id != "rstyle.rust.hir-helpers" {
+        return Ok(false);
+    }
+    let evidence = pdg
+        .extensions
+        .get(rstyle_pdg::extraction_profile::EVIDENCE_KEY)
+        .ok_or_else(|| vec!["Missing helper frontend evidence for target compatibility".into()])?;
+    let facts = serde_json::from_value(evidence["frontend"].clone())
+        .map_err(|error| vec![error.to_string()])?;
+
+    rstyle_pdg::helper_calls::native_width(&facts).map_err(|error| vec![error])
 }
 
 /// Evaluate validated document pairs through the real admission path.

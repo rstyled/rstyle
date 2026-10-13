@@ -202,3 +202,18 @@ validation gate rather than filtered to inflate successful pair counts. Mixed
 local policy versions, R0/local policies or incompatible semantic build settings
 cannot be compared. Failed compilation, missing/corrupt artifacts and explicit
 resource/arithmetic failures remain failed/incomplete evidence.
+# Local helper implementation slice
+
+`cargo rstyle clones --extraction-profile hir-helpers-v1 --locked --format json`
+selects the separately registered `rstyle.rust.hir-helpers/0.1.0` scalar contract.
+It supports verified acyclic direct calls within one captured compilation unit,
+including modules and resolved aliases. See
+[helpers-v1.md](extraction-profiles/helpers-v1.md) for the evidence, panic,
+argument-type and resource boundaries. Calls remain source operations and pairs
+remain exhaustive under the unchanged pinned scalar matching algorithm.
+
+This interim command does **not** complete the compositional data expansion.
+Assertions, additional patterns/constants, concrete read-only APIs and cross-unit
+dependencies remain unavailable under it. The planned `hir-data-v1` command and
+its separate matching extension are not registered or selectable yet. Defaults,
+R0 and hir-expanded-v1 retain their historical semantics.

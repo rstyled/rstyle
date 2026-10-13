@@ -14,12 +14,20 @@ pub fn crate_facts(
     scanned: &[source::Function],
     invocation: &[String],
 ) -> Result<Vec<HirFnFacts>, String> {
-    tcx.hir_body_owners()
+    let mut facts = tcx.hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
         .map(|id| function(tcx, id, scanned, invocation).ok_or_else(|| format!(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         )))
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    if facts.first().is_some_and(|fact| {
+        rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(fact)
+            .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
+    }) {
+        rstyle_pdg::helper_calls::capture(&mut facts)?;
+    }
+
+    Ok(facts)
 }
 
 fn function(
@@ -144,14 +152,25 @@ fn function_build(
                 .ok()
         })
         .map(|name| name.strip_prefix("r#").unwrap_or(&name).to_owned());
-    build
-        .frontend_options
-        .insert("source_file".into(), serde_json::json!(path));
-    build
-        .frontend_options
-        .insert("source_identifier".into(), serde_json::json!(identifier));
+    build.frontend_options.extend(
+        [
+            ("source_file".into(), serde_json::json!(path)),
+            ("source_identifier".into(), serde_json::json!(identifier)),
+        ]
+        .into_iter()
+        .chain(definition_identity(tcx, id)),
+    );
 
     Some(build)
+}
+
+fn definition_identity(tcx: TyCtxt<'_>, id: LocalDefId) -> Option<(String, serde_json::Value)> {
+    (std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE").as_deref() == Ok("hir-helpers-v1")).then(|| {
+        (
+            "definition_identity".into(),
+            serde_json::json!(format!("{:?}", tcx.def_path_hash(id.to_def_id()))),
+        )
+    })
 }
 
 /// Recover the compiler's original input using its recorded normalization map.

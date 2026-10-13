@@ -98,12 +98,24 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
         if let Some(kind) = kind {
             self.add(kind, expression.span());
         }
+
         if matches!(
             expression,
             syn::Expr::Closure(_) | syn::Expr::Async(_) | syn::Expr::Const(_)
         ) {
             return;
         }
+        if let syn::Expr::Call(call) = expression
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
+            && matches!(&*call.func, syn::Expr::Path(_))
+        {
+            for argument in &call.args {
+                self.visit_expr(argument);
+            }
+            return;
+        }
+
         visit::visit_expr(self, expression);
     }
 
@@ -236,6 +248,7 @@ pub fn diagnostics(facts: &HirFnFacts) -> Vec<crate::HirDiagnostic> {
         return Vec::new();
     };
     inventory.entries.into_iter().filter_map(|entry| {
+        if entry.kind == "expr_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-helper-calls")) { return None; }
         if entry.kind == "expr_method_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-primitive-summaries"))
             && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir)) { return None; }
         let capability = match entry.kind.as_str() {

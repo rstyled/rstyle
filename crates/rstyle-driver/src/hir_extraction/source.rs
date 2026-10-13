@@ -148,6 +148,7 @@ fn selected_expression(
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> bool {
     match kind {
+        ast::ExprKind::Call(..) => profile.supports("rust.verified-helper-calls"),
         ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
         ast::ExprKind::While(..)
         | ast::ExprKind::Loop(..)

@@ -1976,6 +1976,271 @@ fn clones_source_inventory_keeps_nested_function_ownership_separate() {
 }
 
 #[test]
+fn clones_helpers_verify_complete_acyclic_scalar_families() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub mod predicates { pub fn positive(x: i32) -> bool { x > 0 } }\nuse predicates::positive as alias;\npub fn first(x: i32) -> bool { alias(x) }\npub fn second(x: i32) -> bool { predicates::positive(x) }\npub fn third(x: i32) -> bool { first(x) }\nfn unit_helper() {}\npub fn conditional(b: bool) { if b { unit_helper(); } }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1", "--trace"],
+    );
+    assert!(
+        output.status.success(),
+        "capture={}, handoff={}",
+        report["capture_failures"],
+        report["handoff_failures"]
+    );
+    assert_eq!(report["extraction_selection"], "hir-helpers-v1");
+    assert_eq!(report["extraction_policy"]["id"], "rstyle.rust.hir-helpers");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 6);
+    assert!(
+        functions
+            .iter()
+            .all(|function| function["outcome"] == "admitted"),
+        "{report}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    assert_eq!(report["pair_enumeration_complete"], true);
+    for function in functions.iter().filter(|function| {
+        matches!(
+            function["facts"]["name"].as_str(),
+            Some("first" | "second" | "third")
+        )
+    }) {
+        let key = &function["key"];
+        let projected = report["matching"]["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|record| &record["key"] == key)
+            .unwrap();
+        assert_eq!(
+            projected["projection"]["features"],
+            serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 1])
+        );
+    }
+}
+
+#[test]
+fn clones_helpers_verify_serialized_dependencies_and_transitive_edits() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub mod predicates;\npub fn first(x: i32) -> bool { predicates::positive(x) }\npub fn second(x: i32) -> bool { first(x) }\n").unwrap();
+    let callee = directory.path().join("src/predicates.rs");
+    std::fs::write(&callee, "pub fn positive(x: i32) -> bool { x > 0 }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success());
+    let wrapper = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "second")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(wrapper["facts"].clone()).unwrap();
+    for corruption in ["manifest", "source", "signature", "effects"] {
+        let mut changed = facts.clone();
+        assert!(corrupt_helper(&mut changed.body, corruption));
+        assert!(
+            rstyle_pdg::producer::produce(&changed).is_err(),
+            "{corruption}"
+        );
+    }
+    std::fs::write(&callee, "pub fn positive(x: i32) -> bool { x >= 0 }\n").unwrap();
+    let (output, edited) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success());
+    let changed = edited["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "second")
+        .unwrap();
+    assert_ne!(wrapper["facts"]["body"], changed["facts"]["body"]);
+    assert_ne!(wrapper["document_manifest"], changed["document_manifest"]);
+    check_native_helper(directory.path(), &callee);
+}
+
+fn check_native_helper(directory: &Path, callee: &Path) {
+    std::fs::write(
+        callee,
+        "pub fn positive(x: i32) -> bool { let n = x as usize; n > 0 }\n",
+    )
+    .unwrap();
+    let (output, native) = clones(directory, &["--extraction-profile", "hir-helpers-v1"]);
+    assert!(output.status.success());
+    let function = native["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "second")
+        .unwrap();
+    let native_facts: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(function["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&native_facts).unwrap();
+    let imported = rstyle_ccgraph::admit_produced(&pair, &native_facts).unwrap();
+    assert!(imported.native_width_involved);
+}
+
+fn corrupt_helper(node: &mut rstyle_pdg::HirNode, corruption: &str) -> bool {
+    if node.kind == "expr_call" {
+        let resolution = node.res.as_mut().unwrap();
+        let mut value: Value = serde_json::from_str(&resolution.description).unwrap();
+        let dependency = &mut value[rstyle_pdg::helper_calls::KEY];
+        match corruption {
+            "effects" => dependency["summary"]["always_returns"] = Value::Bool(false),
+            "manifest" => {
+                dependency["manifest"]["documents"][0]["sha256"] =
+                    Value::String("sha256:bad".into())
+            }
+            "source" => {
+                dependency["frontend"]["source"]["bytes"] = Value::String("fn forged() {}".into())
+            }
+            "signature" => {
+                dependency["frontend"]["signature"]["return_ty"]["normalized"] =
+                    Value::String("i32".into())
+            }
+            _ => unreachable!(),
+        }
+        resolution.description = serde_json::to_string(&value).unwrap();
+        return true;
+    }
+
+    node.children
+        .iter_mut()
+        .any(|child| corrupt_helper(child, corruption))
+}
+
+#[test]
+fn clones_helpers_exclude_unsupported_recursive_and_panicking_callees() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub fn overflow(x: i32) -> i32 { x + 1 }\npub fn wrapper(x: i32) -> i32 { overflow(x) }\npub fn recursive(x: i32) -> i32 { recursive(x) }\npub fn diverges() -> i32 { loop {} }\npub fn divergent_wrapper() -> i32 { diverges() }\nfn unsupported(x: &i32) -> i32 { *x }\npub fn unknown(x: i32) -> i32 { unsupported(&x) }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(
+        output.status.success(),
+        "capture={}, handoff={}",
+        report["capture_failures"],
+        report["handoff_failures"]
+    );
+    for name in ["wrapper", "recursive", "divergent_wrapper", "unknown"] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        assert_eq!(function["outcome"], "excluded", "{function}");
+    }
+}
+
+#[test]
+fn clones_helpers_are_order_independent_and_keep_argument_positions() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "mod left { pub fn same(x: i32, y: i32) -> bool { x < y } }\nmod right { pub fn same(x: i32, y: i32) -> bool { x > y } }\npub fn wrapper(b: bool, x: i32, y: i32) -> bool { left::same(if b { x } else { y }, y) }\npub fn other(x: i32, y: i32) -> bool { right::same(x, y) }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 6);
+    let facts: Vec<rstyle_pdg::HirFnFacts> = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|function| serde_json::from_value(function["facts"].clone()).unwrap())
+        .collect();
+    assert_capture_order(&facts);
+    let (output, traced) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{traced}");
+    assert_eq!(
+        report["matching"]["functions"],
+        traced["matching"]["functions"]
+    );
+    let outcomes = |report: &Value| {
+        report["matching"]["pairs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|pair| {
+                (
+                    pair["first"].clone(),
+                    pair["second"].clone(),
+                    pair["decision"].clone(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(outcomes(&report), outcomes(&traced));
+}
+
+fn assert_capture_order(facts: &[rstyle_pdg::HirFnFacts]) {
+    let mut forward = facts.to_vec();
+    for function in &mut forward {
+        clear_helper_dependencies(&mut function.body);
+    }
+    let mut reversed = forward.clone();
+    reversed.reverse();
+    rstyle_pdg::helper_calls::capture(&mut forward).unwrap();
+    rstyle_pdg::helper_calls::capture(&mut reversed).unwrap();
+    reversed.reverse();
+    assert_eq!(forward, reversed);
+}
+
+fn clear_helper_dependencies(node: &mut rstyle_pdg::HirNode) {
+    if let Some(mut resolution) = rstyle_pdg::helper_calls::direct_resolution(node) {
+        resolution
+            .as_object_mut()
+            .unwrap()
+            .remove(rstyle_pdg::helper_calls::KEY);
+        node.res.as_mut().unwrap().description = serde_json::to_string(&resolution).unwrap();
+    }
+    for child in &mut node.children {
+        clear_helper_dependencies(child);
+    }
+}
+
+#[test]
+fn clones_helpers_resource_budget_is_incomplete_execution() {
+    let directory = clone_workspace();
+    let mut source = "pub fn leaf(x: i32) -> bool { x > 0 }\n".to_owned();
+    for depth in 0..10 {
+        let callee = if depth == 0 {
+            "leaf".to_owned()
+        } else {
+            format!("level{}", depth - 1)
+        };
+        source.push_str(&format!(
+            "pub fn level{depth}(x: i32) -> bool {{ {callee}(x) }}\n"
+        ));
+    }
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(!output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(!report["capture_failures"].as_array().unwrap().is_empty());
+    let diagnostic = format!("{} {}", String::from_utf8_lossy(&output.stderr), report);
+    assert!(diagnostic.contains("budget"), "{diagnostic}");
+}
+
+#[test]
 fn clones_expanded_multi_package_targets_are_exhaustive_and_schedule_invariant() {
     let directory = expanded_multi_package_workspace();
     let (output, concurrent) = clones(

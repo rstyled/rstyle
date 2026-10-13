@@ -16,7 +16,7 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 pub struct Args {
-    /// Extraction selection: r0 (default) or hir-expanded-v1 (all verified capabilities).
+    /// Extraction selection: r0, hir-expanded-v1, or verified local hir-helpers-v1.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     /// JSON matching overrides, separate from legacy rstyle.toml.

@@ -48,7 +48,11 @@ fn selection_evidence(facts: &HirFnFacts, profile: ExtractionProfile) -> Result<
         profile: profile.policy(),
         selection: profile.token(),
         capabilities: profile.capabilities(),
-        contract: "docs/extraction-profiles/coverage-v1.md",
+        contract: if profile == ExtractionProfile::HelpersV1 {
+            "docs/extraction-profiles/helpers-v1.md"
+        } else {
+            "docs/extraction-profiles/coverage-v1.md"
+        },
         signature: &facts.signature,
         frontend: facts,
         semantics: "local expansion conformance; bounded normal flow; exceptional flow omitted",
@@ -108,6 +112,11 @@ fn replace_object(object: serde_json::Map<String, Value>, policy: &ProfileId) ->
 }
 
 fn replace_child(key: &str, child: Value, policy: &ProfileId) -> Value {
+    // Dependencies are already verified documents/frontend snapshots. Their
+    // identities and policies must survive caller-policy transport unchanged.
+    if key == "dependency" {
+        return child;
+    }
     if matches!(key, "description" | "normal_flow_scope")
         && let Some(text) = child.as_str()
     {
