@@ -148,3 +148,18 @@ eight; encode/decode tree depth is explicitly bounded at 256. The original CALL
 operation and matching projection remain unchanged. Require independent literal
 round trips, malformed/tag-like source-object envelope cases, unchanged legacy bytes and the
 unchanged connected-family admission target before claiming success.
+
+The initial tagged-tree transport also failed the unchanged connected-family
+budget (`target/inherent-calls-real-transport.log`, two passed, one failed).
+Register the same pre-release transport as a per-call closed node table before
+further implementation: intern only byte-identical tagged transport nodes, with
+child indices strictly preceding parents and an explicit root. This shares exact
+evidence payloads within the current dependency, never across invocations or
+functions through an evidence cache. It does not alter graph nodes, interfaces,
+projection or semantic evidence. Every referenced node must exist; every table
+node must be reachable; cycles, forward indices, duplicate object keys and
+unsupported tags fail closed. Restore exact JSON strings before independent
+callee document/manifest/type/effect verification. Keep encoded and restored
+byte budgets unchanged; bounded streaming serialization must stop restoration
+before allocating an over-budget string. Fix this prerequisite before claiming
+connected inherent-call coverage.
