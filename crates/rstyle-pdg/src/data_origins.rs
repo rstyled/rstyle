@@ -94,7 +94,7 @@ fn formal(node: &HirNode, facts: &HirFnFacts, ty: &TypeToken) -> Result<Vec<Orig
         .iter()
         .find(|parameter| parameter.pat.hir == *target)
         .ok_or("Reference local origin proof is unavailable")?;
-    Ok(paths(ty, Vec::new())
+    Ok(paths(ty, Vec::new())?
         .into_iter()
         .map(|path| Origin {
             parameter: parameter.position,
@@ -124,7 +124,7 @@ fn field(node: &HirNode, facts: &HirFnFacts, ty: &TypeToken) -> Result<Vec<Origi
         return Err("Reference field type disagrees with origin".into());
     }
 
-    Ok(paths(ty, path.clone())
+    Ok(paths(ty, path.clone())?
         .into_iter()
         .map(|path| Origin {
             parameter: *parameter,
@@ -133,29 +133,65 @@ fn field(node: &HirNode, facts: &HirFnFacts, ty: &TypeToken) -> Result<Vec<Origi
         .collect())
 }
 
-fn paths(ty: &TypeToken, prefix: Vec<Projection>) -> Vec<Vec<Projection>> {
-    match ty {
+pub(crate) fn paths(
+    ty: &TypeToken,
+    prefix: Vec<Projection>,
+) -> Result<Vec<Vec<Projection>>, String> {
+    Ok(match ty {
         TypeToken::Shared(_) => vec![
             prefix
                 .into_iter()
                 .chain([Projection::SharedReferent])
                 .collect(),
         ],
-        TypeToken::Tuple(elements) => elements
-            .iter()
-            .enumerate()
-            .flat_map(|(position, element)| {
-                let path = prefix
-                    .iter()
-                    .cloned()
-                    .chain([Projection::TupleField { position }])
-                    .collect();
-                paths(element, path)
-            })
-            .collect(),
+        TypeToken::Tuple(elements) => member_paths(
+            elements
+                .iter()
+                .enumerate()
+                .map(|(position, element)| (element, Projection::TupleField { position })),
+            &prefix,
+        )?,
+        TypeToken::Struct { nominal, fields } => struct_paths(nominal, fields, &prefix)?,
         // Reference-bearing by-value arrays need element origin evidence.
+        TypeToken::Array { element, .. } | TypeToken::Slice(element) if shared(element) => {
+            return Err(
+                "Reference-bearing elements require unavailable element-origin evidence".into(),
+            );
+        }
         _ => Vec::new(),
-    }
+    })
+}
+
+fn struct_paths(
+    nominal: &crate::concrete_types::Nominal,
+    fields: &[(String, TypeToken)],
+    prefix: &[Projection],
+) -> Result<Vec<Vec<Projection>>, String> {
+    member_paths(
+        fields.iter().enumerate().map(|(position, (name, field))| {
+            (
+                field,
+                Projection::StructField {
+                    nominal: nominal.clone(),
+                    position,
+                    name: name.clone(),
+                },
+            )
+        }),
+        prefix,
+    )
+}
+
+fn member_paths<'a>(
+    members: impl Iterator<Item = (&'a TypeToken, Projection)>,
+    prefix: &[Projection],
+) -> Result<Vec<Vec<Projection>>, String> {
+    members
+        .map(|(member, projection)| {
+            paths(member, prefix.iter().cloned().chain([projection]).collect())
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|paths| paths.into_iter().flatten().collect())
 }
 
 pub fn aliases(facts: &HirFnFacts) -> Result<Vec<[u32; 2]>, String> {
@@ -187,11 +223,36 @@ pub fn parameter(parameter: &crate::ParamFact) -> Result<Vec<Origin>, String> {
             .as_deref()
             .ok_or("Missing reference formal type")?,
     )?;
-    Ok(paths(&token, Vec::new())
+    Ok(paths(&token, Vec::new())?
         .into_iter()
         .map(|path| Origin {
             parameter: parameter.position,
             path,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn element_evidence_gaps_never_return_partial_origins() {
+        let reference = TypeToken::Shared(Box::new(TypeToken::Scalar("i32".into())));
+        for storage in [
+            TypeToken::Array {
+                element: Box::new(reference.clone()),
+                length: 2,
+            },
+            TypeToken::Slice(Box::new(reference.clone())),
+        ] {
+            let mixed = TypeToken::Tuple(vec![reference.clone(), storage.clone()]);
+            assert!(paths(&mixed, Vec::new()).is_err());
+            let indirect = TypeToken::Shared(Box::new(storage));
+            assert_eq!(
+                paths(&indirect, Vec::new()).unwrap(),
+                vec![vec![Projection::SharedReferent]]
+            );
+        }
+    }
 }

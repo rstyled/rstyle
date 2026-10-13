@@ -114,11 +114,12 @@ fn graph_origins(
     {
         return super::borrows::graph_origin(node, pair).map(|origin| vec![origin]);
     }
-    if node.category == NodeCategory::FormalInput
-        || node.original_kind.known_value() == Some("expr_field")
-            && node.category == NodeCategory::Read
-    {
+    if node.category == NodeCategory::FormalInput {
         return source_origins(node, facts);
+    }
+    if node.original_kind.known_value() == Some("expr_field") && node.category == NodeCategory::Read
+    {
+        return loaded_origins(node, pair);
     }
 
     if !visiting.insert(node.id.clone()) {
@@ -145,6 +146,43 @@ fn graph_origins(
     }
     visiting.remove(&node.id);
     Ok(roots.into_iter().collect())
+}
+
+fn loaded_origins(node: &PdgNode, pair: &Pair) -> Result<Vec<Origin>, String> {
+    let [access] = node.attributes.reads.as_slice() else {
+        return Err("Stored reference field requires one exact read".into());
+    };
+    let id = access
+        .location_id
+        .as_ref()
+        .ok_or("Missing stored reference location")?;
+    let location = pair
+        .pdg
+        .memory_locations
+        .iter()
+        .find(|location| &location.id == id)
+        .ok_or("Unknown stored reference location")?;
+    let evidence = location
+        .extensions
+        .get(super::LOCATION_KEY)
+        .ok_or("Missing stored reference formal location")?;
+
+    let origin: Origin = serde_json::from_value(serde_json::json!({
+        "parameter": evidence["parameter"], "path": evidence["path"]
+    }))
+    .map_err(|error| error.to_string())?;
+    let ty: crate::data_types::TypeToken =
+        serde_json::from_value(evidence["type"].clone()).map_err(|error| error.to_string())?;
+    if ty != crate::data_types::parse(&wire_type(node)?)? {
+        return Err("Stored reference read/location value types disagree".into());
+    }
+    Ok(data_origins::paths(&ty, origin.path)?
+        .into_iter()
+        .map(|path| Origin {
+            parameter: origin.parameter,
+            path,
+        })
+        .collect())
 }
 
 fn verify_type(node: &PdgNode, facts: &HirFnFacts) -> Result<(), String> {

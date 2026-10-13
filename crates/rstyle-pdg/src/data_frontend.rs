@@ -18,6 +18,10 @@ pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
     let resolution = nominal_resolution(facts, &interface)?;
     verify_interface(facts, &source, &interface, resolution.as_ref())?;
 
+    for parameter in &facts.signature.params {
+        crate::data_origins::parameter(parameter)?;
+    }
+
     verify_fields(facts)?;
     let places = crate::data_places::Places::verify(facts)?;
     verify_nodes(&facts.body, facts, &places)

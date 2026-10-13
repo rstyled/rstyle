@@ -295,6 +295,10 @@ shared-receiver getters, nested field reads and named imports/aliases under a
 closed-unit original-source/drop-free proof. Its five-function real Cargo fixture
 reaches all ten pairs. Shared field borrows now retain address projections and
 conditional borrowed outputs through verified source-to-pair evaluation.
+Stored shared-reference fields and by-value reference-bearing struct/tuple
+values also preserve nested nominal origins; their seven-function fixture reaches
+all 21 pairs. Reference-bearing array elements and lifetime-generic nominal
+declarations remain explicitly unavailable.
 Construction, local reference
 correspondence and read-only slice/string operations remain unfinished; the broader
 data goal and natural-coverage targets are not achieved. See the versioned local

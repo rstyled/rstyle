@@ -352,3 +352,42 @@ operations; reference-aware method/cross-unit summaries; assertions, scalar
 constants/patterns and cyclic correspondence; broader frozen natural inventory
 and admission targets. Data admission as a whole is not complete. Historical
 denominators and contracts remain unchanged.
+
+Connected stored-reference slice (implementation baseline `9306ff3`, contract
+frozen in `c3fef82`): non-generic drop-free structs now retain recursively named
+shared-reference origins when passed or returned by value. Field reads load stored
+references with an added referent projection; they remain distinct from borrowing
+field storage. Serialized loaded origins are derived from the actual read access,
+registered formal location and exact value type, then compared independently with
+source-derived origins. Reference-bearing array/slice elements still lack element
+origins: even mixed values with some supported reference fields fail closed before
+lowering rather than returning a partial origin set.
+
+The seven-function real Cargo family includes stored scalar/str/slice references,
+shared receivers, nested reference-bearing intermediate values, by-value identity,
+conditional outputs and conservative aliasing. All seven admit/project and all 21
+pairs receive decisions. Independently specified field getter features remain
+`[0,2,4,0,0,0,0,4,2]`. Separate negative workspaces prove reference-element gaps
+and lifetime-generic nominal declarations remain exclusions, while scalar functions
+remain admitted. Trace collection preserves semantic outcomes on fresh warm runs
+for all three connected families. These are disclosed correctness fixtures, not
+natural inventory coverage or detector quality evidence.
+
+Validation: `cargo test --workspace --locked` passed 565 tests with zero failures
+or ignored tests, including all 88 real-command tests. Formatting and workspace
+all-target clippy passed. An initial clippy failure for a 53-line test helper was
+fixed by extracting path expectations; the focused stored-reference command test
+was rerun afterward. Repository style reports 1,581 functions and zero violations;
+patterns reports zero candidates. Inventory tests: 11 passed; study/harness tests:
+43 passed. A fresh seven-function smoke run decided all 21 pairs; all fourteen
+paired documents validated against the unchanged vendored schemas with jsonschema
+4.25.1. Logs: `target/stored-reference-fields-{workspace,real-final,clippy-final}.log`,
+`stored-reference-fields-{inventory,scripting}.log`,
+`stored-reference-fields-{style,patterns}.json`, and
+`stored-reference-fields-smoke.json`.
+
+Remaining prerequisites include lifetime-only nominal declarations, construction,
+local bindings, resolved read-only library operations, reference-aware verified
+calls and cross-unit summaries, assertions/constants/patterns, cyclic value proof,
+and the preregistered broader natural inventory. Whole data admission remains
+unfinished; historical reports, defaults and pinned artifacts remain unchanged.

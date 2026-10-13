@@ -3230,7 +3230,11 @@ fn clones_data_is_opt_in_and_unsupported_type_effect_mixtures_remain_excluded() 
 
 #[test]
 fn clones_data_trace_collection_preserves_pair_decisions_on_fresh_warm_runs() {
-    for source in [DATA_TUPLE_FAMILY, DATA_BORROW_FAMILY] {
+    for source in [
+        DATA_TUPLE_FAMILY,
+        DATA_BORROW_FAMILY,
+        DATA_STORED_REFERENCE_FAMILY,
+    ] {
         check_data_trace_invariance(source);
     }
 }
@@ -3484,6 +3488,160 @@ fn clones_data_shared_field_borrows_preserve_places_origins_and_all_pairs() {
             .find(|f| f["facts"]["name"] == "choose")
             .unwrap(),
     );
+}
+
+const DATA_STORED_REFERENCE_FAMILY: &str = "pub struct View { pub text: &'static str, pub bytes: &'static [u8], pub value: &'static i32 }\npub struct Outer { pub inner: View }\nimpl View { pub fn text(&self) -> &'static str { self.text } pub fn bytes(&self) -> &'static [u8] { self.bytes } }\npub fn value(view: View) -> &'static i32 { view.value }\npub fn inner(outer: Outer) -> View { outer.inner }\npub fn nested(outer: Outer) -> &'static str { outer.inner.text }\npub fn choose(a: Outer, b: Outer, flag: bool) -> View { if flag { a.inner } else { b.inner } }\npub fn identity(view: View) -> View { view }\n";
+
+#[test]
+fn clones_data_stored_reference_fields_preserve_nested_origins_and_all_pairs() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        DATA_STORED_REFERENCE_FAMILY,
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 7);
+    assert!(
+        functions
+            .iter()
+            .all(|function| function["outcome"] == "admitted"),
+        "{report}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 21);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    for name in ["inner", "nested", "choose", "identity"] {
+        let function = functions
+            .iter()
+            .find(|f| f["facts"]["name"] == name)
+            .unwrap();
+        check_stored_reference_origins(function, name);
+    }
+    let getter = functions
+        .iter()
+        .find(|f| f["facts"]["name"] == "View::text")
+        .unwrap();
+    let projection = report["matching"]["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["key"] == getter["key"])
+        .unwrap();
+    assert_eq!(
+        projection["projection"]["features"],
+        serde_json::json!([0, 2, 4, 0, 0, 0, 0, 4, 2])
+    );
+    check_data_document_tampering(getter);
+    check_data_origins_tampering(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == "choose")
+            .unwrap(),
+    );
+}
+
+fn check_stored_reference_origins(function: &Value, name: &str) {
+    use rstyle_pdg::{NodeCategory, data_origins};
+    let (pair, facts) = data_pair(function);
+    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let returned = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.category == NodeCategory::Return)
+        .unwrap();
+    let origins: Vec<data_origins::Origin> =
+        serde_json::from_value(returned.annotations[data_origins::KEY].clone()).unwrap();
+    assert_eq!(
+        origins.len(),
+        match name {
+            "nested" => 1,
+            "choose" => 6,
+            _ => 3,
+        }
+    );
+    for origin in &origins {
+        check_stored_reference_path(origin, name);
+    }
+    if name == "choose" {
+        assert_eq!(
+            pair.pdg.extensions["rstyle.data:possible-formal-aliases"],
+            serde_json::json!([[0, 0], [0, 1], [1, 1]])
+        );
+    }
+}
+
+fn check_stored_reference_path(origin: &rstyle_pdg::data_origins::Origin, name: &str) {
+    use rstyle_pdg::field_locations::Projection;
+    assert!(matches!(
+        origin.path.last(),
+        Some(Projection::SharedReferent)
+    ));
+    assert_eq!(origin.path.len(), if name == "identity" { 2 } else { 3 });
+    let fields: Vec<_> = origin
+        .path
+        .iter()
+        .filter_map(|projection| match projection {
+            Projection::StructField { name, position, .. } => Some((name.as_str(), *position)),
+            _ => None,
+        })
+        .collect();
+    let expected = if name == "nested" {
+        vec![("inner", 0), ("text", 0)]
+    } else {
+        let last = *fields.last().unwrap();
+        assert!([("text", 0), ("bytes", 1), ("value", 2)].contains(&last));
+        if name == "identity" {
+            vec![last]
+        } else {
+            vec![("inner", 0), last]
+        }
+    };
+    assert_eq!(fields, expected);
+    assert!(origin.parameter == 0 || name == "choose" && origin.parameter == 1);
+}
+
+#[test]
+fn clones_data_reference_element_and_lifetime_generic_boundaries_fail_closed() {
+    for (source, count) in [
+        (
+            "pub struct Mixed { pub direct: &'static i32, pub elements: [&'static i32; 2] }\npub fn mixed(value: Mixed) -> Mixed { value }\npub fn unused(value: Mixed) -> i32 { 1 }\npub fn scalar(x: i32) -> i32 { x }\n",
+            3,
+        ),
+        (
+            "pub struct Generic<'a> { pub text: &'a str }\npub fn generic(value: Generic<'_>) -> &str { value.text }\npub fn scalar(x: i32) -> i32 { x }\n",
+            2,
+        ),
+    ] {
+        check_unavailable_reference_fields(source, count);
+    }
+}
+
+fn check_unavailable_reference_fields(source: &str, count: usize) {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), count);
+    for function in functions {
+        assert_eq!(
+            function["outcome"],
+            if function["facts"]["name"] == "scalar" {
+                "admitted"
+            } else {
+                "excluded"
+            },
+            "{report}"
+        );
+    }
+    assert_eq!(report["assessment_complete"], true);
+    assert_eq!(report["pair_evaluation_complete"], true);
 }
 
 fn check_borrow_pair(report: &Value, getter: &Value) {

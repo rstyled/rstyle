@@ -14,6 +14,9 @@ receivers and nested formal field getters require the complete closed-source,
 lexical declaration and drop-free proof registered in `nominal-data-v1.md`.
 Shared borrows of verified formal field places are registered in
 `shared-field-borrows-v1.md`; they preserve address operations without value loads.
+Stored shared-reference fields and reference-bearing struct/tuple values require
+the origin proof in `stored-reference-fields-v1.md`. Field-value origins include
+the stored reference's referent projection, unlike field-storage borrows.
 Construction, dereference, local/temporary borrows, slicing and library operations
 remain unavailable until their complete obligations are implemented. No successful observation authorizes these operations.
 
