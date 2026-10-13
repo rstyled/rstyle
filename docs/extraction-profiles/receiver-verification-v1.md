@@ -41,3 +41,9 @@ frontend evidence during serialized Data verification, without producer re-emiss
 Test complete captured families and changed identities/types/adjustment order,
 missing/duplicate/extra records, forged unsupported reasons and legacy absence.
 Library calls remain excluded until the separate pinned summary contract is wired.
+
+Existing registered scalar primitive summaries already establish an instantiated
+interface. For those methods, require the observed formal inputs to agree exactly
+with the registered argument types, in addition to the checked result. Unregistered
+method signatures remain observational. This does not add a summary, authorize a
+length call or broaden any historical primitive instantiation.
