@@ -300,3 +300,8 @@ operations and types describe the source semantics; differing feature names do
 not prevent comparison when each function establishes its source/HIR correspondence.
 Incomplete removed-source resolution still fails closed. Matching categories,
 labels, algorithms and thresholds remain unchanged.
+
+Producer selection evidence identifies its contract through the registered
+`profile` ID and version, not a documentation path. Historical `contract` path
+annotations remain informational during verification; profile, selection,
+capabilities and frontend evidence still require exact agreement.

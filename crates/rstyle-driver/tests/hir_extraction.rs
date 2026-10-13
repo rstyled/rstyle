@@ -2412,3 +2412,35 @@ fn expanded_construct_documents_satisfy_unchanged_pinned_schemas_as_serialized()
         rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
     }
 }
+
+#[test]
+fn local_contract_identity_uses_registry_and_preserves_historical_annotations() {
+    use rstyle_pdg::extraction_profile::{EVIDENCE_KEY, ExtractionProfile};
+    for selection in ["hir-calls-v1", "hir-helpers-v1"] {
+        let facts = compile_selected("fn f(x: i32) -> i32 { x }", selection).remove(0);
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        let profile = ExtractionProfile::parse(selection).unwrap().policy();
+        assert_eq!(
+            pair.pdg.extensions[EVIDENCE_KEY]["profile"],
+            serde_json::json!(profile)
+        );
+        assert!(pair.pdg.extensions[EVIDENCE_KEY].get("contract").is_none());
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+
+        for evidence in [&mut pair.pdg.extensions, &mut pair.cfg.extensions] {
+            evidence.get_mut(EVIDENCE_KEY).unwrap()["contract"] =
+                serde_json::json!("historical informational document location");
+        }
+        rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+
+        for evidence in [&mut pair.pdg.extensions, &mut pair.cfg.extensions] {
+            evidence.get_mut(EVIDENCE_KEY).unwrap()["profile"]["version"] =
+                serde_json::json!("unregistered");
+        }
+        assert!(
+            rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).is_err()
+        );
+        assert!(rstyle_ccgraph::admit_produced(&pair, &facts).is_err());
+    }
+}

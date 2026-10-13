@@ -100,3 +100,8 @@ JSON Schema validator checked all 12 resulting documents against the unchanged
 vendored schemas and checked their SHA-256 entries in the external manifests.
 This six-function fixture is distinct from the unidentified user-observed 6/50
 inventory. No natural-crate admission target or detection-quality claim follows.
+
+Producer selection evidence identifies its contract through the registered
+`profile` ID and version, not a documentation path. Historical `contract` path
+annotations remain informational during verification; profile, selection,
+capabilities and frontend evidence still require exact agreement.

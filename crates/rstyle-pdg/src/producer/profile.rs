@@ -48,11 +48,6 @@ fn selection_evidence(facts: &HirFnFacts, profile: ExtractionProfile) -> Result<
         profile: profile.policy(),
         selection: profile.token(),
         capabilities: profile.capabilities(),
-        contract: if profile == ExtractionProfile::HelpersV1 {
-            "docs/extraction-profiles/helpers-v1.md"
-        } else {
-            "docs/extraction-profiles/coverage-v1.md"
-        },
         signature: &facts.signature,
         frontend: facts,
         semantics: "local expansion conformance; bounded normal flow; exceptional flow omitted",
@@ -66,7 +61,6 @@ struct SelectionEvidence<'a> {
     profile: ProfileId,
     selection: &'static str,
     capabilities: &'static [&'static str],
-    contract: &'static str,
     signature: &'a crate::SignatureFacts,
     frontend: &'a HirFnFacts,
     semantics: &'static str,
