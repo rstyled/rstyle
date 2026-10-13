@@ -302,3 +302,47 @@ fn change_declaration_origin(
         _ => unreachable!(),
     }
 }
+
+struct MissingResolution;
+
+impl source_proof::PathResolution for MissingResolution {
+    fn resolve(&self, _: &syn::TypePath) -> Result<TypeTree, String> {
+        Err("No selected-unit path resolution".into())
+    }
+}
+
+#[test]
+fn observational_alias_and_const_lengths_cannot_become_source_proofs() {
+    for declaration in ["Alias", "[i32; COUNT]"] {
+        let source = format!("pub struct Counter {{ pub value: {declaration} }}");
+        let mut tree = structure(&source);
+        let TypeTree::Struct { fields, .. } = &mut tree else {
+            unreachable!()
+        };
+        fields[0].declaration = declaration.into();
+        if declaration.starts_with('[') {
+            fields[0].ty = TypeTree::Array {
+                element: Box::new(TypeTree::Scalar("i32".into())),
+                length: 3,
+            };
+        }
+        validate(&tree).unwrap();
+        assert!(source_proof::verify(&tree, &MissingResolution).is_err());
+    }
+    source_proof::verify(
+        &structure("pub struct Counter { pub value: i32 }"),
+        &MissingResolution,
+    )
+    .unwrap();
+}
+
+#[test]
+fn strict_source_type_proofs_enforce_resource_and_rust_unit_boundaries() {
+    let unit = TypeTree::Scalar("unit".into());
+    source_proof::verify_spelling("()", &unit, &MissingResolution).unwrap();
+    assert!(source_proof::verify_spelling("unit", &unit, &MissingResolution).is_err());
+    assert!(
+        source_proof::verify_spelling(&" ".repeat(MAX_SOURCE_BYTES + 1), &unit, &MissingResolution)
+            .is_err()
+    );
+}

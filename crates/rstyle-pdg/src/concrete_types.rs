@@ -1,6 +1,7 @@
 //! Bounded, observational concrete type evidence. Never authorizes admission.
 
 mod declarations;
+pub mod source_proof;
 
 use crate::source_evidence::byte_offset;
 use serde::{Deserialize, Serialize};

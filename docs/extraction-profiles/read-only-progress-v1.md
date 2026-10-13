@@ -201,3 +201,22 @@ matching-extension admission remain implementation obligations. The original
 assertion, pattern/constant, cross-unit summary, slice/string, loop-composition and
 broader preregistered inventory work also remains outstanding. No new data
 admissions or natural coverage gains are claimed.
+
+## Strict source-type correspondence
+
+The `data-source-types-v1` contract now has a separate independent source verifier.
+It checks nested scalar/tuple/shared/slice/array spellings, requires literal array
+lengths, and fails named paths without scoped resolution evidence. Observational
+validation still retains unsupported-to-prove compiler facts; it never substitutes
+for this stricter check. Rust unit uses `()`, not the normalized token `unit`.
+
+Validation: `cargo test --workspace --locked`, workspace clippy with all targets
+and warnings denied, and fmt check passed. All 78 real-command tests ran. The
+repository-built style command reported zero violations across 1444 functions;
+patterns reported zero candidates. Inventory scripting tests (11) and study/harness
+scripting tests (43) passed. Logs: `target/data-source-proof-*`.
+
+This is not data admission. No new extraction or matching identity is registered;
+no new natural coverage gain is claimed. Effect/origin proofs, data lowering,
+independent document verification and the real source-to-pair data path remain
+required.
