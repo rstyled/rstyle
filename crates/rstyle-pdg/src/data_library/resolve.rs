@@ -9,20 +9,43 @@ use crate::{
 };
 
 pub fn resolve(node: &HirNode, facts: &HirFnFacts) -> Result<Option<Summary>, String> {
+    let Some(op) = operation(node) else {
+        return Ok(None);
+    };
+    let Some(token) = source_token(node, facts, op)? else {
+        return Ok(None);
+    };
+
+    crate::data_frontend::verify(facts)?;
+    let receiver = node.children.first().ok_or("Missing library receiver")?;
+    if crate::data_origins::origins(receiver, facts)?.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(metadata_summary(op, token)))
+}
+
+/// Source correspondence precedes helper linking; this never authorizes admission.
+pub(crate) fn source_resolved(node: &HirNode, facts: &HirFnFacts) -> Result<bool, String> {
+    let Some(op) = operation(node) else {
+        return Ok(false);
+    };
+    Ok(source_token(node, facts, op)?.is_some())
+}
+
+fn source_token(
+    node: &HirNode,
+    facts: &HirFnFacts,
+    op: &Operation,
+) -> Result<Option<String>, String> {
     if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         != crate::extraction_profile::ExtractionProfile::DataV1
     {
         return Ok(None);
     }
-    let Some(op) = operation(node) else {
-        return Ok(None);
-    };
     let artifacts = super::verify_evidence(facts)?;
     if !super::verify::registered_build_with(facts, &artifacts)? {
         return Ok(None);
     }
-    crate::data_frontend::verify(facts)?;
-    let receiver = node.children.first().ok_or("Missing library receiver")?;
     let capture = crate::data_receivers::verify(facts)?;
     let record = capture
         .methods
@@ -30,10 +53,6 @@ pub fn resolve(node: &HirNode, facts: &HirFnFacts) -> Result<Option<Summary>, St
         .find(|method| method.call == node.hir)
         .ok_or("Missing verified library receiver")?;
     if !supported_receiver(record, op) || !original_invocation(node, facts, op)? {
-        return Ok(None);
-    }
-    let origins = crate::data_origins::origins(receiver, facts)?;
-    if origins.is_empty() {
         return Ok(None);
     }
     let Observation::Captured { ty } = &record.receiver_type else {
@@ -51,7 +70,7 @@ pub fn resolve(node: &HirNode, facts: &HirFnFacts) -> Result<Option<Summary>, St
         );
     }
 
-    Ok(Some(metadata_summary(op, token)))
+    Ok(Some(token))
 }
 
 fn metadata_summary(op: &Operation, token: String) -> Summary {

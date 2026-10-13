@@ -266,6 +266,15 @@ and borrowed branching outputs compose through the existing command. All fifteen
 functions in the independent family admit and all 105 pairs receive decisions;
 this is correctness evidence only. See `read-only-length-registry-v1.md` for exact
 provenance, signatures/effects and independent CALL verification obligations.
+Same-unit direct helpers additionally support shared inputs with scalar/unit
+results under the existing verified memory-free boundary. Whole shared-formal
+results require `rstyle.helper.shared-return/1` and an exact verified return-origin
+summary. Source and serialized graph proofs substitute only the selected actual
+argument origins, including aliases and stored-field arguments; helper results
+can feed registered metadata calls. The ten-function family reaches all 45 pairs.
+See `read-only-helper-calls-v1.md` for build, summary and origin obligations.
+Memory-reading helper callees, aggregate reference-valued result components,
+inherent-method helper dispatch and cross-unit linking remain unavailable.
 Aggregate construction, local reference rebindings, other library summaries,
 slice indexing/subslicing, and assertions are still
 unavailable in this implementation. Their observations do not admit them. This

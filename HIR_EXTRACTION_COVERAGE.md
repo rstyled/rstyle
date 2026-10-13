@@ -310,6 +310,14 @@ core build is nightly-2026-09-30/aarch64-unknown-linux-gnu. A fifteen-function
 family combines stored fields, explicit grouped borrows, verified scalar calls,
 scalar loops and borrowed branching outputs and reaches all 105 pair decisions.
 No new memory write/buffer read or scoring interpretation is introduced.
+Verified same-unit memory-free direct helpers now accept canonical shared-input
+types. Whole shared-formal results use a separately identified return-origin
+summary, selected actual-argument substitution and independent source/graph
+verification. Qualified aliases, multi-level calls, argument permutations,
+branching origins and stored-field actual arguments compose with registered
+metadata operations. The ten-function borrowed-result family reaches all 45 pairs;
+memory-reading callees, aggregate reference-result components, inherent-method
+helper dispatch and cross-unit summaries remain unavailable.
 Construction, local reference correspondence, other library methods and
 indexing/subslicing remain unfinished; the broader
 data goal and natural-coverage targets are not achieved. See the versioned local

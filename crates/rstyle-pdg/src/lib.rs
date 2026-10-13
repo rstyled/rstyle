@@ -25,6 +25,7 @@ pub mod extraction_profile;
 pub mod field_locations;
 pub mod frontend;
 pub mod helper_calls;
+mod helper_references;
 pub mod model;
 pub mod nominal_binding;
 pub mod nominal_boundary;

@@ -125,6 +125,7 @@ fn graph_origins(
     if !visiting.insert(node.id.clone()) {
         return Err("Cyclic reference value proof is unavailable".into());
     }
+    let selected = returned_operands(node, facts)?;
     let mut roots = BTreeSet::new();
     for edge in pair.pdg.edges.iter().filter(|edge| {
         edge.target == node.id
@@ -133,6 +134,12 @@ fn graph_origins(
                 edge.subkind.as_str(),
                 "value_operand" | "value_alternative" | "reaching_definition"
             )
+            && selected.as_ref().is_none_or(|positions| {
+                edge.subkind == "value_operand"
+                    && edge
+                        .operand_position
+                        .is_some_and(|position| positions.contains(&position))
+            })
     }) {
         let predecessor = pair
             .pdg
@@ -146,6 +153,19 @@ fn graph_origins(
     }
     visiting.remove(&node.id);
     Ok(roots.into_iter().collect())
+}
+
+fn returned_operands(node: &PdgNode, facts: &HirFnFacts) -> Result<Option<BTreeSet<u64>>, String> {
+    if node.category != NodeCategory::Call {
+        return Ok(None);
+    }
+    let source = source_node(node, facts)?;
+    Ok(Some(
+        crate::helper_references::parameters(source, facts)?
+            .into_iter()
+            .map(u64::from)
+            .collect(),
+    ))
 }
 
 fn loaded_origins(node: &PdgNode, pair: &Pair) -> Result<Vec<Origin>, String> {

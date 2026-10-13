@@ -5,6 +5,7 @@ mod resolve;
 mod verify;
 pub use documents::{evidence, verify_documents};
 pub use resolve::resolve;
+pub(crate) use resolve::source_resolved;
 pub use verify::verify_evidence;
 
 use crate::HirNode;

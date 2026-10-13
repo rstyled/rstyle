@@ -1,6 +1,7 @@
 # Local read-only helper calls, version 1
 
-Status: frozen implementation contract; **not registered for admission yet**.
+Status: frozen implementation contract with connected bounded subsets below;
+the full memory-reading/inherent-method boundary remains unavailable.
 The existing memory-free helper contract remains unchanged. This contract is an
 extension of `rstyle.rust.hir-data/1.0.0` and `rstyle.ccgraph.data/1.0.0` only.
 Implementation slices must retain explicit exclusions until the complete evidence
@@ -9,12 +10,13 @@ boundary below crosses the real Cargo command and independent verification.
 The narrower existing memory-free helper boundary now accepts canonical Data
 shared-reference argument tokens with scalar/unit results. Callees still require
 verified empty memory-location inventories, nonpanicking returning acyclic flow,
-no generics and same-unit dependency evidence. This subset retains
+no type/const or early-bound generic substitutions and same-unit dependency evidence. This subset retains
 `rstyle.helper.source-body/1`: shared arguments alone do not imply referent reads.
 Registered slice/str metadata summaries can occur in those bodies. It does not
-admit field-reading callees, borrowed call results or inherent-method dispatch.
+admit field-reading callees or inherent-method dispatch. Borrowed results require
+the separate summary identity and obligations below.
 
-The next bounded borrowed-result slice uses identity
+The bounded borrowed-result slice uses identity
 `rstyle.helper.shared-return/1` and an optional exact `reference_outputs` summary
 field. It is restricted to a single shared-reference result, no callee memory
 locations, and return origins that are whole shared formal referents of exactly
@@ -25,7 +27,19 @@ those selected actual argument origins, never all reference-valued operands.
 Source and serialized graph verifiers must check that same substitution through
 the exact CALL operand positions. Aggregate-valued result components, projected
 callee origins and stored-reference callee reads remain outside this slice.
-This prospective slice is unavailable until its connected implementation/tests.
+The connected source/HIR-to-pair implementation verifies both source origins and
+serialized operand paths independently. Source correspondence recognizes exact
+registered metadata signatures before helper linking; admission still requires
+the completed frontend, dependency and receiver-origin proofs. Caller/callee
+selected-unit context, exact compiler invocation and semantic build facts must
+agree, including compiler/producer identity, edition, target/layout, cfg/features
+and optimization setting. Cross-unit calls remain unavailable.
+Ordinary unbounded named lifetimes are late-bound in the pinned compiler and
+cross the direct-call path without a type/const substitution. Original lifetime
+declarations and borrowed-output origins remain independently verified; matching
+type tokens omit lifetime names. Early-bound parameter substitutions (including
+lifetime bounds requiring them), type/const parameters and trait dispatch remain
+unavailable. This does not change historical helper-profile generic exclusions.
 
 ## Scope and resolved identities
 

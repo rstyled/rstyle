@@ -660,8 +660,56 @@ and forty-three tests. Workspace fmt and all-target clippy passed. Style reports
 reports zero candidates. Logs are `target/data-shared-helpers-{workspace,inventory,
 scripting,style,patterns,real,negative}.log` (style/patterns use `.json`).
 
-Whole Data admission remains incomplete. Outstanding work includes reference-aware
-verified calls across modules/packages, aggregate construction/local reference
+## Whole shared-formal helper results
+
+The continuation at `e82d2a8` connects `rstyle.helper.shared-return/1` under the
+previously frozen bounded result contract. Summaries derive a complete sorted
+return-origin set from verified callee RETURN evidence. Source and serialized
+graph verification substitute only selected actual argument origins, preserving
+argument position, nested stored-field origins and possible shared aliases. The
+historical scalar/unit summary omits the new optional `reference_outputs` field.
+Data helper dependencies additionally require exact selected-unit context,
+compiler invocation and semantic build identity. Neither memory locations nor
+projected/aggregate reference-result components acquire callee summary admission.
+
+Registered metadata source correspondence now checks exact source invocation,
+resolved receiver/signature and pinned library/build authority before linking.
+It does not certify frontend effects or reference origins; those proofs remain
+mandatory after dependencies are attached. This repairs the earlier diagnostic
+ordering problem for `identity(value).is_empty()` without erasing the call.
+
+The ten-function family includes ordinary unbounded named-lifetime helpers,
+multi-level borrowed-result calls, selected and
+swapped argument origins, branching between possibly aliasing shared inputs,
+stored-field actual arguments and metadata on a borrowed helper result. All ten
+admit and all 45 pairs receive decisions, with trace/warm invariance. Independently
+specified simple helper features are `[0,2,3,0,0,0,1,3,1]`. Editing the callee's
+returned formal changes dependent manifests and caller return origins in a fresh
+run, which again evaluates every pair. Summary output removal/emptiness, wrong
+parameter/path/identity, changed compiler invocation/target, forged CALL origins
+and swapped graph operand positions fail verification. The seven-function negative
+mixture admits four bodies and evaluates all six pairs while excluding a
+memory-reading caller, recursion and an aggregate reference-result caller.
+
+Validation: `cargo test --workspace --locked` passed 586 tests, zero failed/ignored,
+including all 103 real-command tests. Style reports 1,649 functions and zero
+violations; patterns reports zero candidates. Inventory and scripting suites
+passed eleven and forty-three tests. A fresh BOM/CRLF real command admits all ten,
+evaluates all 45 pairs and marks each execution stage complete. All twenty paired
+documents pass unchanged pinned schemas. Logs are under
+`target/data-borrowed-helpers-*`. The initial fixture lifetime error and source
+diagnostic ordering failure are retained in the earlier real-command logs.
+Workspace fmt and all-target clippy passed. After the full suite, the selector
+fixture switched from static inputs to ordinary unbounded named lifetimes; its
+complete real-command test, including trace invariance, projection, tampering and
+callee-edit invalidation, passed again. The pinned compiler resolves those
+lifetimes as late-bound without an early-bound generic substitution. A separate
+two-function named-lifetime discovery run also admitted both and evaluated their
+pair; it remains disclosed fixture evidence, not a natural-inventory gain.
+These are disclosed correctness fixtures, not natural coverage or quality gains.
+
+Whole Data admission remains incomplete. Outstanding work includes memory-reading
+and inherent-method verified calls across modules/packages, aggregate construction/local reference
 bindings, element reads/subslicing/checked Option, assertion provenance, scalar
 constants/patterns, merges outside versus inside loop cycles, scoped nominal effect
 proof and the broader preregistered contemporary-crate inventory with measured

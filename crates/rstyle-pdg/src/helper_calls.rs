@@ -31,9 +31,11 @@ pub struct Summary {
     pub always_returns: bool,
     pub argument_evaluation: String,
     pub result_dependence: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_outputs: Option<Vec<crate::data_origins::Origin>>,
 }
 
-fn summary(facts: &HirFnFacts) -> Result<Summary, String> {
+fn summary(facts: &HirFnFacts, pair: &producer::Pair) -> Result<Summary, String> {
     let argument_types = facts
         .signature
         .params
@@ -53,8 +55,15 @@ fn summary(facts: &HirFnFacts) -> Result<Summary, String> {
         .clone()
         .ok_or("Missing verified helper result type")?;
 
+    let reference_outputs = crate::helper_references::returned(facts, pair)?;
+    let references = reference_outputs.is_some();
     Ok(Summary {
-        identity: "rstyle.helper.source-body/1".into(),
+        identity: if references {
+            "rstyle.helper.shared-return/1"
+        } else {
+            "rstyle.helper.source-body/1"
+        }
+        .into(),
         argument_types,
         result_type,
         mutates_arguments: false,
@@ -62,7 +71,13 @@ fn summary(facts: &HirFnFacts) -> Result<Summary, String> {
         may_panic: false,
         always_returns: true,
         argument_evaluation: "source-order-once/1".into(),
-        result_dependence: "call-input-snapshots-with-verified-callee-return-graph/1".into(),
+        result_dependence: if references {
+            "verified-formal-referent-substitution/1"
+        } else {
+            "call-input-snapshots-with-verified-callee-return-graph/1"
+        }
+        .into(),
+        reference_outputs,
     })
 }
 
@@ -273,6 +288,9 @@ fn attach_children(
 }
 
 fn certify(facts: &HirFnFacts) -> Result<Option<Dependency>, String> {
+    if !crate::helper_references::supported_result(facts)? {
+        return Ok(None);
+    }
     let pair = producer::produce(facts).map_err(|errors| errors.join("; "))?;
     if check_boundary(&pair).is_err() {
         return Ok(None);
@@ -280,7 +298,7 @@ fn certify(facts: &HirFnFacts) -> Result<Option<Dependency>, String> {
     let serialized = pair.serialize().map_err(|error| error.to_string())?;
 
     Ok(Some(Dependency {
-        summary: summary(facts)?,
+        summary: summary(facts, &pair)?,
         frontend: facts.clone(),
         pdg: String::from_utf8(serialized.pdg_bytes).map_err(|error| error.to_string())?,
         cfg: String::from_utf8(serialized.cfg_bytes).map_err(|error| error.to_string())?,
@@ -328,7 +346,7 @@ pub fn verify(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String>
     let pair = producer::verify_serialized(&serialized, &dependency.frontend)
         .map_err(|errors| errors.join("; "))?;
     check_boundary(&pair).map_err(|errors| errors.join("; "))?;
-    if dependency.summary != summary(&dependency.frontend)? {
+    if dependency.summary != summary(&dependency.frontend, &pair)? {
         return Err("Helper summary signature, effects or returning behavior contradict verified callee evidence".into());
     }
 
@@ -364,12 +382,7 @@ fn check_signature(
             .all(|(child, expected)| {
                 child.ty.as_ref().and_then(|ty| ty.normalized.as_ref()) == Some(expected)
             });
-    let build = caller.build.overflow_checks == callee.build.overflow_checks
-        && caller.build.debug_assertions == callee.build.debug_assertions
-        && caller.build.panic_strategy == callee.build.panic_strategy
-        && caller.build.pointer_width == callee.build.pointer_width
-        && crate::extraction_profile::ExtractionProfile::from_facts(caller)
-            == crate::extraction_profile::ExtractionProfile::from_facts(callee);
+    let build = same_build(caller, callee)?;
     if !signature
         || !build
         || resolution["local"] != true
@@ -383,6 +396,19 @@ fn check_signature(
     }
 
     Ok(())
+}
+
+fn same_build(caller: &HirFnFacts, callee: &HirFnFacts) -> Result<bool, String> {
+    let profile = crate::extraction_profile::ExtractionProfile::from_facts(caller)?;
+    let compatible = caller.build.overflow_checks == callee.build.overflow_checks
+        && caller.build.debug_assertions == callee.build.debug_assertions
+        && caller.build.panic_strategy == callee.build.panic_strategy
+        && caller.build.pointer_width == callee.build.pointer_width
+        && profile == crate::extraction_profile::ExtractionProfile::from_facts(callee)?;
+    if profile != crate::extraction_profile::ExtractionProfile::DataV1 {
+        return Ok(compatible);
+    }
+    Ok(compatible && crate::helper_references::same_unit(caller, callee)?)
 }
 
 fn check_depth(node: &HirNode, depth: usize) -> Result<(), String> {

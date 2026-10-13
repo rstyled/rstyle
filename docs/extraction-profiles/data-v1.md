@@ -54,11 +54,15 @@ Unknown calls and unresolved reference origins exclude the entire function.
 Direct same-unit verified memory-free helpers may take supported shared inputs
 and return scalars/unit; canonical resolved call signatures must match every
 actual argument. They retain the historical helper summary boundary and do not
-authorize referent reads, borrowed results, generics or inherent-method calls.
-The prospective reference-aware helper/method boundary is frozen separately in
-`read-only-helper-calls-v1.md`; it remains unavailable until its read-location and
-return-origin verification is connected. Existing scalar helper admission does
-not authorize memory-reading callees.
+authorize referent reads, type/const or early-bound substitutions, or inherent-method calls. A whole shared-formal
+result additionally requires `rstyle.helper.shared-return/1`, exact verified
+RETURN origins and selected actual-argument substitution in both source and graph
+verification. It supports borrowed-result chains and registered metadata calls on
+those results, including stored-field actual arguments and ordinary unbounded
+named-lifetime helpers resolved as late-bound by the pinned compiler. The full reference-aware
+helper/method boundary is frozen separately in `read-only-helper-calls-v1.md`;
+memory-reading callees and inherent methods remain unavailable until read-location
+verification is connected. Existing scalar helper admission does not authorize them.
 
 CFG, scalar reaching definitions and dependence use the existing analysis.
 No exceptional transfers or executable exits are fabricated. Existing arithmetic

@@ -149,6 +149,7 @@ impl ExtractionProfile {
                 "rstyle.primitive.unsigned-abs/1",
                 "rstyle.primitive.wrapping-mul/1",
                 "rstyle.helper.source-body/1",
+                "rstyle.helper.shared-return/1",
                 "rstyle.data.slice.len/1",
                 "rstyle.data.slice.is-empty/1",
                 "rstyle.data.str.len/1",

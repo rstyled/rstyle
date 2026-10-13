@@ -2106,6 +2106,30 @@ fn corrupt_helper(node: &mut rstyle_pdg::HirNode, corruption: &str) -> bool {
                 dependency["frontend"]["signature"]["return_ty"]["normalized"] =
                     Value::String("i32".into())
             }
+            "output_missing" => {
+                dependency["summary"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("reference_outputs");
+            }
+            "output_parameter" => {
+                dependency["summary"]["reference_outputs"][0]["parameter"] = serde_json::json!(0)
+            }
+            "output_empty" => dependency["summary"]["reference_outputs"] = serde_json::json!([]),
+            "output_path" => {
+                dependency["summary"]["reference_outputs"][0]["path"] = serde_json::json!([])
+            }
+            "output_identity" => {
+                dependency["summary"]["identity"] = serde_json::json!("rstyle.helper.source-body/1")
+            }
+            "unit_invocation" => {
+                dependency["frontend"]["build"]["frontend_options"]["invocation"] =
+                    serde_json::json!(["forged"])
+            }
+            "unit_target" => {
+                dependency["frontend"]["build"]["target_triple"]["value"] =
+                    serde_json::json!("another-target")
+            }
             _ => unreachable!(),
         }
         resolution.description = serde_json::to_string(&value).unwrap();
@@ -4518,25 +4542,211 @@ fn check_shared_helper_dependency(report: &Value) {
 }
 
 #[test]
-fn clones_data_shared_helpers_keep_memory_reads_and_borrowed_results_closed() {
+fn clones_data_shared_helpers_keep_memory_reads_and_recursion_closed() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        "pub struct Data { pub field: u8 }\npub fn getter(value: &Data) -> u8 { value.field }\npub fn caller(value: &Data) -> u8 { getter(value) }\npub fn identity(value: &str) -> &str { value }\npub fn borrowed(value: &str) -> &str { identity(value) }\npub fn recursive(value: &[u8]) -> bool { recursive(value) }\n",
+        "pub struct Data { pub field: u8 }\npub fn getter(value: &Data) -> u8 { value.field }\npub fn caller(value: &Data) -> u8 { getter(value) }\npub fn identity(value: &str) -> &str { value }\npub fn borrowed(value: &str) -> &str { identity(value) }\npub fn recursive(value: &[u8]) -> bool { recursive(value) }\npub fn pair(value: (&'static str, &'static str)) -> (&'static str, &'static str) { value }\npub fn pair_caller(value: (&'static str, &'static str)) -> (&'static str, &'static str) { pair(value) }\n",
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{report}");
     for function in report["functions"].as_array().unwrap() {
         let expected = match function["facts"]["name"].as_str().unwrap() {
-            "getter" | "identity" => "admitted",
-            "caller" | "borrowed" | "recursive" => "excluded",
+            "getter" | "identity" | "borrowed" | "pair" => "admitted",
+            "caller" | "recursive" | "pair_caller" => "excluded",
             name => panic!("Unexpected function {name}"),
         };
         assert_eq!(function["outcome"], expected, "{function}");
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 6);
     assert_eq!(report["pair_evaluation_complete"], true);
+}
+
+const DATA_SHARED_RESULT_FAMILY: &str = "pub fn identity(value: &str) -> &str { value }\npub fn wrapper(value: &str) -> &str { identity(value) }\npub fn third(value: &str) -> &str { wrapper(value) }\npub fn first<'a>(left: &'a str, right: &'a str) -> &'a str { left }\npub fn second<'a>(left: &'a str, right: &'a str) -> &'a str { right }\npub fn swapped<'a>(left: &'a str, right: &'a str) -> &'a str { second(right, left) }\npub fn choose<'a>(flag: bool, left: &'a str, right: &'a str) -> &'a str { if flag { left } else { right } }\npub fn branch<'a>(flag: bool, left: &'a str, right: &'a str) -> &'a str { choose(flag, left, right) }\npub fn empty(value: &str) -> bool { identity(value).is_empty() }\npub struct View<'a> { pub text: &'a str }\npub fn field<'a>(value: &View<'a>) -> &'a str { identity(value.text) }\n";
+
+#[test]
+fn clones_data_shared_results_verify_selected_argument_origins_and_all_pairs() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        DATA_SHARED_RESULT_FAMILY,
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 10);
+    for function in functions {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+        let (pair, facts) = data_pair(function);
+        check_shared_result_origins(&pair, &facts);
+        if facts.name == "swapped" {
+            check_shared_result_tampering(&pair, &facts);
+        }
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 45);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    check_shared_result_projection(&report);
+    let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{warm}");
+    assert_eq!(pair_decisions(&report), pair_decisions(&warm));
+    check_shared_result_edit(directory.path(), &report);
+}
+
+fn check_shared_result_edit(directory: &Path, previous: &Value) {
+    let source = DATA_SHARED_RESULT_FAMILY.replace(
+        "pub fn second<'a>(left: &'a str, right: &'a str) -> &'a str { right }",
+        "pub fn second<'a>(left: &'a str, right: &'a str) -> &'a str { left }",
+    );
+    std::fs::write(directory.join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory, &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{report}");
+    let wrapper = |report: &Value| {
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == "swapped")
+            .unwrap()
+            .clone()
+    };
+    let before = wrapper(previous);
+    let after = wrapper(&report);
+    assert_eq!(after["outcome"], "admitted");
+    assert_ne!(before["document_manifest"], after["document_manifest"]);
+    assert_ne!(before["facts"]["body"], after["facts"]["body"]);
+    let (pair, _) = data_pair(&after);
+    for node in pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.category == rstyle_pdg::NodeCategory::Return)
+    {
+        assert_eq!(
+            node.annotations[rstyle_pdg::data_origins::KEY],
+            serde_json::json!([
+                {"parameter": 1, "path": [{"kind": "SharedReferent"}]}
+            ])
+        );
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 45);
+    assert_eq!(report["pair_evaluation_complete"], true);
+}
+
+fn check_shared_result_origins(pair: &rstyle_pdg::producer::Pair, facts: &rstyle_pdg::HirFnFacts) {
+    rstyle_pdg::helper_calls::verify_documents(pair, facts).unwrap();
+    if facts.name == "branch" {
+        assert_eq!(
+            pair.pdg.extensions["rstyle.data:possible-formal-aliases"],
+            serde_json::json!([[1, 1], [1, 2], [2, 2]])
+        );
+    }
+    let positions: &[u32] = match facts.name.as_str() {
+        "identity" | "wrapper" | "third" | "first" | "swapped" => &[0],
+        "second" => &[1],
+        "choose" | "branch" => &[1, 2],
+        _ => return,
+    };
+    let expected: Vec<_> = positions
+        .iter()
+        .map(|position| {
+            serde_json::json!({
+                "parameter": position, "path": [{"kind": "SharedReferent"}]
+            })
+        })
+        .collect();
+    for node in pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.category == rstyle_pdg::NodeCategory::Return)
+    {
+        assert_eq!(
+            node.annotations[rstyle_pdg::data_origins::KEY],
+            serde_json::json!(expected)
+        );
+    }
+}
+
+fn check_shared_result_projection(report: &Value) {
+    assert!(
+        report["call_summaries"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("rstyle.helper.shared-return/1"))
+    );
+    let wrapper = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "wrapper")
+        .unwrap();
+    let projected = report["matching"]["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["key"] == wrapper["key"])
+        .unwrap();
+    // Formal input, binding read, source CALL and return: two CFG edges,
+    // three value edges, one CALL, three OTHER nodes and one binding read key.
+    assert_eq!(
+        projected["projection"]["features"],
+        serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 1])
+    );
+}
+
+fn check_shared_result_tampering(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &rstyle_pdg::HirFnFacts,
+) {
+    for corruption in [
+        "output_missing",
+        "output_parameter",
+        "output_empty",
+        "output_path",
+        "output_identity",
+        "unit_invocation",
+        "unit_target",
+    ] {
+        let mut changed = facts.clone();
+        assert!(corrupt_helper(&mut changed.body, corruption));
+        assert!(
+            rstyle_pdg::producer::produce(&changed).is_err(),
+            "{corruption}"
+        );
+    }
+    let mut changed = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    let call = changed
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.category == rstyle_pdg::NodeCategory::Call)
+        .unwrap();
+    let call_id = call.id.clone();
+    call.annotations.insert(
+        rstyle_pdg::data_origins::KEY.into(),
+        serde_json::json!([
+            {"parameter": 1, "path": [{"kind": "SharedReferent"}]}
+        ]),
+    );
+    assert!(rstyle_pdg::data_documents::verify(&changed, facts).is_err());
+    changed.pdg = pair.pdg.clone();
+    for edge in changed
+        .pdg
+        .edges
+        .iter_mut()
+        .filter(|edge| edge.target == call_id && edge.subkind == "value_operand")
+    {
+        edge.operand_position = edge.operand_position.map(|position| 1 - position);
+    }
+    assert!(rstyle_pdg::data_documents::verify(&changed, facts).is_err());
 }
 
 fn check_length_document_tampering(

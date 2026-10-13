@@ -379,7 +379,9 @@ fn owned_function_span(
 
 fn resolved_summary(node: &HirNode, hir: &HirRef, facts: &HirFnFacts) -> bool {
     (node.hir == *hir
-        && crate::call_summaries::resolve_for(node, facts).is_ok_and(|summary| summary.is_some()))
+        && (crate::data_library::source_resolved(node, facts).unwrap_or(false)
+            || crate::call_summaries::resolve_for(node, facts)
+                .is_ok_and(|summary| summary.is_some())))
         || node
             .children
             .iter()
