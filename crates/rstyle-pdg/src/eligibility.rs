@@ -310,25 +310,36 @@ fn check_signature(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
     ])
 }
 
+fn check_receiver(
+    signature: &SignatureFacts,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Option<Outcome> {
+    signature
+        .receiver
+        .as_ref()
+        .filter(|_| !profile.supports("rust.concrete-read-only-data"))
+        .map(|found| {
+            let site = Site {
+                span: found.span,
+                snippet: found.snippet.clone(),
+            };
+
+            Outcome::reject(diagnostic(
+                "rust.scalar-interface",
+                "receiver",
+                &site,
+                "Receiver syntax (self) is outside R0 even for primitive types.",
+            ))
+        })
+}
+
 /// Receiver and generic parameters: rejected with their own spans.
 fn check_sig_subject(
     signature: &SignatureFacts,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Outcome {
     let anchor = signature_node(signature);
-    let receiver = signature.receiver.as_ref().map(|found| {
-        let site = Site {
-            span: found.span,
-            snippet: found.snippet.clone(),
-        };
-
-        Outcome::reject(diagnostic(
-            "rust.scalar-interface",
-            "receiver",
-            &site,
-            "Receiver syntax (self) is outside R0 even for primitive types.",
-        ))
-    });
+    let receiver = check_receiver(signature, profile);
     let missing = (signature.has_self && signature.receiver.is_none()).then(|| {
         error(
             "rust.scalar-interface",

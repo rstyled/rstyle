@@ -3261,3 +3261,176 @@ fn clones_data_trace_collection_preserves_pair_decisions_on_fresh_warm_runs() {
         traced["matching"]["effective_config"]
     );
 }
+
+const DATA_NOMINAL_API: &str = "mod model;\nuse crate::model::Outer as Api;\npub fn first(a: &Api) -> i32 { a.inner.value }\npub fn compare(a: &Api, b: &Api) -> bool { a.inner.value < b.inner.value }\npub fn identity(a: &Api) -> &Api { a }\nimpl Api { pub fn value(&self) -> i32 { self.inner.value } pub fn flag(&self) -> bool { self.inner.flag } }\n";
+
+#[test]
+fn clones_data_nominal_modules_aliases_receivers_and_nested_fields_reach_all_pairs() {
+    let directory = clone_workspace();
+    let source = format!(
+        "\u{feff}{}\r\nmod other {{ pub struct Inner {{ pub value: i32, pub flag: bool }} }}\r\n",
+        DATA_NOMINAL_API.replace('\n', "\r\n")
+    );
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    std::fs::write(directory.path().join("src/model.rs"), "\u{feff}pub struct Inner { pub value: i32, pub flag: bool }\r\npub struct Outer { pub inner: Inner }\r\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    check_data_registration(&report);
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 5);
+    assert!(
+        functions.iter().all(|f| f["outcome"] == "admitted"),
+        "{report}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    let method = functions
+        .iter()
+        .find(|f| {
+            f["facts"]["name"]
+                .as_str()
+                .is_some_and(|name| name.ends_with("::value"))
+        })
+        .unwrap();
+    check_nominal_projection(&report, method);
+}
+
+fn check_nominal_projection(report: &Value, method: &Value) {
+    let projection = report["matching"]["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["key"] == method["key"])
+        .unwrap();
+    // Input, binding read, two field reads and return. Each field depends
+    // on its formal root and evaluated base; all three reads are distinct.
+    assert_eq!(
+        projection["projection"]["features"],
+        serde_json::json!([0, 3, 6, 0, 0, 0, 0, 5, 3])
+    );
+    let (pair, facts) = data_pair(method);
+    assert_eq!(
+        pair.pdg.function.inputs[0].role,
+        rstyle_pdg::ParamRole::Receiver
+    );
+    rstyle_pdg::data_frontend::verify(&facts).unwrap();
+    check_nominal_proof_tampering(&facts);
+    let mut changed = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    changed.pdg.function.outputs[0].extensions.insert(
+        "compat.rust.hir-r0:resolved-type".into(),
+        serde_json::to_value(rstyle_pdg::StringFact::known("bool")).unwrap(),
+    );
+    assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
+    let mut changed = pair;
+    changed.pdg.function.inputs[0].role = rstyle_pdg::ParamRole::Parameter;
+    assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
+}
+
+fn check_nominal_proof_tampering(facts: &rstyle_pdg::HirFnFacts) {
+    for change in [
+        "missing",
+        "duplicate",
+        "orphan",
+        "context",
+        "bytes",
+        "trait",
+        "receiver",
+    ] {
+        let mut changed = facts.clone();
+        tamper_nominal_proof(&mut changed, change);
+        assert!(
+            rstyle_pdg::data_frontend::verify(&changed).is_err(),
+            "{change}"
+        );
+    }
+}
+
+fn tamper_nominal_proof(changed: &mut rstyle_pdg::HirFnFacts, change: &str) {
+    use rstyle_pdg::{
+        concrete_types::digest,
+        nominal_boundary::{CONTEXT_KEY, census},
+    };
+    let original = changed.clone();
+    let options = &mut changed.build.frontend_options;
+    match change {
+        "context" => {
+            options.get_mut(CONTEXT_KEY).unwrap()["package"]["package_id"] =
+                "different-package".into();
+        }
+        "missing" => {
+            options.get_mut(census::KEY).unwrap()["files"]
+                .as_array_mut()
+                .unwrap()
+                .pop();
+        }
+        "duplicate" | "orphan" => duplicate_census_file(options, &original, change),
+        "bytes" | "trait" => {
+            let file = &mut options.get_mut(census::KEY).unwrap()["files"][0];
+            let bytes = if change == "trait" {
+                format!(
+                    "{}\nstruct Hidden; impl Drop for Hidden {{ fn drop(&mut self) {{}} }}",
+                    file["bytes"].as_str().unwrap()
+                )
+            } else {
+                "".into()
+            };
+            file["digest"] = digest(bytes.as_bytes()).into();
+            file["bytes"] = bytes.into();
+        }
+        "receiver" => changed.signature.has_self = false,
+        _ => unreachable!(),
+    }
+}
+
+fn duplicate_census_file(
+    options: &mut std::collections::BTreeMap<String, Value>,
+    facts: &rstyle_pdg::HirFnFacts,
+    change: &str,
+) {
+    use rstyle_pdg::nominal_boundary::{CONTEXT_KEY, census};
+    let files = options.get_mut(census::KEY).unwrap()["files"]
+        .as_array_mut()
+        .unwrap();
+    let mut extra = files[0].clone();
+    if change == "orphan" {
+        extra["path"] = format!(
+            "{}orphan.rs",
+            facts.build.frontend_options[CONTEXT_KEY]["root_source"]
+                .as_str()
+                .unwrap()
+                .trim_end_matches("lib.rs")
+        )
+        .into();
+    }
+    files.push(extra);
+}
+
+#[test]
+fn clones_data_nominal_hidden_trait_and_expansion_items_remain_unavailable() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub struct Data { pub x: i32 }\npub fn get(x: &Data) -> i32 { x.x }\npub fn scalar(x: i32) -> i32 { x }\nfn hidden() { struct Hidden; impl Drop for Hidden { fn drop(&mut self) {} } }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == "get")
+            .unwrap()["outcome"],
+        "excluded"
+    );
+    assert_eq!(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == "scalar")
+            .unwrap()["outcome"],
+        "admitted"
+    );
+    assert_eq!(report["assessment_complete"], true);
+}

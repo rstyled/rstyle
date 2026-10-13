@@ -1,5 +1,8 @@
 //! Explicit selected-unit evidence for the local nominal data contract.
 
+pub mod census;
+pub mod resolution;
+
 use crate::nominal_binding::PackageContext;
 use serde::{Deserialize, Serialize};
 use std::path::{Component, PathBuf};
@@ -43,24 +46,27 @@ impl UnitContext {
     pub fn transport(&self) -> Result<String, String> {
         self.validate()?;
         let text = serde_json::to_string(self).map_err(|e| e.to_string())?;
-        if text.len() > MAX_CONTEXT_BYTES {
-            return Err("Selected-unit context exceeds transport budget".into());
-        }
+        check_transport_budget(&text)?;
         Ok(text)
     }
 
     pub fn parse(text: &str) -> Result<Self, String> {
-        if text.len() > MAX_CONTEXT_BYTES {
-            return Err("Selected-unit context exceeds transport budget".into());
-        }
+        check_transport_budget(text)?;
         let context: Self = serde_json::from_str(text).map_err(|e| e.to_string())?;
         context.validate()?;
         Ok(context)
     }
 }
 
+fn check_transport_budget(text: &str) -> Result<(), String> {
+    if text.len() > MAX_CONTEXT_BYTES {
+        return Err("Selected-unit context exceeds transport budget".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{concrete_types::digest, nominal_binding::PACKAGE_IDENTITY};
 

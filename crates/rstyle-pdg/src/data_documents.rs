@@ -156,6 +156,7 @@ fn location(
 /// operations, without calling the lowerer or document emitter.
 pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
     crate::data_frontend::verify(facts)?;
+    verify_interface(pair, facts)?;
     if pair.pdg.extensions.get(POLICY_KEY)
         != Some(&json!(crate::extraction_profile::DATA_MATCHING_ID))
         || pair.cfg.extensions.get(POLICY_KEY) != pair.pdg.extensions.get(POLICY_KEY)
@@ -354,6 +355,57 @@ fn verify_field_value_edge(
         || operands[0].operand_position != Some(0)
     {
         return Err("Serialized field read loses single base evaluation/dependence".into());
+    }
+    Ok(())
+}
+
+fn verify_interface(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
+    if pair.pdg.function.inputs.len() != facts.signature.params.len() {
+        return Err("Serialized data input arity disagrees with source".into());
+    }
+    for (input, parameter) in pair.pdg.function.inputs.iter().zip(&facts.signature.params) {
+        let role = if facts.signature.has_self && parameter.position == 0 {
+            crate::ParamRole::Receiver
+        } else {
+            crate::ParamRole::Parameter
+        };
+        verify_parameter_type(input, &parameter.ty)?;
+        if input.role != role
+            || input.position != u64::from(parameter.position)
+            || input.symbol_id.as_deref() != Some(&parameter.symbol)
+        {
+            return Err(
+                "Serialized data input identity, role or type disagrees with source".into(),
+            );
+        }
+    }
+
+    let [output] = pair.pdg.function.outputs.as_slice() else {
+        return Err("Serialized data output arity disagrees with source".into());
+    };
+    if output.role != crate::ParamRole::Return || output.position != 0 || output.symbol_id.is_some()
+    {
+        return Err("Serialized data output identity or role disagrees with source".into());
+    }
+    verify_parameter_type(output, &facts.signature.return_ty)
+}
+
+fn verify_parameter_type(
+    parameter: &crate::Parameter,
+    ty: &crate::ResolvedTy,
+) -> Result<(), String> {
+    let token: crate::StringFact = serde_json::from_value(
+        parameter
+            .extensions
+            .get("compat.rust.hir-r0:resolved-type")
+            .ok_or("Missing serialized data interface type")?
+            .clone(),
+    )
+    .map_err(|e| e.to_string())?;
+    if token.known_value() != ty.normalized.as_deref()
+        || parameter.type_fact.known_value() != Some(&ty.spelling)
+    {
+        return Err("Serialized data interface type disagrees with source".into());
     }
     Ok(())
 }

@@ -20,7 +20,10 @@ pub enum TypeToken {
     Shared(Box<TypeToken>),
     Slice(Box<TypeToken>),
     Str,
-    Struct(Nominal),
+    Struct {
+        nominal: Nominal,
+        fields: Vec<(String, TypeToken)>,
+    },
 }
 
 impl TypeToken {
@@ -35,7 +38,15 @@ impl TypeToken {
             TypeTree::Shared(value) => Self::Shared(Box::new(Self::from_tree(value))),
             TypeTree::Slice(value) => Self::Slice(Box::new(Self::from_tree(value))),
             TypeTree::Str => Self::Str,
-            TypeTree::Struct { nominal, .. } => Self::Struct(nominal.clone()),
+            TypeTree::Struct {
+                nominal, fields, ..
+            } => Self::Struct {
+                nominal: nominal.clone(),
+                fields: fields
+                    .iter()
+                    .map(|field| (field.name.clone(), Self::from_tree(&field.ty)))
+                    .collect(),
+            },
         }
     }
 
@@ -53,6 +64,7 @@ impl TypeToken {
             Self::Array { element, .. } | Self::Shared(element) | Self::Slice(element) => {
                 element.native_width()
             }
+            Self::Struct { fields, .. } => fields.iter().any(|(_, field)| field.native_width()),
             _ => false,
         }
     }
@@ -100,12 +112,41 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
             }
             Ok(())
         }
-        TypeToken::Array { element, length } if *length <= crate::concrete_types::MAX_ARRAY => {
+        TypeToken::Array { element, .. }
+        | TypeToken::Shared(element)
+        | TypeToken::Slice(element) => {
+            if matches!(token, TypeToken::Array { length, .. } if *length > crate::concrete_types::MAX_ARRAY)
+            {
+                return Err("Data array token exceeds length budget".into());
+            }
             check(element, depth + 1, entries)
         }
-        TypeToken::Shared(value) | TypeToken::Slice(value) => check(value, depth + 1, entries),
         TypeToken::Str => Ok(()),
-        // Nominal tokens need their verified declaration/effect boundary.
+        TypeToken::Struct { nominal, fields }
+            if nominal
+                .source_identity
+                .as_ref()
+                .is_some_and(|id| !id.is_empty())
+                && fields.len() <= crate::concrete_types::MAX_FIELDS =>
+        {
+            check_nominal_fields(fields, depth, entries)
+        }
+        // Admission additionally requires independently verified nominal source/effects.
         _ => Err("Data type token lacks a registered concrete proof".into()),
     }
+}
+
+fn check_nominal_fields(
+    fields: &[(String, TypeToken)],
+    depth: usize,
+    entries: &mut usize,
+) -> Result<(), String> {
+    let mut names = std::collections::BTreeSet::new();
+    for (name, field) in fields {
+        if name.is_empty() || !names.insert(name) {
+            return Err("Invalid nominal field vocabulary".into());
+        }
+        check(field, depth + 1, entries)?;
+    }
+    Ok(())
 }

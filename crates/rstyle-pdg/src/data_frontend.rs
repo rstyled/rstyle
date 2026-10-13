@@ -15,10 +15,31 @@ pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
     let source: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
     verify_lifetimes(&source)?;
-    verify_interface(facts, &source, &interface)?;
+    let resolution = nominal_resolution(facts, &interface)?;
+    verify_interface(facts, &source, &interface, resolution.as_ref())?;
 
     verify_fields(facts)?;
     verify_nodes(&facts.body, facts)
+}
+
+fn nominal_resolution(
+    facts: &HirFnFacts,
+    interface: &InterfaceObservations,
+) -> Result<Option<crate::nominal_boundary::resolution::Resolution>, String> {
+    if crate::declaration_origins::declarations(interface)?.is_empty() {
+        return Ok(None);
+    }
+    crate::nominal_boundary::resolution::verify(facts, interface).map(Some)
+}
+
+struct Resolver<'a>(Option<&'a crate::nominal_boundary::resolution::Resolution>);
+impl PathResolution for Resolver<'_> {
+    fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
+        self.0.map_or_else(
+            || Unresolved.resolve(path),
+            |resolution| resolution.resolve(path),
+        )
+    }
 }
 
 fn interface(facts: &HirFnFacts) -> Result<InterfaceObservations, String> {
@@ -55,7 +76,16 @@ fn verify_interface(
     facts: &HirFnFacts,
     source: &syn::ItemFn,
     interface: &InterfaceObservations,
+    resolution: Option<&crate::nominal_boundary::resolution::Resolution>,
 ) -> Result<(), String> {
+    let receiver = source
+        .sig
+        .inputs
+        .first()
+        .is_some_and(|arg| matches!(arg, syn::FnArg::Receiver(_)));
+    if receiver != facts.signature.has_self || receiver != facts.signature.receiver.is_some() {
+        return Err("Source/serialized receiver ownership disagrees".into());
+    }
     if source.sig.inputs.len() != interface.parameters.len() {
         return Err("Data source/formal arity disagrees".into());
     }
@@ -66,23 +96,46 @@ fn verify_interface(
         .zip(&interface.parameters)
         .zip(&facts.signature.params)
     {
-        let syn::FnArg::Typed(source) = source else {
-            return Err("Nominal receiver proof is unavailable".into());
-        };
-        verify_type(
-            &facts.source.bytes,
-            &source.ty,
-            observation,
-            parameter.ty.normalized.as_deref(),
-        )?;
+        match source {
+            syn::FnArg::Typed(source) => SourceProof {
+                bytes: &facts.source.bytes,
+                resolution,
+            }
+            .verify_type(
+                &source.ty,
+                observation,
+                parameter.ty.normalized.as_deref(),
+            )?,
+            syn::FnArg::Receiver(receiver) => {
+                verify_receiver(receiver, observation, parameter, resolution)?
+            }
+        }
         verify_parameter_origins(parameter)?;
     }
 
-    let output = match &source.sig.output {
-        syn::ReturnType::Default => syn::parse_str("()").expect("unit type"),
-        syn::ReturnType::Type(_, output) => *output.clone(),
-    };
-    verify_output(facts, &source.sig.output, &output, &interface.result)?;
+    verify_output(facts, &source.sig.output, &interface.result, resolution)?;
+    Ok(())
+}
+
+fn verify_receiver(
+    receiver: &syn::Receiver,
+    observation: &Observation,
+    parameter: &crate::ParamFact,
+    resolution: Option<&crate::nominal_boundary::resolution::Resolution>,
+) -> Result<(), String> {
+    let owning = resolution
+        .and_then(|r| r.receiver.as_ref())
+        .ok_or("Missing exact owning receiver impl")?;
+    let expected = TypeTree::Shared(Box::new(owning.clone()));
+    if receiver.reference.is_none()
+        || receiver.mutability.is_some()
+        || receiver.colon_token.is_some()
+        || !matches!(observation, Observation::Captured { ty } if ty == &expected)
+        || parameter.position != 0
+        || parameter.ty.normalized.as_deref() != Some(data_types::token(&expected)?.as_str())
+    {
+        return Err("Receiver requires exact concrete shared-self correspondence".into());
+    }
     Ok(())
 }
 
@@ -98,23 +151,33 @@ fn verify_fields(facts: &HirFnFacts) -> Result<(), String> {
     Ok(())
 }
 
-fn verify_type(
-    bytes: &str,
-    source: &syn::Type,
-    observation: &Observation,
-    normalized: Option<&str>,
-) -> Result<(), String> {
-    let Observation::Captured { ty } = observation else {
-        return Err("Unsupported concrete data type".into());
-    };
-    source_proof::verify_spelling(spelling(bytes, source)?, ty, &Unresolved)?;
+struct SourceProof<'a> {
+    bytes: &'a str,
+    resolution: Option<&'a crate::nominal_boundary::resolution::Resolution>,
+}
+impl SourceProof<'_> {
+    fn verify_type(
+        &self,
+        source: &syn::Type,
+        observation: &Observation,
+        normalized: Option<&str>,
+    ) -> Result<(), String> {
+        let Observation::Captured { ty } = observation else {
+            return Err("Unsupported concrete data type".into());
+        };
+        source_proof::verify_top_spelling(
+            spelling(self.bytes, source)?,
+            ty,
+            &Resolver(self.resolution),
+        )?;
 
-    let token = data_types::token(ty)?;
-    data_types::parse(&token)?;
-    if normalized != Some(token.as_str()) {
-        return Err("Resolved data interface token disagrees with captured tree".into());
+        let token = data_types::token(ty)?;
+        data_types::parse(&token)?;
+        if normalized != Some(token.as_str()) {
+            return Err("Resolved data interface token disagrees with captured tree".into());
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 fn spelling<'a>(bytes: &'a str, source: &syn::Type) -> Result<&'a str, String> {
@@ -131,17 +194,20 @@ fn spelling<'a>(bytes: &'a str, source: &syn::Type) -> Result<&'a str, String> {
 fn verify_output(
     facts: &HirFnFacts,
     source: &syn::ReturnType,
-    output: &syn::Type,
     observation: &Observation,
+    resolution: Option<&crate::nominal_boundary::resolution::Resolution>,
 ) -> Result<(), String> {
+    let output = match source {
+        syn::ReturnType::Default => syn::parse_str("()").expect("unit type"),
+        syn::ReturnType::Type(_, output) => *output.clone(),
+    };
     let bytes = if matches!(source, syn::ReturnType::Default) {
         "()"
     } else {
         &facts.source.bytes
     };
-    verify_type(
-        bytes,
-        output,
+    SourceProof { bytes, resolution }.verify_type(
+        &output,
         observation,
         facts.signature.return_ty.normalized.as_deref(),
     )

@@ -21,6 +21,7 @@ pub fn shared(token: &TypeToken) -> bool {
     match token {
         TypeToken::Shared(_) => true,
         TypeToken::Tuple(elements) => elements.iter().any(shared),
+        TypeToken::Struct { fields, .. } => fields.iter().any(|(_, field)| shared(field)),
         TypeToken::Array { element, .. } | TypeToken::Slice(element) => shared(element),
         _ => false,
     }

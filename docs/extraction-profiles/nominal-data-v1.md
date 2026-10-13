@@ -54,3 +54,17 @@ Matching remains the separately registered data extension, with the same algorit
 features, gates, thresholds and scores. No memory-summary or source normalization
 is introduced. Nominal structs are not admitted until this complete connected path
 passes independent and real Cargo tests.
+
+Nominal interface tokens retain the nominal identity plus ordered resolved field
+names/types. This retains the native-width requirements of nested fields for pair
+compatibility without changing nominal matching into structural matching. Both
+identity and field tree must match their independently verified source declaration.
+The reserved unpublished nominal token shape is replaced only in the new data
+profile; historically admitted scalar/tuple interfaces are unchanged.
+
+The first census verifier also rejects macro invocations inside bodies: statement
+macros can conceal nested trait impls. It recursively checks nested items rather
+than treating function bodies as opaque. Named imports and aliases must resolve to
+one captured declaration; glob/external imports and unsupported alias chains remain
+unavailable. Nominal evidence is required only for functions whose interface
+contains a nominal tree; scalar-only data functions keep their existing boundary.

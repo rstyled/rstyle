@@ -44,14 +44,23 @@ pub fn verify_spelling(
     tree: &TypeTree,
     resolution: &impl PathResolution,
 ) -> Result<(), String> {
+    verify_top_spelling(source, tree, resolution)?;
+    fields(tree, resolution)
+}
+
+/// Verify one spelling without traversing nested nominal field declarations.
+/// Their lexical owning scopes must be verified separately by the caller.
+pub fn verify_top_spelling(
+    source: &str,
+    tree: &TypeTree,
+    resolution: &impl PathResolution,
+) -> Result<(), String> {
     if source.len() > super::MAX_SOURCE_BYTES {
         return Err("Source type proof exceeds source budget".into());
     }
-
     super::validate(tree)?;
     let parsed = syn::parse_str(source).map_err(|e| format!("{e}"))?;
-    correspondence(&parsed, tree, resolution)?;
-    fields(tree, resolution)
+    correspondence(&parsed, tree, resolution)
 }
 
 fn correspondence(

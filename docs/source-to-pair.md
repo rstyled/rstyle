@@ -223,8 +223,7 @@ remain exhaustive under the unchanged pinned scalar matching algorithm.
 
 This interim command does **not** complete the compositional data expansion.
 Assertions, additional patterns/constants, concrete read-only APIs and cross-unit
-dependencies remain unavailable under it. The planned `hir-data-v1` command and
-its separate matching extension are not registered or selectable yet. Defaults,
+dependencies remain unavailable under it. The separate `hir-data-v1` command and matching extension are described below. Defaults,
 R0 and hir-expanded-v1 retain their historical semantics.
 
 ## Local data selection (implementation in progress)
@@ -237,16 +236,25 @@ PATH="$PWD/target/debug:$PATH" cargo rstyle clones \
 This selects `rstyle.rust.hir-data/1.0.0` and the separately registered
 `rstyle.ccgraph.data/1.0.0` matching extension. It reuses the strict matching
 algorithm and defaults. The currently connected boundary admits scalar/tuple/
-literal-array interfaces, shared parameters, formal tuple field reads, and shared
+literal-array and verified concrete struct interfaces, shared parameters/receivers,
+formal tuple/struct field reads (including nested paths), and shared
 outputs selected by supported branching. Field reads can feed verified scalar
 helper calls. Each location retains its root and ordered projections; shared
 inputs may alias. Borrowed value origins are checked against both original source
 and serialized value dependencies. Non-scalar interfaces use deterministic type
 trees; reference mutability, referents, widths and array lengths are preserved.
 
-Nominal struct methods, aggregate construction, local reference rebindings,
+Aggregate construction, local reference rebindings,
 read-only library summaries, slice indexing/subslicing, and assertions are still
 unavailable in this implementation. Their observations do not admit them. This
 command is an incremental connected slice of the broader data coverage work,
 not completion of that work or a natural-coverage/quality result. Existing R0,
 expanded, helper, style and patterns selections retain their semantics.
+
+Nominal APIs additionally require a frozen selected-unit context passed explicitly
+to the driver, a census of original compiler source buffers, independent ordinary
+module closure, exact source declaration/receiver ownership and lexical named-type
+resolution. The initial unit-wide drop-free proof excludes trait impls, derives,
+macros, unsafe item forms and conditional/path-overridden modules. Scalar functions
+do not acquire nominal admission from successful compilation or a supplied flag.
+See [nominal-data-v1.md](extraction-profiles/nominal-data-v1.md).

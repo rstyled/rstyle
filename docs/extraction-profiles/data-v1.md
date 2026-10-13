@@ -9,8 +9,9 @@ proof. The existing compositional-data draft remains the broader delivery scope.
 
 The first connected slice covers concrete scalar/tuple/fixed-array values, shared
 parameters and shared outputs, scalar field projections on formal tuples, and
-branching between shared inputs. Nominal structs require the forthcoming complete
-selected-unit declaration/effect proof; they are unavailable in this slice.
+branching between shared inputs. Concrete nominal struct parameters, shared
+receivers and nested formal field getters require the complete closed-source,
+lexical declaration and drop-free proof registered in `nominal-data-v1.md`.
 Construction, dereference, shared borrow, slicing and library operations remain
 unavailable until their source, type, origin, location and bounds obligations are
 implemented. No successful observation authorizes these operations.
@@ -18,7 +19,8 @@ implemented. No successful observation authorizes these operations.
 Data types use a deterministic compact JSON tagged tree for non-scalar interface
 strings. Scalar tokens retain existing widths and signedness. Trees distinguish
 shared reference/referent, tuple positions, array length, slice and str. Nominal
-extension tokens retain package/version/manifest and declaration identities; no
+extension tokens retain opaque Cargo source, package/version/manifest, declaration
+identities and ordered resolved field names/types; no
 structural erasure or compiler debug strings are allowed. Lifetimes are excluded
 from matching text but remain subject to original-source and origin verification.
 
@@ -29,8 +31,8 @@ The finite grammar of scalars, tuples, literal arrays and shared references prov
 its own drop-free immutable referent boundary recursively; nominal trees do not.
 Every expression and binding retains its concrete resolved type evidence.
 
-Source-backed tuple field reads evaluate their base once, retain its value
-operand, and name the exact formal location and ordered shared/tuple projections.
+Source-backed tuple/struct field reads evaluate their base once, retain its value
+operand, and name the exact formal location and ordered shared/tuple/nominal-field projections.
 All shared formal roots may alias, including self aliases. There are no memory
 writes, no claim of disjointness and no invented memory-summary node. Copying a
 shared reference is a binding read, not a read of its referent. Borrowed outputs
@@ -63,3 +65,12 @@ budget. Reference-bearing by-value arrays lack element-origin evidence and remai
 unavailable. The initial implementation also retains the blanket exclusion of
 conditional value merges in loop-containing functions; separating merges outside
 cycles from epoch-sensitive merges is an outstanding part of the broader goal.
+
+The nominal source census is bounded to 256 local files and 8 MiB of original
+bytes per selected unit. Capture resource failures abort the unit explicitly.
+Nominal proof independently closes ordinary inline/external modules and rejects
+trait impls, derive/attribute expansions, macros (including invocations in bodies),
+unsafe item forms, conditional/path module attributes and unresolved ownership.
+This first nominal boundary is deliberately conservative. Such items may exclude
+nominal functions without excluding independently supported scalar functions in
+the same unit. Construction and local/borrow operations remain unavailable.

@@ -3,6 +3,7 @@
 mod concrete_types;
 mod evidence;
 mod hir;
+mod nominal_census;
 pub mod output;
 pub mod source;
 
@@ -34,6 +35,7 @@ pub fn crate_facts(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         ))))
         .collect::<Result<Vec<_>, _>>()?;
+    nominal_census::capture(tcx, options, &mut facts)?;
     if options.selected().supports("rust.verified-helper-calls") {
         rstyle_pdg::helper_calls::capture(&mut facts)?;
     }

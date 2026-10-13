@@ -290,7 +290,10 @@ shared scalar/tuple/array/slice/str interfaces, formal tuple field reads, and
 source-verified shared outputs selected by supported branching. A composed
 six-function Cargo fixture admits and projects all six functions and enumerates
 all 15 pairs, including field reads feeding verified scalar helpers. This is
-correctness evidence only. Nominal struct admission, construction, local reference
+correctness evidence only. The next connected slice admits concrete nominal
+shared-receiver getters, nested field reads and named imports/aliases under a
+closed-unit original-source/drop-free proof. Its five-function real Cargo fixture
+reaches all ten pairs. Construction, local reference
 correspondence and read-only slice/string operations remain unfinished; the broader
 data goal and natural-coverage targets are not achieved. See the versioned local
 data contract and progress record under `docs/extraction-profiles`.

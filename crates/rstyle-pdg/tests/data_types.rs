@@ -53,3 +53,25 @@ fn token_serialization_cannot_turn_a_resource_failure_into_observational_success
     let error = data_types::token(&tree).unwrap_err();
     assert!(error.contains("byte budget"), "{error}");
 }
+
+#[test]
+fn nominal_tokens_preserve_namespace_fields_and_native_width_requirements() {
+    let expected = r#"{"kind":"struct","value":{"nominal":{"source_identity":"package-a","package_name":"api","package_version":"1.0.0","manifest_digest":"manifest","definition_path":"types::Api","declaration_digest":"declaration"},"fields":[["length",{"kind":"scalar","value":"usize"}],["flag",{"kind":"scalar","value":"bool"}]]}}"#;
+    let token = data_types::parse(expected).unwrap();
+    assert_eq!(token.text().unwrap(), expected);
+    assert!(token.native_width());
+    assert_ne!(
+        token,
+        data_types::parse(&expected.replace("package-a", "package-b")).unwrap()
+    );
+    assert!(
+        !data_types::parse(&expected.replace("usize", "u64"))
+            .unwrap()
+            .native_width()
+    );
+    assert!(
+        data_types::parse(&expected.replace("\"source_identity\":\"package-a\",", "")).is_err()
+    );
+    assert!(data_types::parse(&expected.replace("package-a", "")).is_err());
+    assert!(data_types::parse(&expected.replace("\"flag\"", "\"length\"")).is_err());
+}

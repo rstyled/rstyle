@@ -270,7 +270,44 @@ admission. Closed source and independent resolution remain required.
 
 Validation: three real data command tests passed; driver argument tests and PDG
 context/namespace/concrete-type tests passed. Workspace clippy passed. Repository
-style reported 1,524 functions and zero violations; patterns reported zero
-candidates. Logs: `target/nominal-context-{real-final,driver,pdg,clippy}.log`,
+style reported 1,524 functions and zero violations; the initial patterns run found one duplicated transport-budget check, subsequently
+extracted into one helper and rechecked. Logs: `target/nominal-context-{real-final,driver,pdg,clippy}.log`,
 `target/nominal-context-{style,patterns}.json`. Historical inventory was not rerun
 or replaced in this slice.
+
+Connected nominal slice (implementation baseline `35f10c9`): `hir-data-v1` now
+admits concrete drop-free nominal parameters/shared receivers, nested formal field
+reads and nominal shared outputs. Original rustc local buffers form a bounded
+census, independently closed over ordinary modules. Lexical declarations and named
+imports/aliases bind exact nominal identities and owning receiver impls. The
+source boundary recursively rejects hidden trait impls and macros inside bodies;
+it does not trust compiler destructor flags as a stand-alone drop-free proof.
+Nominal tokens preserve namespace plus field identities/types and recursive native
+width requirements. Independent serialized checks verify interface roles/types,
+field locations, possible aliases and borrowed value origins.
+
+The real five-function API fixture contains nested structs, an imported type alias,
+shared receivers, aliased shared arguments, a shared identity output, same-named
+types in distinct modules, and BOM/CRLF original sources. It admits/projects all
+five and evaluates all ten distinct pairs. Independent getter expectations are
+three distinct reads, five OTHER vertices, six data edges and three execution
+edges: `[0,3,6,0,0,0,0,5,3]`. Census/context/source/receiver/output tampering and
+hidden nested `Drop` cases fail closed. This is disclosed correctness evidence,
+not natural coverage or a quality study.
+
+Validation: `cargo test --workspace --locked` passed 559 tests (zero failures or
+ignored tests), including all 83 real-command tests. Formatting and workspace
+all-target clippy passed. Repository style: 1,565 functions, zero violations;
+patterns: zero candidates. Inventory scripting: 11 tests passed; study/harness
+scripting: 43 passed. Six nominal smoke documents passed the unchanged closed
+vendored schemas. Logs: `target/nominal-api-workspace-final.log`,
+`nominal-api-clippy-final.log`, `nominal-api-{style,patterns}-final.json`,
+`nominal-api-{inventory,scripting}.log`; the earlier failed feature assertion and
+warm-run diagnostic remain in `nominal-api-workspace.log`.
+
+Remaining: construction; local values/references and explicit borrows/dereferences;
+read-only slice/string operations; reference-aware read-only method/cross-unit
+summaries; assertions, constants/patterns and cyclic correspondence; broader frozen
+natural applicability inventory/targets. The original whole goal is still active.
+Historical selected definitions, denominators, R0/expanded evidence and vendored
+contracts are unchanged. No thresholds were tuned or mining/grouping activated.
