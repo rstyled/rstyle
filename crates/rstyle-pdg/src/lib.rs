@@ -14,6 +14,7 @@ pub mod concrete_types;
 mod cyclic_values;
 pub mod eligibility;
 pub mod extraction_profile;
+pub mod field_locations;
 pub mod frontend;
 pub mod helper_calls;
 pub mod model;

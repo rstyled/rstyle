@@ -50,6 +50,7 @@ fn function(
         return Ok(None);
     };
     concrete_types::capture(&ctx, &mut facts)?;
+    rstyle_pdg::field_locations::capture(&mut facts)?;
     capture_correspondence(&mut facts, ctx.profile);
 
     Ok(Some(facts))

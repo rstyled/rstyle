@@ -2264,9 +2264,111 @@ fn clones_helpers_capture_concrete_interfaces_without_admitting_data_functions()
             serde_json::from_value(value.clone()).unwrap();
         observations.validate().unwrap();
         check_concrete_interface(&function["facts"]["name"], &observations);
+        check_formal_field_observations(function);
     }
     assert_eq!(report["pair_evaluation_complete"], true);
     assert_eq!(report["matching"]["pairs"], serde_json::json!([]));
+}
+
+fn check_formal_field_observations(function: &Value) {
+    use rstyle_pdg::field_locations::{self, FieldObservations, Location};
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let observations: FieldObservations =
+        serde_json::from_value(facts.build.frontend_options[field_locations::KEY].clone()).unwrap();
+    let expected = match function["facts"]["name"].as_str().unwrap() {
+        name if name.ends_with("get") => 2,
+        name if name.ends_with("borrow") => 1,
+        "alias" => 4,
+        _ => 0,
+    };
+    assert_eq!(observations.operations.len(), expected, "{observations:?}");
+    field_locations::verify(&facts, &observations).unwrap();
+    assert!(
+        observations
+            .operations
+            .iter()
+            .all(|operation| matches!(operation.location, Location::Captured { .. }))
+    );
+    if expected > 0 {
+        check_field_observation_tampering(&facts, &observations);
+    }
+    if expected == 4 {
+        assert_eq!(
+            observations.possibly_aliasing_formals,
+            [[0, 0], [0, 1], [1, 1]]
+        );
+    }
+}
+
+fn check_field_observation_tampering(
+    facts: &rstyle_pdg::HirFnFacts,
+    original: &rstyle_pdg::field_locations::FieldObservations,
+) {
+    use rstyle_pdg::field_locations;
+    for change in [
+        "identity",
+        "missing",
+        "duplicate",
+        "order",
+        "snippet",
+        "span",
+        "root",
+        "type",
+        "field",
+        "nominal",
+        "alias",
+    ] {
+        let mut observations = original.clone();
+        match change {
+            "identity" => observations.identity.push_str("-unknown"),
+            "missing" => {
+                observations.operations.pop();
+            }
+            "duplicate" => observations
+                .operations
+                .push(observations.operations[0].clone()),
+            "order" if observations.operations.len() > 1 => observations.operations.swap(0, 1),
+            "order" => observations.operations[0].hir.local += 1,
+            "snippet" => observations.operations[0].snippet.push(' '),
+            "span" => observations.operations[0].span.start += 1,
+            "alias" => {
+                observations.possibly_aliasing_formals.pop();
+            }
+            _ => change_field_location(&mut observations.operations[0].location, change),
+        }
+        assert!(
+            field_locations::verify(facts, &observations).is_err(),
+            "{change}"
+        );
+    }
+}
+
+fn change_field_location(location: &mut rstyle_pdg::field_locations::Location, change: &str) {
+    use rstyle_pdg::field_locations::{Location, Projection};
+    let Location::Captured {
+        parameter,
+        path,
+        value,
+    } = location
+    else {
+        unreachable!()
+    };
+    match change {
+        "root" => *parameter += 1,
+        "type" => *value = rstyle_pdg::concrete_types::TypeTree::Scalar("u128".into()),
+        "field" => path.push(Projection::TupleField { position: 9 }),
+        "nominal" => {
+            let projection = path
+                .iter_mut()
+                .find(|p| matches!(p, Projection::StructField { .. }))
+                .unwrap();
+            let Projection::StructField { nominal, .. } = projection else {
+                unreachable!()
+            };
+            nominal.definition_path.push_str("Changed");
+        }
+        _ => unreachable!(),
+    }
 }
 
 fn check_concrete_interface(
@@ -2449,4 +2551,220 @@ fn assert_expanded_release_package_scope(directory: &Path) {
     assert!(output.status.success());
     assert_eq!(release["matching"]["pairs"].as_array().unwrap().len(), 6);
     assert_eq!(release["pair_evaluation_complete"], true);
+}
+
+#[test]
+fn clones_formal_field_observations_verify_tuple_paths_and_reject_unproven_roots() {
+    let directory = formal_field_workspace();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{report}");
+    let mut verified = Vec::new();
+    let mut unavailable = Vec::new();
+    for function in report["functions"].as_array().unwrap() {
+        assert_eq!(function["outcome"], "excluded");
+        let (name, supported) = check_formal_field_fixture(function);
+        if supported {
+            verified.push(name);
+        } else {
+            unavailable.push(name);
+        }
+    }
+    verified.sort();
+    unavailable.sort();
+    assert_eq!(
+        verified,
+        [
+            "deref",
+            "nested",
+            "nested_shared",
+            "nested_tuple",
+            "owned",
+            "stored_shared",
+            "tuple",
+            "unicode"
+        ]
+    );
+    assert_eq!(
+        unavailable,
+        [
+            "local",
+            "macro_rebind",
+            "mutable_borrow",
+            "overloaded",
+            "rebind",
+            "removed",
+            "shadow"
+        ]
+    );
+    assert_eq!(report["pair_evaluation_complete"], true);
+    assert_eq!(report["matching"]["pairs"], serde_json::json!([]));
+}
+
+fn check_formal_field_fixture(function: &Value) -> (String, bool) {
+    use rstyle_pdg::field_locations::{self, FieldObservations};
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let observations: FieldObservations =
+        serde_json::from_value(facts.build.frontend_options[field_locations::KEY].clone()).unwrap();
+    let name = facts.name.rsplit("::").next().unwrap();
+    let supported = !matches!(
+        name,
+        "local"
+            | "shadow"
+            | "removed"
+            | "overloaded"
+            | "rebind"
+            | "mutable_borrow"
+            | "macro_rebind"
+    );
+    assert_eq!(
+        field_locations::verify(&facts, &observations).is_ok(),
+        supported,
+        "{name}"
+    );
+    if name == "tuple" {
+        check_tuple_field_expectation(&observations);
+        check_field_resolution_tampering(&facts, &observations);
+    }
+
+    (name.to_owned(), supported)
+}
+
+fn formal_field_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+pub struct Inner { pub value: i32 }
+pub struct Outer { pub inner: Inner, pub pair: (i16, bool) }
+pub fn tuple(x: &(i32, bool)) -> i32 { x.0 }
+pub fn nested_tuple(x: &Outer) -> i16 { x.pair.0 }
+pub fn local(x: &Outer) -> i32 { let y = x; y.inner.value }
+pub fn shadow(x: &Outer) -> i32 { let x = Inner { value: 3 }; x.value }
+pub fn nested(x: &Outer) -> i32 { fn owned(y: &Inner) -> i32 { y.value } x.inner.value }
+pub fn removed(x: &Outer) -> i32 { #[cfg(any())] { let _ = x.inner.value; } x.inner.value }
+pub struct Wrapper { pub inner: Inner }
+impl std::ops::Deref for Wrapper { type Target = Inner; fn deref(&self) -> &Inner { &self.inner } }
+pub fn overloaded(x: &Wrapper) -> i32 { x.value }
+pub struct 名 { pub 値: i32 }
+pub fn unicode(x: &名) -> i32 {
+    x.値
+}
+pub fn nested_shared(x: &&Outer) -> i32 { x.inner.value }
+pub struct Borrowed { pub inner: &'static Inner }
+pub fn stored_shared(x: &Borrowed) -> i32 { x.inner.value }
+pub fn rebind(mut x: &'static Outer, y: &'static Outer) -> i32 { x = y; x.inner.value }
+pub fn mutable_borrow(mut x: &Outer) -> i32 { let _ = &mut x; x.inner.value }
+pub fn macro_rebind(mut x: &'static Outer, y: &'static Outer) -> i32 { macro_rules! alter { () => { x = y } } alter!(); x.inner.value }
+"#,
+    )
+    .unwrap();
+    directory
+}
+
+fn check_tuple_field_expectation(observations: &rstyle_pdg::field_locations::FieldObservations) {
+    use rstyle_pdg::field_locations::{Location, Projection};
+    assert_eq!(observations.operations.len(), 1);
+    assert_eq!(
+        observations.operations[0].location,
+        Location::Captured {
+            parameter: 0,
+            path: vec![
+                Projection::SharedReferent,
+                Projection::TupleField { position: 0 }
+            ],
+            value: rstyle_pdg::concrete_types::TypeTree::Scalar("i32".into()),
+        }
+    );
+}
+
+fn check_field_resolution_tampering(
+    facts: &rstyle_pdg::HirFnFacts,
+    observations: &rstyle_pdg::field_locations::FieldObservations,
+) {
+    for change in ["owner", "position", "root", "type", "missing", "digest"] {
+        let mut changed = facts.clone();
+        if change == "digest" {
+            changed.source.digest.push('0');
+        } else {
+            let field = changed
+                .body
+                .children
+                .iter_mut()
+                .find(|node| node.kind == "expr_field")
+                .unwrap();
+            match change {
+                "owner" => {
+                    field.res.as_mut().unwrap().description =
+                        serde_json::json!({"position":0,"owner_path":"unrelated::Type"}).to_string()
+                }
+                "position" => {
+                    field.res.as_mut().unwrap().description =
+                        serde_json::json!({"position":1,"owner_path":null}).to_string()
+                }
+                "root" => {
+                    field.children[0]
+                        .res
+                        .as_mut()
+                        .unwrap()
+                        .target
+                        .as_mut()
+                        .unwrap()
+                        .local += 1
+                }
+                "type" => field.ty.as_mut().unwrap().normalized = Some("u32".into()),
+                "missing" => field.children.clear(),
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            rstyle_pdg::field_locations::verify(&changed, observations).is_err(),
+            "{change}"
+        );
+    }
+}
+
+#[test]
+fn clones_formal_field_operation_budget_reports_incomplete_capture() {
+    let directory = clone_workspace();
+    let reads = "let _ = input.0;\n".repeat(rstyle_pdg::field_locations::MAX_OPERATIONS + 1);
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        format!("pub fn large(input: &(i32,)) {{\n{reads}}}\n"),
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(!output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], false);
+    assert_eq!(report["assessment_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(
+        format!("{} {report}", String::from_utf8_lossy(&output.stderr))
+            .contains("Formal field observation exceeds operation budget")
+    );
+}
+
+#[test]
+fn clones_formal_field_byte_budget_reports_incomplete_capture() {
+    let directory = clone_workspace();
+    let declaration_padding = "x".repeat(60_000);
+    let reads = "let _ = &input.inner;\n".repeat(150);
+    std::fs::write(directory.path().join("src/lib.rs"), format!("pub struct Inner {{\n// {declaration_padding}\npub value: i32 }}\npub struct Outer {{ pub inner: Inner }}\npub fn large(input: &Outer) {{\n{reads}}}\n")).unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(!output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], false);
+    assert_eq!(report["assessment_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(
+        format!("{} {report}", String::from_utf8_lossy(&output.stderr))
+            .contains("Formal field observation exceeds evidence byte budget")
+    );
 }

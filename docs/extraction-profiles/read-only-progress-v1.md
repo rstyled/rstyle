@@ -21,3 +21,71 @@ reads and borrowed-output origins, then connect data lowering and a separately
 registered matching extension through the real Cargo command. The draft
 compositional-data contract remains unavailable for admission until those
 boundaries and independent serialized verification exist.
+
+## Formal field-location observations, version 1
+
+Identity: `rstyle.rust.formal-field-observation/1`. Transport is the optional
+`formal_field_observations` frontend option for already excluded concrete
+interfaces under helper capture. This identity is not an extraction or matching
+profile and does not admit any function.
+
+The captured syntax is a named formal parameter or shared receiver followed by
+one or more resolved struct/tuple fields. Shared-reference autodereferences are
+recorded in the path; overloaded dereference, local aliases/rebindings, indexing,
+raw/mutable pointers and unavailable field/type evidence are unsupported. Each
+field operation retains its exact HIR identity, source span/snippet, formal
+parameter position, declaring nominal identity (or concrete tuple position),
+field position/name, and resolved output type. Nested field operations are retained
+individually in base-before-projection order; branch alternatives remain in source
+order without claiming that every branch executes. All captured shared formal roots may alias; no disjointness is asserted.
+Unsupported formal types leave the overall referent/alias boundary unavailable.
+A captured location is a candidate observation, not a verified origin certificate.
+
+An independent source parser verifies the complete owned field inventory, exact
+navigation, source member names, root names and unambiguous formal binding
+correspondence. Source-local shadowing, assignments to formal roots, mutable borrows of roots,
+and arbitrary macros prevent a formal-only proof. Each path is
+checked against captured concrete interface trees and compiler-resolved field
+positions/owners, preserving scalar widths and reference referents. Missing,
+duplicate, corrupt or unsupported observations fail verification. Original
+BOM/CRLF offsets remain function-relative; no normalized source is used.
+
+These facts do not yet establish aggregate construction, borrowed-output origin,
+read effects through arbitrary calls or document/projection evidence. CFG and
+value/dependence lowering remains the existing classifier boundary, so data
+functions remain excluded. The observation budget is 4096 field operations and
+8 MiB serialized evidence; exhaustion fails capture explicitly. Unsupported
+syntax retains a reason and cannot yield a partial certified inventory.
+
+## Validation of the location prerequisite
+
+`cargo test --workspace --locked` passed 528 tests in 25 suites with none ignored.
+This includes real Cargo capture of receiver/nested fields, shared reference
+chains, stored shared fields, concrete tuple paths, Unicode source navigation,
+BOM/CRLF sources and same-owner versus nested-owner inventories. Negative cases
+retain unsupported local aliases, shadowing, formal rebindings, mutable borrows,
+macro-hidden rebindings, overloaded dereference and cfg-removed source fields.
+Independent checks reject source/identity/type/path/order/alias tampering.
+Separate real Cargo tests exceed the operation and serialized-byte budgets and
+require incomplete capture, assessment and pair evaluation.
+
+Formatting and workspace Clippy with warnings denied passed. Repository-built
+`cargo rstyle --format json` reported zero violations across 1414 functions;
+`cargo rstyle patterns --format json` reported zero candidates. The pinned Python
+inventory tests passed 11 tests and scripting tests passed 43 tests. The first
+plain-Python scripting invocation lacked Cargo on PATH and failed; rerunning with
+Cargo available and the pinned Python dependency environment passed.
+
+An initial expanded negative fixture used incompatible elided lifetimes and
+failed real compilation. Giving its reassignment inputs explicit static lifetimes
+made the fixture valid Rust; the final full regression run passed. Failed logs
+remain under target alongside the successful validation logs.
+
+There are no new data admissions or coverage measurements in this prerequisite.
+All data interfaces in the real command fixtures remain excluded. Nominal
+package/build binding, complete effect/drop-free verification, borrowed-output
+origin/value correspondence, data document lowering and independently verified
+matching-extension admission remain implementation obligations, not external
+schema-authority blockers. Assertions, broader scalar patterns/constants,
+cross-unit summaries, slice/string operations and the preregistered broader
+inventory also remain outstanding under the original compositional scope.

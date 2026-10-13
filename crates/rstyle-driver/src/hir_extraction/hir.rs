@@ -158,6 +158,7 @@ impl<'tcx> Context<'tcx> {
         let children = self.children(expr);
         let res = match expr.kind {
             ExprKind::Call(callee, _) => self.direct_callee(callee),
+            ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => self.field_resolution(expr, base),
             ExprKind::Path(ref path) => {
                 let res = self.typeck.qpath_res(path, expr.hir_id);
                 Some(PathRes {
@@ -204,6 +205,25 @@ impl<'tcx> Context<'tcx> {
         }
     }
 
+    fn field_resolution(&self, expr: &Expr<'tcx>, base: &Expr<'tcx>) -> Option<PathRes> {
+        let ty = self.typeck.expr_ty_adjusted(base);
+        let owner_path = match ty.kind() {
+            ty::Adt(definition, _) => Some(self.tcx.def_path_str(definition.did())),
+            ty::Tuple(_) => None,
+            _ => return None,
+        };
+        let resolution = rstyle_pdg::field_locations::FieldResolution {
+            position: self.typeck.field_index(expr.hir_id).as_usize(),
+            owner_path,
+        };
+
+        Some(PathRes {
+            kind: "resolved_field".into(),
+            target: None,
+            description: serde_json::to_string(&resolution).expect("plain field facts serialize"),
+        })
+    }
+
     fn children(&self, expr: &Expr<'tcx>) -> Vec<HirNode> {
         match expr.kind {
             ExprKind::Loop(block, None, hir::LoopSource::Loop, _) => vec![self.loop_block(block)],
@@ -243,6 +263,9 @@ impl<'tcx> Context<'tcx> {
                     .collect()
             }
             ExprKind::Call(_, args) => args.iter().map(|e| self.expression(e)).collect(),
+            ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => {
+                vec![self.expression(base)]
+            }
             _ => Vec::new(),
         }
     }
