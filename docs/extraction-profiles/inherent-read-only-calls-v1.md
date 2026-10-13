@@ -24,8 +24,19 @@ explicit Data treatment; they are not nominal type identity.
 `rstyle.helper.inherent-resolution/1` must bind the compiler-resolved local
 associated definition, containing inherent implementation and concrete owner
 type to the captured callee body. Capture the callee's own definition/implementation
-identities and concrete owner type before helper linking. The implementation
-must have no trait; trait declarations/implementations, dynamic/unresolved dispatch,
+identities and exact nominal owner association before helper linking. The implementation
+association inventory `rstyle.helper.inherent-unit/1` records those selected-unit
+definitions in deterministic identity order, with exact source file/function and
+implementation spans and exact nominal owner identities. Full owner field/type
+trees remain in each callee's concrete interface, independently checked against
+original implementation source; the
+association table does not duplicate them or supply a substitute type proof.
+A callee record must agree with its unique unit association;
+duplicate definitions or contradictory implementation owners fail verification.
+Compiler definition hashes are corroborated captured identities, not source type
+serialization or independent proofs of effects. The original-source ownership,
+concrete interface and verified body remain separate semantic obligations.
+The implementation must have no trait; trait declarations/implementations, dynamic/unresolved dispatch,
 external bodies and unsupported substitutions cannot acquire inherent treatment.
 Display names or familiar method names never establish identity or effects.
 All selected bodies precede acyclic linking; capture/enumeration order is not
@@ -33,9 +44,10 @@ authority. Cross-unit/package linking remains unavailable under this slice.
 
 Method syntax evaluates the source receiver first, then explicit arguments once
 in source order. Initially require the unadjusted receiver to have the exact
-canonical shared type of the callee's first argument. Allowed adjustment chains
-are empty or one builtin shared-reference dereference followed by one shared
-borrow, ending at the identical shared receiver type. Independently verify each
+canonical shared type of the callee's first argument. The pinned-compiler chain
+must contain one builtin shared-reference dereference followed by one shared
+borrow, ending at the identical shared receiver type. An erased/empty chain is
+not a provenance shortcut. Independently verify each
 transition, endpoint, instantiated signature and exact source method invocation.
 Reject mutable/raw/overloaded dereferences, pointer/unsizing coercions, repeated
 dereferences, by-value receiver autoref, explicit turbofish and arbitrary macros.
@@ -111,3 +123,27 @@ schema, style/patterns, fmt and Clippy gates remain required.
 This is an incremental coverage/correctness slice. The broader original data
 goal and contemporary applicability inventory remain required; no quality
 calibration or holdout claim is authorized.
+
+## Lossless dependency transport prerequisite
+
+The 21-function preregistered connected family failed the inherited eight-MiB
+per-call budget on 2026-10-13 (two smaller tests passed). Removing duplicated
+nominal metadata did not solve recursive JSON-string escaping. The failed run
+is retained in `target/inherent-calls-real-latest.log`; no coverage success is
+claimed from it.
+
+Before transport implementation, register `rstyle.helper.json-transport/1`
+for Data-v3 dependencies only. This is reversible structural encoding of embedded
+JSON strings, not graph normalization, compression of semantic evidence or a
+cache. Retain the complete dependency including original frontend facts, exact
+PDG/CFG bytes and manifest. Encode an embedded string structurally only when
+parsing and standard compact or pretty serialization reproduce its bytes exactly;
+otherwise retain the literal string. Record the formatting choice and restore
+exact bytes before existing independent semantic/document verification. Reject
+reserved marker collisions, malformed markers, unsupported formats and exhausted
+byte/depth budgets. Old profiles retain their original inline encoding. Keep
+both encoded and restored dependency byte limits at eight MiB and call depth at
+eight; encode/decode tree depth is explicitly bounded at 256. The original CALL
+operation and matching projection remain unchanged. Require independent literal
+round trips, malformed/colliding envelope cases, unchanged legacy bytes and the
+unchanged connected-family admission target before claiming success.
