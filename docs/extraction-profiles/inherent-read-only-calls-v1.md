@@ -163,3 +163,14 @@ callee document/manifest/type/effect verification. Keep encoded and restored
 byte budgets unchanged; bounded streaming serialization must stop restoration
 before allocating an over-budget string. Fix this prerequisite before claiming
 connected inherent-call coverage.
+
+Exact document field order is part of manifest bytes. For JSON strings that
+cannot round-trip through sorted compact/pretty object serialization, the table
+may store a lexical sequence preserving every byte: unchanged punctuation,
+whitespace and noncanonical tokens remain literal fragments; a JSON string token
+may reference its decoded payload only when standard string escaping restores
+that token exactly. Record a quoted-token tag separately from concatenated-text
+fragments. Restore with bounded writes and verify complete byte equality before
+encoding. Object ordering is never normalized. Non-JSON source strings stay
+literal. Test unsorted keys, escaped quotes/backslashes, noncanonical Unicode
+escapes, BOM/CRLF and malformed/over-budget token tables independently.
