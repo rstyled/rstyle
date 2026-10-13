@@ -90,3 +90,10 @@ Method receiver/signature observations are specified separately in
 order and concrete types without authorizing any additional method or library
 summary. Length calls remain unavailable until independent registry/frontend and
 serialized CALL verification is connected.
+
+[receiver-verification-v1.md](receiver-verification-v1.md) independently checks
+receiver inventories, source/HIR identity, concrete types and shared transitions
+before real Cargo assessment and on both serialized frontend records. Current
+Data handoffs require the inventory even when empty; missing or corrupt records
+are incomplete execution. Existing registered scalar signatures are checked
+against their authority; unregistered method signatures do not authorize calls.

@@ -391,7 +391,7 @@ fn check_depth(node: &HirNode, depth: usize) -> Result<(), String> {
 /// Independent serialized inventory validation; never invokes caller lowering.
 pub fn verify_documents(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), String> {
     let mut calls = Vec::new();
-    collect_calls(&facts.body, &mut calls);
+    crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
     let records = pair
         .pdg
         .extensions
@@ -426,15 +426,6 @@ pub fn verify_documents(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(),
     }
 
     Ok(())
-}
-
-fn collect_calls<'a>(node: &'a HirNode, result: &mut Vec<&'a HirNode>) {
-    if node.kind == "expr_call" {
-        result.push(node);
-    }
-    for child in &node.children {
-        collect_calls(child, result);
-    }
 }
 
 fn verify_document_call(

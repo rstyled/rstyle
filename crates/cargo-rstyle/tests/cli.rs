@@ -4163,6 +4163,12 @@ fn clones_data_records_resolved_receivers_without_admitting_length_calls() {
             function["facts"]["build"]["frontend_options"][data_receivers::KEY].clone(),
         )
         .unwrap();
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function["facts"].clone()).unwrap();
+        assert_eq!(data_receivers::verify(&facts).unwrap(), capture);
+        if facts.name == "str_len" {
+            check_receiver_evidence_tampering(&facts);
+        }
         assert_eq!(capture.identity, data_receivers::IDENTITY);
         assert_eq!(capture.methods.len(), 1);
         let method = &capture.methods[0];
@@ -4253,4 +4259,153 @@ fn clones_data_keeps_overloaded_receiver_transitions_unavailable() {
         a.kind == rstyle_pdg::data_receivers::Kind::Unsupported("overloaded_dereference".into())
     }));
     assert_eq!(report["pair_evaluation_complete"], true);
+}
+
+fn check_receiver_evidence_tampering(facts: &rstyle_pdg::HirFnFacts) {
+    use rstyle_pdg::data_receivers::*;
+    for change in [
+        "identity",
+        "missing",
+        "duplicate",
+        "call",
+        "receiver",
+        "span",
+        "type",
+        "result",
+        "endpoint",
+        "order",
+        "target",
+        "reason",
+        "mutable",
+    ] {
+        let mut changed = facts.clone();
+        let mut capture = verify(facts).unwrap();
+        match change {
+            "identity" => capture.identity = "unregistered".into(),
+            "missing" => capture.methods.clear(),
+            "duplicate" => capture.methods.push(capture.methods[0].clone()),
+            _ => tamper_receiver_method(&mut capture.methods[0], change),
+        }
+        changed
+            .build
+            .frontend_options
+            .insert(KEY.into(), serde_json::to_value(capture).unwrap());
+        assert!(verify(&changed).is_err(), "{change}");
+    }
+    let mut changed = facts.clone();
+    changed.build.frontend_options.remove(KEY);
+    assert!(verify(&changed).is_err());
+}
+
+fn tamper_receiver_method(method: &mut rstyle_pdg::data_receivers::Method, change: &str) {
+    use rstyle_pdg::{
+        concrete_types::{Observation, TypeTree},
+        data_receivers::Kind,
+    };
+    let scalar = Observation::Captured {
+        ty: TypeTree::Scalar("u8".into()),
+    };
+    match change {
+        "call" => method.call.local += 1,
+        "receiver" => method.receiver.local += 1,
+        "span" => method.source_span.start += 1,
+        "type" => method.receiver_type = scalar,
+        "result" => method.signature_result = scalar,
+        "endpoint" => method.adjusted_type = scalar,
+        "order" => method.adjustments.swap(0, 1),
+        "target" => method.adjustments[0].target = scalar,
+        "reason" => method.adjustments[0].kind = Kind::Unsupported("fake".into()),
+        "mutable" => method.adjustments[1].kind = Kind::MutableBorrow,
+        _ => unreachable!(),
+    }
+}
+
+#[test]
+fn clones_data_checks_serialized_receiver_evidence_without_reemission() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn first(x: i32) -> u32 { x.unsigned_abs() }\npub fn second(x: i32) -> u32 { x.unsigned_abs() }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+    for function in report["functions"].as_array().unwrap() {
+        assert_eq!(function["outcome"], "admitted");
+        let (pair, facts) = data_pair(function);
+        rstyle_pdg::data_receivers::verify_documents(&pair, &facts).unwrap();
+        let mut bad_signature = facts.clone();
+        bad_signature
+            .build
+            .frontend_options
+            .get_mut(rstyle_pdg::data_receivers::KEY)
+            .unwrap()["methods"][0]["signature_inputs"] = serde_json::json!([]);
+        assert!(rstyle_pdg::data_receivers::verify(&bad_signature).is_err());
+        for document in ["pdg", "cfg"] {
+            let mut changed = rstyle_pdg::producer::Pair {
+                pdg: pair.pdg.clone(),
+                cfg: pair.cfg.clone(),
+            };
+            let extensions = if document == "pdg" {
+                &mut changed.pdg.extensions
+            } else {
+                &mut changed.cfg.extensions
+            };
+            let frontend = &mut extensions
+                .get_mut(rstyle_pdg::extraction_profile::EVIDENCE_KEY)
+                .unwrap()["frontend"];
+            let inputs = &mut frontend["build"]["frontend_options"]
+                [rstyle_pdg::data_receivers::KEY]["methods"][0]["signature_inputs"];
+            *inputs = serde_json::json!([]);
+            assert!(
+                rstyle_pdg::data_receivers::verify_documents(&changed, &facts).is_err(),
+                "{document}"
+            );
+        }
+    }
+}
+
+#[test]
+fn clones_data_corrupt_receiver_inventory_is_incomplete_handoff() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn length(x: &str) -> usize { x.len() }\n",
+    )
+    .unwrap();
+    let shim = directory.path().join("driver-shim");
+    let real = driver().to_string_lossy().replace('\'', "'\\''");
+    for mutation in [
+        "options.pop('data_method_receivers')",
+        "options['data_method_receivers']['methods'] = []",
+        "options['data_method_receivers']['methods'].append(options['data_method_receivers']['methods'][0].copy())",
+        "options['data_method_receivers']['methods'][0]['receiver']['local'] += 1",
+    ] {
+        let script = format!(
+            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'facts.json'\nfacts = json.loads(p.read_text())\nfor function in facts:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(facts))\nPY\nfi\nexit \"$code\"\n"
+        );
+        std::fs::write(&shim, script).unwrap();
+        std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let output = Command::new(cargo_bin("cargo-rstyle"))
+            .args([
+                "clones",
+                "--extraction-profile",
+                "hir-data-v1",
+                "--format",
+                "json",
+            ])
+            .current_dir(directory.path())
+            .env("RSTYLE_DRIVER", &shim)
+            .env_remove("CARGO_TARGET_DIR")
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{mutation}: {}",
+            stdout(&output)
+        );
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["assessment_complete"], false);
+        assert_eq!(report["pair_evaluation_complete"], false);
+        assert!(!report["handoff_failures"].as_array().unwrap().is_empty());
+    }
 }

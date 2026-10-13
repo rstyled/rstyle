@@ -232,6 +232,7 @@ fn consume_unit(
     let facts: Vec<HirFnFacts> = read_json(&unit.directory.join("facts.json"))?;
     for function in &facts {
         verify_frontend_invocation(function, unit, capture)?;
+        verify_receiver_inventory(function, unit.extraction_profile)?;
     }
     let bindings = nominal_bindings(&facts, unit)?;
     for (index, (function, binding)) in facts.into_iter().zip(bindings).enumerate() {
@@ -246,6 +247,21 @@ fn consume_unit(
         result.add(record, admission);
     }
     Ok(())
+}
+
+fn verify_receiver_inventory(
+    facts: &HirFnFacts,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<(), String> {
+    if profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+        && !facts
+            .build
+            .frontend_options
+            .contains_key(rstyle_pdg::data_receivers::KEY)
+    {
+        return Err("Missing required Data receiver capture inventory".into());
+    }
+    rstyle_pdg::data_receivers::verify(facts).map(|_| ())
 }
 
 fn nominal_bindings(

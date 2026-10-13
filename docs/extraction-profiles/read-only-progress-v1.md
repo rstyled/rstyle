@@ -528,3 +528,51 @@ verified receiver/call inventories and a tested pinned library registry, followe
 by reference-aware verified helper calls and the remaining compositional bundles
 and preregistered natural inventory. Historical reports, old profiles, vendored
 contracts and the strict matching algorithm remain unchanged.
+
+Connected independent receiver verification (baseline `7ccfc10`, contracts frozen
+in `5843889` and `1c37e83`): real Data handoffs now require the exact receiver
+inventory before assessment. The verifier reconstructs HIR method membership,
+original-source correspondence, exact receiver identity/span, known concrete
+receiver/result types, shared-reference adjustment transitions and endpoints.
+Malformed, missing, duplicate or extra inventories fail handoff with incomplete
+execution. Unsupported transitions remain observations, never effect authority.
+Existing registered scalar summaries independently establish formal input types;
+those captured signatures must agree. Other method signatures remain observational
+until a separate registered authority establishes them.
+
+The paired-document verifier reads both serialized frontend inventories directly,
+checks their transitions and compares their evidence with captured records without
+invoking lowering or re-emission. Independent tampering cases cover missing and
+duplicate records, changed identities/spans/types, reordered/forged transitions,
+invalid unsupported reasons and mutable-borrow spoofing. A real admitted scalar
+primitive family checks corrupted captured and serialized signatures; a real
+driver shim checks four corrupt inventory variants cannot become successful
+excluded-only runs. Exact-kind traversal is shared with the existing helper
+inventory verifier; its order and filtering are unchanged. Length operations
+remain excluded, pending pinned core/build registry and independent CALL/effect/
+operand/origin verification. No new library admission is claimed here.
+
+Validation: `cargo test --workspace --locked` passed 576 tests, zero failures or
+ignored tests, including all 97 real-command tests. All eighteen Data real-command
+tests passed before the final signature/helper refinements, and the full run
+passed after them. Formatting and workspace all-target clippy passed. Final style
+reports 1,609 functions with zero violations; patterns reports zero candidates.
+Inventory and study/harness suites passed eleven and forty-three tests. A fresh
+BOM/CRLF family retained three admissions and two explicit length exclusions,
+decided all three pairs, and validated all six documents against unchanged
+vendored schemas. Initial test Pair-cloning/map-mutation API assumptions, a test
+helper line-limit failure, three spacing diagnostics and a duplicate inventory
+traversal pattern were corrected before the final full run; no suppressions,
+ignores or thresholds changed. Logs: `target/receiver-verification-workspace-final.log`,
+`receiver-verification-clippy-verified.log`,
+`receiver-verification-{style,patterns}-final.json`,
+`receiver-verification-{inventory,scripting,schemas}.log` and
+`receiver-verification-smoke.json`; earlier failure logs remain available.
+
+Remaining: connect the tested pinned slice/string library summaries through
+admission and serialized CALL verification, then reference-aware verified calls,
+aggregate construction/bindings, indexing/subslicing/checked access, assertions,
+constants/patterns, cyclic value proof and the broader preregistered natural
+inventory. Whole Data admission remains active and incomplete. Historical reports,
+legacy profiles and vendored contracts remain unchanged; no quality study,
+threshold tuning, grouping or abstraction-mining detector behavior was enabled.

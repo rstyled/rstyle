@@ -1,5 +1,8 @@
 //! Observational method receiver evidence. This is not a call admission registry.
 
+mod verify;
+pub use verify::verify;
+
 use crate::{ByteSpan, HirRef, concrete_types::Observation};
 use serde::{Deserialize, Serialize};
 
@@ -47,4 +50,23 @@ pub enum Kind {
     SharedBorrow,
     MutableBorrow,
     Unsupported(String),
+}
+
+/// Inspect paired frontend records directly, without invoking producer lowering.
+pub fn verify_documents(
+    pair: &crate::producer::Pair,
+    facts: &crate::HirFnFacts,
+) -> Result<(), String> {
+    let expected = verify(facts)?;
+    for extensions in [&pair.pdg.extensions, &pair.cfg.extensions] {
+        let value = extensions
+            .get(crate::extraction_profile::EVIDENCE_KEY)
+            .ok_or("Missing paired Data frontend evidence")?;
+        let frontend: crate::HirFnFacts =
+            serde_json::from_value(value["frontend"].clone()).map_err(|error| error.to_string())?;
+        if verify(&frontend)? != expected {
+            return Err("Paired receiver inventories disagree with captured evidence".into());
+        }
+    }
+    Ok(())
 }
