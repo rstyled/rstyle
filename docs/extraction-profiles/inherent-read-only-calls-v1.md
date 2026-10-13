@@ -139,11 +139,12 @@ cache. Retain the complete dependency including original frontend facts, exact
 PDG/CFG bytes and manifest. Encode an embedded string structurally only when
 parsing and standard compact or pretty serialization reproduce its bytes exactly;
 otherwise retain the literal string. Record the formatting choice and restore
-exact bytes before existing independent semantic/document verification. Reject
-reserved marker collisions, malformed markers, unsupported formats and exhausted
+exact bytes before existing independent semantic/document verification. Use explicitly tagged value trees (including object keys) so arbitrary source
+objects cannot collide with transport metadata. Reject malformed tags, duplicate
+object keys, unsupported formats and exhausted
 byte/depth budgets. Old profiles retain their original inline encoding. Keep
 both encoded and restored dependency byte limits at eight MiB and call depth at
 eight; encode/decode tree depth is explicitly bounded at 256. The original CALL
 operation and matching projection remain unchanged. Require independent literal
-round trips, malformed/colliding envelope cases, unchanged legacy bytes and the
+round trips, malformed/tag-like source-object envelope cases, unchanged legacy bytes and the
 unchanged connected-family admission target before claiming success.
