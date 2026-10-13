@@ -19,6 +19,9 @@ the origin proof in `stored-reference-fields-v1.md`. Field-value origins include
 the stored reference's referent projection, unlike field-storage borrows.
 Lifetime-only nominal declarations/impls additionally require
 `lifetime-nominals-v1.md`; type/const substitution remains unavailable.
+The semantic correction in `field-value-context-v1.md` distinguishes aggregate
+places from terminal value reads and required stored-reference loads. Consecutive
+implicit dereferences lacking referent-storage read evidence remain unavailable.
 Construction, dereference, local/temporary borrows, slicing and library operations
 remain unavailable until their complete obligations are implemented. No successful observation authorizes these operations.
 

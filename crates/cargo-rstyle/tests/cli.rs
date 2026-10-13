@@ -3316,11 +3316,11 @@ fn check_nominal_projection(report: &Value, method: &Value) {
         .iter()
         .find(|f| f["key"] == method["key"])
         .unwrap();
-    // Input, binding read, two field reads and return. Each field depends
-    // on its formal root and evaluated base; all three reads are distinct.
+    // Input, binding read, aggregate place, terminal field read and return.
+    // Only the binding and terminal field are read; the place keeps its base edge.
     assert_eq!(
         projection["projection"]["features"],
-        serde_json::json!([0, 3, 6, 0, 0, 0, 0, 5, 3])
+        serde_json::json!([0, 3, 5, 0, 0, 0, 0, 5, 2])
     );
     let (pair, facts) = data_pair(method);
     assert_eq!(
@@ -3748,6 +3748,120 @@ fn clones_helpers_preserve_permissive_concrete_observations_without_data_admissi
             }
         }
     }
+}
+
+#[test]
+fn clones_data_field_context_preserves_pointer_reads_and_aggregate_places() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub struct Leaf { pub value: i32 }\npub struct Owned { pub leaf: Leaf }\npub struct Linked<'a> { pub leaf: &'a Leaf }\nimpl Owned { pub fn get(&self) -> i32 { self.leaf.value } }\nimpl<'a> Linked<'a> { pub fn get(&self) -> i32 { self.leaf.value } pub fn borrow(&self) -> &i32 { &self.leaf.value } }\npub fn owned_inner(value: Owned) -> Leaf { value.leaf }\npub fn tuple_borrow<'a>(value: &'a (&'a Leaf, bool)) -> &'a i32 { &value.0.value }\npub fn consecutive(value: &&Leaf) -> i32 { value.value }\npub fn scalar(value: i32) -> i32 { value }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 7);
+    for function in functions {
+        assert_eq!(
+            function["outcome"],
+            if function["facts"]["name"] == "consecutive" {
+                "excluded"
+            } else {
+                "admitted"
+            },
+            "{report}"
+        );
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    for (name, features) in [
+        ("Owned::get", [0, 3, 5, 0, 0, 0, 0, 5, 2]),
+        ("owned_inner", [0, 2, 4, 0, 0, 0, 0, 4, 2]),
+        ("tuple_borrow", [0, 4, 6, 0, 0, 0, 0, 6, 2]),
+    ] {
+        let function = functions
+            .iter()
+            .find(|f| f["facts"]["name"] == name)
+            .unwrap();
+        let projection = report["matching"]["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["key"] == function["key"])
+            .unwrap();
+        assert_eq!(
+            projection["projection"]["features"],
+            serde_json::json!(features)
+        );
+    }
+    let borrowed = functions
+        .iter()
+        .find(|f| f["facts"]["name"].as_str().unwrap().ends_with("::borrow"))
+        .unwrap();
+    check_stored_pointer_read_tampering(borrowed);
+}
+
+fn check_stored_pointer_read_tampering(function: &Value) {
+    use rstyle_pdg::{NodeCategory, data_places};
+    let (pair, facts) = data_pair(function);
+    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let mut changed = facts.clone();
+    assert!(tamper_pointer_value_type(&mut changed.body));
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+    let pointer = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| {
+            node.category == NodeCategory::Read
+                && node.original_kind.known_value() == Some("expr_field")
+        })
+        .unwrap();
+    for change in ["read", "role", "operand"] {
+        let (mut changed, _) = data_pair(function);
+        if change == "operand" {
+            changed
+                .pdg
+                .edges
+                .retain(|edge| !(edge.source == pointer.id && edge.subkind == "value_operand"));
+        } else {
+            let node = changed
+                .pdg
+                .nodes
+                .iter_mut()
+                .find(|node| node.id == pointer.id)
+                .unwrap();
+            if change == "read" {
+                node.attributes.reads.clear();
+            } else {
+                node.category = NodeCategory::Computation;
+                node.attributes.construct = Some("data.place".into());
+                node.annotations.insert(
+                    data_places::KEY.into(),
+                    serde_json::json!(pointer.attributes.reads[0].location_id),
+                );
+            }
+        }
+        assert!(
+            rstyle_pdg::data_documents::verify(&changed, &facts).is_err(),
+            "{change}"
+        );
+    }
+}
+
+fn tamper_pointer_value_type(node: &mut rstyle_pdg::HirNode) -> bool {
+    if node.kind == "expr_field"
+        && node
+            .ty
+            .as_ref()
+            .and_then(|ty| ty.normalized.as_deref())
+            .and_then(|token| rstyle_pdg::data_types::parse(token).ok())
+            .is_some_and(|ty| matches!(ty, rstyle_pdg::data_types::TypeToken::Shared(_)))
+    {
+        node.ty.as_mut().unwrap().normalized = Some("bool".into());
+        return true;
+    }
+    node.children.iter_mut().any(tamper_pointer_value_type)
 }
 
 fn check_lifetime_interface_pair(report: &Value) {

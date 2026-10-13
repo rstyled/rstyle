@@ -147,11 +147,22 @@ fn verify_receiver(
 fn verify_fields(facts: &HirFnFacts) -> Result<(), String> {
     let fields: field_locations::FieldObservations = evidence(facts, field_locations::KEY)?;
     field_locations::verify(facts, &fields)?;
+    let nodes = field_locations::fields(&facts.body);
+
     for field in &fields.operations {
         let field_locations::Location::Captured { value, .. } = &field.location else {
             return Err("Data field lacks verified formal origin".into());
         };
-        data_types::parse(&data_types::token(value)?)?;
+        let token = data_types::token(value)?;
+        let matched: Vec<_> = nodes.iter().filter(|node| node.hir == field.hir).collect();
+        let [node] = matched.as_slice() else {
+            return Err("Field type proof lacks one exact source/HIR operation".into());
+        };
+        if node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some(&token) {
+            return Err(
+                "Field value type contradicts independently verified source location".into(),
+            );
+        }
     }
     Ok(())
 }

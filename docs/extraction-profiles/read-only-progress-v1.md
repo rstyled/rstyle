@@ -453,3 +453,38 @@ The prospective `read-only-lengths-v1.md` contract is frozen, but the four disco
 library calls remain excluded pending their full proof/registry implementation.
 Field place-versus-value context is being audited before that next admission slice.
 No broader data completion or natural coverage claim is made.
+
+Connected field place/value correction (baseline `9305432`, contract frozen in
+`9bbaf82`): nested by-value aggregate projections now compute places rather than
+inventing whole-aggregate reads. Stored shared-reference field bases retain the
+required pointer-value read, including beneath an explicit field borrow. Original
+source-derived field types independently distinguish these cases; serialized read
+roles, operands and reference origins remain checked. Consecutive implicit shared
+dereferences remain explicitly unavailable pending a separate storage-read proof.
+Earlier nested-getter feature vectors remain historical observations, superseded
+by this correction: the getter now has `[0,3,5,0,0,0,0,5,2]`.
+
+The seven-definition independent family admits six, excludes one unsupported
+dereference, and decides all fifteen pairs. It combines owned aggregates, stored
+references, lifetime receivers and tuple field borrows; forged pointer types and
+removed/changed pointer reads fail verification. This is semantic correctness
+evidence, not a measured natural coverage gain.
+
+Validation: `cargo test --workspace --locked` passed 572 tests, zero failures or
+ignored tests, including all 93 real-command tests. After extracting the common
+address-operation constructor to resolve the patterns finding, all fourteen Data
+real-command tests passed again. Workspace all-target clippy and final formatting
+passed. Final style reports 1,592 functions with zero violations; patterns reports
+zero candidates. The BOM/CRLF smoke admitted six and decided fifteen pairs; all
+twelve paired documents passed the unchanged vendored schemas. Logs:
+`target/field-value-context-workspace-final.log`,
+`field-value-context-data-refactored.log`,
+`field-value-context-clippy-refactored.log`,
+`field-value-context-{style,patterns}-final.json`, and
+`field-value-context-smoke.json`. Inventory/harness scripts were unchanged; their
+last checks remain eleven and forty-three passed.
+
+Read-only length summaries, reference-aware verified calls, aggregate construction,
+slice indexing/subslicing, assertions/constants/patterns, cyclic value proof and
+the broader preregistered inventory remain unfinished. No full Data completion,
+majority natural coverage or detection-quality claim is made.

@@ -252,6 +252,10 @@ a stored reference records a field read and its referent path. Lifetime-only
 local nominal declarations/impls use exact region instantiation and declaration/
 path-argument arity proof. Reference-bearing array elements, type/const generics
 and bounded lifetime impls remain excluded.
+Nested aggregate bases compute places; stored reference bases retain their actual
+pointer read. Field types are independently checked against source-derived
+locations before this classification. Consecutive implicit shared dereferences
+without referent-storage read evidence remain explicitly unavailable.
 Aggregate construction, local reference rebindings,
 read-only library summaries, slice indexing/subslicing, and assertions are still
 unavailable in this implementation. Their observations do not admit them. This

@@ -300,6 +300,10 @@ values also preserve nested nominal origins; their seven-function fixture reache
 all 21 pairs. Lifetime-only nominal declarations and inherent impls additionally
 reach all 28 pairs in an eight-function module/alias/API fixture. Reference-bearing
 array elements, type/const generics and bounded lifetime impls remain unavailable.
+The versioned field-context correction now preserves aggregate places and actual
+stored-reference loads; extra implicit dereferences lacking read evidence fail
+closed. Corrected feature measurements are recorded separately from earlier
+disclosed fixture results.
 Construction, local reference
 correspondence and read-only slice/string operations remain unfinished; the broader
 data goal and natural-coverage targets are not achieved. See the versioned local

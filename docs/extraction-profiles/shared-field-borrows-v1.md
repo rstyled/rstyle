@@ -3,6 +3,10 @@
 Implementation baseline: `eb658c4`, clean `ccgraph/read-only-api-coverage`.
 This supplement belongs only to the separately registered `hir-data-v1` local
 extraction/matching extension. Historical profiles and pinned compat are unchanged.
+The later `field-value-context-v1.md` supplement corrects the base interpretation
+below: non-reference aggregates compute places, but stored reference bases require
+their actual value read before further projection. Its context/type proof applies
+to all new admission under this local Data contract.
 
 Support original shared `&place` invocations where place is a verified formal
 struct/tuple field path reached through a shared referent. The resolved result

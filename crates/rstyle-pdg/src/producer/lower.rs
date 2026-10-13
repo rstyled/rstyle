@@ -236,7 +236,7 @@ impl Builder<'_> {
     }
 
     fn field_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        let flow = self.expression(&node.children[0], flow);
+        let flow = self.field_base(node, flow);
         let fields: crate::field_locations::FieldObservations = serde_json::from_value(
             self.facts.build.frontend_options[crate::field_locations::KEY].clone(),
         )
@@ -265,27 +265,30 @@ impl Builder<'_> {
 
     fn borrow(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.field_place(&node.children[0], flow);
+        self.address_operation(node, flow, "data.borrow")
+    }
+
+    fn field_place(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let flow = self.field_base(node, flow);
+        self.address_operation(node, flow, "data.place")
+    }
+
+    fn address_operation(&mut self, node: &HirNode, flow: Flow, construct: &str) -> Flow {
         let operation = Operation {
             operands: self.operand(&flow.value),
-            construct: Some("data.borrow".into()),
+            construct: Some(construct.into()),
             ..template(node, NodeCategory::Computation)
         };
         self.emit(operation, flow)
     }
 
-    fn field_place(&mut self, node: &HirNode, flow: Flow) -> Flow {
+    fn field_base(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let base = &node.children[0];
-        let flow = if base.kind == "expr_field" {
+        if crate::data_places::is_place_base(base).expect("verified field base type") {
             self.field_place(base, flow)
         } else {
             self.expression(base, flow)
-        };
-        let operation = Operation {
-            operands: self.operand(&flow.value),
-            construct: Some("data.place".into()),
-            ..template(node, NodeCategory::Computation)
-        };
-        self.emit(operation, flow)
+        }
     }
 
     fn read_operation(&self, node: &HirNode) -> Operation {

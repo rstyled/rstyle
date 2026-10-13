@@ -6,6 +6,9 @@ historical helper admission. The broader compositional-data goal remains intact.
 The separately versioned `lifetime-nominals-v1.md` supplement supersedes only this
 local data contract's lifetime-only generic exclusions. Type/const generics remain
 unavailable; historical captures and profiles are unchanged.
+The `field-value-context-v1.md` semantic correction additionally distinguishes
+place projections from actual terminal/stored-reference field reads. Earlier
+fixture vectors remain historical evidence, not authority for invented loads.
 
 The driver receives an explicit typed selected-unit context before rustc arguments:
 Cargo's frozen package snapshot, root source path and observed crate name. No
