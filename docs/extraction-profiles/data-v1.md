@@ -84,3 +84,9 @@ This first nominal boundary is deliberately conservative. Such items may exclude
 nominal functions without excluding independently supported scalar functions in
 the same unit. Construction and local reference operations remain unavailable. Formal field
 borrows follow their separately specified source-place contract.
+
+Method receiver/signature observations are specified separately in
+[receiver-capture-v1.md](receiver-capture-v1.md). They record compiler adjustment
+order and concrete types without authorizing any additional method or library
+summary. Length calls remain unavailable until independent registry/frontend and
+serialized CALL verification is connected.

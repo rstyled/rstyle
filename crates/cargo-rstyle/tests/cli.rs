@@ -4147,3 +4147,110 @@ fn clones_data_field_borrows_preserve_array_slice_and_str_referents() {
         );
     }
 }
+
+#[test]
+fn clones_data_records_resolved_receivers_without_admitting_length_calls() {
+    use rstyle_pdg::{concrete_types::TypeTree, data_receivers};
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn slice_len(x: &[u16]) -> usize { x.len() }\npub fn slice_empty(x: &[u16]) -> bool { x.is_empty() }\npub fn str_len(x: &str) -> usize { x.len() }\npub fn str_empty(x: &str) -> bool { x.is_empty() }\npub fn array_len(x: &[u8; 2]) -> usize { x.len() }\npub fn owned_len(x: &String) -> usize { x.len() }\npub struct View<'a> { pub text: &'a str }\nimpl<'a> View<'a> { pub fn length(&self) -> usize { self.text.len() } }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 7);
+    assert!(functions.iter().all(|f| f["outcome"] == "excluded"));
+    for function in functions {
+        let capture: data_receivers::Capture = serde_json::from_value(
+            function["facts"]["build"]["frontend_options"][data_receivers::KEY].clone(),
+        )
+        .unwrap();
+        assert_eq!(capture.identity, data_receivers::IDENTITY);
+        assert_eq!(capture.methods.len(), 1);
+        let method = &capture.methods[0];
+        let name = function["facts"]["name"].as_str().unwrap();
+        if name == "array_len" {
+            assert!(method.adjustments.iter().any(|a| a.kind == data_receivers::Kind::Unsupported("pointer_coercion".into())));
+        } else if name == "owned_len" {
+            assert!(matches!(
+                method.receiver_type,
+                rstyle_pdg::concrete_types::Observation::Unsupported { .. }
+            ));
+        } else {
+            let referent = if name.starts_with("slice_") {
+                TypeTree::Slice(Box::new(TypeTree::Scalar("u16".into())))
+            } else {
+                TypeTree::Str
+            };
+            check_shared_length_receiver(method, referent, name.ends_with("empty"));
+        }
+    }
+    let (output, legacy) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{legacy}");
+    assert!(legacy["functions"].as_array().unwrap().iter().all(|f| {
+        f["facts"]["build"]["frontend_options"]
+            .get(data_receivers::KEY)
+            .is_none()
+    }));
+}
+
+fn check_shared_length_receiver(
+    method: &rstyle_pdg::data_receivers::Method,
+    referent: rstyle_pdg::concrete_types::TypeTree,
+    empty: bool,
+) {
+    use rstyle_pdg::{
+        concrete_types::{Observation, TypeTree},
+        data_receivers::Kind,
+    };
+    let shared = Observation::Captured {
+        ty: TypeTree::Shared(Box::new(referent.clone())),
+    };
+    assert_eq!(method.receiver_type, shared);
+    assert_eq!(method.adjusted_type, shared);
+    assert_eq!(method.signature_inputs, [shared]);
+    assert_eq!(
+        method.signature_result,
+        Observation::Captured {
+            ty: TypeTree::Scalar(if empty { "bool" } else { "usize" }.into()),
+        }
+    );
+    assert_eq!(
+        method
+            .adjustments
+            .iter()
+            .map(|a| &a.kind)
+            .collect::<Vec<_>>(),
+        [&Kind::BuiltinDereference, &Kind::SharedBorrow]
+    );
+    assert_eq!(
+        method.adjustments[0].target,
+        Observation::Captured { ty: referent }
+    );
+    assert_eq!(method.adjustments[1].target, method.adjusted_type);
+}
+
+#[test]
+fn clones_data_keeps_overloaded_receiver_transitions_unavailable() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub struct Wrapped<'a> { pub value: &'a str }\nimpl<'a> core::ops::Deref for Wrapped<'a> { type Target = str; fn deref(&self) -> &str { self.value } }\npub fn overloaded_len(x: &Wrapped<'_>) -> usize { x.len() }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{report}");
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["facts"]["name"] == "overloaded_len")
+        .unwrap();
+    assert_eq!(function["outcome"], "excluded");
+    let capture: rstyle_pdg::data_receivers::Capture = serde_json::from_value(
+        function["facts"]["build"]["frontend_options"][rstyle_pdg::data_receivers::KEY].clone(),
+    )
+    .unwrap();
+    assert_eq!(capture.methods.len(), 1);
+    assert!(capture.methods[0].adjustments.iter().any(|a| {
+        a.kind == rstyle_pdg::data_receivers::Kind::Unsupported("overloaded_dereference".into())
+    }));
+    assert_eq!(report["pair_evaluation_complete"], true);
+}

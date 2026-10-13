@@ -488,3 +488,43 @@ Read-only length summaries, reference-aware verified calls, aggregate constructi
 slice indexing/subslicing, assertions/constants/patterns, cyclic value proof and
 the broader preregistered inventory remain unfinished. No full Data completion,
 majority natural coverage or detection-quality claim is made.
+
+Connected method-receiver observations (baseline `335c60f`, prospective contract
+frozen in `a894c2b`): Data capture now records exact method/receiver HIR identities,
+source spans, ordered concrete receiver adjustments and instantiated callee
+inputs/result. Builtin dereferences and shared/mutable borrows have closed kinds;
+other conversions retain explicit stable unsupported reasons. All recorded types
+use concrete observations and the existing finite budgets, with additional
+method/adjustment budgets. No display/debug type rendering authorizes a call.
+This is observational evidence, not a semantic summary or an admission flag.
+
+Independent real-compiler expectations check all four slice/str length operations,
+stored shared str fields, exact shared-reborrow transitions/signatures, array
+coercion, unsupported String receivers and overloaded dereference. These calls
+remain excluded; helper captures do not acquire the new observations. Before any
+length admission, the library registry/core/build proof, independent source/type/
+origin transition checks and independent serialized CALL/effect/value-edge checks
+still need implementation. No fixture observation or discovered fingerprint is a
+substitute for that proof.
+
+Validation: `cargo test --workspace --locked` passed 574 tests, zero failures or
+ignored tests, including all 95 real-command tests. Formatting and workspace
+all-target clippy passed. Style reports 1,598 functions with zero violations;
+patterns reports zero candidates. Inventory and study/harness suites passed eleven
+and forty-three tests. A fresh BOM/CRLF Data smoke retained six admissions, one
+explicit exclusion and all fifteen pair decisions; all twelve paired documents
+validated against unchanged vendored schemas. An initial full run found two
+mutation-budget style violations (93 other CLI tests passed); cohesive interface
+and receiver-type capture phases resolved both before the successful full rerun.
+No thresholds, suppressions or ignore records changed. Logs:
+`target/receiver-capture-workspace-final.log`,
+`receiver-capture-clippy-final.log`, `receiver-capture-{style,patterns}-final.json`,
+`receiver-capture-{inventory,scripting,schemas}.log` and
+`receiver-capture-smoke.json`; the initial failure log remains
+`receiver-capture-workspace.log`.
+
+Whole Data admission remains unfinished. The next prerequisite is independently
+verified receiver/call inventories and a tested pinned library registry, followed
+by reference-aware verified helper calls and the remaining compositional bundles
+and preregistered natural inventory. Historical reports, old profiles, vendored
+contracts and the strict matching algorithm remain unchanged.

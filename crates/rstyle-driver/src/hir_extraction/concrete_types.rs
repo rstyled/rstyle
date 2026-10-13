@@ -1,5 +1,7 @@
 //! Observational type capture for the unavailable data tier. No eligibility flag.
 
+mod receivers;
+
 use super::hir::Context;
 use rstyle_pdg::{HirFnFacts, concrete_types::*};
 use rustc_hir::{Mutability, Node, def_id::DefId};
@@ -65,9 +67,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         result: capture.observe(ctx.result)?,
     };
     observations.validate()?;
-    if ctx.profile.supports("rust.concrete-read-only-data") {
-        capture.install_tokens(facts, &observations)?;
-    }
+    capture.install_data(facts, &observations)?;
     capture.install_origins(&observations, facts)?;
     facts.build.frontend_options.insert(
         KEY.into(),
@@ -92,6 +92,18 @@ fn has_data_interface(
 }
 
 impl<'tcx> Capture<'_, 'tcx> {
+    fn install_data(
+        &mut self,
+        facts: &mut HirFnFacts,
+        interface: &InterfaceObservations,
+    ) -> Result<(), String> {
+        if self.ctx.profile.supports("rust.concrete-read-only-data") {
+            self.install_tokens(facts, interface)?;
+            self.install_receivers(facts)?;
+        }
+        Ok(())
+    }
+
     fn install_tokens(
         &mut self,
         facts: &mut HirFnFacts,
