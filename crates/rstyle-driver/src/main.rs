@@ -14,6 +14,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 mod args;
+mod driver_options;
 mod effects;
 mod extract;
 mod hir_extraction;
@@ -82,9 +83,19 @@ impl Callbacks for Extract {
 }
 
 fn main() -> ExitCode {
-    // argv: [driver, <rustc path>, <rustc args...>]; rustc's own main expects
-    // the rustc path first, so drop only our own name.
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    match driver_options::parse(std::env::args().skip(1).collect()) {
+        Ok(invocation) => run(invocation),
+        Err(error) => {
+            eprintln!("rstyle-driver: {error}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn run(invocation: driver_options::Invocation) -> ExitCode {
+    // The private driver selection has been consumed; rustc receives its path
+    // followed by only its own compiler arguments.
+    let args = invocation.arguments;
     let out_dir = std::env::var_os("RSTYLE_OUT_DIR").map(PathBuf::from);
     let args = with_sysroot(args);
     let extract = out_dir.zip(target_of(&args)).map(|(dir, target)| Extract {
@@ -106,6 +117,7 @@ fn main() -> ExitCode {
         },
         scanned: Vec::new(),
         invocation: args.clone(),
+        profile: invocation.profile,
     });
 
     rustc_driver::catch_with_exit_code(|| match (r0, extract) {
@@ -122,6 +134,7 @@ struct HirExtract {
     output: hir_extraction::output::Destination,
     scanned: Vec<hir_extraction::source::Function>,
     invocation: Vec<String>,
+    profile: Option<rstyle_pdg::extraction_profile::ExtractionProfile>,
 }
 
 impl Callbacks for HirExtract {
@@ -130,20 +143,21 @@ impl Callbacks for HirExtract {
         _: &Compiler,
         krate: &mut rustc_ast::Crate,
     ) -> Compilation {
-        self.scanned = hir_extraction::source::scan(krate);
+        self.scanned = hir_extraction::source::scan(krate, self.profile.unwrap_or_default());
         Compilation::Continue
     }
 
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        let facts = hir_extraction::crate_facts(tcx, &self.scanned, &self.invocation)
+        let options = hir_extraction::Options {
+            profile: self.profile,
+            invocation: &self.invocation,
+        };
+        let facts = hir_extraction::crate_facts(tcx, &self.scanned, &options)
             .expect("capture complete source-facing R0 evidence");
-        if facts.first().is_some_and(|facts| {
-            rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(facts)
-                .is_ok_and(|profile| profile.supports("rust.conditional-source-correspondence"))
-        }) || std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
-            .ok()
-            .and_then(|token| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&token).ok())
-            .is_some_and(|profile| profile.supports("rust.conditional-source-correspondence"))
+
+        if options
+            .selected()
+            .supports("rust.conditional-source-correspondence")
         {
             let inventory = hir_extraction::source_inventory(tcx, &self.scanned, &facts)
                 .expect("capture owned source inventory");

@@ -490,10 +490,13 @@ pub fn wrapper(plan_path: &Path, invocation: Vec<String>) -> Result<u8, String> 
 fn driver_command(plan: &Plan, invocation: &[String]) -> Command {
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
-    command.args(invocation).env(
-        "RSTYLE_HIR_EXTRACTION_PROFILE",
-        plan.extraction_profile.token(),
-    );
+    command
+        .arg(format!(
+            "{}={}",
+            rstyle_pdg::extraction_profile::DRIVER_SELECTION_FLAG,
+            plan.extraction_profile.token()
+        ))
+        .args(invocation);
     command
 }
 

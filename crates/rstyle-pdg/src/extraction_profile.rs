@@ -4,6 +4,8 @@ use crate::{HirFnFacts, ProfileId};
 use serde::{Deserialize, Serialize};
 
 pub const SELECTION_KEY: &str = "extraction_profile";
+/// Private driver argument, consumed before forwarding the rustc invocation.
+pub const DRIVER_SELECTION_FLAG: &str = "--rstyle-extraction-profile";
 pub const EVIDENCE_KEY: &str = "rstyle.hir-coverage:selection";
 pub const LOCAL_ID: &str = "rstyle.rust.hir-coverage";
 

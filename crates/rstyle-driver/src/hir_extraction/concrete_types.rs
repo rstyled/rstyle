@@ -21,7 +21,7 @@ struct Capture<'a, 'tcx> {
 }
 
 pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
-    if !has_data_interface(facts) {
+    if !has_data_interface(facts, ctx.profile) {
         return Ok(());
     }
     let mut capture = Capture {
@@ -65,9 +65,11 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
     Ok(())
 }
 
-fn has_data_interface(facts: &HirFnFacts) -> bool {
-    rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(facts)
-        .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
+fn has_data_interface(
+    facts: &HirFnFacts,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> bool {
+    profile.supports("rust.verified-helper-calls")
         && (facts.signature.return_ty.normalized.is_none()
             || facts
                 .signature

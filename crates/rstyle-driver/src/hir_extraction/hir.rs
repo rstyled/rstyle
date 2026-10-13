@@ -11,6 +11,7 @@ pub struct Context<'tcx> {
     pub function_span: Span,
     pub source_bytes: String,
     pub result: Ty<'tcx>,
+    pub profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 }
 
 pub fn reference(id: HirId) -> HirRef {
@@ -370,7 +371,7 @@ impl<'tcx> Context<'tcx> {
 
 impl Context<'_> {
     fn direct_callee(&self, expression: &Expr<'_>) -> Option<PathRes> {
-        if std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE").as_deref() != Ok("hir-helpers-v1") {
+        if !self.profile.supports("rust.verified-helper-calls") {
             return None;
         }
         let ExprKind::Path(ref path) = expression.kind else {

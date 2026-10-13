@@ -6,25 +6,34 @@ mod hir;
 pub mod output;
 pub mod source;
 
+use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rstyle_pdg::frontend::*;
 use rustc_hir::{self as rhir, def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
 
+pub struct Options<'a> {
+    pub profile: Option<ExtractionProfile>,
+    pub invocation: &'a [String],
+}
+
+impl Options<'_> {
+    pub fn selected(&self) -> ExtractionProfile {
+        self.profile.unwrap_or_default()
+    }
+}
+
 pub fn crate_facts(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
-    invocation: &[String],
+    options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
     let mut facts = tcx.hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
-        .map(|id| function(tcx, id, scanned, invocation).and_then(|facts| facts.ok_or_else(|| format!(
+        .map(|id| function(tcx, id, scanned, options).and_then(|facts| facts.ok_or_else(|| format!(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         ))))
         .collect::<Result<Vec<_>, _>>()?;
-    if facts.first().is_some_and(|fact| {
-        rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(fact)
-            .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
-    }) {
+    if options.selected().supports("rust.verified-helper-calls") {
         rstyle_pdg::helper_calls::capture(&mut facts)?;
     }
 
@@ -35,13 +44,13 @@ fn function(
     tcx: TyCtxt<'_>,
     id: LocalDefId,
     scanned: &[source::Function],
-    invocation: &[String],
+    options: &Options<'_>,
 ) -> Result<Option<HirFnFacts>, String> {
-    let Some((mut facts, ctx)) = function_source(tcx, id, scanned, invocation) else {
+    let Some((mut facts, ctx)) = function_source(tcx, id, scanned, options) else {
         return Ok(None);
     };
     concrete_types::capture(&ctx, &mut facts)?;
-    capture_correspondence(&mut facts);
+    capture_correspondence(&mut facts, ctx.profile);
 
     Ok(Some(facts))
 }
@@ -50,7 +59,7 @@ fn function_source<'tcx>(
     tcx: TyCtxt<'tcx>,
     id: LocalDefId,
     scanned: &[source::Function],
-    invocation: &[String],
+    options: &Options<'_>,
 ) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
     let node = tcx.hir_node_by_def_id(id);
     let sig = node.fn_sig()?;
@@ -64,6 +73,7 @@ fn function_source<'tcx>(
         function_span,
         source_bytes: source_bytes.clone(),
         result,
+        profile: options.selected(),
     };
     let params = parameters(&ctx, sig, body);
     let body = ctx.expression(body.value);
@@ -86,7 +96,7 @@ fn function_source<'tcx>(
         signature: signature(&ctx, sig, params, id),
         bindings,
         body,
-        build: function_build(tcx, id, function_span, invocation)?,
+        build: function_build(tcx, id, function_span, options)?,
         source_diagnostics,
         source_scan_complete: scan.is_some_and(|scan| !scan.conditional_source),
     };
@@ -108,12 +118,15 @@ fn find_source_scan<'a>(
 ) -> Option<&'a source::Function> {
     scanned.iter().find(|scan| {
         scan.span.source_callsite() == ctx.function_span
-            || (selected_conditional() && scan.body_span.source_callsite() == body_span)
+            || (ctx
+                .profile
+                .supports("rust.conditional-source-correspondence")
+                && scan.body_span.source_callsite() == body_span)
     })
 }
 
-fn capture_correspondence(facts: &mut HirFnFacts) {
-    if selected_conditional() {
+fn capture_correspondence(facts: &mut HirFnFacts, profile: ExtractionProfile) {
+    if profile.supports("rust.conditional-source-correspondence") {
         facts
             .source_diagnostics
             .extend(rstyle_pdg::source_evidence::diagnostics(facts));
@@ -138,7 +151,7 @@ fn function_build(
     tcx: TyCtxt<'_>,
     id: LocalDefId,
     span: rustc_span::Span,
-    invocation: &[String],
+    options: &Options<'_>,
 ) -> Option<BuildFacts> {
     let file = tcx.sess.source_map().lookup_source_file(span.lo());
     let rustc_span::FileName::Real(real) = &file.name else {
@@ -150,11 +163,11 @@ fn function_build(
     } else {
         std::env::current_dir().ok()?.join(path)
     };
-    let mut build = evidence::build(tcx, invocation);
-    if let Ok(selection) = std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE") {
+    let mut build = evidence::build(tcx, options.invocation);
+    if let Some(selection) = options.profile {
         build.frontend_options.insert(
             rstyle_pdg::extraction_profile::SELECTION_KEY.into(),
-            serde_json::json!(selection),
+            serde_json::json!(selection.token()),
         );
     }
     let identifier = tcx
@@ -172,14 +185,18 @@ fn function_build(
             ("source_identifier".into(), serde_json::json!(identifier)),
         ]
         .into_iter()
-        .chain(definition_identity(tcx, id)),
+        .chain(definition_identity(tcx, id, options.selected())),
     );
 
     Some(build)
 }
 
-fn definition_identity(tcx: TyCtxt<'_>, id: LocalDefId) -> Option<(String, serde_json::Value)> {
-    (std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE").as_deref() == Ok("hir-helpers-v1")).then(|| {
+fn definition_identity(
+    tcx: TyCtxt<'_>,
+    id: LocalDefId,
+    profile: ExtractionProfile,
+) -> Option<(String, serde_json::Value)> {
+    profile.supports("rust.verified-helper-calls").then(|| {
         (
             "definition_identity".into(),
             serde_json::json!(format!("{:?}", tcx.def_path_hash(id.to_def_id()))),
@@ -323,13 +340,6 @@ fn source_findings(
             ),
         })
         .collect()
-}
-
-fn selected_conditional() -> bool {
-    std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
-        .ok()
-        .and_then(|value| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&value).ok())
-        .is_some_and(|profile| profile.supports("rust.conditional-source-correspondence"))
 }
 
 pub fn source_inventory(

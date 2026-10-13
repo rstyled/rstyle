@@ -33,6 +33,15 @@ versions, workspace target selection and build options. Every captured function
 records producer revision, compiler commit, target/layout, semantic settings,
 active cfg/features and the compiler arguments. Cargo's unit graph records resolved
 features, build profiles, targets, modes and dependency units before compilation.
+
+The wrapper passes the selected profile as the private driver argument
+`--rstyle-extraction-profile=<registered-token>` before the rustc path. The driver
+validates it once, removes it from the compiler arguments and carries the typed
+profile through source scanning and HIR capture. The recorded rustc invocation
+contains only compiler arguments. `RSTYLE_HIR_EXTRACTION_PROFILE` does not select
+a profile; inherited values are ignored. Unregistered, duplicate or misplaced
+private selection arguments fail before compilation. A standalone driver without
+that argument retains its default R0 capture and historical evidence shape.
 Only primary compilation units selected as Cargo unit-graph roots receive
 extraction destinations. Probes, build scripts and dependency compilation units
 compile without HIR capture, including selected packages compiled as build
