@@ -12,6 +12,7 @@ pub mod cfg;
 pub mod collection;
 pub mod concrete_types;
 mod cyclic_values;
+pub mod declaration_origins;
 pub mod eligibility;
 pub mod extraction_profile;
 pub mod field_locations;

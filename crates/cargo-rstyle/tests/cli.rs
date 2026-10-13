@@ -2275,6 +2275,15 @@ fn check_formal_field_observations(function: &Value) {
     let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
     let observations: FieldObservations =
         serde_json::from_value(facts.build.frontend_options[field_locations::KEY].clone()).unwrap();
+    let interface = serde_json::from_value(
+        facts.build.frontend_options[rstyle_pdg::concrete_types::KEY].clone(),
+    )
+    .unwrap();
+    let origins = serde_json::from_value(
+        facts.build.frontend_options[rstyle_pdg::declaration_origins::KEY].clone(),
+    )
+    .unwrap();
+    rstyle_pdg::declaration_origins::verify(&interface, &origins).unwrap();
     let expected = match function["facts"]["name"].as_str().unwrap() {
         name if name.ends_with("get") => 2,
         name if name.ends_with("borrow") => 1,

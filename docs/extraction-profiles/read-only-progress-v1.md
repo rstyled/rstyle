@@ -89,3 +89,50 @@ matching-extension admission remain implementation obligations, not external
 schema-authority blockers. Assertions, broader scalar patterns/constants,
 cross-unit summaries, slice/string operations and the preregistered broader
 inventory also remain outstanding under the original compositional scope.
+
+## Original declaration origins
+
+`rstyle.rust.declaration-origin/1` is a separate observational evidence identity,
+serialized as `concrete_declaration_origins` in frontend options. Existing concrete
+type observation semantics and extraction/matching profiles are unchanged. The
+inventory contains exactly one origin per distinct nominal definition path in
+successfully captured interface trees, including nested fields. Unsupported trees
+do not leave partially captured declarations in this inventory. Conflicting
+observations of one definition path fail capture.
+
+Each origin carries the existing nominal observation, compiler source-file name,
+exact original compiler-file bytes and digest, and the original file-relative
+struct-item byte interval. Capture uses the compiler buffer and normalization map,
+not a filesystem reread. The independent verifier checks complete inventory,
+uniqueness, nominal agreement, file digest, exact declaration bytes, and an exact
+struct-item interval independently parsed from the full source file. A matching
+string inside a comment or string literal is insufficient. Source files with
+unparseable or unmatched declaration boundaries fail capture; no interval
+containment fallback is used. Serialized origins have an 8 MiB per-function
+budget; exhaustion is an explicit capture failure.
+
+This evidence does **not** authenticate a source-file name against Cargo's planned
+unit inventory, bind the manifest digest to exact manifest payload/package source,
+resolve named aliases, or certify destructor/interior-mutability/effect facts.
+It is an original-byte location prerequisite, not a package identity or data
+admission certificate. These remaining checks must be connected before a data
+profile can admit functions. No additional pairs or coverage gains are claimed.
+
+Validation for this origin slice: `cargo test --workspace --locked` passed 529
+tests with zero failed or ignored, including all 76 real-command tests.
+`cargo fmt --all -- --check` and
+`cargo clippy --workspace --all-targets --locked -- -D warnings` passed.
+Repository-built `cargo rstyle --format json` reported 1423 functions and zero
+violations; `cargo rstyle patterns --format json` reported zero candidates.
+The independent origin fixture covers original BOM/CRLF offsets and rejects
+changed identities, missing/duplicate entries, file digests, ranges, nominal
+observations and declaration text placed inside a comment. The real receiver
+fixture verifies the serialized origins retrieved from the command report.
+
+Initial validation exposed a removed-BOM offset mismatch and an independent
+parser first-line BOM discrepancy; capture now restores the prefix and the
+verifier adds its exact byte length to spans parsed without it. The corrected
+real fixture and full workspace run pass. Initial Clippy/style violations were
+resolved by extracting cohesive capture and test helpers. Failed and successful
+logs remain under `target/declaration-origin-*`. Inventory and study scripts were
+unchanged; their previously recorded validation was not rerun for this slice.

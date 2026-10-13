@@ -228,3 +228,77 @@ fn unsupported_source_reference_shapes_remain_outside_observation_checks() {
         );
     }
 }
+
+#[test]
+fn declaration_origins_require_exact_owned_struct_ranges() {
+    use rstyle_pdg::{ByteSpan, declaration_origins::*};
+    let source = "pub struct Counter { pub value: i32 }";
+    let tree = structure(source);
+    let TypeTree::Struct { nominal, .. } = &tree else {
+        unreachable!()
+    };
+    let file = format!("\u{feff}{source}\r\nmod nested {{ pub struct Other; }}\r\n");
+    let start = file.find(source).unwrap() as u32;
+    let origin = Origin {
+        nominal: nominal.clone(),
+        source_file: "src/types.rs".into(),
+        file_digest: digest(file.as_bytes()),
+        file_bytes: file,
+        declaration_span: ByteSpan {
+            start,
+            end: start + source.len() as u32,
+        },
+    };
+    let interface = InterfaceObservations {
+        identity: rstyle_pdg::concrete_types::IDENTITY.into(),
+        parameters: vec![Observation::Captured { ty: tree }],
+        result: Observation::Captured {
+            ty: TypeTree::Scalar("unit".into()),
+        },
+    };
+    let origins = Origins {
+        identity: IDENTITY.into(),
+        declarations: vec![origin],
+    };
+    verify(&interface, &origins).unwrap();
+    for change in [
+        "identity",
+        "missing",
+        "duplicate",
+        "digest",
+        "span",
+        "nominal",
+        "comment",
+    ] {
+        let mut changed = origins.clone();
+        change_declaration_origin(&mut changed, change, source);
+        assert!(verify(&interface, &changed).is_err(), "{change}");
+    }
+}
+
+fn change_declaration_origin(
+    origins: &mut rstyle_pdg::declaration_origins::Origins,
+    change: &str,
+    source: &str,
+) {
+    use rstyle_pdg::ByteSpan;
+    let changed = origins;
+    match change {
+        "identity" => changed.identity.push('x'),
+        "missing" => changed.declarations.clear(),
+        "duplicate" => changed.declarations.push(changed.declarations[0].clone()),
+        "digest" => changed.declarations[0].file_digest = digest(b"different file"),
+        "span" => changed.declarations[0].declaration_span.start += 1,
+        "nominal" => changed.declarations[0].nominal.manifest_digest = digest(b"other package"),
+        "comment" => {
+            let entry = &mut changed.declarations[0];
+            entry.file_bytes = format!("/* {source} */");
+            entry.file_digest = digest(entry.file_bytes.as_bytes());
+            entry.declaration_span = ByteSpan {
+                start: 3,
+                end: 3 + source.len() as u32,
+            };
+        }
+        _ => unreachable!(),
+    }
+}

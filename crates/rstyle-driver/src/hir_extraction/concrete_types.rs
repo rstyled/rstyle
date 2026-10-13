@@ -18,6 +18,7 @@ struct Capture<'a, 'tcx> {
     ctx: &'a Context<'tcx>,
     entries: usize,
     visiting: Vec<DefId>,
+    origins: std::collections::BTreeMap<String, rstyle_pdg::declaration_origins::Origin>,
 }
 
 pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
@@ -28,6 +29,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         ctx,
         entries: 0,
         visiting: Vec::new(),
+        origins: std::collections::BTreeMap::new(),
     };
     let parameters = facts
         .signature
@@ -57,6 +59,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         result: capture.observe(ctx.result)?,
     };
     observations.validate()?;
+    capture.install_origins(&observations, facts)?;
     facts.build.frontend_options.insert(
         KEY.into(),
         serde_json::to_value(observations).map_err(|error| error.to_string())?,
@@ -79,6 +82,26 @@ fn has_data_interface(
 }
 
 impl<'tcx> Capture<'_, 'tcx> {
+    fn install_origins(
+        mut self,
+        observations: &InterfaceObservations,
+        facts: &mut HirFnFacts,
+    ) -> Result<(), String> {
+        let expected = rstyle_pdg::declaration_origins::declarations(observations)?;
+        self.origins.retain(|key, _| expected.contains_key(key));
+        let origins = rstyle_pdg::declaration_origins::Origins {
+            identity: rstyle_pdg::declaration_origins::IDENTITY.into(),
+            declarations: self.origins.into_values().collect(),
+        };
+        rstyle_pdg::declaration_origins::verify(observations, &origins)?;
+        facts.build.frontend_options.insert(
+            rstyle_pdg::declaration_origins::KEY.into(),
+            serde_json::to_value(origins).map_err(|error| error.to_string())?,
+        );
+
+        Ok(())
+    }
+
     fn observe(&mut self, ty: Ty<'tcx>) -> Result<Observation, String> {
         match self.tree(ty, 0) {
             Ok(ty) => Ok(Observation::Captured { ty }),
@@ -194,15 +217,71 @@ impl<'tcx> Capture<'_, 'tcx> {
         if declarations.len() != fields.len() {
             return Err(unsupported("Concrete field/source inventory disagrees"));
         }
-        self.visiting.push(definition.did());
-        let captured = self.fields(fields.iter(), declarations, depth);
-        self.visiting.pop();
+        let captured = self.struct_fields(definition, declarations, depth);
+
+        let nominal = nominal(tcx.def_path_str(definition.did()), &source)?;
+        self.origin(definition.did(), &nominal)?;
 
         Ok(TypeTree::Struct {
-            nominal: nominal(tcx.def_path_str(definition.did()), &source)?,
+            nominal,
             source,
             fields: captured?,
         })
+    }
+
+    fn struct_fields(
+        &mut self,
+        definition: ty::AdtDef<'tcx>,
+        declarations: Vec<(String, String)>,
+        depth: usize,
+    ) -> Result<Vec<Field>, Failure> {
+        self.visiting.push(definition.did());
+        let captured = self.fields(
+            definition.non_enum_variant().fields.iter(),
+            declarations,
+            depth,
+        );
+        self.visiting.pop();
+
+        captured
+    }
+
+    fn origin(&mut self, id: DefId, nominal: &Nominal) -> Result<(), Failure> {
+        let Node::Item(node) = self.ctx.tcx.hir_node_by_def_id(id.expect_local()) else {
+            return Err(unsupported("Missing source struct item"));
+        };
+        let item = node.span;
+        let file = self.ctx.tcx.sess.source_map().lookup_source_file(item.lo());
+        let rustc_span::FileName::Real(real) = &file.name else {
+            return Err(unsupported("Concrete declaration lacks real source file"));
+        };
+        let path = real
+            .local_path()
+            .ok_or_else(|| unsupported("Missing local declaration file"))?;
+        let full = rustc_span::Span::with_root_ctxt(file.start_pos, file.end_position());
+        let (mut file_bytes, file_span) = super::original_source(self.ctx.tcx, full)
+            .ok_or_else(|| unsupported("Missing original declaration file buffer"))?;
+        // The compiler's full normalized span starts after a removed BOM;
+        // restore that prefix so original file-relative offsets stay exact.
+        if file_span.start == 3 {
+            file_bytes.insert(0, '\u{feff}');
+        } else if file_span.start != 0 {
+            return Err(unsupported("Unexpected original file prefix offset"));
+        }
+        let (_, declaration_span) = super::original_source(self.ctx.tcx, item)
+            .ok_or_else(|| unsupported("Missing original declaration range"))?;
+        self.origins.insert(
+            nominal.definition_path.clone(),
+            rstyle_pdg::declaration_origins::Origin {
+                nominal: nominal.clone(),
+                source_file: path.to_string_lossy().into_owned(),
+                file_digest: digest(file_bytes.as_bytes()),
+                file_bytes,
+                declaration_span,
+            },
+        );
+
+        Ok(())
     }
 
     fn declaration(&self, id: DefId) -> Result<String, Failure> {
