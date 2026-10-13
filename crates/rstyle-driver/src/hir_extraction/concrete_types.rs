@@ -274,7 +274,15 @@ impl<'tcx> Capture<'_, 'tcx> {
             nominal.definition_path.clone(),
             rstyle_pdg::declaration_origins::Origin {
                 nominal: nominal.clone(),
-                source_file: path.to_string_lossy().into_owned(),
+                source_file: if path.is_absolute() {
+                    path.to_path_buf()
+                } else {
+                    std::env::current_dir()
+                        .map_err(|_| unsupported("Missing compiler working directory"))?
+                        .join(path)
+                }
+                .to_string_lossy()
+                .into_owned(),
                 file_digest: digest(file_bytes.as_bytes()),
                 file_bytes,
                 declaration_span,

@@ -2265,9 +2265,84 @@ fn clones_helpers_capture_concrete_interfaces_without_admitting_data_functions()
         observations.validate().unwrap();
         check_concrete_interface(&function["facts"]["name"], &observations);
         check_formal_field_observations(function);
+        check_nominal_unit_binding(function, &report);
     }
     assert_eq!(report["pair_evaluation_complete"], true);
     assert_eq!(report["matching"]["pairs"], serde_json::json!([]));
+}
+
+fn check_nominal_unit_binding(function: &Value, report: &Value) {
+    use rstyle_pdg::nominal_binding::{self, PackageContext};
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let context: PackageContext =
+        serde_json::from_value(report["expected_targets"][0]["package_context"].clone()).unwrap();
+    assert_eq!(
+        context.manifest_digest,
+        rstyle_pdg::concrete_types::digest(context.manifest_bytes.as_bytes())
+    );
+    let actual = nominal_binding::bind_unit(std::slice::from_ref(&facts), &context).unwrap();
+    assert_eq!(
+        serde_json::to_value(&actual[0]).unwrap(),
+        function["nominal_unit_binding"]
+    );
+    check_nominal_evidence_corruption(
+        &facts,
+        &context,
+        !actual[0].as_ref().unwrap().declarations.is_empty(),
+    );
+    for change in ["name", "version", "manifest", "root"] {
+        let mut changed = context.clone();
+        match change {
+            "name" => changed.name.push('x'),
+            "version" => changed.version.push('x'),
+            "manifest" => {
+                changed.manifest_bytes.push_str("\n# changed");
+                changed.manifest_digest =
+                    rstyle_pdg::concrete_types::digest(changed.manifest_bytes.as_bytes());
+            }
+            "root" => changed.manifest_path = PathBuf::from("/different/package/Cargo.toml"),
+            _ => unreachable!(),
+        }
+        if !actual[0].as_ref().unwrap().declarations.is_empty() {
+            assert!(
+                nominal_binding::bind_unit(std::slice::from_ref(&facts), &changed).is_err(),
+                "{change}"
+            );
+        }
+    }
+}
+
+fn check_nominal_evidence_corruption(
+    facts: &rstyle_pdg::HirFnFacts,
+    context: &rstyle_pdg::nominal_binding::PackageContext,
+    has_declarations: bool,
+) {
+    use rstyle_pdg::{concrete_types, declaration_origins, nominal_binding};
+    for key in [concrete_types::KEY, declaration_origins::KEY] {
+        let mut changed = facts.clone();
+        changed.build.frontend_options.remove(key);
+        assert!(nominal_binding::bind_unit(&[changed], context).is_err());
+    }
+    if has_declarations {
+        let mut changed = facts.clone();
+        changed.fn_span.start += 1;
+        assert!(nominal_binding::bind_unit(&[changed], context).is_err());
+        let mut changed = facts.clone();
+        let value = changed
+            .build
+            .frontend_options
+            .get_mut(declaration_origins::KEY)
+            .unwrap();
+        let file = value["declarations"][0]["file_bytes"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+            + "\n// changed file";
+        value["declarations"][0]["file_digest"] =
+            serde_json::json!(concrete_types::digest(file.as_bytes()));
+        value["declarations"][0]["file_bytes"] = serde_json::json!(file);
+        assert!(nominal_binding::bind_unit(&[facts.clone(), changed], context).is_err());
+    }
 }
 
 fn check_formal_field_observations(function: &Value) {
@@ -2776,4 +2851,151 @@ fn clones_formal_field_byte_budget_reports_incomplete_capture() {
         format!("{} {report}", String::from_utf8_lossy(&output.stderr))
             .contains("Formal field observation exceeds evidence byte budget")
     );
+}
+
+#[test]
+fn clones_nominal_bindings_preserve_inherited_packages_and_target_contexts() {
+    let directory = nominal_binding_workspace();
+    let (output, report) = clones(
+        directory.path(),
+        &[
+            "--all-targets",
+            "--jobs",
+            "4",
+            "--extraction-profile",
+            "hir-helpers-v1",
+        ],
+    );
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["observed_units"].as_array().unwrap().len(), 4);
+    let mut packages = std::collections::BTreeSet::new();
+    let mut builds = std::collections::BTreeSet::new();
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 10, "{report}");
+    for function in functions {
+        if let Some(binding) = checked_getter_binding(function) {
+            packages.insert(binding["package_id"].as_str().unwrap().to_owned());
+            builds.insert(binding["build_digest"].as_str().unwrap().to_owned());
+        }
+    }
+    assert_eq!(packages.len(), 2);
+    assert_eq!(builds.len(), 4);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    assert_eq!(report["pair_enumeration_complete"], true);
+}
+
+fn checked_getter_binding(function: &Value) -> Option<&Value> {
+    let name = function["facts"]["name"].as_str().unwrap();
+    if name.ends_with("get") {
+        assert_eq!(function["outcome"], "excluded");
+        let binding = &function["nominal_unit_binding"];
+        assert_eq!(binding["identity"], rstyle_pdg::nominal_binding::IDENTITY);
+        assert_eq!(
+            binding["declarations"][0]["nominal"]["package_version"],
+            "2.3.4"
+        );
+        return Some(binding);
+    }
+    if name.ends_with("scalar") {
+        assert_eq!(function["outcome"], "admitted");
+        assert!(function.get("nominal_unit_binding").is_none());
+    } else {
+        assert!(name.ends_with("main"), "{function}");
+        assert_eq!(function["outcome"], "excluded", "{function}");
+        assert_eq!(
+            function["nominal_unit_binding"]["declarations"],
+            serde_json::json!([])
+        );
+    }
+
+    None
+}
+
+fn nominal_binding_workspace() -> TempDir {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(directory.path().join("Cargo.toml"), "[workspace]\nmembers = ['left', 'right']\nresolver = '2'\n[workspace.package]\nversion = '2.3.4'\n").unwrap();
+    for package in ["left", "right"] {
+        let root = directory.path().join(package);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(
+            root.join("Cargo.toml"),
+            format!("[package]\nname = '{package}'\nversion.workspace = true\nedition = '2021'\n"),
+        )
+        .unwrap();
+        std::fs::write(root.join("src/lib.rs"), "pub struct Counter { pub value: i32 }\nimpl Counter { pub fn get(&self) -> i32 { self.value } }\npub fn scalar(x: i32) -> i32 { x + 1 }\n").unwrap();
+    }
+
+    directory
+}
+
+#[test]
+fn clones_nominal_bindings_refresh_after_manifest_source_and_build_changes() {
+    let directory = clone_workspace();
+    write_nominal_getter(directory.path(), "i32");
+    let (output, before) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{before}");
+    let manifest = directory.path().join("Cargo.toml");
+    let revised = std::fs::read_to_string(&manifest)
+        .unwrap()
+        .replace("0.1.0", "0.2.0");
+    std::fs::write(manifest, revised).unwrap();
+    write_nominal_getter(directory.path(), "u32");
+    let (output, after) = clones(
+        directory.path(),
+        &["--release", "--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{after}");
+    check_nominal_refresh(&before, &after);
+}
+
+fn check_nominal_refresh(before: &Value, after: &Value) {
+    assert_ne!(before["run_directory"], after["run_directory"]);
+    for report in [before, after] {
+        assert_eq!(report["functions"].as_array().unwrap().len(), 1);
+        assert_eq!(report["functions"][0]["outcome"], "excluded");
+        assert_eq!(report["pair_evaluation_complete"], true);
+    }
+    let old = &before["functions"][0]["nominal_unit_binding"];
+    let new = &after["functions"][0]["nominal_unit_binding"];
+    for key in ["package_id", "manifest_digest", "build_digest"] {
+        assert_ne!(old[key], new[key], "{key}");
+    }
+    assert_ne!(
+        old["declarations"][0]["file_digest"],
+        new["declarations"][0]["file_digest"]
+    );
+    assert_eq!(
+        new["declarations"][0]["nominal"]["package_version"],
+        "0.2.0"
+    );
+    assert_eq!(
+        after["functions"][0]["facts"]["build"]["debug_assertions"]["value"],
+        false
+    );
+    check_refreshed_nominal_field(after);
+}
+
+fn write_nominal_getter(root: &Path, scalar: &str) {
+    std::fs::write(root.join("src/lib.rs"), format!("pub struct Counter {{ pub value: {scalar} }}\nimpl Counter {{ pub fn get(&self) -> {scalar} {{ self.value }} }}\n")).unwrap();
+}
+
+fn check_refreshed_nominal_field(report: &Value) {
+    use rstyle_pdg::concrete_types::{self, InterfaceObservations, Observation, TypeTree};
+    let observed: InterfaceObservations = serde_json::from_value(
+        report["functions"][0]["facts"]["build"]["frontend_options"][concrete_types::KEY].clone(),
+    )
+    .unwrap();
+    let Observation::Captured {
+        ty: TypeTree::Shared(referent),
+    } = &observed.parameters[0]
+    else {
+        panic!("{observed:?}")
+    };
+    let TypeTree::Struct { fields, .. } = referent.as_ref() else {
+        panic!("{referent:?}")
+    };
+    assert_eq!(fields[0].ty, TypeTree::Scalar("u32".into()));
 }

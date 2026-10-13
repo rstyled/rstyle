@@ -88,6 +88,8 @@ struct Function {
     reasons: Vec<String>,
     facts: HirFnFacts,
     document_manifest: Option<producer::Manifest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    nominal_unit_binding: Option<rstyle_pdg::nominal_binding::Binding>,
     projection_trace: Option<Value>,
     extraction_evidence: Option<Value>,
 }
@@ -219,18 +221,46 @@ fn consume_unit(
     result.source_inventory.extend(source_inventory(unit)?);
 
     let facts: Vec<HirFnFacts> = read_json(&unit.directory.join("facts.json"))?;
-    for (index, function) in facts.into_iter().enumerate() {
-        verify_frontend_invocation(&function, unit, capture)?;
+    for function in &facts {
+        verify_frontend_invocation(function, unit, capture)?;
+    }
+    let bindings = nominal_bindings(&facts, unit)?;
+    for (index, (function, binding)) in facts.into_iter().zip(bindings).enumerate() {
         let key = function_key(&function, unit, capture)?;
         if !result.keys.insert(key.clone()) {
             return Err(format!("duplicate function key {key}"));
         }
         let mut record = function_record(function, key, unit, index);
+        record.nominal_unit_binding = binding;
         let input = FunctionInput { unit, index, trace };
         let admission = consume_function(&mut record, &input);
         result.add(record, admission);
     }
     Ok(())
+}
+
+fn nominal_bindings(
+    facts: &[HirFnFacts],
+    unit: &capture::Unit,
+) -> Result<Vec<Option<rstyle_pdg::nominal_binding::Binding>>, String> {
+    if !unit
+        .extraction_profile
+        .supports("rust.verified-helper-calls")
+    {
+        return Ok(vec![None; facts.len()]);
+    }
+    let context = unit
+        .target
+        .package_context
+        .as_ref()
+        .ok_or("Missing selected Cargo package snapshot")?;
+    if context.package_id != unit.target.package
+        || context.manifest_path.parent() != Some(unit.target.manifest_dir.as_path())
+    {
+        return Err("Cargo package snapshot disagrees with selected target".into());
+    }
+
+    rstyle_pdg::nominal_binding::bind_unit(facts, context)
 }
 
 fn source_inventory(unit: &capture::Unit) -> Result<Option<Value>, String> {
@@ -263,6 +293,7 @@ fn function_record(
         reasons: Vec::new(),
         facts: function,
         document_manifest: None,
+        nominal_unit_binding: None,
         projection_trace: None,
         extraction_evidence: None,
     }
