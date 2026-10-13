@@ -19,7 +19,8 @@ pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
     verify_interface(facts, &source, &interface, resolution.as_ref())?;
 
     verify_fields(facts)?;
-    verify_nodes(&facts.body, facts)
+    let places = crate::data_places::Places::verify(facts)?;
+    verify_nodes(&facts.body, facts, &places)
 }
 
 fn nominal_resolution(
@@ -213,15 +214,24 @@ fn verify_output(
     )
 }
 
-fn verify_nodes(node: &HirNode, facts: &HirFnFacts) -> Result<(), String> {
+fn verify_nodes(
+    node: &HirNode,
+    facts: &HirFnFacts,
+    places: &crate::data_places::Places,
+) -> Result<(), String> {
     if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
         data_types::parse(token)?;
         if node.kind == "expr_path" {
             verify_path(node, facts, token)?;
         }
     }
-    let origins = crate::data_origins::origins(node, facts)?;
-    if node.kind.starts_with("expr_")
+    let origins = if places.contains(node) {
+        Vec::new()
+    } else {
+        crate::data_origins::origins(node, facts)?
+    };
+    if !places.contains(node)
+        && node.kind.starts_with("expr_")
         && node
             .ty
             .as_ref()
@@ -234,7 +244,7 @@ fn verify_nodes(node: &HirNode, facts: &HirFnFacts) -> Result<(), String> {
     }
 
     for child in &node.children {
-        verify_nodes(child, facts)?;
+        verify_nodes(child, facts, places)?;
     }
     Ok(())
 }

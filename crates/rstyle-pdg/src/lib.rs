@@ -15,6 +15,7 @@ mod cyclic_values;
 pub mod data_documents;
 pub mod data_frontend;
 pub mod data_origins;
+pub mod data_places;
 pub mod data_types;
 pub mod declaration_origins;
 pub mod eligibility;

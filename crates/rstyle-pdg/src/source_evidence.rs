@@ -72,11 +72,15 @@ pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
 
 impl Inventory<'_> {
     fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
-        if matches!(expression, syn::Expr::Field(_))
+        if matches!(expression, syn::Expr::Field(_) | syn::Expr::Reference(_))
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.concrete-read-only-data"))
         {
-            return Some("expr_field");
+            return Some(if matches!(expression, syn::Expr::Reference(_)) {
+                "expr_addr_of"
+            } else {
+                "expr_field"
+            });
         }
         expression_kind(expression)
     }

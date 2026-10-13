@@ -154,7 +154,9 @@ fn selected_expression(
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> bool {
     match kind {
-        ast::ExprKind::Field(..) => profile.supports("rust.concrete-read-only-data"),
+        ast::ExprKind::Field(..) | ast::ExprKind::AddrOf(..) => {
+            profile.supports("rust.concrete-read-only-data")
+        }
         ast::ExprKind::Call(..) => profile.supports("rust.verified-helper-calls"),
         ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
         ast::ExprKind::While(..)

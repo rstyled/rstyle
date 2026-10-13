@@ -12,9 +12,10 @@ parameters and shared outputs, scalar field projections on formal tuples, and
 branching between shared inputs. Concrete nominal struct parameters, shared
 receivers and nested formal field getters require the complete closed-source,
 lexical declaration and drop-free proof registered in `nominal-data-v1.md`.
-Construction, dereference, shared borrow, slicing and library operations remain
-unavailable until their source, type, origin, location and bounds obligations are
-implemented. No successful observation authorizes these operations.
+Shared borrows of verified formal field places are registered in
+`shared-field-borrows-v1.md`; they preserve address operations without value loads.
+Construction, dereference, local/temporary borrows, slicing and library operations
+remain unavailable until their complete obligations are implemented. No successful observation authorizes these operations.
 
 Data types use a deterministic compact JSON tagged tree for non-scalar interface
 strings. Scalar tokens retain existing widths and signedness. Trees distinguish
@@ -73,4 +74,5 @@ trait impls, derive/attribute expansions, macros (including invocations in bodie
 unsafe item forms, conditional/path module attributes and unresolved ownership.
 This first nominal boundary is deliberately conservative. Such items may exclude
 nominal functions without excluding independently supported scalar functions in
-the same unit. Construction and local/borrow operations remain unavailable.
+the same unit. Construction and local reference operations remain unavailable. Formal field
+borrows follow their separately specified source-place contract.

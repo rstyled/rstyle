@@ -263,6 +263,31 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
+    fn borrow(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let flow = self.field_place(&node.children[0], flow);
+        let operation = Operation {
+            operands: self.operand(&flow.value),
+            construct: Some("data.borrow".into()),
+            ..template(node, NodeCategory::Computation)
+        };
+        self.emit(operation, flow)
+    }
+
+    fn field_place(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let base = &node.children[0];
+        let flow = if base.kind == "expr_field" {
+            self.field_place(base, flow)
+        } else {
+            self.expression(base, flow)
+        };
+        let operation = Operation {
+            operands: self.operand(&flow.value),
+            construct: Some("data.place".into()),
+            ..template(node, NodeCategory::Computation)
+        };
+        self.emit(operation, flow)
+    }
+
     fn read_operation(&self, node: &HirNode) -> Operation {
         let target = node
             .res
@@ -853,6 +878,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "stmt_let" => Builder::declaration,
         "expr_path" => Builder::read,
         "expr_field" => Builder::field_read,
+        "expr_addr_of" => Builder::borrow,
         "expr_lit" | "expr_tup" => Builder::literal,
         "expr_binary"
             if node

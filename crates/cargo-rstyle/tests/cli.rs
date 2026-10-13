@@ -3230,8 +3230,14 @@ fn clones_data_is_opt_in_and_unsupported_type_effect_mixtures_remain_excluded() 
 
 #[test]
 fn clones_data_trace_collection_preserves_pair_decisions_on_fresh_warm_runs() {
+    for source in [DATA_TUPLE_FAMILY, DATA_BORROW_FAMILY] {
+        check_data_trace_invariance(source);
+    }
+}
+
+fn check_data_trace_invariance(source: &str) {
     let directory = clone_workspace();
-    std::fs::write(directory.path().join("src/lib.rs"), DATA_TUPLE_FAMILY).unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let (output, ordinary) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{ordinary}");
     let (output, traced) = clones(
@@ -3433,4 +3439,268 @@ fn clones_data_nominal_hidden_trait_and_expansion_items_remain_unavailable() {
         "admitted"
     );
     assert_eq!(report["assessment_complete"], true);
+}
+
+const DATA_BORROW_FAMILY: &str = "pub struct Inner { pub x: i32, pub y: i32, pub ok: bool }\npub struct Outer { pub inner: Inner }\nimpl Outer { pub fn inner(&self) -> &Inner { &self.inner } pub fn x(&self) -> &i32 { &self.inner.x } pub fn y(&self) -> &i32 { &self.inner.y } pub fn ok(&self) -> bool { self.inner.ok } }\npub fn choose<'a>(a: &'a Outer, b: &'a Outer, x: i32) -> &'a i32 { if positive(x) { &a.inner.x } else { &b.inner.x } }\npub fn choose_inner<'a>(a: &'a Outer, b: &'a Outer, flag: bool) -> &'a Inner { if flag { &a.inner } else { &b.inner } }\npub fn tuple_first(a: &(i32, bool)) -> &i32 { &a.0 }\npub fn positive(x: i32) -> bool { x > 0 }\n";
+
+#[test]
+fn clones_data_shared_field_borrows_preserve_places_origins_and_all_pairs() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), DATA_BORROW_FAMILY).unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 8);
+    assert!(
+        functions.iter().all(|f| f["outcome"] == "admitted"),
+        "{report}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 28);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    let getter = functions
+        .iter()
+        .find(|f| f["facts"]["name"] == "Outer::x")
+        .unwrap();
+    let projection = report["matching"]["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["key"] == getter["key"])
+        .unwrap();
+    // One binding read, two address projections, borrow and return, plus input.
+    // Only the binding is read; all five value edges and four execution edges remain.
+    assert_eq!(
+        projection["projection"]["features"],
+        serde_json::json!([0, 4, 5, 0, 0, 0, 0, 6, 1])
+    );
+    check_borrow_pair(&report, getter);
+    check_borrow_document_tampering(getter);
+    check_data_origins_tampering(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == "choose")
+            .unwrap(),
+    );
+}
+
+fn check_borrow_pair(report: &Value, getter: &Value) {
+    let other = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["facts"]["name"] == "Outer::y")
+        .unwrap();
+    let pair = report["matching"]["pairs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|pair| {
+            (pair["first"] == getter["key"] && pair["second"] == other["key"])
+                || (pair["first"] == other["key"] && pair["second"] == getter["key"])
+        })
+        .unwrap();
+    assert_eq!(pair["decision"], "Accepted");
+    assert_eq!(pair["stages"][6]["detail"]["score"], "1/1");
+}
+
+fn check_borrow_document_tampering(function: &Value) {
+    let (pair, facts) = data_pair(function);
+    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    for change in ["span", "type", "child"] {
+        let mut changed = facts.clone();
+        assert!(tamper_source_borrow(&mut changed.body, change));
+        assert!(
+            rstyle_pdg::data_frontend::verify(&changed).is_err(),
+            "{change}"
+        );
+    }
+    let place = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.annotations.contains_key(rstyle_pdg::data_places::KEY))
+        .unwrap();
+    let borrow = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| {
+            node.category == rstyle_pdg::NodeCategory::Computation
+                && node.original_kind.known_value() == Some("expr_addr_of")
+        })
+        .unwrap();
+    for change in ["place", "read", "operator", "origin", "operand", "position"] {
+        let mut changed = rstyle_pdg::producer::Pair {
+            pdg: pair.pdg.clone(),
+            cfg: pair.cfg.clone(),
+        };
+        tamper_borrow_document(&mut changed, place, borrow, change);
+        assert!(
+            rstyle_pdg::data_documents::verify(&changed, &facts).is_err(),
+            "{change}"
+        );
+    }
+}
+
+fn tamper_source_borrow(node: &mut rstyle_pdg::HirNode, change: &str) -> bool {
+    if node.kind == "expr_addr_of" {
+        match change {
+            "span" => node.span.start += 1,
+            "type" => {
+                node.ty.as_mut().unwrap().normalized =
+                    Some(r#"{"kind":"shared","value":{"kind":"scalar","value":"bool"}}"#.into())
+            }
+            "child" => node.children[0].kind = "expr_path".into(),
+            _ => unreachable!(),
+        }
+        return true;
+    }
+    node.children
+        .iter_mut()
+        .any(|child| tamper_source_borrow(child, change))
+}
+
+fn tamper_borrow_document(
+    pair: &mut rstyle_pdg::producer::Pair,
+    place: &rstyle_pdg::PdgNode,
+    borrow: &rstyle_pdg::PdgNode,
+    change: &str,
+) {
+    if matches!(change, "operand" | "position") {
+        let edge = pair
+            .pdg
+            .edges
+            .iter_mut()
+            .find(|edge| edge.target == borrow.id && edge.subkind == "value_operand")
+            .unwrap();
+        if change == "operand" {
+            edge.source = place.id.clone();
+        } else {
+            edge.operand_position = Some(1);
+        }
+        return;
+    }
+    let node = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| {
+            &node.id
+                == if change == "place" || change == "read" {
+                    &place.id
+                } else {
+                    &borrow.id
+                }
+        })
+        .unwrap();
+    match change {
+        "place" => {
+            node.annotations
+                .insert(rstyle_pdg::data_places::KEY.into(), "false-location".into());
+        }
+        "read" => node.attributes.reads.push(rstyle_pdg::Access {
+            symbol_id: Some("invented".into()),
+            location_id: None,
+            operand_position: Some(0),
+            unresolved_reason: None,
+        }),
+        "operator" => node.attributes.operator = Some(rstyle_pdg::StringFact::known("+")),
+        "origin" => {
+            node.annotations
+                .insert(rstyle_pdg::data_origins::KEY.into(), serde_json::json!([]));
+        }
+        _ => unreachable!(),
+    }
+}
+
+#[test]
+fn clones_data_unavailable_borrow_places_and_legacy_profiles_fail_closed() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub struct Ref { pub value: &'static i32 }\npub fn reference_field(value: &Ref) -> &&'static i32 { &value.value }\npub fn temporary(x: i32) -> i32 { let reference = &x; *reference }\npub fn mutable(value: &mut i32) -> &i32 { &*value }\npub fn scalar(x: i32) -> i32 { x }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        1
+    );
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["outcome"] == "excluded")
+            .count(),
+        3
+    );
+    assert_eq!(report["assessment_complete"], true);
+    std::fs::write(directory.path().join("src/lib.rs"), DATA_BORROW_FAMILY).unwrap();
+    let (output, legacy) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{legacy}");
+    let functions = legacy["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["outcome"] == "excluded")
+            .count(),
+        7
+    );
+    assert_eq!(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == "positive")
+            .unwrap()["outcome"],
+        "admitted"
+    );
+}
+
+#[test]
+fn clones_data_field_borrows_preserve_array_slice_and_str_referents() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub struct Fixed { pub bytes: [u8; 8] }\npub struct Slice { pub bytes: [u8] }\npub struct Text { pub text: str }\nimpl Fixed { pub fn bytes(&self) -> &[u8; 8] { &self.bytes } }\nimpl Slice { pub fn bytes(&self) -> &[u8] { &self.bytes } }\nimpl Text { pub fn text(&self) -> &str { &self.text } }\npub fn unsize(value: &Fixed) -> &[u8] { &value.bytes }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        3,
+        "{report}"
+    );
+    assert_eq!(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == "unsize")
+            .unwrap()["outcome"],
+        "excluded"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    for function in functions.iter().filter(|f| f["outcome"] == "admitted") {
+        let (pair, facts) = data_pair(function);
+        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+        assert_eq!(pair.pdg.function.reference_count.value, Some(1));
+        assert!(
+            pair.pdg
+                .nodes
+                .iter()
+                .filter(
+                    |node| node.original_kind.known_value() == Some("expr_field")
+                        && node.category == rstyle_pdg::NodeCategory::Computation
+                )
+                .all(|node| node.attributes.reads.is_empty())
+        );
+    }
 }

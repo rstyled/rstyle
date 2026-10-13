@@ -244,6 +244,8 @@ inputs may alias. Borrowed value origins are checked against both original sourc
 and serialized value dependencies. Non-scalar interfaces use deterministic type
 trees; reference mutability, referents, widths and array lengths are preserved.
 
+Shared field borrows preserve exact locations and borrowed outputs, including
+conditional outputs. Their address projections do not invent referent reads.
 Aggregate construction, local reference rebindings,
 read-only library summaries, slice indexing/subslicing, and assertions are still
 unavailable in this implementation. Their observations do not admit them. This

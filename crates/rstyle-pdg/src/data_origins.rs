@@ -40,6 +40,7 @@ pub fn origins(node: &HirNode, facts: &HirFnFacts) -> Result<Vec<Origin>, String
     let origins = match node.kind.as_str() {
         "expr_path" => formal(node, facts, &ty)?,
         "expr_field" => field(node, facts, &ty)?,
+        "expr_addr_of" => vec![crate::data_places::borrow_origin(node, facts)?],
         "expr_block" | "expr_ret" => {
             let value = node
                 .children

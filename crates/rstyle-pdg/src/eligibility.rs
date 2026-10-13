@@ -643,7 +643,7 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         _ => check_expr_ty(node, "data_value"),
     };
     match node.kind.as_str() {
-        "expr_field" => Some(ty()),
+        "expr_field" | "expr_addr_of" => Some(ty()),
         "expr_block" if !node.is_unsafe_block => Some(ty()),
         "expr_ret" | "ty_annotation" => Some(ty()),
         "expr_if"

@@ -305,9 +305,50 @@ vendored schemas. Logs: `target/nominal-api-workspace-final.log`,
 `nominal-api-{inventory,scripting}.log`; the earlier failed feature assertion and
 warm-run diagnostic remain in `nominal-api-workspace.log`.
 
-Remaining: construction; local values/references and explicit borrows/dereferences;
+Remaining after the nominal slice: construction; local values/references and explicit borrows/dereferences;
 read-only slice/string operations; reference-aware read-only method/cross-unit
 summaries; assertions, constants/patterns and cyclic correspondence; broader frozen
 natural applicability inventory/targets. The original whole goal is still active.
 Historical selected definitions, denominators, R0/expanded evidence and vendored
 contracts are unchanged. No thresholds were tuned or mining/grouping activated.
+
+Connected shared-field borrow slice (implementation baseline `eb658c4`, contract
+frozen in `f49c5eb`): original immutable field borrows now cross the real data
+command and independent serialized verification. Nested address projections are
+source-backed computations with exact formal locations, not invented field-value
+loads. Borrow origins retain the projected input location without appending a
+dereference. Shared roots conservatively may alias. Reference-bearing targets,
+local/temporary/mutable/raw borrows, indexing, explicit dereferences and array-to-
+slice coercions remain unavailable.
+
+The eight-function fixture combines shared receivers, nested struct/tuple places,
+conditional borrowed outputs and a verified scalar predicate call. All eight
+functions admit/project and all 28 unordered pairs receive decisions. Independent
+getter features are `[0,4,5,0,0,0,0,6,1]`; compatible scalar getters score exactly
+`1/1`. A separate fixed-array/unsized-slice/str field-borrow fixture admits three
+functions and decides all three pairs. Tampered source ranges/types, place roles,
+effects, locations, origins and operand positions fail closed. Trace on/off
+outcomes agree for both the earlier tuple family and the new borrow family.
+These disclosed fixtures are correctness evidence, not natural coverage gains.
+
+Validation: workspace tests passed 562 tests, zero failures/ignored, including all
+86 real-command tests. After strengthening only the fixture with the predicate
+call, all eight Data real-command tests passed again. Formatting and workspace
+all-target clippy passed. Repository style reports 1,578 functions and zero
+violations; patterns reports zero candidates. Inventory tests: 11 passed;
+study/harness tests: 43 passed. The initial Python attempts lacked inventory
+dependencies and the Cargo PATH respectively; both were rerun successfully.
+A fresh six-function smoke run completed capture, assessment, enumeration and
+evaluation, admitting all six; all twelve paired documents passed the unchanged
+vendored schemas with jsonschema 4.25.1. Evidence is in
+`target/shared-field-borrow-{workspace,data-final,clippy-final}.log`,
+`shared-field-borrow-{inventory,scripting}-final.log`,
+`shared-field-borrow-{style,patterns}.json`, and
+`shared-field-borrow-smoke-final.json`.
+
+Remaining: aggregate construction and local bindings; stored shared-reference
+field origins and lifetime-only nominal declarations; read-only slice/string
+operations; reference-aware method/cross-unit summaries; assertions, scalar
+constants/patterns and cyclic correspondence; broader frozen natural inventory
+and admission targets. Data admission as a whole is not complete. Historical
+denominators and contracts remain unchanged.

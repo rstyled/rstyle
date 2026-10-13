@@ -1,5 +1,6 @@
 //! Data location transport and independent serialized semantic checks.
 
+mod borrows;
 mod origins;
 
 use crate::{HirFnFacts, NodeCategory, field_locations::*, producer::Pair};
@@ -41,15 +42,22 @@ fn install_field(
         .nodes
         .iter_mut()
         .find(|node| {
-            node.category == NodeCategory::Read
-                && node.original_kind.known_value() == Some("expr_field")
+            matches!(
+                node.category,
+                NodeCategory::Read | NodeCategory::Computation
+            ) && node.original_kind.known_value() == Some("expr_field")
                 && node.source_span.as_ref().is_some_and(|span| {
                     span.start == u64::from(field.span.start)
                         && span.end == u64::from(field.span.end)
                 })
         })
         .ok_or("Missing lowered field read")?;
-    node.attributes.reads[0].location_id = Some(id.clone());
+    if node.category == NodeCategory::Computation {
+        node.annotations
+            .insert(crate::data_places::KEY.into(), json!(id));
+    } else {
+        node.attributes.reads[0].location_id = Some(id.clone());
+    }
 
     Ok((id, location))
 }
@@ -189,6 +197,7 @@ pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
     }
 
     verify_reads(pair, fields.operations.len())?;
+    borrows::verify(pair, facts)?;
     origins::verify(pair, facts)
 }
 
@@ -203,8 +212,10 @@ fn verify_field(
         .nodes
         .iter()
         .filter(|node| {
-            node.category == NodeCategory::Read
-                && node.original_kind.known_value() == Some("expr_field")
+            matches!(
+                node.category,
+                NodeCategory::Read | NodeCategory::Computation
+            ) && node.original_kind.known_value() == Some("expr_field")
                 && node.source_span.as_ref().is_some_and(|span| {
                     span.start == u64::from(field.span.start)
                         && span.end == u64::from(field.span.end)
@@ -216,12 +227,18 @@ fn verify_field(
     };
 
     let (id, location) = location(field, facts)?;
-    if node.category != NodeCategory::Read
-        || node.attributes.reads.len() != 1
-        || node.attributes.reads[0].location_id.as_ref() != Some(&id)
-        || !node.attributes.writes.is_empty()
-    {
-        return Err("Serialized field read has incorrect location/effects".into());
+    let places = crate::data_places::Places::verify(facts)?;
+    let source = origins::source_node(node, facts)?;
+    if places.contains(source) {
+        borrows::verify_place(node, &id)?;
+    } else {
+        if node.category != NodeCategory::Read
+            || node.attributes.reads.len() != 1
+            || node.attributes.reads[0].location_id.as_ref() != Some(&id)
+            || !node.attributes.writes.is_empty()
+        {
+            return Err("Serialized field read has incorrect location/effects".into());
+        }
     }
 
     verify_field_operands(pair, facts, field, node)?;
@@ -235,8 +252,10 @@ fn verify_reads(pair: &Pair, fields: usize) -> Result<(), String> {
         .nodes
         .iter()
         .filter(|node| {
-            node.category == NodeCategory::Read
-                && node.original_kind.known_value() == Some("expr_field")
+            matches!(
+                node.category,
+                NodeCategory::Read | NodeCategory::Computation
+            ) && node.original_kind.known_value() == Some("expr_field")
         })
         .count()
         != fields
@@ -295,6 +314,14 @@ fn verify_field_root(
         return Err("Missing formal field origin".into());
     };
     let root = &facts.signature.params[parameter as usize].symbol;
+    if node.category == NodeCategory::Computation {
+        return if node.attributes.symbol_ids.is_empty() {
+            Ok(())
+        } else {
+            Err("Place projection invents a binding read".into())
+        };
+    }
+
     if node.attributes.reads[0].symbol_id.as_ref() != Some(root)
         || node.attributes.symbol_ids != [root.clone()]
         || node.attributes.construct.as_deref() != Some("data.field")
@@ -322,8 +349,10 @@ fn field_base<'a>(
         .nodes
         .iter()
         .filter(|candidate| {
-            candidate.category == NodeCategory::Read
-                && candidate.original_kind.known_value() == Some(base.kind.as_str())
+            matches!(
+                candidate.category,
+                NodeCategory::Read | NodeCategory::Computation
+            ) && candidate.original_kind.known_value() == Some(base.kind.as_str())
                 && candidate.source_span.as_ref().is_some_and(|span| {
                     span.start == u64::from(base.span.start) && span.end == u64::from(base.span.end)
                 })

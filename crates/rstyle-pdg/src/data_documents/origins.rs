@@ -49,6 +49,9 @@ pub(super) fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
 }
 
 fn reference(node: &PdgNode) -> Result<bool, String> {
+    if node.annotations.contains_key(crate::data_places::KEY) {
+        return Ok(false);
+    }
     let token = wire_type(node)?;
     Ok(data_origins::shared(&crate::data_types::parse(&token)?))
 }
@@ -106,6 +109,11 @@ fn graph_origins(
     facts: &HirFnFacts,
     visiting: &mut BTreeSet<String>,
 ) -> Result<Vec<Origin>, String> {
+    if node.category == NodeCategory::Computation
+        && node.original_kind.known_value() == Some("expr_addr_of")
+    {
+        return super::borrows::graph_origin(node, pair).map(|origin| vec![origin]);
+    }
     if node.category == NodeCategory::FormalInput
         || node.original_kind.known_value() == Some("expr_field")
             && node.category == NodeCategory::Read
