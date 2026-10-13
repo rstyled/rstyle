@@ -1,5 +1,6 @@
 //! Opt-in R0 frontend; the legacy extraction path stays independent.
 
+mod concrete_types;
 mod evidence;
 mod hir;
 pub mod output;
@@ -16,9 +17,9 @@ pub fn crate_facts(
 ) -> Result<Vec<HirFnFacts>, String> {
     let mut facts = tcx.hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
-        .map(|id| function(tcx, id, scanned, invocation).ok_or_else(|| format!(
+        .map(|id| function(tcx, id, scanned, invocation).and_then(|facts| facts.ok_or_else(|| format!(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
-        )))
+        ))))
         .collect::<Result<Vec<_>, _>>()?;
     if facts.first().is_some_and(|fact| {
         rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(fact)
@@ -35,7 +36,22 @@ fn function(
     id: LocalDefId,
     scanned: &[source::Function],
     invocation: &[String],
-) -> Option<HirFnFacts> {
+) -> Result<Option<HirFnFacts>, String> {
+    let Some((mut facts, ctx)) = function_source(tcx, id, scanned, invocation) else {
+        return Ok(None);
+    };
+    concrete_types::capture(&ctx, &mut facts)?;
+    capture_correspondence(&mut facts);
+
+    Ok(Some(facts))
+}
+
+fn function_source<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    id: LocalDefId,
+    scanned: &[source::Function],
+    invocation: &[String],
+) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
     let node = tcx.hir_node_by_def_id(id);
     let sig = node.fn_sig()?;
     let body = tcx.hir_body(node.body_id()?);
@@ -60,7 +76,7 @@ fn function(
     let scan = find_source_scan(&ctx, scanned, body_source_span(tcx, id));
     let source_diagnostics = source_findings(&ctx, scan, sig.span);
 
-    let mut facts = HirFnFacts {
+    let facts = HirFnFacts {
         name: tcx.def_path_str(id.to_def_id()),
         fn_span,
         source: SourceFacts {
@@ -74,9 +90,7 @@ fn function(
         source_diagnostics,
         source_scan_complete: scan.is_some_and(|scan| !scan.conditional_source),
     };
-    capture_correspondence(&mut facts);
-
-    Some(facts)
+    Some((facts, ctx))
 }
 
 fn body_source_span(tcx: TyCtxt<'_>, id: LocalDefId) -> rustc_span::Span {

@@ -151,6 +151,10 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
 }
 
 fn offset(source: &str, position: proc_macro2::LineColumn) -> u32 {
+    u32::try_from(byte_offset(source, position)).unwrap_or(u32::MAX)
+}
+
+pub(crate) fn byte_offset(source: &str, position: proc_macro2::LineColumn) -> usize {
     let prefix: usize = source
         .split_inclusive('\n')
         .take(position.line.saturating_sub(1))
@@ -162,7 +166,7 @@ fn offset(source: &str, position: proc_macro2::LineColumn) -> u32 {
         .nth(position.column)
         .map_or(line.len(), |(offset, _)| offset);
 
-    u32::try_from(prefix + column).unwrap_or(u32::MAX)
+    prefix + column
 }
 
 impl Inventory<'_> {

@@ -153,3 +153,14 @@ is a separate inventory unless its original run identity can be recovered.
 This work authorizes coverage/correctness only. Mining, grouping, proposals,
 rewriting and calibration remain inactive. A later quality study requires separate
 preregistration and untouched project/family holdouts with sufficient natural pairs.
+
+## Implementation progress (not acceptance)
+
+The separate [helper slice](helpers-v1.md) now registers `hir-helpers-v1` for
+verified same-unit scalar call families. It does not register this data draft.
+[Concrete type capture](concrete-type-capture-v1.md) is an observational prerequisite
+for rejected interfaces, not read-only API admission. Location/effect verification,
+data lowering and the matching extension remain required before this tier can
+reach evaluation. No broader applicability inventory or numerical measurement has
+yet been frozen or executed. Neither intermediate slice satisfies this PR's
+two-tier completion criteria.

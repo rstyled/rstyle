@@ -91,3 +91,12 @@ Cargo tests passed, including two added tests. `cargo fmt --all -- --check` and
 tests passed 11 tests using the reproduction protocol's pinned Python dependencies.
 These commands use the pinned compiler, with Cargo available through
 `PATH=/home/dev/.cargo/bin:$PATH` in this environment.
+
+Final branch validation after the concrete observation prerequisite passed 511
+workspace tests in 25 suites. The repository-built command, selected with
+`PATH="$PWD/target/debug:/home/dev/.cargo/bin:$PATH"`, also admitted the documented
+six-function correctness family and evaluated all 15 pairs. An independent Python
+JSON Schema validator checked all 12 resulting documents against the unchanged
+vendored schemas and checked their SHA-256 entries in the external manifests.
+This six-function fixture is distinct from the unidentified user-observed 6/50
+inventory. No natural-crate admission target or detection-quality claim follows.

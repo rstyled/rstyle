@@ -2241,6 +2241,131 @@ fn clones_helpers_resource_budget_is_incomplete_execution() {
 }
 
 #[test]
+fn clones_helpers_capture_concrete_interfaces_without_admitting_data_functions() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        format!("\u{feff}{}", "pub struct Inner { pub value: i32 }\npub struct Outer {\n pub inner: Inner,\n pub pair: (i16, bool),\n pub bytes: [u8; 3]\n}\nimpl Outer { pub fn get(&self) -> i32 { self.inner.value } pub fn borrow(&self) -> &Inner { &self.inner } }\npub fn alias(a: &Outer, b: &Outer) -> bool { a.inner.value == b.inner.value }\npub struct NeedsDrop;\nimpl Drop for NeedsDrop { fn drop(&mut self) {} }\npub fn drop_input(_: &NeedsDrop) {}\npub fn cell_input(_: &std::cell::Cell<i32>) {}\npub fn bytes(x: &[u8]) -> usize { x.len() }\npub fn text(x: &str) -> usize { x.len() }\n".replace('\n', "\r\n"))).unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert!(
+        functions
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{report}"
+    );
+    for function in functions {
+        let value =
+            &function["facts"]["build"]["frontend_options"][rstyle_pdg::concrete_types::KEY];
+        let observations: rstyle_pdg::concrete_types::InterfaceObservations =
+            serde_json::from_value(value.clone()).unwrap();
+        observations.validate().unwrap();
+        check_concrete_interface(&function["facts"]["name"], &observations);
+    }
+    assert_eq!(report["pair_evaluation_complete"], true);
+    assert_eq!(report["matching"]["pairs"], serde_json::json!([]));
+}
+
+fn check_concrete_interface(
+    name: &Value,
+    observations: &rstyle_pdg::concrete_types::InterfaceObservations,
+) {
+    use rstyle_pdg::concrete_types::{Observation, TypeTree};
+    let name = name.as_str().unwrap();
+    let observed = &observations.parameters[0];
+    if name == "drop_input" || name == "cell_input" || name.ends_with("::drop") {
+        assert!(
+            matches!(observed, Observation::Unsupported { .. }),
+            "{observations:?}"
+        );
+    } else {
+        let Observation::Captured {
+            ty: TypeTree::Shared(referent),
+        } = observed
+        else {
+            panic!("Missing shared concrete interface: {observations:?}");
+        };
+        match name {
+            "bytes" => assert_eq!(
+                **referent,
+                TypeTree::Slice(Box::new(TypeTree::Scalar("u8".into())))
+            ),
+            "text" => assert_eq!(**referent, TypeTree::Str),
+            _ => check_nested_concrete_type(referent),
+        }
+    }
+}
+
+fn check_nested_concrete_type(tree: &rstyle_pdg::concrete_types::TypeTree) {
+    use rstyle_pdg::concrete_types::TypeTree;
+    let TypeTree::Struct {
+        nominal,
+        source,
+        fields,
+    } = tree
+    else {
+        panic!("{tree:?}")
+    };
+    assert_eq!(nominal.definition_path.rsplit("::").next(), Some("Outer"));
+    assert!(source.contains("\r\n"));
+    assert_eq!(
+        nominal.declaration_digest,
+        rstyle_pdg::concrete_types::digest(source.as_bytes())
+    );
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>(),
+        ["inner", "pair", "bytes"]
+    );
+    let TypeTree::Struct { fields: inner, .. } = &fields[0].ty else {
+        panic!("{tree:?}")
+    };
+    assert_eq!(inner[0].name, "value");
+    assert_eq!(inner[0].ty, TypeTree::Scalar("i32".into()));
+    assert_eq!(
+        fields[1].ty,
+        TypeTree::Tuple(vec![
+            TypeTree::Scalar("i16".into()),
+            TypeTree::Scalar("bool".into())
+        ])
+    );
+    assert_eq!(
+        fields[2].ty,
+        TypeTree::Array {
+            element: Box::new(TypeTree::Scalar("u8".into())),
+            length: 3
+        }
+    );
+}
+
+#[test]
+fn clones_helpers_concrete_capture_budget_is_not_an_exclusion() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn large(_: &[u8; 4097]) {}\n",
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(!output.status.success());
+    assert_eq!(report["capture_complete"], false);
+    assert_eq!(report["assessment_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(
+        format!("{} {report}", String::from_utf8_lossy(&output.stderr)).contains("budget"),
+        "{report}"
+    );
+}
+
+#[test]
 fn clones_expanded_multi_package_targets_are_exhaustive_and_schedule_invariant() {
     let directory = expanded_multi_package_workspace();
     let (output, concurrent) = clones(
