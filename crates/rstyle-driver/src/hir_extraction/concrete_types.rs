@@ -154,8 +154,8 @@ impl<'tcx> Capture<'_, 'tcx> {
             node.ty.as_mut().expect("present type").normalized = token;
         }
         self.child_tokens(&mut node.children)?;
-        if node.kind == "expr_method_call" {
-            install_method_tokens(node);
+        if matches!(node.kind.as_str(), "expr_method_call" | "expr_call") {
+            install_call_tokens(node);
         }
         Ok(())
     }
@@ -537,7 +537,7 @@ fn interface_tokens(
     Ok(())
 }
 
-fn install_method_tokens(node: &mut rstyle_pdg::HirNode) {
+fn install_call_tokens(node: &mut rstyle_pdg::HirNode) {
     let arguments: Option<Vec<_>> = node
         .children
         .iter()

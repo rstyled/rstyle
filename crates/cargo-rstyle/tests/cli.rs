@@ -4473,6 +4473,72 @@ fn clones_data_length_family_composes_fields_calls_loops_and_borrowed_branches()
     assert_eq!(pair_decisions(&report), pair_decisions(&warm));
 }
 
+#[test]
+fn clones_data_verifies_memory_free_shared_argument_helper_families() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub mod predicates { pub fn short(value: &[u8]) -> bool { value.len() < 8 } }\nuse predicates::short as small;\npub fn first(value: &[u8]) -> bool { predicates::short(value) }\npub fn second(value: &[u8]) -> bool { small(value) }\npub fn third(value: &[u8]) -> bool { first(value) }\npub fn empty(value: &str) -> bool { value.is_empty() }\npub fn text(value: &str) -> bool { empty(value) }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 6);
+    for function in functions {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+        let (pair, facts) = data_pair(function);
+        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    check_shared_helper_dependency(&report);
+    let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{warm}");
+    assert_eq!(pair_decisions(&report), pair_decisions(&warm));
+}
+
+fn check_shared_helper_dependency(report: &Value) {
+    let wrapper = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "third")
+        .unwrap();
+    let (_, facts) = data_pair(wrapper);
+    assert!(rstyle_pdg::helper_calls::native_width(&facts).unwrap());
+    for corruption in ["manifest", "source", "signature", "effects"] {
+        let mut changed = facts.clone();
+        assert!(corrupt_helper(&mut changed.body, corruption));
+        assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    }
+}
+
+#[test]
+fn clones_data_shared_helpers_keep_memory_reads_and_borrowed_results_closed() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub struct Data { pub field: u8 }\npub fn getter(value: &Data) -> u8 { value.field }\npub fn caller(value: &Data) -> u8 { getter(value) }\npub fn identity(value: &str) -> &str { value }\npub fn borrowed(value: &str) -> &str { identity(value) }\npub fn recursive(value: &[u8]) -> bool { recursive(value) }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{report}");
+    for function in report["functions"].as_array().unwrap() {
+        let expected = match function["facts"]["name"].as_str().unwrap() {
+            "getter" | "identity" => "admitted",
+            "caller" | "borrowed" | "recursive" => "excluded",
+            name => panic!("Unexpected function {name}"),
+        };
+        assert_eq!(function["outcome"], expected, "{function}");
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+    assert_eq!(report["pair_evaluation_complete"], true);
+}
+
 fn check_length_document_tampering(
     pair: &rstyle_pdg::producer::Pair,
     facts: &rstyle_pdg::HirFnFacts,

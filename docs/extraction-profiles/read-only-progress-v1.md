@@ -632,6 +632,34 @@ tagged width evidence, grouped borrow parsing and style/clippy assumptions were
 corrected before the full successful run; failure logs remain available.
 No thresholds, suppressions, ignore entries or vendored artifacts changed.
 
+## Memory-free helpers with shared inputs
+
+The continuation at `37360b1` froze `read-only-helper-calls-v1.md` before expanding
+the call boundary. Recursive Data type-tree native-width checks now propagate
+through verified helper dependencies; malformed tokens fail verification and
+historical scalar interpretation remains unchanged. Data direct-call dispatch
+uses canonical child/result tokens, as registered metadata methods already do.
+Shared inputs with scalar/unit results can consequently cross the existing
+memory-free, nonpanicking, returning, same-unit acyclic helper boundary.
+
+A six-function real Cargo family composes slice/str metadata with qualified paths,
+an import alias and a three-level helper chain. All six functions admit and all
+fifteen pairs receive decisions; fresh trace and warm untraced decisions agree.
+Transitive manifest/source/signature/effect tampering fails producer verification.
+A separate mixture admits its field getter and shared identity body but excludes
+the memory-reading caller, borrowed-result caller and recursive caller; its single
+admitted-function pair receives a decision. These are correctness fixtures only.
+Memory-reading callees, borrowed call results, inherent-method helper dispatch,
+generics and cross-unit dependencies remain unavailable. The next borrowed-result
+contract is specified prospectively without claiming implementation admission.
+
+Validation: `cargo test --workspace --locked` passed 585 tests, zero failed/ignored,
+including all 102 real-command tests. Inventory and harness suites passed eleven
+and forty-three tests. Workspace fmt and all-target clippy passed. Style reports
+1,638 functions and zero violations; patterns
+reports zero candidates. Logs are `target/data-shared-helpers-{workspace,inventory,
+scripting,style,patterns,real,negative}.log` (style/patterns use `.json`).
+
 Whole Data admission remains incomplete. Outstanding work includes reference-aware
 verified calls across modules/packages, aggregate construction/local reference
 bindings, element reads/subslicing/checked Option, assertion provenance, scalar

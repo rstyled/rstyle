@@ -51,6 +51,10 @@ writes, no claim of disjointness and no invented memory-summary node. Copying a
 shared reference is a binding read, not a read of its referent. Borrowed outputs
 must retain verified origins in shared formals, including all branch alternatives.
 Unknown calls and unresolved reference origins exclude the entire function.
+Direct same-unit verified memory-free helpers may take supported shared inputs
+and return scalars/unit; canonical resolved call signatures must match every
+actual argument. They retain the historical helper summary boundary and do not
+authorize referent reads, borrowed results, generics or inherent-method calls.
 The prospective reference-aware helper/method boundary is frozen separately in
 `read-only-helper-calls-v1.md`; it remains unavailable until its read-location and
 return-origin verification is connected. Existing scalar helper admission does

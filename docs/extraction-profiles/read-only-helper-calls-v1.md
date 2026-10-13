@@ -6,6 +6,27 @@ extension of `rstyle.rust.hir-data/1.0.0` and `rstyle.ccgraph.data/1.0.0` only.
 Implementation slices must retain explicit exclusions until the complete evidence
 boundary below crosses the real Cargo command and independent verification.
 
+The narrower existing memory-free helper boundary now accepts canonical Data
+shared-reference argument tokens with scalar/unit results. Callees still require
+verified empty memory-location inventories, nonpanicking returning acyclic flow,
+no generics and same-unit dependency evidence. This subset retains
+`rstyle.helper.source-body/1`: shared arguments alone do not imply referent reads.
+Registered slice/str metadata summaries can occur in those bodies. It does not
+admit field-reading callees, borrowed call results or inherent-method dispatch.
+
+The next bounded borrowed-result slice uses identity
+`rstyle.helper.shared-return/1` and an optional exact `reference_outputs` summary
+field. It is restricted to a single shared-reference result, no callee memory
+locations, and return origins that are whole shared formal referents of exactly
+the result type. The field is omitted for historical scalar/unit summaries.
+Verified callee RETURN annotations determine the complete sorted origin set;
+independent callee source/graph verification remains mandatory. Substitute only
+those selected actual argument origins, never all reference-valued operands.
+Source and serialized graph verifiers must check that same substitution through
+the exact CALL operand positions. Aggregate-valued result components, projected
+callee origins and stored-reference callee reads remain outside this slice.
+This prospective slice is unavailable until its connected implementation/tests.
+
 ## Scope and resolved identities
 
 Direct functions and inherent methods in the selected compilation unit may use
