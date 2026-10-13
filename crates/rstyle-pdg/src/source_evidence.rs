@@ -98,12 +98,24 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
         if let Some(kind) = kind {
             self.add(kind, expression.span());
         }
+
         if matches!(
             expression,
             syn::Expr::Closure(_) | syn::Expr::Async(_) | syn::Expr::Const(_)
         ) {
             return;
         }
+        if let syn::Expr::Call(call) = expression
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
+            && matches!(&*call.func, syn::Expr::Path(_))
+        {
+            for argument in &call.args {
+                self.visit_expr(argument);
+            }
+            return;
+        }
+
         visit::visit_expr(self, expression);
     }
 
@@ -139,6 +151,10 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
 }
 
 fn offset(source: &str, position: proc_macro2::LineColumn) -> u32 {
+    u32::try_from(byte_offset(source, position)).unwrap_or(u32::MAX)
+}
+
+pub(crate) fn byte_offset(source: &str, position: proc_macro2::LineColumn) -> usize {
     let prefix: usize = source
         .split_inclusive('\n')
         .take(position.line.saturating_sub(1))
@@ -150,7 +166,7 @@ fn offset(source: &str, position: proc_macro2::LineColumn) -> u32 {
         .nth(position.column)
         .map_or(line.len(), |(offset, _)| offset);
 
-    u32::try_from(prefix + column).unwrap_or(u32::MAX)
+    prefix + column
 }
 
 impl Inventory<'_> {
@@ -236,6 +252,7 @@ pub fn diagnostics(facts: &HirFnFacts) -> Vec<crate::HirDiagnostic> {
         return Vec::new();
     };
     inventory.entries.into_iter().filter_map(|entry| {
+        if entry.kind == "expr_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-helper-calls")) { return None; }
         if entry.kind == "expr_method_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-primitive-summaries"))
             && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir)) { return None; }
         let capability = match entry.kind.as_str() {
@@ -258,6 +275,9 @@ pub struct SourceDefinition {
     pub name: String,
     pub span: ByteSpan,
     pub source: String,
+    /// Exact signature/body ownership, excluding documentation and attributes.
+    pub function_span: ByteSpan,
+    pub function_source: String,
 }
 
 struct Definitions<'a> {
@@ -276,7 +296,7 @@ pub fn functions(source: &str) -> Result<Vec<SourceDefinition>, String> {
 }
 
 impl Definitions<'_> {
-    fn add(&mut self, name: &syn::Ident, span: proc_macro2::Span) {
+    fn add(&mut self, name: &syn::Ident, span: proc_macro2::Span, owned: proc_macro2::Span) {
         let start = offset(self.source, span.start());
         let end = offset(self.source, span.end());
         self.entries.push(SourceDefinition {
@@ -287,24 +307,60 @@ impl Definitions<'_> {
                 .get(start as usize..end as usize)
                 .unwrap_or_default()
                 .into(),
+            function_span: ByteSpan {
+                start: offset(self.source, owned.start()),
+                end: offset(self.source, owned.end()),
+            },
+            function_source: self
+                .source
+                .get(
+                    offset(self.source, owned.start()) as usize
+                        ..offset(self.source, owned.end()) as usize,
+                )
+                .unwrap_or_default()
+                .into(),
         });
     }
 }
 
 impl<'ast> Visit<'ast> for Definitions<'_> {
     fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
-        self.add(&function.sig.ident, function.span());
+        let owned = owned_function_span(&function.vis, &function.sig, function.block.span());
+        self.add(&function.sig.ident, function.span(), owned);
+        self.visit_block(&function.block);
     }
 
     fn visit_impl_item_fn(&mut self, function: &'ast syn::ImplItemFn) {
-        self.add(&function.sig.ident, function.span());
+        let owned = owned_function_span(&function.vis, &function.sig, function.block.span());
+        self.add(&function.sig.ident, function.span(), owned);
+        self.visit_block(&function.block);
     }
 
     fn visit_trait_item_fn(&mut self, function: &'ast syn::TraitItemFn) {
-        if function.default.is_some() {
-            self.add(&function.sig.ident, function.span());
+        if let Some(block) = &function.default {
+            let owned = function
+                .sig
+                .span()
+                .join(block.span())
+                .unwrap_or(function.sig.span());
+            self.add(&function.sig.ident, function.span(), owned);
+            self.visit_block(block);
         }
     }
+}
+
+fn owned_function_span(
+    visibility: &syn::Visibility,
+    signature: &syn::Signature,
+    body: proc_macro2::Span,
+) -> proc_macro2::Span {
+    let start = if matches!(visibility, syn::Visibility::Inherited) {
+        signature.span()
+    } else {
+        visibility.span()
+    };
+
+    start.join(body).unwrap_or(start)
 }
 
 fn resolved_summary(node: &HirNode, hir: &HirRef) -> bool {

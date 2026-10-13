@@ -1,33 +1,66 @@
 //! Opt-in R0 frontend; the legacy extraction path stays independent.
 
+mod concrete_types;
 mod evidence;
 mod hir;
 pub mod output;
 pub mod source;
 
+use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rstyle_pdg::frontend::*;
 use rustc_hir::{self as rhir, def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
 
+pub struct Options<'a> {
+    pub profile: Option<ExtractionProfile>,
+    pub invocation: &'a [String],
+}
+
+impl Options<'_> {
+    pub fn selected(&self) -> ExtractionProfile {
+        self.profile.unwrap_or_default()
+    }
+}
+
 pub fn crate_facts(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
-    invocation: &[String],
+    options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
-    tcx.hir_body_owners()
+    let mut facts = tcx.hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
-        .map(|id| function(tcx, id, scanned, invocation).ok_or_else(|| format!(
+        .map(|id| function(tcx, id, scanned, options).and_then(|facts| facts.ok_or_else(|| format!(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
-        )))
-        .collect()
+        ))))
+        .collect::<Result<Vec<_>, _>>()?;
+    if options.selected().supports("rust.verified-helper-calls") {
+        rstyle_pdg::helper_calls::capture(&mut facts)?;
+    }
+
+    Ok(facts)
 }
 
 fn function(
     tcx: TyCtxt<'_>,
     id: LocalDefId,
     scanned: &[source::Function],
-    invocation: &[String],
-) -> Option<HirFnFacts> {
+    options: &Options<'_>,
+) -> Result<Option<HirFnFacts>, String> {
+    let Some((mut facts, ctx)) = function_source(tcx, id, scanned, options) else {
+        return Ok(None);
+    };
+    concrete_types::capture(&ctx, &mut facts)?;
+    capture_correspondence(&mut facts, ctx.profile);
+
+    Ok(Some(facts))
+}
+
+fn function_source<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    id: LocalDefId,
+    scanned: &[source::Function],
+    options: &Options<'_>,
+) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
     let node = tcx.hir_node_by_def_id(id);
     let sig = node.fn_sig()?;
     let body = tcx.hir_body(node.body_id()?);
@@ -40,6 +73,7 @@ fn function(
         function_span,
         source_bytes: source_bytes.clone(),
         result,
+        profile: options.selected(),
     };
     let params = parameters(&ctx, sig, body);
     let body = ctx.expression(body.value);
@@ -52,7 +86,7 @@ fn function(
     let scan = find_source_scan(&ctx, scanned, body_source_span(tcx, id));
     let source_diagnostics = source_findings(&ctx, scan, sig.span);
 
-    let mut facts = HirFnFacts {
+    let facts = HirFnFacts {
         name: tcx.def_path_str(id.to_def_id()),
         fn_span,
         source: SourceFacts {
@@ -62,13 +96,11 @@ fn function(
         signature: signature(&ctx, sig, params, id),
         bindings,
         body,
-        build: function_build(tcx, id, function_span, invocation)?,
+        build: function_build(tcx, id, function_span, options)?,
         source_diagnostics,
         source_scan_complete: scan.is_some_and(|scan| !scan.conditional_source),
     };
-    capture_correspondence(&mut facts);
-
-    Some(facts)
+    Some((facts, ctx))
 }
 
 fn body_source_span(tcx: TyCtxt<'_>, id: LocalDefId) -> rustc_span::Span {
@@ -86,12 +118,15 @@ fn find_source_scan<'a>(
 ) -> Option<&'a source::Function> {
     scanned.iter().find(|scan| {
         scan.span.source_callsite() == ctx.function_span
-            || (selected_conditional() && scan.body_span.source_callsite() == body_span)
+            || (ctx
+                .profile
+                .supports("rust.conditional-source-correspondence")
+                && scan.body_span.source_callsite() == body_span)
     })
 }
 
-fn capture_correspondence(facts: &mut HirFnFacts) {
-    if selected_conditional() {
+fn capture_correspondence(facts: &mut HirFnFacts, profile: ExtractionProfile) {
+    if profile.supports("rust.conditional-source-correspondence") {
         facts
             .source_diagnostics
             .extend(rstyle_pdg::source_evidence::diagnostics(facts));
@@ -116,7 +151,7 @@ fn function_build(
     tcx: TyCtxt<'_>,
     id: LocalDefId,
     span: rustc_span::Span,
-    invocation: &[String],
+    options: &Options<'_>,
 ) -> Option<BuildFacts> {
     let file = tcx.sess.source_map().lookup_source_file(span.lo());
     let rustc_span::FileName::Real(real) = &file.name else {
@@ -128,11 +163,11 @@ fn function_build(
     } else {
         std::env::current_dir().ok()?.join(path)
     };
-    let mut build = evidence::build(tcx, invocation);
-    if let Ok(selection) = std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE") {
+    let mut build = evidence::build(tcx, options.invocation);
+    if let Some(selection) = options.profile {
         build.frontend_options.insert(
             rstyle_pdg::extraction_profile::SELECTION_KEY.into(),
-            serde_json::json!(selection),
+            serde_json::json!(selection.token()),
         );
     }
     let identifier = tcx
@@ -144,14 +179,29 @@ fn function_build(
                 .ok()
         })
         .map(|name| name.strip_prefix("r#").unwrap_or(&name).to_owned());
-    build
-        .frontend_options
-        .insert("source_file".into(), serde_json::json!(path));
-    build
-        .frontend_options
-        .insert("source_identifier".into(), serde_json::json!(identifier));
+    build.frontend_options.extend(
+        [
+            ("source_file".into(), serde_json::json!(path)),
+            ("source_identifier".into(), serde_json::json!(identifier)),
+        ]
+        .into_iter()
+        .chain(definition_identity(tcx, id, options.selected())),
+    );
 
     Some(build)
+}
+
+fn definition_identity(
+    tcx: TyCtxt<'_>,
+    id: LocalDefId,
+    profile: ExtractionProfile,
+) -> Option<(String, serde_json::Value)> {
+    profile.supports("rust.verified-helper-calls").then(|| {
+        (
+            "definition_identity".into(),
+            serde_json::json!(format!("{:?}", tcx.def_path_hash(id.to_def_id()))),
+        )
+    })
 }
 
 /// Recover the compiler's original input using its recorded normalization map.
@@ -292,13 +342,6 @@ fn source_findings(
         .collect()
 }
 
-fn selected_conditional() -> bool {
-    std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
-        .ok()
-        .and_then(|value| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&value).ok())
-        .is_some_and(|profile| profile.supports("rust.conditional-source-correspondence"))
-}
-
 pub fn source_inventory(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
@@ -388,6 +431,16 @@ fn inventory_file(
                 .end
                 .checked_add(original_span.start)
                 .ok_or("Source inventory span overflow")?;
+            definition.function_span.start = definition
+                .function_span
+                .start
+                .checked_add(original_span.start)
+                .ok_or("Source inventory span overflow")?;
+            definition.function_span.end = definition
+                .function_span
+                .end
+                .checked_add(original_span.start)
+                .ok_or("Source inventory span overflow")?;
             inventory_definition(path, definition, facts)
         })
         .collect::<Result<Vec<_>, String>>()
@@ -401,8 +454,14 @@ fn inventory_definition(
     let active: Vec<_> = facts
         .iter()
         .filter(|fact| {
-            fact.fn_span.start >= definition.span.start
-                && fact.fn_span.end <= definition.span.end
+            fact.fn_span == definition.function_span
+                && fact.source.bytes == definition.function_source
+                && fact
+                    .build
+                    .frontend_options
+                    .get("source_identifier")
+                    .and_then(serde_json::Value::as_str)
+                    == Some(definition.name.trim_start_matches("r#"))
                 && fact
                     .build
                     .frontend_options
@@ -412,6 +471,10 @@ fn inventory_definition(
         })
         .map(|fact| &fact.name)
         .collect();
+
+    if active.len() > 1 {
+        return Err("Ambiguous exact owned-source function correspondence".into());
+    }
 
     let presence = if active.is_empty() {
         "absent_from_resolved_hir"
@@ -424,6 +487,8 @@ fn inventory_definition(
         span: definition.span,
         source_digest: evidence::digest(definition.source.as_bytes()),
         source: definition.source,
+        function_span: definition.function_span,
+        function_source_digest: evidence::digest(definition.function_source.as_bytes()),
         active_functions: active,
         presence,
         inventory_status: "complete_for_source_definitions_outside_macro_tokens",
@@ -446,6 +511,8 @@ struct DefinitionInventory<'a> {
     span: rstyle_pdg::ByteSpan,
     source_digest: String,
     source: String,
+    function_span: rstyle_pdg::ByteSpan,
+    function_source_digest: String,
     active_functions: Vec<&'a String>,
     presence: &'static str,
     inventory_status: &'static str,

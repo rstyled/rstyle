@@ -1,5 +1,6 @@
 """Compare frozen source selections; never inspect matching predictions."""
 import collections
+import correspondence
 
 from tree_sitter import Language, Parser
 import tree_sitter_rust
@@ -47,23 +48,18 @@ def source_blockers(source):
 
 def assess(selection, reports):
     outcomes = []
+    rosters = {package: correspondence.contexts(report) for package, report in reports.items()}
+    if len({(item['package'], item['version'], item['path'], item['start'], item['end'])
+            for item in selection}) != len(selection):
+        raise ValueError('Duplicate frozen selected-definition identity')
     for selected in selection:
         report = reports[selected["package"]]
-        records = [record for record in report.get("functions", [])
-                   if record["facts"]["build"]["frontend_options"].get("source_file", "")
-                   .endswith("/" + selected["path"])
-                   and selected["start"] <= record["facts"]["fn_span"]["start"] < selected["end"]]
-        outcome = "unknown"
-        reasons = ["Selected source definition absent from captured HIR; conditional presence or unresolved capture"]
-        if not report.get("capture_complete"):
-            outcome, reasons = "failed", report.get("capture_failures", ["Capture unavailable"])
-        elif len(records) == 1:
-            outcome, reasons = records[0]["outcome"], records[0]["reasons"]
-        elif len(records) > 1:
-            outcome, reasons = "failed", ["Ambiguous selected-definition correspondence"]
+        decisions, records = correspondence.map_definition(selected, report, rosters[selected['package']])
+        outcome, reasons = correspondence.aggregate(decisions)
         item = dict(selected)
         item.pop("source")
         item.update(outcome=outcome, reasons=reasons,
+                    compilation_contexts=decisions,
                     source_blockers=source_blockers(selected["source"]),
                     frontend_diagnostics=[d for record in records
                                           for d in record["facts"]["source_diagnostics"]],
@@ -77,7 +73,20 @@ def assess(selection, reports):
     counts = collections.Counter(item["outcome"] for item in outcomes)
     combinations = collections.Counter(tuple(sorted(set(
         blocker["capability"] for blocker in item["source_blockers"]))) for item in outcomes)
-    return {"functions": outcomes, "counts": dict(counts),
+    context_counts = collections.Counter(decision['outcome'] for item in outcomes
+                                         for decision in item['compilation_contexts'])
+    return {"assessment_version": 2, "functions": outcomes, "counts": dict(counts),
+            "denominators": dict(all_frozen_selected=len(selection),
+                                 selected_function_contexts=sum(context_counts.values()),
+                                 active_function_contexts=sum(decision['active'] for item in outcomes
+                                                              for decision in item['compilation_contexts']),
+                                 captured_records=sum(decision['captured_records'] for item in outcomes
+                                                      for decision in item['compilation_contexts']),
+                                 assessed_function_contexts=sum(decision['captured_records'] > 0 for item in outcomes
+                                                               for decision in item['compilation_contexts']),
+                                 independently_expected_in_scope=None,
+                                 proven_inactive_function_contexts=0),
+            "context_counts": dict(context_counts),
             "source_blocker_combinations": [{"capabilities": list(combo), "functions": n}
                                             for combo, n in sorted(combinations.items())],
             "claim": "Measured selected-source eligibility; source blockers are syntax inventory, not resolved admission or hypothetical coverage gain"}

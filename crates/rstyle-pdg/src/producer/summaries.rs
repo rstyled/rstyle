@@ -34,7 +34,7 @@ impl SummaryCapture<'_> {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        if node.kind == "expr_method_call" {
+        if matches!(node.kind.as_str(), "expr_call" | "expr_method_call") {
             records.push(self.record(node)?);
         }
 
@@ -53,6 +53,15 @@ impl SummaryCapture<'_> {
         let [operation] = operations.as_slice() else {
             return Err("Ambiguous or missing call source/HIR correspondence".into());
         };
+        if node.kind == "expr_call" {
+            return serde_json::to_value(HelperRecord {
+                pdg_node_id: &operation.id,
+                source_span: node.span,
+                operand_pdg_node_ids: &operation.operands,
+                dependency: crate::helper_calls::verify(node, self.facts)?,
+            })
+            .map_err(|error| error.to_string());
+        }
         let summary = call_summaries::resolve(node).ok_or("Missing verified primitive summary")?;
 
         serde_json::to_value(SummaryRecord {
@@ -66,6 +75,14 @@ impl SummaryCapture<'_> {
         })
         .map_err(|e| e.to_string())
     }
+}
+
+#[derive(serde::Serialize)]
+struct HelperRecord<'a> {
+    pdg_node_id: &'a str,
+    source_span: crate::ByteSpan,
+    operand_pdg_node_ids: &'a [String],
+    dependency: crate::helper_calls::Dependency,
 }
 
 #[derive(serde::Serialize)]

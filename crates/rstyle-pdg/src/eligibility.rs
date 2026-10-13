@@ -105,6 +105,7 @@ impl Outcome {
 /// Read-only classifier context: binding cross-references.
 #[derive(Clone)]
 struct Ctx<'a> {
+    facts: &'a HirFnFacts,
     loops: Vec<crate::HirRef>,
     profile: crate::extraction_profile::ExtractionProfile,
     bindings: BTreeMap<(u32, u32, u32), &'a BindingFact>,
@@ -199,6 +200,7 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
 
 fn context(facts: &HirFnFacts, profile: crate::extraction_profile::ExtractionProfile) -> Ctx<'_> {
     Ctx {
+        facts,
         loops: Vec::new(),
         profile,
         bindings: facts
@@ -558,6 +560,12 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     match node.kind.as_str() {
+        "expr_call" if ctx.profile.supports("rust.verified-helper-calls") => {
+            match crate::helper_calls::verify(node, ctx.facts) {
+                Ok(_) => Outcome::ok(),
+                Err(reason) => error("rust.call-summaries", "unverified_helper", node, &reason),
+            }
+        }
         "expr_method_call" if ctx.profile.supports("rust.verified-primitive-summaries") => {
             if crate::call_summaries::resolve(node).is_some() {
                 Outcome::ok()

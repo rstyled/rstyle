@@ -4,6 +4,8 @@ use crate::{HirFnFacts, ProfileId};
 use serde::{Deserialize, Serialize};
 
 pub const SELECTION_KEY: &str = "extraction_profile";
+/// Private driver argument, consumed before forwarding the rustc invocation.
+pub const DRIVER_SELECTION_FLAG: &str = "--rstyle-extraction-profile";
 pub const EVIDENCE_KEY: &str = "rstyle.hir-coverage:selection";
 pub const LOCAL_ID: &str = "rstyle.rust.hir-coverage";
 
@@ -16,6 +18,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.scalar-loops",
     "rust.divergence",
     "rust.verified-primitive-summaries",
+    "rust.verified-helper-calls",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -39,6 +42,8 @@ pub enum ExtractionProfile {
     LoopsV1,
     #[serde(rename = "hir-calls-v1")]
     CallsV1,
+    #[serde(rename = "hir-helpers-v1")]
+    HelpersV1,
 }
 
 impl ExtractionProfile {
@@ -47,7 +52,10 @@ impl ExtractionProfile {
         match value {
             "r0" => Ok(Self::R0),
             "hir-expanded-v1" => Ok(Self::CallsV1),
-            _ => Err("Extraction selection must be r0 or hir-expanded-v1".into()),
+            "hir-helpers-v1" => Ok(Self::HelpersV1),
+            _ => {
+                Err("Extraction selection must be r0 or hir-expanded-v1, or hir-helpers-v1".into())
+            }
         }
     }
 
@@ -62,6 +70,7 @@ impl ExtractionProfile {
             "hir-conditional-v1" => Ok(Self::ConditionalV1),
             "hir-loops-v1" => Ok(Self::LoopsV1),
             "hir-calls-v1" => Ok(Self::CallsV1),
+            "hir-helpers-v1" => Ok(Self::HelpersV1),
             _ => Err(format!("Unregistered extraction profile {value:?}")),
         }
     }
@@ -86,6 +95,7 @@ impl ExtractionProfile {
             Self::ConditionalV1 => "hir-conditional-v1",
             Self::LoopsV1 => "hir-loops-v1",
             Self::CallsV1 => "hir-calls-v1",
+            Self::HelpersV1 => "hir-helpers-v1",
         }
     }
 
@@ -99,6 +109,7 @@ impl ExtractionProfile {
             Self::ConditionalV1 => Some(("0.5.0", 5)),
             Self::LoopsV1 => Some(("0.6.0", 7)),
             Self::CallsV1 => Some(("0.7.0", 8)),
+            Self::HelpersV1 => Some(("0.1.0", 9)),
         }
     }
 
@@ -106,7 +117,12 @@ impl ExtractionProfile {
         match self.local_contract() {
             None => ProfileId::hir_r0(),
             Some((version, _)) => ProfileId {
-                id: LOCAL_ID.into(),
+                id: if self == Self::HelpersV1 {
+                    "rstyle.rust.hir-helpers"
+                } else {
+                    LOCAL_ID
+                }
+                .into(),
                 version: version.into(),
             },
         }
@@ -117,6 +133,13 @@ impl ExtractionProfile {
     }
 
     pub fn summaries(self) -> &'static [&'static str] {
+        if self.supports("rust.verified-helper-calls") {
+            return &[
+                "rstyle.primitive.unsigned-abs/1",
+                "rstyle.primitive.wrapping-mul/1",
+                "rstyle.helper.source-body/1",
+            ];
+        }
         if self.supports("rust.verified-primitive-summaries") {
             &[
                 "rstyle.primitive.unsigned-abs/1",
@@ -134,6 +157,12 @@ impl ExtractionProfile {
 }
 
 pub fn registered(policy: &ProfileId) -> bool {
+    registered_profiles()
+        .iter()
+        .any(|profile| profile.policy() == *policy)
+}
+
+fn registered_profiles() -> [ExtractionProfile; 9] {
     [
         ExtractionProfile::R0,
         ExtractionProfile::ConstV1,
@@ -143,9 +172,18 @@ pub fn registered(policy: &ProfileId) -> bool {
         ExtractionProfile::ConditionalV1,
         ExtractionProfile::LoopsV1,
         ExtractionProfile::CallsV1,
+        ExtractionProfile::HelpersV1,
     ]
-    .iter()
-    .any(|profile| profile.policy() == *policy)
+}
+
+pub fn local_policy(policy: &ProfileId) -> bool {
+    policy.id != crate::R0_POLICY_ID && registered(policy)
+}
+
+pub fn policy_supports(policy: &ProfileId, capability: &str) -> bool {
+    registered_profiles()
+        .iter()
+        .any(|profile| profile.policy() == *policy && profile.supports(capability))
 }
 
 impl std::str::FromStr for ExtractionProfile {

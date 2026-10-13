@@ -22,6 +22,7 @@ pub struct Function {
 
 #[derive(Default)]
 pub struct Scan {
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub functions: Vec<Function>,
 }
 
@@ -34,7 +35,7 @@ impl<'a> Visitor<'a> for Scan {
         let mut owned = Owned {
             findings: Vec::new(),
             conditional_source: false,
-            profile: selected_profile(),
+            profile: self.profile,
             match_pattern: false,
         };
         owned.visit_block(body);
@@ -148,6 +149,7 @@ fn selected_expression(
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> bool {
     match kind {
+        ast::ExprKind::Call(..) => profile.supports("rust.verified-helper-calls"),
         ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
         ast::ExprKind::While(..)
         | ast::ExprKind::Loop(..)
@@ -210,18 +212,17 @@ fn supported_literal(literal: &ast::token::Lit) -> bool {
     }
 }
 
-pub fn scan(krate: &ast::Crate) -> Vec<Function> {
-    let mut scan = Scan::default();
+pub fn scan(
+    krate: &ast::Crate,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Vec<Function> {
+    let mut scan = Scan {
+        profile,
+        functions: Vec::new(),
+    };
     visit::walk_crate(&mut scan, krate);
 
     scan.functions
-}
-
-fn selected_profile() -> rstyle_pdg::extraction_profile::ExtractionProfile {
-    std::env::var("RSTYLE_HIR_EXTRACTION_PROFILE")
-        .ok()
-        .and_then(|value| rstyle_pdg::extraction_profile::ExtractionProfile::parse(&value).ok())
-        .unwrap_or_default()
 }
 
 fn source_match_pattern(kind: &ast::PatKind) -> bool {

@@ -28,6 +28,12 @@ pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     let renaming = correspondence(pair, &expected)?;
     compare_documents(pair, &expected, &renaming)?;
 
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)
+        .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
+    {
+        crate::helper_calls::verify_documents(pair, facts).map_err(|error| vec![error])?;
+    }
+
     validate_boundary(pair, facts)
 }
 
@@ -262,6 +268,11 @@ fn normalize(value: Value, field: &str, renaming: &BTreeMap<String, String>) -> 
                     !(field == "conformance" && matches!(key.as_str(), "status" | "reasons"))
                 })
                 .filter(|(key, _)| !(matches!(field, "edges" | "diagnostics") && key == "id"))
+                // Historical selection records carried an informational document
+                // path. The registered profile identity remains authoritative.
+                .filter(|(key, _)| {
+                    !(field == crate::extraction_profile::EVIDENCE_KEY && key == "contract")
+                })
                 .map(|(key, value)| {
                     let value = normalize(value, &key, renaming);
                     (key, value)

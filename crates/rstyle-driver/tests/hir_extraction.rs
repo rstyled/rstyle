@@ -43,7 +43,21 @@ fn invoke(input: &std::path::Path, facts: &std::path::Path) -> Output {
 }
 
 fn invocation(input: &std::path::Path, facts: &std::path::Path) -> Command {
+    selected_invocation(input, facts, None)
+}
+
+fn selected_invocation(
+    input: &std::path::Path,
+    facts: &std::path::Path,
+    profile: Option<&str>,
+) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_rstyle-driver"));
+    if let Some(profile) = profile {
+        command.arg(format!(
+            "{}={profile}",
+            rstyle_pdg::extraction_profile::DRIVER_SELECTION_FLAG
+        ));
+    }
     command
         .arg("rustc")
         .args([
@@ -1076,9 +1090,8 @@ fn compile_selected_settings(source: &str, profile: &str, settings: &[&str]) -> 
     let input = directory.join("input.rs");
     let facts = directory.join("facts.json");
     std::fs::write(&input, source).unwrap();
-    let output = invocation(&input, &facts)
+    let output = selected_invocation(&input, &facts, Some(profile))
         .args(settings)
-        .env("RSTYLE_HIR_EXTRACTION_PROFILE", profile)
         .output()
         .unwrap();
     assert!(
@@ -1090,6 +1103,75 @@ fn compile_selected_settings(source: &str, profile: &str, settings: &[&str]) -> 
     std::fs::remove_dir_all(directory).unwrap();
 
     captured
+}
+
+#[test]
+fn explicit_driver_profile_ignores_inherited_environment_and_keeps_rustc_invocation_exact() {
+    for profile in [None, Some("hir-helpers-v1")] {
+        let directory = directory();
+        let input = directory.join("input.rs");
+        let facts_path = directory.join("facts.json");
+        std::fs::write(&input, "fn predicate(x: i32) -> bool { x > 0 }\npub fn wrapper(x: i32) -> bool { predicate(x) }\n").unwrap();
+        let output = selected_invocation(&input, &facts_path, profile)
+            .env(
+                "RSTYLE_HIR_EXTRACTION_PROFILE",
+                if profile.is_none() {
+                    "hir-helpers-v1"
+                } else {
+                    "invalid-inherited-profile"
+                },
+            )
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let facts: Vec<HirFnFacts> =
+            serde_json::from_slice(&std::fs::read(&facts_path).unwrap()).unwrap();
+        let wrapper = facts
+            .iter()
+            .find(|function| function.name == "wrapper")
+            .unwrap();
+        assert_driver_profile(wrapper, profile);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+fn assert_driver_profile(wrapper: &HirFnFacts, profile: Option<&str>) {
+    use rstyle_pdg::extraction_profile::{DRIVER_SELECTION_FLAG, ExtractionProfile, SELECTION_KEY};
+    let expected = if profile.is_some() {
+        ExtractionProfile::HelpersV1
+    } else {
+        ExtractionProfile::R0
+    };
+    assert_eq!(ExtractionProfile::from_facts(wrapper).unwrap(), expected);
+    assert_eq!(
+        wrapper.build.frontend_options.contains_key(SELECTION_KEY),
+        profile.is_some()
+    );
+    assert_eq!(
+        wrapper
+            .build
+            .frontend_options
+            .contains_key("definition_identity"),
+        profile.is_some()
+    );
+    let invocation: Vec<String> =
+        serde_json::from_value(wrapper.build.frontend_options["invocation"].clone()).unwrap();
+    assert_eq!(invocation[0], "rustc");
+    assert!(
+        !invocation
+            .iter()
+            .any(|argument| argument.starts_with(DRIVER_SELECTION_FLAG))
+    );
+    if profile.is_some() {
+        let pair = rstyle_pdg::producer::produce(wrapper).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, wrapper).unwrap();
+    } else {
+        assert_eq!(classify(wrapper).status, EligibilityVerdict::Ineligible);
+    }
 }
 
 #[test]
@@ -1139,7 +1221,11 @@ fn const_expansion_keeps_r0_and_deferred_source_closed() {
     let source = "const fn f(x: i32) -> i32 { x }";
     let baseline = compile_selected(source, "r0").remove(0);
     assert_eq!(classify(&baseline).status, EligibilityVerdict::Ineligible);
-    let unknown = compile_selected(source, "hir-unregistered-v1").remove(0);
+    let mut unknown = baseline.clone();
+    unknown.build.frontend_options.insert(
+        rstyle_pdg::extraction_profile::SELECTION_KEY.into(),
+        serde_json::json!("hir-unregistered-v1"),
+    );
     assert_eq!(classify(&unknown).status, EligibilityVerdict::Unknown);
 }
 
@@ -2324,5 +2410,37 @@ fn expanded_construct_documents_satisfy_unchanged_pinned_schemas_as_serialized()
         assert_local_wire_schema(&pair);
         rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
         rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+    }
+}
+
+#[test]
+fn local_contract_identity_uses_registry_and_preserves_historical_annotations() {
+    use rstyle_pdg::extraction_profile::{EVIDENCE_KEY, ExtractionProfile};
+    for selection in ["hir-calls-v1", "hir-helpers-v1"] {
+        let facts = compile_selected("fn f(x: i32) -> i32 { x }", selection).remove(0);
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        let profile = ExtractionProfile::parse(selection).unwrap().policy();
+        assert_eq!(
+            pair.pdg.extensions[EVIDENCE_KEY]["profile"],
+            serde_json::json!(profile)
+        );
+        assert!(pair.pdg.extensions[EVIDENCE_KEY].get("contract").is_none());
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+
+        for evidence in [&mut pair.pdg.extensions, &mut pair.cfg.extensions] {
+            evidence.get_mut(EVIDENCE_KEY).unwrap()["contract"] =
+                serde_json::json!("historical informational document location");
+        }
+        rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
+        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
+
+        for evidence in [&mut pair.pdg.extensions, &mut pair.cfg.extensions] {
+            evidence.get_mut(EVIDENCE_KEY).unwrap()["profile"]["version"] =
+                serde_json::json!("unregistered");
+        }
+        assert!(
+            rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).is_err()
+        );
+        assert!(rstyle_ccgraph::admit_produced(&pair, &facts).is_err());
     }
 }

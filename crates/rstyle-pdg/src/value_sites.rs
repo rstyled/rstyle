@@ -63,8 +63,8 @@ pub fn validate_value_sites(
     pdg: &PdgDocument,
     cfg: &CfgDocument,
 ) -> Result<BTreeSet<String>, Vec<String>> {
-    if pdg.profile.id == crate::extraction_profile::LOCAL_ID
-        && matches!(pdg.profile.version.as_str(), "0.6.0" | "0.7.0")
+    if crate::extraction_profile::local_policy(&pdg.profile)
+        && crate::extraction_profile::policy_supports(&pdg.profile, "rust.scalar-loops")
         && pdg
             .nodes
             .iter()
@@ -262,10 +262,10 @@ impl Context<'_> {
     fn check_site_metadata(&self, site: &Site) -> Result<(), String> {
         if let Some(kind) = &site.selection_kind
             && (kind != "ordered-match/1"
-                || self.pdg.profile.id != crate::extraction_profile::LOCAL_ID
-                || !matches!(
-                    self.pdg.profile.version.as_str(),
-                    "0.3.0" | "0.4.0" | "0.5.0" | "0.6.0" | "0.7.0"
+                || !crate::extraction_profile::local_policy(&self.pdg.profile)
+                || !crate::extraction_profile::policy_supports(
+                    &self.pdg.profile,
+                    "rust.scalar-match",
                 ))
         {
             return Err("Unregistered value selection policy".into());

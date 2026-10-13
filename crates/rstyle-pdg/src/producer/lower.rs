@@ -291,7 +291,7 @@ impl Builder<'_> {
                 Operands { flow, values }
             },
         );
-        let category = if node.kind == "expr_method_call" {
+        let category = if matches!(node.kind.as_str(), "expr_method_call" | "expr_call") {
             NodeCategory::Call
         } else {
             NodeCategory::Computation
@@ -833,7 +833,9 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         {
             Builder::short_circuit
         }
-        "expr_binary" | "expr_unary" | "expr_cast" | "expr_method_call" => Builder::computation,
+        "expr_binary" | "expr_unary" | "expr_cast" | "expr_method_call" | "expr_call" => {
+            Builder::computation
+        }
         "expr_assign" => Builder::assignment,
         "expr_assign_op" => Builder::compound,
         "expr_if" => Builder::branch,

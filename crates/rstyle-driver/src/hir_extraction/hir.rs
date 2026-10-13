@@ -11,6 +11,7 @@ pub struct Context<'tcx> {
     pub function_span: Span,
     pub source_bytes: String,
     pub result: Ty<'tcx>,
+    pub profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 }
 
 pub fn reference(id: HirId) -> HirRef {
@@ -156,6 +157,7 @@ impl<'tcx> Context<'tcx> {
     fn expression_fields(&self, expr: &Expr<'tcx>, node: HirNode) -> HirNode {
         let children = self.children(expr);
         let res = match expr.kind {
+            ExprKind::Call(callee, _) => self.direct_callee(callee),
             ExprKind::Path(ref path) => {
                 let res = self.typeck.qpath_res(path, expr.hir_id);
                 Some(PathRes {
@@ -322,6 +324,14 @@ impl<'tcx> Context<'tcx> {
             }
             ExprKind::Unary(op, value) => (op.as_str().to_string(), vec![value]),
             ExprKind::Cast(value, _) => ("as".to_string(), vec![value]),
+            ExprKind::Call(callee, args) => (
+                self.direct_callee(callee).and_then(|res| {
+                    serde_json::from_str::<serde_json::Value>(&res.description).ok()
+                })?["path"]
+                    .as_str()?
+                    .to_string(),
+                args.iter().collect(),
+            ),
             ExprKind::MethodCall(_, receiver, args, _) => (
                 self.tcx
                     .def_path_str(self.typeck.type_dependent_def_id(expr.hir_id)?),
@@ -340,7 +350,9 @@ impl<'tcx> Context<'tcx> {
         let overloaded = self.typeck.type_dependent_def_id(expr.hir_id).is_some();
 
         Some(Dispatch {
-            kind: if matches!(expr.kind, ExprKind::MethodCall(..)) {
+            kind: if matches!(expr.kind, ExprKind::Call(..)) {
+                "resolved_direct"
+            } else if matches!(expr.kind, ExprKind::MethodCall(..)) {
                 "resolved_method"
             } else if overloaded {
                 "overloaded"
@@ -355,6 +367,46 @@ impl<'tcx> Context<'tcx> {
                 .unwrap_or_else(|| self.typeck.expr_ty(expr).to_string()),
         })
     }
+}
+
+impl Context<'_> {
+    fn direct_callee(&self, expression: &Expr<'_>) -> Option<PathRes> {
+        if !self.profile.supports("rust.verified-helper-calls") {
+            return None;
+        }
+        let ExprKind::Path(ref path) = expression.kind else {
+            return None;
+        };
+        let Res::Def(rustc_hir::def::DefKind::Fn, callee) =
+            self.typeck.qpath_res(path, expression.hir_id)
+        else {
+            return None;
+        };
+        if self.tcx.generics_of(callee).count() != 0 {
+            return None;
+        }
+
+        Some(PathRes {
+            kind: "resolved_direct_callee".into(),
+            target: None,
+            description: serde_json::to_string(&DirectCallee {
+                path: self.tcx.def_path_str(callee),
+                crate_name: self.tcx.crate_name(callee.krate).to_string(),
+                local: callee.is_local(),
+                definition_identity: format!("{:?}", self.tcx.def_path_hash(callee)),
+            })
+            .expect("resolved callee record"),
+        })
+    }
+}
+
+#[derive(serde::Serialize)]
+struct DirectCallee {
+    path: String,
+    #[serde(rename = "crate")]
+    crate_name: String,
+    local: bool,
+    definition_identity: String,
 }
 
 fn kind(kind: &ExprKind<'_>) -> &'static str {

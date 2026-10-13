@@ -74,6 +74,10 @@ struct SchemaVersions {
 fn extraction_selection(args: &Args) -> &'static str {
     if args.extraction_profile == rstyle_pdg::extraction_profile::ExtractionProfile::R0 {
         "r0"
+    } else if args.extraction_profile
+        == rstyle_pdg::extraction_profile::ExtractionProfile::HelpersV1
+    {
+        "hir-helpers-v1"
     } else {
         "hir-expanded-v1"
     }
