@@ -220,3 +220,42 @@ This is not data admission. No new extraction or matching identity is registered
 no new natural coverage gain is claimed. Effect/origin proofs, data lowering,
 independent document verification and the real source-to-pair data path remain
 required.
+
+## Connected nonnominal data slice
+
+Implementation baseline: `a4514f4`; the data extraction/matching contract was
+committed separately as `23f8853` before implementation. The opt-in `hir-data-v1`
+path now carries concrete interface tokens through driver capture, source/type
+verification, source-backed field lowering, serialized PDG/CFG manifests, producer
+and independent data semantic verification, strict import, the separate matching
+vocabulary, projection and exhaustive pairs. Historical profiles do not gain these
+inputs. Shared formal roots retain alias uncertainty. Reference-valued outputs
+retain all source origins and the verifier independently follows actual serialized
+value/reaching-definition/alternative edges to check them.
+
+The six-function temporary Cargo correctness family combines a scalar predicate,
+shared tuple getters, field reads feeding verified predicate calls, and branching
+between borrowed outputs. All six admit and project, and all 15 pairs receive
+exhaustive decisions. On the same source the helper selection admits only the
+scalar predicate. This is five newly admitted fixture functions, not five natural
+inventory gains. The getter's independent numerical expectation is
+`[0,2,4,0,0,0,0,4,2]`: four retained OTHER nodes, four data edges, two execution
+edges, and distinct binding/field read keys. Tampering with locations, alias facts,
+reference counts, matching identity, types or origin dependencies is rejected.
+
+Nominal structs/effect proof, local reference correspondence, construction,
+read-only library operations, indexing/subslicing and the broader coverage
+inventory remain outstanding. The original full goal is not complete.
+
+Validation for this connected slice: `cargo test --workspace --locked` passed
+549 tests with zero failures/ignored tests, including all 81 real-command tests.
+`cargo fmt --all -- --check` and
+`cargo clippy --workspace --all-targets --locked -- -D warnings` passed.
+Repository-built `cargo rstyle --format json` reported zero violations across
+1517 functions; `cargo rstyle patterns --format json` reported zero candidates.
+The inventory (11) and study/harness (43) Python tests passed. A fresh five-function
+Cargo smoke run also projected all five and decided all ten pairs; its ten paired
+documents validated against both unchanged vendored closed schemas using
+jsonschema 4.25.1. Logs/artifacts are under `target/data-admission-*` and the
+per-invocation Cargo run directory. None of these fixture counts identifies the
+historical user-observed 6/50 inventory.

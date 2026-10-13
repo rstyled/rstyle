@@ -145,6 +145,14 @@ impl Handoff {
     }
 }
 
+fn matching_profile(args: &Args) -> rstyle_ccgraph::MatchingProfile {
+    if args.extraction_profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 {
+        rstyle_ccgraph::MatchingProfile::DataV1
+    } else {
+        rstyle_ccgraph::MatchingProfile::ScalarV1
+    }
+}
+
 pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
     let mut capture = capture::prepare(cli, args)?;
@@ -152,10 +160,11 @@ pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         capture.failures.push(error);
     }
     let handoff = handoff(&capture, args.trace);
-    let matching = rstyle_ccgraph::pipeline::evaluate_with_pair_limit(
+    let matching = rstyle_ccgraph::pipeline::evaluate_selected(
         &handoff.admitted,
         &config,
         args.max_pairs,
+        matching_profile(args),
     );
 
     let accepted = matching

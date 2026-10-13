@@ -56,3 +56,10 @@ independent frontend source checks, producer and independent serialized data
 semantic checks, strict import and projection. Every distinct unordered admitted
 pair is enumerated. Failed capture, arithmetic, budgets or verification are explicit
 incomplete execution. This slice has no natural coverage or detector-quality claim.
+
+The type-token text budget is 64 KiB per token. Capture must fail explicitly when
+serialization exceeds it, even if the recursive observation tree fits its entry
+budget. Reference-bearing by-value arrays lack element-origin evidence and remain
+unavailable. The initial implementation also retains the blanket exclusion of
+conditional value merges in loop-containing functions; separating merges outside
+cycles from epoch-sensitive merges is an outstanding part of the broader goal.

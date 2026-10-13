@@ -78,6 +78,11 @@ impl<'a> Visitor<'a> for Owned {
         match &ty.kind {
             ast::TyKind::Path(..) | ast::TyKind::Infer => {}
             ast::TyKind::Tup(types) if types.is_empty() => {}
+            ast::TyKind::Tup(_)
+            | ast::TyKind::Ref(..)
+            | ast::TyKind::Array(..)
+            | ast::TyKind::Slice(..)
+                if self.profile.supports("rust.concrete-read-only-data") => {}
             _ => self.reject(
                 ty.span,
                 "rust.additional-types",
@@ -149,6 +154,7 @@ fn selected_expression(
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> bool {
     match kind {
+        ast::ExprKind::Field(..) => profile.supports("rust.concrete-read-only-data"),
         ast::ExprKind::Call(..) => profile.supports("rust.verified-helper-calls"),
         ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
         ast::ExprKind::While(..)

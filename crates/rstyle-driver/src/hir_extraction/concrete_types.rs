@@ -59,6 +59,9 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         result: capture.observe(ctx.result)?,
     };
     observations.validate()?;
+    if ctx.profile.supports("rust.concrete-read-only-data") {
+        capture.install_tokens(facts, &observations)?;
+    }
     capture.install_origins(&observations, facts)?;
     facts.build.frontend_options.insert(
         KEY.into(),
@@ -72,16 +75,76 @@ fn has_data_interface(
     facts: &HirFnFacts,
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> bool {
-    profile.supports("rust.verified-helper-calls")
-        && (facts.signature.return_ty.normalized.is_none()
-            || facts
-                .signature
-                .params
-                .iter()
-                .any(|parameter| parameter.ty.normalized.is_none()))
+    profile.supports("rust.concrete-read-only-data")
+        || profile.supports("rust.verified-helper-calls")
+            && (facts.signature.return_ty.normalized.is_none()
+                || facts
+                    .signature
+                    .params
+                    .iter()
+                    .any(|parameter| parameter.ty.normalized.is_none()))
 }
 
 impl<'tcx> Capture<'_, 'tcx> {
+    fn install_tokens(
+        &mut self,
+        facts: &mut HirFnFacts,
+        interface: &InterfaceObservations,
+    ) -> Result<(), String> {
+        interface_tokens(&mut facts.signature, interface)?;
+        self.node_tokens(&mut facts.body)?;
+        self.binding_tokens(&mut facts.bindings)
+    }
+
+    fn binding_tokens(&mut self, bindings: &mut [rstyle_pdg::BindingFact]) -> Result<(), String> {
+        for binding in bindings {
+            if binding.ty.normalized.is_none() {
+                binding.ty.normalized = self.hir_token(&binding.hir, false)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn hir_token(
+        &mut self,
+        reference: &rstyle_pdg::HirRef,
+        returning: bool,
+    ) -> Result<Option<String>, String> {
+        let id = rustc_hir::HirId {
+            owner: rustc_hir::OwnerId {
+                def_id: rustc_hir::def_id::LocalDefId {
+                    local_def_index: rustc_hir::def_id::DefIndex::from_u32(reference.owner),
+                },
+            },
+            local_id: rustc_hir::ItemLocalId::from_u32(reference.local),
+        };
+        let ty = if returning {
+            Some(self.ctx.result)
+        } else {
+            self.ctx.typeck.node_type_opt(id)
+        };
+        let Some(ty) = ty else { return Ok(None) };
+        match self.observe(ty)? {
+            Observation::Captured { ty } => rstyle_pdg::data_types::token(&ty).map(Some),
+            Observation::Unsupported { .. } => Ok(None),
+        }
+    }
+
+    fn node_tokens(&mut self, node: &mut rstyle_pdg::HirNode) -> Result<(), String> {
+        if node.ty.as_ref().is_some_and(|ty| ty.normalized.is_none()) {
+            let token = self.hir_token(&node.hir, node.kind == "expr_ret")?;
+            node.ty.as_mut().expect("present type").normalized = token;
+        }
+        self.child_tokens(&mut node.children)
+    }
+
+    fn child_tokens(&mut self, nodes: &mut [rstyle_pdg::HirNode]) -> Result<(), String> {
+        for node in nodes {
+            self.node_tokens(node)?;
+        }
+        Ok(())
+    }
+
     fn install_origins(
         mut self,
         observations: &InterfaceObservations,
@@ -365,4 +428,21 @@ fn nominal(definition_path: String, source: &str) -> Result<Nominal, Failure> {
         definition_path,
         declaration_digest: digest(source.as_bytes()),
     })
+}
+
+fn interface_tokens(
+    signature: &mut rstyle_pdg::SignatureFacts,
+    interface: &InterfaceObservations,
+) -> Result<(), String> {
+    for (parameter, observation) in signature.params.iter_mut().zip(&interface.parameters) {
+        if let Observation::Captured { ty } = observation {
+            parameter.ty.normalized = Some(rstyle_pdg::data_types::token(ty)?);
+            parameter.pat.ty = Some(parameter.ty.clone());
+        }
+    }
+
+    if let Observation::Captured { ty } = &interface.result {
+        signature.return_ty.normalized = Some(rstyle_pdg::data_types::token(ty)?);
+    }
+    Ok(())
 }

@@ -71,6 +71,16 @@ pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
 }
 
 impl Inventory<'_> {
+    fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
+        if matches!(expression, syn::Expr::Field(_))
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.concrete-read-only-data"))
+        {
+            return Some("expr_field");
+        }
+        expression_kind(expression)
+    }
+
     fn add(&mut self, kind: &str, span: proc_macro2::Span) {
         let source = &self.facts.source.bytes;
         let span = ByteSpan {
@@ -94,7 +104,7 @@ impl Inventory<'_> {
 
 impl<'ast> Visit<'ast> for Inventory<'_> {
     fn visit_expr(&mut self, expression: &'ast syn::Expr) {
-        let kind = expression_kind(expression);
+        let kind = self.expression_kind(expression);
         if let Some(kind) = kind {
             self.add(kind, expression.span());
         }

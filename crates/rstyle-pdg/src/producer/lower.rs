@@ -235,6 +235,34 @@ impl Builder<'_> {
         self.emit(self.read_operation(node), flow)
     }
 
+    fn field_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let flow = self.expression(&node.children[0], flow);
+        let fields: crate::field_locations::FieldObservations = serde_json::from_value(
+            self.facts.build.frontend_options[crate::field_locations::KEY].clone(),
+        )
+        .expect("verified data locations");
+        let field = fields
+            .operations
+            .iter()
+            .find(|field| field.hir == node.hir)
+            .expect("verified field operation");
+        let crate::field_locations::Location::Captured { parameter, .. } = field.location else {
+            unreachable!("verified data origin")
+        };
+
+        let operation = Operation {
+            symbol: Some(
+                self.facts.signature.params[parameter as usize]
+                    .symbol
+                    .clone(),
+            ),
+            operands: self.operand(&flow.value),
+            construct: Some("data.field".into()),
+            ..template(node, NodeCategory::Read)
+        };
+        self.emit(operation, flow)
+    }
+
     fn read_operation(&self, node: &HirNode) -> Operation {
         let target = node
             .res
@@ -824,6 +852,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,
         "expr_path" => Builder::read,
+        "expr_field" => Builder::field_read,
         "expr_lit" | "expr_tup" => Builder::literal,
         "expr_binary"
             if node

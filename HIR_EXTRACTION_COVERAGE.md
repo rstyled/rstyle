@@ -284,3 +284,13 @@ exposed examples are disclosed regressions. These coverage measurements and
 correctness fixtures establish no post-expansion heldout pair quality. A new
 preregistered quality study should use untouched project/family holdouts before
 making broader quality claims; no such study or HIR abstraction-mining workflow was activated here.
+
+The separate opt-in `hir-data-v1` now has a connected nonnominal data slice:
+shared scalar/tuple/array/slice/str interfaces, formal tuple field reads, and
+source-verified shared outputs selected by supported branching. A composed
+six-function Cargo fixture admits and projects all six functions and enumerates
+all 15 pairs, including field reads feeding verified scalar helpers. This is
+correctness evidence only. Nominal struct admission, construction, local reference
+correspondence and read-only slice/string operations remain unfinished; the broader
+data goal and natural-coverage targets are not achieved. See the versioned local
+data contract and progress record under `docs/extraction-profiles`.

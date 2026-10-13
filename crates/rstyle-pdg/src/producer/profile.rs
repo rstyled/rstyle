@@ -27,7 +27,12 @@ pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
     pdg.extensions.insert(EVIDENCE_KEY.into(), evidence.clone());
     cfg.extensions.insert(EVIDENCE_KEY.into(), evidence);
 
-    Ok(Pair { pdg, cfg })
+    let pair = Pair { pdg, cfg };
+    if profile.supports("rust.concrete-read-only-data") {
+        crate::data_documents::apply(pair, facts)
+    } else {
+        Ok(pair)
+    }
 }
 
 fn configure_cfg(cfg: &mut crate::CfgDocument, policy: &ProfileId, profile: ExtractionProfile) {

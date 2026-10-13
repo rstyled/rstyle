@@ -83,8 +83,26 @@ pub struct ImportedEdge {
     pub origin: String,
 }
 
+/// Registered matching vocabulary; graph and numerical machinery are shared.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MatchingProfile {
+    #[default]
+    ScalarV1,
+    DataV1,
+}
+
+impl MatchingProfile {
+    pub fn identity(self) -> &'static str {
+        match self {
+            Self::ScalarV1 => "compat.ccgraph.strict/0.1.0",
+            Self::DataV1 => rstyle_pdg::extraction_profile::DATA_MATCHING_ID,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImportedFunction {
+    pub matching_profile: MatchingProfile,
     /// Verified local extraction/build compatibility; absent only on legacy/fixture inputs.
     pub extraction_context: Option<String>,
     pub key: String,

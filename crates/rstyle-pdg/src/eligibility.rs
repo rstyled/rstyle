@@ -178,6 +178,7 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
     let ctx = context(facts, profile);
 
     let outcome = Outcome::combine(vec![
+        check_data_frontend(facts, profile),
         check_loop_values(&facts.body, profile),
         check_source_scan(facts),
         check_signature(facts, &ctx),
@@ -196,6 +197,29 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
         status,
         diagnostics: outcome.diagnostics,
     }
+}
+
+fn check_data_frontend(
+    facts: &HirFnFacts,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Outcome {
+    if !profile.supports("rust.concrete-read-only-data") {
+        return Outcome::ok();
+    }
+    match crate::data_frontend::verify(facts) {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error(
+            "rust.concrete-read-only-data",
+            "data_evidence",
+            &facts.body,
+            &reason,
+        ),
+    }
+}
+
+fn accepted_type(ty: &str, profile: crate::extraction_profile::ExtractionProfile) -> bool {
+    PRIMITIVE_TYS.contains(&ty)
+        || profile.supports("rust.concrete-read-only-data") && crate::data_frontend::accepted(ty)
 }
 
 fn context(facts: &HirFnFacts, profile: crate::extraction_profile::ExtractionProfile) -> Ctx<'_> {
@@ -279,15 +303,18 @@ fn signature_node(signature: &SignatureFacts) -> HirNode {
 
 fn check_signature(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
     Outcome::combine(vec![
-        check_sig_subject(&facts.signature),
+        check_sig_subject(&facts.signature, ctx.profile),
         check_sig_header(&facts.signature, ctx.profile),
         check_sig_params(&facts.signature, ctx),
-        check_sig_return(&facts.signature),
+        check_sig_return(&facts.signature, ctx.profile),
     ])
 }
 
 /// Receiver and generic parameters: rejected with their own spans.
-fn check_sig_subject(signature: &SignatureFacts) -> Outcome {
+fn check_sig_subject(
+    signature: &SignatureFacts,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Outcome {
     let anchor = signature_node(signature);
     let receiver = signature.receiver.as_ref().map(|found| {
         let site = Site {
@@ -310,19 +337,23 @@ fn check_sig_subject(signature: &SignatureFacts) -> Outcome {
             "Receiver syntax (self) is outside R0 even for primitive types.",
         )
     });
-    let generics = signature.generics.iter().map(|generic| {
-        let site = Site {
-            span: generic.span,
-            snippet: generic.name.clone(),
-        };
+    let generics = signature
+        .generics
+        .iter()
+        .filter(|_| !profile.supports("rust.concrete-read-only-data"))
+        .map(|generic| {
+            let site = Site {
+                span: generic.span,
+                snippet: generic.name.clone(),
+            };
 
-        Outcome::reject(diagnostic(
-            "rust.additional-types",
-            "generic_parameter",
-            &site,
-            "Function-level generics are deferred, even for scalar bodies.",
-        ))
-    });
+            Outcome::reject(diagnostic(
+                "rust.additional-types",
+                "generic_parameter",
+                &site,
+                "Function-level generics are deferred, even for scalar bodies.",
+            ))
+        });
 
     Outcome::combine(
         receiver
@@ -407,9 +438,12 @@ fn check_sig_params(signature: &SignatureFacts, ctx: &Ctx<'_>) -> Outcome {
     Outcome::check_each(&signature.params, |param| check_param(param, ctx))
 }
 
-fn check_sig_return(signature: &SignatureFacts) -> Outcome {
+fn check_sig_return(
+    signature: &SignatureFacts,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Outcome {
     match norm(&signature.return_ty) {
-        Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
+        Some(ty) if accepted_type(ty, profile) => Outcome::ok(),
         _ => Outcome::reject(diagnostic(
             "rust.additional-types",
             "return_type",
@@ -425,7 +459,7 @@ fn check_sig_return(signature: &SignatureFacts) -> Outcome {
 fn check_param(param: &ParamFact, ctx: &Ctx<'_>) -> Outcome {
     let pat = check_pat_node(&param.pat, ctx);
     let ty = match norm(&param.ty) {
-        Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
+        Some(ty) if accepted_type(ty, ctx.profile) => Outcome::ok(),
         _ => Outcome::reject(diagnostic(
             "rust.additional-types",
             "parameter_type",
@@ -463,7 +497,7 @@ fn check_bindings(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
             evidence_gap(&binding_node(binding), "binding table entry")
         };
         let ty = match norm(&binding.ty) {
-            Some(ty) if PRIMITIVE_TYS.contains(&ty) => Outcome::ok(),
+            Some(ty) if accepted_type(ty, ctx.profile) => Outcome::ok(),
             // Parameter interface types are diagnosed at the signature;
             // the table keeps the entry so reads still resolve.
             _ if binding.is_param => Outcome::ok(),
@@ -551,6 +585,12 @@ fn macro_diagnostic(node: &HirNode, site: &ExpansionSite) -> Outcome {
 }
 
 fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if ctx.profile.supports("rust.concrete-read-only-data")
+        && let Some(outcome) = data_kind(node, ctx)
+    {
+        return outcome;
+    }
+
     if node.kind.starts_with("pat_") {
         return check_pat_node(node, ctx);
     }
@@ -583,6 +623,43 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_assign_op"
         | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
         _ => check_deferred(node),
+    }
+}
+
+fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    let ty = || match node_norm(node) {
+        Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
+        _ => check_expr_ty(node, "data_value"),
+    };
+    match node.kind.as_str() {
+        "expr_field" => Some(ty()),
+        "expr_block" if !node.is_unsafe_block => Some(ty()),
+        "expr_ret" | "ty_annotation" => Some(ty()),
+        "expr_if"
+            if node
+                .children
+                .first()
+                .is_some_and(|condition| node_norm(condition) == Some("bool")) =>
+        {
+            Some(ty())
+        }
+        "expr_path" => Some(
+            match node.res.as_ref().and_then(|resolution| {
+                (resolution.kind == "local")
+                    .then_some(resolution.target.as_ref())
+                    .flatten()
+            }) {
+                Some(target)
+                    if ctx
+                        .bindings
+                        .contains_key(&(target.krate, target.owner, target.local)) =>
+                {
+                    ty()
+                }
+                _ => evidence_gap(node, "resolved data binding read"),
+            },
+        ),
+        _ => None,
     }
 }
 
@@ -1249,7 +1326,7 @@ fn check_let(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         .iter()
         .filter(|child| child.kind == "let_else");
     let pat = pats.map(|pat| check_pat_node(pat, ctx)).collect();
-    let ann = anns.map(check_ty_node).collect();
+    let ann = anns.map(|node| check_kind(node, ctx)).collect();
     let els = elses
         .map(|found| {
             error(

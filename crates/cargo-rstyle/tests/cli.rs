@@ -2999,3 +2999,265 @@ fn check_refreshed_nominal_field(report: &Value) {
     };
     assert_eq!(fields[0].ty, TypeTree::Scalar("u32".into()));
 }
+
+const DATA_TUPLE_FAMILY: &str = "pub fn positive(x: i32) -> bool { x > 0 }\npub fn first(pair: &(i32, bool)) -> i32 { pair.0 }\npub fn enabled(pair: &(i32, bool)) -> bool { pair.1 }\npub fn compare(a: &(i32, bool), b: &(i32, bool)) -> bool { positive(a.0) && positive(b.0) }\npub fn identity(pair: &(i32, bool)) -> &(i32, bool) { pair }\npub fn select<'a>(a: &'a (i32, bool), b: &'a (i32, bool), choose: bool) -> &'a (i32, bool) { if choose { a } else { b } }\n";
+
+#[test]
+fn clones_data_tuple_family_reaches_registered_projection_and_exhaustive_pairs() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), DATA_TUPLE_FAMILY).unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    check_data_registration(&report);
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 6);
+    assert!(
+        functions
+            .iter()
+            .all(|function| function["outcome"] == "admitted"),
+        "{report}"
+    );
+    assert!(
+        report["matching"]["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["eligible"] == true),
+        "{report}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    assert_eq!(report["pair_enumeration_complete"], true);
+    let getter = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let projection = report["matching"]["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["key"] == getter["key"])
+        .unwrap();
+    // One input, binding read, field read and return; four value edges and
+    // two sequential execution edges; binding and field are distinct reads.
+    assert_eq!(
+        projection["projection"]["features"],
+        serde_json::json!([0, 2, 4, 0, 0, 0, 0, 4, 2])
+    );
+    check_data_document_tampering(getter);
+    check_data_origins_tampering(
+        functions
+            .iter()
+            .find(|function| function["facts"]["name"] == "select")
+            .unwrap(),
+    );
+}
+
+fn check_data_registration(report: &Value) {
+    assert_eq!(report["extraction_selection"], "hir-data-v1");
+    assert_eq!(report["extraction_policy"]["id"], "rstyle.rust.hir-data");
+    assert_eq!(report["matching"]["profile_id"], "rstyle.ccgraph.data");
+    assert_eq!(report["matching"]["profile_version"], "1.0.0");
+}
+
+fn data_pair(function: &Value) -> (rstyle_pdg::producer::Pair, rstyle_pdg::HirFnFacts) {
+    let prefix = function["artifact_prefix"].as_str().unwrap();
+    let pdg =
+        serde_json::from_slice(&std::fs::read(format!("{prefix}.pdg.json")).unwrap()).unwrap();
+    let cfg =
+        serde_json::from_slice(&std::fs::read(format!("{prefix}.cfg.json")).unwrap()).unwrap();
+    let facts = serde_json::from_value(function["facts"].clone()).unwrap();
+    (rstyle_pdg::producer::Pair { pdg, cfg }, facts)
+}
+
+fn check_data_document_tampering(function: &Value) {
+    let (pair, facts) = data_pair(function);
+    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    for change in [
+        "path", "read", "alias", "count", "policy", "write", "operand", "root",
+    ] {
+        let (mut changed, _) = data_pair(function);
+        tamper_data_document(&mut changed, change);
+        assert!(
+            rstyle_pdg::data_documents::verify(&changed, &facts).is_err(),
+            "{change}"
+        );
+    }
+}
+
+fn tamper_data_document(pair: &mut rstyle_pdg::producer::Pair, change: &str) {
+    match change {
+        "path" => {
+            pair.pdg.memory_locations[0]
+                .extensions
+                .get_mut(rstyle_pdg::data_documents::LOCATION_KEY)
+                .unwrap()["path"][1]["position"] = serde_json::json!(1);
+        }
+        "read" => {
+            data_read(pair).attributes.reads[0].location_id = Some("missing".into());
+        }
+        "alias" => {
+            pair.pdg.extensions.insert(
+                "rstyle.data:possible-formal-aliases".into(),
+                serde_json::json!([]),
+            );
+        }
+        "count" => {
+            pair.pdg.function.reference_count.value = Some(0);
+        }
+        "policy" => {
+            pair.cfg
+                .extensions
+                .remove(rstyle_pdg::data_documents::POLICY_KEY);
+        }
+        "write" => {
+            let read = data_read(pair);
+            read.attributes
+                .writes
+                .push(read.attributes.reads[0].clone());
+        }
+        "operand" => {
+            let field = data_read(pair).id.clone();
+            pair.pdg
+                .edges
+                .retain(|edge| edge.target != field || edge.subkind != "value_operand");
+        }
+        "root" => {
+            data_read(pair).attributes.reads[0].symbol_id = Some("unrelated".into());
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn data_read(pair: &mut rstyle_pdg::producer::Pair) -> &mut rstyle_pdg::PdgNode {
+    pair.pdg
+        .nodes
+        .iter_mut()
+        .find(|node| {
+            node.attributes
+                .reads
+                .iter()
+                .any(|read| read.location_id.is_some())
+        })
+        .unwrap()
+}
+
+fn check_data_origins_tampering(function: &Value) {
+    let (pair, facts) = data_pair(function);
+    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    for change in ["origin", "value", "type"] {
+        let (mut changed, _) = data_pair(function);
+        match change {
+            "origin" => {
+                changed
+                    .pdg
+                    .nodes
+                    .iter_mut()
+                    .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+                    .unwrap()
+                    .annotations
+                    .insert(rstyle_pdg::data_origins::KEY.into(), serde_json::json!([]));
+            }
+            "value" => {
+                changed.pdg.edges.retain(|edge| {
+                    edge.subkind != "value_alternative" || edge.outcome.as_deref() != Some("false")
+                });
+            }
+            "type" => {
+                changed
+                    .pdg
+                    .nodes
+                    .iter_mut()
+                    .find(|node| node.category == rstyle_pdg::NodeCategory::FormalInput)
+                    .unwrap()
+                    .annotations
+                    .get_mut("compat.rust.hir-r0:type")
+                    .unwrap()["value"] = serde_json::json!("i32");
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            rstyle_pdg::data_documents::verify(&changed, &facts).is_err(),
+            "{change}"
+        );
+    }
+}
+
+#[test]
+fn clones_data_is_opt_in_and_unsupported_type_effect_mixtures_remain_excluded() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), format!("{DATA_TUPLE_FAMILY}\npub fn cells(x: &std::cell::Cell<i32>) -> i32 {{ x.get() }}\npub fn mutable(x: &mut i32) -> i32 {{ *x }}\npub fn local(x: &i32) -> &i32 {{ let y = x; y }}\n")).unwrap();
+    let (output, data) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{data}");
+    let functions = data["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        6,
+        "{data}"
+    );
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "excluded")
+            .count(),
+        3,
+        "{data}"
+    );
+    assert_eq!(data["matching"]["pairs"].as_array().unwrap().len(), 15);
+    let (output, helpers) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{helpers}");
+    assert_eq!(
+        helpers["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        1,
+        "{helpers}"
+    );
+    assert_eq!(helpers["matching"]["profile_id"], "compat.ccgraph.strict");
+}
+
+#[test]
+fn clones_data_trace_collection_preserves_pair_decisions_on_fresh_warm_runs() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), DATA_TUPLE_FAMILY).unwrap();
+    let (output, ordinary) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{ordinary}");
+    let (output, traced) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{traced}");
+    assert_ne!(ordinary["run_directory"], traced["run_directory"]);
+    let decisions = |report: &Value| {
+        report["matching"]["pairs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|pair| {
+                (
+                    pair["first"].clone(),
+                    pair["second"].clone(),
+                    pair["decision"].clone(),
+                    pair["displayed_score"].clone(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(decisions(&ordinary), decisions(&traced));
+    assert_eq!(
+        ordinary["matching"]["effective_config"],
+        traced["matching"]["effective_config"]
+    );
+}
