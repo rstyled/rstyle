@@ -14,6 +14,7 @@ pub mod concrete_types;
 mod cyclic_values;
 pub mod data_documents;
 pub mod data_frontend;
+pub mod data_library;
 pub mod data_origins;
 pub mod data_places;
 pub mod data_receivers;

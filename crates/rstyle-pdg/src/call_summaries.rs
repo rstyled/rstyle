@@ -75,3 +75,11 @@ pub fn resolve(node: &HirNode) -> Option<&'static Summary> {
                 })
     })
 }
+
+/// Profile-aware local authority; historical primitive resolution is unchanged.
+pub fn resolve_for(node: &HirNode, facts: &crate::HirFnFacts) -> Result<Option<Summary>, String> {
+    if let Some(summary) = resolve(node) {
+        return Ok(Some(summary.clone()));
+    }
+    crate::data_library::resolve(node, facts)
+}

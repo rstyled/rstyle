@@ -256,8 +256,18 @@ Nested aggregate bases compute places; stored reference bases retain their actua
 pointer read. Field types are independently checked against source-derived
 locations before this classification. Consecutive implicit shared dereferences
 without referent-storage read evidence remain explicitly unavailable.
-Aggregate construction, local reference rebindings,
-read-only library summaries, slice indexing/subslicing, and assertions are still
+The four core slice/str len/is_empty methods now retain source CALLs with verified
+receiver origins/adjustments, exact instantiated signatures and a tested pinned
+core registry. The initial registry supports nightly-2026-09-30 on
+aarch64-unknown-linux-gnu; other core builds remain unavailable. Length counts
+slice elements or UTF-8 bytes, with no invented buffer read/write or panic edge.
+Stored fields, grouped explicit field borrows, scalar helper calls, scalar loops
+and borrowed branching outputs compose through the existing command. All fifteen
+functions in the independent family admit and all 105 pairs receive decisions;
+this is correctness evidence only. See `read-only-length-registry-v1.md` for exact
+provenance, signatures/effects and independent CALL verification obligations.
+Aggregate construction, local reference rebindings, other library summaries,
+slice indexing/subslicing, and assertions are still
 unavailable in this implementation. Their observations do not admit them. This
 command is an incremental connected slice of the broader data coverage work,
 not completion of that work or a natural-coverage/quality result. Existing R0,

@@ -268,7 +268,7 @@ pub fn diagnostics(facts: &HirFnFacts) -> Vec<crate::HirDiagnostic> {
     inventory.entries.into_iter().filter_map(|entry| {
         if entry.kind == "expr_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-helper-calls")) { return None; }
         if entry.kind == "expr_method_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-primitive-summaries"))
-            && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir)) { return None; }
+            && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir, facts)) { return None; }
         let capability = match entry.kind.as_str() {
             "expr_call" | "expr_method_call" => "rust.call-summaries",
             "source_macro" => "rust.macros",
@@ -377,10 +377,11 @@ fn owned_function_span(
     start.join(body).unwrap_or(start)
 }
 
-fn resolved_summary(node: &HirNode, hir: &HirRef) -> bool {
-    (node.hir == *hir && crate::call_summaries::resolve(node).is_some())
+fn resolved_summary(node: &HirNode, hir: &HirRef, facts: &HirFnFacts) -> bool {
+    (node.hir == *hir
+        && crate::call_summaries::resolve_for(node, facts).is_ok_and(|summary| summary.is_some()))
         || node
             .children
             .iter()
-            .any(|child| resolved_summary(child, hir))
+            .any(|child| resolved_summary(child, hir, facts))
 }

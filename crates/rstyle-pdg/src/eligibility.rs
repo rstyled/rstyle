@@ -618,7 +618,9 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
             }
         }
         "expr_method_call" if ctx.profile.supports("rust.verified-primitive-summaries") => {
-            if crate::call_summaries::resolve(node).is_some() {
+            if crate::call_summaries::resolve_for(node, ctx.facts)
+                .is_ok_and(|summary| summary.is_some())
+            {
                 Outcome::ok()
             } else {
                 error(

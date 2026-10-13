@@ -164,6 +164,7 @@ fn location(
 /// operations, without calling the lowerer or document emitter.
 pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
     crate::data_receivers::verify_documents(pair, facts)?;
+    crate::data_library::verify_documents(pair, facts)?;
     crate::data_frontend::verify(facts)?;
     verify_interface(pair, facts)?;
     if pair.pdg.extensions.get(POLICY_KEY)

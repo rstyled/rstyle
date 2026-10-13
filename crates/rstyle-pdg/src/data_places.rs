@@ -106,7 +106,8 @@ pub fn borrow_origin(node: &HirNode, facts: &HirFnFacts) -> Result<Origin, Strin
         .bytes
         .get(node.span.start as usize..node.span.end as usize)
         .ok_or("Missing original borrow range")?;
-    let syn::Expr::Reference(source) = syn::parse_str(original).map_err(|e| e.to_string())? else {
+    let expression: syn::Expr = syn::parse_str(original).map_err(|e| e.to_string())?;
+    let syn::Expr::Reference(source) = grouped_borrow(&expression) else {
         return Err("Borrow lacks original shared-reference syntax".into());
     };
     if source.mutability.is_some() || !matches!(source.expr.as_ref(), syn::Expr::Field(_)) {
@@ -149,4 +150,11 @@ pub fn borrow_origin(node: &HirNode, facts: &HirFnFacts) -> Result<Origin, Strin
         parameter: *parameter,
         path: path.clone(),
     })
+}
+
+fn grouped_borrow(mut expression: &syn::Expr) -> &syn::Expr {
+    while let syn::Expr::Paren(inner) = expression {
+        expression = &inner.expr;
+    }
+    expression
 }

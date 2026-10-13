@@ -576,3 +576,66 @@ constants/patterns, cyclic value proof and the broader preregistered natural
 inventory. Whole Data admission remains active and incomplete. Historical reports,
 legacy profiles and vendored contracts remain unchanged; no quality study,
 threshold tuning, grouping or abstraction-mining detector behavior was enabled.
+
+Connected pinned length/emptiness summaries (implementation baseline `062939b`,
+core/signature/effect contract frozen there; grouped-borrow ownership contract
+frozen in `7648026`): the four core slice/str len/is_empty operations now cross
+the real capture, manifest, frontend, producer/import, projection and exhaustive
+pair boundary. The initial authority is nightly-2026-09-30's official
+aarch64-unknown-linux-gnu core build. Compiler-selected core artifact paths/sizes/
+SHA-256 are captured once per selected invocation, before source diagnostic and
+callee handoff resolution. Exact definition/build fingerprints bind a code-owned
+registry whose semantics derive from reviewed pinned sources and independent
+native empty/nonempty/zero-sized-element/UTF-8 byte-length expectations. Missing
+or corrupt evidence and byte-budget failures are incomplete execution. Consistent
+unregistered builds remain unavailable. Data compiler commits also must match
+the frozen Cargo compiler identity. Other profiles acquire no library artifacts.
+
+Data method dispatch uses verified concrete tokens, and the registry checks exact
+instantiated input/result types, allowed shared reborrows, source invocation and
+formal origins. CALLs remain source operations; no inlining, normalization, buffer
+read/write or panic/exit edge is invented. Serialized checks inspect actual CALL
+membership, callee, type, effects, summary/core/build/receiver evidence and operand
+value edges independently of producer re-emission. Existing scalar summary wire
+records omit the new optional library payload and retain their historical fields.
+
+The fifteen-function independent BOM/CRLF family combines stored slice/str fields,
+lifetime receivers, explicit grouped field borrows, borrowed outputs, a verified
+scalar-helper call, a scalar loop and conditional reference outputs. All fifteen
+admit and all 105 pairs receive decisions; trace on/off warm-run decisions agree.
+The simple length graph independently has features `[0,2,3,0,0,0,1,3,1]`. The four
+previously excluded discovery functions now admit and reach all six pairs; their
+original exclusion report is retained. These are disclosed correctness fixtures,
+not frozen natural-inventory gains or unseen detector-quality evidence.
+
+Negative compositions keep array coercion, mutable/extra shared receivers, owned
+String, indexing and unsummarized reference-producing chains excluded. A same-
+spelled user method receives no builtin treatment; its otherwise supported field
+getter remains independently admissible. R0, expanded and helper modes continue
+to exclude the broader family. Forged core/definition/signature/operand/effect/
+summary facts, missing/duplicate CALL evidence and modified compiler commits fail
+verification; real driver corruption yields incomplete handoff. Unknown methods,
+reference-aware local method/helper calls and other library operations remain
+unavailable.
+
+Validation: `cargo test --workspace --locked` passed 581 tests, zero failures or
+ignored tests, including all 100 real-command tests. Formatting and workspace
+all-target clippy passed. Style reports 1,638 functions with zero violations;
+patterns reports zero candidates. Inventory and study/harness suites passed eleven
+and forty-three tests. The fresh BOM/CRLF Cargo smoke admitted all fifteen and
+decided all 105 pairs; all thirty paired documents validated against unchanged
+vendored schemas. Logs: `target/length-library-workspace.log`,
+`length-library-clippy-final.log`, `length-library-{style,patterns}-final.json`,
+`length-library-{inventory,scripting,native,schemas}.log` and
+`length-library-smoke.json`. Initial source-diagnostic capture ordering, policy-
+tagged width evidence, grouped borrow parsing and style/clippy assumptions were
+corrected before the full successful run; failure logs remain available.
+No thresholds, suppressions, ignore entries or vendored artifacts changed.
+
+Whole Data admission remains incomplete. Outstanding work includes reference-aware
+verified calls across modules/packages, aggregate construction/local reference
+bindings, element reads/subslicing/checked Option, assertion provenance, scalar
+constants/patterns, merges outside versus inside loop cycles, scoped nominal effect
+proof and the broader preregistered contemporary-crate inventory with measured
+targets. Historical reports and the unidentified user-observed 6/50 remain distinct
+from these fixtures. No mining/grouping/calibration or quality study was enabled.

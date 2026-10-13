@@ -153,7 +153,11 @@ impl<'tcx> Capture<'_, 'tcx> {
             let token = self.hir_token(&node.hir, node.kind == "expr_ret")?;
             node.ty.as_mut().expect("present type").normalized = token;
         }
-        self.child_tokens(&mut node.children)
+        self.child_tokens(&mut node.children)?;
+        if node.kind == "expr_method_call" {
+            install_method_tokens(node);
+        }
+        Ok(())
     }
 
     fn child_tokens(&mut self, nodes: &mut [rstyle_pdg::HirNode]) -> Result<(), String> {
@@ -531,4 +535,18 @@ fn interface_tokens(
         signature.return_ty.normalized = Some(rstyle_pdg::data_types::token(ty)?);
     }
     Ok(())
+}
+
+fn install_method_tokens(node: &mut rstyle_pdg::HirNode) {
+    let arguments: Option<Vec<_>> = node
+        .children
+        .iter()
+        .map(|child| child.ty.as_ref()?.normalized.clone())
+        .collect();
+    let result = node.ty.as_ref().and_then(|ty| ty.normalized.clone());
+    if let (Some(dispatch), Some(arguments), Some(result)) = (&mut node.dispatch, arguments, result)
+    {
+        dispatch.operand_tys = arguments;
+        dispatch.result_ty = result;
+    }
 }

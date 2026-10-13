@@ -304,7 +304,13 @@ The versioned field-context correction now preserves aggregate places and actual
 stored-reference loads; extra implicit dereferences lacking read evidence fail
 closed. Corrected feature measurements are recorded separately from earlier
 disclosed fixture results.
-Construction, local reference
-correspondence and read-only slice/string operations remain unfinished; the broader
+Read-only slice/str len/is_empty calls now use exact receiver/signature/core
+artifact evidence and independent serialized CALL checks. The initial registered
+core build is nightly-2026-09-30/aarch64-unknown-linux-gnu. A fifteen-function
+family combines stored fields, explicit grouped borrows, verified scalar calls,
+scalar loops and borrowed branching outputs and reaches all 105 pair decisions.
+No new memory write/buffer read or scoring interpretation is introduced.
+Construction, local reference correspondence, other library methods and
+indexing/subslicing remain unfinished; the broader
 data goal and natural-coverage targets are not achieved. See the versioned local
 data contract and progress record under `docs/extraction-profiles`.

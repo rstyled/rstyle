@@ -4149,45 +4149,24 @@ fn clones_data_field_borrows_preserve_array_slice_and_str_referents() {
 }
 
 #[test]
-fn clones_data_records_resolved_receivers_without_admitting_length_calls() {
-    use rstyle_pdg::{concrete_types::TypeTree, data_receivers};
+fn clones_data_records_resolved_receivers_and_verified_length_calls() {
+    use rstyle_pdg::data_receivers;
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), "pub fn slice_len(x: &[u16]) -> usize { x.len() }\npub fn slice_empty(x: &[u16]) -> bool { x.is_empty() }\npub fn str_len(x: &str) -> usize { x.len() }\npub fn str_empty(x: &str) -> bool { x.is_empty() }\npub fn array_len(x: &[u8; 2]) -> usize { x.len() }\npub fn owned_len(x: &String) -> usize { x.len() }\npub struct View<'a> { pub text: &'a str }\nimpl<'a> View<'a> { pub fn length(&self) -> usize { self.text.len() } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 7);
-    assert!(functions.iter().all(|f| f["outcome"] == "excluded"));
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        5
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
     for function in functions {
-        let capture: data_receivers::Capture = serde_json::from_value(
-            function["facts"]["build"]["frontend_options"][data_receivers::KEY].clone(),
-        )
-        .unwrap();
-        let facts: rstyle_pdg::HirFnFacts =
-            serde_json::from_value(function["facts"].clone()).unwrap();
-        assert_eq!(data_receivers::verify(&facts).unwrap(), capture);
-        if facts.name == "str_len" {
-            check_receiver_evidence_tampering(&facts);
-        }
-        assert_eq!(capture.identity, data_receivers::IDENTITY);
-        assert_eq!(capture.methods.len(), 1);
-        let method = &capture.methods[0];
-        let name = function["facts"]["name"].as_str().unwrap();
-        if name == "array_len" {
-            assert!(method.adjustments.iter().any(|a| a.kind == data_receivers::Kind::Unsupported("pointer_coercion".into())));
-        } else if name == "owned_len" {
-            assert!(matches!(
-                method.receiver_type,
-                rstyle_pdg::concrete_types::Observation::Unsupported { .. }
-            ));
-        } else {
-            let referent = if name.starts_with("slice_") {
-                TypeTree::Slice(Box::new(TypeTree::Scalar("u16".into())))
-            } else {
-                TypeTree::Str
-            };
-            check_shared_length_receiver(method, referent, name.ends_with("empty"));
-        }
+        check_length_receiver_capture(function);
     }
     let (output, legacy) = clones(
         directory.path(),
@@ -4199,6 +4178,43 @@ fn clones_data_records_resolved_receivers_without_admitting_length_calls() {
             .get(data_receivers::KEY)
             .is_none()
     }));
+}
+
+fn check_length_receiver_capture(function: &Value) {
+    use rstyle_pdg::{concrete_types::TypeTree, data_receivers};
+    let capture: data_receivers::Capture = serde_json::from_value(
+        function["facts"]["build"]["frontend_options"][data_receivers::KEY].clone(),
+    )
+    .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    assert_eq!(data_receivers::verify(&facts).unwrap(), capture);
+    if facts.name == "str_len" {
+        check_receiver_evidence_tampering(&facts);
+    }
+    assert_eq!(capture.identity, data_receivers::IDENTITY);
+    assert_eq!(capture.methods.len(), 1);
+    let method = &capture.methods[0];
+    let name = function["facts"]["name"].as_str().unwrap();
+    if name == "array_len" {
+        assert!(
+            method
+                .adjustments
+                .iter()
+                .any(|a| a.kind == data_receivers::Kind::Unsupported("pointer_coercion".into()))
+        );
+    } else if name == "owned_len" {
+        assert!(matches!(
+            method.receiver_type,
+            rstyle_pdg::concrete_types::Observation::Unsupported { .. }
+        ));
+    } else {
+        let referent = if name.starts_with("slice_") {
+            TypeTree::Slice(Box::new(TypeTree::Scalar("u16".into())))
+        } else {
+            TypeTree::Str
+        };
+        check_shared_length_receiver(method, referent, name.ends_with("empty"));
+    }
 }
 
 fn check_shared_length_receiver(
@@ -4378,6 +4394,271 @@ fn clones_data_corrupt_receiver_inventory_is_incomplete_handoff() {
         "options['data_method_receivers']['methods'] = []",
         "options['data_method_receivers']['methods'].append(options['data_method_receivers']['methods'][0].copy())",
         "options['data_method_receivers']['methods'][0]['receiver']['local'] += 1",
+    ] {
+        let script = format!(
+            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'facts.json'\nfacts = json.loads(p.read_text())\nfor function in facts:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(facts))\nPY\nfi\nexit \"$code\"\n"
+        );
+        std::fs::write(&shim, script).unwrap();
+        std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let output = Command::new(cargo_bin("cargo-rstyle"))
+            .args([
+                "clones",
+                "--extraction-profile",
+                "hir-data-v1",
+                "--format",
+                "json",
+            ])
+            .current_dir(directory.path())
+            .env("RSTYLE_DRIVER", &shim)
+            .env_remove("CARGO_TARGET_DIR")
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{mutation}: {}",
+            stdout(&output)
+        );
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["assessment_complete"], false);
+        assert_eq!(report["pair_evaluation_complete"], false);
+        assert!(!report["handoff_failures"].as_array().unwrap().is_empty());
+    }
+}
+
+const DATA_LENGTH_FAMILY: &str = "pub struct View<'a> { pub bytes: &'a [u8], pub text: &'a str }\nimpl<'a> View<'a> {\n pub fn bytes_len(&self) -> usize { self.bytes.len() }\n pub fn bytes_empty(&self) -> bool { self.bytes.is_empty() }\n pub fn text_len(&self) -> usize { self.text.len() }\n pub fn text_empty(&self) -> bool { self.text.is_empty() }\n pub fn text(&self) -> &str { self.text }\n pub fn bytes(&self) -> &[u8] { self.bytes }\n}\npub struct Text { pub text: str }\npub fn explicit_borrow(value: &Text) -> usize { (&value.text).len() }\npub fn slice_len(value: &[u8]) -> usize { value.len() }\npub fn slice_empty(value: &[u8]) -> bool { value.is_empty() }\npub fn str_len(value: &str) -> usize { value.len() }\npub fn str_empty(value: &str) -> bool { value.is_empty() }\npub fn under(value: usize) -> bool { value < 8 }\npub fn short(value: &[u8]) -> bool { under(value.len()) }\npub fn counted(value: &[u8]) -> usize { let mut index = 0usize; while index < value.len() { index += 1; } index }\npub fn choose<'a>(first: &'a str, second: &'a str) -> &'a str { if first.is_empty() { second } else { first } }\n";
+
+#[test]
+fn clones_data_length_family_composes_fields_calls_loops_and_borrowed_branches() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        format!("\u{feff}{}", DATA_LENGTH_FAMILY.replace('\n', "\r\n")),
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v1", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 15);
+    for function in functions {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 105);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    for function in functions {
+        let (pair, facts) = data_pair(function);
+        rstyle_pdg::data_library::verify_documents(&pair, &facts).unwrap();
+        if facts.name == "str_len" {
+            check_length_document_tampering(&pair, &facts);
+            check_length_frontend_tampering(&facts);
+            let projected = report["matching"]["functions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|f| f["key"] == function["key"])
+                .unwrap();
+            // One formal, receiver read, source CALL and return. Three value
+            // dependences, two execution edges, one call and one read location.
+            assert_eq!(
+                projected["projection"]["features"],
+                serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 1])
+            );
+        }
+    }
+    let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{warm}");
+    assert_eq!(pair_decisions(&report), pair_decisions(&warm));
+}
+
+fn check_length_document_tampering(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &rstyle_pdg::HirFnFacts,
+) {
+    for change in [
+        "callee", "effect", "type", "operand", "summary", "library", "extra", "removed",
+    ] {
+        let mut changed = rstyle_pdg::producer::Pair {
+            pdg: pair.pdg.clone(),
+            cfg: pair.cfg.clone(),
+        };
+        tamper_length_document(&mut changed, change);
+        assert!(
+            rstyle_pdg::data_library::verify_documents(&changed, facts).is_err(),
+            "{change}"
+        );
+    }
+}
+
+fn tamper_length_document(pair: &mut rstyle_pdg::producer::Pair, change: &str) {
+    use rstyle_pdg::{NodeCategory, call_summaries::KEY};
+    let index = pair
+        .pdg
+        .nodes
+        .iter()
+        .position(|node| node.category == NodeCategory::Call)
+        .unwrap();
+    match change {
+        "callee" => {
+            pair.pdg.nodes[index].attributes.callee = Some(rstyle_pdg::StringFact::known("fake"))
+        }
+        "effect" => pair.pdg.nodes[index].attributes.defines.push("fake".into()),
+        "type" => {
+            pair.pdg.nodes[index]
+                .annotations
+                .get_mut("compat.rust.hir-r0:type")
+                .unwrap()["value"] = serde_json::json!("bool")
+        }
+        "operand" => pair.pdg.edges.retain(|edge| {
+            !(edge.target == pair.pdg.nodes[index].id && edge.kind == rstyle_pdg::EdgeFamily::Data)
+        }),
+        "removed" => {
+            pair.pdg.nodes.remove(index);
+        }
+        _ => {
+            let records = pair
+                .pdg
+                .extensions
+                .get_mut(KEY)
+                .unwrap()
+                .as_array_mut()
+                .unwrap();
+            match change {
+                "summary" => records[0]["summary"]["may_panic"] = serde_json::json!(true),
+                "library" => {
+                    records[0]["library"]["callee"]["definition_hash"] = serde_json::json!("fake")
+                }
+                "extra" => records.push(records[0].clone()),
+                _ => unreachable!(),
+            }
+            pair.cfg
+                .extensions
+                .insert(KEY.into(), pair.pdg.extensions[KEY].clone());
+        }
+    }
+}
+
+fn check_length_frontend_tampering(facts: &rstyle_pdg::HirFnFacts) {
+    for change in ["missing", "artifact", "signature", "definition"] {
+        let mut changed = facts.clone();
+        match change {
+            "missing" => {
+                changed
+                    .build
+                    .frontend_options
+                    .remove(rstyle_pdg::data_library::KEY);
+            }
+            "artifact" => {
+                changed
+                    .build
+                    .frontend_options
+                    .get_mut(rstyle_pdg::data_library::KEY)
+                    .unwrap()["libraries"][0]["files"][0]["sha256"] =
+                    serde_json::json!(format!("sha256:{}", "0".repeat(64)))
+            }
+            "signature" => {
+                changed
+                    .build
+                    .frontend_options
+                    .get_mut(rstyle_pdg::data_receivers::KEY)
+                    .unwrap()["methods"][0]["signature_inputs"] = serde_json::json!([])
+            }
+            "definition" => {
+                assert!(tamper_length_definition(&mut changed.body));
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            rstyle_pdg::data_library::verify_evidence(&changed).is_err(),
+            "{change}"
+        );
+    }
+}
+
+fn tamper_length_definition(node: &mut rstyle_pdg::HirNode) -> bool {
+    if node.kind == "expr_method_call" {
+        let resolution = node.res.as_mut().unwrap();
+        let mut callee: serde_json::Value = serde_json::from_str(&resolution.description).unwrap();
+        callee["definition_hash"] = serde_json::json!("fake");
+        resolution.description = serde_json::to_string(&callee).unwrap();
+        return true;
+    }
+    node.children.iter_mut().any(tamper_length_definition)
+}
+
+fn pair_decisions(report: &Value) -> Vec<Value> {
+    report["matching"]["pairs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|pair| {
+            serde_json::json!([
+                pair["first"],
+                pair["second"],
+                pair["decision"],
+                pair["displayed_score"]
+            ])
+        })
+        .collect()
+}
+
+#[test]
+fn clones_data_lengths_keep_unsupported_combinations_and_legacy_profiles_closed() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub struct Shadow { pub value: usize }\nimpl Shadow { pub fn len(&self) -> usize { self.value } }\npub fn shadow(value: &Shadow) -> usize { value.len() }\npub fn array(value: &[u8; 8]) -> usize { value.len() }\npub fn mutable(value: &mut [u8]) -> usize { value.len() }\npub fn extra(value: &&str) -> usize { value.len() }\npub fn unsummarized(value: &str) -> usize { value.as_bytes().len() }\npub fn owned(value: &String) -> usize { value.len() }\npub fn index(value: &[u8]) -> u8 { value[0] }\npub fn slice(value: &[u8]) -> usize { value.len() }\npub fn text(value: &str) -> usize { value.len() }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 10);
+    for function in functions {
+        let admitted = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "Shadow::len" | "slice" | "text"
+        );
+        assert_eq!(
+            function["outcome"],
+            if admitted { "admitted" } else { "excluded" },
+            "{function}"
+        );
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    for profile in ["r0", "hir-expanded-v1", "hir-helpers-v1"] {
+        let (output, legacy) = clones(directory.path(), &["--extraction-profile", profile]);
+        assert!(output.status.success(), "{legacy}");
+        assert!(
+            legacy["functions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|f| f["outcome"] == "excluded")
+        );
+        assert!(legacy["functions"].as_array().unwrap().iter().all(|f| {
+            f["facts"]["build"]["frontend_options"]
+                .get(rstyle_pdg::data_library::KEY)
+                .is_none()
+        }));
+    }
+}
+
+#[test]
+fn clones_data_library_corruption_is_incomplete_execution() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn length(value: &str) -> usize { value.len() }\n",
+    )
+    .unwrap();
+    let shim = directory.path().join("driver-shim");
+    let real = driver().to_string_lossy().replace('\'', "'\\''");
+    for mutation in [
+        "options.pop('data_library_artifacts')",
+        "options['data_library_artifacts']['libraries'][0]['files'][0]['sha256'] = 'sha256:' + '0' * 64",
+        "options['data_library_artifacts']['libraries'][0]['files'][0]['bytes'] = 128 * 1024 * 1024 + 1",
+        "function['build']['rustc_commit']['value'] = '0' * 40",
     ] {
         let script = format!(
             "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'facts.json'\nfacts = json.loads(p.read_text())\nfor function in facts:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(facts))\nPY\nfi\nexit \"$code\"\n"

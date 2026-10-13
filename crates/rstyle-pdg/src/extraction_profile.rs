@@ -144,6 +144,17 @@ impl ExtractionProfile {
     }
 
     pub fn summaries(self) -> &'static [&'static str] {
+        if self == Self::DataV1 {
+            return &[
+                "rstyle.primitive.unsigned-abs/1",
+                "rstyle.primitive.wrapping-mul/1",
+                "rstyle.helper.source-body/1",
+                "rstyle.data.slice.len/1",
+                "rstyle.data.slice.is-empty/1",
+                "rstyle.data.str.len/1",
+                "rstyle.data.str.is-empty/1",
+            ];
+        }
         if self.supports("rust.verified-helper-calls") {
             return &[
                 "rstyle.primitive.unsigned-abs/1",

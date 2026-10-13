@@ -22,8 +22,12 @@ Lifetime-only nominal declarations/impls additionally require
 The semantic correction in `field-value-context-v1.md` distinguishes aggregate
 places from terminal value reads and required stored-reference loads. Consecutive
 implicit dereferences lacking referent-storage read evidence remain unavailable.
-Construction, dereference, local/temporary borrows, slicing and library operations
-remain unavailable until their complete obligations are implemented. No successful observation authorizes these operations.
+The four read-only slice/str len/is_empty summaries are connected under
+`read-only-lengths-v1.md` and `read-only-length-registry-v1.md`, initially for the
+registered aarch64 pinned core build. Grouped explicit field-borrow receivers use
+`borrow-receiver-grouping-v1.md`. Construction, explicit dereference, local/
+temporary borrows, indexing/subslicing and other library operations remain
+unavailable. Observation alone never authorizes an operation.
 
 Data types use a deterministic compact JSON tagged tree for non-scalar interface
 strings. Scalar tokens retain existing widths and signedness. Trees distinguish
@@ -88,8 +92,9 @@ borrows follow their separately specified source-place contract.
 Method receiver/signature observations are specified separately in
 [receiver-capture-v1.md](receiver-capture-v1.md). They record compiler adjustment
 order and concrete types without authorizing any additional method or library
-summary. Length calls remain unavailable until independent registry/frontend and
-serialized CALL verification is connected.
+summary. The four named length/emptiness calls now require the separately
+registered core artifact/signature/effect authority and independent serialized
+CALL checks; other library methods remain unavailable.
 
 [receiver-verification-v1.md](receiver-verification-v1.md) independently checks
 receiver inventories, source/HIR identity, concrete types and shared transitions

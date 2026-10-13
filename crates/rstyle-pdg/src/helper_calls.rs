@@ -488,7 +488,7 @@ fn verify_call_metadata(
     Ok(())
 }
 
-fn verify_call_operands(
+pub(crate) fn verify_call_operands(
     pair: &producer::Pair,
     node: &crate::PdgNode,
     call: &HirNode,

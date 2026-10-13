@@ -233,6 +233,7 @@ fn consume_unit(
     for function in &facts {
         verify_frontend_invocation(function, unit, capture)?;
         verify_receiver_inventory(function, unit.extraction_profile)?;
+        rstyle_pdg::data_library::verify_evidence(function)?;
     }
     let bindings = nominal_bindings(&facts, unit)?;
     for (index, (function, binding)) in facts.into_iter().zip(bindings).enumerate() {
@@ -350,7 +351,28 @@ fn verify_frontend_invocation(
     {
         return Err("frontend invocation or pinned compiler identity disagrees with run".into());
     }
-    verify_selected_unit(facts, unit)
+    verify_selected_unit(facts, unit)?;
+    verify_data_compiler_commit(facts, capture)
+}
+
+fn verify_data_compiler_commit(
+    facts: &HirFnFacts,
+    capture: &capture::Capture,
+) -> Result<(), String> {
+    if capture.plan.extraction_profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV1
+    {
+        return Ok(());
+    }
+    let expected = capture
+        .plan
+        .compiler_identity
+        .lines()
+        .find_map(|line| line.strip_prefix("commit-hash: "))
+        .ok_or("Missing planned compiler commit identity")?;
+    if facts.build.rustc_commit.known_value() != Some(expected) {
+        return Err("Data compiler commit disagrees with frozen compiler identity".into());
+    }
+    Ok(())
 }
 
 fn verify_selected_unit(facts: &HirFnFacts, unit: &capture::Unit) -> Result<(), String> {
