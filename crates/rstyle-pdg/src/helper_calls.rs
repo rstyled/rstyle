@@ -77,24 +77,39 @@ fn identity(facts: &HirFnFacts) -> Option<&str> {
 /// Native-width semantics propagate through verified dependencies, even when
 /// a caller's own interface and operations have only fixed-width scalar types.
 pub fn native_width(facts: &HirFnFacts) -> Result<bool, String> {
+    let data = crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        == crate::extraction_profile::ExtractionProfile::DataV1;
     let interface = facts
         .signature
         .params
         .iter()
-        .any(|parameter| native_type(&parameter.ty))
-        || native_type(&facts.signature.return_ty);
+        .try_fold(false, |seen, parameter| {
+            native_type(&parameter.ty, data).map(|native| seen | native)
+        })?
+        | native_type(&facts.signature.return_ty, data)?;
 
-    Ok(interface | node_native_width(&facts.body)?)
+    Ok(interface | node_native_width(&facts.body, data)?)
 }
 
-fn native_type(ty: &crate::ResolvedTy) -> bool {
-    matches!(ty.normalized.as_deref(), Some("isize" | "usize"))
+fn native_type(ty: &crate::ResolvedTy, data: bool) -> Result<bool, String> {
+    let Some(token) = ty.normalized.as_deref() else {
+        return Ok(false);
+    };
+    if data {
+        return crate::data_types::parse(token).map(|token| token.native_width());
+    }
+    Ok(matches!(token, "isize" | "usize"))
 }
 
-fn node_native_width(node: &HirNode) -> Result<bool, String> {
-    let own = node.ty.as_ref().is_some_and(native_type);
+fn node_native_width(node: &HirNode, data: bool) -> Result<bool, String> {
+    let own = node
+        .ty
+        .as_ref()
+        .map(|ty| native_type(ty, data))
+        .transpose()?
+        .unwrap_or(false);
     let children = node.children.iter().try_fold(false, |native, child| {
-        node_native_width(child).map(|seen| native | seen)
+        node_native_width(child, data).map(|seen| native | seen)
     })?;
     let callee = if let Some(resolution) = direct_resolution(node) {
         let dependency: Dependency = serde_json::from_value(resolution[KEY].clone())
@@ -569,4 +584,46 @@ fn verify_operand(pair: &producer::Pair, operand: &str, argument: &HirNode) -> R
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod width_tests {
+    use super::*;
+    use crate::data_types::TypeToken;
+
+    fn resolved(token: &TypeToken) -> crate::ResolvedTy {
+        crate::ResolvedTy {
+            normalized: Some(token.text().unwrap()),
+            observed: "forensics only".into(),
+            spelling: String::new(),
+        }
+    }
+
+    #[test]
+    fn data_native_width_follows_nested_referents_and_elements() {
+        let native = TypeToken::Shared(Box::new(TypeToken::Tuple(vec![
+            TypeToken::Scalar("u8".into()),
+            TypeToken::Array {
+                element: Box::new(TypeToken::Scalar("usize".into())),
+                length: 2,
+            },
+        ])));
+        assert!(native_type(&resolved(&native), true).unwrap());
+        assert!(!native_type(&resolved(&native), false).unwrap());
+        let fixed = TypeToken::Shared(Box::new(TypeToken::Slice(Box::new(TypeToken::Scalar(
+            "u64".into(),
+        )))));
+        assert!(!native_type(&resolved(&fixed), true).unwrap());
+    }
+
+    #[test]
+    fn malformed_data_width_evidence_is_an_error() {
+        let ty = crate::ResolvedTy {
+            normalized: Some("{broken data token".into()),
+            observed: "usize".into(),
+            spelling: "usize".into(),
+        };
+        assert!(native_type(&ty, true).is_err());
+        assert!(!native_type(&ty, false).unwrap());
+    }
 }

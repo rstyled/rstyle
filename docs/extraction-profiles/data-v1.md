@@ -51,6 +51,10 @@ writes, no claim of disjointness and no invented memory-summary node. Copying a
 shared reference is a binding read, not a read of its referent. Borrowed outputs
 must retain verified origins in shared formals, including all branch alternatives.
 Unknown calls and unresolved reference origins exclude the entire function.
+The prospective reference-aware helper/method boundary is frozen separately in
+`read-only-helper-calls-v1.md`; it remains unavailable until its read-location and
+return-origin verification is connected. Existing scalar helper admission does
+not authorize memory-reading callees.
 
 CFG, scalar reaching definitions and dependence use the existing analysis.
 No exceptional transfers or executable exits are fabricated. Existing arithmetic
