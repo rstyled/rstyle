@@ -1,9 +1,9 @@
 //! Independent serialized address computation and origin checks.
 
-use crate::{NodeCategory, PdgNode, data_origins::Origin, producer::Pair};
+use crate::{NodeCategory, PdgNode, data_origins::Origin};
 
 pub(super) fn verify(
-    pair: &Pair,
+    pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     let places = crate::data_places::Places::verify(facts)?;
@@ -69,7 +69,10 @@ fn verify_effects(node: &PdgNode) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn graph_origin(node: &PdgNode, pair: &Pair) -> Result<Origin, String> {
+pub(super) fn graph_origin(
+    node: &PdgNode,
+    pair: crate::producer::PairView<'_>,
+) -> Result<Origin, String> {
     let operands: Vec<_> = pair
         .pdg
         .edges

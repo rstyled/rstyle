@@ -638,3 +638,31 @@ regression; formatting; workspace/all-target locked Clippy with warnings denied;
 candidates with the same 15 reviewed ignores. The full nextest wrapper passes
 640 tests in 166.973 seconds (one slow, zero skipped), then workspace doctests.
 Logs: `/tmp/rstyle-nominal-{pdg-tests.log,cli-regression.log,clippy.log,style.json,patterns.log,nextest.log}`.
+
+### Borrow typed paired documents through standalone admission
+
+The remaining standalone admission adapter cloned both complete documents to
+call producer verification. `PairView` now carries borrowed PDG/CFG references
+through the same verification implementation used by owning pairs. Public
+helper/data/receiver/library validators accept owning references or views via
+one entrypoint. Readable view serialization preserves the pair's JSON values.
+Standalone admission also retains its one decoded frontend record through
+native-width/target compatibility checks; the local helper path no longer
+decodes the same frontend a second time. Verification compares existing data
+locations by reference instead of cloning every location into a map, retaining
+explicit duplicate-ID rejection.
+
+The structural reduction is two complete document clones to zero per standalone
+local admission, one frontend decode instead of two on the helper path, and no
+location clones for inventory comparison. These are code-path observations;
+no runtime or RSS speedup is claimed for this adapter change. It is not part of
+the previously timed shared helper replay. A real CLI regression verifies
+reference identity, identical readable serialization, strict/generated parity,
+standalone/producer admission parity including native-width propagation, and
+malformed-CFG rejection under both policies. Existing tampering checks remain.
+
+Validation: formatting and workspace/all-target locked Clippy pass. The full
+nextest wrapper passes 641 tests in 168.318 seconds (one slow, zero skipped),
+followed by workspace doctests. Both gates pass: 1,991 assessed functions, zero
+style violations, zero actionable pattern candidates, and 15 existing reviewed
+ignores. Logs: `/tmp/rstyle-pair-view-{tests.log,clippy.log,cli-regression.log,nextest.log,style.json,patterns.log}`.

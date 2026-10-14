@@ -139,7 +139,7 @@ fn install_call(
 ) -> Result<BTreeMap<String, MemoryLocation>, String> {
     let dependency = crate::helper_calls::verify_use(call, facts)?;
     let effects = expected(dependency.summary(), call, facts)?;
-    let id = source_call(pair, call)?.id.clone();
+    let id = source_call(pair.as_view(), call)?.id.clone();
     let node = pair
         .pdg
         .nodes
@@ -152,7 +152,7 @@ fn install_call(
 }
 
 pub(crate) fn verify_locations(
-    pair: &Pair,
+    pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
     locations: &mut BTreeMap<String, MemoryLocation>,
 ) -> Result<(), String> {
@@ -196,7 +196,10 @@ pub(crate) fn verify_effects(
     Ok(())
 }
 
-fn source_call<'a>(pair: &'a Pair, call: &HirNode) -> Result<&'a PdgNode, String> {
+fn source_call<'a>(
+    pair: crate::producer::PairView<'a>,
+    call: &HirNode,
+) -> Result<&'a PdgNode, String> {
     let nodes = pair
         .pdg
         .nodes

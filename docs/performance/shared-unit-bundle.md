@@ -131,3 +131,16 @@ only for standalone use. This is an intentional Rust API change; the wire
 format and evidence identities do not change. Caller-specific dispatch,
 signature, receiver adjustment, argument, effect and source-use checks remain
 per use. A generated result cannot populate or satisfy a strict slot.
+
+`producer::PairView` borrows the typed PDG and CFG directly and supports readable
+serialization without cloning either document. `Pair::as_view` constructs it;
+`producer::verify_view` applies the same verifier used by the owning API. Helper,
+data, receiver and library document validators accept a view or an owning pair
+reference through one implementation. A view carries no trust and may not skip
+paired, source, inventory or policy checks.
+
+Standalone strict admission now verifies a `PairView` rather than constructing
+an owning pair by cloning both documents. Its imported frontend record remains
+alive for the complete admission operation, including target compatibility,
+instead of being decoded again. Data-location inventory comparison also borrows
+existing locations while preserving duplicate-ID and exact-evidence checks.

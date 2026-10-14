@@ -11,7 +11,7 @@ mod lower;
 mod profile;
 mod summaries;
 mod verify;
-pub use verify::verify;
+pub use verify::{verify, verify_view};
 
 /// Build and validate one bounded normal-flow pair from captured frontend facts.
 pub fn produce(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, Vec<String>> {
@@ -99,6 +99,8 @@ fn analyze_facts(
         analyze(graph)
     }
 }
-pub use emit::{DocumentIdentity, Manifest, Pair, SerializedPair, SerializedPairView, emit};
+pub use emit::{
+    DocumentIdentity, Manifest, Pair, PairView, SerializedPair, SerializedPairView, emit,
+};
 pub use graph::{Alternative, Atom, Graph, Guard, Operation, Transfer, ValueSite};
 pub use lower::lower;

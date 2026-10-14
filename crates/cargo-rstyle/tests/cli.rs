@@ -6168,3 +6168,89 @@ fn shared_unit_borrows_lexical_results_with_policy_and_context_isolation() {
     assert!(edited.inherent_definition().is_err());
     assert!(std::ptr::eq(&*first, &*view.nominal_resolution().unwrap()));
 }
+
+#[test]
+fn clones_borrowed_typed_pairs_preserve_verification_and_strict_admission() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn leaf(x: usize) -> usize { x }\npub fn caller(x: usize) -> usize { leaf(x) }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{report}");
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["facts"]["name"] == "caller")
+        .unwrap();
+    let (pair, facts) = data_pair(function);
+    let borrowed = pair.as_view();
+    assert!(std::ptr::eq(borrowed.pdg, &pair.pdg));
+    assert!(std::ptr::eq(borrowed.cfg, &pair.cfg));
+    assert_eq!(
+        serde_json::to_vec(&pair).unwrap(),
+        serde_json::to_vec(&borrowed).unwrap()
+    );
+    assert_eq!(
+        rstyle_pdg::producer::verify_view(borrowed, &facts),
+        rstyle_pdg::producer::verify(&pair, &facts)
+    );
+    let generated = rstyle_pdg::verification_policy::generated(|| {
+        rstyle_pdg::producer::verify_view(borrowed, &facts)
+    });
+    assert!(generated.is_ok());
+    check_borrowed_pair_admission(&pair, &facts);
+    check_borrowed_pair_tampering(&pair, &facts);
+}
+
+fn check_borrowed_pair_admission(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &rstyle_pdg::HirFnFacts,
+) {
+    let borrowed = pair.as_view();
+    let sources = pair
+        .pdg
+        .sources
+        .iter()
+        .map(|source| (source.id.clone(), facts.source.bytes.as_bytes().to_vec()))
+        .collect();
+    let context = rstyle_pdg::ValidationContext::CompilerEvidence {
+        pointer_width_bits: u8::try_from(facts.build.pointer_width.value.unwrap()).unwrap(),
+    };
+    let standalone = rstyle_ccgraph::admit_strict(&rstyle_ccgraph::StrictBundle {
+        pdg: borrowed.pdg,
+        cfg: borrowed.cfg,
+        source_bytes: &sources,
+        ctx: &context,
+    })
+    .unwrap();
+    assert!(standalone.native_width_involved);
+    assert_eq!(
+        standalone,
+        rstyle_ccgraph::admit_produced(pair, facts).unwrap()
+    );
+}
+
+fn check_borrowed_pair_tampering(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &rstyle_pdg::HirFnFacts,
+) {
+    let mut cfg = pair.cfg.clone();
+    cfg.entry_node_id = "missing".into();
+    let changed = rstyle_pdg::producer::PairView {
+        pdg: &pair.pdg,
+        cfg: &cfg,
+    };
+    assert!(rstyle_pdg::producer::verify_view(changed, facts).is_err());
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::verify_view(
+            changed, facts
+        ))
+        .is_err()
+    );
+}

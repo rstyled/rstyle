@@ -38,7 +38,7 @@ fn finish_locations(
     locations: BTreeMap<String, crate::MemoryLocation>,
 ) -> Result<Pair, String> {
     pair.pdg.memory_locations = locations.into_values().collect();
-    pair.pdg.function.reference_count.value = Some(read_count(&pair)?);
+    pair.pdg.function.reference_count.value = Some(read_count(pair.as_view())?);
 
     Ok(pair)
 }
@@ -215,7 +215,11 @@ pub(crate) fn formal_location(
 
 /// Check semantic locations directly against independently verified source
 /// operations, without calling the lowerer or document emitter.
-pub fn verify(pair: &Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+pub fn verify<'a>(
+    pair: impl Into<crate::producer::PairView<'a>>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    let pair = pair.into();
     crate::inherent_calls::definition(facts)?;
     crate::data_receivers::verify_documents(pair, facts)?;
     crate::data_library::verify_documents(pair, facts)?;
@@ -238,9 +242,9 @@ pub fn verify(pair: &Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Resu
         .pdg
         .memory_locations
         .iter()
-        .map(|location| (location.id.clone(), location.clone()))
+        .map(|location| (&location.id, location))
         .collect();
-    if actual != expected || actual.len() != pair.pdg.memory_locations.len() {
+    if actual.len() != pair.pdg.memory_locations.len() || !actual.into_iter().eq(expected.iter()) {
         return Err("Serialized data location inventory disagrees with source".into());
     }
     if pair
@@ -258,7 +262,7 @@ pub fn verify(pair: &Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Resu
 }
 
 fn verify_field(
-    pair: &Pair,
+    pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
     field: &FieldOperation,
     expected: &mut BTreeMap<String, crate::MemoryLocation>,
@@ -302,7 +306,7 @@ fn verify_field(
     Ok(())
 }
 
-fn verify_reads(pair: &Pair, fields: usize) -> Result<(), String> {
+fn verify_reads(pair: crate::producer::PairView<'_>, fields: usize) -> Result<(), String> {
     if pair
         .pdg
         .nodes
@@ -329,7 +333,7 @@ fn verify_reads(pair: &Pair, fields: usize) -> Result<(), String> {
     Ok(())
 }
 
-fn invalid_memory_access(node: &crate::PdgNode, pair: &Pair) -> bool {
+fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<'_>) -> bool {
     let field = node.category == NodeCategory::Read
         && node.original_kind.known_value() == Some("expr_field");
     let call = node.category == NodeCategory::Call
@@ -356,12 +360,12 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: &Pair) -> bool {
                 .any(|access| access.location_id.is_some())
 }
 
-fn read_count(pair: &Pair) -> Result<u64, String> {
+fn read_count(pair: crate::producer::PairView<'_>) -> Result<u64, String> {
     let calls = crate::extraction_profile::policy_supports(
         &pair.pdg.profile,
         "rust.verified-read-only-helper-calls",
     );
-    let reachable = crate::reachable_vertices(&pair.cfg);
+    let reachable = crate::reachable_vertices(pair.cfg);
     let map = crate::read_operation_map(&pair.pdg.extensions)?;
     let nodes: BTreeSet<_> = map
         .iter()
@@ -383,7 +387,7 @@ fn read_count(pair: &Pair) -> Result<u64, String> {
 }
 
 fn verify_field_operands(
-    pair: &Pair,
+    pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
     field: &FieldOperation,
     node: &crate::PdgNode,
@@ -424,7 +428,7 @@ fn verify_field_root(
 }
 
 fn field_base<'a>(
-    pair: &'a Pair,
+    pair: crate::producer::PairView<'a>,
     facts: &dyn crate::unit_store::EvidenceFacts,
     node: &crate::PdgNode,
 ) -> Result<&'a crate::PdgNode, String> {
@@ -454,7 +458,7 @@ fn field_base<'a>(
 }
 
 fn verify_field_value_edge(
-    pair: &Pair,
+    pair: crate::producer::PairView<'_>,
     node: &crate::PdgNode,
     base: &crate::PdgNode,
 ) -> Result<(), String> {
@@ -478,7 +482,7 @@ fn verify_field_value_edge(
 }
 
 fn verify_interface(
-    pair: &Pair,
+    pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     if pair.pdg.function.inputs.len() != facts.signature.params.len() {

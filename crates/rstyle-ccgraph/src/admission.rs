@@ -109,11 +109,13 @@ fn admit_checked(
     } = bundle;
 
     require_compiler_evidence(ctx)?;
-    if frontend.is_some() {
+    let imported = if frontend.is_some() {
         check_local_profile(pdg, cfg)?;
+        None
     } else {
-        check_local_producer(pdg, cfg)?;
-    }
+        check_local_producer(pdg, cfg)?
+    };
+    let frontend = frontend.or_else(|| imported.as_ref().map(|facts| facts as &dyn EvidenceFacts));
     check_pdg_eligibility(pdg, ctx, *source_bytes)?;
 
     let admitted = AdmittedPair { pdg, cfg };
@@ -146,10 +148,13 @@ fn check_local_profile(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<bool, Vec
     Ok(true)
 }
 
-fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<String>> {
+fn check_local_producer(
+    pdg: &PdgDocument,
+    cfg: &CfgDocument,
+) -> Result<Option<rstyle_pdg::HirFnFacts>, Vec<String>> {
     use rstyle_pdg::extraction_profile::EVIDENCE_KEY;
     if !check_local_profile(pdg, cfg)? {
-        return Ok(());
+        return Ok(None);
     }
     let evidence = pdg
         .extensions
@@ -158,14 +163,12 @@ fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<
     if cfg.extensions.get(EVIDENCE_KEY) != Some(evidence) {
         return Err(vec!["Paired local frontend evidence disagrees".into()]);
     }
-    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(evidence["frontend"].clone())
+    let facts: rstyle_pdg::HirFnFacts = serde::Deserialize::deserialize(&evidence["frontend"])
         .map_err(|e| vec![format!("Invalid local frontend evidence: {e}")])?;
-    let pair = rstyle_pdg::producer::Pair {
-        pdg: pdg.clone(),
-        cfg: cfg.clone(),
-    };
+    let pair = rstyle_pdg::producer::PairView { pdg, cfg };
 
-    rstyle_pdg::producer::verify(&pair, &facts)
+    rstyle_pdg::producer::verify_view(pair, &facts)?;
+    Ok(Some(facts))
 }
 
 struct AdmittedPair<'a> {
@@ -663,7 +666,7 @@ fn helper_native_width(
         .extensions
         .get(rstyle_pdg::extraction_profile::EVIDENCE_KEY)
         .ok_or_else(|| vec!["Missing helper frontend evidence for target compatibility".into()])?;
-    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(evidence["frontend"].clone())
+    let facts: rstyle_pdg::HirFnFacts = serde::Deserialize::deserialize(&evidence["frontend"])
         .map_err(|error| vec![error.to_string()])?;
 
     rstyle_pdg::helper_calls::native_width(&facts).map_err(|error| vec![error])

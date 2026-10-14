@@ -33,6 +33,13 @@ pub fn returned(
     facts: &dyn crate::unit_store::EvidenceFacts,
     pair: &Pair,
 ) -> Result<Option<Vec<Origin>>, String> {
+    returned_view(facts, pair.as_view())
+}
+
+fn returned_view(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    pair: crate::producer::PairView<'_>,
+) -> Result<Option<Vec<Origin>>, String> {
     if !ExtractionProfile::from_facts(facts)?.is_data() {
         return Ok(None);
     }

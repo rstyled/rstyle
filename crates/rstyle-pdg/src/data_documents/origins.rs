@@ -24,7 +24,7 @@ pub(super) fn install(
 }
 
 pub(super) fn verify(
-    pair: &Pair,
+    pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     for node in &pair.pdg.nodes {
@@ -114,7 +114,7 @@ fn find<'a>(node: &'a HirNode, kind: &str, span: &crate::Span, matches: &mut Vec
 
 fn graph_origins(
     node: &PdgNode,
-    pair: &Pair,
+    pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
     visiting: &mut BTreeSet<String>,
 ) -> Result<Vec<Origin>, String> {
@@ -180,7 +180,10 @@ fn returned_operands(
     ))
 }
 
-fn loaded_origins(node: &PdgNode, pair: &Pair) -> Result<Vec<Origin>, String> {
+fn loaded_origins(
+    node: &PdgNode,
+    pair: crate::producer::PairView<'_>,
+) -> Result<Vec<Origin>, String> {
     let [access] = node.attributes.reads.as_slice() else {
         return Err("Stored reference field requires one exact read".into());
     };

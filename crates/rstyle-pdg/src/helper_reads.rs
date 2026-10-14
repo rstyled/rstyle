@@ -30,7 +30,10 @@ struct CapturedLocation {
     value: TypeToken,
 }
 
-pub(crate) fn supported(facts: &dyn crate::unit_store::EvidenceFacts, pair: &Pair) -> bool {
+pub(crate) fn supported(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    pair: crate::producer::PairView<'_>,
+) -> bool {
     crate::extraction_profile::ExtractionProfile::from_facts(facts)
         .is_ok_and(|profile| profile.supports("rust.verified-read-only-helper-calls"))
         && facts
@@ -51,7 +54,7 @@ pub(crate) fn supported(facts: &dyn crate::unit_store::EvidenceFacts, pair: &Pai
 
 pub(crate) fn derive(
     facts: &dyn crate::unit_store::EvidenceFacts,
-    pair: &Pair,
+    pair: crate::producer::PairView<'_>,
 ) -> Result<Option<Vec<Read>>, String> {
     if pair.pdg.memory_locations.is_empty() {
         return Ok(None);

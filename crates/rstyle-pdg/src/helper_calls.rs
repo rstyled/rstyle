@@ -62,7 +62,7 @@ fn summary(facts: &dyn EvidenceFacts, pair: &producer::Pair) -> Result<Summary, 
 
     let reference_outputs = crate::helper_references::returned(facts, pair)?;
     let references = reference_outputs.is_some();
-    let memory_reads = crate::helper_reads::derive(facts, pair)?;
+    let memory_reads = crate::helper_reads::derive(facts, pair.as_view())?;
     let reads = memory_reads.is_some();
     Ok(Summary {
         identity: if reads {
@@ -285,7 +285,8 @@ pub(crate) fn verify_shared_callee(
 
 fn check_boundary(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<(), Vec<String>> {
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
-        || !pair.pdg.memory_locations.is_empty() && !crate::helper_reads::supported(facts, pair)
+        || !pair.pdg.memory_locations.is_empty()
+            && !crate::helper_reads::supported(facts, pair.as_view())
         || pair
             .pdg
             .nodes
@@ -432,11 +433,15 @@ fn check_depth(node: &HirNode, depth: usize) -> Result<(), String> {
 }
 
 /// Independent serialized inventory validation; never invokes caller lowering.
-pub fn verify_documents(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<(), String> {
+pub fn verify_documents<'a>(
+    pair: impl Into<producer::PairView<'a>>,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let pair = pair.into();
     crate::verification_session::within(|| verify_inventory(pair, facts))
 }
 
-fn verify_inventory(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<(), String> {
+fn verify_inventory(pair: producer::PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
     crate::inherent_calls::definition(facts)?;
     let calls = call_nodes(facts);
     let records = pair
@@ -479,7 +484,7 @@ fn verify_inventory(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<
 }
 
 fn verify_document_call(
-    pair: &producer::Pair,
+    pair: producer::PairView<'_>,
     facts: &dyn EvidenceFacts,
     call: &HirNode,
     records: &[Value],
@@ -540,7 +545,7 @@ fn verify_call_metadata(
 }
 
 pub(crate) fn verify_call_operands(
-    pair: &producer::Pair,
+    pair: producer::PairView<'_>,
     node: &crate::PdgNode,
     call: &HirNode,
     record: &Value,
@@ -585,7 +590,11 @@ pub(crate) fn verify_call_operands(
     Ok(())
 }
 
-fn verify_operand(pair: &producer::Pair, operand: &str, argument: &HirNode) -> Result<(), String> {
+fn verify_operand(
+    pair: producer::PairView<'_>,
+    operand: &str,
+    argument: &HirNode,
+) -> Result<(), String> {
     let value = pair
         .pdg
         .nodes

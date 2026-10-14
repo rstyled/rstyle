@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::unit_store::EvidenceFacts;
-use crate::{HirNode, NodeCategory, producer::Pair};
+use crate::{HirNode, NodeCategory, producer::PairView};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -49,7 +49,11 @@ struct Width {
     bits: Option<u64>,
 }
 
-pub fn verify_documents(pair: &Pair, facts: &dyn EvidenceFacts) -> Result<(), String> {
+pub fn verify_documents<'a>(
+    pair: impl Into<PairView<'a>>,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let pair = pair.into();
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
     let records = pair
@@ -63,19 +67,7 @@ pub fn verify_documents(pair: &Pair, facts: &dyn EvidenceFacts) -> Result<(), St
     {
         return Err("Paired library call inventories disagree".into());
     }
-    if pair
-        .pdg
-        .nodes
-        .iter()
-        .filter(|node| {
-            node.category == NodeCategory::Call
-                && node.original_kind.known_value() == Some("expr_method_call")
-        })
-        .count()
-        != methods.len()
-    {
-        return Err("Serialized method CALL inventory is incomplete or excessive".into());
-    }
+    check_method_inventory(pair, methods.len())?;
 
     let context = Documents {
         pair,
@@ -99,8 +91,26 @@ pub fn verify_documents(pair: &Pair, facts: &dyn EvidenceFacts) -> Result<(), St
     Ok(())
 }
 
+fn check_method_inventory(pair: PairView<'_>, expected: usize) -> Result<(), String> {
+    if pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| {
+            node.category == NodeCategory::Call
+                && node.original_kind.known_value() == Some("expr_method_call")
+        })
+        .count()
+        != expected
+    {
+        return Err("Serialized method CALL inventory is incomplete or excessive".into());
+    }
+
+    Ok(())
+}
+
 struct Documents<'a> {
-    pair: &'a Pair,
+    pair: PairView<'a>,
     facts: &'a dyn EvidenceFacts,
     records: &'a [Value],
 }
@@ -151,7 +161,7 @@ impl Documents<'_> {
         {
             return Err("Serialized library/core/receiver/build evidence disagrees".into());
         }
-        crate::helper_calls::verify_call_operands(pair, node, call, record)
+        crate::helper_calls::verify_call_operands(*pair, node, call, record)
     }
 }
 

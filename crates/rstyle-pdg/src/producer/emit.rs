@@ -31,6 +31,41 @@ pub struct Pair {
     pub cfg: CfgDocument,
 }
 
+/// Borrow paired typed documents without copying their evidence. This view
+/// grants no trust; ordinary paired/source/policy checks still apply.
+#[derive(Clone, Copy, Serialize)]
+pub struct PairView<'a> {
+    pub pdg: &'a PdgDocument,
+    pub cfg: &'a CfgDocument,
+}
+
+impl Pair {
+    pub fn as_view(&self) -> PairView<'_> {
+        PairView {
+            pdg: &self.pdg,
+            cfg: &self.cfg,
+        }
+    }
+}
+
+impl<'a> From<&'a Pair> for PairView<'a> {
+    fn from(pair: &'a Pair) -> Self {
+        pair.as_view()
+    }
+}
+
+impl<'a> From<&'a mut Pair> for PairView<'a> {
+    fn from(pair: &'a mut Pair) -> Self {
+        pair.as_view()
+    }
+}
+
+impl<'a> From<&PairView<'a>> for PairView<'a> {
+    fn from(pair: &PairView<'a>) -> Self {
+        *pair
+    }
+}
+
 pub struct SerializedPair {
     pub pdg_bytes: Vec<u8>,
     pub cfg_bytes: Vec<u8>,

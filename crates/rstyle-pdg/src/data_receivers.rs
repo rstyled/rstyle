@@ -53,10 +53,11 @@ pub enum Kind {
 }
 
 /// Inspect paired frontend records directly, without invoking producer lowering.
-pub fn verify_documents(
-    pair: &crate::producer::Pair,
+pub fn verify_documents<'a>(
+    pair: impl Into<crate::producer::PairView<'a>>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    let pair = pair.into();
     let expected = verify(facts)?;
     for extensions in [&pair.pdg.extensions, &pair.cfg.extensions] {
         let value = extensions
