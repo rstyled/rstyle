@@ -276,11 +276,37 @@ struct CountFactWire {
     policy: Option<ProfileId>,
 }
 
-fn reject_empty_reason(reason: &Option<String>) -> Result<(), String> {
-    match reason {
-        Some(text) if !text.is_empty() => Ok(()),
-        Some(_) => Err("reason must be nonempty".to_string()),
-        None => Err("missing reason for non-known fact".to_string()),
+/// Borrowed form of the wire fact grammar, also checked before typed transport.
+pub(crate) struct FactShape<'a> {
+    status: FactStatus,
+    has_value: bool,
+    reason: Option<&'a str>,
+}
+
+impl<'a> FactShape<'a> {
+    pub(crate) fn new(status: FactStatus, has_value: bool, reason: Option<&'a str>) -> Self {
+        Self {
+            status,
+            has_value,
+            reason,
+        }
+    }
+
+    pub(crate) fn check(&self, kind: &str) -> Result<(), String> {
+        if self.status == FactStatus::Known {
+            if !self.has_value || self.reason.is_some() {
+                return Err(format!("known {kind} fact requires value and no reason"));
+            }
+            return Ok(());
+        }
+        if self.has_value {
+            return Err(format!("non-known {kind} fact must not carry a value"));
+        }
+        match self.reason {
+            Some(text) if !text.is_empty() => Ok(()),
+            Some(_) => Err("reason must be nonempty".into()),
+            None => Err("missing reason for non-known fact".into()),
+        }
     }
 }
 
@@ -288,24 +314,9 @@ impl<'de> Deserialize<'de> for StringFact {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let wire = StringFactWire::deserialize(deserializer)?;
 
-        match wire.status {
-            FactStatus::Known => {
-                if wire.value.is_none() || wire.reason.is_some() {
-                    return Err(serde::de::Error::custom(
-                        "known string fact requires value and no reason",
-                    ));
-                }
-            }
-            _ => {
-                if wire.value.is_some() {
-                    return Err(serde::de::Error::custom(
-                        "non-known string fact must not carry a value",
-                    ));
-                }
-
-                reject_empty_reason(&wire.reason).map_err(serde::de::Error::custom)?;
-            }
-        }
+        FactShape::new(wire.status, wire.value.is_some(), wire.reason.as_deref())
+            .check("string")
+            .map_err(serde::de::Error::custom)?;
 
         Ok(Self {
             status: wire.status,
@@ -319,24 +330,9 @@ impl<'de> Deserialize<'de> for BoolFact {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let wire = BoolFactWire::deserialize(deserializer)?;
 
-        match wire.status {
-            FactStatus::Known => {
-                if wire.value.is_none() || wire.reason.is_some() {
-                    return Err(serde::de::Error::custom(
-                        "known boolean fact requires value and no reason",
-                    ));
-                }
-            }
-            _ => {
-                if wire.value.is_some() {
-                    return Err(serde::de::Error::custom(
-                        "non-known boolean fact must not carry a value",
-                    ));
-                }
-
-                reject_empty_reason(&wire.reason).map_err(serde::de::Error::custom)?;
-            }
-        }
+        FactShape::new(wire.status, wire.value.is_some(), wire.reason.as_deref())
+            .check("boolean")
+            .map_err(serde::de::Error::custom)?;
 
         Ok(Self {
             status: wire.status,
@@ -355,24 +351,9 @@ impl<'de> Deserialize<'de> for CountFact {
             ));
         }
 
-        match wire.status {
-            FactStatus::Known => {
-                if wire.value.is_none() || wire.reason.is_some() {
-                    return Err(serde::de::Error::custom(
-                        "known count fact requires value and no reason",
-                    ));
-                }
-            }
-            _ => {
-                if wire.value.is_some() {
-                    return Err(serde::de::Error::custom(
-                        "non-known count fact must not carry a value",
-                    ));
-                }
-
-                reject_empty_reason(&wire.reason).map_err(serde::de::Error::custom)?;
-            }
-        }
+        FactShape::new(wire.status, wire.value.is_some(), wire.reason.as_deref())
+            .check("count")
+            .map_err(serde::de::Error::custom)?;
 
         Ok(Self {
             status: wire.status,

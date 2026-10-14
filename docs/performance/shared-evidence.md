@@ -455,3 +455,67 @@ reviewed ignores). The full nextest wrapper passes 629 tests, zero skipped,
 one slow test, in 176.688 seconds, followed by successful workspace doctests.
 Logs: `/tmp/rstyle-source-{pdg-tests.log,ccgraph-tests.log,clippy.log,style.json,patterns.log,nextest.log}`.
 No thresholds, ignore entries, source exclusions, or test assertions are weakened.
+
+
+## Typed profile transport
+
+Parent commit `f54ab9d` still converted both complete paired documents to
+`serde_json::Value`, recursively rebuilt those values, and decoded both typed
+documents again for each local-profile application. Profile application now
+moves typed records through a shared policy transformation. Only already-open
+configuration/extension values need JSON traversal. Unchanged IDs, spans,
+operand positions, provenance lists, source/literal strings and opaque dependency
+payloads move without heavyweight cloning. Description text allocates a replacement
+only when it contains one of the historical replacement tokens. Capabilities
+and provenance share a private policy-description interface. The selected frontend
+reference is resolved once rather than twice while constructing selection evidence.
+
+The removed deserialization also performed fact grammar validation. A shared
+borrowed `FactShape` check retains the exact string/boolean/count grammar and
+error messages in both deserialization and the typed transport guard. The guard
+visits typed facts in the former map decoding order; known counts still require
+a policy, non-known facts retain a nonempty reason, and known facts reject a
+contradictory reason. R0 keeps its existing early return. No serialized identity,
+profile, schema, capability, matching rule, or readable-export format changes.
+
+Four regressions compare the complete typed output with a test-only copy of the
+former transform for all eleven local profiles; cover nested/unregistered open
+values and unrelated policy versions; preserve dependency subtrees and source
+text; compare rejection messages for malformed facts; and check that graph-ID
+and 1 MiB opaque-proof string allocations retain their pointers. The former
+round trip exists only in tests, not as a parallel production runtime. The
+illustrative vendor example is adapted locally to the current typed schema;
+no pinned fixture or existing assertion is changed.
+
+Same-machine debug comparison uses the same 21-function snapshot, pinned nightly
+and locked dependencies as above. Build/setup are excluded, instrumentation is
+off for ordinary timing, and no other builds/tests run concurrently. Stable
+before/after replay binaries execute three alternating samples per version;
+separate instrumented runs likewise alternate three times. The before binary is
+`f54ab9d` plus the same opt-in `producer.profile` timing boundary, without semantic
+changes. Final ordinary wall medians are 1.751223 seconds before and 1.660957
+seconds after; median peak RSS is 28,764 KiB before and 27,524 KiB after.
+
+Instrumented profile-stage medians, aggregating its 25 non-overlapping calls,
+are 0.310426 seconds before and 0.250218 seconds after. That stage includes the
+unchanged data-document annotation work, not just conversion. Capture medians
+are 1.725901 and 1.629093 seconds respectively; these nested stage durations
+are not summed as independent costs. All samples complete 21 functions and 20
+unique helpers. Structurally, the 25 local profile applications no longer perform
+50 complete-document Value encodes and 50 full typed decodes. These observations
+are bounded helper-stage results, not end-to-end CLI speedup claims.
+
+Methodology/script and samples: `/tmp/rstyle-profile-final-samples.{py,json}`;
+summary: `/tmp/rstyle-profile-final-sample-summary.log`; per-run stdout, perf
+observations and time/RSS logs: `/tmp/rstyle-profile-final-{before,after}-*`.
+The earlier exploratory samples are retained separately. Existing data-document
+annotation/verification and graph analysis still account for substantial work.
+
+
+Final validation for typed profile transport: focused PDG tests, all four new
+regressions, workspace/all-target locked Clippy with warnings denied, and
+formatting pass. Both wrappers complete: 1,932 functions and zero style
+violations; zero actionable pattern candidates and 15 existing reviewed ignores.
+No ignore/configuration entries change. The complete nextest wrapper passes
+633 tests, zero skipped, one slow test, in 170.981 seconds, followed by successful
+workspace doctests. Logs: `/tmp/rstyle-profile-{pdg-tests.log,final-oracle.log,clippy.log,style.json,patterns.log,nextest.log}`.
