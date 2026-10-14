@@ -34,3 +34,20 @@ completed dependencies, verification copies serialized PDG/CFG buffers, and
 admission clones both complete documents. The per-call JSON transport still
 expands dependencies on decode. Counts of those structural operations are
 code observations, not measured allocation totals.
+
+## Capture construction increment
+
+Capture prepares each pending function in its existing mutable unit buffer,
+then moves completed dependencies into the certification map. It no longer
+clones each pending frontend tree or each completed full dependency. Round
+boundaries still prevent same-round discoveries from changing certification
+order. Missing/duplicate completed definition identities are checked before
+publication. As before, a failed capture can leave partially attached evidence;
+callers must not publish a failed capture.
+
+This increment does not normalize the nested transport: certification still
+copies facts into the dependency required by that format. No ID or wire-format
+guarantees change yet. Focused PDG tests and all nine `clones_helpers` CLI tests
+pass, including transitive edits, tampering, recursion exclusions, capture order
+and argument positions. Both wrappers pass: zero style violations and zero
+actionable candidates, with the same 17 reviewed ignores.

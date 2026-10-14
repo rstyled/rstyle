@@ -229,73 +229,61 @@ impl CertifiedDependency {
 
 struct Prepared {
     index: usize,
-    facts: HirFnFacts,
     dependency: Option<Dependency>,
 }
 
 impl CaptureState {
-    fn prepare(&self, index: usize, facts: &HirFnFacts) -> Result<Prepared, String> {
-        let mut facts = facts.clone();
+    fn prepare(&self, index: usize, facts: &mut HirFnFacts) -> Result<Prepared, String> {
         attach(&mut facts.body, &self.verified)?;
-        let dependency = if crate::classify(&facts).status == crate::EligibilityVerdict::Eligible {
-            certify(&facts)?
+        let dependency = if crate::classify(facts).status == crate::EligibilityVerdict::Eligible {
+            certify(facts)?
         } else {
             None
         };
 
-        Ok(Prepared {
-            index,
-            facts,
-            dependency,
-        })
+        Ok(Prepared { index, dependency })
     }
 
     fn advance(&mut self, facts: &mut [HirFnFacts]) -> Result<bool, String> {
         let prepared = self
             .pending
             .iter()
-            .map(|index| self.prepare(*index, &facts[*index]))
+            .map(|index| self.prepare(*index, &mut facts[*index]))
             .collect::<Result<Vec<_>, _>>()?;
-        let completed: BTreeMap<_, _> = prepared
-            .iter()
-            .filter_map(|record| {
-                record.dependency.as_ref().map(|dependency| {
-                    (
-                        identity(&record.facts).unwrap_or_default().to_owned(),
-                        CertifiedDependency::new(dependency.clone()),
-                    )
-                })
-            })
-            .collect();
-        let count = prepared
-            .iter()
-            .filter(|record| record.dependency.is_some())
-            .count();
-        if count != completed.len() || completed.contains_key("") {
-            return Err("Missing or duplicate resolved helper definition identity".into());
-        }
-        if completed.is_empty() {
+        if !validate_completed(&prepared, facts)? {
             return Ok(false);
         }
-        self.verified.extend(completed);
         self.pending = prepared
             .iter()
             .filter(|record| record.dependency.is_none())
             .map(|record| record.index)
             .collect();
-        apply_prepared(facts, prepared);
+        self.apply_prepared(facts, prepared);
 
         Ok(!self.pending.is_empty())
     }
+
+    fn apply_prepared(&mut self, facts: &[HirFnFacts], prepared: Vec<Prepared>) {
+        for record in prepared {
+            if let Some(dependency) = record.dependency {
+                let key = identity(&facts[record.index]).expect("validated helper identity");
+                self.verified
+                    .insert(key.to_owned(), CertifiedDependency::new(dependency));
+            }
+        }
+    }
 }
 
-fn apply_prepared(facts: &mut [HirFnFacts], prepared: Vec<Prepared>) {
-    for record in prepared
-        .into_iter()
-        .filter(|record| record.dependency.is_some())
-    {
-        facts[record.index] = record.facts;
+fn validate_completed(prepared: &[Prepared], facts: &[HirFnFacts]) -> Result<bool, String> {
+    let mut identities = std::collections::BTreeSet::new();
+    for record in prepared.iter().filter(|record| record.dependency.is_some()) {
+        let key = identity(&facts[record.index]).unwrap_or_default();
+        if key.is_empty() || !identities.insert(key) {
+            return Err("Missing or duplicate resolved helper definition identity".into());
+        }
     }
+
+    Ok(!identities.is_empty())
 }
 
 fn attach_all(
