@@ -2,9 +2,14 @@
 
 Work starts from main `7432a5a` on `perf/clone-analysis-stabilization`.
 The original family assertions and initial/warm/edit analyses are retained.
-Capability expansion and the broad analysis-library extraction are deferred while
-bounded measurements identify shared-path costs. No completed full-family stage
-profile or comparable known-good source baseline is available yet.
+Capability expansion and the broad analysis-library extraction remain separate
+from this stabilization branch. Measured fixes address ARM executable hashing,
+repeated generated-evidence reconstruction, immutable transport encoding and
+recursive callee verification. The restored full-family test passes in 235.048s,
+including strict post-return checks, trace, warm parity and edit propagation.
+The full 614-test workspace passes in 246.948s of nextest execution with four
+threads. Both default rstyle gates are clean. A comparable known-good historical source
+baseline is unavailable; the sections below preserve investigation milestones.
 
 ## Retained historical evidence
 
@@ -54,7 +59,7 @@ Both pair enumeration and evaluation were complete.
 
 Session artifacts: `/tmp/rstyle-perf-chain-2-observed/{run.json,stdout.log,stderr.log}`;
 source/capture under `/tmp/rstyle-perf-chain-2`. They are sandbox-local, not portable
-checked-in replay bundles. Facts snapshots and explicit replay remain pending.
+checked-in replay bundles. At this initial milestone, facts snapshots and explicit replay were still pending.
 
 ## Validation so far
 
@@ -65,9 +70,9 @@ Both default `cargo rstyle --format json` and
 `cargo rstyle patterns --format json --fail-on-candidates` returned zero after
 instrumentation. No thresholds or ignore entries were changed.
 
-The full-family E2E test, its warm/edit analyses, a comparable old-revision
-baseline and broad suite acceptance have not run. No performance improvement or
-full proposal completion is claimed by this initial instrumentation milestone.
+At this initial instrumentation milestone, full-family E2E, warm/edit analysis,
+old-revision comparisons and broad acceptance had not run. Subsequent sections
+record fixes and completed validation; this milestone alone established no speedup.
 
 ## Measured ARM setup fix
 
@@ -253,3 +258,64 @@ production agrees byte-for-byte with current-run documents/manifests and still
 rejects changed manifest, source, signature and effects. Changed-target Clippy
 with warnings denied and both default rstyle gates are clean. Older representative
 families and the broader suite remain separate validation work.
+
+
+## Representative cases after stabilization
+
+All original cases below pass independently under 120s watchdogs, using the
+same stable copies of matching debug binaries and a warm workspace build cache.
+Compiler capture still creates fresh targets. Retained results/logs are under
+`/tmp/rstyle-perf-representative-{helpers,data-v1,data-v2,trace-parity,setup-floor}`.
+
+| Unchanged case | Current local test (s) | Supplied historical ARM CI (s) |
+| --- | ---: | ---: |
+| Scalar acyclic helper family | 4.072 | Not supplied |
+| Data-v1 shared results/all pairs | 22.872 | 462.718 |
+| Data-v2 complete shared field/helper family | 78.504 | 947.138 |
+| Fresh/warm trace decisions | 22.321 | 219.871 |
+| Unsupported-workspace setup floor | 2.231 | Simple-case category about 22–25 |
+| Restored Data-v3 inherent family (separate 300s budget) | 235.048 | 6521.289 |
+
+Historical/current columns are not a controlled speedup comparison: the old
+runner size and build-cache state are unavailable. The earlier local hashing and
+helper-replay comparisons isolate individual changes; this table establishes
+current correctness/runtime for older shared-path cases as well as Data-v3.
+Some focused runs overlapped workspace compilation, so their timings are single
+observations with scheduler noise, not calibrated regression budgets.
+
+Current environment: Linux aarch64; 20 visible heterogeneous ARM cores
+(Cortex-X925/Cortex-A725), cgroup CPU quota 8 cores (`800000/100000`), memory limit
+16 GiB. Pinned rustc `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`, nightly
+2026-09-30, unoptimized dev/test profiles. Branch base is remote main
+`7432a5ab0a4b9de90f23e5ccb159487ee7d0d360`; implementation revision `0375418`.
+The standalone full-family phase run enables diagnostic logging. Representative
+runs disable it. Full workspace acceptance uses nextest's existing `ci` profile
+with four test threads and a separate 600s supervisor budget; its inventory is
+614 tests, versus 604 in the supplied historical log. Additional coverage is
+reported separately rather than pretending those workloads are identical.
+
+## Full workspace acceptance
+
+The full workspace nextest run at implementation revision `0375418` passes:
+**614 passed, 2 slow, 0 skipped**, across 23 test binaries, with the unchanged
+four-thread `ci` profile. Nextest execution wall time is **246.948s**; the external
+supervisor records **249.584s**, including 2.41s of final test-target compilation
+(the test inventory had already been built separately). Summed overlapping test
+durations are **718.102s**; that sum is not suite wall time or CPU attribution.
+The restored full-family case passes again under concurrent suite scheduling in
+235.640s. The other slow case, Data-v2, passes in 77.601s. Ranked following cases
+include Data-v1 23.034s, trace parity 22.587s and inherent separate selection
+13.488s. The entire run fits its declared 600s supervisor budget.
+
+Logs/metadata: `/tmp/rstyle-perf-workspace-nextest`. The workspace doctest command
+also passes (no current doctests), retained under
+`/tmp/rstyle-perf-workspace-doctests`. All three watchdog behavioral tests pass,
+including timeout descendant cleanup. Final formatting and both default rstyle
+quality gates are clean; thresholds, ignore entries, trace coverage, profile
+budgets and original test assertions were not relaxed.
+
+This establishes performance stabilization and full existing coverage in this
+sandbox. It does not establish a controlled historical CI speedup or implement
+the proposed `rstyle-analysis` crate, complete portable evidence bundles,
+selected-pair APIs or comprehensive replay migration. Those remain separate
+architecture work after this measured stabilization.
