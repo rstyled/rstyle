@@ -5621,3 +5621,38 @@ fn clones_data_library_corruption_is_incomplete_execution() {
         assert!(!report["handoff_failures"].as_array().unwrap().is_empty());
     }
 }
+
+#[test]
+fn clones_capture_only_retains_raw_facts_without_complete_publication() {
+    let directory = clone_workspace();
+    let snapshots = tempfile::tempdir().unwrap();
+    let output = diagnostic_process::output(
+        Command::new(cargo_bin("cargo-rstyle"))
+            .args([
+                "clones",
+                "--format",
+                "json",
+                "--extraction-profile",
+                "hir-helpers-v1",
+            ])
+            .current_dir(directory.path())
+            .env("RSTYLE_DRIVER", driver())
+            .env("RSTYLE_DIAGNOSTIC_CAPTURE_ONLY", "1")
+            .env("RSTYLE_DIAGNOSTIC_FACTS_DIR", snapshots.path())
+            .env_remove("CARGO_TARGET_DIR"),
+    )
+    .unwrap();
+    assert!(!output.status.success());
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["capture_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(report["functions"].as_array().unwrap().is_empty());
+    let files: Vec<_> = std::fs::read_dir(snapshots.path()).unwrap().collect();
+    assert_eq!(files.len(), 1);
+    let bytes = std::fs::read(files[0].as_ref().unwrap().path()).unwrap();
+    let snapshot: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(snapshot["version"], 1);
+    assert_eq!(snapshot["scope"], "diagnostic-raw-facts-only");
+    assert_eq!(snapshot["phase"], "pre-helper-certification");
+    assert_eq!(snapshot["facts"].as_array().unwrap().len(), 4);
+}

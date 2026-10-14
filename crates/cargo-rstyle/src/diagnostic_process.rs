@@ -2,12 +2,8 @@
 use std::io::{self, Read, Write};
 use std::process::{Command, Output, Stdio};
 
-pub fn enabled() -> bool {
-    std::env::var_os("RSTYLE_PERF").is_some_and(|value| value == "1")
-}
-
 pub fn output(command: &mut Command) -> io::Result<Output> {
-    if !enabled() {
+    if !rstyle_pdg::diagnostics::switch("RSTYLE_PERF") {
         return command.output();
     }
     streamed_output(command)

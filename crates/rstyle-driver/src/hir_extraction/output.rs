@@ -12,6 +12,12 @@ pub struct Destination {
     pub document_directory: Option<PathBuf>,
 }
 
+/// The source inventory and facts published together for one completed capture.
+pub struct CapturedOutput<'a> {
+    pub facts: &'a [HirFnFacts],
+    pub inventory: Option<&'a serde_json::Value>,
+}
+
 #[derive(Serialize)]
 struct Assessment<'a> {
     function: &'a str,
@@ -25,6 +31,13 @@ struct Assessment<'a> {
 }
 
 impl Destination {
+    pub fn write_capture(&self, capture: &CapturedOutput<'_>) -> io::Result<()> {
+        if let Some(inventory) = capture.inventory {
+            self.write_source_inventory(inventory)?;
+        }
+        self.write(capture.facts)
+    }
+
     pub fn write_source_inventory(&self, value: &serde_json::Value) -> io::Result<()> {
         if let Some(directory) = &self.document_directory {
             std::fs::create_dir_all(directory)?;

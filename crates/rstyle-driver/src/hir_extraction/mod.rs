@@ -1,6 +1,7 @@
 //! Opt-in R0 frontend; the legacy extraction path stays independent.
 
 mod concrete_types;
+pub mod diagnostics;
 mod evidence;
 mod hir;
 mod inherent;
@@ -31,6 +32,22 @@ pub fn crate_facts(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
+    let mut facts = raw_crate_facts(tcx, scanned, options)?;
+    diagnostics::snapshot("pre-helper-certification", &facts)?;
+    if options.selected().supports("rust.verified-helper-calls") {
+        rstyle_pdg::helper_calls::capture(&mut facts)?;
+    }
+
+    diagnostics::snapshot("post-helper-certification", &facts)?;
+    Ok(facts)
+}
+
+/// Owned compiler facts before ordinary-library helper certification.
+pub fn raw_crate_facts(
+    tcx: TyCtxt<'_>,
+    scanned: &[source::Function],
+    options: &Options<'_>,
+) -> Result<Vec<HirFnFacts>, String> {
     let mut facts = tcx.hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
         .map(|id| function(tcx, id, scanned, options).and_then(|facts| facts.ok_or_else(|| format!(
@@ -41,10 +58,6 @@ pub fn crate_facts(
     for function in &mut facts {
         capture_correspondence(function, options.selected());
     }
-    if options.selected().supports("rust.verified-helper-calls") {
-        rstyle_pdg::helper_calls::capture(&mut facts)?;
-    }
-
     Ok(facts)
 }
 

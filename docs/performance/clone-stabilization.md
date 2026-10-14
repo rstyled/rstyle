@@ -102,3 +102,36 @@ Retained after-run logs: `/tmp/rstyle-perf-chain-2-arm-backend` and
 `/tmp/rstyle-perf-cli-floor-arm-1`. Source-handoff CLI correctness also passes
 without diagnostics (2.37s). This fixes a measured setup contributor; attribution
 of the historical source regression and the long helper-family tail remains open.
+
+## Bounded helper-growth reproduction and raw-family capture
+
+Under the same ARM backend, adding `fourth(x) = third(x)` raises the scalar-chain
+observation from 7.117s to 42.016s. Helper visits: 143 to 510; producer verifications:
+161 to 532; cumulative encoded helper evidence bytes across visits: 18,679,614 to
+181,565,333. Largest call evidence: 447,010 to 3,981,068 bytes. These are two measured
+points with detailed diagnostic overhead, not an established complexity class.
+The four-function run completes all six pairs; its logs/source remain under
+`/tmp/rstyle-perf-chain-3-observed` and `/tmp/rstyle-perf-chain-3`.
+
+The exact motivating source was copied from `DATA_INHERENT_FAMILY`, including its
+BOM and CRLF, into `/tmp/rstyle-perf-inherent-family`. Capture-only completed raw
+HIR/unit facts for all 21 functions in less than one second of compiler capture.
+It did not run helper certification or publish normal documents; the CLI returned
+incomplete capture, as required. Version-1 pre-certification snapshot:
+`/tmp/rstyle-perf-inherent-raw/1595339-pre-helper-certification.json` (830,724 bytes).
+This is a diagnostic snapshot, not a complete captured evidence bundle.
+
+The standalone `helper_replay` executable loads that snapshot in one process
+(load 0.021s) and calls the same ordinary-library helper certification path.
+It timed out at the declared 120-second bound; the supervisor cleaned up its
+process group and retained input/logs at
+`/tmp/rstyle-perf-inherent-helper-replay-baseline`. It repeatedly verified identical
+`Data::get` evidence (over 320 visits) and encoded that dependency again (over 130
+visits). This identifies a shared recursive path independently of compiler work;
+no successful full-family replay or semantic test pass is claimed for the timeout.
+
+The user subsequently revised the threat model: locally generated graphs are not
+adversarial, and costly tamper-proofing is unnecessary. Subsequent fixes should
+trust current-run driver production and avoid redundant reconstruction while
+retaining structural graph checks and independent correctness coverage. Imported
+replay remains explicitly distinguishable from current-run production.

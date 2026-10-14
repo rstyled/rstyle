@@ -106,3 +106,27 @@ Only the exact `RSTYLE_PERF=1` switch passes through producer-environment cleari
 extraction selection and evidence publication settings are still cleared. Output
 from concurrent compiler units may interleave; correlate JSON events by PID and
 identity. Add `--nocapture` when running a CLI test to expose its tee output.
+
+Set `RSTYLE_DIAGNOSTIC_FACTS_DIR` to retain version-1, phase-tagged snapshots
+before helper certification and, when available, after it but before production.
+Files use compiler PIDs and exclusive creation; they are flushed before work
+continues. They contain owned facts with original provenance, and explicitly do
+not certify a complete source-to-pair capture. Add
+`RSTYLE_DIAGNOSTIC_CAPTURE_ONLY=1` to stop after raw HIR/unit evidence. The CLI
+reports incomplete capture and exits nonzero because no normal producer artifacts
+are published. This is an extraction-only diagnostic outcome, not a passed E2E
+analysis. These two diagnostic settings are explicitly forwarded to the driver.
+
+The smallest ordinary-library replay seam is currently a PDG example:
+
+```sh
+cargo build --locked --workspace --example helper_replay
+RSTYLE_PERF=1 python3 scripts/watchdog.py --timeout 120 --output /tmp/helper-replay-1 -- target/debug/examples/helper_replay /path/to/PID-pre-helper-certification.json
+```
+
+Build separately. The executable loads one snapshot, then invokes the same
+`helper_calls::capture` used by the driver, without Cargo, rustc or source-file
+reads. Output is diagnostic scope and cannot claim source-to-pair completeness.
+This is an initial helper-stage seam, not the proposed full evidence-bundle format
+or the complete `rstyle-analysis` API. Retain the original source bytes alongside
+snapshots for regeneration; snapshots keep original provenance paths unchanged.

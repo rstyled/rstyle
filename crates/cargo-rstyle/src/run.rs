@@ -132,13 +132,18 @@ fn command(paths: &Paths<'_>, selection: &Selection<'_>) -> Command {
 /// change it. Resolve RSTYLE_DRIVER before calling this helper.
 pub fn clear_rstyle_environment(command: &mut Command) {
     for (key, value) in std::env::vars_os() {
-        if key == "RSTYLE_PERF" && value == "1" {
+        if diagnostic_environment(&key, &value) {
             continue;
         }
         if key.to_string_lossy().starts_with("RSTYLE_") {
             command.env_remove(key);
         }
     }
+}
+
+fn diagnostic_environment(key: &OsStr, value: &OsStr) -> bool {
+    key == "RSTYLE_DIAGNOSTIC_FACTS_DIR"
+        || (key == "RSTYLE_PERF" || key == "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY") && value == "1"
 }
 
 /// Compiles the selected crates so the driver writes its facts files.

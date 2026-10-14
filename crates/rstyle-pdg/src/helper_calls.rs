@@ -177,6 +177,7 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
 
 /// Capture all local bodies first, then build the acyclic dependency handoff.
 pub fn capture(facts: &mut [HirFnFacts]) -> Result<(), String> {
+    let observation = crate::diagnostics::Stage::new("helper.capture", "unit", None).enter();
     let mut state = CaptureState {
         verified: BTreeMap::new(),
         pending: (0..facts.len()).collect(),
@@ -192,7 +193,7 @@ pub fn capture(facts: &mut [HirFnFacts]) -> Result<(), String> {
     for function in facts {
         crate::helper_reads::check_budgets(function)?;
     }
-    Ok(())
+    observation.finish(Ok(()))
 }
 
 struct CaptureState {

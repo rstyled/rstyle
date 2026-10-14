@@ -158,9 +158,14 @@ impl Observation<'_> {
     }
 }
 
+/// Read an explicitly named opt-in diagnostic switch.
+pub fn switch(name: &str) -> bool {
+    std::env::var_os(name).is_some_and(|value| value == "1")
+}
+
 fn enabled() -> bool {
     static ENABLED: OnceLock<bool> = OnceLock::new();
-    *ENABLED.get_or_init(|| std::env::var_os("RSTYLE_PERF").is_some_and(|value| value == "1"))
+    *ENABLED.get_or_init(|| switch("RSTYLE_PERF"))
 }
 
 #[cfg(test)]
