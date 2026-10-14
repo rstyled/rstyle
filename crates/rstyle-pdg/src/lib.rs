@@ -22,6 +22,7 @@ pub mod data_types;
 pub mod declaration_origins;
 pub mod diagnostics;
 pub mod eligibility;
+mod evidence_budget;
 pub mod extraction_profile;
 pub mod field_locations;
 pub mod frontend;

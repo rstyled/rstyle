@@ -297,3 +297,28 @@ complete with zero style violations and zero actionable candidates, retaining
 `/tmp/rstyle-unit-bundle-tests.log`. The 620-test full suite reported above
 preceded this bundle increment; it is not presented as validation of new bundle
 code. Final end-to-end validation still requires driver/CLI integration.
+
+## Legacy expansion adapter increment
+
+The old capture-state/certification loop is removed. The mutable-facts API now
+constructs the same shared store, then invokes a separate optional standalone
+export. This compatibility boundary necessarily copies raw frontend facts and
+expands proof strings; those costs are not part of shared-store analysis.
+The driver/CLI still need to stop requesting this expanded contract.
+
+Expansion follows validated helper depth order, caches each unique legacy
+proof encoding within the export, retains the existing depth-eight and 8 MiB
+per-call limits, and adds an explicit 512 MiB aggregate work budget. It counts
+UTF-8/JSON bytes through an in-memory serializer and fails without publishing
+partial output. The legacy mutable input is updated only after a complete
+successful export. Restoration keeps its unchanged 8 MiB budget and error text;
+a common checked subtraction primitive serves both budgets. No thresholds,
+ignore entries or analysis capability checks change.
+
+All focused PDG tests (including UTF-8 budget exhaustion) and nine existing
+helper CLI regressions pass. Formatting, workspace all-target Clippy and both
+wrappers pass, with zero style violations/actionable candidates and the same
+16 reviewed ignores. Logs: `/tmp/rstyle-expanded-{pdg-tests,helper-tests}.log`,
+`/tmp/rstyle-expanded-style.json`, `/tmp/rstyle-expanded-patterns.log` and
+`/tmp/rstyle-expanded-clippy.log`. The broader final suite remains outstanding
+for this adapter and the forthcoming publication integration.

@@ -4,14 +4,13 @@ use crate::unit_store::EvidenceFacts;
 use crate::{HirFnFacts, HirNode, producer};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{cell::OnceCell, collections::BTreeMap};
 
 pub(crate) mod transport;
 mod transport_lexical;
 
 pub const KEY: &str = "verified_helper";
 pub(crate) const MAX_DEPTH: usize = 8;
-const MAX_BYTES: usize = 8 * 1024 * 1024;
+pub(crate) const MAX_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -189,183 +188,15 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
 }
 
 /// Capture all local bodies first, then build the acyclic dependency handoff.
+/// Compatibility export for the legacy mutable-facts contract. Ordinary unit
+/// analysis uses UnitStore directly; this adapter deliberately expands proofs.
 pub fn capture(facts: &mut [HirFnFacts]) -> Result<(), String> {
-    crate::verification_session::within(|| capture_unit(facts))
-}
-
-fn capture_unit(facts: &mut [HirFnFacts]) -> Result<(), String> {
-    let observation = crate::diagnostics::Stage::new("helper.capture", "unit", None).enter();
-    let mut state = CaptureState {
-        verified: BTreeMap::new(),
-        pending: (0..facts.len()).collect(),
-    };
-    for _depth in 0..=MAX_DEPTH {
-        if !state.advance(facts)? {
-            break;
-        }
+    let store = crate::unit_store::UnitStore::capture(facts.to_vec())?;
+    let expanded = store.expanded_frontends()?;
+    for (destination, source) in facts.iter_mut().zip(expanded) {
+        *destination = source;
     }
-    // Unsupported or recursive callees remain explicit call exclusions.
-    attach_all(facts, &state.verified)?;
-
-    for function in facts {
-        crate::helper_reads::check_budgets(function)?;
-    }
-    observation.finish(Ok(()))
-}
-
-struct CaptureState {
-    verified: BTreeMap<String, CertifiedDependency>,
-    pending: Vec<usize>,
-}
-
-/// One immutable proof and its lossless transport, owned by this capture only.
-struct CertifiedDependency {
-    dependency: Dependency,
-    encoded: OnceCell<Result<Value, String>>,
-}
-
-impl CertifiedDependency {
-    fn new(dependency: Dependency) -> Self {
-        Self {
-            dependency,
-            encoded: OnceCell::new(),
-        }
-    }
-
-    fn encoded(&self) -> Result<&Value, String> {
-        self.encoded
-            .get_or_init(|| transport::encode(&self.dependency))
-            .as_ref()
-            .map_err(Clone::clone)
-    }
-}
-
-struct Prepared {
-    index: usize,
-    dependency: Option<Dependency>,
-}
-
-impl CaptureState {
-    fn prepare(&self, index: usize, facts: &mut HirFnFacts) -> Result<Prepared, String> {
-        attach(&mut facts.body, &self.verified)?;
-        let dependency = if crate::classify(facts).status == crate::EligibilityVerdict::Eligible {
-            certify(facts)?
-        } else {
-            None
-        };
-
-        Ok(Prepared { index, dependency })
-    }
-
-    fn advance(&mut self, facts: &mut [HirFnFacts]) -> Result<bool, String> {
-        let prepared = self
-            .pending
-            .iter()
-            .map(|index| self.prepare(*index, &mut facts[*index]))
-            .collect::<Result<Vec<_>, _>>()?;
-        if !validate_completed(&prepared, facts)? {
-            return Ok(false);
-        }
-        self.pending = prepared
-            .iter()
-            .filter(|record| record.dependency.is_none())
-            .map(|record| record.index)
-            .collect();
-        self.apply_prepared(facts, prepared);
-
-        Ok(!self.pending.is_empty())
-    }
-
-    fn apply_prepared(&mut self, facts: &[HirFnFacts], prepared: Vec<Prepared>) {
-        for record in prepared {
-            if let Some(dependency) = record.dependency {
-                let key = identity(&facts[record.index]).expect("validated helper identity");
-                self.verified
-                    .insert(key.to_owned(), CertifiedDependency::new(dependency));
-            }
-        }
-    }
-}
-
-fn validate_completed(prepared: &[Prepared], facts: &[HirFnFacts]) -> Result<bool, String> {
-    let mut identities = std::collections::BTreeSet::new();
-    for record in prepared.iter().filter(|record| record.dependency.is_some()) {
-        let key = identity(&facts[record.index]).unwrap_or_default();
-        if key.is_empty() || !identities.insert(key) {
-            return Err("Missing or duplicate resolved helper definition identity".into());
-        }
-    }
-
-    Ok(!identities.is_empty())
-}
-
-fn attach_all(
-    facts: &mut [HirFnFacts],
-    verified: &BTreeMap<String, CertifiedDependency>,
-) -> Result<(), String> {
-    for function in facts {
-        attach(&mut function.body, verified)?;
-    }
-
     Ok(())
-}
-
-fn attach(
-    node: &mut HirNode,
-    verified: &BTreeMap<String, CertifiedDependency>,
-) -> Result<(), String> {
-    attach_children(node, verified)?;
-    let Some(mut resolution) = direct_resolution(node) else {
-        return Ok(());
-    };
-    let Some(dependency) = resolution["definition_identity"]
-        .as_str()
-        .and_then(|key| verified.get(key))
-    else {
-        return Ok(());
-    };
-    if resolution["local"] != true {
-        return Ok(());
-    }
-    resolution[KEY] = dependency.encoded()?.clone();
-    let description = serde_json::to_string(&resolution).map_err(|error| error.to_string())?;
-    if description.len() > MAX_BYTES {
-        return Err("Helper evidence exceeds explicit 8 MiB per-call budget".into());
-    }
-    node.res.as_mut().expect("resolved callee").description = description;
-    check_depth(node, 0)?;
-
-    Ok(())
-}
-
-fn attach_children(
-    node: &mut HirNode,
-    verified: &BTreeMap<String, CertifiedDependency>,
-) -> Result<(), String> {
-    for child in &mut node.children {
-        attach(child, verified)?;
-    }
-
-    Ok(())
-}
-
-fn certify(facts: &HirFnFacts) -> Result<Option<Dependency>, String> {
-    if !crate::helper_references::supported_result(facts)? {
-        return Ok(None);
-    }
-    let pair = producer::produce(facts).map_err(|errors| errors.join("; "))?;
-    if check_boundary(&pair, facts).is_err() {
-        return Ok(None);
-    }
-    let serialized = pair.serialize().map_err(|error| error.to_string())?;
-
-    Ok(Some(Dependency {
-        summary: summary(facts, &pair)?,
-        frontend: facts.clone(),
-        pdg: String::from_utf8(serialized.pdg_bytes).map_err(|error| error.to_string())?,
-        cfg: String::from_utf8(serialized.cfg_bytes).map_err(|error| error.to_string())?,
-        manifest: serialized.manifest,
-    }))
 }
 
 pub(crate) fn certify_view(

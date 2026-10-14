@@ -60,3 +60,11 @@ increment; the shared bundle must not yet be described as their ordinary path.
 Storage sharing does not bound legitimate pairwise matching work or optional
 expanded output. Existing read/depth budgets and graph-validation checks remain
 in force; further buffer/layout normalization is separate measured tuning.
+
+`UnitStore::expanded_frontends` is an explicit standalone compatibility/debug
+export, separate from shared loading. It retains depth-eight and 8 MiB per-call
+bounds and applies a separate 512 MiB aggregate expansion-work budget. Exhaustion
+returns an error rather than truncated evidence. The legacy mutable-facts
+capture entry point now delegates to shared capture and this exporter instead
+of maintaining a second certification runtime. Driver/CLI adoption remains
+outstanding, so their current legacy publication still incurs expansion costs.
