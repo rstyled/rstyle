@@ -117,3 +117,75 @@ and admission still clones full document pairs. There is no shared-table unit
 bundle, typed helper-link contract, or resolver-backed unit import yet. The
 changes above must not be described as satisfying unique-evidence ownership
 or the complete requested refactor.
+
+## Repeated helper replay comparison
+
+Three alternating baseline/current runs use the same retained 21-function
+snapshot, generated policy, profile/toolchain, warm executable caches and
+single-process concurrency, with detailed instrumentation disabled. Baseline
+is rebuilt from the exact base in detached worktree
+`/tmp/rstyle-shared-baseline-worktree`, using a separate target directory;
+current uses the workspace example. Build time is excluded. Each replay has
+a 120-second timeout and all six complete successfully. Python supervisor
+timings include process startup, `/usr/bin/time` and timeout setup:
+
+| Measurement | Base | Current |
+| --- | --- | --- |
+| Wall samples (seconds) | 26.154, 26.109, 26.073 | 26.358, 26.224, 26.366 |
+| Median wall (seconds) | 26.109 | 26.358 |
+| Peak RSS samples (KiB) | 119796, 119796, 119680 | 120796, 120788, 120884 |
+
+This demonstrates no helper-stage speedup or memory reduction. The main nested
+transport costs remain. Removing identified clones is a structural reduction,
+not proof of better whole-helper performance. No allocation counts or transport
+decode/encode counts were collected in these uninstrumented runs; no claim of
+decode-once ownership follows. Raw logs:
+`/tmp/rstyle-shared-replay-{before,after}-{0,1,2}.{stdout,log}` and
+`/tmp/rstyle-shared-replay-samples.json`.
+
+## Final validation of the partial implementation
+
+The complete stable-binary wrapper run passes: 617 tests across 23 binaries,
+617 passed, two slow, zero skipped, nextest wall time 247.995 seconds. The
+unchanged inherent-family test passes in 236.523 seconds, including strict
+post-return/tampering assertions, warm parity and source-edit propagation.
+The wrapper's separate workspace doctest command passes (no current doctests).
+External supervisor wall time is 248.93 seconds, including wrapper/build/runner
+setup, under an explicit 600-second timeout. CI's existing four-thread profile
+is unchanged. Log: `/tmp/rstyle-shared-final-nextest-stable.log`.
+
+An initial full run failed three CLI setup tests because concurrent style
+wrapper builds replaced the CLI executable while tests were executing it
+(`cargo-rstyle (deleted)`, ENOENT). That run is not acceptance: 614 passed,
+three failed, no doctest step reached. The entire suite was then rerun after
+all builds finished, with no concurrent build/gate commands. Failed log:
+`/tmp/rstyle-shared-final-nextest.log`. Assertions and test budgets were not
+changed to address this setup mistake.
+
+Commands actually run on this branch:
+
+| Command | Result |
+| --- | --- |
+| `cargo fmt --all -- --check` | Pass |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | Pass |
+| `CARGO_TARGET_DIR=target ./scripts/test.sh --nextest` (600s bound) | Stable full rerun passes, including doctests |
+| `./scripts/style.sh --format json` | Complete report, 1,801 functions, zero violations |
+| `./scripts/style.sh patterns --fail-on-candidates --show-ignored` | Zero actionable candidates, 16 existing ignored findings |
+
+Focused increments additionally ran all PDG/CCGraph crate tests and filtered
+CLI nextest runs for helper and generated-policy regressions. Final logs use
+the `/tmp/rstyle-shared-final-` prefix. Cargo's bin directory was added to PATH;
+the pinned toolchain and locked dependencies were used throughout. No rule,
+threshold, ignore entry, dependency or original test assertion was removed or
+weakened. The pre-existing untracked `crates/rstyle-pdg/src/slice_access/`
+directory is not part of these commits.
+
+Implementation commits (subjects at most 70 characters):
+
+- `d029c6c` Record shared evidence baseline and merged prerequisites
+- `c420fc1` Move completed helper proofs and prepare facts in place
+- `bc5977d` Borrow serialized helper documents during verification
+- `28360b6` Store prepared matching graphs with dense handles and adjacency
+
+The validation/documentation commit records these measurements and the explicit
+incomplete shared-unit boundary; it does not introduce another runtime change.
