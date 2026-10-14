@@ -7,11 +7,17 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
-pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
+pub fn verify(
+    pair: &Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), Vec<String>> {
     crate::verification_session::within(|| verify_pair(pair, facts))
 }
 
-fn verify_pair(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
+fn verify_pair(
+    pair: &Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), Vec<String>> {
     let observation = crate::diagnostics::Stage::new("producer.verify", &facts.name, None).enter();
     if crate::verification_policy::is_generated() {
         return observation.finish(validate_boundary(pair, facts));
@@ -50,7 +56,11 @@ fn verify_pair(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     observation.finish(validate_boundary(pair, facts))
 }
 
-fn validate_boundary(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
+fn validate_boundary(
+    pair: &Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), Vec<String>> {
+    validate_frontend_reference(pair, facts)?;
     let bytes = pair
         .pdg
         .sources
@@ -96,6 +106,34 @@ fn validate_boundary(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>>
     } else {
         Err(errors)
     }
+}
+
+fn validate_frontend_reference(
+    pair: &Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), Vec<String>> {
+    let key = crate::extraction_profile::EVIDENCE_KEY;
+    let actual = pair
+        .pdg
+        .extensions
+        .get(key)
+        .and_then(|evidence| evidence.get("frontend_ref"));
+    let expected = facts.frontend_reference();
+
+    if actual.is_some() && pair.pdg.extensions[key].get("frontend").is_some() {
+        return Err(vec![
+            "Contradictory inline and referenced frontend evidence".into(),
+        ]);
+    }
+    if pair.pdg.extensions.contains_key(key) && actual != expected.as_ref() {
+        return Err(vec![
+            "Frontend reference requires its exact owning unit/function".into(),
+        ]);
+    }
+    if pair.cfg.extensions.get(key) != pair.pdg.extensions.get(key) {
+        return Err(vec!["Paired frontend references disagree".into()]);
+    }
+    Ok(())
 }
 
 fn correspondence(actual: &Pair, expected: &Pair) -> Result<BTreeMap<String, String>, Vec<String>> {

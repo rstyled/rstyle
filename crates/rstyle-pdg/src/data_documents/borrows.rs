@@ -1,8 +1,11 @@
 //! Independent serialized address computation and origin checks.
 
-use crate::{HirFnFacts, NodeCategory, PdgNode, data_origins::Origin, producer::Pair};
+use crate::{NodeCategory, PdgNode, data_origins::Origin, producer::Pair};
 
-pub(super) fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
+pub(super) fn verify(
+    pair: &Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     let places = crate::data_places::Places::verify(facts)?;
     for node in &pair.pdg.nodes {
         if node.annotations.contains_key(crate::data_places::KEY) {

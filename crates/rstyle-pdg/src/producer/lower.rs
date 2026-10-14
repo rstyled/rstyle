@@ -35,13 +35,13 @@ struct Arms {
 
 struct Builder<'a> {
     loops: Vec<loops::LoopFrame>,
-    facts: &'a HirFnFacts,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
     nodes: Vec<Operation>,
     transfers: Vec<Transfer>,
     sites: Vec<ValueSite>,
 }
 
-pub fn lower(facts: &HirFnFacts) -> Result<Graph, HirEligibility> {
+pub fn lower(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Graph, HirEligibility> {
     let eligibility = crate::classify(facts);
     if eligibility.status != EligibilityVerdict::Eligible {
         return Err(eligibility);

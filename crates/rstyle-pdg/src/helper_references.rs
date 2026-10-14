@@ -1,7 +1,7 @@
 //! Whole-formal shared results derived from independently verified callee returns.
 
 use crate::{
-    HirFnFacts, HirNode, NodeCategory,
+    HirNode, NodeCategory,
     data_origins::{self, Origin},
     data_types::{self, TypeToken},
     extraction_profile::ExtractionProfile,
@@ -10,7 +10,7 @@ use crate::{
 };
 use std::collections::BTreeSet;
 
-pub fn supported_result(facts: &HirFnFacts) -> Result<bool, String> {
+pub fn supported_result(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<bool, String> {
     if !ExtractionProfile::from_facts(facts)?.is_data() {
         return Ok(true);
     }
@@ -18,7 +18,7 @@ pub fn supported_result(facts: &HirFnFacts) -> Result<bool, String> {
     Ok(!data_origins::shared(&result) || matches!(result, TypeToken::Shared(_)))
 }
 
-fn result_type(facts: &HirFnFacts) -> Result<TypeToken, String> {
+fn result_type(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<TypeToken, String> {
     data_types::parse(
         facts
             .signature
@@ -29,7 +29,10 @@ fn result_type(facts: &HirFnFacts) -> Result<TypeToken, String> {
     )
 }
 
-pub fn returned(facts: &HirFnFacts, pair: &Pair) -> Result<Option<Vec<Origin>>, String> {
+pub fn returned(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    pair: &Pair,
+) -> Result<Option<Vec<Origin>>, String> {
     if !ExtractionProfile::from_facts(facts)?.is_data() {
         return Ok(None);
     }
@@ -69,7 +72,11 @@ pub fn returned(facts: &HirFnFacts, pair: &Pair) -> Result<Option<Vec<Origin>>, 
     Ok(Some(origins.into_iter().collect()))
 }
 
-fn verify_formal(origin: &Origin, facts: &HirFnFacts, result: &TypeToken) -> Result<(), String> {
+fn verify_formal(
+    origin: &Origin,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    result: &TypeToken,
+) -> Result<(), String> {
     let parameter = facts
         .signature
         .params
@@ -91,19 +98,26 @@ fn verify_formal(origin: &Origin, facts: &HirFnFacts, result: &TypeToken) -> Res
     Ok(())
 }
 
-pub fn parameters(call: &HirNode, facts: &HirFnFacts) -> Result<Vec<u32>, String> {
+pub fn parameters(
+    call: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<u32>, String> {
     if !ExtractionProfile::from_facts(facts)?.is_data() {
         return Err("Shared helper result requires the Data profile".into());
     }
-    let dependency = crate::helper_calls::verify(call, facts)?;
+    let dependency = crate::helper_calls::verify_use(call, facts)?;
     let origins = dependency
-        .summary
+        .summary()
         .reference_outputs
+        .as_ref()
         .ok_or("Missing verified shared helper output summary")?;
-    Ok(origins.into_iter().map(|origin| origin.parameter).collect())
+    Ok(origins.iter().map(|origin| origin.parameter).collect())
 }
 
-pub fn origins(call: &HirNode, facts: &HirFnFacts) -> Result<Vec<Origin>, String> {
+pub fn origins(
+    call: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
     let mut origins = BTreeSet::new();
     for position in parameters(call, facts)? {
         let argument = call
@@ -119,7 +133,10 @@ pub fn origins(call: &HirNode, facts: &HirFnFacts) -> Result<Vec<Origin>, String
     Ok(origins.into_iter().collect())
 }
 
-pub fn same_unit(caller: &HirFnFacts, callee: &HirFnFacts) -> Result<bool, String> {
+pub fn same_unit(
+    caller: &dyn crate::unit_store::EvidenceFacts,
+    callee: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
     let context = caller
         .build
         .frontend_options

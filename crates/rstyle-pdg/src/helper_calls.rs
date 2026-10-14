@@ -1,5 +1,6 @@
 //! Verified same-compilation-unit helper dependencies. Names never prove effects.
 
+use crate::unit_store::EvidenceFacts;
 use crate::{HirFnFacts, HirNode, producer};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,7 +10,7 @@ pub(crate) mod transport;
 mod transport_lexical;
 
 pub const KEY: &str = "verified_helper";
-const MAX_DEPTH: usize = 8;
+pub(crate) const MAX_DEPTH: usize = 8;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -40,7 +41,7 @@ pub struct Summary {
     pub memory_reads: Option<Vec<crate::helper_reads::Read>>,
 }
 
-fn summary(facts: &HirFnFacts, pair: &producer::Pair) -> Result<Summary, String> {
+fn summary(facts: &dyn EvidenceFacts, pair: &producer::Pair) -> Result<Summary, String> {
     let argument_types = facts
         .signature
         .params
@@ -101,7 +102,7 @@ fn identity(facts: &HirFnFacts) -> Option<&str> {
 
 /// Native-width semantics propagate through verified dependencies, even when
 /// a caller's own interface and operations have only fixed-width scalar types.
-pub fn native_width(facts: &HirFnFacts) -> Result<bool, String> {
+pub fn native_width(facts: &dyn EvidenceFacts) -> Result<bool, String> {
     let data = crate::extraction_profile::ExtractionProfile::from_facts(facts)?.is_data();
     let interface = facts
         .signature
@@ -112,7 +113,7 @@ pub fn native_width(facts: &HirFnFacts) -> Result<bool, String> {
         })?
         | native_type(&facts.signature.return_ty, data)?;
 
-    Ok(interface | node_native_width(&facts.body, data)?)
+    Ok(interface | node_native_width(&facts.body, data, facts)?)
 }
 
 fn native_type(ty: &crate::ResolvedTy, data: bool) -> Result<bool, String> {
@@ -125,7 +126,11 @@ fn native_type(ty: &crate::ResolvedTy, data: bool) -> Result<bool, String> {
     Ok(matches!(token, "isize" | "usize"))
 }
 
-fn node_native_width(node: &HirNode, data: bool) -> Result<bool, String> {
+fn node_native_width(
+    node: &HirNode,
+    data: bool,
+    facts: &dyn EvidenceFacts,
+) -> Result<bool, String> {
     let own = node
         .ty
         .as_ref()
@@ -133,17 +138,25 @@ fn node_native_width(node: &HirNode, data: bool) -> Result<bool, String> {
         .transpose()?
         .unwrap_or(false);
     let children = node.children.iter().try_fold(false, |native, child| {
-        node_native_width(child, data).map(|seen| native | seen)
+        node_native_width(child, data, facts).map(|seen| native | seen)
     })?;
-    let callee = if let Some(resolution) = direct_resolution(node) {
-        let dependency: Dependency = transport::decode(&resolution[KEY])
-            .map_err(|_| "Missing verified dependency for transitive target-width evidence")?;
-        native_width(&dependency.frontend)?
+    let callee = if direct_resolution(node).is_some() {
+        native_dependency(node, facts)?
     } else {
         false
     };
 
     Ok(own | children | callee)
+}
+
+fn native_dependency(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    if let Some(helper) = facts.helper(node)? {
+        return native_width(&helper.frontend());
+    }
+    let resolution = direct_resolution(node).ok_or("Missing direct helper resolution")?;
+    let dependency: Dependency = transport::decode(&resolution[KEY])
+        .map_err(|_| "Missing verified dependency for transitive target-width evidence")?;
+    native_width(&dependency.frontend)
 }
 
 pub fn direct_resolution(node: &HirNode) -> Option<Value> {
@@ -355,7 +368,87 @@ fn certify(facts: &HirFnFacts) -> Result<Option<Dependency>, String> {
     }))
 }
 
-fn check_boundary(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
+pub(crate) fn certify_view(
+    facts: &dyn EvidenceFacts,
+) -> Result<Option<(Summary, producer::Pair)>, String> {
+    if !crate::helper_references::supported_result(facts)? {
+        return Ok(None);
+    }
+    let pair = producer::produce(facts).map_err(|errors| errors.join("; "))?;
+    if check_boundary(&pair, facts).is_err() {
+        return Ok(None);
+    }
+    Ok(Some((summary(facts, &pair)?, pair)))
+}
+
+pub(crate) enum VerifiedDependency<'a> {
+    Shared(crate::unit_store::HelperView<'a>),
+    Legacy(Box<Dependency>),
+}
+
+impl VerifiedDependency<'_> {
+    pub(crate) fn summary(&self) -> &Summary {
+        match self {
+            Self::Shared(view) => view.summary(),
+            Self::Legacy(dependency) => &dependency.summary,
+        }
+    }
+
+    pub(crate) fn wire(&self) -> Result<Value, String> {
+        match self {
+            Self::Shared(view) => Ok(view.reference()),
+            Self::Legacy(dependency) => transport::encode(dependency),
+        }
+    }
+}
+
+pub(crate) fn verify_use<'a>(
+    node: &HirNode,
+    caller: &'a dyn EvidenceFacts,
+) -> Result<VerifiedDependency<'a>, String> {
+    let Some(view) = caller.helper(node)? else {
+        return verify(node, caller.facts())
+            .map(|dependency| VerifiedDependency::Legacy(Box::new(dependency)));
+    };
+    verify_shared(node, caller, &view)?;
+    Ok(VerifiedDependency::Shared(view))
+}
+
+fn verify_shared(
+    node: &HirNode,
+    caller: &dyn EvidenceFacts,
+    helper: &crate::unit_store::HelperView<'_>,
+) -> Result<(), String> {
+    let callee = helper.frontend();
+    let resolution = direct_resolution(node).ok_or("Unresolved direct helper call")?;
+
+    if helper.depth() + 1 > MAX_DEPTH {
+        return Err("Helper dependencies exceed explicit depth budget 8".into());
+    }
+    check_signature(node, caller, &resolution, &callee)?;
+    crate::inherent_calls::verify(node, caller, &callee, &resolution)?;
+    if !helper.verified() {
+        verify_shared_callee(helper, &callee)?;
+        helper.remember();
+    }
+    crate::helper_reads::verify_arguments(helper.summary(), node, caller)
+}
+
+fn verify_shared_callee(
+    helper: &crate::unit_store::HelperView<'_>,
+    callee: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    producer::verify(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
+    check_boundary(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
+    if !crate::verification_policy::is_generated()
+        && helper.summary() != &summary(callee, helper.pair())?
+    {
+        return Err("Helper summary disagrees with verified callee evidence".into());
+    }
+    Ok(())
+}
+
+fn check_boundary(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<(), Vec<String>> {
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
         || !pair.pdg.memory_locations.is_empty() && !crate::helper_reads::supported(facts, pair)
         || pair
@@ -429,9 +522,9 @@ fn verify_callee(dependency: &Dependency) -> Result<(), String> {
 
 fn check_signature(
     node: &HirNode,
-    caller: &HirFnFacts,
+    caller: &dyn EvidenceFacts,
     resolution: &Value,
-    callee: &HirFnFacts,
+    callee: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     let dispatch = node
         .dispatch
@@ -472,7 +565,7 @@ fn check_signature(
     Ok(())
 }
 
-fn same_build(caller: &HirFnFacts, callee: &HirFnFacts) -> Result<bool, String> {
+fn same_build(caller: &dyn EvidenceFacts, callee: &dyn EvidenceFacts) -> Result<bool, String> {
     let profile = crate::extraction_profile::ExtractionProfile::from_facts(caller)?;
     let compatible = caller.build.overflow_checks == callee.build.overflow_checks
         && caller.build.debug_assertions == callee.build.debug_assertions
@@ -504,11 +597,11 @@ fn check_depth(node: &HirNode, depth: usize) -> Result<(), String> {
 }
 
 /// Independent serialized inventory validation; never invokes caller lowering.
-pub fn verify_documents(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), String> {
+pub fn verify_documents(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<(), String> {
     crate::verification_session::within(|| verify_inventory(pair, facts))
 }
 
-fn verify_inventory(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), String> {
+fn verify_inventory(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<(), String> {
     crate::inherent_calls::definition(facts)?;
     let calls = call_nodes(facts);
     let records = pair
@@ -552,7 +645,7 @@ fn verify_inventory(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), Str
 
 fn verify_document_call(
     pair: &producer::Pair,
-    facts: &HirFnFacts,
+    facts: &dyn EvidenceFacts,
     call: &HirNode,
     records: &[Value],
 ) -> Result<(), String> {
@@ -572,7 +665,7 @@ fn verify_document_call(
         return Err("No unique serialized source-backed helper CALL".into());
     };
 
-    let dependency = verify(call, facts)?;
+    let dependency = verify_use(call, facts)?;
     let inventory: Vec<_> = records
         .iter()
         .filter(|record| record["pdg_node_id"] == node.id)
@@ -581,7 +674,7 @@ fn verify_document_call(
         return Err("Missing or duplicate serialized helper summary".into());
     };
 
-    crate::helper_reads::verify_effects(node, call, facts, &dependency.summary)?;
+    crate::helper_reads::verify_effects(node, call, facts, dependency.summary())?;
     verify_call_metadata(node, call, record, dependency)?;
     verify_call_operands(pair, node, call, record)
 }
@@ -590,9 +683,9 @@ fn verify_call_metadata(
     node: &crate::PdgNode,
     call: &HirNode,
     record: &Value,
-    dependency: Dependency,
+    dependency: VerifiedDependency<'_>,
 ) -> Result<(), String> {
-    if record["dependency"] != transport::encode(&dependency)?
+    if record["dependency"] != dependency.wire()?
         || record["source_span"]
             != serde_json::to_value(call.span).map_err(|error| error.to_string())?
         || node

@@ -1,5 +1,5 @@
 //! Replay the ordinary-library helper stage from an explicit diagnostic snapshot.
-use rstyle_pdg::{HirFnFacts, diagnostics::Stage, helper_calls};
+use rstyle_pdg::{HirFnFacts, diagnostics::Stage, unit_store::UnitStore};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -26,20 +26,22 @@ fn load(path: &Path) -> Result<Snapshot, String> {
 }
 
 fn replay(path: &Path, generated: bool) -> Result<(), String> {
-    let mut snapshot =
+    let snapshot =
         Stage::new("replay.load", &path.display().to_string(), None).observe(|| load(path))?;
-    if generated {
-        rstyle_pdg::verification_policy::generated(|| helper_calls::capture(&mut snapshot.facts))?;
+    let capture = || UnitStore::capture(snapshot.facts);
+    let store = if generated {
+        rstyle_pdg::verification_policy::generated(capture)?
     } else {
-        helper_calls::capture(&mut snapshot.facts)?;
-    }
+        capture()?
+    };
     println!(
         "{}",
         serde_json::json!({
             "scope": "diagnostic-helper-certification",
             "boundary": "pre-helper-certification-facts",
         "verification_policy": if generated { "trusted-generated" } else { "strict" },
-            "functions": snapshot.facts.len(),
+            "functions": store.functions().len(),
+            "unique_helpers": store.helper_count(),
             "status": "stage-completed",
             "source_to_pair_complete": false,
         })

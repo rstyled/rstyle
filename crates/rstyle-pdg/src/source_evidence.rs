@@ -1,6 +1,6 @@
 //! Independent original-source inventory checks; graph extraction remains HIR-only.
 
-use crate::{ByteSpan, HirFnFacts, HirNode, HirRef};
+use crate::{ByteSpan, HirNode, HirRef};
 use serde::{Deserialize, Serialize};
 use syn::{
     spanned::Spanned,
@@ -27,11 +27,11 @@ pub struct Correspondence {
 }
 
 struct Inventory<'a> {
-    facts: &'a HirFnFacts,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
     entries: Vec<Entry>,
 }
 
-pub fn capture(facts: &HirFnFacts) -> Result<Correspondence, String> {
+pub fn capture(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Correspondence, String> {
     let function: syn::ItemFn = syn::parse_str(&facts.source.bytes)
         .map_err(|error| format!("Original owned source inventory unavailable: {error}"))?;
     let mut inventory = Inventory {
@@ -48,7 +48,7 @@ pub fn capture(facts: &HirFnFacts) -> Result<Correspondence, String> {
     })
 }
 
-pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
+pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     let value = facts
         .build
         .frontend_options
@@ -261,7 +261,7 @@ fn expression_kind(expression: &syn::Expr) -> Option<&'static str> {
 }
 
 /// Deferred source constructs remain exclusions even when cfg removes their HIR.
-pub fn diagnostics(facts: &HirFnFacts) -> Vec<crate::HirDiagnostic> {
+pub fn diagnostics(facts: &dyn crate::unit_store::EvidenceFacts) -> Vec<crate::HirDiagnostic> {
     let Ok(inventory) = capture(facts) else {
         return Vec::new();
     };
@@ -377,7 +377,11 @@ fn owned_function_span(
     start.join(body).unwrap_or(start)
 }
 
-fn resolved_summary(node: &HirNode, hir: &HirRef, facts: &HirFnFacts) -> bool {
+fn resolved_summary(
+    node: &HirNode,
+    hir: &HirRef,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> bool {
     (node.hir == *hir
         && (crate::inherent_calls::source_resolved(node, facts).unwrap_or(false)
             || crate::data_library::source_resolved(node, facts).unwrap_or(false)

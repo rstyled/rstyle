@@ -1,6 +1,7 @@
 //! Schema-faithful paired documents and an external byte-identity manifest.
 
 use super::{Analysis, Dependence, Graph, Operation};
+use crate::unit_store::EvidenceFacts;
 use crate::{cfg::*, frontend::*, model::*};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -145,7 +146,7 @@ fn identity(key: String, bytes: &[u8]) -> DocumentIdentity {
 }
 
 pub fn emit(
-    facts: &HirFnFacts,
+    facts: &dyn EvidenceFacts,
     graph: &Graph,
     analysis: &Analysis,
     revision: &str,
@@ -185,7 +186,7 @@ pub fn emit(
 }
 
 fn pdg_document(
-    facts: &HirFnFacts,
+    facts: &dyn EvidenceFacts,
     graph: &Graph,
     analysis: &Analysis,
     metadata: &DocumentMetadata,
@@ -218,7 +219,7 @@ fn pdg_document(
     }
 }
 
-fn producer(facts: &HirFnFacts, revision: &str) -> Result<Producer, String> {
+fn producer(facts: &dyn EvidenceFacts, revision: &str) -> Result<Producer, String> {
     let build = &facts.build;
     let required = [
         &build.producer_revision,
@@ -473,7 +474,7 @@ fn symbol(binding: &BindingFact) -> Symbol {
     }
 }
 
-fn input_role(facts: &HirFnFacts, position: u32) -> ParamRole {
+fn input_role(facts: &dyn EvidenceFacts, position: u32) -> ParamRole {
     if position == 0
         && facts.signature.has_self
         && crate::extraction_profile::ExtractionProfile::from_facts(facts)
@@ -485,7 +486,7 @@ fn input_role(facts: &HirFnFacts, position: u32) -> ParamRole {
     }
 }
 
-fn function(facts: &HirFnFacts, graph: &Graph, analysis: &Analysis) -> FunctionInfo {
+fn function(facts: &dyn EvidenceFacts, graph: &Graph, analysis: &Analysis) -> FunctionInfo {
     let inputs = facts
         .signature
         .params
@@ -536,7 +537,7 @@ fn function(facts: &HirFnFacts, graph: &Graph, analysis: &Analysis) -> FunctionI
     }
 }
 
-fn source_identifier(facts: &HirFnFacts) -> &str {
+fn source_identifier(facts: &dyn EvidenceFacts) -> &str {
     facts
         .build
         .frontend_options
@@ -546,7 +547,7 @@ fn source_identifier(facts: &HirFnFacts) -> &str {
         .trim_start_matches("r#")
 }
 
-fn source_path(facts: &HirFnFacts) -> String {
+fn source_path(facts: &dyn EvidenceFacts) -> String {
     facts
         .build
         .frontend_options
@@ -591,7 +592,7 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
 }
 
 fn extensions(
-    facts: &HirFnFacts,
+    facts: &dyn EvidenceFacts,
     graph: &Graph,
     analysis: &Analysis,
 ) -> Result<Extensions, String> {
@@ -673,7 +674,11 @@ fn value_site(site: &super::ValueSite) -> Result<Value, String> {
     serde_json::to_value(wire).map_err(|e| e.to_string())
 }
 
-fn cfg_document(facts: &HirFnFacts, graph: &Graph, metadata: DocumentMetadata) -> CfgDocument {
+fn cfg_document(
+    facts: &dyn EvidenceFacts,
+    graph: &Graph,
+    metadata: DocumentMetadata,
+) -> CfgDocument {
     let DocumentMetadata {
         producer,
         extensions,
@@ -692,12 +697,7 @@ fn cfg_document(facts: &HirFnFacts, graph: &Graph, metadata: DocumentMetadata) -
             language_version: producer.language_version,
             configuration: producer.configuration,
         },
-        sources: vec![CfgSource {
-            id: "source".to_string(),
-            path: source_path(facts),
-            content_identity: StringFact::known(&facts.source.digest),
-            content: Some(facts.source.bytes.clone()),
-        }],
+        sources: vec![cfg_source(facts)],
         function: CfgFunction {
             id: facts.source.digest.clone(),
             name: StringFact::known(&facts.name),
@@ -722,7 +722,16 @@ fn cfg_document(facts: &HirFnFacts, graph: &Graph, metadata: DocumentMetadata) -
     }
 }
 
-fn cfg_nodes(graph: &Graph, facts: &HirFnFacts) -> Vec<CfgNode> {
+fn cfg_source(facts: &dyn EvidenceFacts) -> CfgSource {
+    CfgSource {
+        id: "source".to_string(),
+        path: source_path(facts),
+        content_identity: StringFact::known(&facts.source.digest),
+        content: Some(facts.source.bytes.clone()),
+    }
+}
+
+fn cfg_nodes(graph: &Graph, facts: &dyn EvidenceFacts) -> Vec<CfgNode> {
     let mut nodes = vec![
         boundary("E", CfgNodeKind::Entry),
         boundary("X", CfgNodeKind::Exit),
@@ -775,7 +784,7 @@ fn boundary(id: &str, kind: CfgNodeKind) -> CfgNode {
     }
 }
 
-fn cfg_node(node: &Operation, facts: &HirFnFacts) -> CfgNode {
+fn cfg_node(node: &Operation, facts: &dyn EvidenceFacts) -> CfgNode {
     CfgNode {
         id: node.id.clone(),
         kind: match node.category {

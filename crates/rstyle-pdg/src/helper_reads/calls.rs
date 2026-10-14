@@ -13,12 +13,16 @@ struct Effects {
 pub(crate) fn verify_arguments(
     summary: &Summary,
     call: &HirNode,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     expected(summary, call, facts).map(|_| ())
 }
 
-fn expected(summary: &Summary, call: &HirNode, facts: &HirFnFacts) -> Result<Effects, String> {
+fn expected(
+    summary: &Summary,
+    call: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Effects, String> {
     let Some(reads) = &summary.memory_reads else {
         return Ok(Effects::default());
     };
@@ -49,7 +53,7 @@ fn install_read(
     effects: &mut Effects,
     read: &Read,
     origin: crate::data_origins::Origin,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     if effects.reads.len() == crate::concrete_types::MAX_ENTRIES {
         return Err(BUDGET_ERROR.into());
@@ -102,7 +106,7 @@ fn insert_location(
 
 pub(crate) fn install(
     pair: &mut Pair,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     locations: &mut BTreeMap<String, MemoryLocation>,
 ) -> Result<(), String> {
     for call in source_calls(facts) {
@@ -111,14 +115,14 @@ pub(crate) fn install(
     Ok(())
 }
 
-fn source_calls(facts: &HirFnFacts) -> Vec<&HirNode> {
+fn source_calls(facts: &dyn crate::unit_store::EvidenceFacts) -> Vec<&HirNode> {
     crate::helper_calls::call_nodes(facts)
 }
 
 fn install_call_locations(
     pair: &mut Pair,
     call: &HirNode,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     locations: &mut BTreeMap<String, MemoryLocation>,
 ) -> Result<(), String> {
     for (id, location) in install_call(pair, call, facts)? {
@@ -131,10 +135,10 @@ fn install_call_locations(
 fn install_call(
     pair: &mut Pair,
     call: &HirNode,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<BTreeMap<String, MemoryLocation>, String> {
-    let dependency = crate::helper_calls::verify(call, facts)?;
-    let effects = expected(&dependency.summary, call, facts)?;
+    let dependency = crate::helper_calls::verify_use(call, facts)?;
+    let effects = expected(dependency.summary(), call, facts)?;
     let id = source_call(pair, call)?.id.clone();
     let node = pair
         .pdg
@@ -149,13 +153,13 @@ fn install_call(
 
 pub(crate) fn verify_locations(
     pair: &Pair,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     locations: &mut BTreeMap<String, MemoryLocation>,
 ) -> Result<(), String> {
     for call in source_calls(facts) {
-        let dependency = crate::helper_calls::verify(call, facts)?;
-        verify_effects(source_call(pair, call)?, call, facts, &dependency.summary)?;
-        for (id, location) in expected(&dependency.summary, call, facts)?.locations {
+        let dependency = crate::helper_calls::verify_use(call, facts)?;
+        verify_effects(source_call(pair, call)?, call, facts, dependency.summary())?;
+        for (id, location) in expected(dependency.summary(), call, facts)?.locations {
             insert_location(locations, id, location)?;
         }
     }
@@ -165,7 +169,7 @@ pub(crate) fn verify_locations(
 pub(crate) fn verify_effects(
     node: &PdgNode,
     call: &HirNode,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     summary: &Summary,
 ) -> Result<(), String> {
     let effects = expected(summary, call, facts)?;
@@ -212,7 +216,7 @@ fn source_call<'a>(pair: &'a Pair, call: &HirNode) -> Result<&'a PdgNode, String
 }
 
 /// An unsupported call remains excluded; a read-evidence budget is incomplete capture.
-pub(crate) fn check_budgets(facts: &HirFnFacts) -> Result<(), String> {
+pub(crate) fn check_budgets(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         .supports("rust.verified-read-only-helper-calls")
     {
@@ -220,7 +224,7 @@ pub(crate) fn check_budgets(facts: &HirFnFacts) -> Result<(), String> {
     }
 
     for call in source_calls(facts) {
-        if let Err(error) = crate::helper_calls::verify(call, facts)
+        if let Err(error) = crate::helper_calls::verify_use(call, facts)
             && error == BUDGET_ERROR
         {
             return Err(error);

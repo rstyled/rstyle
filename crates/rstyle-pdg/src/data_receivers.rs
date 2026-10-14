@@ -55,13 +55,21 @@ pub enum Kind {
 /// Inspect paired frontend records directly, without invoking producer lowering.
 pub fn verify_documents(
     pair: &crate::producer::Pair,
-    facts: &crate::HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     let expected = verify(facts)?;
     for extensions in [&pair.pdg.extensions, &pair.cfg.extensions] {
         let value = extensions
             .get(crate::extraction_profile::EVIDENCE_KEY)
             .ok_or("Missing paired Data frontend evidence")?;
+        if let Some(reference) = value.get("frontend_ref") {
+            if facts.frontend_reference().as_ref() != Some(reference)
+                || value.get("frontend").is_some()
+            {
+                return Err("Frontend reference belongs to another unit/function or contradicts inline facts".into());
+            }
+            continue;
+        }
         let frontend: crate::HirFnFacts =
             serde_json::from_value(value["frontend"].clone()).map_err(|error| error.to_string())?;
         if verify(&frontend)? != expected {

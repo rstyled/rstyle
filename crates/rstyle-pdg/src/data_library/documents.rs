@@ -1,11 +1,12 @@
 //! Independent inspection of serialized metadata CALLs and their value operands.
 
 use super::*;
-use crate::{HirFnFacts, HirNode, NodeCategory, producer::Pair};
+use crate::unit_store::EvidenceFacts;
+use crate::{HirNode, NodeCategory, producer::Pair};
 use serde::Serialize;
 use serde_json::Value;
 
-pub fn evidence(node: &HirNode, facts: &HirFnFacts) -> Result<Value, String> {
+pub fn evidence(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Value, String> {
     let registry = registry_for(facts).ok_or("Unregistered library build")?;
     let capture = crate::data_receivers::verify(facts)?;
     let receiver = capture
@@ -48,7 +49,7 @@ struct Width {
     bits: Option<u64>,
 }
 
-pub fn verify_documents(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
+pub fn verify_documents(pair: &Pair, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
     let records = pair
@@ -100,7 +101,7 @@ pub fn verify_documents(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
 
 struct Documents<'a> {
     pair: &'a Pair,
-    facts: &'a HirFnFacts,
+    facts: &'a dyn EvidenceFacts,
     records: &'a [Value],
 }
 

@@ -1,10 +1,13 @@
 //! Exact per-source call summary inventory, retained on both documents.
 
 use super::Graph;
-use crate::{HirFnFacts, HirNode, NodeCategory, call_summaries};
+use crate::{HirNode, NodeCategory, call_summaries};
 use serde_json::{Value, json};
 
-pub fn evidence(facts: &HirFnFacts, graph: &Graph) -> Result<Value, String> {
+pub fn evidence(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    graph: &Graph,
+) -> Result<Value, String> {
     let capture = SummaryCapture { facts, graph };
     let records = capture.visit(&facts.body)?;
     let calls = graph
@@ -20,7 +23,7 @@ pub fn evidence(facts: &HirFnFacts, graph: &Graph) -> Result<Value, String> {
 }
 
 struct SummaryCapture<'a> {
-    facts: &'a HirFnFacts,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
     graph: &'a Graph,
 }
 
@@ -58,9 +61,7 @@ impl SummaryCapture<'_> {
                 pdg_node_id: &operation.id,
                 source_span: node.span,
                 operand_pdg_node_ids: &operation.operands,
-                dependency: crate::helper_calls::transport::encode(&crate::helper_calls::verify(
-                    node, self.facts,
-                )?)?,
+                dependency: crate::helper_calls::verify_use(node, self.facts)?.wire()?,
             })
             .map_err(|error| error.to_string());
         }

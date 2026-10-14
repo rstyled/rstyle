@@ -34,6 +34,7 @@ pub mod nominal_binding;
 pub mod nominal_boundary;
 pub mod producer;
 pub mod source_evidence;
+pub mod unit_store;
 pub mod validate;
 pub mod value_sites;
 pub mod verification_policy;

@@ -109,7 +109,7 @@ fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<
     if cfg.extensions.get(EVIDENCE_KEY) != Some(evidence) {
         return Err(vec!["Paired local frontend evidence disagrees".into()]);
     }
-    let facts = serde_json::from_value(evidence["frontend"].clone())
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(evidence["frontend"].clone())
         .map_err(|e| vec![format!("Invalid local frontend evidence: {e}")])?;
     let pair = rstyle_pdg::producer::Pair {
         pdg: pdg.clone(),
@@ -608,7 +608,7 @@ fn helper_native_width(pdg: &PdgDocument) -> Result<bool, Vec<String>> {
         .extensions
         .get(rstyle_pdg::extraction_profile::EVIDENCE_KEY)
         .ok_or_else(|| vec!["Missing helper frontend evidence for target compatibility".into()])?;
-    let facts = serde_json::from_value(evidence["frontend"].clone())
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(evidence["frontend"].clone())
         .map_err(|error| vec![error.to_string()])?;
 
     rstyle_pdg::helper_calls::native_width(&facts).map_err(|error| vec![error])

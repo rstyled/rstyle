@@ -108,9 +108,10 @@ ignore ledger now hides 16 findings: reviewed candidate `0ee0a828b288` disappear
 because the old string BFS successor scan was removed. No ignore is added,
 deleted or modified.
 
-## Remaining ownership boundary
+## Ownership boundary after the first increments
 
-The primary shared-unit objective is not yet implemented. Certification still
+At the end of the first three implementation increments, the primary
+shared-unit objective was not yet implemented. Certification still
 copies frontend facts into the legacy dependency record, callers still carry
 per-call JSON, imported verification still repeatedly decodes that transport,
 and admission still clones full document pairs. There is no shared-table unit
@@ -189,3 +190,81 @@ Implementation commits (subjects at most 70 characters):
 
 The validation/documentation commit records these measurements and the explicit
 incomplete shared-unit boundary; it does not introduce another runtime change.
+
+
+## Unit-owned borrowed helper analysis
+
+`UnitStore::capture` moves raw compiler records into a mutable builder, then
+freezes the frontend, helper pairs and helper links in a unit-owned store.
+`FunctionId` and `HelperId` are distinct checked `u32` handles with private
+constructors. Resolver-backed views qualify all lookups by their owning store;
+no public lookup accepts an unqualified handle from another store. Handles
+remain valid for that immutable store's lifetime, with no stability promise
+across inserted, reordered or edited source records. No persistent dense-ID
+registry is introduced.
+
+Raw frontend trees carry no nested proofs. Call-site side tables point to
+functions and certification side tables point to unique helpers. Helper
+certification owns one summary and one typed paired document per supported
+function. Analysis borrows those records; it never serializes/decodes a full
+helper proof on the shared path. The explicit `EvidenceFacts` context flows
+through eligibility, lowering, production and verification. Standalone raw
+facts use the existing strict transport adapter through the same analysis
+implementation. The driver and CLI still use that adapter pending the next
+handoff increment.
+
+Frontend graph extensions hold a function reference qualified by a strong
+SHA256 identity of the exact raw unit evidence, rather than embedding another
+frontend copy. Existing logical definition identities remain distinct. The
+unit identity changes after source/context edits or record reordering; it is
+not a global logical definition identity and does not silently redefine the
+legacy evidence digest. Standalone verification rejects these references;
+verification with a resolver rejects foreign unit/function references,
+contradictory inline facts and paired extension disagreement, even under the
+trusted-generated policy. This is an internal reference profile so far, not
+a published bundle compatibility promise.
+
+Successful callee proof reuse belongs to a separate analysis context referencing
+one immutable store. Strict and generated policies have separate cache entries;
+caller identity/signature/dispatch/argument checks run per occurrence. A new
+analysis starts with an empty cache, and policy restoration survives unwind.
+Records and cache entries contain no serialized trust capability. No global
+unit cache, self-referential structure or per-node `Arc` is used.
+
+The diamond/repeated-call CLI regression checks five unique helper records,
+borrowed summary pointer sharing for three calls, raw caller trees without
+nested proof fields, strict/generated document parity, both capture orders,
+foreign/contradictory references and transitive native-width inspection. Two
+unit regressions check policy isolation, independent cache lifetimes and
+unwind restoration. Source/build metadata and strings within each graph pair
+are not yet normalized; this increment eliminates full dependency-tree
+multiplication, rather than claiming every repeated string has disappeared.
+
+The normalized versioned unit bundle, validated owning import, resolver-backed
+readable exports and driver-to-CLI adoption remain required. This intermediate
+increment does not establish end-to-end shared ownership or completion of the
+requested refactor.
+
+Three alternating before/after generated-policy replay samples use the retained
+exact-main baseline executable and the current unit-store executable, both
+unoptimized builds of the same pinned toolchain, same snapshot, warm artifacts,
+no concurrent workload and disabled detailed instrumentation. Supervisor wall
+medians including process startup and snapshot parsing are 26.354 seconds before
+and 1.732 seconds after. Peak RSS samples are 119,544/119,768/119,768 KiB before
+and 28,064/27,920/28,060 KiB after. Setup/build time is excluded; nested stage
+intervals are not summed. Logs and samples: `/tmp/rstyle-unit-samples.json` and
+`/tmp/rstyle-unit-{before,after}-{0,1,2}.log`. This is helper certification only,
+not a full CLI speedup or pair-enumeration claim. The strict replay also
+completed with the same 21 functions and 20 unique helpers.
+
+A separate opt-in instrumented replay confirms no legacy `helper.verify` or
+`helper.transport_encode` events on the unit-store path. Instrumented duration
+is excluded from the comparison. No allocation-count claim is made. Both
+wrappers pass with zero style violations/actionable candidates, and the same
+16 reviewed ignores. Workspace all-target Clippy passes with warnings denied;
+all focused PDG tests, cache regressions and the diamond CLI regression pass.
+
+The full wrapper `CARGO_TARGET_DIR=target timeout 600 ./scripts/test.sh --nextest`
+passes all 620 tests with no skips, followed by workspace doctests. The exact
+nextest duration and slow-family timing are retained in
+`/tmp/rstyle-unit-nextest.log`. `cargo fmt --all -- --check` also passes.

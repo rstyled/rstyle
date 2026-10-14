@@ -1,11 +1,11 @@
 //! Local policy transport, preserving the pinned wire schema and base vocabulary.
 
 use super::Pair;
-use crate::{HirFnFacts, ProfileId, extraction_profile::*};
+use crate::{ProfileId, extraction_profile::*};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 
-pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
+pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, String> {
     let profile = ExtractionProfile::from_facts(facts)?;
     if profile == ExtractionProfile::R0 {
         return Ok(pair);
@@ -48,13 +48,17 @@ fn cyclic_policy() -> Result<Value, String> {
     serde_json::from_str(r#"{"reaching_definitions":"finite-monotone-kill-gen/1","postdominance":"all-maximal-paths-least-fixed-point/1","execution":"nearest-strict-entry-dominator/1","value_availability":"strict-dominance-without-conditional-value-merges/1","virtual_executable_exits":false}"#).map_err(|e| e.to_string())
 }
 
-fn selection_evidence(facts: &HirFnFacts, profile: ExtractionProfile) -> Result<Value, String> {
+fn selection_evidence(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    profile: ExtractionProfile,
+) -> Result<Value, String> {
     let selection = SelectionEvidence {
         profile: profile.policy(),
         selection: profile.token(),
         capabilities: profile.capabilities(),
         signature: &facts.signature,
-        frontend: facts,
+        frontend: facts.frontend_reference().is_none().then_some(facts),
+        frontend_ref: facts.frontend_reference(),
         semantics: "local expansion conformance; bounded normal flow; exceptional flow omitted",
     };
 
@@ -67,7 +71,10 @@ struct SelectionEvidence<'a> {
     selection: &'static str,
     capabilities: &'static [&'static str],
     signature: &'a crate::SignatureFacts,
-    frontend: &'a HirFnFacts,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frontend: Option<&'a dyn crate::unit_store::EvidenceFacts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frontend_ref: Option<Value>,
     semantics: &'static str,
 }
 

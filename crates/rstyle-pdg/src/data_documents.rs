@@ -3,14 +3,14 @@
 mod borrows;
 mod origins;
 
-use crate::{HirFnFacts, NodeCategory, field_locations::*, producer::Pair};
+use crate::{NodeCategory, field_locations::*, producer::Pair};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const LOCATION_KEY: &str = "rstyle.data:formal-location";
 pub const POLICY_KEY: &str = "rstyle.data:matching-profile";
 
-pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
+pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, String> {
     let mut pair = install_locations(pair, facts)?;
     install_policy(&mut pair, facts)?;
     install_evidence(&mut pair.pdg, facts)?;
@@ -19,7 +19,10 @@ pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
     Ok(pair)
 }
 
-fn install_locations(mut pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
+fn install_locations(
+    mut pair: Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Pair, String> {
     let fields = observations(facts)?;
     let mut locations = fields
         .operations
@@ -43,7 +46,7 @@ fn finish_locations(
 fn install_field(
     pdg: &mut crate::PdgDocument,
     field: &FieldOperation,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(String, crate::MemoryLocation), String> {
     let (id, location) = location(field, facts)?;
     let node = pdg
@@ -70,7 +73,10 @@ fn install_field(
     Ok((id, location))
 }
 
-fn install_policy(pair: &mut Pair, facts: &HirFnFacts) -> Result<(), String> {
+fn install_policy(
+    pair: &mut Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     let policy = json!(matching_identity(facts)?);
     pair.pdg
         .extensions
@@ -79,13 +85,16 @@ fn install_policy(pair: &mut Pair, facts: &HirFnFacts) -> Result<(), String> {
     Ok(())
 }
 
-fn matching_identity(facts: &HirFnFacts) -> Result<&'static str, String> {
+fn matching_identity(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<&'static str, String> {
     crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         .data_matching()
         .ok_or_else(|| "Missing registered Data matching identity".into())
 }
 
-fn install_evidence(pdg: &mut crate::PdgDocument, facts: &HirFnFacts) -> Result<(), String> {
+fn install_evidence(
+    pdg: &mut crate::PdgDocument,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     let aliases = json!(crate::data_origins::aliases(facts)?);
     let capability = memory_evidence(facts)?;
     pdg.extensions
@@ -97,7 +106,9 @@ fn install_evidence(pdg: &mut crate::PdgDocument, facts: &HirFnFacts) -> Result<
     Ok(())
 }
 
-fn memory_evidence(facts: &HirFnFacts) -> Result<crate::Capability, String> {
+fn memory_evidence(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<crate::Capability, String> {
     Ok(crate::Capability {
         policy: Some(crate::extraction_profile::ExtractionProfile::from_facts(facts)?.policy()),
         status: crate::CapabilityStatus::Supported,
@@ -119,7 +130,7 @@ pub fn read_keys(node: &crate::PdgNode) -> Vec<String> {
         .collect()
 }
 
-fn observations(facts: &HirFnFacts) -> Result<FieldObservations, String> {
+fn observations(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<FieldObservations, String> {
     crate::data_frontend::evidence(facts, KEY)
 }
 
@@ -134,7 +145,7 @@ struct LocationEvidence<'a> {
 
 fn location(
     field: &FieldOperation,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(String, crate::MemoryLocation), String> {
     let Location::Captured {
         parameter,
@@ -157,7 +168,7 @@ pub(crate) fn formal_location(
     parameter: u32,
     path: &[Projection],
     value: crate::data_types::TypeToken,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(String, crate::MemoryLocation), String> {
     let root = &facts
         .signature
@@ -199,7 +210,7 @@ pub(crate) fn formal_location(
 
 /// Check semantic locations directly against independently verified source
 /// operations, without calling the lowerer or document emitter.
-pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
+pub fn verify(pair: &Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     crate::inherent_calls::definition(facts)?;
     crate::data_receivers::verify_documents(pair, facts)?;
     crate::data_library::verify_documents(pair, facts)?;
@@ -243,7 +254,7 @@ pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
 
 fn verify_field(
     pair: &Pair,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     field: &FieldOperation,
     expected: &mut BTreeMap<String, crate::MemoryLocation>,
 ) -> Result<(), String> {
@@ -368,7 +379,7 @@ fn read_count(pair: &Pair) -> Result<u64, String> {
 
 fn verify_field_operands(
     pair: &Pair,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     field: &FieldOperation,
     node: &crate::PdgNode,
 ) -> Result<(), String> {
@@ -379,7 +390,7 @@ fn verify_field_operands(
 }
 
 fn verify_field_root(
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     field: &FieldOperation,
     node: &crate::PdgNode,
 ) -> Result<(), String> {
@@ -409,7 +420,7 @@ fn verify_field_root(
 
 fn field_base<'a>(
     pair: &'a Pair,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     node: &crate::PdgNode,
 ) -> Result<&'a crate::PdgNode, String> {
     let source = origins::source_node(node, facts)?;
@@ -461,7 +472,10 @@ fn verify_field_value_edge(
     Ok(())
 }
 
-fn verify_interface(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
+fn verify_interface(
+    pair: &Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     if pair.pdg.function.inputs.len() != facts.signature.params.len() {
         return Err("Serialized data input arity disagrees with source".into());
     }

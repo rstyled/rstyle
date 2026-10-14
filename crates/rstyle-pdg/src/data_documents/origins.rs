@@ -1,13 +1,16 @@
 //! Independently compare source origins with serialized value-dependence paths.
 
 use crate::{
-    HirFnFacts, HirNode, NodeCategory, PdgNode,
+    HirNode, NodeCategory, PdgNode,
     data_origins::{self, Origin},
     producer::Pair,
 };
 use std::collections::BTreeSet;
 
-pub(super) fn install(pair: &mut Pair, facts: &HirFnFacts) -> Result<(), String> {
+pub(super) fn install(
+    pair: &mut Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     for node in &mut pair.pdg.nodes {
         if reference(node)? {
             let origins = source_origins(node, facts)?;
@@ -20,7 +23,10 @@ pub(super) fn install(pair: &mut Pair, facts: &HirFnFacts) -> Result<(), String>
     Ok(())
 }
 
-pub(super) fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
+pub(super) fn verify(
+    pair: &Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     for node in &pair.pdg.nodes {
         verify_type(node, facts)?;
         if !reference(node)? {
@@ -56,7 +62,10 @@ fn reference(node: &PdgNode) -> Result<bool, String> {
     Ok(data_origins::shared(&crate::data_types::parse(&token)?))
 }
 
-fn source_origins(node: &PdgNode, facts: &HirFnFacts) -> Result<Vec<Origin>, String> {
+fn source_origins(
+    node: &PdgNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
     if node.category == NodeCategory::FormalInput {
         let position = node
             .attributes
@@ -106,7 +115,7 @@ fn find<'a>(node: &'a HirNode, kind: &str, span: &crate::Span, matches: &mut Vec
 fn graph_origins(
     node: &PdgNode,
     pair: &Pair,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     visiting: &mut BTreeSet<String>,
 ) -> Result<Vec<Origin>, String> {
     if node.category == NodeCategory::Computation
@@ -155,7 +164,10 @@ fn graph_origins(
     Ok(roots.into_iter().collect())
 }
 
-fn returned_operands(node: &PdgNode, facts: &HirFnFacts) -> Result<Option<BTreeSet<u64>>, String> {
+fn returned_operands(
+    node: &PdgNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<BTreeSet<u64>>, String> {
     if node.category != NodeCategory::Call {
         return Ok(None);
     }
@@ -205,7 +217,7 @@ fn loaded_origins(node: &PdgNode, pair: &Pair) -> Result<Vec<Origin>, String> {
         .collect())
 }
 
-fn verify_type(node: &PdgNode, facts: &HirFnFacts) -> Result<(), String> {
+fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     let expected = match node.category {
         NodeCategory::FormalInput => {
             let position = node.attributes.position.ok_or("Missing input position")? as usize;
@@ -239,7 +251,7 @@ fn verify_type(node: &PdgNode, facts: &HirFnFacts) -> Result<(), String> {
 
 pub(super) fn source_node<'a>(
     node: &PdgNode,
-    facts: &'a HirFnFacts,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<&'a HirNode, String> {
     let kind = if node.category == NodeCategory::Merge {
         ""

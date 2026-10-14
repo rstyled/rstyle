@@ -2237,6 +2237,122 @@ fn assert_capture_order(facts: &[rstyle_pdg::HirFnFacts]) {
     assert_eq!(forward, reversed);
 }
 
+#[test]
+fn shared_unit_owns_diamond_helpers_once() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub fn leaf(x: i32) -> bool { x > 0 }\npub fn left(x: i32) -> bool { leaf(x) }\npub fn right(x: i32) -> bool { leaf(x) }\npub fn diamond(x: i32) -> bool { left(x) && right(x) }\npub fn repeated(x: i32) -> bool { leaf(x) && leaf(x) && leaf(x) }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{report}");
+    let mut facts: Vec<rstyle_pdg::HirFnFacts> = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|function| serde_json::from_value(function["facts"].clone()).unwrap())
+        .collect();
+    for function in &mut facts {
+        clear_helper_dependencies(&mut function.body);
+    }
+    let mut reversed = facts.clone();
+    reversed.reverse();
+    let store = rstyle_pdg::verification_policy::generated(|| {
+        rstyle_pdg::unit_store::UnitStore::capture(facts)
+    })
+    .unwrap();
+    let reordered = rstyle_pdg::unit_store::UnitStore::capture(reversed).unwrap();
+    assert_eq!(store.helper_count(), 5);
+    assert_eq!(reordered.helper_count(), 5);
+    assert_shared_unit(&store);
+    assert_shared_unit(&reordered);
+}
+
+fn assert_shared_unit(store: &rstyle_pdg::unit_store::UnitStore) {
+    use rstyle_pdg::unit_store::EvidenceFacts;
+    let analysis = store.analysis();
+    for (index, facts) in store.functions().iter().enumerate() {
+        let view = analysis.function(index).unwrap();
+        let generated =
+            rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::produce(&view))
+                .unwrap();
+        let strict = rstyle_pdg::producer::produce(&view).unwrap();
+        assert_shared_reference_checks(&strict, &view);
+        assert_eq!(
+            generated.serialize().unwrap().pdg_bytes,
+            strict.serialize().unwrap().pdg_bytes
+        );
+        assert!(!rstyle_pdg::helper_calls::native_width(&view).unwrap());
+        if facts.name.ends_with("repeated") {
+            let mut calls = Vec::new();
+            shared_call_nodes(&facts.body, &mut calls);
+            assert_eq!(calls.len(), 3);
+            let first = view.helper(calls[0]).unwrap().unwrap();
+            for call in calls {
+                let helper = view.helper(call).unwrap().unwrap();
+                assert!(std::ptr::eq(first.summary(), helper.summary()));
+                assert!(
+                    rstyle_pdg::helper_calls::direct_resolution(call).unwrap()
+                        [rstyle_pdg::helper_calls::KEY]
+                        .is_null()
+                );
+            }
+        }
+    }
+}
+
+fn assert_shared_reference_checks(
+    pair: &rstyle_pdg::producer::Pair,
+    view: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+) {
+    let key = rstyle_pdg::extraction_profile::EVIDENCE_KEY;
+    assert!(rstyle_pdg::producer::verify(pair, view.facts()).is_err());
+    let mut contradictory = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    contradictory.pdg.extensions.get_mut(key).unwrap()["frontend"] =
+        serde_json::to_value(view.facts()).unwrap();
+    contradictory
+        .cfg
+        .extensions
+        .insert(key.into(), contradictory.pdg.extensions[key].clone());
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::verify(
+            &contradictory,
+            view
+        ))
+        .is_err()
+    );
+    let mut wrong_unit = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    wrong_unit.pdg.extensions.get_mut(key).unwrap()["frontend_ref"]["unit"] =
+        Value::String("other unit".into());
+    wrong_unit
+        .cfg
+        .extensions
+        .insert(key.into(), wrong_unit.pdg.extensions[key].clone());
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::verify(
+            &wrong_unit,
+            view
+        ))
+        .is_err()
+    );
+}
+
+fn shared_call_nodes<'a>(node: &'a rstyle_pdg::HirNode, calls: &mut Vec<&'a rstyle_pdg::HirNode>) {
+    if rstyle_pdg::helper_calls::direct_resolution(node).is_some() {
+        calls.push(node);
+    }
+    for child in &node.children {
+        shared_call_nodes(child, calls);
+    }
+}
+
 fn clear_helper_dependencies(node: &mut rstyle_pdg::HirNode) {
     if let Some(mut resolution) = rstyle_pdg::helper_calls::direct_resolution(node) {
         resolution

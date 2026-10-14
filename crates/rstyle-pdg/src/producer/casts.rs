@@ -1,12 +1,14 @@
 //! Resolved integer cast facts, separate from the unchanged matching labels.
 
 use super::Graph;
-use crate::HirFnFacts;
 use serde_json::{Value, json};
 
 pub const KEY: &str = "rstyle.hir-coverage:integer-casts";
 
-pub fn evidence(facts: &HirFnFacts, graph: &Graph) -> Result<Value, String> {
+pub fn evidence(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    graph: &Graph,
+) -> Result<Value, String> {
     let width = facts
         .build
         .pointer_width

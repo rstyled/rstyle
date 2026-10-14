@@ -2,13 +2,15 @@
 
 use super::*;
 use crate::{
-    HirFnFacts,
     call_summaries::Summary,
     concrete_types::{Observation, TypeTree},
     data_receivers::Kind,
 };
 
-pub fn resolve(node: &HirNode, facts: &HirFnFacts) -> Result<Option<Summary>, String> {
+pub fn resolve(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<Summary>, String> {
     let Some(op) = operation(node) else {
         return Ok(None);
     };
@@ -25,7 +27,10 @@ pub fn resolve(node: &HirNode, facts: &HirFnFacts) -> Result<Option<Summary>, St
 }
 
 /// Source correspondence precedes helper linking; this never authorizes admission.
-pub(crate) fn source_resolved(node: &HirNode, facts: &HirFnFacts) -> Result<bool, String> {
+pub(crate) fn source_resolved(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
     let Some(op) = operation(node) else {
         return Ok(false);
     };
@@ -34,7 +39,7 @@ pub(crate) fn source_resolved(node: &HirNode, facts: &HirFnFacts) -> Result<bool
 
 fn source_token(
     node: &HirNode,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     op: &Operation,
 ) -> Result<Option<String>, String> {
     if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?.is_data() {
@@ -108,7 +113,11 @@ fn supported_receiver(record: &crate::data_receivers::Method, op: &Operation) ->
     type_ok && adjustments_ok && record.adjusted_type == record.receiver_type
 }
 
-fn original_invocation(node: &HirNode, facts: &HirFnFacts, op: &Operation) -> Result<bool, String> {
+fn original_invocation(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    op: &Operation,
+) -> Result<bool, String> {
     if node.expansion.is_some() || node.children.len() != 1 {
         return Ok(false);
     }
