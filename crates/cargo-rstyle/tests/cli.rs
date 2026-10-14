@@ -1,5 +1,8 @@
 //! End-to-end tests: real `cargo check` through the real rustc driver.
 
+#[path = "../src/diagnostic_process.rs"]
+mod diagnostic_process;
+
 use assert_cmd::cargo::cargo_bin;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -61,15 +64,16 @@ fn copy_dir(from: &Path, to: &Path) {
 }
 
 fn rstyle(dir: &Path, args: &[&str]) -> Output {
-    Command::new(cargo_bin("cargo-rstyle"))
-        .args(args)
-        .current_dir(dir)
-        .env("RSTYLE_DRIVER", driver())
-        // Fixtures assert on `<fixture>/target/rstyle/facts`; a shared/inherited
-        // CARGO_TARGET_DIR (worktree cache, CI volume) would move it.
-        .env_remove("CARGO_TARGET_DIR")
-        .output()
-        .unwrap()
+    diagnostic_process::output(
+        Command::new(cargo_bin("cargo-rstyle"))
+            .args(args)
+            .current_dir(dir)
+            .env("RSTYLE_DRIVER", driver())
+            // Fixtures assert on `<fixture>/target/rstyle/facts`; a shared/inherited
+            // CARGO_TARGET_DIR (worktree cache, CI volume) would move it.
+            .env_remove("CARGO_TARGET_DIR"),
+    )
+    .unwrap()
 }
 
 fn stdout(output: &Output) -> String {
@@ -4807,11 +4811,16 @@ fn clones_data_inherent_family_composes_source_methods_fields_and_helpers() {
     let directory = clone_workspace();
     let source = format!("\u{feff}{}", DATA_INHERENT_FAMILY.replace('\n', "\r\n"));
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let initial =
+        rstyle_pdg::diagnostics::Stage::new("test.inherent.initial", "family", None).enter();
     let (output, report) = clones(
         directory.path(),
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
+    initial.finish(Ok::<(), String>(())).unwrap();
+    let assertions =
+        rstyle_pdg::diagnostics::Stage::new("test.inherent.assertions", "family", None).enter();
     assert_eq!(report["functions"].as_array().unwrap().len(), 21);
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted", "{function}");
@@ -4823,10 +4832,16 @@ fn clones_data_inherent_family_composes_source_methods_fields_and_helpers() {
     assert_eq!(report["pair_evaluation_complete"], true);
     check_inherent_call_evidence(&report);
     check_inherent_tampering(read_call_function(&report, "model::Data::wrap"));
+    assertions.finish(Ok::<(), String>(())).unwrap();
+    let warm_run =
+        rstyle_pdg::diagnostics::Stage::new("test.inherent.warm", "family", None).enter();
     let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{warm}");
     assert_eq!(pair_decisions(&report), pair_decisions(&warm));
+    warm_run.finish(Ok::<(), String>(())).unwrap();
+    let edit = rstyle_pdg::diagnostics::Stage::new("test.inherent.edit", "family", None).enter();
     check_inherent_call_edit(directory.path(), &report);
+    edit.finish(Ok::<(), String>(())).unwrap();
 }
 
 fn check_inherent_call_edit(directory: &Path, previous: &Value) {
@@ -5616,4 +5631,109 @@ fn clones_data_library_corruption_is_incomplete_execution() {
         assert_eq!(report["pair_evaluation_complete"], false);
         assert!(!report["handoff_failures"].as_array().unwrap().is_empty());
     }
+}
+
+#[test]
+fn clones_capture_only_retains_raw_facts_without_complete_publication() {
+    let directory = clone_workspace();
+    let snapshots = tempfile::tempdir().unwrap();
+    let output = diagnostic_process::output(
+        Command::new(cargo_bin("cargo-rstyle"))
+            .args([
+                "clones",
+                "--format",
+                "json",
+                "--extraction-profile",
+                "hir-helpers-v1",
+            ])
+            .current_dir(directory.path())
+            .env("RSTYLE_DRIVER", driver())
+            .env("RSTYLE_DIAGNOSTIC_CAPTURE_ONLY", "1")
+            .env("RSTYLE_DIAGNOSTIC_FACTS_DIR", snapshots.path())
+            .env_remove("CARGO_TARGET_DIR"),
+    )
+    .unwrap();
+    assert!(!output.status.success());
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["capture_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(report["functions"].as_array().unwrap().is_empty());
+    let files: Vec<_> = std::fs::read_dir(snapshots.path()).unwrap().collect();
+    assert_eq!(files.len(), 1);
+    let bytes = std::fs::read(files[0].as_ref().unwrap().path()).unwrap();
+    let snapshot: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(snapshot["version"], 1);
+    assert_eq!(snapshot["scope"], "diagnostic-raw-facts-only");
+    assert_eq!(snapshot["phase"], "pre-helper-certification");
+    assert_eq!(snapshot["facts"].as_array().unwrap().len(), 4);
+}
+
+#[test]
+fn clones_generated_policy_preserves_documents_and_structural_validation() {
+    let directory = clone_workspace();
+    let (output, report) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let (mut pair, facts) = data_pair(function);
+    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
+    let strict = rstyle_pdg::producer::produce(&facts)
+        .unwrap()
+        .serialize()
+        .unwrap();
+    let generated = rstyle_pdg::verification_policy::generated(|| {
+        rstyle_pdg::producer::produce(&facts)
+            .unwrap()
+            .serialize()
+            .unwrap()
+    });
+    assert_eq!(strict.pdg_bytes, generated.pdg_bytes);
+    assert_eq!(strict.cfg_bytes, generated.cfg_bytes);
+    assert_eq!(strict.manifest, generated.manifest);
+    pair.pdg.nodes[1].id = pair.pdg.nodes[0].id.clone();
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| {
+            rstyle_pdg::producer::verify(&pair, &facts)
+        })
+        .is_err()
+    );
+}
+
+#[test]
+fn clones_helpers_repeated_dependencies_preserve_strict_checks() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn leaf(x: i32) -> bool { x > 0 }\npub fn repeated(x: i32) -> bool { leaf(x) && leaf(x) }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{report}");
+    let function = read_call_function(&report, "repeated");
+    let (pair, facts) = data_pair(function);
+    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
+    let strict = rstyle_pdg::producer::produce(&facts)
+        .unwrap()
+        .serialize()
+        .unwrap();
+    let original = pair.serialize().unwrap();
+    assert_eq!(strict.pdg_bytes, original.pdg_bytes);
+    assert_eq!(strict.cfg_bytes, original.cfg_bytes);
+    assert_eq!(strict.manifest, original.manifest);
+    for corruption in ["manifest", "source", "signature", "effects"] {
+        let mut changed = facts.clone();
+        assert!(corrupt_helper(&mut changed.body, corruption));
+        assert!(
+            rstyle_pdg::producer::produce(&changed).is_err(),
+            "{corruption}"
+        );
+    }
+    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
 }

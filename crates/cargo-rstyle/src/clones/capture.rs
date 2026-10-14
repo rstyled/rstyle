@@ -174,6 +174,11 @@ fn executable_identity(path: PathBuf) -> Result<ExecutableIdentity, String> {
 }
 
 fn file_digest(path: &Path) -> Result<String, String> {
+    rstyle_pdg::diagnostics::Stage::new("capture.binary_hash", &path.display().to_string(), None)
+        .observe(|| hash_file(path))
+}
+
+fn hash_file(path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(super::digest(&bytes))
 }
@@ -416,13 +421,14 @@ fn primary_units(graph: &Value) -> Result<Vec<Value>, String> {
 }
 
 fn perform_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
-    let output = command(capture, cli, args)?
-        .output()
+    let observation =
+        rstyle_pdg::diagnostics::Stage::new("capture.compile", "cargo check", None).enter();
+    let output = crate::diagnostic_process::output(&mut command(capture, cli, args)?)
         .map_err(|e| e.to_string())?;
     save_logs(capture, &output)?;
 
     compilation_result(capture, &output);
-    Ok(())
+    observation.finish(Ok(()))
 }
 
 fn expected_units(capture: &Capture, cli: &Cli, args: &Args) -> Result<Value, String> {
@@ -867,4 +873,30 @@ fn invocation_features(invocation: &[String]) -> Vec<Value> {
     features.dedup();
 
     features
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use super::*;
+
+    #[test]
+    fn executable_digest_matches_standard_vectors_and_recaptures_edits() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("executable");
+        std::fs::write(&file, b"").unwrap();
+        assert_eq!(
+            file_digest(&file).unwrap(),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        std::fs::write(&file, b"abc").unwrap();
+        assert_eq!(
+            file_digest(&file).unwrap(),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        std::fs::write(&file, vec![b'a'; 1_000_000]).unwrap();
+        assert_eq!(
+            file_digest(&file).unwrap(),
+            "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
+        );
+    }
 }

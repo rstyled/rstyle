@@ -65,3 +65,76 @@ splits. `ccgraph_followup_evidence.py` verifies all retained artifact digests an
 raw/saved semantic aggregates, then packages the complete canonical scope traces.
 See `eval/ccgraph-v2/README.md`; target-check exit 1 means a valid missed primary
 coverage target, not a compiler failure.
+
+## Bounded performance investigations
+
+Run build and execution as separate commands with separate budgets. The POSIX
+stdlib supervisor streams both output channels, retains their exact bytes and
+`run.json`, and cleans up the process group with TERM then KILL. Output directories
+must be new; use a different directory for every observation. Timeout exits 124,
+interruption exits 130, and completed commands retain their exit status. A timeout
+is an incomplete observation, never a passing test. Subprocesses must stay in the
+launched process group; deliberately detached processes are outside this supervisor.
+
+```sh
+python3 scripts/watchdog.py --timeout 120 --output /tmp/rstyle-build-1 -- cargo test --locked -p rstyle-pdg --test data_types --no-run
+python3 scripts/watchdog.py --timeout 60 --output /tmp/rstyle-types-1 -- cargo test --locked -p rstyle-pdg --test data_types
+python3 -m unittest discover -s scripts -p test_watchdog.py
+```
+
+Use a single sandbox-local `CARGO_TARGET_DIR` and record commit, architecture,
+toolchain, build profile, cache state, filter and concurrency with observations.
+The supervisor cannot expose stderr that an inner CLI test buffers with
+`Command::output`; live child-stage instrumentation remains a separate task.
+
+Set `RSTYLE_PERF=1` for opt-in `rstyle-perf` JSON lines on stderr. Initial
+instrumentation covers `capture.binary_hash`, `producer.produce`,
+`producer.verify` and `helper.verify`. Starts are emitted before work; finishes
+and failures include monotonic elapsed seconds, PID, identity and nesting depth.
+Depth describes instrumented calls, not the source dependency-chain length.
+Helper visits are counted per thread by SHA-256 of exact encoded resolution
+bytes, including the serialized dependency. Names are navigation labels, never
+proof identities. These observations do not memoize or bypass any validation.
+Timing and counts never enter documents or deterministic reports. Detailed
+logging and diagnostic hashing add overhead: compare diagnostic runs separately
+from uninstrumented timings. This initial instrumentation does not yet cover all
+stages or make buffered child stderr visible in CLI tests.
+
+Diagnostic stderr now streams through the Cargo capture adapter and the CLI test
+helper while remaining available in failure output and retained capture logs.
+Only the exact `RSTYLE_PERF=1` switch passes through producer-environment clearing;
+extraction selection and evidence publication settings are still cleared. Output
+from concurrent compiler units may interleave; correlate JSON events by PID and
+identity. Add `--nocapture` when running a CLI test to expose its tee output.
+
+Set `RSTYLE_DIAGNOSTIC_FACTS_DIR` to retain version-1, phase-tagged snapshots
+before helper certification and, when available, after it but before production.
+Files use compiler PIDs and exclusive creation; they are flushed before work
+continues. They contain owned facts with original provenance, and explicitly do
+not certify a complete source-to-pair capture. Add
+`RSTYLE_DIAGNOSTIC_CAPTURE_ONLY=1` to stop after raw HIR/unit evidence. The CLI
+reports incomplete capture and exits nonzero because no normal producer artifacts
+are published. This is an extraction-only diagnostic outcome, not a passed E2E
+analysis. These two diagnostic settings are explicitly forwarded to the driver.
+
+The smallest ordinary-library replay seam is currently a PDG example:
+
+```sh
+cargo build --locked --workspace --example helper_replay
+RSTYLE_PERF=1 python3 scripts/watchdog.py --timeout 120 --output /tmp/helper-replay-1 -- target/debug/examples/helper_replay /path/to/PID-pre-helper-certification.json
+```
+
+Build separately. The executable loads one snapshot, then invokes the same
+`helper_calls::capture` used by the driver, without Cargo, rustc or source-file
+reads. Output is diagnostic scope and cannot claim source-to-pair completeness.
+This is an initial helper-stage seam, not the proposed full evidence-bundle format
+or the complete `rstyle-analysis` API. Retain the original source bytes alongside
+snapshots for regeneration; snapshots keep original provenance paths unchanged.
+
+Normal current-run driver/CLI production now uses the `trusted-generated`
+verification policy, retaining structural validation and avoiding duplicate graph
+reconstruction and recursive certified-summary derivation. Independent library
+calls and replay remain strict by default. To measure the normal production
+policy on one's own raw snapshot, add `--generated` to `helper_replay`. The
+reported scope remains diagnostic; choosing this policy does not certify capture
+completeness. Stage events and the CLI report declare the selected policy.

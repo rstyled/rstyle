@@ -12,6 +12,12 @@ pub struct Destination {
     pub document_directory: Option<PathBuf>,
 }
 
+/// The source inventory and facts published together for one completed capture.
+pub struct CapturedOutput<'a> {
+    pub facts: &'a [HirFnFacts],
+    pub inventory: Option<&'a serde_json::Value>,
+}
+
 #[derive(Serialize)]
 struct Assessment<'a> {
     function: &'a str,
@@ -25,6 +31,13 @@ struct Assessment<'a> {
 }
 
 impl Destination {
+    pub fn write_capture(&self, capture: &CapturedOutput<'_>) -> io::Result<()> {
+        if let Some(inventory) = capture.inventory {
+            self.write_source_inventory(inventory)?;
+        }
+        self.write(capture.facts)
+    }
+
     pub fn write_source_inventory(&self, value: &serde_json::Value) -> io::Result<()> {
         if let Some(directory) = &self.document_directory {
             std::fs::create_dir_all(directory)?;
@@ -51,18 +64,56 @@ fn write(directory: &Path, facts: &[HirFnFacts]) -> io::Result<()> {
 
 fn write_function(directory: &Path, index: usize, facts: &HirFnFacts) -> io::Result<()> {
     let eligibility = classify(facts);
+    let result = produce_function(directory, index, facts)?;
+    let assessment = assessment(facts, &eligibility, result);
+
+    write_json(
+        &directory.join(format!("function-{index}.assessment.json")),
+        &assessment,
+    )
+}
+
+fn produce_function(
+    directory: &Path,
+    index: usize,
+    facts: &HirFnFacts,
+) -> io::Result<AssessmentResult> {
     let result = producer::produce(facts)
         .and_then(|pair| rstyle_ccgraph::admit_produced(&pair, facts).map(|_| pair));
+    publish_function(directory, index, result)
+}
+
+fn publish_function(
+    directory: &Path,
+    index: usize,
+    result: Result<producer::Pair, Vec<String>>,
+) -> io::Result<AssessmentResult> {
     let (manifest_file, extraction_errors) = match result {
         Ok(pair) => (Some(write_pair(directory, index, &pair)?), Vec::new()),
         Err(errors) => (None, errors),
     };
+
+    Ok(AssessmentResult {
+        manifest_file,
+        extraction_errors,
+    })
+}
+
+fn assessment<'a>(
+    facts: &'a HirFnFacts,
+    eligibility: &'a rstyle_pdg::HirEligibility,
+    result: AssessmentResult,
+) -> Assessment<'a> {
+    let AssessmentResult {
+        manifest_file,
+        extraction_errors,
+    } = result;
     let validation = if manifest_file.is_some() {
         "validated"
     } else {
         "not_evaluated"
     };
-    let assessment = Assessment {
+    Assessment {
         function: &facts.name,
         compilation: "successful",
         eligibility: format!("{:?}", eligibility.status),
@@ -71,12 +122,12 @@ fn write_function(directory: &Path, index: usize, facts: &HirFnFacts) -> io::Res
         diagnostics: &eligibility.diagnostics,
         extraction_errors,
         manifest_file,
-    };
+    }
+}
 
-    write_json(
-        &directory.join(format!("function-{index}.assessment.json")),
-        &assessment,
-    )
+struct AssessmentResult {
+    manifest_file: Option<String>,
+    extraction_errors: Vec<String>,
 }
 
 fn write_pair(directory: &Path, index: usize, pair: &producer::Pair) -> io::Result<String> {

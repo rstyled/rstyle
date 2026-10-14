@@ -155,22 +155,69 @@ impl Callbacks for HirExtract {
             invocation: &self.invocation,
             unit_context: self.unit_context.as_ref(),
         };
-        let facts = hir_extraction::crate_facts(tcx, &self.scanned, &options)
+        self.capture(tcx, &options)
+    }
+}
+
+impl HirExtract {
+    fn capture(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) -> Compilation {
+        if rstyle_pdg::diagnostics::switch("RSTYLE_DIAGNOSTIC_CAPTURE_ONLY") {
+            self.capture_diagnostic(tcx, options);
+            Compilation::Stop
+        } else {
+            self.capture_complete(tcx, options);
+            Compilation::Continue
+        }
+    }
+
+    fn capture_diagnostic(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        let facts = hir_extraction::raw_crate_facts(tcx, &self.scanned, options)
+            .expect("capture diagnostic raw facts");
+        hir_extraction::diagnostics::snapshot("pre-helper-certification", &facts)
+            .expect("retain diagnostic raw facts");
+        eprintln!(
+            "rstyle diagnostic scope=extraction-only; helper certification and successful publication not performed"
+        );
+    }
+
+    fn capture_complete(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        rstyle_pdg::verification_policy::generated(|| self.capture_generated(tcx, options));
+    }
+
+    fn capture_generated(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        let facts = hir_extraction::crate_facts(tcx, &self.scanned, options)
             .expect("capture complete source-facing R0 evidence");
 
-        if options
+        self.write_capture(tcx, options, &facts);
+    }
+
+    fn write_capture(
+        &self,
+        tcx: TyCtxt<'_>,
+        options: &hir_extraction::Options<'_>,
+        facts: &[rstyle_pdg::HirFnFacts],
+    ) {
+        let inventory = self.inventory(tcx, options, facts);
+        self.output
+            .write_capture(&hir_extraction::output::CapturedOutput {
+                facts,
+                inventory: inventory.as_ref(),
+            })
+            .expect("write captured evidence");
+    }
+
+    fn inventory(
+        &self,
+        tcx: TyCtxt<'_>,
+        options: &hir_extraction::Options<'_>,
+        facts: &[rstyle_pdg::HirFnFacts],
+    ) -> Option<serde_json::Value> {
+        options
             .selected()
             .supports("rust.conditional-source-correspondence")
-        {
-            let inventory = hir_extraction::source_inventory(tcx, &self.scanned, &facts)
-                .expect("capture owned source inventory");
-            self.output
-                .write_source_inventory(&inventory)
-                .expect("write owned source inventory");
-        }
-        self.output
-            .write(&facts)
-            .expect("write R0 evidence and optional documents");
-        Compilation::Continue
+            .then(|| {
+                hir_extraction::source_inventory(tcx, &self.scanned, facts)
+                    .expect("capture owned source inventory")
+            })
     }
 }

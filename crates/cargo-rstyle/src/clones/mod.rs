@@ -159,6 +159,10 @@ fn matching_profile(args: &Args) -> rstyle_ccgraph::MatchingProfile {
 }
 
 pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
+    rstyle_pdg::verification_policy::generated(|| run_generated(cli, args))
+}
+
+fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
     let mut capture = capture::prepare(cli, args)?;
     if let Err(error) = capture::compile(&mut capture, cli, args) {

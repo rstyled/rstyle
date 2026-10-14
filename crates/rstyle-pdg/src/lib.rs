@@ -20,6 +20,7 @@ pub mod data_places;
 pub mod data_receivers;
 pub mod data_types;
 pub mod declaration_origins;
+pub mod diagnostics;
 pub mod eligibility;
 pub mod extraction_profile;
 pub mod field_locations;
@@ -35,6 +36,8 @@ pub mod producer;
 pub mod source_evidence;
 pub mod validate;
 pub mod value_sites;
+pub mod verification_policy;
+mod verification_session;
 pub use value_sites::validate_value_sites;
 
 pub use eligibility::{classify, span};

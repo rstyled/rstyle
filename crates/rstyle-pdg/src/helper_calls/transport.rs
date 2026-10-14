@@ -20,12 +20,15 @@ struct Envelope {
 }
 
 pub(crate) fn encode(dependency: &Dependency) -> Result<Value, String> {
+    let observation =
+        crate::diagnostics::Stage::new("helper.transport_encode", &dependency.frontend.name, None)
+            .enter();
     let value = serde_json::to_value(dependency).map_err(|error| error.to_string())?;
     check_bytes(&value)?;
     if crate::extraction_profile::ExtractionProfile::from_facts(&dependency.frontend)?
         != crate::extraction_profile::ExtractionProfile::DataV3
     {
-        return Ok(value);
+        return observation.finish(Ok(value));
     }
 
     let mut table = Table::default();
@@ -37,7 +40,7 @@ pub(crate) fn encode(dependency: &Dependency) -> Result<Value, String> {
     })
     .map_err(|error| error.to_string())?;
     check_bytes(&value)?;
-    Ok(value)
+    observation.finish(Ok(value))
 }
 
 pub(crate) fn decode(value: &Value) -> Result<Dependency, String> {

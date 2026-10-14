@@ -131,11 +131,19 @@ fn command(paths: &Paths<'_>, selection: &Selection<'_>) -> Command {
 /// Commands select their own extraction mode; inherited producer settings cannot
 /// change it. Resolve RSTYLE_DRIVER before calling this helper.
 pub fn clear_rstyle_environment(command: &mut Command) {
-    for (key, _) in std::env::vars_os() {
+    for (key, value) in std::env::vars_os() {
+        if diagnostic_environment(&key, &value) {
+            continue;
+        }
         if key.to_string_lossy().starts_with("RSTYLE_") {
             command.env_remove(key);
         }
     }
+}
+
+fn diagnostic_environment(key: &OsStr, value: &OsStr) -> bool {
+    key == "RSTYLE_DIAGNOSTIC_FACTS_DIR"
+        || (key == "RSTYLE_PERF" || key == "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY") && value == "1"
 }
 
 /// Compiles the selected crates so the driver writes its facts files.
