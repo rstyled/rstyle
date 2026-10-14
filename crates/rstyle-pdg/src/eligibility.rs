@@ -618,24 +618,39 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
             }
         }
         "expr_method_call" if ctx.profile.supports("rust.verified-primitive-summaries") => {
-            if crate::call_summaries::resolve_for(node, ctx.facts)
-                .is_ok_and(|summary| summary.is_some())
-            {
-                Outcome::ok()
-            } else {
-                error(
-                    "rust.call-summaries",
-                    "unregistered_primitive_summary",
-                    node,
-                    "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
-                )
-            }
+            check_method(node, ctx)
         }
         "expr_cast" if ctx.profile.supports("rust.integer-casts") => check_supported(node, ctx),
         "expr_block" | "stmt_expr" | "stmt_semi" | "stmt_let" | "expr_path" | "expr_lit"
         | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_assign_op"
         | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
         _ => check_deferred(node),
+    }
+}
+
+fn check_method(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if ctx.profile.supports("rust.verified-inherent-helper-calls")
+        && crate::helper_calls::direct_resolution(node).is_some()
+    {
+        return match crate::helper_calls::verify(node, ctx.facts) {
+            Ok(_) => Outcome::ok(),
+            Err(reason) => error(
+                "rust.call-summaries",
+                "unverified_inherent_helper",
+                node,
+                &reason,
+            ),
+        };
+    }
+    if crate::call_summaries::resolve_for(node, ctx.facts).is_ok_and(|summary| summary.is_some()) {
+        Outcome::ok()
+    } else {
+        error(
+            "rust.call-summaries",
+            "unregistered_primitive_summary",
+            node,
+            "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+        )
     }
 }
 

@@ -326,3 +326,15 @@ Construction, local reference correspondence, other library methods and
 indexing/subslicing remain unfinished; the broader
 data goal and natural-coverage targets are not achieved. See the versioned local
 data contract and progress record under `docs/extraction-profiles`.
+
+The separately selected `hir-data-v3` implementation adds verified concrete
+same-unit inherent helper calls under extraction identity `rstyle.rust.hir-data/3.0.0`.
+The connected 21-function fixture reached all 210 pairs with warm-run invariance
+and transitive invalidation after a getter-field edit. Independent schema checks
+accepted its 21 PDG and 21 CFG documents without vendored changes. Inherent
+ownership includes exact original method names, containing impls and shared
+receiver adjustments; UFCS additionally requires lexical nominal-owner resolution.
+Bounded dependency transport preserves original serialized bytes and existing
+verification budgets. These fixture results do not establish natural coverage
+or complete the remaining data capabilities listed above. The previous Data-v2
+boundary and historical inventory remain unchanged.

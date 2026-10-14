@@ -86,7 +86,11 @@ form, original spans/navigation, resolved definition and containing implementati
 concrete owner, receiver adjustments/signature, ordered argument dependencies,
 derived summaries and substituted read/location inventories. Verify the callee's
 own containing implementation/type evidence against its captured original source
-context and concrete interface; caller-provided inherent/effect flags cannot
+context and concrete interface. Its resolved method name must equal the original
+declaration name. UFCS additionally resolves the original type qualifier in the
+caller lexical namespace (including supported aliases and `Self`) and requires
+the exact callee nominal owner; the original final method segment must agree.
+Caller-provided inherent/effect flags cannot
 authorize admission. Tampered/missing/duplicate artifacts, identities, types,
 receivers, summaries or manifests fail closed. Paired documents must still
 validate unchanged vendored schemas; authority gaps keep the capability unavailable.

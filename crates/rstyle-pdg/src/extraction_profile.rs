@@ -24,6 +24,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.verified-helper-calls",
     "rust.concrete-read-only-data",
     "rust.verified-read-only-helper-calls",
+    "rust.verified-inherent-helper-calls",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -53,6 +54,8 @@ pub enum ExtractionProfile {
     DataV1,
     #[serde(rename = "hir-data-v2")]
     DataV2,
+    #[serde(rename = "hir-data-v3")]
+    DataV3,
 }
 
 impl ExtractionProfile {
@@ -64,8 +67,9 @@ impl ExtractionProfile {
             "hir-helpers-v1" => Ok(Self::HelpersV1),
             "hir-data-v1" => Ok(Self::DataV1),
             "hir-data-v2" => Ok(Self::DataV2),
+            "hir-data-v3" => Ok(Self::DataV3),
             _ => {
-                Err("Extraction selection must be r0 or hir-expanded-v1, or hir-helpers-v1, or hir-data-v1, or hir-data-v2".into())
+                Err("Extraction selection must be r0 or hir-expanded-v1, or hir-helpers-v1, or hir-data-v1, or hir-data-v2, or hir-data-v3".into())
             }
         }
     }
@@ -84,6 +88,7 @@ impl ExtractionProfile {
             "hir-helpers-v1" => Ok(Self::HelpersV1),
             "hir-data-v1" => Ok(Self::DataV1),
             "hir-data-v2" => Ok(Self::DataV2),
+            "hir-data-v3" => Ok(Self::DataV3),
             _ => Err(format!("Unregistered extraction profile {value:?}")),
         }
     }
@@ -111,6 +116,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => "hir-helpers-v1",
             Self::DataV1 => "hir-data-v1",
             Self::DataV2 => "hir-data-v2",
+            Self::DataV3 => "hir-data-v3",
         }
     }
 
@@ -127,6 +133,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
+            Self::DataV3 => Some(("3.0.0", 12)),
         }
     }
 
@@ -152,19 +159,19 @@ impl ExtractionProfile {
     }
 
     pub fn is_data(self) -> bool {
-        matches!(self, Self::DataV1 | Self::DataV2)
+        matches!(self, Self::DataV1 | Self::DataV2 | Self::DataV3)
     }
 
     pub fn data_matching(self) -> Option<&'static str> {
         match self {
             Self::DataV1 => Some(DATA_MATCHING_ID),
-            Self::DataV2 => Some(DATA_CALLS_MATCHING_ID),
+            Self::DataV2 | Self::DataV3 => Some(DATA_CALLS_MATCHING_ID),
             _ => None,
         }
     }
 
     pub fn summaries(self) -> &'static [&'static str] {
-        if self == Self::DataV2 {
+        if matches!(self, Self::DataV2 | Self::DataV3) {
             return &[
                 "rstyle.primitive.unsigned-abs/1",
                 "rstyle.primitive.wrapping-mul/1",
@@ -218,7 +225,7 @@ pub fn registered(policy: &ProfileId) -> bool {
         .any(|profile| profile.policy() == *policy)
 }
 
-fn registered_profiles() -> [ExtractionProfile; 11] {
+fn registered_profiles() -> [ExtractionProfile; 12] {
     [
         ExtractionProfile::R0,
         ExtractionProfile::ConstV1,
@@ -231,6 +238,7 @@ fn registered_profiles() -> [ExtractionProfile; 11] {
         ExtractionProfile::HelpersV1,
         ExtractionProfile::DataV1,
         ExtractionProfile::DataV2,
+        ExtractionProfile::DataV3,
     ]
 }
 

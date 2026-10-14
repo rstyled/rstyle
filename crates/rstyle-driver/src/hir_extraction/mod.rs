@@ -3,6 +3,7 @@
 mod concrete_types;
 mod evidence;
 mod hir;
+mod inherent;
 mod library_artifacts;
 mod nominal_census;
 pub mod output;
@@ -53,7 +54,8 @@ fn capture_unit_evidence(
     facts: &mut [HirFnFacts],
 ) -> Result<(), String> {
     nominal_census::capture(tcx, options, facts)?;
-    library_artifacts::capture(tcx, options, facts)
+    library_artifacts::capture(tcx, options, facts)?;
+    inherent::capture_unit(facts, options)
 }
 
 fn function(
@@ -66,6 +68,7 @@ fn function(
         return Ok(None);
     };
     concrete_types::capture(&ctx, &mut facts)?;
+    inherent::capture(tcx, id, &mut facts, options)?;
     rstyle_pdg::field_locations::capture(&mut facts)?;
 
     Ok(Some(facts))

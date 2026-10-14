@@ -16,7 +16,7 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 pub struct Args {
-    /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1 or hir-data-v2.
+    /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     /// JSON matching overrides, separate from legacy rstyle.toml.
@@ -150,7 +150,8 @@ fn matching_profile(args: &Args) -> rstyle_ccgraph::MatchingProfile {
         rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 => {
             rstyle_ccgraph::MatchingProfile::DataV1
         }
-        rstyle_pdg::extraction_profile::ExtractionProfile::DataV2 => {
+        rstyle_pdg::extraction_profile::ExtractionProfile::DataV2
+        | rstyle_pdg::extraction_profile::ExtractionProfile::DataV3 => {
             rstyle_ccgraph::MatchingProfile::DataCallsV1
         }
         _ => rstyle_ccgraph::MatchingProfile::ScalarV1,

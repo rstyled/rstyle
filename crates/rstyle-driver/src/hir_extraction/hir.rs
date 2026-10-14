@@ -159,7 +159,9 @@ impl<'tcx> Context<'tcx> {
         let children = self.children(expr);
         let res = match expr.kind {
             ExprKind::Call(callee, _) => self.direct_callee(callee),
-            ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => self.field_resolution(expr, base),
+            ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => {
+                self.field_resolution(expr, base)
+            }
             ExprKind::Path(ref path) => {
                 let res = self.typeck.qpath_res(path, expr.hir_id);
                 Some(PathRes {
@@ -177,10 +179,7 @@ impl<'tcx> Context<'tcx> {
                     description: format!("{res:?}"),
                 })
             }
-            ExprKind::MethodCall(..) => self.typeck.type_dependent_def_id(expr.hir_id).map(|callee| PathRes {
-                kind: "resolved_callee".into(), target: None,
-                description: serde_json::json!({"path":self.tcx.def_path_str(callee),"crate":self.tcx.crate_name(callee.krate).to_string(),"crate_hash":if callee.is_local() { "local-unencoded".to_string() } else { self.tcx.crate_hash(callee.krate).to_string() },"definition_hash":format!("{:?}", self.tcx.def_path_hash(callee))}).to_string(),
-            }),
+            ExprKind::MethodCall(..) => self.method_callee(expr),
             ExprKind::Break(destination, _) | ExprKind::Continue(destination) => Some(PathRes {
                 kind: if destination.label.is_none() {
                     "innermost_loop"
@@ -394,6 +393,31 @@ impl<'tcx> Context<'tcx> {
 }
 
 impl Context<'_> {
+    fn method_callee(&self, expression: &Expr<'_>) -> Option<PathRes> {
+        let callee = self.typeck.type_dependent_def_id(expression.hir_id)?;
+        if let Some(owner) = super::inherent::implementation(self.tcx, callee, self.profile) {
+            return Some(self.helper_callee(callee, "resolved_inherent_callee", Some(owner)));
+        }
+        let callee = rstyle_pdg::data_library::Callee {
+            path: self.tcx.def_path_str(callee),
+            crate_name: self.tcx.crate_name(callee.krate).to_string(),
+            crate_hash: if callee.is_local() {
+                "local-unencoded".into()
+            } else {
+                self.tcx.crate_hash(callee.krate).to_string()
+            },
+            definition_hash: format!("{:?}", self.tcx.def_path_hash(callee)),
+        };
+
+        Some(PathRes {
+            kind: "resolved_callee".into(),
+            target: None,
+            description: serde_json::to_value(callee)
+                .expect("serialize resolved callee")
+                .to_string(),
+        })
+    }
+
     fn direct_callee(&self, expression: &Expr<'_>) -> Option<PathRes> {
         if !self.profile.supports("rust.verified-helper-calls") {
             return None;
@@ -401,26 +425,38 @@ impl Context<'_> {
         let ExprKind::Path(ref path) = expression.kind else {
             return None;
         };
-        let Res::Def(rustc_hir::def::DefKind::Fn, callee) =
-            self.typeck.qpath_res(path, expression.hir_id)
-        else {
+        let Res::Def(kind, callee) = self.typeck.qpath_res(path, expression.hir_id) else {
             return None;
         };
         if self.tcx.generics_of(callee).count() != 0 {
             return None;
         }
+        let inherent = super::inherent::implementation(self.tcx, callee, self.profile);
+        if kind != rustc_hir::def::DefKind::Fn && inherent.is_none() {
+            return None;
+        }
 
-        Some(PathRes {
-            kind: "resolved_direct_callee".into(),
+        Some(self.helper_callee(callee, "resolved_direct_callee", inherent))
+    }
+
+    fn helper_callee(
+        &self,
+        callee: rustc_hir::def_id::DefId,
+        kind: &str,
+        owner: Option<rustc_hir::def_id::DefId>,
+    ) -> PathRes {
+        PathRes {
+            kind: kind.into(),
             target: None,
             description: serde_json::to_string(&DirectCallee {
                 path: self.tcx.def_path_str(callee),
                 crate_name: self.tcx.crate_name(callee.krate).to_string(),
                 local: callee.is_local(),
                 definition_identity: format!("{:?}", self.tcx.def_path_hash(callee)),
+                inherent: owner.map(|owner| super::inherent::call_owner(self.tcx, owner)),
             })
             .expect("resolved callee record"),
-        })
+        }
     }
 }
 
@@ -431,6 +467,8 @@ struct DirectCallee {
     crate_name: String,
     local: bool,
     definition_identity: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    inherent: Option<rstyle_pdg::inherent_calls::CallOwner>,
 }
 
 fn kind(kind: &ExprKind<'_>) -> &'static str {

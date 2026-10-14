@@ -200,6 +200,7 @@ pub(crate) fn formal_location(
 /// Check semantic locations directly against independently verified source
 /// operations, without calling the lowerer or document emitter.
 pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
+    crate::inherent_calls::definition(facts)?;
     crate::data_receivers::verify_documents(pair, facts)?;
     crate::data_library::verify_documents(pair, facts)?;
     crate::data_frontend::verify(facts)?;
@@ -316,7 +317,12 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: &Pair) -> bool {
     let field = node.category == NodeCategory::Read
         && node.original_kind.known_value() == Some("expr_field");
     let call = node.category == NodeCategory::Call
-        && node.original_kind.known_value() == Some("expr_call")
+        && (node.original_kind.known_value() == Some("expr_call")
+            || node.original_kind.known_value() == Some("expr_method_call")
+                && crate::extraction_profile::policy_supports(
+                    &pair.pdg.profile,
+                    "rust.verified-inherent-helper-calls",
+                ))
         && crate::extraction_profile::policy_supports(
             &pair.pdg.profile,
             "rust.verified-read-only-helper-calls",

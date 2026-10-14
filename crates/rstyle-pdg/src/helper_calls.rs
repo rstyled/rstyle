@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+pub(crate) mod transport;
+mod transport_lexical;
+
 pub const KEY: &str = "verified_helper";
 const MAX_DEPTH: usize = 8;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
@@ -133,7 +136,7 @@ fn node_native_width(node: &HirNode, data: bool) -> Result<bool, String> {
         node_native_width(child, data).map(|seen| native | seen)
     })?;
     let callee = if let Some(resolution) = direct_resolution(node) {
-        let dependency: Dependency = serde_json::from_value(resolution[KEY].clone())
+        let dependency: Dependency = transport::decode(&resolution[KEY])
             .map_err(|_| "Missing verified dependency for transitive target-width evidence")?;
         native_width(&dependency.frontend)?
     } else {
@@ -144,15 +147,32 @@ fn node_native_width(node: &HirNode, data: bool) -> Result<bool, String> {
 }
 
 pub fn direct_resolution(node: &HirNode) -> Option<Value> {
-    if node.kind != "expr_call"
-        || node.res.as_ref()?.kind != "resolved_direct_callee"
-        || node.res.as_ref()?.target.is_some()
-        || node.dispatch.as_ref()?.kind != "resolved_direct"
-    {
+    let direct = node.kind == "expr_call"
+        && node.res.as_ref()?.kind == "resolved_direct_callee"
+        && node.dispatch.as_ref()?.kind == "resolved_direct";
+    let inherent = node.kind == "expr_method_call"
+        && node.res.as_ref()?.kind == "resolved_inherent_callee"
+        && node.dispatch.as_ref()?.kind == "resolved_method";
+    if (!direct && !inherent) || node.res.as_ref()?.target.is_some() {
         return None;
     }
 
     serde_json::from_str(&node.res.as_ref()?.description).ok()
+}
+
+pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
+    let mut calls = Vec::new();
+    crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
+
+    let mut methods = Vec::new();
+    crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
+    calls.extend(
+        methods
+            .into_iter()
+            .filter(|node| direct_resolution(node).is_some()),
+    );
+
+    calls
 }
 
 /// Capture all local bodies first, then build the acyclic dependency handoff.
@@ -276,7 +296,7 @@ fn attach(node: &mut HirNode, verified: &BTreeMap<String, Dependency>) -> Result
     if resolution["local"] != true {
         return Ok(());
     }
-    resolution[KEY] = serde_json::to_value(dependency).map_err(|error| error.to_string())?;
+    resolution[KEY] = transport::encode(dependency)?;
     let description = serde_json::to_string(&resolution).map_err(|error| error.to_string())?;
     if description.len() > MAX_BYTES {
         return Err("Helper evidence exceeds explicit 8 MiB per-call budget".into());
@@ -345,10 +365,11 @@ pub fn verify(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String>
         return Err("Helper evidence exceeds explicit 8 MiB per-call budget".into());
     }
     let resolution = direct_resolution(node).ok_or("Unresolved direct helper call")?;
-    let dependency: Dependency = serde_json::from_value(resolution[KEY].clone())
+    let dependency: Dependency = transport::decode(&resolution[KEY])
         .map_err(|_| "Missing or invalid verified callee dependency")?;
     check_depth(&dependency.frontend.body, 1)?;
     check_signature(node, caller, &resolution, &dependency.frontend)?;
+    crate::inherent_calls::verify(node, caller, &dependency.frontend, &resolution)?;
     let serialized = producer::SerializedPair {
         pdg_bytes: dependency.pdg.as_bytes().to_vec(),
         cfg_bytes: dependency.cfg.as_bytes().to_vec(),
@@ -433,7 +454,7 @@ fn check_depth(node: &HirNode, depth: usize) -> Result<(), String> {
     if let Some(resolution) = direct_resolution(node)
         && !resolution[KEY].is_null()
     {
-        let dependency: Dependency = serde_json::from_value(resolution[KEY].clone())
+        let dependency: Dependency = transport::decode(&resolution[KEY])
             .map_err(|_| "Corrupt transitive helper dependency")?;
         check_depth(&dependency.frontend.body, depth + 1)?;
     }
@@ -443,8 +464,8 @@ fn check_depth(node: &HirNode, depth: usize) -> Result<(), String> {
 
 /// Independent serialized inventory validation; never invokes caller lowering.
 pub fn verify_documents(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), String> {
-    let mut calls = Vec::new();
-    crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
+    crate::inherent_calls::definition(facts)?;
+    let calls = call_nodes(facts);
     let records = pair
         .pdg
         .extensions
@@ -465,7 +486,10 @@ pub fn verify_documents(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(),
         .iter()
         .filter(|node| {
             node.category == crate::NodeCategory::Call
-                && node.original_kind.known_value() == Some("expr_call")
+                && (node.original_kind.known_value() == Some("expr_call")
+                    || records.iter().any(|record| {
+                        record["pdg_node_id"] == node.id && record.get("dependency").is_some()
+                    }))
         })
         .count();
     let dependencies = records
@@ -493,6 +517,7 @@ fn verify_document_call(
         .iter()
         .filter(|node| {
             node.category == crate::NodeCategory::Call
+                && node.original_kind.known_value() == Some(call.kind.as_str())
                 && node.source_span.as_ref().is_some_and(|span| {
                     span.start == u64::from(call.span.start) && span.end == u64::from(call.span.end)
                 })
@@ -522,8 +547,7 @@ fn verify_call_metadata(
     record: &Value,
     dependency: Dependency,
 ) -> Result<(), String> {
-    if record["dependency"]
-        != serde_json::to_value(dependency).map_err(|error| error.to_string())?
+    if record["dependency"] != transport::encode(&dependency)?
         || record["source_span"]
             != serde_json::to_value(call.span).map_err(|error| error.to_string())?
         || node

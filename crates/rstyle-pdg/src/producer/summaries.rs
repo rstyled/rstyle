@@ -53,12 +53,14 @@ impl SummaryCapture<'_> {
         let [operation] = operations.as_slice() else {
             return Err("Ambiguous or missing call source/HIR correspondence".into());
         };
-        if node.kind == "expr_call" {
+        if node.kind == "expr_call" || crate::helper_calls::direct_resolution(node).is_some() {
             return serde_json::to_value(HelperRecord {
                 pdg_node_id: &operation.id,
                 source_span: node.span,
                 operand_pdg_node_ids: &operation.operands,
-                dependency: crate::helper_calls::verify(node, self.facts)?,
+                dependency: crate::helper_calls::transport::encode(&crate::helper_calls::verify(
+                    node, self.facts,
+                )?)?,
             })
             .map_err(|error| error.to_string());
         }
@@ -89,7 +91,7 @@ struct HelperRecord<'a> {
     pdg_node_id: &'a str,
     source_span: crate::ByteSpan,
     operand_pdg_node_ids: &'a [String],
-    dependency: crate::helper_calls::Dependency,
+    dependency: Value,
 }
 
 #[derive(serde::Serialize)]

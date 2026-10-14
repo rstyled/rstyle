@@ -112,10 +112,7 @@ pub(crate) fn install(
 }
 
 fn source_calls(facts: &HirFnFacts) -> Vec<&HirNode> {
-    let mut calls = Vec::new();
-    crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
-
-    calls
+    crate::helper_calls::call_nodes(facts)
 }
 
 fn install_call_locations(
@@ -155,9 +152,7 @@ pub(crate) fn verify_locations(
     facts: &HirFnFacts,
     locations: &mut BTreeMap<String, MemoryLocation>,
 ) -> Result<(), String> {
-    let mut calls = Vec::new();
-    crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
-    for call in calls {
+    for call in source_calls(facts) {
         let dependency = crate::helper_calls::verify(call, facts)?;
         verify_effects(source_call(pair, call)?, call, facts, &dependency.summary)?;
         for (id, location) in expected(&dependency.summary, call, facts)?.locations {
@@ -176,7 +171,7 @@ pub(crate) fn verify_effects(
     let effects = expected(summary, call, facts)?;
     if node.synthetic
         || node.provenance.origin != crate::ProvenanceOrigin::Source
-        || node.original_kind.known_value() != Some("expr_call")
+        || node.original_kind.known_value() != Some(call.kind.as_str())
         || node.attributes.reads != effects.reads
         || !node.attributes.writes.is_empty()
         || !node.attributes.defines.is_empty()
@@ -204,7 +199,7 @@ fn source_call<'a>(pair: &'a Pair, call: &HirNode) -> Result<&'a PdgNode, String
         .iter()
         .filter(|node| {
             node.category == NodeCategory::Call
-                && node.original_kind.known_value() == Some("expr_call")
+                && node.original_kind.known_value() == Some(call.kind.as_str())
                 && node.source_span.as_ref().is_some_and(|span| {
                     span.start == u64::from(call.span.start) && span.end == u64::from(call.span.end)
                 })
@@ -224,9 +219,7 @@ pub(crate) fn check_budgets(facts: &HirFnFacts) -> Result<(), String> {
         return Ok(());
     }
 
-    let mut calls = Vec::new();
-    crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
-    for call in calls {
+    for call in source_calls(facts) {
         if let Err(error) = crate::helper_calls::verify(call, facts)
             && error == BUDGET_ERROR
         {

@@ -4739,6 +4739,299 @@ fn clones_data_v2_registers_separately_and_preserves_verified_data_paths() {
 const DATA_READ_CALL_FAMILY: &str = "pub struct Inner { pub n: u8, pub other: u8 }\npub struct Data { pub inner: Inner, pub extra: u8 }\npub struct Holder<'a> { pub ptr: &'a Data }\npub fn get(v: &Data) -> u8 { v.inner.n }\npub fn wrap(v: &Data) -> u8 { get(v) }\npub fn third(v: &Data) -> u8 { wrap(v) }\npub fn equal(left: &Data, right: &Data) -> bool { get(left) == get(right) }\npub fn alias_inputs(v: &Data) -> bool { equal(v, v) }\npub fn repeated(v: &Data) -> bool { v.inner.n == v.inner.n }\npub fn repeat_wrap(v: &Data) -> bool { repeated(v) }\npub mod access { use super::Data; pub fn read(v: &Data) -> u8 { v.extra } }\nuse access::read as imported;\npub fn qualified(v: &Data) -> u8 { access::read(v) }\npub fn aliased(v: &Data) -> u8 { imported(v) }\npub fn read_inner(v: &Inner) -> u8 { v.n }\npub fn nested(v: &Data) -> u8 { read_inner(&v.inner) }\npub fn choose<'a>(flag: bool, left: &'a Data, right: &'a Data) -> &'a Data { if flag { left } else { right } }\npub fn choose_get(flag: bool, left: &Data, right: &Data) -> u8 { get(choose(flag, left, right)) }\npub fn stored(v: &Holder<'_>) -> u8 { get(v.ptr) }\npub fn consume(v: &Data) { get(v); }\npub fn conditional(v: &Data, flag: bool) { if flag { consume(v); } }\npub fn casted(v: &Data) -> u32 { get(v) as u32 }\npub fn with_length(v: &Data, text: &str) -> bool { get(v) == 0 && text.is_empty() }\npub fn looped(v: &Data) -> u8 { let mut n = 0u8; while n < get(v) { n += 1; } n }\n";
 
 #[test]
+fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub struct Data { pub field: u8 }\nimpl Data { pub fn get(&self) -> u8 { self.field } pub fn wrap(&self) -> u8 { self.get() } }\npub fn invoke(value: &Data) -> u8 { value.wrap() }\nuse Data as Alias;\npub fn ufcs(value: &Data) -> u8 { Data::get(value) }\npub fn alias(value: &Data) -> u8 { Alias::get(value) }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v3", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["extraction_policy"]["version"], "3.0.0");
+    assert_eq!(
+        report["matching"]["profile_id"],
+        "rstyle.ccgraph.data-calls"
+    );
+    for function in report["functions"].as_array().unwrap() {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+        let (pair, facts) = data_pair(function);
+        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    let (output, old) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{old}");
+    assert_eq!(
+        read_call_function(&old, "Data::wrap")["outcome"],
+        "excluded"
+    );
+    assert_eq!(read_call_function(&old, "invoke")["outcome"], "excluded");
+}
+
+const DATA_INHERENT_FAMILY: &str = r#"pub mod model {
+ pub struct Inner { pub n: u8, pub other: u8 }
+ pub struct Data { pub inner: Inner, pub extra: u8 }
+ impl Inner { pub fn read(&self) -> u8 { self.n } }
+ impl Data {
+  pub fn get(&self) -> u8 { self.inner.n }
+  pub fn wrap(&self) -> u8 { self.get() }
+  pub fn third(&self) -> u8 { self.wrap() }
+  pub fn equal(&self, other: &Self) -> bool { self.get() == other.get() }
+  pub fn consume(&self) { self.get(); }
+  pub fn conditional(&self, flag: bool) { if flag { self.consume(); } }
+  pub fn casted(&self) -> u32 { self.get() as u32 }
+  pub fn with_length(&self, text: &str) -> bool { self.get() == 0 && text.is_empty() }
+  pub fn identity(&self) -> &Self { self }
+ }
+}
+use model::Data;
+use model::Data as Alias;
+pub struct Holder<'a> { pub value: &'a Data }
+pub fn invoke(value: &Data) -> u8 { value.third() }
+pub fn ufcs(value: &Data) -> u8 { model::Data::get(value) }
+pub fn aliased_ufcs(value: &Data) -> u8 { Alias::get(value) }
+pub fn nested(value: &Data) -> u8 { (&value.inner).read() }
+pub fn alias_inputs(value: &Data) -> bool { value.equal(value) }
+pub fn choose<'a>(flag: bool, left: &'a Data, right: &'a Data) -> &'a Data { if flag { left } else { right } }
+pub fn chosen(flag: bool, left: &Data, right: &Data) -> u8 { choose(flag, left, right).get() }
+pub fn looped(value: &Data) -> u8 { let mut n = 0u8; while n < value.get() { n += 1; } n }
+pub fn via_identity(value: &Data) -> u8 { value.identity().get() }
+pub fn field_and_call(value: &Data) -> bool { value.extra == value.get() }
+pub fn stored(value: &Holder<'_>) -> u8 { value.value.get() }
+"#;
+
+#[test]
+fn clones_data_inherent_family_composes_source_methods_fields_and_helpers() {
+    let directory = clone_workspace();
+    let source = format!("\u{feff}{}", DATA_INHERENT_FAMILY.replace('\n', "\r\n"));
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-data-v3", "--trace"],
+    );
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["functions"].as_array().unwrap().len(), 21);
+    for function in report["functions"].as_array().unwrap() {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+        let (pair, facts) = data_pair(function);
+        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 210);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    check_inherent_call_evidence(&report);
+    check_inherent_tampering(read_call_function(&report, "model::Data::wrap"));
+    let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{warm}");
+    assert_eq!(pair_decisions(&report), pair_decisions(&warm));
+    check_inherent_call_edit(directory.path(), &report);
+}
+
+fn check_inherent_call_edit(directory: &Path, previous: &Value) {
+    let source = DATA_INHERENT_FAMILY.replace("{ self.inner.n }", "{ self.inner.other }");
+    let source = format!("\u{feff}{}", source.replace('\n', "\r\n"));
+    std::fs::write(directory.join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory, &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    for name in ["model::Data::wrap", "model::Data::third", "invoke"] {
+        let old = read_call_function(previous, name);
+        let new = read_call_function(&report, name);
+        assert_ne!(old["document_manifest"], new["document_manifest"]);
+        let (pair, _) = data_pair(new);
+        assert_eq!(
+            pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+                [2]["name"],
+            "other"
+        );
+    }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 210);
+    assert_eq!(report["pair_evaluation_complete"], true);
+}
+
+#[test]
+fn clones_data_inherent_calls_keep_unproved_receivers_and_callees_closed() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"pub struct Data { pub n: u8 }
+impl Data {
+ pub fn get(&self) -> u8 { self.n }
+ pub fn by_value(self) -> u8 { self.n }
+ pub fn borrowed(&self) -> &u8 { &self.n }
+ pub fn checked(&self) -> u8 { self.n + 1 }
+ pub fn recursive(&self) -> u8 { self.recursive() }
+ pub fn divergent(&self) -> u8 { loop {} }
+ pub fn mutable(&mut self) -> u8 { self.n }
+ pub fn generic<T>(&self, _unused: T) -> u8 { self.n }
+}
+pub fn supported(v: &Data) -> u8 { v.get() }
+pub fn consumes(v: Data) -> u8 { v.by_value() }
+pub fn autoref(v: Data) -> u8 { v.get() }
+pub fn additional(v: &&Data) -> u8 { v.get() }
+pub fn mutable_receiver(v: &mut Data) -> u8 { v.mutable() }
+pub fn borrowed_call(v: &Data) -> &u8 { v.borrowed() }
+pub fn panicking(v: &Data) -> u8 { v.checked() }
+pub fn recursive_call(v: &Data) -> u8 { v.recursive() }
+pub fn divergent_call(v: &Data) -> u8 { v.divergent() }
+pub fn generic_call(v: &Data) -> u8 { v.generic(0u8) }
+"#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(
+        read_call_function(&report, "supported")["outcome"],
+        "admitted"
+    );
+    check_unproved_inherent_calls(&report);
+}
+
+fn check_unproved_inherent_calls(report: &Value) {
+    for name in [
+        "consumes",
+        "autoref",
+        "additional",
+        "mutable_receiver",
+        "borrowed_call",
+        "panicking",
+        "recursive_call",
+        "divergent_call",
+        "generic_call",
+    ] {
+        assert_eq!(
+            read_call_function(report, name)["outcome"],
+            "excluded",
+            "{name}: {report}"
+        );
+    }
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    assert_eq!(report["pair_evaluation_complete"], true);
+}
+
+fn check_inherent_call_evidence(report: &Value) {
+    let (pair, facts) = data_pair(read_call_function(report, "model::Data::wrap"));
+    let call = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.category == rstyle_pdg::NodeCategory::Call)
+        .unwrap();
+    assert_eq!(call.original_kind.known_value(), Some("expr_method_call"));
+    assert_eq!(
+        call.attributes.call_form,
+        Some(rstyle_pdg::CallForm::Direct)
+    );
+    assert_eq!(call.attributes.reads.len(), 1);
+    assert_eq!(call.attributes.reads[0].operand_position, Some(0));
+    assert_eq!(
+        call.attributes.reads[0].symbol_id.as_deref(),
+        Some(facts.signature.params[0].symbol.as_str())
+    );
+    assert_eq!(pair.pdg.memory_locations.len(), 1);
+    assert_eq!(
+        pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+            [1]["name"],
+        "inner"
+    );
+    let function = read_call_function(report, "model::Data::wrap");
+    let projection = report["matching"]["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["key"] == function["key"])
+        .unwrap();
+    assert_eq!(
+        projection["projection"]["features"],
+        serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 2])
+    );
+    let (direct, _) = data_pair(read_call_function(report, "ufcs"));
+    let direct = direct
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.category == rstyle_pdg::NodeCategory::Call)
+        .unwrap();
+    assert_eq!(direct.original_kind.known_value(), Some("expr_call"));
+}
+
+fn check_inherent_tampering(function: &Value) {
+    let (pair, facts) = data_pair(function);
+    for change in [
+        "owner",
+        "implementation",
+        "span",
+        "identity",
+        "receiver",
+        "adjustment",
+        "signature",
+    ] {
+        let mut changed = facts.clone();
+        tamper_inherent_evidence(&mut changed, change);
+        assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
+        assert!(
+            rstyle_pdg::helper_calls::verify_documents(&pair, &changed).is_err(),
+            "{change}"
+        );
+    }
+    for change in ["missing", "root", "location", "position", "write"] {
+        let mut changed = rstyle_pdg::producer::Pair {
+            pdg: pair.pdg.clone(),
+            cfg: pair.cfg.clone(),
+        };
+        let call = changed
+            .pdg
+            .nodes
+            .iter_mut()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Call)
+            .unwrap();
+        tamper_read_call(call, change);
+        assert!(
+            rstyle_pdg::helper_calls::verify_documents(&changed, &facts).is_err(),
+            "{change}"
+        );
+    }
+}
+
+fn tamper_inherent_evidence(facts: &mut rstyle_pdg::HirFnFacts, change: &str) {
+    let own = facts
+        .build
+        .frontend_options
+        .get_mut(rstyle_pdg::inherent_calls::KEY)
+        .unwrap();
+    match change {
+        "owner" => own["owner_nominal"]["definition_path"] = serde_json::json!("forged"),
+        "implementation" => own["implementation_identity"] = serde_json::json!("forged"),
+        "span" => own["implementation_span"]["start"] = serde_json::json!(0),
+        "identity" => own["identity"] = serde_json::json!("forged"),
+        "receiver" => {
+            facts
+                .build
+                .frontend_options
+                .get_mut(rstyle_pdg::data_receivers::KEY)
+                .unwrap()["methods"][0]["receiver"]["local"] = serde_json::json!(999)
+        }
+        "adjustment" => {
+            facts
+                .build
+                .frontend_options
+                .get_mut(rstyle_pdg::data_receivers::KEY)
+                .unwrap()["methods"][0]["adjustments"] = serde_json::json!([])
+        }
+        "signature" => {
+            facts
+                .build
+                .frontend_options
+                .get_mut(rstyle_pdg::data_receivers::KEY)
+                .unwrap()["methods"][0]["signature_inputs"] = serde_json::json!([])
+        }
+        _ => unreachable!(),
+    }
+}
+
+#[test]
 fn clones_data_read_calls_compose_complete_shared_field_helper_families() {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), DATA_READ_CALL_FAMILY).unwrap();

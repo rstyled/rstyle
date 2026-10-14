@@ -297,6 +297,19 @@ command is an incremental connected slice of the broader data coverage work,
 not completion of that work or a natural-coverage/quality result. Existing R0,
 expanded, helper, style and patterns selections retain their semantics.
 
+`--extraction-profile hir-data-v3` separately selects
+`rstyle.rust.hir-data/3.0.0` with the existing data-calls matching profile.
+It adds verified same-unit concrete inherent methods with shared receivers,
+including method syntax and UFCS. Exact original declarations, containing impls,
+receiver adjustments and transitive callee documents must agree. The connected
+21-function fixture reached all 210 unordered pair decisions, including warm
+and edited-callee runs. This is fixture coverage, not natural-crate coverage.
+The contract and bounded lossless dependency transport are specified in
+`docs/extraction-profiles/inherent-read-only-calls-v1.md`. Cross-unit linking,
+borrowed results from memory-reading callees, indexing/subslicing, assertions
+and aggregate construction remain unavailable; Data-v3 does not complete the
+broader admission goal. Earlier profile selections retain their boundaries.
+
 Nominal APIs additionally require a frozen selected-unit context passed explicitly
 to the driver, a census of original compiler source buffers, independent ordinary
 module closure, exact source declaration/receiver ownership and lexical named-type

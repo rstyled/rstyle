@@ -328,6 +328,62 @@ fn function_scope(
     Ok(())
 }
 
+/// Independently locate the exact nongeneric inherent implementation containing
+/// this owned function, then resolve its concrete owner in the closed unit.
+pub fn inherent_owner(facts: &HirFnFacts, implementation: &ByteSpan) -> Result<TypeTree, String> {
+    let interface = evidence(facts, crate::concrete_types::KEY)?;
+    let resolution = verify(facts, &interface)?;
+    let census: census::Census = evidence(facts, census::KEY)?;
+    let modules = census::verify(&census)?;
+    let file = facts
+        .build
+        .frontend_options
+        .get("source_file")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("Missing inherent source file")?;
+
+    let mut owners = 0;
+    for module in modules
+        .iter()
+        .filter(|module| module.path.to_string_lossy() == file)
+    {
+        let bytes = file_bytes(&census, &module.path)?;
+        for item in &module.items {
+            if let syn::Item::Impl(item) = item
+                && source_span(bytes, item.span()) == *implementation
+                && supported_inherent_member(item, bytes, facts)
+            {
+                owners += 1;
+            }
+        }
+    }
+
+    if owners != 1 {
+        return Err("Missing or ambiguous exact nongeneric inherent implementation".into());
+    }
+
+    resolution
+        .receiver
+        .ok_or_else(|| "Missing independently resolved inherent owner".into())
+}
+
+fn supported_inherent_member(item: &syn::ItemImpl, bytes: &str, facts: &HirFnFacts) -> bool {
+    if item.trait_.is_some()
+        || item.unsafety.is_some()
+        || !item.generics.params.is_empty()
+        || item.generics.where_clause.is_some()
+    {
+        return false;
+    }
+    item.items.iter().any(|member| {
+        let syn::ImplItem::Fn(method) = member else { return false; };
+        (FunctionSource { vis: &method.vis, sig: &method.sig, body: &method.block }).exact(bytes, facts)
+            && crate::concrete_types::lifetimes::parameter_count(&method.sig.generics).is_ok()
+            && matches!(method.sig.inputs.first(), Some(syn::FnArg::Receiver(receiver))
+                if receiver.reference.is_some() && receiver.mutability.is_none() && receiver.colon_token.is_none())
+    })
+}
+
 fn module_functions(
     module: &census::Module,
     bytes: &str,

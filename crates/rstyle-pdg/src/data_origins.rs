@@ -51,6 +51,9 @@ pub fn origins(node: &HirNode, facts: &HirFnFacts) -> Result<Vec<Origin>, String
         }
         "expr_if" => alternatives(node, facts, text)?,
         "expr_call" => crate::helper_references::origins(node, facts)?,
+        "expr_method_call" if crate::helper_calls::direct_resolution(node).is_some() => {
+            crate::helper_references::origins(node, facts)?
+        }
         "pat_binding" => Vec::new(),
         _ => return Err("Unsupported reference-valued source operation".into()),
     };
