@@ -51,3 +51,19 @@ guarantees change yet. Focused PDG tests and all nine `clones_helpers` CLI tests
 pass, including transitive edits, tampering, recursion exclusions, capture order
 and argument positions. Both wrappers pass: zero style violations and zero
 actionable candidates, with the same 17 reviewed ignores.
+
+## Borrowed serialized verification increment
+
+`SerializedPairView` borrows PDG bytes, CFG bytes and the manifest from one
+owned snapshot. `verify_serialized_view` runs the same byte identity and
+strict/generated checks as the owning adapter. Helper callee verification now
+uses this view instead of allocating two byte buffers and cloning a manifest.
+Manifest comparison sorts borrowed entries and retains duplicate/inventory
+checks. Ordinary deserialization still creates typed documents; this API does
+not claim zero-copy decoding or a shared-table import.
+
+All PDG tests and ten focused helper/policy CLI tests pass. The borrowed-path
+regression checks output byte parity and rejects a whitespace-only byte edit
+with the unchanged manifest under both policies. Workspace all-target Clippy
+passes with warnings denied. Both wrappers pass with zero violations/actionable
+candidates and 17 existing ignores. No schema or identity meaning changes.

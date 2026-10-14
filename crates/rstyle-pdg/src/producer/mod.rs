@@ -63,8 +63,17 @@ pub fn verify_serialized(
     serialized: &SerializedPair,
     facts: &crate::HirFnFacts,
 ) -> Result<Pair, Vec<String>> {
-    let pdg = serde_json::from_slice(&serialized.pdg_bytes).map_err(|e| vec![e.to_string()])?;
-    let cfg = serde_json::from_slice(&serialized.cfg_bytes).map_err(|e| vec![e.to_string()])?;
+    verify_serialized_view(serialized.as_view(), facts)
+}
+
+/// Validate a borrowed byte snapshot without copying documents or the manifest.
+/// Strict/generated verification policy is identical to `verify_serialized`.
+pub fn verify_serialized_view(
+    serialized: SerializedPairView<'_>,
+    facts: &crate::HirFnFacts,
+) -> Result<Pair, Vec<String>> {
+    let pdg = serde_json::from_slice(serialized.pdg_bytes).map_err(|e| vec![e.to_string()])?;
+    let cfg = serde_json::from_slice(serialized.cfg_bytes).map_err(|e| vec![e.to_string()])?;
     let pair = Pair { pdg, cfg };
     serialized.verify_identities(&pair).map_err(|e| vec![e])?;
     verify(&pair, facts)?;
@@ -87,6 +96,6 @@ fn analyze_facts(graph: &Graph, facts: &crate::HirFnFacts) -> Result<Analysis, S
         analyze(graph)
     }
 }
-pub use emit::{DocumentIdentity, Manifest, Pair, SerializedPair, emit};
+pub use emit::{DocumentIdentity, Manifest, Pair, SerializedPair, SerializedPairView, emit};
 pub use graph::{Alternative, Atom, Graph, Guard, Operation, Transfer, ValueSite};
 pub use lower::lower;

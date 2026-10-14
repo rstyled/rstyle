@@ -5694,10 +5694,37 @@ fn clones_generated_policy_preserves_documents_and_structural_validation() {
     assert_eq!(strict.pdg_bytes, generated.pdg_bytes);
     assert_eq!(strict.cfg_bytes, generated.cfg_bytes);
     assert_eq!(strict.manifest, generated.manifest);
+    check_borrowed_serialized_pair(&strict, &facts);
     pair.pdg.nodes[1].id = pair.pdg.nodes[0].id.clone();
     assert!(
         rstyle_pdg::verification_policy::generated(|| {
             rstyle_pdg::producer::verify(&pair, &facts)
+        })
+        .is_err()
+    );
+}
+
+fn check_borrowed_serialized_pair(
+    strict: &rstyle_pdg::producer::SerializedPair,
+    facts: &rstyle_pdg::HirFnFacts,
+) {
+    let borrowed = rstyle_pdg::producer::verify_serialized_view(strict.as_view(), facts)
+        .unwrap()
+        .serialize()
+        .unwrap();
+    assert_eq!(strict.pdg_bytes, borrowed.pdg_bytes);
+    assert_eq!(strict.cfg_bytes, borrowed.cfg_bytes);
+    let mut edited_cfg = strict.cfg_bytes.clone();
+    edited_cfg.push(b' ');
+    let edited = rstyle_pdg::producer::SerializedPairView {
+        pdg_bytes: &strict.pdg_bytes,
+        cfg_bytes: &edited_cfg,
+        manifest: &strict.manifest,
+    };
+    assert!(rstyle_pdg::producer::verify_serialized_view(edited, facts).is_err());
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| {
+            rstyle_pdg::producer::verify_serialized_view(edited, facts)
         })
         .is_err()
     );

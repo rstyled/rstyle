@@ -410,12 +410,12 @@ fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, 
 }
 
 fn verify_callee(dependency: &Dependency) -> Result<(), String> {
-    let serialized = producer::SerializedPair {
-        pdg_bytes: dependency.pdg.as_bytes().to_vec(),
-        cfg_bytes: dependency.cfg.as_bytes().to_vec(),
-        manifest: dependency.manifest.clone(),
+    let serialized = producer::SerializedPairView {
+        pdg_bytes: dependency.pdg.as_bytes(),
+        cfg_bytes: dependency.cfg.as_bytes(),
+        manifest: &dependency.manifest,
     };
-    let pair = producer::verify_serialized(&serialized, &dependency.frontend)
+    let pair = producer::verify_serialized_view(serialized, &dependency.frontend)
         .map_err(|errors| errors.join("; "))?;
     check_boundary(&pair, &dependency.frontend).map_err(|errors| errors.join("; "))?;
     if !crate::verification_policy::is_generated()

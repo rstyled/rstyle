@@ -34,6 +34,15 @@ pub struct SerializedPair {
     pub manifest: Manifest,
 }
 
+/// Exact owned-byte snapshot borrowed for verification. The manifest and both
+/// documents must come from the same load; constructing this view grants no trust.
+#[derive(Clone, Copy)]
+pub struct SerializedPairView<'a> {
+    pub pdg_bytes: &'a [u8],
+    pub cfg_bytes: &'a [u8],
+    pub manifest: &'a Manifest,
+}
+
 struct DocumentMetadata {
     producer: Producer,
     extensions: Extensions,
@@ -77,16 +86,30 @@ struct WireSite<'a> {
 }
 
 impl SerializedPair {
+    pub fn as_view(&self) -> SerializedPairView<'_> {
+        SerializedPairView {
+            pdg_bytes: &self.pdg_bytes,
+            cfg_bytes: &self.cfg_bytes,
+            manifest: &self.manifest,
+        }
+    }
+
+    pub fn verify_identities(&self, pair: &Pair) -> Result<(), String> {
+        self.as_view().verify_identities(pair)
+    }
+}
+
+impl SerializedPairView<'_> {
     pub fn verify_identities(&self, pair: &Pair) -> Result<(), String> {
         let links = read_paired_graph(&pair.pdg.extensions)?;
-        let mut actual = self.manifest.documents.clone();
-        let mut expected = vec![
-            identity(links.pdg_document_key, &self.pdg_bytes),
-            identity(links.cfg_document_key, &self.cfg_bytes),
+        let mut actual: Vec<_> = self.manifest.documents.iter().collect();
+        let mut expected = [
+            identity(links.pdg_document_key, self.pdg_bytes),
+            identity(links.cfg_document_key, self.cfg_bytes),
         ];
         actual.sort_by(|a, b| a.key.cmp(&b.key));
         expected.sort_by(|a, b| a.key.cmp(&b.key));
-        if actual != expected {
+        if !actual.into_iter().eq(expected.iter()) {
             return Err("External document byte identities or paired keys disagree".to_string());
         }
 
