@@ -65,3 +65,24 @@ splits. `ccgraph_followup_evidence.py` verifies all retained artifact digests an
 raw/saved semantic aggregates, then packages the complete canonical scope traces.
 See `eval/ccgraph-v2/README.md`; target-check exit 1 means a valid missed primary
 coverage target, not a compiler failure.
+
+## Bounded performance investigations
+
+Run build and execution as separate commands with separate budgets. The POSIX
+stdlib supervisor streams both output channels, retains their exact bytes and
+`run.json`, and cleans up the process group with TERM then KILL. Output directories
+must be new; use a different directory for every observation. Timeout exits 124,
+interruption exits 130, and completed commands retain their exit status. A timeout
+is an incomplete observation, never a passing test. Subprocesses must stay in the
+launched process group; deliberately detached processes are outside this supervisor.
+
+```sh
+python3 scripts/watchdog.py --timeout 120 --output /tmp/rstyle-build-1 -- cargo test --locked -p rstyle-pdg --test data_types --no-run
+python3 scripts/watchdog.py --timeout 60 --output /tmp/rstyle-types-1 -- cargo test --locked -p rstyle-pdg --test data_types
+python3 -m unittest discover -s scripts -p test_watchdog.py
+```
+
+Use a single sandbox-local `CARGO_TARGET_DIR` and record commit, architecture,
+toolchain, build profile, cache state, filter and concurrency with observations.
+The supervisor cannot expose stderr that an inner CLI test buffers with
+`Command::output`; live child-stage instrumentation remains a separate task.
