@@ -434,7 +434,7 @@ fn verify_shared(
     crate::helper_reads::verify_arguments(helper.summary(), node, caller)
 }
 
-fn verify_shared_callee(
+pub(crate) fn verify_shared_callee(
     helper: &crate::unit_store::HelperView<'_>,
     callee: &dyn EvidenceFacts,
 ) -> Result<(), String> {

@@ -24,6 +24,8 @@ pub struct Manifest {
     pub documents: Vec<DocumentIdentity>,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Pair {
     pub pdg: PdgDocument,
     pub cfg: CfgDocument,

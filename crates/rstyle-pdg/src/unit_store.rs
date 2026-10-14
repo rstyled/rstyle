@@ -1,4 +1,6 @@
 //! Unit-local ownership and borrowed analysis. Dense IDs are handles, not names.
+mod bundle;
+
 use crate::{HirFnFacts, HirNode, helper_calls::Summary, producer::Pair};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -12,6 +14,9 @@ pub struct FunctionId(u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct HelperId(u32);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct GraphId(u32);
 
 /// Shared and standalone facts use one analysis implementation. Standalone
 /// facts retain the supported strict legacy transport adapter.
@@ -59,11 +64,20 @@ impl Serialize for dyn EvidenceFacts + '_ {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct HelperRecord {
     function: FunctionId,
     pub(crate) summary: Summary,
-    pub(crate) pair: Pair,
-    pub(crate) depth: usize,
+    graph: GraphId,
+    pub(crate) depth: u32,
+}
+
+struct CompletedHelper {
+    function: FunctionId,
+    summary: Summary,
+    pair: Pair,
+    depth: u32,
 }
 
 type Site = (u32, u32, u32);
@@ -75,6 +89,8 @@ pub struct UnitStore {
     identity: String,
     functions: Vec<HirFnFacts>,
     helpers: Vec<HelperRecord>,
+    graphs: Vec<Pair>,
+    roots: Vec<Option<GraphId>>,
     links: Vec<BTreeMap<Site, FunctionId>>,
     certified: Vec<Option<HelperId>>,
 }
@@ -95,6 +111,7 @@ trait Resolver {
 struct Tables<'a> {
     functions: &'a [HirFnFacts],
     helpers: &'a [HelperRecord],
+    graphs: &'a [Pair],
     links: &'a [BTreeMap<Site, FunctionId>],
     certified: &'a [Option<HelperId>],
 }
@@ -147,7 +164,7 @@ impl HelperView<'_> {
     }
 
     pub(crate) fn pair(&self) -> &Pair {
-        &self.record().pair
+        &self.resolver.tables().graphs[self.record().graph.0 as usize]
     }
 
     pub(crate) fn frontend(&self) -> FunctionView<'_> {
@@ -158,7 +175,7 @@ impl HelperView<'_> {
     }
 
     pub(crate) fn depth(&self) -> usize {
-        self.record().depth
+        self.record().depth as usize
     }
 
     pub(crate) fn reference(&self) -> serde_json::Value {
@@ -198,6 +215,49 @@ impl UnitStore {
         self.helpers.len()
     }
 
+    /// Resolve a root paired document without recreating or decoding it.
+    pub fn pair(&self, index: usize) -> Option<&Pair> {
+        let id = self.roots.get(index).copied().flatten()?;
+        self.graphs.get(id.0 as usize)
+    }
+
+    pub fn graph_count(&self) -> usize {
+        self.graphs.len()
+    }
+
+    fn push_graph(&mut self, pair: Pair) -> Result<GraphId, String> {
+        let total = self
+            .graphs
+            .len()
+            .checked_add(1)
+            .ok_or("Oversized graph table")?;
+        u32::try_from(total).map_err(|_| "Oversized graph table")?;
+        let id = local_id(self.graphs.len(), GraphId)?;
+        self.graphs.push(pair);
+
+        Ok(id)
+    }
+
+    fn add_helper(&mut self, record: CompletedHelper) -> Result<(), String> {
+        let id = local_id(self.helpers.len(), HelperId)?;
+        let graph = self.push_graph(record.pair)?;
+        let record = HelperRecord {
+            function: record.function,
+            summary: record.summary,
+            graph,
+            depth: record.depth,
+        };
+
+        self.publish_helper(id, record);
+        Ok(())
+    }
+
+    fn publish_helper(&mut self, id: HelperId, record: HelperRecord) {
+        self.certified[record.function.0 as usize] = Some(id);
+        self.roots[record.function.0 as usize] = Some(record.graph);
+        self.helpers.push(record);
+    }
+
     pub fn analysis(&self) -> UnitAnalysis<'_> {
         UnitAnalysis {
             store: self,
@@ -234,6 +294,7 @@ impl UnitStore {
         Tables {
             functions: &self.functions,
             helpers: &self.helpers,
+            graphs: &self.graphs,
             links: &self.links,
             certified: &self.certified,
         }
@@ -263,16 +324,19 @@ impl Builder {
         u32::try_from(functions.len()).map_err(|_| "Oversized function table")?;
         let identity = unit_identity(&functions)?;
         let pending = (0..functions.len())
-            .map(function_id)
+            .map(|index| local_id(index, FunctionId))
             .collect::<Result<Vec<_>, _>>()?;
         let links = links(&functions)?;
         let certified = vec![None; functions.len()];
+        let roots = vec![None; functions.len()];
 
         Ok(Self {
             store: UnitStore {
                 identity,
                 functions,
                 helpers: Vec::new(),
+                graphs: Vec::new(),
+                roots,
                 links,
                 certified,
             },
@@ -289,7 +353,7 @@ impl Builder {
             }
             self.install(completed)?;
         }
-        for id in (0..self.store.functions.len()).map(function_id) {
+        for id in (0..self.store.functions.len()).map(|index| local_id(index, FunctionId)) {
             let id = id?;
             self.depth(id)?;
             crate::helper_reads::check_budgets(&FunctionView {
@@ -297,10 +361,29 @@ impl Builder {
                 id,
             })?;
         }
+        self.complete_roots()?;
         Ok(self.store)
     }
 
-    fn prepare(&self) -> Result<Vec<HelperRecord>, String> {
+    fn complete_roots(&mut self) -> Result<(), String> {
+        for index in 0..self.store.functions.len() {
+            if self.store.roots[index].is_some() {
+                continue;
+            }
+            let view = FunctionView {
+                resolver: self,
+                id: local_id(index, FunctionId)?,
+            };
+            if crate::classify(&view).status == crate::EligibilityVerdict::Eligible {
+                let pair = crate::producer::produce(&view).map_err(|errors| errors.join("; "))?;
+                let graph = self.store.push_graph(pair)?;
+                self.store.roots[index] = Some(graph);
+            }
+        }
+        Ok(())
+    }
+
+    fn prepare(&self) -> Result<Vec<CompletedHelper>, String> {
         let mut completed = Vec::new();
         for id in &self.pending {
             let depth = self.depth(*id)?;
@@ -311,7 +394,7 @@ impl Builder {
             if crate::classify(&view).status == crate::EligibilityVerdict::Eligible
                 && let Some((summary, pair)) = crate::helper_calls::certify_view(&view)?
             {
-                completed.push(HelperRecord {
+                completed.push(CompletedHelper {
                     function: *id,
                     summary,
                     pair,
@@ -322,7 +405,7 @@ impl Builder {
         Ok(completed)
     }
 
-    fn depth(&self, function: FunctionId) -> Result<usize, String> {
+    fn depth(&self, function: FunctionId) -> Result<u32, String> {
         let depth = self.store.links[function.0 as usize]
             .values()
             .map(|target| {
@@ -332,13 +415,13 @@ impl Builder {
             })
             .max()
             .unwrap_or(0);
-        if depth > crate::helper_calls::MAX_DEPTH {
+        if depth as usize > crate::helper_calls::MAX_DEPTH {
             return Err("Helper dependencies exceed explicit depth budget 8".into());
         }
         Ok(depth)
     }
 
-    fn install(&mut self, completed: Vec<HelperRecord>) -> Result<(), String> {
+    fn install(&mut self, completed: Vec<CompletedHelper>) -> Result<(), String> {
         let total = self
             .store
             .helpers
@@ -348,11 +431,7 @@ impl Builder {
         u32::try_from(total).map_err(|_| "Oversized helper table")?;
 
         for record in completed {
-            let id = HelperId(
-                u32::try_from(self.store.helpers.len()).map_err(|_| "Oversized helper table")?,
-            );
-            self.store.certified[record.function.0 as usize] = Some(id);
-            self.store.helpers.push(record);
+            self.store.add_helper(record)?;
         }
         self.pending
             .retain(|id| self.store.certified[id.0 as usize].is_none());
@@ -360,10 +439,9 @@ impl Builder {
     }
 }
 
-fn function_id(index: usize) -> Result<FunctionId, String> {
-    u32::try_from(index)
-        .map(FunctionId)
-        .map_err(|_| "Oversized function table".into())
+fn local_id<T>(index: usize, constructor: impl FnOnce(u32) -> T) -> Result<T, String> {
+    let id = u32::try_from(index).map_err(|_| "Oversized unit evidence table")?;
+    Ok(constructor(id))
 }
 
 fn site(node: &HirNode) -> Site {
@@ -386,7 +464,10 @@ fn definitions(functions: &[HirFnFacts]) -> Result<BTreeMap<&str, FunctionId>, S
             .frontend_options
             .get("definition_identity")
             .and_then(serde_json::Value::as_str)
-            && (identity.is_empty() || definitions.insert(identity, function_id(index)?).is_some())
+            && (identity.is_empty()
+                || definitions
+                    .insert(identity, local_id(index, FunctionId)?)
+                    .is_some())
         {
             return Err("Missing or duplicate resolved helper definition identity".into());
         }

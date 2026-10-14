@@ -268,3 +268,32 @@ The full wrapper `CARGO_TARGET_DIR=target timeout 600 ./scripts/test.sh --nextes
 passes all 620 tests with no skips, followed by workspace doctests. The exact
 nextest duration and slow-family timing are retained in
 `/tmp/rstyle-unit-nextest.log`. `cargo fmt --all -- --check` also passes.
+
+## Shared bundle and graph root increment
+
+The versioned `rstyle.shared-unit/1` bundle streams one raw frontend table,
+one graph table, one helper summary table and explicit typed references.
+`GraphId(u32)` joins the existing scoped handles. Function roots and helper
+certificates share their graph record instead of duplicating a pair. Import
+moves each decoded typed record into its owning table, validates bounds,
+contradictory references, unused graphs, complete root/certificate inventories,
+helper cycle/depth rules and strict paired evidence. Imported verification
+forces strict policy even inside a generated scope; no trust cache is serialized.
+Format guarantees and remaining driver/CLI adoption are documented in
+[shared-unit-bundle.md](shared-unit-bundle.md).
+
+The diamond regression now round-trips the bundle byte-for-byte, reverses and
+renumbers graph/helper tables while preserving nodes/edges and production
+results, and rejects schema, wrong-kind, dangling function/helper/graph links,
+contradictory call links, invalid depths, changed summaries, missing certificates
+and paired graph disagreement. Existing standalone tampering assertions remain.
+This increment does not yet change driver publication or CLI artifact loading.
+
+Focused PDG tests and the bundle/diamond CLI regression pass after the graph
+root changes. Formatting and workspace all-target Clippy pass. Both wrappers
+complete with zero style violations and zero actionable candidates, retaining
+16 existing ignored findings. Reports are `/tmp/rstyle-bundle-style.json`,
+`/tmp/rstyle-bundle-patterns.log`, `/tmp/rstyle-bundle-clippy.log` and
+`/tmp/rstyle-unit-bundle-tests.log`. The 620-test full suite reported above
+preceded this bundle increment; it is not presented as validation of new bundle
+code. Final end-to-end validation still requires driver/CLI integration.

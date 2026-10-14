@@ -19,7 +19,16 @@ impl Drop for Restore {
 /// production, or explicitly selected diagnostic replay of one's own facts.
 /// The policy is thread-local, nested, and restored on early return or unwind.
 pub fn generated<T>(operation: impl FnOnce() -> T) -> T {
-    let previous = GENERATED.with(|active| active.replace(true));
+    with_policy(true, operation)
+}
+
+/// Enforce independent imported verification even inside a generated scope.
+pub fn strict<T>(operation: impl FnOnce() -> T) -> T {
+    with_policy(false, operation)
+}
+
+fn with_policy<T>(generated: bool, operation: impl FnOnce() -> T) -> T {
+    let previous = GENERATED.with(|active| active.replace(generated));
     let _restore = Restore(previous);
 
     operation()

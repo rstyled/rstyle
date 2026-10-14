@@ -2264,9 +2264,133 @@ fn shared_unit_owns_diamond_helpers_once() {
     .unwrap();
     let reordered = rstyle_pdg::unit_store::UnitStore::capture(reversed).unwrap();
     assert_eq!(store.helper_count(), 5);
+    assert_eq!(store.graph_count(), 5);
     assert_eq!(reordered.helper_count(), 5);
     assert_shared_unit(&store);
     assert_shared_unit(&reordered);
+    assert_unit_bundle(&store);
+}
+
+fn assert_unit_bundle(store: &rstyle_pdg::unit_store::UnitStore) {
+    let mut bytes = Vec::new();
+    store.write_bundle(&mut bytes).unwrap();
+    let imported = rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).unwrap();
+    assert_shared_unit(&imported);
+    let mut round_trip = Vec::new();
+    imported.write_bundle(&mut round_trip).unwrap();
+    assert_eq!(bytes, round_trip);
+    let wire: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_renumbered_unit(store, &wire);
+    for corruption in [
+        "schema", "helper", "function", "kind", "link", "depth", "summary", "missing", "graph",
+        "pair",
+    ] {
+        let mut changed = wire.clone();
+        corrupt_unit_bundle(&mut changed, corruption);
+        let edited = serde_json::to_vec(&changed).unwrap();
+        assert!(
+            rstyle_pdg::unit_store::UnitStore::from_bundle(&edited).is_err(),
+            "{corruption}"
+        );
+        assert!(
+            rstyle_pdg::verification_policy::generated(|| {
+                rstyle_pdg::unit_store::UnitStore::from_bundle(&edited)
+            })
+            .is_err(),
+            "generated import: {corruption}"
+        );
+    }
+}
+
+fn assert_renumbered_unit(store: &rstyle_pdg::unit_store::UnitStore, wire: &Value) {
+    let mut renumbered = wire.clone();
+    let helpers = renumbered["helpers"].as_array().unwrap().len() as u64;
+    let graphs = renumbered["graphs"].as_array().unwrap().len() as u64;
+    renumbered["helpers"].as_array_mut().unwrap().reverse();
+    renumbered["graphs"].as_array_mut().unwrap().reverse();
+    for helper in renumbered["helpers"].as_array_mut().unwrap() {
+        helper["graph"] = (graphs - 1 - helper["graph"].as_u64().unwrap()).into();
+    }
+    renumber_ids(&mut renumbered["certified"], helpers);
+    renumber_ids(&mut renumbered["roots"], graphs);
+    renumber_helper_references(&mut renumbered["graphs"], helpers);
+    let imported =
+        rstyle_pdg::unit_store::UnitStore::from_bundle(&serde_json::to_vec(&renumbered).unwrap())
+            .unwrap();
+    assert_shared_unit(&imported);
+    for index in 0..store.functions().len() {
+        let before = store.pair(index).unwrap();
+        let after = imported.pair(index).unwrap();
+        assert_eq!(
+            serde_json::to_value(&before.pdg.nodes).unwrap(),
+            serde_json::to_value(&after.pdg.nodes).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&before.pdg.edges).unwrap(),
+            serde_json::to_value(&after.pdg.edges).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&before.cfg.edges).unwrap(),
+            serde_json::to_value(&after.cfg.edges).unwrap()
+        );
+    }
+}
+
+fn renumber_ids(ids: &mut Value, count: u64) {
+    for id in ids.as_array_mut().unwrap() {
+        if let Some(index) = id.as_u64() {
+            *id = (count - 1 - index).into();
+        }
+    }
+}
+
+fn renumber_helper_references(value: &mut Value, count: u64) {
+    match value {
+        Value::Object(fields) => {
+            if fields.get("identity").and_then(Value::as_str)
+                == Some("rstyle.helper.unit-reference/1")
+            {
+                let index = fields["helper"].as_u64().unwrap();
+                fields.insert("helper".into(), (count - 1 - index).into());
+            }
+            for field in fields.values_mut() {
+                renumber_helper_references(field, count);
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                renumber_helper_references(value, count);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn corrupt_unit_bundle(wire: &mut Value, corruption: &str) {
+    match corruption {
+        "schema" => wire["schema"] = "unknown version".into(),
+        "helper" => wire["certified"][0] = u32::MAX.into(),
+        "function" => wire["helpers"][0]["function"] = u32::MAX.into(),
+        "kind" => wire["helpers"][0]["function"] = serde_json::json!({"helper": 0}),
+        "link" => {
+            let links = wire["links"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|links| !links.as_array().unwrap().is_empty())
+                .unwrap();
+            links[0]["function"] = u32::MAX.into();
+        }
+        "graph" => wire["roots"][0] = u32::MAX.into(),
+        "pair" => wire["graphs"][0]["cfg"]["function"]["id"] = "disagreement".into(),
+        "depth" => wire["helpers"][0]["depth"] = u32::MAX.into(),
+        "summary" => wire["helpers"][0]["summary"]["always_returns"] = false.into(),
+        "missing" => {
+            wire["helpers"] = serde_json::json!([]);
+            wire["certified"].as_array_mut().unwrap().fill(Value::Null);
+        }
+        _ => unreachable!(),
+    }
 }
 
 fn assert_shared_unit(store: &rstyle_pdg::unit_store::UnitStore) {
@@ -2274,6 +2398,7 @@ fn assert_shared_unit(store: &rstyle_pdg::unit_store::UnitStore) {
     let analysis = store.analysis();
     for (index, facts) in store.functions().iter().enumerate() {
         let view = analysis.function(index).unwrap();
+        rstyle_pdg::producer::verify(store.pair(index).unwrap(), &view).unwrap();
         let generated =
             rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::produce(&view))
                 .unwrap();
