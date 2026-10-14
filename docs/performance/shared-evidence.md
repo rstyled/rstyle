@@ -416,3 +416,42 @@ pattern candidates and 16 existing reviewed ignores. Logs:
 `/tmp/rstyle-final-{nextest.log,clippy.log,shared-test.log,style.json,patterns.log}`.
 The earlier too-long test diagnostic was fixed by cohesive assertion extraction;
 no check or assertion was removed.
+
+
+## Borrowed source-buffer validation
+
+Producer boundary verification and generated admission previously copied each
+captured source buffer into an owning map for every declared source ID. They
+now use `CapturedSources`, which borrows one immutable byte slice and indexes
+borrowed source IDs in a set. Unknown IDs still resolve to missing evidence;
+source aliases do not allocate another byte buffer. The original public
+`validate` owned-map API and `StrictBundle` remain compatible. An internal
+admission input and the shared `SourceBytes` lookup let the same validation
+implementation consume either owner. No schema, identity, trust policy, span
+interpretation, or diagnostic ordering changes.
+
+Regression tests compare complete validation reports for valid/edited UTF-8
+buffers, valid/out-of-bounds spans, unknown IDs, and both fixture/compiler
+contexts. Pointer equality establishes that declared aliases borrow the
+original buffer and undeclared IDs never receive it. Duplicate inventory checks
+remain in document validation. A common record-check collector preserves the
+node/source validators' issue ordering; no ignore entry is changed. The patterns
+gate reports 15 existing reviewed ignores rather than 16 after the redundant
+collector finding disappears.
+
+This follow-up removes structural copying without claiming a measured speedup.
+The retained 21-function replay contains only 1,294 captured source bytes total
+(35–110 per function), so this particular workload cannot demonstrate a useful
+source-buffer timing gain. Larger captured bodies avoid copies proportional to
+buffer length times declared aliases at each verification/admission boundary.
+The small borrowed-ID index still allocates; this is ordinary borrowing, not a
+zero-copy file import claim.
+
+
+Validation for this increment: focused PDG and CCGraph suites pass, formatting
+and locked workspace/all-target Clippy pass, and both wrappers pass with zero
+style violations (1,910 functions) and zero actionable candidates (15 existing
+reviewed ignores). The full nextest wrapper passes 629 tests, zero skipped,
+one slow test, in 176.688 seconds, followed by successful workspace doctests.
+Logs: `/tmp/rstyle-source-{pdg-tests.log,ccgraph-tests.log,clippy.log,style.json,patterns.log,nextest.log}`.
+No thresholds, ignore entries, source exclusions, or test assertions are weakened.

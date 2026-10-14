@@ -61,12 +61,8 @@ fn validate_boundary(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), Vec<String>> {
     validate_frontend_reference(pair, facts)?;
-    let bytes = pair
-        .pdg
-        .sources
-        .iter()
-        .map(|s| (s.id.clone(), facts.source.bytes.as_bytes().to_vec()))
-        .collect();
+    let bytes =
+        crate::validate::CapturedSources::new(&pair.pdg.sources, facts.source.bytes.as_bytes());
     let width = facts
         .build
         .pointer_width
@@ -76,7 +72,7 @@ fn validate_boundary(
     let context = ValidationContext::CompilerEvidence {
         pointer_width_bits: width,
     };
-    let report = validate(&pair.pdg, &context, &bytes);
+    let report = crate::validate::validate_sources(&pair.pdg, &context, &bytes);
     let structural = validate_cfg(&pair.cfg)
         .into_iter()
         .chain(validate_paired_agreement(

@@ -17,7 +17,7 @@ use crate::pipeline::{
 use rstyle_pdg::unit_store::EvidenceFacts;
 use rstyle_pdg::{
     CfgDocument, NodeCategory, PdgDocument, ValidationContext, reachable_vertices,
-    read_operation_map, validate, validate_cfg, validate_correspondence, validate_paired_agreement,
+    read_operation_map, validate_cfg, validate_correspondence, validate_paired_agreement,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -40,12 +40,10 @@ pub fn admit_produced(
     facts: &dyn EvidenceFacts,
 ) -> Result<ImportedFunction, Vec<String>> {
     rstyle_pdg::producer::verify(pair, facts)?;
-    let source_bytes = pair
-        .pdg
-        .sources
-        .iter()
-        .map(|source| (source.id.clone(), facts.source.bytes.as_bytes().to_vec()))
-        .collect();
+    let source_bytes = rstyle_pdg::validate::CapturedSources::new(
+        &pair.pdg.sources,
+        facts.source.bytes.as_bytes(),
+    );
     let width = facts
         .build
         .pointer_width
@@ -57,7 +55,7 @@ pub fn admit_produced(
     };
 
     admit_checked(
-        &StrictBundle {
+        &AdmissionInput {
             pdg: &pair.pdg,
             cfg: &pair.cfg,
             source_bytes: &source_bytes,
@@ -76,7 +74,22 @@ pub fn admit_produced(
 /// CFG entry; administrative status comes from boundary cleanliness. Failures
 /// are returned as reason strings and never coerce missing evidence.
 pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<String>> {
-    admit_checked(bundle, None)
+    admit_checked(
+        &AdmissionInput {
+            pdg: bundle.pdg,
+            cfg: bundle.cfg,
+            source_bytes: bundle.source_bytes,
+            ctx: bundle.ctx,
+        },
+        None,
+    )
+}
+
+struct AdmissionInput<'a> {
+    pdg: &'a PdgDocument,
+    cfg: &'a CfgDocument,
+    source_bytes: &'a dyn rstyle_pdg::validate::SourceBytes,
+    ctx: &'a ValidationContext,
 }
 
 struct AdmissionContext<'a> {
@@ -85,10 +98,10 @@ struct AdmissionContext<'a> {
 }
 
 fn admit_checked(
-    bundle: &StrictBundle,
+    bundle: &AdmissionInput,
     frontend: Option<&dyn EvidenceFacts>,
 ) -> Result<ImportedFunction, Vec<String>> {
-    let StrictBundle {
+    let AdmissionInput {
         pdg,
         cfg,
         source_bytes,
@@ -101,7 +114,7 @@ fn admit_checked(
     } else {
         check_local_producer(pdg, cfg)?;
     }
-    check_pdg_eligibility(pdg, ctx, source_bytes)?;
+    check_pdg_eligibility(pdg, ctx, *source_bytes)?;
 
     let admitted = AdmittedPair { pdg, cfg };
     admitted.check_cfg()?;
@@ -172,9 +185,9 @@ fn require_compiler_evidence(ctx: &ValidationContext) -> Result<(), Vec<String>>
 fn check_pdg_eligibility(
     pdg: &PdgDocument,
     ctx: &ValidationContext,
-    source_bytes: &BTreeMap<String, Vec<u8>>,
+    source_bytes: &dyn rstyle_pdg::validate::SourceBytes,
 ) -> Result<(), Vec<String>> {
-    let report = validate(pdg, ctx, source_bytes);
+    let report = rstyle_pdg::validate::validate_sources(pdg, ctx, source_bytes);
 
     if report.matching == rstyle_pdg::Eligibility::Eligible {
         return Ok(());

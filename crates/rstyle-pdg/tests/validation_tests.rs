@@ -854,3 +854,47 @@ fn native_record_policy_disagreement_blocks_admission() {
         );
     }
 }
+
+#[test]
+fn borrowed_sources_preserve_digest_span_and_missing_evidence_checks() {
+    use rstyle_pdg::validate::{CapturedSources, SourceBytes, validate_sources};
+    let mut doc = base_doc();
+    doc.sources[0].content_identity = StringFact::known(
+        "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+    );
+    for buffer in [b"a".as_slice(), "edited é".as_bytes()] {
+        for (end, source_id) in [(1, "s0"), (99, "s0"), (1, "missing")] {
+            doc.function.source_span.end = end;
+            doc.function.source_span.source_id = source_id.into();
+            let owned = BTreeMap::from([("s0".into(), buffer.to_vec())]);
+            let borrowed = CapturedSources::new(&doc.sources, buffer);
+            assert!(std::ptr::eq(borrowed.bytes("s0").unwrap(), buffer));
+            assert!(borrowed.bytes("missing").is_none());
+            for context in [
+                fixture_ctx(),
+                ValidationContext::CompilerEvidence {
+                    pointer_width_bits: 64,
+                },
+            ] {
+                assert_eq!(
+                    validate(&doc, &context, &owned),
+                    validate_sources(&doc, &context, &borrowed)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn captured_source_aliases_borrow_one_buffer_without_filling_missing_ids() {
+    use rstyle_pdg::validate::{CapturedSources, SourceBytes};
+    let mut doc = base_doc();
+    let mut alias = doc.sources[0].clone();
+    alias.id = "alias".into();
+    doc.sources.push(alias);
+    let buffer = "source é".as_bytes();
+    let borrowed = CapturedSources::new(&doc.sources, buffer);
+    assert!(std::ptr::eq(borrowed.bytes("s0").unwrap(), buffer));
+    assert!(std::ptr::eq(borrowed.bytes("alias").unwrap(), buffer));
+    assert!(borrowed.bytes("other-unit").is_none());
+}
