@@ -874,3 +874,29 @@ fn invocation_features(invocation: &[String]) -> Vec<Value> {
 
     features
 }
+
+#[cfg(test)]
+mod digest_tests {
+    use super::*;
+
+    #[test]
+    fn executable_digest_matches_standard_vectors_and_recaptures_edits() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("executable");
+        std::fs::write(&file, b"").unwrap();
+        assert_eq!(
+            file_digest(&file).unwrap(),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        std::fs::write(&file, b"abc").unwrap();
+        assert_eq!(
+            file_digest(&file).unwrap(),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        std::fs::write(&file, vec![b'a'; 1_000_000]).unwrap();
+        assert_eq!(
+            file_digest(&file).unwrap(),
+            "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
+        );
+    }
+}

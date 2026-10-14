@@ -68,3 +68,37 @@ instrumentation. No thresholds or ignore entries were changed.
 The full-family E2E test, its warm/edit analyses, a comparable old-revision
 baseline and broad suite acceptance have not run. No performance improvement or
 full proposal completion is claimed by this initial instrumentation milestone.
+
+## Measured ARM setup fix
+
+The existing zero-admitted-functions test
+`clones_unsupported_workspace_completes_assessment_with_zero_admitted_functions`
+executes one CLI analysis. Before the backend change it passed in 14.90s:
+7.861s driver hashing, 6.828s CLI hashing, 0.094s compiler capture.
+After it passed in 2.42s: 1.086s driver hashing, 1.034s CLI hashing, 0.143s capture.
+Both measurements used the same sandbox, pinned toolchain, original dev/test
+profiles, warm build artifacts, fresh compiler capture, exact filter and
+`RSTYLE_PERF=1`; no whole-suite timing claim follows from this comparison.
+
+SHA-2 0.10.9 selects its ARM runtime-detected SHA-256 backend only with the `asm`
+feature. The fix enables that existing feature for cargo-rstyle on aarch64, with
+its software fallback retained. Other architectures retain the existing feature
+selection. No build-profile optimization, cache, identity rule or verification
+check changes. ARM builds now compile the upstream assembly support dependency
+and need a working target C/assembler toolchain; this sandbox build passed.
+Cargo may unify the SHA-2 feature across workspace packages built together.
+
+The three-function diagnostic completed in 7.117s after the fix, versus 21.899s
+before. Combined binary hashing: 2.020s versus 15.010s. Compilation including
+production: 3.244s versus 4.305s. Counts remain 143 helper verifications and 161
+producer verifications. All three functions remain admitted; all three pair
+results and gate details agree after accounting for pair orientation caused by
+rebuilt-binary identities. Rebuilt executable digests naturally differ; no hashed
+evidence was rewritten or identity rule relaxed. Python `hashlib` independently
+verified both new executable hashes. Empty, `abc` and million-`a` SHA-256 vectors
+also pass through the real file-digest path, including edits to the same file.
+
+Retained after-run logs: `/tmp/rstyle-perf-chain-2-arm-backend` and
+`/tmp/rstyle-perf-cli-floor-arm-1`. Source-handoff CLI correctness also passes
+without diagnostics (2.37s). This fixes a measured setup contributor; attribution
+of the historical source regression and the long helper-family tail remains open.
