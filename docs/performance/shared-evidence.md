@@ -383,5 +383,36 @@ nextest reports 175.370 seconds, with the expanded inherent-family test at
 
 Remaining costs include legitimate pairwise matching, per-unique-record graph
 validation/production, optional legacy expansion, repeated source parsing in
-existing strict adapters, and the whole-report JSON Value conversion. No
+existing strict adapters, and JSON materialization of matching-stage details. No
 end-to-end speedup is inferred from the bounded helper/graph measurements.
+
+
+## Borrowed report serialization
+
+The application report now retains borrowed typed unit/function records through
+serialization. Its file writer streams through a buffered serializer and checks
+flush errors, removing both the full-report `serde_json::Value` conversion and
+the extra full serialized file byte buffer. JSON stdout still requires the
+string returned by the existing command API. Dynamic matching-stage detail and
+optional trace data retain their existing JSON representation. Text output reads
+typed counters and outcomes directly. No evidence, completeness indicator,
+matching threshold or report field is removed. JSON field order follows the
+typed report rather than the former map ordering; field meaning is unchanged.
+
+The shared default regression compares the saved streamed report with parsed
+JSON stdout. Existing trace/decision regression passes, and a writer regression
+rejects a final flush failure. No separate timing/allocation improvement is
+claimed for this small follow-up; its structural reduction follows directly
+from eliminating the full report conversion and file-output byte buffer.
+
+
+Final follow-up validation: `cargo fmt --all -- --check` and workspace/all-target
+locked Clippy with warnings denied pass. The nextest wrapper passes 627 tests,
+zero skipped, one slow test, in 176.738 seconds; the inherent-family test takes
+165.096 seconds and workspace doctests pass. The final default/shared regression
+passes after extracting its artifact assertions into a helper. Both final
+wrappers pass: 1,905 analyzed functions, zero style violations; zero actionable
+pattern candidates and 16 existing reviewed ignores. Logs:
+`/tmp/rstyle-final-{nextest.log,clippy.log,shared-test.log,style.json,patterns.log}`.
+The earlier too-long test diagnostic was fixed by cohesive assertion extraction;
+no check or assertion was removed.

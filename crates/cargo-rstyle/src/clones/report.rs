@@ -25,7 +25,7 @@ struct Scope<'a> {
 }
 
 #[derive(Serialize)]
-struct Report<'a> {
+pub struct Report<'a> {
     scope: Scope<'a>,
     run_directory: &'a Path,
     toolchain: String,
@@ -91,7 +91,7 @@ fn ctx_profile_is_data(args: &Args) -> bool {
     args.extraction_profile.is_data()
 }
 
-pub fn make(ctx: Context<'_>) -> Result<Value, String> {
+pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
     let matching = matching_report(ctx.matching, ctx.args.trace)?;
     let scope = Scope {
         packages: &ctx.cli.packages,
@@ -140,7 +140,7 @@ pub fn make(ctx: Context<'_>) -> Result<Value, String> {
         matching,
         claim: "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
     };
-    serde_json::to_value(report).map_err(|e| e.to_string())
+    Ok(report)
 }
 
 fn enumeration_complete(ctx: &Context<'_>) -> bool {
@@ -201,7 +201,7 @@ fn strip_histograms(stage: &mut Value) {
 
 pub fn render(
     format: Format,
-    report: &Value,
+    report: &Report<'_>,
     accepted: usize,
     directory: &Path,
 ) -> Result<String, String> {
@@ -209,33 +209,45 @@ pub fn render(
         Format::Json => serde_json::to_string_pretty(report).map_err(|e| e.to_string()),
         Format::Text => Ok(format!(
             "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
-            report["observed_units"].as_array().map_or(0, Vec::len),
+            report.observed_units.len(),
             coverage_summary(report),
-            report["matching"]["pairs"].as_array().map_or(0, Vec::len),
-            report["capture_complete"],
-            report["assessment_complete"],
-            report["pair_enumeration_complete"],
-            report["pair_evaluation_complete"],
+            report.matching["pairs"].as_array().map_or(0, Vec::len),
+            report.capture_complete,
+            report.assessment_complete,
+            report.pair_enumeration_complete,
+            report.pair_evaluation_complete,
             directory.join("report.json").display()
         )),
     }
 }
 
-fn coverage_summary(report: &Value) -> String {
-    let functions = report["functions"]
-        .as_array()
-        .map(Vec::as_slice)
-        .unwrap_or(&[]);
+fn coverage_summary(report: &Report<'_>) -> String {
+    let functions = report.functions;
     let counts = ["admitted", "excluded", "unknown", "failed"].map(|outcome| {
-        let count = functions.iter().filter(|f| f["outcome"] == outcome).count();
+        let count = functions
+            .iter()
+            .filter(|function| function.outcome == outcome)
+            .count();
         format!("{count} {outcome}")
     });
 
     format!("{} assessed ({})", functions.len(), counts.join(", "))
 }
 
-pub fn attach_wl_partitions(report: &mut Value, handoff: &Handoff) -> Result<(), String> {
-    let pairs = report["matching"]["pairs"]
+pub fn write(path: &Path, report: &Report<'_>) -> Result<(), String> {
+    let file =
+        std::fs::File::create(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    write_to(std::io::BufWriter::new(file), report)
+        .map_err(|error| format!("{}: {error}", path.display()))
+}
+
+fn write_to(mut writer: impl std::io::Write, report: &impl Serialize) -> Result<(), String> {
+    serde_json::to_writer_pretty(&mut writer, report).map_err(|error| error.to_string())?;
+    writer.flush().map_err(|error| error.to_string())
+}
+
+pub fn attach_wl_partitions(report: &mut Report<'_>, handoff: &Handoff) -> Result<(), String> {
+    let pairs = report.matching["pairs"]
         .as_array_mut()
         .ok_or("missing pair report")?;
     for pair in pairs {
@@ -270,4 +282,24 @@ fn projected_function(
     rstyle_ccgraph::project(function)
         .map(|p| p.graph)
         .map_err(|e| format!("{e:?}"))
+}
+
+#[cfg(test)]
+mod tests {
+    struct FlushFailure;
+    impl std::io::Write for FlushFailure {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::other("report flush failed"))
+        }
+    }
+
+    #[test]
+    fn streamed_report_requires_successful_flush() {
+        let error =
+            super::write_to(FlushFailure, &serde_json::json!({"complete":true})).unwrap_err();
+        assert_eq!(error, "report flush failed");
+    }
 }

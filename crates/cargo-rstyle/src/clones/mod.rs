@@ -224,7 +224,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     if args.trace {
         report::attach_wl_partitions(&mut report, &handoff)?;
     }
-    write_json(&capture.directory.join("report.json"), &report)?;
+    report::write(&capture.directory.join("report.json"), &report)?;
     let output = report::render(cli.format, &report, accepted, &capture.directory)?;
     let code = if !complete {
         2

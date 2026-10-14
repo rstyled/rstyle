@@ -968,6 +968,15 @@ fn clones_shared_fanout_keeps_transitive_analysis_bounded() {
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 28);
 }
 
+fn assert_persisted_report(report: &Value) {
+    let persisted: Value = serde_json::from_slice(
+        &std::fs::read(Path::new(report["run_directory"].as_str().unwrap()).join("report.json"))
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(&persisted, report);
+}
+
 #[test]
 fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
     let directory = clone_workspace();
@@ -985,6 +994,7 @@ fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
     );
     assert!(output.status.success(), "{}", stdout(&output));
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_persisted_report(&report);
     assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/1");
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
     for function in report["functions"].as_array().unwrap() {
@@ -1001,6 +1011,10 @@ fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
             );
         }
     }
+    assert_shared_bundle_tables(&report);
+}
+
+fn assert_shared_bundle_tables(report: &Value) {
     let unit = &report["observed_units"][0];
     let path = Path::new(unit["directory"].as_str().unwrap());
     let bytes = std::fs::read(path.join("unit.evidence.json")).unwrap();
