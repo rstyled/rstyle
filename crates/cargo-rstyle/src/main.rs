@@ -4,6 +4,7 @@
 
 mod clones;
 mod collect;
+mod diagnostic_process;
 mod ignore;
 mod run;
 mod workspace;

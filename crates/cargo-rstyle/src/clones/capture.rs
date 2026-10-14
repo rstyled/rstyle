@@ -421,13 +421,14 @@ fn primary_units(graph: &Value) -> Result<Vec<Value>, String> {
 }
 
 fn perform_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
-    let output = command(capture, cli, args)?
-        .output()
+    let observation =
+        rstyle_pdg::diagnostics::Stage::new("capture.compile", "cargo check", None).enter();
+    let output = crate::diagnostic_process::output(&mut command(capture, cli, args)?)
         .map_err(|e| e.to_string())?;
     save_logs(capture, &output)?;
 
     compilation_result(capture, &output);
-    Ok(())
+    observation.finish(Ok(()))
 }
 
 fn expected_units(capture: &Capture, cli: &Cli, args: &Args) -> Result<Value, String> {

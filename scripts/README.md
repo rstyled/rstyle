@@ -99,3 +99,10 @@ Timing and counts never enter documents or deterministic reports. Detailed
 logging and diagnostic hashing add overhead: compare diagnostic runs separately
 from uninstrumented timings. This initial instrumentation does not yet cover all
 stages or make buffered child stderr visible in CLI tests.
+
+Diagnostic stderr now streams through the Cargo capture adapter and the CLI test
+helper while remaining available in failure output and retained capture logs.
+Only the exact `RSTYLE_PERF=1` switch passes through producer-environment clearing;
+extraction selection and evidence publication settings are still cleared. Output
+from concurrent compiler units may interleave; correlate JSON events by PID and
+identity. Add `--nocapture` when running a CLI test to expose its tee output.

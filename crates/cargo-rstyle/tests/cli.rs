@@ -1,5 +1,8 @@
 //! End-to-end tests: real `cargo check` through the real rustc driver.
 
+#[path = "../src/diagnostic_process.rs"]
+mod diagnostic_process;
+
 use assert_cmd::cargo::cargo_bin;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -61,15 +64,16 @@ fn copy_dir(from: &Path, to: &Path) {
 }
 
 fn rstyle(dir: &Path, args: &[&str]) -> Output {
-    Command::new(cargo_bin("cargo-rstyle"))
-        .args(args)
-        .current_dir(dir)
-        .env("RSTYLE_DRIVER", driver())
-        // Fixtures assert on `<fixture>/target/rstyle/facts`; a shared/inherited
-        // CARGO_TARGET_DIR (worktree cache, CI volume) would move it.
-        .env_remove("CARGO_TARGET_DIR")
-        .output()
-        .unwrap()
+    diagnostic_process::output(
+        Command::new(cargo_bin("cargo-rstyle"))
+            .args(args)
+            .current_dir(dir)
+            .env("RSTYLE_DRIVER", driver())
+            // Fixtures assert on `<fixture>/target/rstyle/facts`; a shared/inherited
+            // CARGO_TARGET_DIR (worktree cache, CI volume) would move it.
+            .env_remove("CARGO_TARGET_DIR"),
+    )
+    .unwrap()
 }
 
 fn stdout(output: &Output) -> String {
