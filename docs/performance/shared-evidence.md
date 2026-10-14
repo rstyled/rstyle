@@ -322,3 +322,18 @@ wrappers pass, with zero style violations/actionable candidates and the same
 `/tmp/rstyle-expanded-style.json`, `/tmp/rstyle-expanded-patterns.log` and
 `/tmp/rstyle-expanded-clippy.log`. The broader final suite remains outstanding
 for this adapter and the forthcoming publication integration.
+
+## Borrowed admission context increment
+
+`admit_produced` accepts the explicit borrowed evidence context and passes it
+through admission and native-width propagation. After producer verification,
+it retains profile agreement, PDG/CFG validation, correspondence and projection
+checks without reconstructing another owning pair or decoding embedded frontend
+facts. Standalone strict document admission retains its narrow frontend adapter.
+The shared diamond and renumbering regressions compare complete admitted
+functions exactly with standalone expanded evidence, not just timings.
+
+Focused admission/diamond coverage and all CCGraph tests pass. Formatting,
+workspace Clippy and both wrappers pass, with zero violations/actionable
+candidates and 16 existing ignores. Logs: `/tmp/rstyle-borrowed-admission-tests.log`
+and `/tmp/rstyle-admission-{style.json,patterns.log,clippy.log,ccgraph-tests.log}`.

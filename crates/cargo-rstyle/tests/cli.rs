@@ -2396,9 +2396,14 @@ fn corrupt_unit_bundle(wire: &mut Value, corruption: &str) {
 fn assert_shared_unit(store: &rstyle_pdg::unit_store::UnitStore) {
     use rstyle_pdg::unit_store::EvidenceFacts;
     let analysis = store.analysis();
+    let standalone = store.expanded_frontends().unwrap();
     for (index, facts) in store.functions().iter().enumerate() {
         let view = analysis.function(index).unwrap();
         rstyle_pdg::producer::verify(store.pair(index).unwrap(), &view).unwrap();
+        let imported = rstyle_ccgraph::admit_produced(store.pair(index).unwrap(), &view).unwrap();
+        let legacy_pair = rstyle_pdg::producer::produce(&standalone[index]).unwrap();
+        let legacy = rstyle_ccgraph::admit_produced(&legacy_pair, &standalone[index]).unwrap();
+        assert_eq!(imported, legacy);
         let generated =
             rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::produce(&view))
                 .unwrap();

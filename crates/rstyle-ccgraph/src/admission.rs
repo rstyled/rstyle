@@ -14,6 +14,7 @@ use crate::graph::{ImportedEdge, ImportedFunction, ImportedNode, InterfaceElemen
 use crate::pipeline::{
     Decision, FunctionRecord, PairRecord, RunReport, StageName, StageOutcome, StageRecord,
 };
+use rstyle_pdg::unit_store::EvidenceFacts;
 use rstyle_pdg::{
     CfgDocument, NodeCategory, PdgDocument, ValidationContext, reachable_vertices,
     read_operation_map, validate, validate_cfg, validate_correspondence, validate_paired_agreement,
@@ -36,7 +37,7 @@ pub struct StrictBundle<'a> {
 /// then use the unchanged strict imported-document admission boundary.
 pub fn admit_produced(
     pair: &rstyle_pdg::producer::Pair,
-    facts: &rstyle_pdg::HirFnFacts,
+    facts: &dyn EvidenceFacts,
 ) -> Result<ImportedFunction, Vec<String>> {
     rstyle_pdg::producer::verify(pair, facts)?;
     let source_bytes = pair
@@ -55,12 +56,15 @@ pub fn admit_produced(
         pointer_width_bits: width,
     };
 
-    admit_strict(&StrictBundle {
-        pdg: &pair.pdg,
-        cfg: &pair.cfg,
-        source_bytes: &source_bytes,
-        ctx: &ctx,
-    })
+    admit_checked(
+        &StrictBundle {
+            pdg: &pair.pdg,
+            cfg: &pair.cfg,
+            source_bytes: &source_bytes,
+            ctx: &ctx,
+        },
+        Some(facts),
+    )
 }
 
 /// Admit one validated document pair into a matching input.
@@ -72,6 +76,18 @@ pub fn admit_produced(
 /// CFG entry; administrative status comes from boundary cleanliness. Failures
 /// are returned as reason strings and never coerce missing evidence.
 pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<String>> {
+    admit_checked(bundle, None)
+}
+
+struct AdmissionContext<'a> {
+    validation: &'a ValidationContext,
+    frontend: Option<&'a dyn EvidenceFacts>,
+}
+
+fn admit_checked(
+    bundle: &StrictBundle,
+    frontend: Option<&dyn EvidenceFacts>,
+) -> Result<ImportedFunction, Vec<String>> {
     let StrictBundle {
         pdg,
         cfg,
@@ -80,7 +96,11 @@ pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<Strin
     } = bundle;
 
     require_compiler_evidence(ctx)?;
-    check_local_producer(pdg, cfg)?;
+    if frontend.is_some() {
+        check_local_profile(pdg, cfg)?;
+    } else {
+        check_local_producer(pdg, cfg)?;
+    }
     check_pdg_eligibility(pdg, ctx, source_bytes)?;
 
     let admitted = AdmittedPair { pdg, cfg };
@@ -88,19 +108,35 @@ pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<Strin
     let map = admitted.check_agreement()?;
     admitted.check_correspondence(&map)?;
 
-    assemble_function(pdg, cfg, &map, ctx)
+    assemble_function(
+        pdg,
+        cfg,
+        &map,
+        &AdmissionContext {
+            validation: ctx,
+            frontend,
+        },
+    )
 }
 
-fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<String>> {
-    use rstyle_pdg::extraction_profile::{EVIDENCE_KEY, LOCAL_ID};
+fn check_local_profile(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<bool, Vec<String>> {
+    use rstyle_pdg::extraction_profile::LOCAL_ID;
     if pdg.profile.id != LOCAL_ID
         && pdg.profile.id != "rstyle.rust.hir-helpers"
         && pdg.profile.id != rstyle_pdg::extraction_profile::DATA_ID
     {
-        return Ok(());
+        return Ok(false);
     }
     if cfg.profile.name != pdg.profile.id || cfg.profile.version != pdg.profile.version {
         return Err(vec!["Paired extraction profiles disagree".into()]);
+    }
+    Ok(true)
+}
+
+fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<String>> {
+    use rstyle_pdg::extraction_profile::EVIDENCE_KEY;
+    if !check_local_profile(pdg, cfg)? {
+        return Ok(());
     }
     let evidence = pdg
         .extensions
@@ -187,7 +223,7 @@ fn assemble_function(
     pdg: &PdgDocument,
     cfg: &CfgDocument,
     map: &[rstyle_pdg::OperationMapEntry],
-    ctx: &ValidationContext,
+    ctx: &AdmissionContext,
 ) -> Result<ImportedFunction, Vec<String>> {
     let reachability = node_reachability(cfg, map);
     let value_sites = rstyle_pdg::validate_value_sites(pdg, cfg)?;
@@ -557,9 +593,9 @@ fn import_key(pdg: &PdgDocument) -> String {
 
 fn import_widths(
     pdg: &PdgDocument,
-    ctx: &ValidationContext,
+    ctx: &AdmissionContext,
 ) -> Result<(Option<u16>, bool), Vec<String>> {
-    let width = match ctx {
+    let width = match ctx.validation {
         ValidationContext::CompilerEvidence { pointer_width_bits } => {
             Some(*pointer_width_bits as u16)
         }
@@ -591,7 +627,7 @@ fn import_widths(
                 .and_then(|token| rstyle_pdg::data_types::parse(token).ok())
                 .is_some_and(|token| token.native_width())
         });
-    let transitive_native = helper_native_width(pdg)?;
+    let transitive_native = helper_native_width(pdg, ctx.frontend)?;
 
     Ok((
         width,
@@ -599,10 +635,16 @@ fn import_widths(
     ))
 }
 
-fn helper_native_width(pdg: &PdgDocument) -> Result<bool, Vec<String>> {
+fn helper_native_width(
+    pdg: &PdgDocument,
+    frontend: Option<&dyn EvidenceFacts>,
+) -> Result<bool, Vec<String>> {
     if !rstyle_pdg::extraction_profile::policy_supports(&pdg.profile, "rust.verified-helper-calls")
     {
         return Ok(false);
+    }
+    if let Some(facts) = frontend {
+        return rstyle_pdg::helper_calls::native_width(facts).map_err(|error| vec![error]);
     }
     let evidence = pdg
         .extensions
