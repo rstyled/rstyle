@@ -177,6 +177,10 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
 
 /// Capture all local bodies first, then build the acyclic dependency handoff.
 pub fn capture(facts: &mut [HirFnFacts]) -> Result<(), String> {
+    crate::verification_session::within(|| capture_unit(facts))
+}
+
+fn capture_unit(facts: &mut [HirFnFacts]) -> Result<(), String> {
     let observation = crate::diagnostics::Stage::new("helper.capture", "unit", None).enter();
     let mut state = CaptureState {
         verified: BTreeMap::new(),
@@ -387,7 +391,7 @@ pub fn verify(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String>
         .as_ref()
         .map(|resolution| resolution.description.as_bytes());
     crate::diagnostics::Stage::new("helper.verify", &caller.name, evidence)
-        .observe(|| verify_dependency(node, caller))
+        .observe(|| crate::verification_session::within(|| verify_dependency(node, caller)))
 }
 
 fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String> {
@@ -405,6 +409,19 @@ fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, 
     check_depth(&dependency.frontend.body, 1)?;
     check_signature(node, caller, &resolution, &dependency.frontend)?;
     crate::inherent_calls::verify(node, caller, &dependency.frontend, &resolution)?;
+    if !crate::verification_session::contains(description) {
+        verify_callee(&dependency)?;
+        crate::verification_session::remember(description);
+    } else {
+        crate::diagnostics::Stage::new("helper.proof_reused", &dependency.frontend.name, None)
+            .observe(|| Ok::<(), String>(()))?;
+    }
+    crate::helper_reads::verify_arguments(&dependency.summary, node, caller)?;
+
+    Ok(dependency)
+}
+
+fn verify_callee(dependency: &Dependency) -> Result<(), String> {
     let serialized = producer::SerializedPair {
         pdg_bytes: dependency.pdg.as_bytes().to_vec(),
         cfg_bytes: dependency.cfg.as_bytes().to_vec(),
@@ -418,9 +435,8 @@ fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, 
     {
         return Err("Helper summary signature, effects or returning behavior contradict verified callee evidence".into());
     }
-    crate::helper_reads::verify_arguments(&dependency.summary, node, caller)?;
 
-    Ok(dependency)
+    Ok(())
 }
 
 fn check_signature(
@@ -501,6 +517,10 @@ fn check_depth(node: &HirNode, depth: usize) -> Result<(), String> {
 
 /// Independent serialized inventory validation; never invokes caller lowering.
 pub fn verify_documents(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), String> {
+    crate::verification_session::within(|| verify_inventory(pair, facts))
+}
+
+fn verify_inventory(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), String> {
     crate::inherent_calls::definition(facts)?;
     let calls = call_nodes(facts);
     let records = pair

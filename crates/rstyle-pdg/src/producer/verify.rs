@@ -8,6 +8,10 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
+    crate::verification_session::within(|| verify_pair(pair, facts))
+}
+
+fn verify_pair(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     let observation = crate::diagnostics::Stage::new("producer.verify", &facts.name, None).enter();
     if crate::verification_policy::is_generated() {
         return observation.finish(validate_boundary(pair, facts));

@@ -5702,3 +5702,38 @@ fn clones_generated_policy_preserves_documents_and_structural_validation() {
         .is_err()
     );
 }
+
+#[test]
+fn clones_helpers_repeated_dependencies_preserve_strict_checks() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn leaf(x: i32) -> bool { x > 0 }\npub fn repeated(x: i32) -> bool { leaf(x) && leaf(x) }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{report}");
+    let function = read_call_function(&report, "repeated");
+    let (pair, facts) = data_pair(function);
+    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
+    let strict = rstyle_pdg::producer::produce(&facts)
+        .unwrap()
+        .serialize()
+        .unwrap();
+    let original = pair.serialize().unwrap();
+    assert_eq!(strict.pdg_bytes, original.pdg_bytes);
+    assert_eq!(strict.cfg_bytes, original.cfg_bytes);
+    assert_eq!(strict.manifest, original.manifest);
+    for corruption in ["manifest", "source", "signature", "effects"] {
+        let mut changed = facts.clone();
+        assert!(corrupt_helper(&mut changed.body, corruption));
+        assert!(
+            rstyle_pdg::producer::produce(&changed).is_err(),
+            "{corruption}"
+        );
+    }
+    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
+}

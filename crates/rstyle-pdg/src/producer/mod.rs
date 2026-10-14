@@ -15,6 +15,10 @@ pub use verify::verify;
 
 /// Build and validate one bounded normal-flow pair from captured frontend facts.
 pub fn produce(facts: &crate::HirFnFacts) -> Result<Pair, Vec<String>> {
+    crate::verification_session::within(|| produce_function(facts))
+}
+
+fn produce_function(facts: &crate::HirFnFacts) -> Result<Pair, Vec<String>> {
     let observation = crate::diagnostics::Stage::new("producer.produce", &facts.name, None).enter();
     let graph = lower(facts).map_err(|e| {
         e.diagnostics

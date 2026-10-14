@@ -210,3 +210,46 @@ for the 57th time when terminated. Warm/edit phases were not reached. Artifacts:
 this is incomplete validation, not a semantic test failure or acceptance pass.
 An earlier direct-test launch lacked `CARGO_BIN_EXE_cargo-rstyle` and failed
 immediately; the retained setup-failure logs are separate from this observation.
+
+## Bounded successful-callee reuse and restored acceptance
+
+Production, capture, and root verification now share a thread-local session of
+successful callee proofs. A key contains exact complete resolution bytes
+(including dependency documents, manifest, facts and build context), partitioned
+by strict/generated policy. No new hashing is performed. Caller signature,
+inherent dispatch, depth and argument checks still run for every use; only an
+already successful callee proof can be reused. Errors are not cached. Each root
+operation discards the session, including on unwind, and retained key bytes are
+bounded at 32 MiB. Reaching that budget disables further retention, not validation.
+
+A first experiment scoped only individual verifier calls remained insufficient:
+strict full-family helper replay timed out at 120s. It is retained separately as
+`/tmp/rstyle-perf-inherent-helper-replay-session-strict`. Extending the lifetime to
+one whole capture/production operation also covers repeated eligibility/lowering
+and emission work, without retaining evidence across independent calls/runs.
+
+The **restored original full-family E2E test passes**, including all original
+21-function/210-pair, helper/data, tampering, warm parity and edited-source checks.
+Its declared 300s runtime budget completed in **235.048s**:
+
+| Test phase | Elapsed |
+| --- | ---: |
+| Initial traced CLI | 64.941s |
+| Post-return verification and tampering | 41.138s |
+| Fresh warm CLI and parity | 64.485s |
+| Edited-source recapture and propagation | 64.390s |
+
+The test process records 145 helper verifications, 75 reused callee proofs,
+70 producer verifications and 52 transport encodes. Retained logs and watchdog
+metadata: `/tmp/rstyle-perf-inherent-restored-session`. The historical supplied
+ARM duration was 6521.289s, but runner/build differences prevent treating that
+comparison as a controlled speedup. The directly preceding local run exceeded
+120s during assertions after its 67.452s initial analysis; these observations
+isolate a measurable improvement without pretending the timeout was a pass.
+
+Validation includes all 40 PDG unit tests, session lifetime/policy/thread/unwind
+and retention-budget checks, and a repeated-callee CLI regression: strict
+production agrees byte-for-byte with current-run documents/manifests and still
+rejects changed manifest, source, signature and effects. Changed-target Clippy
+with warnings denied and both default rstyle gates are clean. Older representative
+families and the broader suite remain separate validation work.
