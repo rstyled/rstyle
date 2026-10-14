@@ -519,3 +519,23 @@ violations; zero actionable pattern candidates and 15 existing reviewed ignores.
 No ignore/configuration entries change. The complete nextest wrapper passes
 633 tests, zero skipped, one slow test, in 170.981 seconds, followed by successful
 workspace doctests. Logs: `/tmp/rstyle-profile-{pdg-tests.log,final-oracle.log,clippy.log,style.json,patterns.log,nextest.log}`.
+
+### Borrow JSON data evidence during typed decoding
+
+The common `data_frontend::evidence` loader now deserializes directly from
+`&serde_json::Value` instead of cloning that entire value before consuming it.
+This removes one recursive JSON-tree copy per invocation across interface,
+field-location, nominal-unit, and data-library evidence consumers. The typed
+result still owns its strings and records; this is neither zero-copy decoding
+nor a once-per-unit typed extension store. Repeated typed decoding remains a
+follow-up cost. No format, identity, trust policy, or evidence checks change.
+
+This bounded change is supported by the direct removal of the intermediate
+clone; no runtime or memory speedup is claimed without separate measurements.
+
+Validation: focused locked PDG tests, formatting, and workspace/all-target locked
+Clippy with warnings denied pass. The nextest wrapper passes all 633 tests
+(171.990 seconds, one slow, zero skipped), followed by workspace doctests.
+The style wrapper reports 1,932 functions and zero violations; patterns reports
+zero actionable candidates and 15 existing reviewed ignores. Logs are retained
+at `/tmp/rstyle-borrow-decode-{tests.log,clippy.log,style.json,style.err,patterns.log,nextest.log}`.

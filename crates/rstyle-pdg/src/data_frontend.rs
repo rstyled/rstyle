@@ -305,7 +305,7 @@ pub(crate) fn evidence<T: serde::de::DeserializeOwned>(
         .frontend_options
         .get(key)
         .ok_or_else(|| format!("Missing data evidence {key}"))?;
-    serde_json::from_value(value.clone()).map_err(|error| error.to_string())
+    serde::Deserialize::deserialize(value).map_err(|error: serde_json::Error| error.to_string())
 }
 
 fn verify_parameter_origins(parameter: &crate::ParamFact) -> Result<(), String> {
