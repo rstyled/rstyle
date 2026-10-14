@@ -91,3 +91,26 @@ proof success remains separately partitioned by policy. Errors are not cached.
 The evidence-view trait is sealed so external implementations cannot substitute
 helper views from another owner. Shared traversal preserves every call occurrence
 while reusing the derived callee property.
+
+Frontend data options now use `FrontendOptions` in the Rust API instead of a
+plain `BTreeMap<String, Value>`. The sealed `DataEvidence` types select their
+own keys and kinds: `data::<T>()` borrows interface/field records, and
+`insert_data` moves compiler-created records into their owner. The JSON object
+shape, sorted output keys, explicit optional nulls, dense handles, strong unit
+identity, and `rstyle.shared-unit/1` format are unchanged. Existing map producers
+can convert with `.into()`. Open/unregistered options remain JSON.
+
+An imported interface/field option is decoded to a typed record once when its
+frontend options are loaded; the intermediate JSON tree is dropped. Malformed
+records retain their original JSON and decode error without conferring any
+capability. Semantic identity, source, type and policy validation still occurs
+at every required verification boundary. Optional `get`/index JSON access lazily
+renders the requested record. Serialization renders one record at a time to
+preserve canonical object-key order, without retaining another whole document.
+Ordinary typed analysis neither renders nor redecodes these records.
+
+The mutable JSON compatibility adapter invalidates a changed entry's typed
+form. Unit construction normalizes those entries before freezing the owning
+store. Standalone analysis of explicitly edited mutable facts may return an
+owned `Cow` fallback; loaded/frozen unit analysis borrows. This adapter does
+not introduce a second unit certification runtime or a serialized trust flag.

@@ -49,8 +49,11 @@ impl PathResolution for Resolver<'_> {
 
 fn interface(
     facts: &dyn crate::unit_store::EvidenceFacts,
-) -> Result<InterfaceObservations, String> {
-    let interface: InterfaceObservations = evidence(facts, KEY)?;
+) -> Result<std::borrow::Cow<'_, InterfaceObservations>, String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
     interface.validate()?;
     Ok(interface)
 }
@@ -147,7 +150,10 @@ fn verify_receiver(
 }
 
 fn verify_fields(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
-    let fields: field_locations::FieldObservations = evidence(facts, field_locations::KEY)?;
+    let fields = facts
+        .build
+        .frontend_options
+        .data::<crate::field_locations::FieldObservations>()?;
     field_locations::verify(facts, &fields)?;
     let nodes = field_locations::fields(&facts.body);
 

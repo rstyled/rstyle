@@ -3787,7 +3787,7 @@ fn tamper_nominal_proof(changed: &mut rstyle_pdg::HirFnFacts, change: &str) {
 }
 
 fn duplicate_census_file(
-    options: &mut std::collections::BTreeMap<String, Value>,
+    options: &mut rstyle_pdg::FrontendOptions,
     facts: &rstyle_pdg::HirFnFacts,
     change: &str,
 ) {

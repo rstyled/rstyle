@@ -331,7 +331,10 @@ fn function_scope(
 /// Independently locate the exact nongeneric inherent implementation containing
 /// this owned function, then resolve its concrete owner in the closed unit.
 pub fn inherent_owner(facts: &HirFnFacts, implementation: &ByteSpan) -> Result<TypeTree, String> {
-    let interface = evidence(facts, crate::concrete_types::KEY)?;
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
     let resolution = verify(facts, &interface)?;
     let census: census::Census = evidence(facts, census::KEY)?;
     let modules = census::verify(&census)?;

@@ -44,10 +44,10 @@ pub use value_sites::validate_value_sites;
 
 pub use eligibility::{classify, span};
 pub use frontend::{
-    BindingFact, BuildFacts, ByteSpan, Dispatch, EligibilityVerdict, ExpansionSite, GenericFact,
-    HirDiagnostic, HirEligibility, HirFnFacts, HirNode, HirRef, ParamFact, PathRes, ReceiverFact,
-    ResolvedTy, SignatureFacts, SourceFacts, known_bool, known_count, known_str, unknown_bool,
-    unknown_count, unknown_str,
+    BindingFact, BuildFacts, ByteSpan, DataEvidence, Dispatch, EligibilityVerdict, ExpansionSite,
+    FrontendOptions, GenericFact, HirDiagnostic, HirEligibility, HirFnFacts, HirNode, HirRef,
+    ParamFact, PathRes, ReceiverFact, ResolvedTy, SignatureFacts, SourceFacts, known_bool,
+    known_count, known_str, unknown_bool, unknown_count, unknown_str,
 };
 
 pub use cfg::{

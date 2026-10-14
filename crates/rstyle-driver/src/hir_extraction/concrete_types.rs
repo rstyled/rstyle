@@ -69,10 +69,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
     observations.validate()?;
     capture.install_data(facts, &observations)?;
     capture.install_origins(&observations, facts)?;
-    facts.build.frontend_options.insert(
-        KEY.into(),
-        serde_json::to_value(observations).map_err(|error| error.to_string())?,
-    );
+    facts.build.frontend_options.insert_data(observations);
 
     Ok(())
 }

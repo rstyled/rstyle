@@ -237,10 +237,12 @@ impl Builder<'_> {
 
     fn field_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.field_base(node, flow);
-        let fields: crate::field_locations::FieldObservations = serde_json::from_value(
-            self.facts.build.frontend_options[crate::field_locations::KEY].clone(),
-        )
-        .expect("verified data locations");
+        let fields = self
+            .facts
+            .build
+            .frontend_options
+            .data::<crate::field_locations::FieldObservations>()
+            .expect("verified data locations");
         let field = fields
             .operations
             .iter()

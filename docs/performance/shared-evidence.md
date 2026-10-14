@@ -539,3 +539,51 @@ Clippy with warnings denied pass. The nextest wrapper passes all 633 tests
 The style wrapper reports 1,932 functions and zero violations; patterns reports
 zero actionable candidates and 15 existing reviewed ignores. Logs are retained
 at `/tmp/rstyle-borrow-decode-{tests.log,clippy.log,style.json,style.err,patterns.log,nextest.log}`.
+
+### Own typed interface and field evidence once
+
+`FrontendOptions` now owns typed interface and field records in place of their
+JSON trees. Compiler capture moves them directly into the context. Unit import
+converts each registered record once and releases its temporary JSON tree;
+verification, origin analysis, location installation, lowering and nominal
+resolution borrow the same records. Missing, malformed, future-version and
+unknown evidence remains observational, with all existing checks intact.
+No source, package or type contexts are interned merely by printed spelling.
+
+A temporary opt-in `data.evidence_decode` timing boundary on the retained
+21-function/20-helper replay counted 206 interface decodes and 190 field decodes
+before this change, versus exactly 21 of each after it. The old counts are lower
+bounds: direct decoders outside the common loader were not instrumented. In
+these single diagnostic runs, their aggregate decode-stage times were roughly
+7.10 ms before and 0.71 ms after. This is diagnostic overhead-inclusive evidence
+of structural work, not an ordinary timing benchmark. Hooks were removed from
+production after observation. Logs/binaries: `/tmp/rstyle-data-{before,after}.{out,err}`,
+`/tmp/rstyle-data-before`, `/tmp/rstyle-data-instrumented-after`.
+
+Regression tests verify stable borrowed addresses, moved string-buffer identity,
+no cached JSON rendering during repeated typed access/equality/export, exact
+wire-byte parity including explicit optional nulls, duplicate occurrence
+preservation, unknown/malformed evidence, and mutable-adapter invalidation and
+renormalization. These cover ownership and compatibility independently of wall
+time. See `shared-unit-bundle.md` for the Rust API change and wire guarantees.
+
+Same-machine ordinary timing uses the pinned nightly, debug build, locked
+versions and the same retained raw snapshot. Builds and storage-export work are
+excluded; three before/after samples alternate with no other builds/tests.
+Median wall time is 1.690596 s before and 1.659634 s after; median peak RSS is
+27,424 KiB and 27,268 KiB. These small helper-stage observations do not establish
+an end-to-end CLI speedup. Before includes the disabled diagnostic boundary;
+after is the final code without the temporary decoder instrumentation. Scripts,
+all samples and summaries are retained in `/tmp/rstyle-data-samples.{py,json}`,
+`/tmp/rstyle-data-sample-summary.log` and `/tmp/rstyle-data-{before,after}-*`.
+
+Final validation: focused locked PDG tests (including four new regressions),
+formatting and workspace/all-target locked Clippy with warnings denied pass.
+Both wrappers complete: 1,964 functions, zero style violations, zero actionable
+patterns and 15 existing reviewed ignores. The complete nextest wrapper passes
+637 tests in 171.992 seconds (one slow, zero skipped), then workspace doctests.
+Before/after optional storage-report JSONL is identical, retaining 2,985,484
+shared-bundle bytes, 4,314,745 expanded-frontend bytes, 17,336,189 standalone
+pair/manifest bytes, 21 graphs and 20 helpers. Logs:
+`/tmp/rstyle-typed-options-{pdg-tests.log,regression.log,clippy.log,style.json,patterns.log,nextest.log}`
+and `/tmp/rstyle-data-{before,after}-storage.{jsonl,err}`.

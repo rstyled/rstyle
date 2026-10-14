@@ -368,7 +368,10 @@ impl Resolver for Builder {
 }
 
 impl Builder {
-    fn new(functions: Vec<HirFnFacts>) -> Result<Self, String> {
+    fn new(mut functions: Vec<HirFnFacts>) -> Result<Self, String> {
+        for facts in &mut functions {
+            facts.build.frontend_options.normalize_data();
+        }
         u32::try_from(functions.len()).map_err(|_| "Oversized function table")?;
         let identity = unit_identity(&functions)?;
         let pending = (0..functions.len())

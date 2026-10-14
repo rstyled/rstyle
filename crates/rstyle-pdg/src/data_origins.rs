@@ -123,9 +123,10 @@ fn field(
     facts: &dyn crate::unit_store::EvidenceFacts,
     ty: &TypeToken,
 ) -> Result<Vec<Origin>, String> {
-    let fields: field_locations::FieldObservations =
-        serde_json::from_value(facts.build.frontend_options[field_locations::KEY].clone())
-            .map_err(|error| error.to_string())?;
+    let fields = facts
+        .build
+        .frontend_options
+        .data::<crate::field_locations::FieldObservations>()?;
     let field = fields
         .operations
         .iter()

@@ -1,7 +1,7 @@
 //! Package/source observations bound to one independently selected Cargo unit.
 //! No data eligibility or effect certificate is issued by this module.
 
-use crate::concrete_types::{InterfaceObservations, Nominal, digest};
+use crate::concrete_types::{Nominal, digest};
 use crate::declaration_origins::Origins;
 use crate::{BuildFacts, HirFnFacts, concrete_types, declaration_origins};
 use serde::{Deserialize, Serialize};
@@ -90,14 +90,13 @@ fn bind(
     files: &mut BTreeMap<PathBuf, String>,
 ) -> Result<Option<Binding>, String> {
     let options = &facts.build.frontend_options;
-    let Some(value) = options.get(concrete_types::KEY) else {
+    if !options.contains_key(concrete_types::KEY) {
         if options.contains_key(declaration_origins::KEY) {
             return Err("Orphan concrete declaration origins".into());
         }
         return Ok(None);
-    };
-    let interface: InterfaceObservations =
-        serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+    }
+    let interface = options.data::<crate::concrete_types::InterfaceObservations>()?;
     let origins: Origins = serde_json::from_value(
         options
             .get(declaration_origins::KEY)

@@ -8,6 +8,9 @@
 //! derivation consume these facts. Unknown evidence keeps an explicit
 //! reason and never becomes a fabricated default.
 
+mod options;
+pub use options::{DataEvidence, FrontendOptions};
+
 use crate::model::{BoolFact, CountFact, FactStatus, StringFact};
 use serde::{Deserialize, Serialize};
 
@@ -225,7 +228,7 @@ pub struct BuildFacts {
     /// Actual producer source revision captured when the compiler driver built.
     pub producer_revision: StringFact,
     /// Relevant effective frontend options captured from the active session.
-    pub frontend_options: std::collections::BTreeMap<String, serde_json::Value>,
+    pub frontend_options: FrontendOptions,
     /// Exact rustc version string.
     pub rustc_version: StringFact,
     /// rustc commit hash.

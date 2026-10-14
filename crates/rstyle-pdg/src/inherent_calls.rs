@@ -143,7 +143,10 @@ fn ufcs_owner_matches(
         return Ok(false);
     }
 
-    let interface = crate::data_frontend::evidence(caller, crate::concrete_types::KEY)?;
+    let interface = caller
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
     let resolution = crate::nominal_boundary::resolution::verify(caller, &interface)?;
     let owner = resolution.resolve(&syn::TypePath {
         qself: None,

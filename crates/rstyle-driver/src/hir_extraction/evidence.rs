@@ -40,7 +40,8 @@ pub fn build(tcx: TyCtxt<'_>, invocation: &[String]) -> BuildFacts {
                 serde_json::json!(session.opts.target_triple.to_string()),
             ),
             ("invocation".to_string(), serde_json::json!(invocation)),
-        ]),
+        ])
+        .into(),
         rustc_version: known_str(env!("RSTYLE_RUSTC_VERSION")),
         rustc_commit: known_str(env!("RSTYLE_RUSTC_COMMIT")),
         edition: known_str(&session.edition().to_string()),

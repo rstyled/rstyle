@@ -130,8 +130,13 @@ pub fn read_keys(node: &crate::PdgNode) -> Vec<String> {
         .collect()
 }
 
-fn observations(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<FieldObservations, String> {
-    crate::data_frontend::evidence(facts, KEY)
+fn observations(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<std::borrow::Cow<'_, FieldObservations>, String> {
+    facts
+        .build
+        .frontend_options
+        .data::<crate::field_locations::FieldObservations>()
 }
 
 #[derive(serde::Serialize)]
