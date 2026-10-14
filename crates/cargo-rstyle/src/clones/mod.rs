@@ -220,7 +220,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         handoff: &handoff,
         matching: &matching,
         complete,
-    })?;
+    });
     if args.trace {
         report::attach_wl_partitions(&mut report, &handoff)?;
     }

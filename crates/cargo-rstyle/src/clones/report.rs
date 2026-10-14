@@ -1,5 +1,7 @@
 //! Reproducible evidence with independent completeness indicators.
 
+mod matching;
+
 use super::{Args, Handoff, capture};
 use crate::{Cli, Format};
 use rstyle_ccgraph::RunReport;
@@ -55,7 +57,7 @@ pub struct Report<'a> {
     handoff_failures: &'a [String],
     pair_evaluation_complete: bool,
     pair_enumeration_complete: bool,
-    matching: Value,
+    matching: matching::Matching<'a>,
     claim: &'static str,
 }
 
@@ -91,8 +93,7 @@ fn ctx_profile_is_data(args: &Args) -> bool {
     args.extraction_profile.is_data()
 }
 
-pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
-    let matching = matching_report(ctx.matching, ctx.args.trace)?;
+pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
     let scope = Scope {
         packages: &ctx.cli.packages,
         all_targets: ctx.cli.all_targets,
@@ -100,7 +101,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
         build_options: ctx.args,
     };
 
-    let report = Report {
+    Report {
         verification_policy: "trusted-generated",
         scope,
         run_directory: &ctx.capture.directory,
@@ -137,10 +138,9 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
         handoff_failures: &ctx.handoff.failures,
         pair_evaluation_complete: ctx.complete,
         pair_enumeration_complete: enumeration_complete(&ctx),
-        matching,
+        matching: matching::Matching::new(ctx.matching, ctx.args.trace),
         claim: "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
-    };
-    Ok(report)
+    }
 }
 
 fn enumeration_complete(ctx: &Context<'_>) -> bool {
@@ -150,53 +150,6 @@ fn enumeration_complete(ctx: &Context<'_>) -> bool {
     ctx.capture.failures.is_empty()
         && ctx.handoff.failures.is_empty()
         && expected == Some(ctx.matching.pairs.len())
-}
-
-fn matching_report(report: &RunReport, trace: bool) -> Result<Value, String> {
-    let mut value = serde_json::to_value(report).map_err(|e| e.to_string())?;
-    let pairs = value["pairs"]
-        .as_array_mut()
-        .ok_or("missing serialized pair list")?;
-    for pair in pairs {
-        format_pair(pair, trace)?;
-    }
-
-    Ok(value)
-}
-
-fn format_pair(pair: &mut Value, trace: bool) -> Result<(), String> {
-    let stages = pair["stages"].as_array_mut().ok_or("missing stages")?;
-    let status = evaluation_status(stages);
-    if !trace {
-        for stage in stages {
-            strip_histograms(stage);
-        }
-    }
-
-    pair["evaluation_status"] = Value::String(status.into());
-    if status == "failed" || status == "incompatible" {
-        pair["decision"] = Value::Null;
-    }
-    Ok(())
-}
-
-fn evaluation_status(stages: &[Value]) -> &'static str {
-    if stages.iter().any(|s| s["outcome"].get("Error").is_some()) {
-        return "failed";
-    }
-    if stages
-        .iter()
-        .any(|s| s["outcome"].get("Ineligible").is_some())
-    {
-        return "incompatible";
-    }
-    "evaluated"
-}
-
-fn strip_histograms(stage: &mut Value) {
-    if let Some(detail) = stage["detail"].as_object_mut() {
-        detail.retain(|key, _| !key.starts_with("round_"));
-    }
 }
 
 pub fn render(
@@ -211,7 +164,7 @@ pub fn render(
             "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
             report.observed_units.len(),
             coverage_summary(report),
-            report.matching["pairs"].as_array().map_or(0, Vec::len),
+            report.matching.report.pairs.len(),
             report.capture_complete,
             report.assessment_complete,
             report.pair_enumeration_complete,
@@ -247,37 +200,27 @@ fn write_to(mut writer: impl std::io::Write, report: &impl Serialize) -> Result<
 }
 
 pub fn attach_wl_partitions(report: &mut Report<'_>, handoff: &Handoff) -> Result<(), String> {
-    let pairs = report.matching["pairs"]
-        .as_array_mut()
-        .ok_or("missing pair report")?;
-    for pair in pairs {
-        attach_pair_partition(pair, handoff)?;
+    for (index, pair) in report.matching.report.pairs.iter().enumerate() {
+        let Some(depth) = pair.stages.get(6).and_then(|s| s.detail.get("depth")) else {
+            continue;
+        };
+        let depth: usize = depth.parse().map_err(|_| "invalid WL depth")?;
+        let first = projected_function(handoff, &pair.first)?;
+        let second = projected_function(handoff, &pair.second)?;
+        let partitions = rstyle_ccgraph::wl::trace_partitions(&first, &second, depth);
+        report.matching.partitions.insert(index, partitions);
     }
-
-    Ok(())
-}
-
-fn attach_pair_partition(pair: &mut Value, handoff: &Handoff) -> Result<(), String> {
-    let Some(depth) = pair["stages"][6]["detail"]["depth"].as_str() else {
-        return Ok(());
-    };
-    let depth: usize = depth.parse().map_err(|_| "invalid WL depth")?;
-    let first = projected_function(handoff, &pair["first"])?;
-    let second = projected_function(handoff, &pair["second"])?;
-    let partitions = rstyle_ccgraph::wl::trace_partitions(&first, &second, depth);
-
-    pair["wl_label_partitions"] = serde_json::to_value(partitions).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 fn projected_function(
     handoff: &Handoff,
-    key: &Value,
+    key: &str,
 ) -> Result<rstyle_ccgraph::ProjectedGraph, String> {
     let function = handoff
         .admitted
         .iter()
-        .find(|f| key == &f.key)
+        .find(|f| key == f.key)
         .ok_or("missing verified function for WL trace")?;
     rstyle_ccgraph::project(function)
         .map(|p| p.graph)

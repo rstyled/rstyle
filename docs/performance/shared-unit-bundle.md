@@ -144,3 +144,9 @@ an owning pair by cloning both documents. Its imported frontend record remains
 alive for the complete admission operation, including target compatibility,
 instead of being decoded again. Data-location inventory comparison also borrows
 existing locations while preserving duplicate-ID and exact-evidence checks.
+
+Readable matching reports serialize borrowed typed records directly, filtering
+nontrace histograms during output. Optional WL partition exports remain typed.
+JSON object member order follows the exporter; field values, ordered arrays,
+status precedence and nullable decisions retain their existing meaning. This
+readable presentation change does not alter evidence hashes or bundle format.

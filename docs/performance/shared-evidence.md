@@ -666,3 +666,30 @@ nextest wrapper passes 641 tests in 168.318 seconds (one slow, zero skipped),
 followed by workspace doctests. Both gates pass: 1,991 assessed functions, zero
 style violations, zero actionable pattern candidates, and 15 existing reviewed
 ignores. Logs: `/tmp/rstyle-pair-view-{tests.log,clippy.log,cli-regression.log,nextest.log,style.json,patterns.log}`.
+
+### Stream the matching report subtree
+
+The matching report now borrows `RunReport`, its pairs, stages and detail maps.
+Serialization emits those records directly; it no longer calls `to_value` on
+the complete matching report or mutates a duplicate tree. Nontrace output skips
+`round_` detail keys while writing. Evaluation status retains Error precedence
+over Ineligible and emits a null decision for either. Unknown detail fields,
+ordered stages, displayed scores and diagnostic text are preserved. Optional
+WL partitions remain typed in a per-pair side table and serialize on demand.
+The report constructor is now infallible; actual serialization/write failures
+still propagate, including final flush errors.
+
+The independent compatibility oracle is the previous JSON-tree transformation,
+retained only in tests. It checks every pair of stage outcomes with trace on
+and off, Unicode, unknown details and typed optional partitions. JSON member
+ordering now follows the typed exporter rather than the intermediate Value's
+sorted map order; semantic JSON contents and array ordering are unchanged.
+No wire evidence identity or bundle schema changes. The structural saving is
+one full matching JSON tree per report, including duplicated strings and maps;
+no timing or RSS improvement is claimed for this isolated change.
+
+Final matching-export validation: formatting and workspace/all-target locked
+Clippy pass. The full nextest wrapper passes 642 tests in 167.312 seconds (one
+slow, zero skipped), followed by workspace doctests. Both wrappers complete:
+1,994 assessed functions, zero style violations; zero actionable patterns and
+15 existing reviewed ignores. Logs: `/tmp/rstyle-report-{tests.log,clippy.log,nextest.log,style.json,patterns.log}`.
