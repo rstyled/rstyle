@@ -16,7 +16,7 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
     verify_lifetimes(&source)?;
     let resolution = nominal_resolution(facts, &interface)?;
-    verify_interface(facts, &source, &interface, resolution.as_ref())?;
+    verify_interface(facts, &source, &interface, resolution.as_deref())?;
 
     for parameter in &facts.signature.params {
         crate::data_origins::parameter(parameter)?;
@@ -27,14 +27,14 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
     verify_nodes(&facts.body, facts, &places)
 }
 
-fn nominal_resolution(
-    facts: &dyn crate::unit_store::EvidenceFacts,
+fn nominal_resolution<'a>(
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
     interface: &InterfaceObservations,
-) -> Result<Option<crate::nominal_boundary::resolution::Resolution>, String> {
+) -> Result<Option<crate::nominal_boundary::resolution::ResolutionView<'a>>, String> {
     if crate::declaration_origins::declarations(interface)?.is_empty() {
         return Ok(None);
     }
-    crate::nominal_boundary::resolution::verify(facts, interface).map(Some)
+    facts.nominal_resolution().map(Some)
 }
 
 struct Resolver<'a>(Option<&'a crate::nominal_boundary::resolution::Resolution>);

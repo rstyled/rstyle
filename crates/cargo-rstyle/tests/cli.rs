@@ -6114,3 +6114,57 @@ fn clones_helpers_repeated_dependencies_preserve_strict_checks() {
     }
     rstyle_pdg::producer::verify(&pair, &facts).unwrap();
 }
+
+#[test]
+fn shared_unit_borrows_lexical_results_with_policy_and_context_isolation() {
+    use rstyle_pdg::unit_store::EvidenceFacts;
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub struct Data { pub n: u8 }\nimpl Data { pub fn get(&self) -> u8 { self.n } }\npub fn first(v: &Data) -> u8 { v.get() }\npub fn second(v: &Data) -> u8 { v.get() }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let path = Path::new(report["observed_units"][0]["directory"].as_str().unwrap());
+    let bytes = std::fs::read(path.join("unit.evidence.json")).unwrap();
+    let store = rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).unwrap();
+    let index = store
+        .functions()
+        .iter()
+        .position(|facts| facts.name.ends_with("::get"))
+        .unwrap();
+    let analysis = store.analysis();
+    let view = analysis.function(index).unwrap();
+    let first = view.nominal_resolution().unwrap();
+    let second = view.nominal_resolution().unwrap();
+    assert!(std::ptr::eq(&*first, &*second));
+    let inherent = view.inherent_definition().unwrap().unwrap();
+    assert!(matches!(inherent, std::borrow::Cow::Borrowed(_)));
+    assert!(std::ptr::eq(
+        inherent.as_ref(),
+        view.inherent_definition().unwrap().unwrap().as_ref()
+    ));
+    rstyle_pdg::verification_policy::generated(|| {
+        let generated = view.nominal_resolution().unwrap();
+        assert!(!std::ptr::eq(&*first, &*generated));
+        assert_eq!(first.namespace, generated.namespace);
+        assert_eq!(first.receiver, generated.receiver);
+    });
+    let independent = store.analysis();
+    let independent_view = independent.function(index).unwrap();
+    assert!(!std::ptr::eq(
+        &*first,
+        &*independent_view.nominal_resolution().unwrap()
+    ));
+    let other_store = rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).unwrap();
+    let other_analysis = other_store.analysis();
+    let other_view = other_analysis.function(index).unwrap();
+    assert!(!std::ptr::eq(
+        &*first,
+        &*other_view.nominal_resolution().unwrap()
+    ));
+    let mut edited = view.facts().clone();
+    edited.source.bytes = edited.source.bytes.replace("self.n", "self.n + 1");
+    edited.source.digest = rstyle_pdg::concrete_types::digest(edited.source.bytes.as_bytes());
+    assert!(edited.nominal_resolution().is_err());
+    assert!(edited.inherent_definition().is_err());
+    assert!(std::ptr::eq(&*first, &*view.nominal_resolution().unwrap()));
+}

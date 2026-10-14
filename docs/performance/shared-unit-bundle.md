@@ -114,3 +114,20 @@ form. Unit construction normalizes those entries before freezing the owning
 store. Standalone analysis of explicitly edited mutable facts may return an
 owned `Cow` fallback; loaded/frozen unit analysis borrows. This adapter does
 not introduce a second unit certification runtime or a serialized trust flag.
+
+Successful nominal lexical resolutions and inherent-definition checks now live
+in a fixed per-function table within each builder/analysis context. Each entry
+has separate strict and trusted-generated slots. Selection uses a private
+function handle from that same resolver, never a name, foreign integer or
+serialized status. Errors and interrupted checks leave their slots empty.
+These derived records are dropped with the context and never enter the bundle.
+
+`EvidenceFacts::nominal_resolution` returns `ResolutionView`, and
+`inherent_definition`/`inherent_calls::definition` return an optional borrowed
+`Cow<Definition>` for shared functions. Standalone facts own their checked
+results. `resolution::inherent_owner` returns an `OwnerView` that borrows the
+checked tree through its lexical environment, retaining an owned environment
+only for standalone use. This is an intentional Rust API change; the wire
+format and evidence identities do not change. Caller-specific dispatch,
+signature, receiver adjustment, argument, effect and source-use checks remain
+per use. A generated result cannot populate or satisfy a strict slot.

@@ -1,5 +1,6 @@
 //! Unit-local ownership and borrowed analysis. Dense IDs are handles, not names.
 mod bundle;
+mod derived;
 mod expanded;
 mod manifest;
 pub use manifest::BundleManifest;
@@ -34,6 +35,22 @@ mod sealed {
 pub trait EvidenceFacts: sealed::Sealed {
     fn facts(&self) -> &HirFnFacts;
 
+    /// Resolve exact source/type evidence; shared views retain successful results
+    /// only within their owning analysis and verification policy.
+    fn nominal_resolution(
+        &self,
+    ) -> Result<crate::nominal_boundary::resolution::ResolutionView<'_>, String> {
+        crate::nominal_boundary::resolution::from_facts(self.facts())
+            .map(crate::nominal_boundary::resolution::ResolutionView::owned)
+    }
+
+    fn inherent_definition(
+        &self,
+    ) -> Result<Option<std::borrow::Cow<'_, crate::inherent_calls::Definition>>, String> {
+        crate::inherent_calls::check_definition(self.facts())
+            .map(|record| record.map(std::borrow::Cow::Owned))
+    }
+
     fn native_width(&self) -> Result<bool, String> {
         crate::helper_calls::compute_native_width(self.facts())
     }
@@ -54,6 +71,17 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn nominal_resolution(
+        &self,
+    ) -> Result<crate::nominal_boundary::resolution::ResolutionView<'_>, String> {
+        T::nominal_resolution(*self)
+    }
+    fn inherent_definition(
+        &self,
+    ) -> Result<Option<std::borrow::Cow<'_, crate::inherent_calls::Definition>>, String> {
+        T::inherent_definition(*self)
+    }
+
     fn native_width(&self) -> Result<bool, String> {
         T::native_width(*self)
     }
@@ -121,10 +149,12 @@ pub struct UnitAnalysis<'a> {
     proofs: Proofs,
     // Immutable derived values; policy-specific proof success is stored above.
     native_widths: RefCell<BTreeMap<FunctionId, bool>>,
+    derived: Box<[derived::Derived]>,
 }
 
 trait Resolver {
     fn tables(&self) -> Tables<'_>;
+    fn derived(&self) -> &[derived::Derived];
     fn proofs(&self) -> &Proofs;
     fn native_widths(&self) -> &RefCell<BTreeMap<FunctionId, bool>>;
     fn identity(&self) -> &str;
@@ -156,6 +186,17 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn nominal_resolution(
+        &self,
+    ) -> Result<crate::nominal_boundary::resolution::ResolutionView<'_>, String> {
+        self.nominal()
+    }
+    fn inherent_definition(
+        &self,
+    ) -> Result<Option<std::borrow::Cow<'_, crate::inherent_calls::Definition>>, String> {
+        self.inherent()
+    }
+
     fn native_width(&self) -> Result<bool, String> {
         if let Some(native) = self.resolver.native_widths().borrow().get(&self.id) {
             return Ok(*native);
@@ -298,6 +339,7 @@ impl UnitStore {
             store: self,
             proofs: RefCell::default(),
             native_widths: RefCell::default(),
+            derived: derived::contexts(self.functions.len()),
         }
     }
 }
@@ -319,6 +361,9 @@ impl UnitAnalysis<'_> {
 }
 
 impl Resolver for UnitAnalysis<'_> {
+    fn derived(&self) -> &[derived::Derived] {
+        &self.derived
+    }
     fn identity(&self) -> &str {
         &self.store.identity
     }
@@ -350,9 +395,13 @@ struct Builder {
     pending: Vec<FunctionId>,
     proofs: Proofs,
     native_widths: RefCell<BTreeMap<FunctionId, bool>>,
+    derived: Box<[derived::Derived]>,
 }
 
 impl Resolver for Builder {
+    fn derived(&self) -> &[derived::Derived] {
+        &self.derived
+    }
     fn identity(&self) -> &str {
         &self.store.identity
     }
@@ -380,6 +429,7 @@ impl Builder {
         let links = links(&functions)?;
         let certified = vec![None; functions.len()];
         let roots = vec![None; functions.len()];
+        let derived = derived::contexts(functions.len());
 
         Ok(Self {
             store: UnitStore {
@@ -394,6 +444,7 @@ impl Builder {
             pending,
             proofs: RefCell::default(),
             native_widths: RefCell::default(),
+            derived,
         })
     }
 

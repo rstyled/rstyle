@@ -28,7 +28,15 @@ pub struct CallOwner {
     pub implementation_identity: String,
 }
 
-pub fn definition(facts: &HirFnFacts) -> Result<Option<Definition>, String> {
+pub fn definition(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<std::borrow::Cow<'_, Definition>>, String> {
+    facts.inherent_definition()
+}
+
+pub(crate) fn check_definition(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<Definition>, String> {
     let Some(value) = facts.build.frontend_options.get(KEY) else {
         return Ok(None);
     };
@@ -85,8 +93,8 @@ fn receiver_type(facts: &HirFnFacts) -> Result<TypeToken, String> {
 
 pub(crate) fn verify(
     node: &HirNode,
-    caller: &HirFnFacts,
-    callee: &HirFnFacts,
+    caller: &dyn crate::unit_store::EvidenceFacts,
+    callee: &dyn crate::unit_store::EvidenceFacts,
     resolution: &serde_json::Value,
 ) -> Result<(), String> {
     if resolution.get("inherent").is_none() {
@@ -113,7 +121,7 @@ pub(crate) fn verify(
 
 fn ufcs_owner_matches(
     node: &HirNode,
-    caller: &HirFnFacts,
+    caller: &dyn crate::unit_store::EvidenceFacts,
     nominal: &crate::concrete_types::Nominal,
 ) -> Result<bool, String> {
     use crate::concrete_types::source_proof::PathResolution;
@@ -143,11 +151,7 @@ fn ufcs_owner_matches(
         return Ok(false);
     }
 
-    let interface = caller
-        .build
-        .frontend_options
-        .data::<crate::concrete_types::InterfaceObservations>()?;
-    let resolution = crate::nominal_boundary::resolution::verify(caller, &interface)?;
+    let resolution = caller.nominal_resolution()?;
     let owner = resolution.resolve(&syn::TypePath {
         qself: None,
         path: path.path,

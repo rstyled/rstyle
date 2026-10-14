@@ -587,3 +587,54 @@ shared-bundle bytes, 4,314,745 expanded-frontend bytes, 17,336,189 standalone
 pair/manifest bytes, 21 graphs and 20 helpers. Logs:
 `/tmp/rstyle-typed-options-{pdg-tests.log,regression.log,clippy.log,style.json,patterns.log,nextest.log}`
 and `/tmp/rstyle-data-{before,after}-storage.{jsonl,err}`.
+
+### Borrow successful lexical results within analysis
+
+Inspection and diagnostic replay showed that repeated source/type verification
+was larger than extension decoding: the same 21-function replay performed
+206 nominal resolutions, 326 census verifications and 120 inherent-definition
+checks. The diagnostic nominal-resolution total was 1.006976 seconds and the
+inherent-definition total 0.824160 seconds; these overlap and must not be added.
+Census verification, nested within those operations, took 0.471907 seconds.
+
+A fixed table now retains successful lexical resolutions and inherent ownership
+checks per function in each owning builder/analysis, with separate strict and
+generated-policy slots. Consumers borrow these results. The inherent-owner
+view also borrows its tree rather than adding a full type-tree clone to satisfy
+ownership. Every per-use call check remains. A failed or unwound check publishes
+nothing; caches are never serialized, transferred to another store, or keyed by
+names or foreign local IDs. Independently created analyses begin empty.
+
+A second diagnostic run performs 21 nominal resolutions, 28 census verifications
+and seven inherent-definition checks. Their nested totals are respectively
+0.103803, 0.041243 and 0.014398 seconds. Temporary per-check timing hooks were
+removed after observation. Before is `bd8e8ae` plus those hooks; after has the
+new caches and the same hooks. Logs/binaries:
+`/tmp/rstyle-nominal-{before,after}.{out,err}`,
+`/tmp/rstyle-nominal-before`, `/tmp/rstyle-nominal-instrumented-after`.
+
+Ordinary timing is separate from instrumentation and optional expansion. Three
+samples per version alternate on the same pinned-toolchain/debug/locked setup,
+retained snapshot, warm filesystem and idle machine, with builds excluded.
+Wall medians are 1.691269 seconds before and 0.568814 seconds after; peak-RSS
+medians are 27,256 and 25,508 KiB. Each sample completes 21 functions and 20
+unique helpers. Before retains disabled diagnostic boundaries; after is the
+final code without temporary hooks. These are helper replay measurements, not
+whole-CLI or matching timings. Script, individual samples and summary:
+`/tmp/rstyle-nominal-samples.{py,json}`,
+`/tmp/rstyle-nominal-sample-summary.log` and
+`/tmp/rstyle-nominal-{before,after}-*`.
+
+Two cache regressions check stable borrowed results, per-policy/per-owner
+separation, failure retry and unwind behavior. A real shared-unit CLI regression
+also checks strict/generated parity, independent analyses/stores, borrowed
+inherent-definition identity, and rejection of source edits with a recomputed
+source digest. The existing full source/type/dispatch tampering and family
+checks remain intact.
+
+Final lexical-cache validation passes: locked PDG tests; the new real CLI
+regression; formatting; workspace/all-target locked Clippy with warnings denied;
+1,984 assessed functions and zero style violations; zero actionable pattern
+candidates with the same 15 reviewed ignores. The full nextest wrapper passes
+640 tests in 166.973 seconds (one slow, zero skipped), then workspace doctests.
+Logs: `/tmp/rstyle-nominal-{pdg-tests.log,cli-regression.log,clippy.log,style.json,patterns.log,nextest.log}`.

@@ -21,6 +21,42 @@ pub struct Resolution {
     imports: BTreeMap<(Namespace, String), Namespace>,
 }
 
+/// Borrow a checked immutable lexical environment, or own the standalone result.
+/// This view carries no helper proof or serialized verification capability.
+pub struct ResolutionView<'a>(ResolutionStorage<'a>);
+
+enum ResolutionStorage<'a> {
+    Borrowed(&'a Resolution),
+    Owned(Box<Resolution>),
+}
+
+impl<'a> ResolutionView<'a> {
+    pub(crate) fn borrowed(value: &'a Resolution) -> Self {
+        Self(ResolutionStorage::Borrowed(value))
+    }
+    pub(crate) fn owned(value: Resolution) -> Self {
+        Self(ResolutionStorage::Owned(Box::new(value)))
+    }
+}
+
+impl std::ops::Deref for ResolutionView<'_> {
+    type Target = Resolution;
+    fn deref(&self) -> &Resolution {
+        match &self.0 {
+            ResolutionStorage::Borrowed(value) => value,
+            ResolutionStorage::Owned(value) => value,
+        }
+    }
+}
+
+pub(crate) fn from_facts(facts: &HirFnFacts) -> Result<Resolution, String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    verify(facts, &interface)
+}
+
 struct Declaration {
     path: PathBuf,
     span: ByteSpan,
@@ -328,14 +364,24 @@ fn function_scope(
     Ok(())
 }
 
+/// A checked inherent owner borrows its tree through the lexical environment.
+/// The standalone environment remains owned by this view until it is dropped.
+pub struct OwnerView<'a>(ResolutionView<'a>);
+
+impl std::ops::Deref for OwnerView<'_> {
+    type Target = TypeTree;
+    fn deref(&self) -> &TypeTree {
+        self.0.receiver.as_ref().expect("checked inherent owner")
+    }
+}
+
 /// Independently locate the exact nongeneric inherent implementation containing
 /// this owned function, then resolve its concrete owner in the closed unit.
-pub fn inherent_owner(facts: &HirFnFacts, implementation: &ByteSpan) -> Result<TypeTree, String> {
-    let interface = facts
-        .build
-        .frontend_options
-        .data::<crate::concrete_types::InterfaceObservations>()?;
-    let resolution = verify(facts, &interface)?;
+pub fn inherent_owner<'a>(
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+    implementation: &ByteSpan,
+) -> Result<OwnerView<'a>, String> {
+    let resolution = facts.nominal_resolution()?;
     let census: census::Census = evidence(facts, census::KEY)?;
     let modules = census::verify(&census)?;
     let file = facts
@@ -365,9 +411,10 @@ pub fn inherent_owner(facts: &HirFnFacts, implementation: &ByteSpan) -> Result<T
         return Err("Missing or ambiguous exact nongeneric inherent implementation".into());
     }
 
-    resolution
-        .receiver
-        .ok_or_else(|| "Missing independently resolved inherent owner".into())
+    if resolution.receiver.is_none() {
+        return Err("Missing independently resolved inherent owner".into());
+    }
+    Ok(OwnerView(resolution))
 }
 
 fn supported_inherent_member(item: &syn::ItemImpl, bytes: &str, facts: &HirFnFacts) -> bool {
