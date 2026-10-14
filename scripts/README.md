@@ -86,3 +86,16 @@ Use a single sandbox-local `CARGO_TARGET_DIR` and record commit, architecture,
 toolchain, build profile, cache state, filter and concurrency with observations.
 The supervisor cannot expose stderr that an inner CLI test buffers with
 `Command::output`; live child-stage instrumentation remains a separate task.
+
+Set `RSTYLE_PERF=1` for opt-in `rstyle-perf` JSON lines on stderr. Initial
+instrumentation covers `capture.binary_hash`, `producer.produce`,
+`producer.verify` and `helper.verify`. Starts are emitted before work; finishes
+and failures include monotonic elapsed seconds, PID, identity and nesting depth.
+Depth describes instrumented calls, not the source dependency-chain length.
+Helper visits are counted per thread by SHA-256 of exact encoded resolution
+bytes, including the serialized dependency. Names are navigation labels, never
+proof identities. These observations do not memoize or bypass any validation.
+Timing and counts never enter documents or deterministic reports. Detailed
+logging and diagnostic hashing add overhead: compare diagnostic runs separately
+from uninstrumented timings. This initial instrumentation does not yet cover all
+stages or make buffered child stderr visible in CLI tests.

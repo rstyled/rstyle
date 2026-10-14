@@ -174,6 +174,11 @@ fn executable_identity(path: PathBuf) -> Result<ExecutableIdentity, String> {
 }
 
 fn file_digest(path: &Path) -> Result<String, String> {
+    rstyle_pdg::diagnostics::Stage::new("capture.binary_hash", &path.display().to_string(), None)
+        .observe(|| hash_file(path))
+}
+
+fn hash_file(path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(super::digest(&bytes))
 }

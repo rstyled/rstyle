@@ -356,6 +356,15 @@ fn check_boundary(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), Vec<S
 }
 
 pub fn verify(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String> {
+    let evidence = node
+        .res
+        .as_ref()
+        .map(|resolution| resolution.description.as_bytes());
+    crate::diagnostics::Stage::new("helper.verify", &caller.name, evidence)
+        .observe(|| verify_dependency(node, caller))
+}
+
+fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String> {
     let description = &node
         .res
         .as_ref()

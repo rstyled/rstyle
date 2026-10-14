@@ -20,6 +20,7 @@ pub mod data_places;
 pub mod data_receivers;
 pub mod data_types;
 pub mod declaration_origins;
+pub mod diagnostics;
 pub mod eligibility;
 pub mod extraction_profile;
 pub mod field_locations;

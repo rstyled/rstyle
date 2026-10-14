@@ -15,6 +15,7 @@ pub use verify::verify;
 
 /// Build and validate one bounded normal-flow pair from captured frontend facts.
 pub fn produce(facts: &crate::HirFnFacts) -> Result<Pair, Vec<String>> {
+    let observation = crate::diagnostics::Stage::new("producer.produce", &facts.name, None).enter();
     let graph = lower(facts).map_err(|e| {
         e.diagnostics
             .into_iter()
@@ -37,7 +38,7 @@ pub fn produce(facts: &crate::HirFnFacts) -> Result<Pair, Vec<String>> {
         reasons: vec![conformance_reason(profile)],
     }];
 
-    Ok(pair)
+    observation.finish(Ok(pair))
 }
 
 /// Keep historical R0 wording distinct from local expansion conformance.

@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
+    let observation = crate::diagnostics::Stage::new("producer.verify", &facts.name, None).enter();
     let digest = format!("sha256:{:x}", Sha256::digest(facts.source.bytes.as_bytes()));
     if digest != facts.source.digest {
         return Err(vec!["Captured source identity is inconsistent".to_string()]);
@@ -39,7 +40,7 @@ pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     {
         crate::data_documents::verify(pair, facts).map_err(|error| vec![error])?;
     }
-    validate_boundary(pair, facts)
+    observation.finish(validate_boundary(pair, facts))
 }
 
 fn validate_boundary(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
