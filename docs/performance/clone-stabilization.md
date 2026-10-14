@@ -197,3 +197,16 @@ statistical benchmark or acceptance of the restored three-analysis test.
 
 Validation: six data-type tests, five transport/lexical tests, changed-target
 Clippy with warnings denied, formatting, and both default rstyle gates at zero.
+
+## Restored test phases
+
+The original inherent-family test now emits separate initial, post-return
+assertion/tampering, warm, and edit phase events without removing assertions or
+follow-up runs. A 120s diagnostic run completed the initial CLI in 67.452s and
+then timed out during strict post-return verification. Identical `Data::get`
+evidence had been revisited at least 139 times; its transport was being encoded
+for the 57th time when terminated. Warm/edit phases were not reached. Artifacts:
+`/tmp/rstyle-perf-inherent-restored-phases-ready`. The process group was terminated;
+this is incomplete validation, not a semantic test failure or acceptance pass.
+An earlier direct-test launch lacked `CARGO_BIN_EXE_cargo-rstyle` and failed
+immediately; the retained setup-failure logs are separate from this observation.

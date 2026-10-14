@@ -4811,11 +4811,16 @@ fn clones_data_inherent_family_composes_source_methods_fields_and_helpers() {
     let directory = clone_workspace();
     let source = format!("\u{feff}{}", DATA_INHERENT_FAMILY.replace('\n', "\r\n"));
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let initial =
+        rstyle_pdg::diagnostics::Stage::new("test.inherent.initial", "family", None).enter();
     let (output, report) = clones(
         directory.path(),
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
+    initial.finish(Ok::<(), String>(())).unwrap();
+    let assertions =
+        rstyle_pdg::diagnostics::Stage::new("test.inherent.assertions", "family", None).enter();
     assert_eq!(report["functions"].as_array().unwrap().len(), 21);
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted", "{function}");
@@ -4827,10 +4832,16 @@ fn clones_data_inherent_family_composes_source_methods_fields_and_helpers() {
     assert_eq!(report["pair_evaluation_complete"], true);
     check_inherent_call_evidence(&report);
     check_inherent_tampering(read_call_function(&report, "model::Data::wrap"));
+    assertions.finish(Ok::<(), String>(())).unwrap();
+    let warm_run =
+        rstyle_pdg::diagnostics::Stage::new("test.inherent.warm", "family", None).enter();
     let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{warm}");
     assert_eq!(pair_decisions(&report), pair_decisions(&warm));
+    warm_run.finish(Ok::<(), String>(())).unwrap();
+    let edit = rstyle_pdg::diagnostics::Stage::new("test.inherent.edit", "family", None).enter();
     check_inherent_call_edit(directory.path(), &report);
+    edit.finish(Ok::<(), String>(())).unwrap();
 }
 
 fn check_inherent_call_edit(directory: &Path, previous: &Value) {
