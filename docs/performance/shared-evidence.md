@@ -1,5 +1,8 @@
 # Shared evidence ownership work
 
+Current consolidated status: [acceptance audit](shared-evidence-audit.md).
+The sections below retain the chronology and intermediate limitations.
+
 Branch: `perf/shared-evidence-store`. Base: fetched `main`
 `045d4ac331babca8dbc8d33867d7044861ee70a2`. The clone-stabilization
 prerequisites are already merged into this base; no feature history is imported.
