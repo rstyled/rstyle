@@ -130,3 +130,11 @@ reads. Output is diagnostic scope and cannot claim source-to-pair completeness.
 This is an initial helper-stage seam, not the proposed full evidence-bundle format
 or the complete `rstyle-analysis` API. Retain the original source bytes alongside
 snapshots for regeneration; snapshots keep original provenance paths unchanged.
+
+Normal current-run driver/CLI production now uses the `trusted-generated`
+verification policy, retaining structural validation and avoiding duplicate graph
+reconstruction and recursive certified-summary derivation. Independent library
+calls and replay remain strict by default. To measure the normal production
+policy on one's own raw snapshot, add `--generated` to `helper_replay`. The
+reported scope remains diagnostic; choosing this policy does not certify capture
+completeness. Stage events and the CLI report declare the selected policy.

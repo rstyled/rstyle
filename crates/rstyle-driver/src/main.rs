@@ -181,6 +181,10 @@ impl HirExtract {
     }
 
     fn capture_complete(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        rstyle_pdg::verification_policy::generated(|| self.capture_generated(tcx, options));
+    }
+
+    fn capture_generated(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
         let facts = hir_extraction::crate_facts(tcx, &self.scanned, options)
             .expect("capture complete source-facing R0 evidence");
 

@@ -36,6 +36,7 @@ pub mod producer;
 pub mod source_evidence;
 pub mod validate;
 pub mod value_sites;
+pub mod verification_policy;
 pub use value_sites::validate_value_sites;
 
 pub use eligibility::{classify, span};

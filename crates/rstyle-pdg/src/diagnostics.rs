@@ -29,6 +29,7 @@ struct Event<'a> {
     evidence_digest: Option<String>,
     evidence_bytes: usize,
     elapsed_seconds: f64,
+    verification_policy: &'static str,
 }
 
 impl Event<'_> {
@@ -66,6 +67,11 @@ impl<'a> Observation<'a> {
             evidence_digest: digest,
             evidence_bytes: evidence.map_or(0, <[u8]>::len),
             elapsed_seconds: 0.0,
+            verification_policy: if crate::verification_policy::is_generated() {
+                "trusted-generated"
+            } else {
+                "strict"
+            },
         };
         event.emit();
 

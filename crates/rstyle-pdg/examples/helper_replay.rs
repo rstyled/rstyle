@@ -25,15 +25,20 @@ fn load(path: &Path) -> Result<Snapshot, String> {
     Ok(snapshot)
 }
 
-fn replay(path: &Path) -> Result<(), String> {
+fn replay(path: &Path, generated: bool) -> Result<(), String> {
     let mut snapshot =
         Stage::new("replay.load", &path.display().to_string(), None).observe(|| load(path))?;
-    helper_calls::capture(&mut snapshot.facts)?;
+    if generated {
+        rstyle_pdg::verification_policy::generated(|| helper_calls::capture(&mut snapshot.facts))?;
+    } else {
+        helper_calls::capture(&mut snapshot.facts)?;
+    }
     println!(
         "{}",
         serde_json::json!({
             "scope": "diagnostic-helper-certification",
             "boundary": "pre-helper-certification-facts",
+        "verification_policy": if generated { "trusted-generated" } else { "strict" },
             "functions": snapshot.facts.len(),
             "status": "stage-completed",
             "source_to_pair_complete": false,
@@ -45,10 +50,13 @@ fn replay(path: &Path) -> Result<(), String> {
 
 fn main() -> std::process::ExitCode {
     let Some(path) = std::env::args_os().nth(1) else {
-        eprintln!("usage: helper_replay <pre-helper-certification-snapshot.json>");
+        eprintln!("usage: helper_replay <pre-helper-certification-snapshot.json> [--generated]");
         return std::process::ExitCode::from(2);
     };
-    match replay(Path::new(&path)) {
+    let generated = std::env::args_os()
+        .nth(2)
+        .is_some_and(|flag| flag == "--generated");
+    match replay(Path::new(&path), generated) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("helper replay incomplete: {error}");

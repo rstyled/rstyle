@@ -34,6 +34,7 @@ struct Report<'a> {
     compiler_identity: &'a str,
     cargo_identity: &'a str,
     contract_revision: &'static str,
+    verification_policy: &'static str,
     extraction_selection: &'static str,
     extraction_policy: Policy,
     extraction_capabilities: &'static [&'static str],
@@ -99,6 +100,7 @@ pub fn make(ctx: Context<'_>) -> Result<Value, String> {
     };
 
     let report = Report {
+        verification_policy: "trusted-generated",
         scope,
         run_directory: &ctx.capture.directory,
         toolchain: crate::run::pinned_toolchain(),

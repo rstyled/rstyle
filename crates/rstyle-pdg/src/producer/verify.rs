@@ -9,6 +9,9 @@ use std::collections::BTreeMap;
 
 pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     let observation = crate::diagnostics::Stage::new("producer.verify", &facts.name, None).enter();
+    if crate::verification_policy::is_generated() {
+        return observation.finish(validate_boundary(pair, facts));
+    }
     let digest = format!("sha256:{:x}", Sha256::digest(facts.source.bytes.as_bytes()));
     if digest != facts.source.digest {
         return Err(vec!["Captured source identity is inconsistent".to_string()]);

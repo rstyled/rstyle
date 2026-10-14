@@ -5656,3 +5656,38 @@ fn clones_capture_only_retains_raw_facts_without_complete_publication() {
     assert_eq!(snapshot["phase"], "pre-helper-certification");
     assert_eq!(snapshot["facts"].as_array().unwrap().len(), 4);
 }
+
+#[test]
+fn clones_generated_policy_preserves_documents_and_structural_validation() {
+    let directory = clone_workspace();
+    let (output, report) = clones(directory.path(), &[]);
+    assert!(output.status.success());
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let (mut pair, facts) = data_pair(function);
+    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
+    let strict = rstyle_pdg::producer::produce(&facts)
+        .unwrap()
+        .serialize()
+        .unwrap();
+    let generated = rstyle_pdg::verification_policy::generated(|| {
+        rstyle_pdg::producer::produce(&facts)
+            .unwrap()
+            .serialize()
+            .unwrap()
+    });
+    assert_eq!(strict.pdg_bytes, generated.pdg_bytes);
+    assert_eq!(strict.cfg_bytes, generated.cfg_bytes);
+    assert_eq!(strict.manifest, generated.manifest);
+    pair.pdg.nodes[1].id = pair.pdg.nodes[0].id.clone();
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| {
+            rstyle_pdg::producer::verify(&pair, &facts)
+        })
+        .is_err()
+    );
+}

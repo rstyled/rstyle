@@ -135,3 +135,43 @@ adversarial, and costly tamper-proofing is unnecessary. Subsequent fixes should
 trust current-run driver production and avoid redundant reconstruction while
 retaining structural graph checks and independent correctness coverage. Imported
 replay remains explicitly distinguishable from current-run production.
+
+## Current-run generated evidence policy
+
+Following the user's revised nonadversarial threat model, the driver and fresh
+CLI handoff explicitly enter a trusted-generated scope. Producer verification
+keeps structural validation (including paired correspondence and value sites)
+but does not regenerate an expected graph from the same compiler facts. Helper
+use still checks caller signatures, inherent dispatch, dependency boundaries and
+arguments, without recursively recomputing the already generated callee summary.
+Document digests used for identity/byte correspondence remain intact.
+Independent library calls and imported replay default to the prior strict path.
+Policy is thread-local and is restored on nesting, early return and panic.
+The report and diagnostic events disclose the chosen policy.
+
+The exact raw 21-function family helper replay with `--generated` completed in
+37.788s (load 0.033s, helper capture 37.729s), versus a strict timeout at 120s.
+It processed 157 helper-verification visits, 154 producer verifications, 66
+transport encodes and 24 production attempts. Transport encodes alone total
+13.670s; repeated encoding of immutable certified dependencies is the next
+measured opportunity. Results/logs:
+`/tmp/rstyle-perf-inherent-helper-replay-generated`. This replay certifies the
+helper stage only; it does not establish full production/matching acceptance.
+
+The scoped-policy unwind/thread test passes. A focused real CLI test verifies
+strict/generated production yields byte-identical CFG/PDG and manifests, strict
+verification still accepts that generated output, and generated policy still
+rejects duplicate graph node IDs. A concurrent-build CLI attempt failed while
+fingerprinting a replaced executable and never reached analysis; it is recorded
+as setup failure, not an algorithm timeout. Subsequent measurements use stable
+copies of the matching sandbox binaries.
+
+One complete traced full-family CLI analysis now finishes under its 120s watchdog:
+73.045s total, 63.159s compiler capture/production, 39.304s helper certification.
+It admits all 21 functions, evaluates all 210 pairs, and retains all four
+completeness flags as true. Encodes total 18.478s across driver/CLI work; producer
+production spans total 33.060s (nested within capture, not additive). Logs, report
+and both phase snapshots are retained under
+`/tmp/rstyle-perf-inherent-generated-cli-stable` and
+`/tmp/rstyle-perf-inherent-generated-facts-stable`. This is one initial traced
+analysis, not the complete three-analysis restored E2E test or suite acceptance.
