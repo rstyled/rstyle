@@ -175,3 +175,25 @@ and both phase snapshots are retained under
 `/tmp/rstyle-perf-inherent-generated-cli-stable` and
 `/tmp/rstyle-perf-inherent-generated-facts-stable`. This is one initial traced
 analysis, not the complete three-analysis restored E2E test or suite acceptance.
+
+## Reuse immutable helper transport within capture
+
+Each capture now owns a certified dependency together with its lazily initialized
+transport encoding. Attachment clones the already encoded value; it does not
+serialize and rebuild the lossless table for every caller. The cache ends with
+that capture and is tied to the exact immutable dependency, rather than relying
+on a function name across runs. Encoding remains lazy so unused dependencies do
+not newly fail transport budgets. Per-call description size/depth checks remain.
+
+On the same raw snapshot, generated helper replay completes in 32.193s versus
+37.788s; transport encoding falls from 66 calls / 13.670s to 31 / 7.881s.
+One traced full-family CLI analysis completes in 67.457s versus 73.045s, with
+21 admitted functions, 210 pairs, and all four completeness flags true. All
+210 decisions, displayed scores and evaluation statuses agree after mapping
+rebuilt function keys to names. Retained artifacts:
+`/tmp/rstyle-perf-inherent-helper-replay-encoded-once` and
+`/tmp/rstyle-perf-inherent-encoded-cli`. These single observations are not a
+statistical benchmark or acceptance of the restored three-analysis test.
+
+Validation: six data-type tests, five transport/lexical tests, changed-target
+Clippy with warnings denied, formatting, and both default rstyle gates at zero.

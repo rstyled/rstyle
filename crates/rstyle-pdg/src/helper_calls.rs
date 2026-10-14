@@ -3,7 +3,7 @@
 use crate::{HirFnFacts, HirNode, producer};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::{cell::OnceCell, collections::BTreeMap};
 
 pub(crate) mod transport;
 mod transport_lexical;
@@ -197,8 +197,30 @@ pub fn capture(facts: &mut [HirFnFacts]) -> Result<(), String> {
 }
 
 struct CaptureState {
-    verified: BTreeMap<String, Dependency>,
+    verified: BTreeMap<String, CertifiedDependency>,
     pending: Vec<usize>,
+}
+
+/// One immutable proof and its lossless transport, owned by this capture only.
+struct CertifiedDependency {
+    dependency: Dependency,
+    encoded: OnceCell<Result<Value, String>>,
+}
+
+impl CertifiedDependency {
+    fn new(dependency: Dependency) -> Self {
+        Self {
+            dependency,
+            encoded: OnceCell::new(),
+        }
+    }
+
+    fn encoded(&self) -> Result<&Value, String> {
+        self.encoded
+            .get_or_init(|| transport::encode(&self.dependency))
+            .as_ref()
+            .map_err(Clone::clone)
+    }
 }
 
 struct Prepared {
@@ -236,7 +258,7 @@ impl CaptureState {
                 record.dependency.as_ref().map(|dependency| {
                     (
                         identity(&record.facts).unwrap_or_default().to_owned(),
-                        dependency.clone(),
+                        CertifiedDependency::new(dependency.clone()),
                     )
                 })
             })
@@ -274,7 +296,7 @@ fn apply_prepared(facts: &mut [HirFnFacts], prepared: Vec<Prepared>) {
 
 fn attach_all(
     facts: &mut [HirFnFacts],
-    verified: &BTreeMap<String, Dependency>,
+    verified: &BTreeMap<String, CertifiedDependency>,
 ) -> Result<(), String> {
     for function in facts {
         attach(&mut function.body, verified)?;
@@ -283,7 +305,10 @@ fn attach_all(
     Ok(())
 }
 
-fn attach(node: &mut HirNode, verified: &BTreeMap<String, Dependency>) -> Result<(), String> {
+fn attach(
+    node: &mut HirNode,
+    verified: &BTreeMap<String, CertifiedDependency>,
+) -> Result<(), String> {
     attach_children(node, verified)?;
     let Some(mut resolution) = direct_resolution(node) else {
         return Ok(());
@@ -297,7 +322,7 @@ fn attach(node: &mut HirNode, verified: &BTreeMap<String, Dependency>) -> Result
     if resolution["local"] != true {
         return Ok(());
     }
-    resolution[KEY] = transport::encode(dependency)?;
+    resolution[KEY] = dependency.encoded()?.clone();
     let description = serde_json::to_string(&resolution).map_err(|error| error.to_string())?;
     if description.len() > MAX_BYTES {
         return Err("Helper evidence exceeds explicit 8 MiB per-call budget".into());
@@ -310,7 +335,7 @@ fn attach(node: &mut HirNode, verified: &BTreeMap<String, Dependency>) -> Result
 
 fn attach_children(
     node: &mut HirNode,
-    verified: &BTreeMap<String, Dependency>,
+    verified: &BTreeMap<String, CertifiedDependency>,
 ) -> Result<(), String> {
     for child in &mut node.children {
         attach(child, verified)?;
