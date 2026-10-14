@@ -6,6 +6,7 @@
 //! semantic-equivalence claims.
 
 pub mod admission;
+mod compact;
 pub mod config;
 pub mod features;
 pub mod frac;
