@@ -1,0 +1,4 @@
+[profile.ci]
+# Each CLI test may launch a compiler. Bound process concurrency on small runners.
+test-threads = 4
+fail-fast = false

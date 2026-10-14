@@ -46,9 +46,14 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
-      # Includes doctests. The CLI tests build the rstyle driver on demand.
+      - name: Install nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.148
+
+      # Prebuild the driver before process-based tests; includes doctests separately.
       - name: Tests
-        run: cargo test --workspace --locked
+        run: CARGO_TARGET_DIR=target ./scripts/test.sh --nextest
 
       # Dog-food: rstyle on its own workspace. Exit 1 = violations, 2 = tool error.
       - name: rstyle self-check

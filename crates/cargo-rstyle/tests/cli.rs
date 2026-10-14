@@ -18,6 +18,15 @@ fn workspace_root() -> PathBuf {
 fn driver() -> &'static Path {
     static DRIVER: OnceLock<PathBuf> = OnceLock::new();
     DRIVER.get_or_init(|| {
+        if let Some(path) = std::env::var_os("RSTYLE_TEST_DRIVER") {
+            let path = PathBuf::from(path);
+            assert!(
+                path.is_file(),
+                "prebuilt test driver is missing: {}",
+                path.display()
+            );
+            return path;
+        }
         let status = Command::new("cargo")
             .args(["build", "--quiet", "-p", "rstyle-driver"])
             .current_dir(workspace_root())
