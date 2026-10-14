@@ -93,7 +93,10 @@ pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<Strin
 
 fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<String>> {
     use rstyle_pdg::extraction_profile::{EVIDENCE_KEY, LOCAL_ID};
-    if pdg.profile.id != LOCAL_ID && pdg.profile.id != "rstyle.rust.hir-helpers" {
+    if pdg.profile.id != LOCAL_ID
+        && pdg.profile.id != "rstyle.rust.hir-helpers"
+        && pdg.profile.id != rstyle_pdg::extraction_profile::DATA_ID
+    {
         return Ok(());
     }
     if cfg.profile.name != pdg.profile.id || cfg.profile.version != pdg.profile.version {
@@ -189,8 +192,9 @@ fn assemble_function(
     let reachability = node_reachability(cfg, map);
     let value_sites = rstyle_pdg::validate_value_sites(pdg, cfg)?;
     let nodes = import_nodes(pdg, &reachability, &value_sites);
-    let inputs = import_interface(&pdg.function.inputs);
-    let outputs = import_interface(&pdg.function.outputs);
+    let data = pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID;
+    let inputs = import_interface(&pdg.function.inputs, data);
+    let outputs = import_interface(&pdg.function.outputs, data);
     let name = import_name(pdg);
     let reference = import_reference(pdg);
 
@@ -214,6 +218,7 @@ fn assemble_function(
     let (width, native) = import_widths(pdg, ctx)?;
 
     Ok(ImportedFunction {
+        matching_profile: imported_matching_profile(pdg),
         extraction_context: local_context(pdg)?,
         key,
         nodes: nodes.unwrap_or_default(),
@@ -227,9 +232,21 @@ fn assemble_function(
     })
 }
 
+fn imported_matching_profile(pdg: &PdgDocument) -> crate::graph::MatchingProfile {
+    use crate::graph::MatchingProfile;
+    match (pdg.profile.id.as_str(), pdg.profile.version.as_str()) {
+        (rstyle_pdg::extraction_profile::DATA_ID, "2.0.0" | "3.0.0") => {
+            MatchingProfile::DataCallsV1
+        }
+        (rstyle_pdg::extraction_profile::DATA_ID, _) => MatchingProfile::DataV1,
+        _ => MatchingProfile::ScalarV1,
+    }
+}
+
 fn local_context(pdg: &PdgDocument) -> Result<Option<String>, Vec<String>> {
     if pdg.profile.id != rstyle_pdg::extraction_profile::LOCAL_ID
         && pdg.profile.id != "rstyle.rust.hir-helpers"
+        && pdg.profile.id != rstyle_pdg::extraction_profile::DATA_ID
     {
         return Ok(None);
     }
@@ -249,7 +266,15 @@ fn local_context(pdg: &PdgDocument) -> Result<Option<String>, Vec<String>> {
                 .ok_or_else(|| vec![format!("Missing compatible build setting {key}")])?,
         );
     }
-    let context = serde_json::json!([pdg.profile, settings]);
+    let context = if pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID {
+        serde_json::json!([
+            pdg.profile,
+            pdg.extensions.get(rstyle_pdg::data_documents::POLICY_KEY),
+            settings
+        ])
+    } else {
+        serde_json::json!([pdg.profile, settings])
+    };
 
     Ok(Some(context.to_string()))
 }
@@ -301,17 +326,21 @@ fn import_nodes(
     reachability: &BTreeMap<String, bool>,
     value_sites: &BTreeSet<String>,
 ) -> Result<Vec<ImportedNode>, Vec<String>> {
-    collect_results(
-        pdg.nodes
-            .iter()
-            .map(|node| import_node(node, reachability, value_sites)),
-    )
+    collect_results(pdg.nodes.iter().map(|node| {
+        import_node(
+            node,
+            reachability,
+            value_sites,
+            pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID,
+        )
+    }))
 }
 
 fn import_node(
     node: &rstyle_pdg::PdgNode,
     reachability: &BTreeMap<String, bool>,
     value_sites: &BTreeSet<String>,
+    data: bool,
 ) -> Result<ImportedNode, String> {
     let procedural = matches!(
         node.category,
@@ -341,7 +370,11 @@ fn import_node(
         defines_binding: !node.attributes.defines.is_empty(),
         reads_or_writes: !node.attributes.reads.is_empty() || !node.attributes.writes.is_empty(),
         value_site_reachable: value_sites.contains(&node.id),
-        read_symbols: read_symbols(node),
+        read_symbols: if data {
+            rstyle_pdg::data_documents::read_keys(node)
+        } else {
+            read_symbols(node)
+        },
         registered_meaning: node.attributes.description.clone(),
     })
 }
@@ -376,8 +409,9 @@ fn import_edges(pdg: &PdgDocument) -> Vec<ImportedEdge> {
 
 fn import_interface(
     params: &[rstyle_pdg::Parameter],
+    data: bool,
 ) -> Result<Vec<InterfaceElement>, Vec<String>> {
-    convert_params(&sorted_params(params))
+    convert_params(&sorted_params(params), data)
 }
 
 fn sorted_params(params: &[rstyle_pdg::Parameter]) -> Vec<rstyle_pdg::Parameter> {
@@ -386,12 +420,19 @@ fn sorted_params(params: &[rstyle_pdg::Parameter]) -> Vec<rstyle_pdg::Parameter>
     ordered
 }
 
-fn convert_params(ordered: &[rstyle_pdg::Parameter]) -> Result<Vec<InterfaceElement>, Vec<String>> {
-    collect_results(ordered.iter().map(import_element))
+fn convert_params(
+    ordered: &[rstyle_pdg::Parameter],
+    data: bool,
+) -> Result<Vec<InterfaceElement>, Vec<String>> {
+    collect_results(
+        ordered
+            .iter()
+            .map(|parameter| import_element(parameter, data)),
+    )
 }
 
-fn import_element(param: &rstyle_pdg::Parameter) -> Result<InterfaceElement, String> {
-    let normalized = resolve_type(param)?;
+fn import_element(param: &rstyle_pdg::Parameter, data: bool) -> Result<InterfaceElement, String> {
+    let normalized = resolve_type(param, data)?;
 
     if param.variadic.value != Some(false) || param.variadic.status != rstyle_pdg::FactStatus::Known
     {
@@ -420,10 +461,15 @@ fn param_role_token(role: rstyle_pdg::ParamRole) -> &'static str {
 
 /// Normalized types come from the resolved-type extension or the known type
 /// fact with `()` normalized to `unit`. Alias spellings are never rewritten.
-fn resolve_type(param: &rstyle_pdg::Parameter) -> Result<String, String> {
+fn resolve_type(param: &rstyle_pdg::Parameter, data: bool) -> Result<String, String> {
     if let Some(extension) = param.extensions.get(RESOLVED_TYPE_KEY) {
         match resolved_extension_value(extension).as_deref() {
-            Some(seen) if is_accepted_type(seen) => return Ok(seen.to_string()),
+            Some(seen)
+                if is_accepted_type(seen)
+                    || data && rstyle_pdg::data_types::parse(seen).is_ok() =>
+            {
+                return Ok(seen.to_string());
+            }
             Some(seen) => {
                 return Err(format!(
                     "interface position {}: unsupported resolved type {seen:?}",
@@ -441,7 +487,11 @@ fn resolve_type(param: &rstyle_pdg::Parameter) -> Result<String, String> {
 
     match param.type_fact.known_value() {
         Some("()") => Ok("unit".to_string()),
-        Some(seen) if is_accepted_type(seen) => Ok(seen.to_string()),
+        Some(seen)
+            if is_accepted_type(seen) || data && rstyle_pdg::data_types::parse(seen).is_ok() =>
+        {
+            Ok(seen.to_string())
+        }
         Some(seen) => Err(format!(
             "interface position {}: unsupported type {seen:?}",
             param.position
@@ -532,13 +582,26 @@ fn import_widths(
                 .and_then(serde_json::Value::as_str)
                 .is_some_and(|ty| matches!(ty, "isize" | "usize"))
         });
+    let data_native = pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID
+        && pdg.nodes.iter().any(|node| {
+            node.annotations
+                .get("compat.rust.hir-r0:type")
+                .and_then(|value| value.get("value"))
+                .and_then(serde_json::Value::as_str)
+                .and_then(|token| rstyle_pdg::data_types::parse(token).ok())
+                .is_some_and(|token| token.native_width())
+        });
     let transitive_native = helper_native_width(pdg)?;
 
-    Ok((width, native || local_native || transitive_native))
+    Ok((
+        width,
+        native || local_native || data_native || transitive_native,
+    ))
 }
 
 fn helper_native_width(pdg: &PdgDocument) -> Result<bool, Vec<String>> {
-    if pdg.profile.id != "rstyle.rust.hir-helpers" {
+    if !rstyle_pdg::extraction_profile::policy_supports(&pdg.profile, "rust.verified-helper-calls")
+    {
         return Ok(false);
     }
     let evidence = pdg
@@ -592,6 +655,7 @@ fn merge_refused(report: &mut RunReport, refused: Vec<(String, Vec<String>)>) {
     for (key, reasons) in refused {
         report.functions.push(FunctionRecord {
             key: key.clone(),
+            matching_profile: None,
             eligible: false,
             reasons,
             projection: None,

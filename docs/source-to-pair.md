@@ -223,6 +223,97 @@ remain exhaustive under the unchanged pinned scalar matching algorithm.
 
 This interim command does **not** complete the compositional data expansion.
 Assertions, additional patterns/constants, concrete read-only APIs and cross-unit
-dependencies remain unavailable under it. The planned `hir-data-v1` command and
-its separate matching extension are not registered or selectable yet. Defaults,
+dependencies remain unavailable under it. The separate `hir-data-v1` command and matching extension are described below. Defaults,
 R0 and hir-expanded-v1 retain their historical semantics.
+
+## Local data selection (implementation in progress)
+
+```sh
+PATH="$PWD/target/debug:$PATH" cargo rstyle clones \
+  --manifest-path path/to/Cargo.toml --extraction-profile hir-data-v1 --trace
+```
+
+This selects `rstyle.rust.hir-data/1.0.0` and the separately registered
+`rstyle.ccgraph.data/1.0.0` matching extension. It reuses the strict matching
+algorithm and defaults. The currently connected boundary admits scalar/tuple/
+literal-array and verified concrete struct interfaces, shared parameters/receivers,
+formal tuple/struct field reads (including nested paths), and shared
+outputs selected by supported branching. Field reads can feed verified scalar
+helper calls. Each location retains its root and ordered projections; shared
+inputs may alias. Borrowed value origins are checked against both original source
+and serialized value dependencies. Non-scalar interfaces use deterministic type
+trees; reference mutability, referents, widths and array lengths are preserved.
+
+Shared field borrows preserve exact locations and borrowed outputs, including
+conditional outputs. Their address projections do not invent referent reads.
+Stored shared-reference fields and by-value non-generic struct/tuple values now
+retain exact nominal field origins, including nested conditional outputs. Loading
+a stored reference records a field read and its referent path. Lifetime-only
+local nominal declarations/impls use exact region instantiation and declaration/
+path-argument arity proof. Reference-bearing array elements, type/const generics
+and bounded lifetime impls remain excluded.
+Nested aggregate bases compute places; stored reference bases retain their actual
+pointer read. Field types are independently checked against source-derived
+locations before this classification. Consecutive implicit shared dereferences
+without referent-storage read evidence remain explicitly unavailable.
+The four core slice/str len/is_empty methods now retain source CALLs with verified
+receiver origins/adjustments, exact instantiated signatures and a tested pinned
+core registry. Separately verified registries support nightly-2026-09-30 on
+aarch64-unknown-linux-gnu and x86_64-unknown-linux-gnu; other core builds remain unavailable. Length counts
+slice elements or UTF-8 bytes, with no invented buffer read/write or panic edge.
+Stored fields, grouped explicit field borrows, scalar helper calls, scalar loops
+and borrowed branching outputs compose through the existing command. All fifteen
+functions in the independent family admit and all 105 pairs receive decisions;
+this is correctness evidence only. See `read-only-length-registry-v1.md` for exact
+provenance, signatures/effects and independent CALL verification obligations,
+and `read-only-lengths-x86_64-v1.md` for the separate x86_64 core authority.
+Same-unit direct helpers additionally support shared inputs with scalar/unit
+results under the existing verified memory-free boundary. Whole shared-formal
+results require `rstyle.helper.shared-return/1` and an exact verified return-origin
+summary. Source and serialized graph proofs substitute only the selected actual
+argument origins, including aliases and stored-field arguments; helper results
+can feed registered metadata calls. The ten-function family reaches all 45 pairs.
+See `read-only-helper-calls-v1.md` for build, summary and origin obligations.
+
+The separately registered `--extraction-profile hir-data-v2` selects
+`rstyle.rust.hir-data/2.0.0` and `rstyle.ccgraph.data-calls/1.0.0`.
+It additionally admits same-unit direct helpers reading verified shared formal
+fields with scalar/unit results. `rstyle.helper.read-only-body/1` retains exact
+callee read occurrences and substitutes actual shared-reference origins into
+caller locations, preserving aliases and stored-reference dereferences. Source
+CALLs retain their argument edges and exact read accesses; no callee nodes are
+inlined. Independent document verification checks summaries, locations and CALL
+effects. The twenty-function composition family reaches all 190 pair decisions,
+including field borrows, qualified aliases, repeated/aliased reads, branching
+reference arguments, metadata calls, casts and caller scalar loops. Its frozen
+contract is `docs/extraction-profiles/data-calls-v1.md`.
+Data-v1 retains its existing reference-count interpretation and decisions.
+By-value or borrowed-result memory-reading helper callees, aggregate reference-valued result components,
+inherent-method helper dispatch and cross-unit linking remain unavailable.
+Aggregate construction, local reference rebindings, other library summaries,
+slice indexing/subslicing, and assertions are still
+unavailable in this implementation. Their observations do not admit them. This
+command is an incremental connected slice of the broader data coverage work,
+not completion of that work or a natural-coverage/quality result. Existing R0,
+expanded, helper, style and patterns selections retain their semantics.
+
+`--extraction-profile hir-data-v3` separately selects
+`rstyle.rust.hir-data/3.0.0` with the existing data-calls matching profile.
+It adds verified same-unit concrete inherent methods with shared receivers,
+including method syntax and UFCS. Exact original declarations, containing impls,
+receiver adjustments and transitive callee documents must agree. The connected
+21-function fixture reached all 210 unordered pair decisions, including warm
+and edited-callee runs. This is fixture coverage, not natural-crate coverage.
+The contract and bounded lossless dependency transport are specified in
+`docs/extraction-profiles/inherent-read-only-calls-v1.md`. Cross-unit linking,
+borrowed results from memory-reading callees, indexing/subslicing, assertions
+and aggregate construction remain unavailable; Data-v3 does not complete the
+broader admission goal. Earlier profile selections retain their boundaries.
+
+Nominal APIs additionally require a frozen selected-unit context passed explicitly
+to the driver, a census of original compiler source buffers, independent ordinary
+module closure, exact source declaration/receiver ownership and lexical named-type
+resolution. The initial unit-wide drop-free proof excludes trait impls, derives,
+macros, unsafe item forms and conditional/path-overridden modules. Scalar functions
+do not acquire nominal admission from successful compilation or a supplied flag.
+See [nominal-data-v1.md](extraction-profiles/nominal-data-v1.md).

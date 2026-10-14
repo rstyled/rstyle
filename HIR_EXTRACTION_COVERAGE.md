@@ -284,3 +284,57 @@ exposed examples are disclosed regressions. These coverage measurements and
 correctness fixtures establish no post-expansion heldout pair quality. A new
 preregistered quality study should use untouched project/family holdouts before
 making broader quality claims; no such study or HIR abstraction-mining workflow was activated here.
+
+The separate opt-in `hir-data-v1` now has a connected nonnominal data slice:
+shared scalar/tuple/array/slice/str interfaces, formal tuple field reads, and
+source-verified shared outputs selected by supported branching. A composed
+six-function Cargo fixture admits and projects all six functions and enumerates
+all 15 pairs, including field reads feeding verified scalar helpers. This is
+correctness evidence only. The next connected slice admits concrete nominal
+shared-receiver getters, nested field reads and named imports/aliases under a
+closed-unit original-source/drop-free proof. Its five-function real Cargo fixture
+reaches all ten pairs. Shared field borrows now retain address projections and
+conditional borrowed outputs through verified source-to-pair evaluation.
+Stored shared-reference fields and by-value reference-bearing struct/tuple
+values also preserve nested nominal origins; their seven-function fixture reaches
+all 21 pairs. Lifetime-only nominal declarations and inherent impls additionally
+reach all 28 pairs in an eight-function module/alias/API fixture. Reference-bearing
+array elements, type/const generics and bounded lifetime impls remain unavailable.
+The versioned field-context correction now preserves aggregate places and actual
+stored-reference loads; extra implicit dereferences lacking read evidence fail
+closed. Corrected feature measurements are recorded separately from earlier
+disclosed fixture results.
+Read-only slice/str len/is_empty calls now use exact receiver/signature/core
+artifact evidence and independent serialized CALL checks. The initial registered
+core build is nightly-2026-09-30/aarch64-unknown-linux-gnu. A fifteen-function
+family combines stored fields, explicit grouped borrows, verified scalar calls,
+scalar loops and borrowed branching outputs and reaches all 105 pair decisions.
+No new memory write/buffer read or scoring interpretation is introduced.
+Verified same-unit memory-free direct helpers now accept canonical shared-input
+types. Whole shared-formal results use a separately identified return-origin
+summary, selected actual-argument substitution and independent source/graph
+verification. Qualified aliases, multi-level calls, argument permutations,
+branching origins and stored-field actual arguments compose with registered
+metadata operations. The ten-function borrowed-result family reaches all 45 pairs;
+Data-v2 additionally admits direct shared-input memory-reading helpers with
+scalar/unit results, exact per-occurrence callee read summaries, independently
+verified actual-origin substitution and CALL effects. The twenty-function
+composition family reaches all 190 pairs without inlining. By-value or
+borrowed-result memory-reading callees, aggregate reference-result components, inherent-method
+helper dispatch and cross-unit summaries remain unavailable.
+Construction, local reference correspondence, other library methods and
+indexing/subslicing remain unfinished; the broader
+data goal and natural-coverage targets are not achieved. See the versioned local
+data contract and progress record under `docs/extraction-profiles`.
+
+The separately selected `hir-data-v3` implementation adds verified concrete
+same-unit inherent helper calls under extraction identity `rstyle.rust.hir-data/3.0.0`.
+The connected 21-function fixture reached all 210 pairs with warm-run invariance
+and transitive invalidation after a getter-field edit. Independent schema checks
+accepted its 21 PDG and 21 CFG documents without vendored changes. Inherent
+ownership includes exact original method names, containing impls and shared
+receiver adjustments; UFCS additionally requires lexical nominal-owner resolution.
+Bounded dependency transport preserves original serialized bytes and existing
+verification budgets. These fixture results do not establish natural coverage
+or complete the remaining data capabilities listed above. The previous Data-v2
+boundary and historical inventory remain unchanged.

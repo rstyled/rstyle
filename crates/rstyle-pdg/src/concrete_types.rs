@@ -1,5 +1,9 @@
 //! Bounded, observational concrete type evidence. Never authorizes admission.
 
+mod declarations;
+pub mod lifetimes;
+pub mod source_proof;
+
 use crate::source_evidence::byte_offset;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -31,9 +35,11 @@ pub enum TypeTree {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Nominal {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_identity: Option<String>,
     pub package_name: String,
     pub package_version: String,
     pub manifest_digest: String,
@@ -183,6 +189,7 @@ fn check_declaration(nominal: &Nominal, source: &str, fields: &[Field]) -> Resul
         .map_err(|error| format!("Invalid concrete struct declaration: {error}"))?;
     if nominal.definition_path.rsplit("::").next() != Some(declaration.ident.to_string().as_str())
         || !declaration.generics.params.is_empty()
+            && lifetimes::parameter_count(&declaration.generics).is_err()
         || declaration.fields.len() != fields.len()
     {
         return Err("Concrete struct name, generics or field inventory disagrees".into());
@@ -217,24 +224,7 @@ fn check_field(
         );
     }
 
-    check_declared_scalar(&declared.ty, &captured.ty)?;
-
-    Ok(())
-}
-
-fn check_declared_scalar(declaration: &syn::Type, captured: &TypeTree) -> Result<(), String> {
-    if let syn::Type::Path(path) = declaration
-        && path.qself.is_none()
-        && path.path.leading_colon.is_none()
-        && path.path.segments.len() == 1
-    {
-        let token = path.path.segments[0].ident.to_string();
-        if scalar(&token) && captured != &TypeTree::Scalar(token) {
-            return Err(
-                "Declared primitive field type contradicts resolved scalar evidence".into(),
-            );
-        }
-    }
+    declarations::check(&declared.ty, &captured.ty)?;
 
     Ok(())
 }

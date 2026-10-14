@@ -71,6 +71,20 @@ pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
 }
 
 impl Inventory<'_> {
+    fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
+        if matches!(expression, syn::Expr::Field(_) | syn::Expr::Reference(_))
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.concrete-read-only-data"))
+        {
+            return Some(if matches!(expression, syn::Expr::Reference(_)) {
+                "expr_addr_of"
+            } else {
+                "expr_field"
+            });
+        }
+        expression_kind(expression)
+    }
+
     fn add(&mut self, kind: &str, span: proc_macro2::Span) {
         let source = &self.facts.source.bytes;
         let span = ByteSpan {
@@ -94,7 +108,7 @@ impl Inventory<'_> {
 
 impl<'ast> Visit<'ast> for Inventory<'_> {
     fn visit_expr(&mut self, expression: &'ast syn::Expr) {
-        let kind = expression_kind(expression);
+        let kind = self.expression_kind(expression);
         if let Some(kind) = kind {
             self.add(kind, expression.span());
         }
@@ -254,7 +268,7 @@ pub fn diagnostics(facts: &HirFnFacts) -> Vec<crate::HirDiagnostic> {
     inventory.entries.into_iter().filter_map(|entry| {
         if entry.kind == "expr_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-helper-calls")) { return None; }
         if entry.kind == "expr_method_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-primitive-summaries"))
-            && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir)) { return None; }
+            && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir, facts)) { return None; }
         let capability = match entry.kind.as_str() {
             "expr_call" | "expr_method_call" => "rust.call-summaries",
             "source_macro" => "rust.macros",
@@ -363,10 +377,14 @@ fn owned_function_span(
     start.join(body).unwrap_or(start)
 }
 
-fn resolved_summary(node: &HirNode, hir: &HirRef) -> bool {
-    (node.hir == *hir && crate::call_summaries::resolve(node).is_some())
+fn resolved_summary(node: &HirNode, hir: &HirRef, facts: &HirFnFacts) -> bool {
+    (node.hir == *hir
+        && (crate::inherent_calls::source_resolved(node, facts).unwrap_or(false)
+            || crate::data_library::source_resolved(node, facts).unwrap_or(false)
+            || crate::call_summaries::resolve_for(node, facts)
+                .is_ok_and(|summary| summary.is_some())))
         || node
             .children
             .iter()
-            .any(|child| resolved_summary(child, hir))
+            .any(|child| resolved_summary(child, hir, facts))
 }

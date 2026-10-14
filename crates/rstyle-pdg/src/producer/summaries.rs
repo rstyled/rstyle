@@ -53,21 +53,30 @@ impl SummaryCapture<'_> {
         let [operation] = operations.as_slice() else {
             return Err("Ambiguous or missing call source/HIR correspondence".into());
         };
-        if node.kind == "expr_call" {
+        if node.kind == "expr_call" || crate::helper_calls::direct_resolution(node).is_some() {
             return serde_json::to_value(HelperRecord {
                 pdg_node_id: &operation.id,
                 source_span: node.span,
                 operand_pdg_node_ids: &operation.operands,
-                dependency: crate::helper_calls::verify(node, self.facts)?,
+                dependency: crate::helper_calls::transport::encode(&crate::helper_calls::verify(
+                    node, self.facts,
+                )?)?,
             })
             .map_err(|error| error.to_string());
         }
-        let summary = call_summaries::resolve(node).ok_or("Missing verified primitive summary")?;
+        let summary = call_summaries::resolve_for(node, self.facts)?
+            .ok_or("Missing verified method summary")?;
+        let library = if crate::data_library::operation(node).is_some() {
+            Some(crate::data_library::evidence(node, self.facts)?)
+        } else {
+            None
+        };
 
         serde_json::to_value(SummaryRecord {
             pdg_node_id: &operation.id,
             source_span: operation.span,
-            summary,
+            summary: &summary,
+            library,
             operand_pdg_node_ids: &operation.operands,
             overflow_checks: &self.facts.build.overflow_checks,
             debug_assertions: &self.facts.build.debug_assertions,
@@ -82,7 +91,7 @@ struct HelperRecord<'a> {
     pdg_node_id: &'a str,
     source_span: crate::ByteSpan,
     operand_pdg_node_ids: &'a [String],
-    dependency: crate::helper_calls::Dependency,
+    dependency: Value,
 }
 
 #[derive(serde::Serialize)]
@@ -90,6 +99,8 @@ struct SummaryRecord<'a> {
     pdg_node_id: &'a str,
     source_span: crate::ByteSpan,
     summary: &'a call_summaries::Summary,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    library: Option<Value>,
     operand_pdg_node_ids: &'a [String],
     overflow_checks: &'a crate::BoolFact,
     debug_assertions: &'a crate::BoolFact,

@@ -450,6 +450,18 @@ fn symbol(binding: &BindingFact) -> Symbol {
     }
 }
 
+fn input_role(facts: &HirFnFacts, position: u32) -> ParamRole {
+    if position == 0
+        && facts.signature.has_self
+        && crate::extraction_profile::ExtractionProfile::from_facts(facts)
+            .is_ok_and(|p| p.is_data())
+    {
+        ParamRole::Receiver
+    } else {
+        ParamRole::Parameter
+    }
+}
+
 fn function(facts: &HirFnFacts, graph: &Graph, analysis: &Analysis) -> FunctionInfo {
     let inputs = facts
         .signature
@@ -457,7 +469,7 @@ fn function(facts: &HirFnFacts, graph: &Graph, analysis: &Analysis) -> FunctionI
         .iter()
         .map(|p| Parameter {
             position: u64::from(p.position),
-            role: ParamRole::Parameter,
+            role: input_role(facts, p.position),
             symbol_id: Some(p.symbol.clone()),
             name: StringFact::known(&p.pat.snippet),
             type_fact: StringFact::known(&p.ty.spelling),

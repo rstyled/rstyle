@@ -16,7 +16,7 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 pub struct Args {
-    /// Extraction selection: r0, hir-expanded-v1, or verified local hir-helpers-v1.
+    /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     /// JSON matching overrides, separate from legacy rstyle.toml.
@@ -88,6 +88,8 @@ struct Function {
     reasons: Vec<String>,
     facts: HirFnFacts,
     document_manifest: Option<producer::Manifest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    nominal_unit_binding: Option<rstyle_pdg::nominal_binding::Binding>,
     projection_trace: Option<Value>,
     extraction_evidence: Option<Value>,
 }
@@ -143,6 +145,19 @@ impl Handoff {
     }
 }
 
+fn matching_profile(args: &Args) -> rstyle_ccgraph::MatchingProfile {
+    match args.extraction_profile {
+        rstyle_pdg::extraction_profile::ExtractionProfile::DataV1 => {
+            rstyle_ccgraph::MatchingProfile::DataV1
+        }
+        rstyle_pdg::extraction_profile::ExtractionProfile::DataV2
+        | rstyle_pdg::extraction_profile::ExtractionProfile::DataV3 => {
+            rstyle_ccgraph::MatchingProfile::DataCallsV1
+        }
+        _ => rstyle_ccgraph::MatchingProfile::ScalarV1,
+    }
+}
+
 pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
     let mut capture = capture::prepare(cli, args)?;
@@ -150,10 +165,11 @@ pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         capture.failures.push(error);
     }
     let handoff = handoff(&capture, args.trace);
-    let matching = rstyle_ccgraph::pipeline::evaluate_with_pair_limit(
+    let matching = rstyle_ccgraph::pipeline::evaluate_selected(
         &handoff.admitted,
         &config,
         args.max_pairs,
+        matching_profile(args),
     );
 
     let accepted = matching
@@ -219,18 +235,63 @@ fn consume_unit(
     result.source_inventory.extend(source_inventory(unit)?);
 
     let facts: Vec<HirFnFacts> = read_json(&unit.directory.join("facts.json"))?;
-    for (index, function) in facts.into_iter().enumerate() {
-        verify_frontend_invocation(&function, unit, capture)?;
+    for function in &facts {
+        verify_frontend_invocation(function, unit, capture)?;
+        verify_receiver_inventory(function, unit.extraction_profile)?;
+        rstyle_pdg::data_library::verify_evidence(function)?;
+    }
+    let bindings = nominal_bindings(&facts, unit)?;
+    for (index, (function, binding)) in facts.into_iter().zip(bindings).enumerate() {
         let key = function_key(&function, unit, capture)?;
         if !result.keys.insert(key.clone()) {
             return Err(format!("duplicate function key {key}"));
         }
         let mut record = function_record(function, key, unit, index);
+        record.nominal_unit_binding = binding;
         let input = FunctionInput { unit, index, trace };
         let admission = consume_function(&mut record, &input);
         result.add(record, admission);
     }
     Ok(())
+}
+
+fn verify_receiver_inventory(
+    facts: &HirFnFacts,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<(), String> {
+    if profile.is_data()
+        && !facts
+            .build
+            .frontend_options
+            .contains_key(rstyle_pdg::data_receivers::KEY)
+    {
+        return Err("Missing required Data receiver capture inventory".into());
+    }
+    rstyle_pdg::data_receivers::verify(facts).map(|_| ())
+}
+
+fn nominal_bindings(
+    facts: &[HirFnFacts],
+    unit: &capture::Unit,
+) -> Result<Vec<Option<rstyle_pdg::nominal_binding::Binding>>, String> {
+    if !unit
+        .extraction_profile
+        .supports("rust.verified-helper-calls")
+    {
+        return Ok(vec![None; facts.len()]);
+    }
+    let context = unit
+        .target
+        .package_context
+        .as_ref()
+        .ok_or("Missing selected Cargo package snapshot")?;
+    if context.package_id != unit.target.package
+        || context.manifest_path.parent() != Some(unit.target.manifest_dir.as_path())
+    {
+        return Err("Cargo package snapshot disagrees with selected target".into());
+    }
+
+    rstyle_pdg::nominal_binding::bind_unit(facts, context)
 }
 
 fn source_inventory(unit: &capture::Unit) -> Result<Option<Value>, String> {
@@ -263,6 +324,7 @@ fn function_record(
         reasons: Vec::new(),
         facts: function,
         document_manifest: None,
+        nominal_unit_binding: None,
         projection_trace: None,
         extraction_evidence: None,
     }
@@ -293,6 +355,47 @@ fn verify_frontend_invocation(
         || facts.build.rustc_version.known_value() != capture.plan.compiler_identity.lines().next()
     {
         return Err("frontend invocation or pinned compiler identity disagrees with run".into());
+    }
+    verify_selected_unit(facts, unit)?;
+    verify_data_compiler_commit(facts, capture)
+}
+
+fn verify_data_compiler_commit(
+    facts: &HirFnFacts,
+    capture: &capture::Capture,
+) -> Result<(), String> {
+    if !capture.plan.extraction_profile.is_data() {
+        return Ok(());
+    }
+    let expected = capture
+        .plan
+        .compiler_identity
+        .lines()
+        .find_map(|line| line.strip_prefix("commit-hash: "))
+        .ok_or("Missing planned compiler commit identity")?;
+    if facts.build.rustc_commit.known_value() != Some(expected) {
+        return Err("Data compiler commit disagrees with frozen compiler identity".into());
+    }
+    Ok(())
+}
+
+fn verify_selected_unit(facts: &HirFnFacts, unit: &capture::Unit) -> Result<(), String> {
+    use rstyle_pdg::nominal_boundary::{CONTEXT_KEY, UnitContext};
+    let context = facts.build.frontend_options.get(CONTEXT_KEY);
+    if !unit.extraction_profile.is_data() {
+        return if context.is_none() {
+            Ok(())
+        } else {
+            Err("Unexpected selected-unit data context".into())
+        };
+    }
+    let actual: UnitContext =
+        serde_json::from_value(context.ok_or("Missing selected-unit data context")?.clone())
+            .map_err(|e| e.to_string())?;
+
+    actual.transport()?;
+    if actual != capture::selected_unit_context(&unit.target, &unit.invocation)? {
+        return Err("Selected-unit context disagrees with frozen Cargo plan or invocation".into());
     }
     Ok(())
 }

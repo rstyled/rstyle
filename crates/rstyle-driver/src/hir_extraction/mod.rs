@@ -3,6 +3,9 @@
 mod concrete_types;
 mod evidence;
 mod hir;
+mod inherent;
+mod library_artifacts;
+mod nominal_census;
 pub mod output;
 pub mod source;
 
@@ -14,6 +17,7 @@ use rustc_middle::ty::TyCtxt;
 pub struct Options<'a> {
     pub profile: Option<ExtractionProfile>,
     pub invocation: &'a [String],
+    pub unit_context: Option<&'a rstyle_pdg::nominal_boundary::UnitContext>,
 }
 
 impl Options<'_> {
@@ -33,11 +37,25 @@ pub fn crate_facts(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         ))))
         .collect::<Result<Vec<_>, _>>()?;
+    capture_unit_evidence(tcx, options, &mut facts)?;
+    for function in &mut facts {
+        capture_correspondence(function, options.selected());
+    }
     if options.selected().supports("rust.verified-helper-calls") {
         rstyle_pdg::helper_calls::capture(&mut facts)?;
     }
 
     Ok(facts)
+}
+
+fn capture_unit_evidence(
+    tcx: TyCtxt<'_>,
+    options: &Options<'_>,
+    facts: &mut [HirFnFacts],
+) -> Result<(), String> {
+    nominal_census::capture(tcx, options, facts)?;
+    library_artifacts::capture(tcx, options, facts)?;
+    inherent::capture_unit(facts, options)
 }
 
 fn function(
@@ -50,7 +68,8 @@ fn function(
         return Ok(None);
     };
     concrete_types::capture(&ctx, &mut facts)?;
-    capture_correspondence(&mut facts, ctx.profile);
+    inherent::capture(tcx, id, &mut facts, options)?;
+    rstyle_pdg::field_locations::capture(&mut facts)?;
 
     Ok(Some(facts))
 }
@@ -73,6 +92,7 @@ fn function_source<'tcx>(
         function_span,
         source_bytes: source_bytes.clone(),
         result,
+        unit_context: options.unit_context.cloned(),
         profile: options.selected(),
     };
     let params = parameters(&ctx, sig, body);
@@ -168,6 +188,12 @@ fn function_build(
         build.frontend_options.insert(
             rstyle_pdg::extraction_profile::SELECTION_KEY.into(),
             serde_json::json!(selection.token()),
+        );
+    }
+    if let Some(context) = options.unit_context {
+        build.frontend_options.insert(
+            rstyle_pdg::nominal_boundary::CONTEXT_KEY.into(),
+            serde_json::to_value(context).ok()?,
         );
     }
     let identifier = tcx

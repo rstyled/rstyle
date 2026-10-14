@@ -23,8 +23,8 @@ pub use config::{CcgraphConfig, ConfigError, Scoring, parse_config};
 pub use features::{FEATURE_NAMES, Vector9, cosine_parts, cosine_passes, numerical_features};
 pub use frac::{ArithError, Frac};
 pub use graph::{
-    CcLabel, ImportedEdge, ImportedFunction, ImportedNode, InterfaceElement, ProjectedEdge,
-    ProjectedGraph, ProjectedNode, family_rank, initial_label,
+    CcLabel, ImportedEdge, ImportedFunction, ImportedNode, InterfaceElement, MatchingProfile,
+    ProjectedEdge, ProjectedGraph, ProjectedNode, family_rank, initial_label,
 };
 pub use interface::{jaro_winkler, serialize_interface, string_mean};
 pub use pipeline::{

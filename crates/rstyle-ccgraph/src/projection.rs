@@ -336,7 +336,11 @@ fn projection_facts(
 fn recomputed_reference_count(func: &ImportedFunction, kept: &BTreeSet<String>) -> u64 {
     let mut symbols = BTreeSet::new();
     for node in &func.nodes {
-        if kept.contains(&node.id) && node.category == NodeCategory::Read {
+        if kept.contains(&node.id)
+            && (node.category == NodeCategory::Read
+                || func.matching_profile == crate::graph::MatchingProfile::DataCallsV1
+                    && node.category == NodeCategory::Call)
+        {
             symbols.extend(node.read_symbols.iter().cloned());
         }
     }

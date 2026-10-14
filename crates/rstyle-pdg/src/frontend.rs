@@ -363,3 +363,13 @@ pub fn known_count(value: u64) -> CountFact {
 pub fn unknown_count(reason: &str) -> CountFact {
     CountFact::missing(FactStatus::Unknown, reason)
 }
+
+/// Shared exact-kind traversal for independent frontend inventory verifiers.
+pub(crate) fn collect_kind<'a>(node: &'a HirNode, kind: &str, result: &mut Vec<&'a HirNode>) {
+    if node.kind == kind {
+        result.push(node);
+    }
+    for child in &node.children {
+        collect_kind(child, kind, result);
+    }
+}

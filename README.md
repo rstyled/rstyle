@@ -171,6 +171,7 @@ fn shim(a: u32, b: u32, c: u32, d: u32, e: u32) { /* ... */ }
 
 ```sh
 cargo test --workspace      # core + CLI unit tests, e2e fixtures, self-check
+./scripts/test.sh --nextest # CI runner: four parallel tests, then all doctests
 scripts/style.sh            # dog-food: must report 0 violations
 python3 scripts/test_codenet.py   # tests of the evaluation scripts (fake CodeNet package, needs cargo)
 ```

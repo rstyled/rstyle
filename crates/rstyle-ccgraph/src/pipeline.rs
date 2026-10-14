@@ -93,6 +93,8 @@ pub struct FunctionProjection {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct FunctionRecord {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub matching_profile: Option<String>,
     pub key: String,
     pub eligible: bool,
     pub reasons: Vec<String>,
@@ -158,7 +160,7 @@ pub fn evaluate_with_pair_limit(
     config: &CcgraphConfig,
     maximum_pairs: Option<usize>,
 ) -> RunReport {
-    let mut report = new_report(config);
+    let mut report = selected_report(functions, config);
     let duplicates = duplicate_keys(functions);
     flag_duplicates(&mut report, &duplicates);
 
@@ -168,6 +170,39 @@ pub fn evaluate_with_pair_limit(
         return execution_failure(report, error);
     }
     enumerate_pairs(&mut report, &prepared, config);
+
+    report
+}
+
+/// Explicit Cargo selection, including runs with no admitted inputs.
+/// A profile mismatch is incomplete execution, never an eligibility shortcut.
+pub fn evaluate_selected(
+    functions: &[ImportedFunction],
+    config: &CcgraphConfig,
+    maximum_pairs: Option<usize>,
+    profile: crate::graph::MatchingProfile,
+) -> RunReport {
+    let report = evaluate_with_pair_limit(functions, config, maximum_pairs);
+    let report = profile_report(report, profile);
+    if functions
+        .iter()
+        .any(|function| function.matching_profile != profile)
+    {
+        return execution_failure(
+            report,
+            "Imported matching identity disagrees with selected profile".into(),
+        );
+    }
+    report
+}
+
+fn profile_report(mut report: RunReport, profile: crate::graph::MatchingProfile) -> RunReport {
+    let (id, version) = profile
+        .identity()
+        .split_once('/')
+        .expect("registered matching identity");
+    report.profile_id = id.into();
+    report.profile_version = version.into();
 
     report
 }
@@ -192,6 +227,19 @@ fn check_pair_limit(count: usize, maximum: Option<usize>) -> Result<(), String> 
         ));
     }
     Ok(())
+}
+
+fn selected_report(functions: &[ImportedFunction], config: &CcgraphConfig) -> RunReport {
+    let report = new_report(config);
+    if let Some(first) = functions.first()
+        && first.matching_profile.is_data()
+        && functions
+            .iter()
+            .all(|function| function.matching_profile == first.matching_profile)
+    {
+        return profile_report(report, first.matching_profile);
+    }
+    report
 }
 
 fn new_report(config: &CcgraphConfig) -> RunReport {
@@ -234,6 +282,11 @@ fn record_functions(report: &mut RunReport, prepared: &BTreeMap<String, Prepared
     for (key, item) in prepared {
         report.functions.push(FunctionRecord {
             key: key.clone(),
+            matching_profile: item
+                .imported
+                .matching_profile
+                .is_data()
+                .then(|| item.imported.matching_profile.identity().into()),
             eligible: item.valid && item.projection.is_ok(),
             reasons: item.reasons.clone(),
             projection: item
@@ -411,7 +464,10 @@ fn check_interface(func: &ImportedFunction, reasons: &mut Vec<String>) {
         if !is_known_role(&element.role) {
             reasons.push(format!("unknown interface role {:?}", element.role));
         }
-        if !is_supported_type(&element.normalized_type) {
+        if !is_supported_type(&element.normalized_type)
+            && !(func.matching_profile.is_data()
+                && rstyle_pdg::data_types::parse(&element.normalized_type).is_ok())
+        {
             reasons.push(format!(
                 "unsupported normalized type {:?}",
                 element.normalized_type
@@ -760,7 +816,9 @@ fn contexts_compatible(
     second: &ImportedFunction,
     detail: &mut BTreeMap<String, String>,
 ) -> bool {
-    if first.extraction_context == second.extraction_context {
+    if first.matching_profile == second.matching_profile
+        && first.extraction_context == second.extraction_context
+    {
         return true;
     }
     detail.insert(
@@ -794,11 +852,12 @@ fn widths_compatible(
 
 fn native_involved(func: &ImportedFunction) -> bool {
     func.native_width_involved
-        || func
-            .inputs
-            .iter()
-            .chain(func.outputs.iter())
-            .any(|e| is_native_width(&e.normalized_type))
+        || func.inputs.iter().chain(func.outputs.iter()).any(|e| {
+            is_native_width(&e.normalized_type)
+                || func.matching_profile.is_data()
+                    && rstyle_pdg::data_types::parse(&e.normalized_type)
+                        .is_ok_and(|token| token.native_width())
+        })
 }
 
 fn projection_detail(

@@ -118,6 +118,7 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         scanned: Vec::new(),
         invocation: args.clone(),
         profile: invocation.profile,
+        unit_context: invocation.unit_context,
     });
 
     rustc_driver::catch_with_exit_code(|| match (r0, extract) {
@@ -135,6 +136,7 @@ struct HirExtract {
     scanned: Vec<hir_extraction::source::Function>,
     invocation: Vec<String>,
     profile: Option<rstyle_pdg::extraction_profile::ExtractionProfile>,
+    unit_context: Option<rstyle_pdg::nominal_boundary::UnitContext>,
 }
 
 impl Callbacks for HirExtract {
@@ -151,6 +153,7 @@ impl Callbacks for HirExtract {
         let options = hir_extraction::Options {
             profile: self.profile,
             invocation: &self.invocation,
+            unit_context: self.unit_context.as_ref(),
         };
         let facts = hir_extraction::crate_facts(tcx, &self.scanned, &options)
             .expect("capture complete source-facing R0 evidence");

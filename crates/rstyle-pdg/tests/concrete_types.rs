@@ -3,6 +3,7 @@ use rstyle_pdg::concrete_types::*;
 fn structure(source: &str) -> TypeTree {
     TypeTree::Struct {
         nominal: Nominal {
+            source_identity: None,
             package_name: "sample".into(),
             package_version: "1.0.0".into(),
             manifest_digest: digest(b"independent package manifest"),
@@ -104,5 +105,245 @@ fn concrete_field_source_offsets_handle_unicode_and_crlf() {
             ("値".into(), "i32".into()),
             ("bytes".into(), "[u8; 3]".into()),
         ]
+    );
+}
+
+fn composite_field(declaration: &str, ty: TypeTree) -> TypeTree {
+    let source = format!("pub struct Counter {{ pub value: {declaration} }}");
+    let mut tree = structure(&source);
+    let TypeTree::Struct { fields, .. } = &mut tree else {
+        unreachable!()
+    };
+    fields[0].declaration = declaration.into();
+    fields[0].ty = ty;
+
+    tree
+}
+
+#[test]
+fn composite_field_source_structure_checks_widths_lengths_and_referents() {
+    let cases = [
+        (
+            "(i16, bool)",
+            TypeTree::Tuple(vec![
+                TypeTree::Scalar("i16".into()),
+                TypeTree::Scalar("bool".into()),
+            ]),
+        ),
+        (
+            "[u8; 0x03]",
+            TypeTree::Array {
+                element: Box::new(TypeTree::Scalar("u8".into())),
+                length: 3,
+            },
+        ),
+        (
+            "&'static [u8]",
+            TypeTree::Shared(Box::new(TypeTree::Slice(Box::new(TypeTree::Scalar(
+                "u8".into(),
+            ))))),
+        ),
+        ("&'static str", TypeTree::Shared(Box::new(TypeTree::Str))),
+        ("()", TypeTree::Scalar("unit".into())),
+        ("(i32)", TypeTree::Scalar("i32".into())),
+    ];
+    for (declaration, resolved) in cases {
+        validate(&composite_field(declaration, resolved.clone())).unwrap();
+        assert!(
+            validate(&composite_field(
+                declaration,
+                TypeTree::Scalar("u64".into())
+            ))
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn nested_composite_field_tampering_cannot_hide_behind_source_digest() {
+    let original = TypeTree::Shared(Box::new(TypeTree::Tuple(vec![
+        TypeTree::Array {
+            element: Box::new(TypeTree::Scalar("i16".into())),
+            length: 3,
+        },
+        TypeTree::Shared(Box::new(TypeTree::Str)),
+    ])));
+    let declaration = "&'static ([i16; 3], &'static str)";
+    validate(&composite_field(declaration, original.clone())).unwrap();
+    let TypeTree::Shared(tuple) = original else {
+        unreachable!()
+    };
+    let TypeTree::Tuple(elements) = *tuple else {
+        unreachable!()
+    };
+    for change in ["width", "length", "arity", "reference", "string"] {
+        let mut changed = elements.clone();
+        match change {
+            "width" => {
+                changed[0] = TypeTree::Array {
+                    element: Box::new(TypeTree::Scalar("u16".into())),
+                    length: 3,
+                }
+            }
+            "length" => {
+                changed[0] = TypeTree::Array {
+                    element: Box::new(TypeTree::Scalar("i16".into())),
+                    length: 4,
+                }
+            }
+            "arity" => {
+                changed.pop();
+            }
+            "reference" => changed[1] = TypeTree::Str,
+            "string" => {
+                changed[1] = TypeTree::Shared(Box::new(TypeTree::Slice(Box::new(
+                    TypeTree::Scalar("u8".into()),
+                ))))
+            }
+            _ => unreachable!(),
+        }
+        let changed = TypeTree::Shared(Box::new(TypeTree::Tuple(changed)));
+        assert!(
+            validate(&composite_field(declaration, changed)).is_err(),
+            "{change}"
+        );
+    }
+}
+
+#[test]
+fn unsupported_source_reference_shapes_remain_outside_observation_checks() {
+    for declaration in [
+        "&'static mut i32",
+        "*const i32",
+        "*mut i32",
+        "dyn Send",
+        "fn() -> i32",
+    ] {
+        assert!(
+            validate(&composite_field(
+                declaration,
+                TypeTree::Shared(Box::new(TypeTree::Scalar("i32".into())))
+            ))
+            .is_err(),
+            "{declaration}"
+        );
+    }
+}
+
+#[test]
+fn declaration_origins_require_exact_owned_struct_ranges() {
+    use rstyle_pdg::{ByteSpan, declaration_origins::*};
+    let source = "pub struct Counter { pub value: i32 }";
+    let tree = structure(source);
+    let TypeTree::Struct { nominal, .. } = &tree else {
+        unreachable!()
+    };
+    let file = format!("\u{feff}{source}\r\nmod nested {{ pub struct Other; }}\r\n");
+    let start = file.find(source).unwrap() as u32;
+    let origin = Origin {
+        nominal: nominal.clone(),
+        source_file: "src/types.rs".into(),
+        file_digest: digest(file.as_bytes()),
+        file_bytes: file,
+        declaration_span: ByteSpan {
+            start,
+            end: start + source.len() as u32,
+        },
+    };
+    let interface = InterfaceObservations {
+        identity: rstyle_pdg::concrete_types::IDENTITY.into(),
+        parameters: vec![Observation::Captured { ty: tree }],
+        result: Observation::Captured {
+            ty: TypeTree::Scalar("unit".into()),
+        },
+    };
+    let origins = Origins {
+        identity: IDENTITY.into(),
+        declarations: vec![origin],
+    };
+    verify(&interface, &origins).unwrap();
+    for change in [
+        "identity",
+        "missing",
+        "duplicate",
+        "digest",
+        "span",
+        "nominal",
+        "comment",
+    ] {
+        let mut changed = origins.clone();
+        change_declaration_origin(&mut changed, change, source);
+        assert!(verify(&interface, &changed).is_err(), "{change}");
+    }
+}
+
+fn change_declaration_origin(
+    origins: &mut rstyle_pdg::declaration_origins::Origins,
+    change: &str,
+    source: &str,
+) {
+    use rstyle_pdg::ByteSpan;
+    let changed = origins;
+    match change {
+        "identity" => changed.identity.push('x'),
+        "missing" => changed.declarations.clear(),
+        "duplicate" => changed.declarations.push(changed.declarations[0].clone()),
+        "digest" => changed.declarations[0].file_digest = digest(b"different file"),
+        "span" => changed.declarations[0].declaration_span.start += 1,
+        "nominal" => changed.declarations[0].nominal.manifest_digest = digest(b"other package"),
+        "comment" => {
+            let entry = &mut changed.declarations[0];
+            entry.file_bytes = format!("/* {source} */");
+            entry.file_digest = digest(entry.file_bytes.as_bytes());
+            entry.declaration_span = ByteSpan {
+                start: 3,
+                end: 3 + source.len() as u32,
+            };
+        }
+        _ => unreachable!(),
+    }
+}
+
+struct MissingResolution;
+
+impl source_proof::PathResolution for MissingResolution {
+    fn resolve(&self, _: &syn::TypePath) -> Result<TypeTree, String> {
+        Err("No selected-unit path resolution".into())
+    }
+}
+
+#[test]
+fn observational_alias_and_const_lengths_cannot_become_source_proofs() {
+    for declaration in ["Alias", "[i32; COUNT]"] {
+        let source = format!("pub struct Counter {{ pub value: {declaration} }}");
+        let mut tree = structure(&source);
+        let TypeTree::Struct { fields, .. } = &mut tree else {
+            unreachable!()
+        };
+        fields[0].declaration = declaration.into();
+        if declaration.starts_with('[') {
+            fields[0].ty = TypeTree::Array {
+                element: Box::new(TypeTree::Scalar("i32".into())),
+                length: 3,
+            };
+        }
+        validate(&tree).unwrap();
+        assert!(source_proof::verify(&tree, &MissingResolution).is_err());
+    }
+    source_proof::verify(
+        &structure("pub struct Counter { pub value: i32 }"),
+        &MissingResolution,
+    )
+    .unwrap();
+}
+
+#[test]
+fn strict_source_type_proofs_enforce_resource_and_rust_unit_boundaries() {
+    let unit = TypeTree::Scalar("unit".into());
+    source_proof::verify_spelling("()", &unit, &MissingResolution).unwrap();
+    assert!(source_proof::verify_spelling("unit", &unit, &MissingResolution).is_err());
+    assert!(
+        source_proof::verify_spelling(&" ".repeat(MAX_SOURCE_BYTES + 1), &unit, &MissingResolution)
+            .is_err()
     );
 }

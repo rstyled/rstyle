@@ -34,6 +34,11 @@ pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
         crate::helper_calls::verify_documents(pair, facts).map_err(|error| vec![error])?;
     }
 
+    if crate::extraction_profile::ExtractionProfile::from_facts(facts)
+        .is_ok_and(|profile| profile.supports("rust.concrete-read-only-data"))
+    {
+        crate::data_documents::verify(pair, facts).map_err(|error| vec![error])?;
+    }
     validate_boundary(pair, facts)
 }
 

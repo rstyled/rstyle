@@ -14,6 +14,8 @@ use std::{
 pub struct Target {
     pub package: String,
     pub manifest_dir: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_context: Option<rstyle_pdg::nominal_binding::PackageContext>,
     pub source: PathBuf,
     pub name: String,
     pub kind: Vec<String>,
@@ -59,11 +61,27 @@ pub struct Capture {
 
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let metadata = selected_workspace(cli)?;
+    let mut capture = initial_capture(metadata, args.extraction_profile)?;
+    capture.plan.targets = targets(cli, args.extraction_profile)?;
+
+    publish_plan(capture)
+}
+
+fn initial_capture(
+    metadata: crate::workspace::Metadata,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<Capture, String> {
     let directory = run_directory(&metadata.target_directory)?;
-    let plan = plan(cli, metadata.workspace_root, args.extraction_profile)?;
-    write_json(&directory.join("plan.json"), &plan)?;
+    let environment = capture_environment()?;
+    let plan = plan(metadata.workspace_root, profile, Vec::new(), environment);
 
     Ok(new_capture(directory, plan))
+}
+
+fn publish_plan(capture: Capture) -> Result<Capture, String> {
+    write_json(&capture.directory.join("plan.json"), &capture.plan)?;
+
+    Ok(capture)
 }
 
 fn selected_workspace(cli: &Cli) -> Result<crate::workspace::Metadata, String> {
@@ -99,26 +117,60 @@ fn run_directory(target: &Path) -> Result<PathBuf, String> {
 }
 
 fn plan(
-    cli: &Cli,
     root: PathBuf,
     extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-) -> Result<Plan, String> {
-    let driver = run::driver_path()?
-        .canonicalize()
-        .map_err(|e| e.to_string())?;
-    let orchestrator = std::env::current_exe().map_err(|e| e.to_string())?;
-
-    Ok(Plan {
+    targets: Vec<Target>,
+    environment: CaptureEnvironment,
+) -> Plan {
+    Plan {
         extraction_profile,
         root,
-        driver_sha256: file_digest(&driver)?,
-        orchestrator_sha256: file_digest(&orchestrator)?,
+        driver_sha256: environment.binaries.driver.digest,
+        orchestrator_sha256: environment.binaries.orchestrator.digest,
+        compiler_identity: environment.compiler_identity,
+        cargo_identity: environment.cargo_identity,
+        driver: environment.binaries.driver.path,
+        targets,
+        primary_units: Vec::new(),
+    }
+}
+
+struct CaptureEnvironment {
+    binaries: BinaryIdentities,
+    compiler_identity: String,
+    cargo_identity: String,
+}
+
+fn capture_environment() -> Result<CaptureEnvironment, String> {
+    Ok(CaptureEnvironment {
+        binaries: binary_identities()?,
         compiler_identity: tool_identity("rustc", "-vV")?,
         cargo_identity: tool_identity("cargo", "--version")?,
-        driver,
-        targets: targets(cli)?,
-        primary_units: Vec::new(),
     })
+}
+
+struct ExecutableIdentity {
+    path: PathBuf,
+    digest: String,
+}
+
+struct BinaryIdentities {
+    driver: ExecutableIdentity,
+    orchestrator: ExecutableIdentity,
+}
+
+fn binary_identities() -> Result<BinaryIdentities, String> {
+    Ok(BinaryIdentities {
+        driver: executable_identity(run::driver_path()?)?,
+        orchestrator: executable_identity(std::env::current_exe().map_err(|e| e.to_string())?)?,
+    })
+}
+
+fn executable_identity(path: PathBuf) -> Result<ExecutableIdentity, String> {
+    let path = path.canonicalize().map_err(|e| e.to_string())?;
+    let digest = file_digest(&path)?;
+
+    Ok(ExecutableIdentity { path, digest })
 }
 
 fn file_digest(path: &Path) -> Result<String, String> {
@@ -139,7 +191,10 @@ fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
-fn targets(cli: &Cli) -> Result<Vec<Target>, String> {
+fn targets(
+    cli: &Cli,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<Vec<Target>, String> {
     let mut command = Command::new("cargo");
     command
         .args(["metadata", "--format-version", "1", "--no-deps"])
@@ -153,27 +208,72 @@ fn targets(cli: &Cli) -> Result<Vec<Target>, String> {
         return Err(String::from_utf8_lossy(&output.stderr).into());
     }
     let value: Value = serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
-    selected_targets(&value, cli)
+    selected_targets(&value, cli, profile)
 }
 
-fn selected_targets(metadata: &Value, cli: &Cli) -> Result<Vec<Target>, String> {
+fn selected_targets(
+    metadata: &Value,
+    cli: &Cli,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<Vec<Target>, String> {
     let mut result = Vec::new();
     for package in metadata["packages"].as_array().ok_or("missing packages")? {
         let name = package["name"].as_str().ok_or("missing package name")?;
         if !cli.packages.is_empty() && !cli.packages.iter().any(|p| p == name) {
             continue;
         }
+        let context = package_context(package, profile)?;
         for target in package["targets"].as_array().ok_or("missing targets")? {
             if !wanted_target(target, cli.all_targets) {
                 continue;
             }
-            result.push(target_record(package, target)?);
+            result.push(target_record(package, target, context.clone())?);
         }
     }
     if result.is_empty() {
         return Err("selection contains no Rust compilation targets".into());
     }
     Ok(result)
+}
+
+fn package_context(
+    package: &Value,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Result<Option<rstyle_pdg::nominal_binding::PackageContext>, String> {
+    use rstyle_pdg::{
+        concrete_types::digest,
+        nominal_binding::{PACKAGE_IDENTITY, PackageContext},
+    };
+    if !profile.supports("rust.verified-helper-calls") {
+        return Ok(None);
+    }
+    let manifest_path = PathBuf::from(
+        package["manifest_path"]
+            .as_str()
+            .ok_or("Missing package manifest path")?,
+    );
+    let manifest_bytes = std::fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
+    let context = PackageContext {
+        identity: PACKAGE_IDENTITY.into(),
+        package_id: package["id"]
+            .as_str()
+            .ok_or("Missing resolved package ID")?
+            .into(),
+        name: package["name"]
+            .as_str()
+            .ok_or("Missing resolved package name")?
+            .into(),
+        version: package["version"]
+            .as_str()
+            .ok_or("Missing resolved package version")?
+            .into(),
+        manifest_path,
+        manifest_digest: digest(manifest_bytes.as_bytes()),
+        manifest_bytes,
+    };
+    context.validate()?;
+
+    Ok(Some(context))
 }
 
 fn wanted_target(target: &Value, all: bool) -> bool {
@@ -187,13 +287,18 @@ fn wanted_target(target: &Value, all: bool) -> bool {
     })
 }
 
-fn target_record(package: &Value, target: &Value) -> Result<Target, String> {
+fn target_record(
+    package: &Value,
+    target: &Value,
+    package_context: Option<rstyle_pdg::nominal_binding::PackageContext>,
+) -> Result<Target, String> {
     let manifest = PathBuf::from(
         package["manifest_path"]
             .as_str()
             .ok_or("missing manifest")?,
     );
     Ok(Target {
+        package_context,
         package: package["id"]
             .as_str()
             .ok_or("missing package identity")?
@@ -479,7 +584,7 @@ fn check_expected(capture: &mut Capture) {
 pub fn wrapper(plan_path: &Path, invocation: Vec<String>) -> Result<u8, String> {
     let plan: Plan = read_json(plan_path)?;
     let target = invocation_target(&plan, &invocation)?;
-    let command = driver_command(&plan, &invocation);
+    let command = driver_command(&plan, &invocation, target.as_ref())?;
 
     match target {
         None => passthrough(command),
@@ -487,17 +592,58 @@ pub fn wrapper(plan_path: &Path, invocation: Vec<String>) -> Result<u8, String> 
     }
 }
 
-fn driver_command(plan: &Plan, invocation: &[String]) -> Command {
+fn driver_command(
+    plan: &Plan,
+    invocation: &[String],
+    target: Option<&Target>,
+) -> Result<Command, String> {
+    let arguments = driver_arguments(plan, invocation, target)?;
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
-    command
-        .arg(format!(
+
+    command.args(arguments);
+    Ok(command)
+}
+
+fn driver_arguments(
+    plan: &Plan,
+    invocation: &[String],
+    target: Option<&Target>,
+) -> Result<Vec<String>, String> {
+    let mut arguments = vec![format!(
+        "{}={}",
+        rstyle_pdg::extraction_profile::DRIVER_SELECTION_FLAG,
+        plan.extraction_profile.token()
+    )];
+    if plan.extraction_profile.is_data()
+        && let Some(target) = target
+    {
+        let context = selected_unit_context(target, invocation)?;
+        arguments.push(format!(
             "{}={}",
-            rstyle_pdg::extraction_profile::DRIVER_SELECTION_FLAG,
-            plan.extraction_profile.token()
-        ))
-        .args(invocation);
-    command
+            rstyle_pdg::nominal_boundary::CONTEXT_FLAG,
+            context.transport()?
+        ));
+    }
+
+    arguments.extend_from_slice(invocation);
+    Ok(arguments)
+}
+
+pub fn selected_unit_context(
+    target: &Target,
+    invocation: &[String],
+) -> Result<rstyle_pdg::nominal_boundary::UnitContext, String> {
+    Ok(rstyle_pdg::nominal_boundary::UnitContext {
+        package: target
+            .package_context
+            .clone()
+            .ok_or("Missing selected Cargo package context")?,
+        root_source: target.source.clone(),
+        crate_name: flag_value(invocation, "--crate-name")
+            .ok_or("Missing observed crate name")?
+            .into(),
+    })
 }
 
 fn passthrough(mut command: Command) -> Result<u8, String> {
