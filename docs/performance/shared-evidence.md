@@ -337,3 +337,51 @@ Focused admission/diamond coverage and all CCGraph tests pass. Formatting,
 workspace Clippy and both wrappers pass, with zero violations/actionable
 candidates and 16 existing ignores. Logs: `/tmp/rstyle-borrowed-admission-tests.log`
 and `/tmp/rstyle-admission-{style.json,patterns.log,clippy.log,ccgraph-tests.log}`.
+
+
+## Normalized compiler-to-CLI handoff
+
+The ordinary CLI explicitly requests one `rstyle.shared-unit/1` bundle and
+`rstyle.shared-unit.manifest/1` byte seal per selected compiler unit. Driver
+capture moves facts into the store and streams unique frontend/helper/graph
+records. CLI loading checks inventory and seal against one owned byte snapshot,
+then moves its decoded records into one store. Function reports share the whole
+store across lifetime boundaries; analysis borrows records from one scoped
+resolver. Direct standalone driver output remains a narrow export adapter.
+`--expanded-evidence` explicitly enables bounded readable standalone exports;
+normal capture/import/admission does not reconstruct nested dependencies.
+
+Generated current-run loading preserves the independently frozen producer and
+selected-unit inspection. Ordinary imports always run strict verification.
+Serialized flags never confer trust. Exact transport sealing remains separate
+from the raw semantic unit identity and existing paired manifest identities.
+The evidence-view trait is sealed against foreign-owner helper substitutions.
+Successful native-width results are memoized per resolver/function, without
+caching errors or mixing generated/strict proof caches. The depth-eight,
+six-calls-per-level regression admits all eight functions and evaluates all
+28 pairs without expanding the helper closure. R0 retains its existing closed
+helper capability rather than acquiring helper certification implicitly.
+
+Storage comparison on the same 21-function snapshot, debug pinned toolchain,
+uses the optional replay `--generated --storage` mode. It completes with 20
+unique helper records and 21 unique paired graphs. The normalized bundle is
+2,985,484 bytes. Its equivalent standalone compatibility export is 4,314,745
+frontend bytes plus 17,336,189 paired-document/manifest bytes: 21,650,934 total.
+Both counts use the current serializer and the same evidence; this is a
+representation comparison, not a historical baseline-file or timing claim.
+Separate inventory/seal files are excluded from both counts. Optional expansion
+and re-production are measurement work and are not included in ordinary replay
+samples. Logs: `/tmp/rstyle-storage-comparison.{jsonl,log}`.
+
+Focused PDG/seal, snapshot, default/shared-fanout, helper and tampering coverage
+passes. Workspace formatting and all-target Clippy pass. Both wrappers pass:
+1,903 functions, zero style violations; zero actionable patterns and 16 existing
+reviewed ignores. No ignore/configuration change is made. Final broad wrapper
+run passes 626 tests, zero skipped, one slow test, plus workspace doctests;
+nextest reports 175.370 seconds, with the expanded inherent-family test at
+163.794 seconds. Logs: `/tmp/rstyle-handoff-{nextest.log,clippy.log,style.json,patterns.log}`.
+
+Remaining costs include legitimate pairwise matching, per-unique-record graph
+validation/production, optional legacy expansion, repeated source parsing in
+existing strict adapters, and the whole-report JSON Value conversion. No
+end-to-end speedup is inferred from the bounded helper/graph measurements.

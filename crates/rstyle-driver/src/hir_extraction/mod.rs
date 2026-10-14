@@ -31,15 +31,13 @@ pub fn crate_facts(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
     options: &Options<'_>,
-) -> Result<Vec<HirFnFacts>, String> {
-    let mut facts = raw_crate_facts(tcx, scanned, options)?;
+) -> Result<rstyle_pdg::unit_store::UnitStore, String> {
+    let facts = raw_crate_facts(tcx, scanned, options)?;
     diagnostics::snapshot("pre-helper-certification", &facts)?;
-    if options.selected().supports("rust.verified-helper-calls") {
-        rstyle_pdg::helper_calls::capture(&mut facts)?;
-    }
+    let store = rstyle_pdg::unit_store::UnitStore::capture(facts)?;
+    diagnostics::snapshot("post-helper-certification", store.functions())?;
 
-    diagnostics::snapshot("post-helper-certification", &facts)?;
-    Ok(facts)
+    Ok(store)
 }
 
 /// Owned compiler facts before ordinary-library helper certification.

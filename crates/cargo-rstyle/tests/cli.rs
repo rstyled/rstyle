@@ -924,12 +924,102 @@ fn clone_workspace() -> TempDir {
 }
 
 fn clones(directory: &Path, arguments: &[&str]) -> (Output, Value) {
-    let mut args = vec!["clones", "--format", "json"];
+    let mut args = vec!["clones", "--format", "json", "--expanded-evidence"];
     args.extend_from_slice(arguments);
     let output = rstyle(directory, &args);
     let report = serde_json::from_slice(&output.stdout)
         .unwrap_or_else(|error| panic!("{error}: {}", String::from_utf8_lossy(&output.stderr)));
     (output, report)
+}
+
+#[test]
+fn clones_shared_fanout_keeps_transitive_analysis_bounded() {
+    let directory = clone_workspace();
+    let mut source = String::from("pub fn level0(x: i32) -> bool { x > 0 }\n");
+    for level in 1..8 {
+        let calls = std::iter::repeat_n(format!("level{}(x)", level - 1), 6)
+            .collect::<Vec<_>>()
+            .join(" && ");
+        source.push_str(&format!(
+            "pub fn level{level}(x: i32) -> bool {{ {calls} }}\n"
+        ));
+    }
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let output = rstyle(
+        directory.path(),
+        &[
+            "clones",
+            "--format",
+            "json",
+            "--extraction-profile",
+            "hir-helpers-v1",
+        ],
+    );
+    assert!(output.status.success(), "{}", stdout(&output));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 8);
+    assert!(
+        functions
+            .iter()
+            .all(|function| function["outcome"] == "admitted"),
+        "{functions:#?}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 28);
+}
+
+#[test]
+fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub fn leaf(x: i32) -> bool { x > 0 }\npub fn first(x: i32) -> bool { leaf(x) }\npub fn second(x: i32) -> bool { leaf(x) }\n").unwrap();
+    let output = rstyle(
+        directory.path(),
+        &[
+            "clones",
+            "--format",
+            "json",
+            "--extraction-profile",
+            "hir-helpers-v1",
+        ],
+    );
+    assert!(output.status.success(), "{}", stdout(&output));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/1");
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
+    for function in report["functions"].as_array().unwrap() {
+        assert!(function["artifact_prefix"].is_null());
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function["facts"].clone()).unwrap();
+        let mut calls = Vec::new();
+        shared_call_nodes(&facts.body, &mut calls);
+        for call in calls {
+            assert!(
+                rstyle_pdg::helper_calls::direct_resolution(call).unwrap()
+                    [rstyle_pdg::helper_calls::KEY]
+                    .is_null()
+            );
+        }
+    }
+    let unit = &report["observed_units"][0];
+    let path = Path::new(unit["directory"].as_str().unwrap());
+    let bytes = std::fs::read(path.join("unit.evidence.json")).unwrap();
+    let manifest: rstyle_pdg::unit_store::BundleManifest =
+        serde_json::from_slice(&std::fs::read(path.join("unit.evidence.manifest.json")).unwrap())
+            .unwrap();
+    manifest.verify(&bytes).unwrap();
+    let store = rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).unwrap();
+    assert_eq!(store.helper_count(), 3);
+    assert_eq!(store.graph_count(), 3);
+    assert!(!path.join("facts.json").exists());
+    assert!(!path.join("readable").exists());
+    let wire: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(wire["functions"].as_array().unwrap().len(), 3);
+    assert_eq!(wire["helpers"].as_array().unwrap().len(), 3);
+    assert_eq!(wire["graphs"].as_array().unwrap().len(), 3);
+    let mut edited = bytes;
+    edited.push(b' ');
+    assert!(manifest.verify(&edited).is_err());
 }
 
 #[test]
@@ -1266,10 +1356,10 @@ fn clones_missing_corrupt_and_mismatched_serialized_artifacts_fail_closed() {
     let shim = directory.path().join("driver-shim");
     let real = driver().to_string_lossy().replace('\'', "'\\''");
     for operation in [
-        "rm \"$RSTYLE_HIR_DOCUMENT_DIR/function-0.cfg.json\"",
-        "printf '{}' > \"$RSTYLE_HIR_DOCUMENT_DIR/function-0.pdg.json\"",
-        "printf '{\"documents\":[]}' > \"$RSTYLE_HIR_DOCUMENT_DIR/function-0.manifest.json\"",
-        "printf ' ' >> \"$RSTYLE_HIR_DOCUMENT_DIR/function-0.cfg.json\"",
+        "rm \"$RSTYLE_HIR_DOCUMENT_DIR/unit.evidence.json\"",
+        "printf '{}' > \"$RSTYLE_HIR_DOCUMENT_DIR/unit.evidence.json\"",
+        "printf '{\"documents\":[]}' > \"$RSTYLE_HIR_DOCUMENT_DIR/unit.evidence.manifest.json\"",
+        "printf ' ' >> \"$RSTYLE_HIR_DOCUMENT_DIR/unit.evidence.json\"",
     ] {
         let script = format!(
             "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\n{operation}\nfi\nexit \"$code\"\n"
@@ -4679,7 +4769,7 @@ fn clones_data_corrupt_receiver_inventory_is_incomplete_handoff() {
         "options['data_method_receivers']['methods'][0]['receiver']['local'] += 1",
     ] {
         let script = format!(
-            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'facts.json'\nfacts = json.loads(p.read_text())\nfor function in facts:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(facts))\nPY\nfi\nexit \"$code\"\n"
+            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'unit.evidence.json'\nbundle = json.loads(p.read_text())\nfor function in bundle['functions']:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(bundle))\nPY\nfi\nexit \"$code\"\n"
         );
         std::fs::write(&shim, script).unwrap();
         std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -5849,7 +5939,7 @@ fn clones_data_library_corruption_is_incomplete_execution() {
         "function['build']['rustc_commit']['value'] = '0' * 40",
     ] {
         let script = format!(
-            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'facts.json'\nfacts = json.loads(p.read_text())\nfor function in facts:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(facts))\nPY\nfi\nexit \"$code\"\n"
+            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'unit.evidence.json'\nbundle = json.loads(p.read_text())\nfor function in bundle['functions']:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(bundle))\nPY\nfi\nexit \"$code\"\n"
         );
         std::fs::write(&shim, script).unwrap();
         std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).unwrap();

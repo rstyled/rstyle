@@ -1,6 +1,8 @@
 //! Unit-local ownership and borrowed analysis. Dense IDs are handles, not names.
 mod bundle;
 mod expanded;
+mod manifest;
+pub use manifest::BundleManifest;
 
 use crate::{HirFnFacts, HirNode, helper_calls::Summary, producer::Pair};
 use serde::{Deserialize, Serialize};
@@ -19,10 +21,22 @@ pub struct HelperId(u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct GraphId(u32);
 
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for crate::HirFnFacts {}
+    impl Sealed for super::FunctionView<'_> {}
+    impl<T: super::EvidenceFacts + ?Sized> Sealed for &T {}
+}
+
 /// Shared and standalone facts use one analysis implementation. Standalone
-/// facts retain the supported strict legacy transport adapter.
-pub trait EvidenceFacts {
+/// facts retain the supported strict legacy transport adapter. Sealing prevents
+/// helper views from being substituted from a different owning unit.
+pub trait EvidenceFacts: sealed::Sealed {
     fn facts(&self) -> &HirFnFacts;
+
+    fn native_width(&self) -> Result<bool, String> {
+        crate::helper_calls::compute_native_width(self.facts())
+    }
 
     fn frontend_reference(&self) -> Option<serde_json::Value> {
         None
@@ -40,6 +54,10 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn native_width(&self) -> Result<bool, String> {
+        T::native_width(*self)
+    }
+
     fn facts(&self) -> &HirFnFacts {
         T::facts(*self)
     }
@@ -101,11 +119,14 @@ pub struct UnitStore {
 pub struct UnitAnalysis<'a> {
     store: &'a UnitStore,
     proofs: Proofs,
+    // Immutable derived values; policy-specific proof success is stored above.
+    native_widths: RefCell<BTreeMap<FunctionId, bool>>,
 }
 
 trait Resolver {
     fn tables(&self) -> Tables<'_>;
     fn proofs(&self) -> &Proofs;
+    fn native_widths(&self) -> &RefCell<BTreeMap<FunctionId, bool>>;
     fn identity(&self) -> &str;
 }
 
@@ -135,6 +156,18 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn native_width(&self) -> Result<bool, String> {
+        if let Some(native) = self.resolver.native_widths().borrow().get(&self.id) {
+            return Ok(*native);
+        }
+        let native = crate::helper_calls::compute_native_width(self)?;
+        self.resolver
+            .native_widths()
+            .borrow_mut()
+            .insert(self.id, native);
+        Ok(native)
+    }
+
     fn frontend_reference(&self) -> Option<serde_json::Value> {
         Some(
             serde_json::json!({"identity":"rstyle.unit.function-reference/1", "unit":self.resolver.identity(), "function":self.id}),
@@ -205,7 +238,8 @@ impl HelperView<'_> {
 impl UnitStore {
     /// Takes raw compiler records by move. No nested proof is attached to a tree.
     pub fn capture(functions: Vec<HirFnFacts>) -> Result<Self, String> {
-        Builder::new(functions)?.capture()
+        crate::diagnostics::Stage::new("unit.capture", "unit", None)
+            .observe(|| Builder::new(functions)?.capture())
     }
 
     pub fn functions(&self) -> &[HirFnFacts] {
@@ -263,11 +297,17 @@ impl UnitStore {
         UnitAnalysis {
             store: self,
             proofs: RefCell::default(),
+            native_widths: RefCell::default(),
         }
     }
 }
 
 impl UnitAnalysis<'_> {
+    /// Resolve a root from the same store as this context's function views.
+    pub fn pair(&self, index: usize) -> Option<&Pair> {
+        self.store.pair(index)
+    }
+
     /// Index selection is scoped to this store; no unqualified handle is accepted.
     pub fn function(&self, index: usize) -> Option<FunctionView<'_>> {
         self.store.functions.get(index)?;
@@ -284,6 +324,9 @@ impl Resolver for UnitAnalysis<'_> {
     }
     fn tables(&self) -> Tables<'_> {
         self.store.tables()
+    }
+    fn native_widths(&self) -> &RefCell<BTreeMap<FunctionId, bool>> {
+        &self.native_widths
     }
     fn proofs(&self) -> &Proofs {
         &self.proofs
@@ -306,6 +349,7 @@ struct Builder {
     store: UnitStore,
     pending: Vec<FunctionId>,
     proofs: Proofs,
+    native_widths: RefCell<BTreeMap<FunctionId, bool>>,
 }
 
 impl Resolver for Builder {
@@ -314,6 +358,9 @@ impl Resolver for Builder {
     }
     fn tables(&self) -> Tables<'_> {
         self.store.tables()
+    }
+    fn native_widths(&self) -> &RefCell<BTreeMap<FunctionId, bool>> {
+        &self.native_widths
     }
     fn proofs(&self) -> &Proofs {
         &self.proofs
@@ -343,6 +390,7 @@ impl Builder {
             },
             pending,
             proofs: RefCell::default(),
+            native_widths: RefCell::default(),
         })
     }
 
@@ -392,7 +440,9 @@ impl Builder {
                 resolver: self,
                 id: *id,
             };
-            if crate::classify(&view).status == crate::EligibilityVerdict::Eligible
+            if crate::extraction_profile::ExtractionProfile::from_facts(&view)?
+                .supports("rust.verified-helper-calls")
+                && crate::classify(&view).status == crate::EligibilityVerdict::Eligible
                 && let Some((summary, pair)) = crate::helper_calls::certify_view(&view)?
             {
                 completed.push(CompletedHelper {
@@ -480,6 +530,8 @@ fn function_links(
     facts: &HirFnFacts,
     definitions: &BTreeMap<&str, FunctionId>,
 ) -> Result<BTreeMap<Site, FunctionId>, String> {
+    let helpers = crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.verified-helper-calls");
     let mut links = BTreeMap::new();
     for node in crate::helper_calls::call_nodes(facts) {
         let Some(resolution) = crate::helper_calls::direct_resolution(node) else {
@@ -488,7 +540,8 @@ fn function_links(
         if !resolution[crate::helper_calls::KEY].is_null() {
             return Err("Unit capture requires raw facts without nested helper proofs".into());
         }
-        if resolution["local"] == true
+        if helpers
+            && resolution["local"] == true
             && let Some(target) = resolution["definition_identity"]
                 .as_str()
                 .and_then(|key| definitions.get(key))

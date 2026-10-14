@@ -57,9 +57,47 @@ impl UnitStore {
     /// Decode one exact byte snapshot, check references and strict evidence.
     /// Imported records never inherit the ambient generated verification policy.
     pub fn from_bundle(bytes: &[u8]) -> Result<Self, String> {
+        Self::from_bundle_with(bytes, |_| Ok(()))
+    }
+
+    /// Inspect borrowed raw frontend records against an independently selected
+    /// unit before strict evidence validation, without decoding the bytes again.
+    pub fn from_bundle_with(
+        bytes: &[u8],
+        inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,
+    ) -> Result<Self, String> {
+        Self::load_bundle(bytes, inspect, false)
+    }
+
+    /// Load explicitly trusted current-run compiler output. The caller must
+    /// independently freeze the producer and inspect selected-unit context.
+    /// This choice is an application capability, never a serialized flag.
+    pub fn from_current_run(
+        bytes: &[u8],
+        manifest: &BundleManifest,
+        inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,
+    ) -> Result<Self, String> {
+        manifest.verify(bytes)?;
+        Self::load_bundle(bytes, inspect, true)
+    }
+
+    fn load_bundle(
+        bytes: &[u8],
+        inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,
+        current_run: bool,
+    ) -> Result<Self, String> {
         let import: Import = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+        if import.schema != SCHEMA {
+            return Err("Unsupported shared unit schema".into());
+        }
+        inspect(&import.functions)?;
+
         let store = import.into_store()?;
-        crate::verification_policy::strict(|| store.validate_evidence())?;
+        if current_run {
+            crate::verification_policy::generated(|| store.validate_evidence())?;
+        } else {
+            crate::verification_policy::strict(|| store.validate_evidence())?;
+        }
         Ok(store)
     }
 
@@ -78,6 +116,8 @@ impl UnitStore {
         for (index, certified) in self.certified.iter().enumerate() {
             if certified.is_none()
                 && let Some(view) = analysis.function(index)
+                && crate::extraction_profile::ExtractionProfile::from_facts(&view)?
+                    .supports("rust.verified-helper-calls")
                 && crate::classify(&view).status == crate::EligibilityVerdict::Eligible
                 && crate::helper_calls::certify_view(&view)?.is_some()
             {

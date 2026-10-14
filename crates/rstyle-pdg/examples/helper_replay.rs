@@ -25,7 +25,7 @@ fn load(path: &Path) -> Result<Snapshot, String> {
     Ok(snapshot)
 }
 
-fn replay(path: &Path, generated: bool) -> Result<(), String> {
+fn replay(path: &Path, generated: bool, storage: bool) -> Result<(), String> {
     let snapshot =
         Stage::new("replay.load", &path.display().to_string(), None).observe(|| load(path))?;
     let capture = || UnitStore::capture(snapshot.facts);
@@ -34,6 +34,15 @@ fn replay(path: &Path, generated: bool) -> Result<(), String> {
     } else {
         capture()?
     };
+    if storage {
+        let measure = || storage_report(&store);
+        let report = if generated {
+            rstyle_pdg::verification_policy::generated(measure)?
+        } else {
+            measure()?
+        };
+        println!("{report}");
+    }
     println!(
         "{}",
         serde_json::json!({
@@ -50,15 +59,44 @@ fn replay(path: &Path, generated: bool) -> Result<(), String> {
     Ok(())
 }
 
+fn storage_report(store: &UnitStore) -> Result<serde_json::Value, String> {
+    let mut bundle = Vec::new();
+    store.write_bundle(&mut bundle)?;
+    let expanded = store.expanded_frontends()?;
+    let expanded_bytes = serde_json::to_vec(&expanded)
+        .map_err(|error| error.to_string())?
+        .len();
+    let mut pairs_bytes = 0;
+    for (index, facts) in expanded.iter().enumerate() {
+        if store.pair(index).is_some() {
+            let pair = rstyle_pdg::producer::produce(facts).map_err(|errors| errors.join("; "))?;
+            let pair = pair.serialize().map_err(|error| error.to_string())?;
+            pairs_bytes += pair.pdg_bytes.len()
+                + pair.cfg_bytes.len()
+                + serde_json::to_vec(&pair.manifest)
+                    .map_err(|error| error.to_string())?
+                    .len();
+        }
+    }
+    Ok(
+        serde_json::json!({"scope":"optional-storage-comparison", "shared_bundle_bytes":bundle.len(),
+        "expanded_frontend_bytes":expanded_bytes,"standalone_pair_bytes":pairs_bytes,
+        "unique_graphs":store.graph_count(),"unique_helpers":store.helper_count()}),
+    )
+}
+
 fn main() -> std::process::ExitCode {
     let Some(path) = std::env::args_os().nth(1) else {
-        eprintln!("usage: helper_replay <pre-helper-certification-snapshot.json> [--generated]");
+        eprintln!(
+            "usage: helper_replay <pre-helper-certification-snapshot.json> [--generated] [--storage]"
+        );
         return std::process::ExitCode::from(2);
     };
     let generated = std::env::args_os()
         .nth(2)
         .is_some_and(|flag| flag == "--generated");
-    match replay(Path::new(&path), generated) {
+    let storage = std::env::args_os().any(|flag| flag == "--storage");
+    match replay(Path::new(&path), generated, storage) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("helper replay incomplete: {error}");

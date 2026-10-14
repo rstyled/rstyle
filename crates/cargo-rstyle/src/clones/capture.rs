@@ -730,7 +730,9 @@ fn capture_unit(
 
 fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitStatus, String> {
     write_json(&unit.directory.join("started.json"), unit)?;
-    command.env("RSTYLE_HIR_DOCUMENT_DIR", &unit.directory);
+    command
+        .env("RSTYLE_HIR_DOCUMENT_DIR", &unit.directory)
+        .env("RSTYLE_HIR_SHARED_UNIT", "1");
 
     command.status().map_err(|e| e.to_string())
 }
@@ -756,70 +758,79 @@ fn reserve_ledger(path: &Path) -> Result<std::fs::File, String> {
         .map_err(|e| format!("duplicate or missing unit ledger: {e}"))
 }
 
+fn artifact_files(profile: rstyle_pdg::extraction_profile::ExtractionProfile) -> Vec<String> {
+    let mut files = vec![
+        "unit.evidence.json".into(),
+        "unit.evidence.manifest.json".into(),
+    ];
+    if profile.supports("rust.conditional-source-correspondence") {
+        files.push("source-inventory.json".into());
+    }
+    files
+}
+
 fn artifact_inventory(
     directory: &Path,
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> Result<Vec<Artifact>, String> {
-    let facts: Vec<rstyle_pdg::HirFnFacts> = read_json(&directory.join("facts.json"))?;
-    let mut files = vec!["facts.json".to_string()];
-    if profile.supports("rust.conditional-source-correspondence") {
-        files.push("source-inventory.json".into());
-    }
-    for index in 0..facts.len() {
-        let assessment = format!("function-{index}.assessment.json");
-        let value: Value = read_json(&directory.join(&assessment))?;
-        files.push(assessment);
-        if !value["manifest_file"].is_null() {
-            let expected = format!("function-{index}.manifest.json");
-            if value["manifest_file"] != expected {
-                return Err("ambiguous manifest filename".into());
-            }
-            files.extend([
-                expected,
-                format!("function-{index}.pdg.json"),
-                format!("function-{index}.cfg.json"),
-            ]);
-        }
-    }
-
-    files
+    artifact_files(profile)
         .into_iter()
-        .map(|file| {
-            let bytes = std::fs::read(directory.join(&file)).map_err(|e| e.to_string())?;
-            Ok(Artifact {
-                file,
-                sha256: super::digest(&bytes),
-            })
-        })
+        .map(|file| read_artifact(directory, file))
         .collect()
 }
 
-pub fn verify_inventory(unit: &Unit) -> Result<(), String> {
-    let mut names = std::collections::BTreeSet::new();
+fn read_artifact(directory: &Path, file: String) -> Result<Artifact, String> {
+    let bytes = std::fs::read(directory.join(&file)).map_err(|error| error.to_string())?;
+    Ok(Artifact {
+        file,
+        sha256: super::digest(&bytes),
+    })
+}
+
+pub struct Snapshot {
+    files: std::collections::BTreeMap<String, Vec<u8>>,
+}
+
+impl Snapshot {
+    pub fn bytes(&self, file: &str) -> Result<&[u8], String> {
+        self.files
+            .get(file)
+            .map(Vec::as_slice)
+            .ok_or_else(|| format!("Missing captured artifact {file}"))
+    }
+
+    pub fn json<T: serde::de::DeserializeOwned>(&self, file: &str) -> Result<T, String> {
+        serde_json::from_slice(self.bytes(file)?).map_err(|error| format!("{file}: {error}"))
+    }
+}
+
+pub fn load_inventory(unit: &Unit) -> Result<Snapshot, String> {
+    let mut files = std::collections::BTreeMap::new();
     for artifact in &unit.artifacts {
-        if !names.insert(&artifact.file) || Path::new(&artifact.file).components().count() != 1 {
+        if files.contains_key(&artifact.file) || Path::new(&artifact.file).components().count() != 1
+        {
             return Err("ambiguous artifact inventory".into());
         }
         let bytes = std::fs::read(unit.directory.join(&artifact.file))
-            .map_err(|e| format!("missing captured artifact {}: {e}", artifact.file))?;
+            .map_err(|error| format!("missing captured artifact {}: {error}", artifact.file))?;
         if super::digest(&bytes) != artifact.sha256 {
             return Err(format!(
                 "captured artifact digest mismatch: {}",
                 artifact.file
             ));
         }
+        files.insert(artifact.file.clone(), bytes);
     }
 
-    let actual = artifact_inventory(&unit.directory, unit.extraction_profile)?;
+    let actual: std::collections::BTreeSet<_> = files.keys().cloned().collect();
     if actual
-        .iter()
-        .map(|a| &a.file)
-        .collect::<std::collections::BTreeSet<_>>()
-        != names
+        != artifact_files(unit.extraction_profile)
+            .into_iter()
+            .collect()
     {
         return Err("incomplete captured artifact inventory".into());
     }
-    Ok(())
+    Ok(Snapshot { files })
 }
 
 fn intended_artifact(capture: &Capture, artifact: &Value, target: &Target) -> bool {
@@ -898,5 +909,58 @@ mod digest_tests {
             file_digest(&file).unwrap(),
             "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
         );
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+
+    #[test]
+    fn verified_snapshot_survives_file_edits_without_rereading() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = rstyle_pdg::unit_store::UnitStore::capture(Vec::new()).unwrap();
+        let mut bytes = Vec::new();
+        let manifest = store.write_sealed_bundle(&mut bytes).unwrap();
+        std::fs::write(directory.path().join("unit.evidence.json"), &bytes).unwrap();
+        super::write_json(
+            &directory.path().join("unit.evidence.manifest.json"),
+            &manifest,
+        )
+        .unwrap();
+        let unit = Unit {
+            extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+            target: Target {
+                package: "snapshot".into(),
+                manifest_dir: directory.path().into(),
+                package_context: None,
+                source: directory.path().join("lib.rs"),
+                name: "snapshot".into(),
+                kind: vec!["lib".into()],
+                test: false,
+            },
+            test: false,
+            invocation: Vec::new(),
+            directory: directory.path().into(),
+            artifacts: artifact_inventory(
+                directory.path(),
+                rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+            )
+            .unwrap(),
+        };
+        let snapshot = load_inventory(&unit).unwrap();
+        std::fs::write(
+            directory.path().join("unit.evidence.json"),
+            b"corrupt replacement",
+        )
+        .unwrap();
+        let captured_manifest = snapshot.json("unit.evidence.manifest.json").unwrap();
+        rstyle_pdg::unit_store::UnitStore::from_current_run(
+            snapshot.bytes("unit.evidence.json").unwrap(),
+            &captured_manifest,
+            |_| Ok(()),
+        )
+        .unwrap();
+        assert!(load_inventory(&unit).is_err());
     }
 }

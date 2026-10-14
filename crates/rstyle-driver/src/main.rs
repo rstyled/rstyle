@@ -114,6 +114,7 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         output: hir_extraction::output::Destination {
             facts_file: path,
             document_directory: document_dir,
+            shared_unit: rstyle_pdg::diagnostics::switch("RSTYLE_HIR_SHARED_UNIT"),
         },
         scanned: Vec::new(),
         invocation: args.clone(),
@@ -195,12 +196,12 @@ impl HirExtract {
         &self,
         tcx: TyCtxt<'_>,
         options: &hir_extraction::Options<'_>,
-        facts: &[rstyle_pdg::HirFnFacts],
+        store: &rstyle_pdg::unit_store::UnitStore,
     ) {
-        let inventory = self.inventory(tcx, options, facts);
+        let inventory = self.inventory(tcx, options, store.functions());
         self.output
             .write_capture(&hir_extraction::output::CapturedOutput {
-                facts,
+                store,
                 inventory: inventory.as_ref(),
             })
             .expect("write captured evidence");

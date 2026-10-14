@@ -34,6 +34,7 @@ struct Report<'a> {
     compiler_identity: &'a str,
     cargo_identity: &'a str,
     contract_revision: &'static str,
+    unit_bundle_schema: &'static str,
     verification_policy: &'static str,
     extraction_selection: &'static str,
     extraction_policy: Policy,
@@ -109,6 +110,7 @@ pub fn make(ctx: Context<'_>) -> Result<Value, String> {
         compiler_identity: &ctx.capture.plan.compiler_identity,
         cargo_identity: &ctx.capture.plan.cargo_identity,
         contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
+        unit_bundle_schema: "rstyle.shared-unit/1",
         extraction_selection: extraction_selection(ctx.args),
         extraction_policy: Policy {
             id: ctx.args.extraction_profile.policy().id,

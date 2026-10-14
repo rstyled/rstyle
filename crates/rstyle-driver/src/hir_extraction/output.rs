@@ -1,6 +1,6 @@
 //! Explicit producer artifacts, independent of matching orchestration.
 
-use rstyle_pdg::{HirFnFacts, classify, producer};
+use rstyle_pdg::{HirFnFacts, classify, producer, unit_store::UnitStore};
 use serde::Serialize;
 use std::{
     io,
@@ -10,11 +10,12 @@ use std::{
 pub struct Destination {
     pub facts_file: PathBuf,
     pub document_directory: Option<PathBuf>,
+    pub shared_unit: bool,
 }
 
 /// The source inventory and facts published together for one completed capture.
 pub struct CapturedOutput<'a> {
-    pub facts: &'a [HirFnFacts],
+    pub store: &'a rstyle_pdg::unit_store::UnitStore,
     pub inventory: Option<&'a serde_json::Value>,
 }
 
@@ -35,7 +36,29 @@ impl Destination {
         if let Some(inventory) = capture.inventory {
             self.write_source_inventory(inventory)?;
         }
-        self.write(capture.facts)
+        self.write_evidence(capture.store)
+    }
+
+    fn write_evidence(&self, store: &UnitStore) -> io::Result<()> {
+        if self.shared_unit {
+            self.write_shared(store)
+        } else {
+            let facts = store.expanded_frontends().map_err(io::Error::other)?;
+            self.write(&facts)
+        }
+    }
+
+    fn shared_directory(&self) -> io::Result<&Path> {
+        self.document_directory
+            .as_deref()
+            .ok_or_else(|| io::Error::other("Shared publication requires a unit directory"))
+    }
+
+    fn write_shared(&self, store: &UnitStore) -> io::Result<()> {
+        let directory = self.shared_directory()?;
+        std::fs::create_dir_all(directory)?;
+        let manifest = write_sealed_file(directory.join("unit.evidence.json"), store)?;
+        write_json(&directory.join("unit.evidence.manifest.json"), &manifest)
     }
 
     pub fn write_source_inventory(&self, value: &serde_json::Value) -> io::Result<()> {
@@ -51,6 +74,15 @@ impl Destination {
         }
         write_json(&self.facts_file, facts)
     }
+}
+
+fn write_sealed_file(
+    path: PathBuf,
+    store: &UnitStore,
+) -> io::Result<rstyle_pdg::unit_store::BundleManifest> {
+    let file = std::fs::File::create(path)?;
+    let writer = io::BufWriter::new(file);
+    store.write_sealed_bundle(writer).map_err(io::Error::other)
 }
 
 fn write(directory: &Path, facts: &[HirFnFacts]) -> io::Result<()> {

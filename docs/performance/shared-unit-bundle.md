@@ -2,8 +2,7 @@
 
 The internal `rstyle.shared-unit/1` JSON bundle contains one unit's owned
 frontend and graph records. It is available through
-`UnitStore::{write_bundle,from_bundle}`; driver/CLI publication is the next
-integration increment. It does not replace the pinned standalone PDG/CFG
+`UnitStore::{write_bundle,from_bundle}` and is the normal driver/CLI handoff. It does not replace the pinned standalone PDG/CFG
 schemas or reinterpret their existing manifest hashes.
 
 | Field | Meaning |
@@ -55,8 +54,8 @@ This is ordinary owned deserialization, not zero-copy loading.
 
 The bundle is an explicit new format. Legacy standalone facts/pairs remain a
 narrow supported adapter, and legacy canonical byte manifests keep their
-meaning. The current driver/CLI still use that adapter until the publication
-increment; the shared bundle must not yet be described as their ordinary path.
+meaning. The CLI requests shared publication explicitly; direct legacy driver users retain
+the standalone adapter.
 Storage sharing does not bound legitimate pairwise matching work or optional
 expanded output. Existing read/depth budgets and graph-validation checks remain
 in force; further buffer/layout normalization is separate measured tuning.
@@ -66,5 +65,29 @@ export, separate from shared loading. It retains depth-eight and 8 MiB per-call
 bounds and applies a separate 512 MiB aggregate expansion-work budget. Exhaustion
 returns an error rather than truncated evidence. The legacy mutable-facts
 capture entry point now delegates to shared capture and this exporter instead
-of maintaining a second certification runtime. Driver/CLI adoption remains
-outstanding, so their current legacy publication still incurs expansion costs.
+of maintaining a second certification runtime. The CLI invokes this exporter only with `--expanded-evidence`, writing separate
+readable standalone pairs. Ordinary analysis never expands helper proof trees.
+
+
+The driver publishes `unit.evidence.json` and a separate
+`rstyle.shared-unit.manifest/1` seal containing the exact byte count and SHA256.
+The seal hashes the bytes as they are written and requires successful flush.
+CLI artifact loading reads each artifact once, checks the inventory and seal,
+and decodes the same owned snapshot. The seal detects changed bytes; it does
+not grant trust. `from_current_run` explicitly selects existing generated
+structural verification only for independently selected compiler output after
+checking the frozen invocation and selected-unit context. Ordinary `from_bundle`
+always performs strict validation, including inside a generated ambient scope.
+
+Report functions carry a bundle/function reference instead of a mandatory
+standalone artifact prefix. Raw facts remain available for source navigation.
+The report includes `unit_bundle_schema`; standalone graph schema revisions
+remain unchanged. Consumers requiring individual graph artifacts must opt into
+`--expanded-evidence`. The optional export obeys the separate expansion budget.
+
+Native-width propagation memoizes successful derived results by function handle
+within one owning analysis/builder. It is independent of verification policy;
+proof success remains separately partitioned by policy. Errors are not cached.
+The evidence-view trait is sealed so external implementations cannot substitute
+helper views from another owner. Shared traversal preserves every call occurrence
+while reusing the derived callee property.

@@ -102,6 +102,10 @@ fn identity(facts: &HirFnFacts) -> Option<&str> {
 /// Native-width semantics propagate through verified dependencies, even when
 /// a caller's own interface and operations have only fixed-width scalar types.
 pub fn native_width(facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    facts.native_width()
+}
+
+pub(crate) fn compute_native_width(facts: &dyn EvidenceFacts) -> Result<bool, String> {
     let data = crate::extraction_profile::ExtractionProfile::from_facts(facts)?.is_data();
     let interface = facts
         .signature
