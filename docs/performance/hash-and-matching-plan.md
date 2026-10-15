@@ -70,7 +70,9 @@ serialized evidence does not acquire that trust.
    `integer-scoring-labels.md` removes copied string histogram trees from scoring;
    `shared-wl-trace.md` shares optional partitions with the scoring pass;
    `wl-label-buffers.md` reuses pair-local label vectors across synchronous
-   rounds. Tuple-neighbor allocation remains for further measured investigation.
+   rounds. `diameter-scratch.md` records a rejected traversal-buffer candidate;
+   mixed debug/release results did not justify replacing the retained traversal.
+   Tuple-neighbor allocation remains for further measured investigation.
 8. Diagnostic content fingerprints are replaced by process-local observation
    IDs in the next increment; see `diagnostic-observation-ids.md`.
    Historical study snapshots, fixture hashes and precomputed contracts are not
