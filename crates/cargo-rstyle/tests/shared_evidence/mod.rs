@@ -19,6 +19,11 @@ pub fn load(function: &Value) -> (UnitStore, usize) {
     (store, index(function))
 }
 
+pub fn pair<'a>(store: &'a UnitStore, function: &Value) -> &'a rstyle_pdg::producer::Pair {
+    assert_eq!(function["unit_evidence"]["identity"], store.identity());
+    store.pair(index(function)).unwrap()
+}
+
 pub fn reject_edit(function: &Value, edit: impl FnOnce(&mut Value, usize)) {
     let mut bundle = wire(function);
     UnitStore::from_bundle(&serde_json::to_vec(&bundle).unwrap()).unwrap();

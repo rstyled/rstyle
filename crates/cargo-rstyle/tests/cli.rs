@@ -5201,7 +5201,7 @@ fn clones_data_inherent_family_composes_source_methods_fields_and_helpers() {
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 210);
     assert_eq!(report["pair_evaluation_complete"], true);
-    check_inherent_call_evidence(&report);
+    check_inherent_call_evidence(&report, &unit);
     check_inherent_tampering(read_call_function(&report, "model::Data::wrap"));
     assertions.finish(Ok::<(), String>(())).unwrap();
     let warm_run =
@@ -5221,6 +5221,7 @@ fn check_inherent_call_edit(directory: &Path, previous: &Value) {
     std::fs::write(directory.join("src/lib.rs"), source).unwrap();
     let (output, report) = clones(directory, &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
+    let (unit, _) = data_unit(&report["functions"][0]);
     for name in ["model::Data::wrap", "model::Data::third", "invoke"] {
         let old = read_call_function(previous, name);
         let new = read_call_function(&report, name);
@@ -5228,8 +5229,7 @@ fn check_inherent_call_edit(directory: &Path, previous: &Value) {
             old["unit_evidence"]["identity"],
             new["unit_evidence"]["identity"]
         );
-        let (unit, index) = data_unit(new);
-        let pair = unit.pair(index).unwrap();
+        let pair = shared_evidence::pair(&unit, new);
         assert_eq!(
             pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
                 [2]["name"],
@@ -5301,11 +5301,10 @@ fn check_unproved_inherent_calls(report: &Value) {
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
-fn check_inherent_call_evidence(report: &Value) {
-    let (unit, index) = data_unit(read_call_function(report, "model::Data::wrap"));
-    let analysis = unit.analysis();
-    let facts = analysis.function(index).unwrap();
-    let pair = unit.pair(index).unwrap();
+fn check_inherent_call_evidence(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
+    let function = read_call_function(report, "model::Data::wrap");
+    let facts = &unit.functions()[shared_evidence::index(function)];
+    let pair = shared_evidence::pair(unit, function);
     let call = pair
         .pdg
         .nodes
@@ -5329,7 +5328,6 @@ fn check_inherent_call_evidence(report: &Value) {
             [1]["name"],
         "inner"
     );
-    let function = read_call_function(report, "model::Data::wrap");
     let projection = report["matching"]["functions"]
         .as_array()
         .unwrap()
@@ -5340,8 +5338,7 @@ fn check_inherent_call_evidence(report: &Value) {
         projection["projection"]["features"],
         serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 2])
     );
-    let (unit, index) = data_unit(read_call_function(report, "ufcs"));
-    let direct = unit.pair(index).unwrap();
+    let direct = shared_evidence::pair(unit, read_call_function(report, "ufcs"));
     let direct = direct
         .pdg
         .nodes
@@ -5447,7 +5444,7 @@ fn clones_data_read_calls_compose_complete_shared_field_helper_families() {
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 190);
     assert_eq!(report["pair_evaluation_complete"], true);
-    check_read_call_locations(&report);
+    check_read_call_locations(&report, &unit);
     check_read_call_tampering(read_call_function(&report, "wrap"));
     let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
     assert!(output.status.success(), "{warm}");
@@ -5506,7 +5503,7 @@ pub fn divergent_call(v: &Data) -> u8 { divergent(v) }\n";
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
-fn check_read_call_locations(report: &Value) {
+fn check_read_call_locations(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
     let wrapper = read_call_function(report, "wrap");
     let projected = report["matching"]["functions"]
         .as_array()
@@ -5527,8 +5524,7 @@ fn check_read_call_locations(report: &Value) {
         ("repeat_wrap", 2, 1),
         ("choose_get", 2, 2),
     ] {
-        let (unit, index) = data_unit(read_call_function(report, name));
-        let pair = unit.pair(index).unwrap();
+        let pair = shared_evidence::pair(unit, read_call_function(report, name));
         assert_eq!(
             pair.pdg
                 .nodes
@@ -5551,12 +5547,13 @@ fn check_read_call_locations(report: &Value) {
             );
         }
     }
-    check_stored_read_path(read_call_function(report, "stored"));
+    check_stored_read_path(shared_evidence::pair(
+        unit,
+        read_call_function(report, "stored"),
+    ));
 }
 
-fn check_stored_read_path(function: &Value) {
-    let (unit, index) = data_unit(function);
-    let stored = unit.pair(index).unwrap();
+fn check_stored_read_path(stored: &rstyle_pdg::producer::Pair) {
     let path = &stored
         .pdg
         .memory_locations
@@ -5701,6 +5698,7 @@ fn check_read_call_edit(directory: &Path, previous: &Value) {
     std::fs::write(directory.join("src/lib.rs"), source).unwrap();
     let (output, report) = clones(directory, &["--extraction-profile", "hir-data-v2"]);
     assert!(output.status.success(), "{report}");
+    let (unit, _) = data_unit(&report["functions"][0]);
     for name in ["wrap", "third"] {
         let old = read_call_function(previous, name);
         let new = read_call_function(&report, name);
@@ -5708,8 +5706,7 @@ fn check_read_call_edit(directory: &Path, previous: &Value) {
             old["unit_evidence"]["identity"],
             new["unit_evidence"]["identity"]
         );
-        let (unit, index) = data_unit(new);
-        let pair = unit.pair(index).unwrap();
+        let pair = shared_evidence::pair(&unit, new);
         assert_eq!(
             pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
                 [2]["name"],
