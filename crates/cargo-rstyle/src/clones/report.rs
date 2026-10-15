@@ -111,7 +111,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
         compiler_identity: &ctx.capture.plan.compiler_identity,
         cargo_identity: &ctx.capture.plan.cargo_identity,
         contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
-        unit_bundle_schema: "rstyle.shared-unit/2",
+        unit_bundle_schema: "rstyle.shared-unit/3",
         function_identity_schema: super::identity::SCHEMA,
         unit_contexts: &ctx.handoff.unit_contexts,
         extraction_selection: extraction_selection(ctx.args),

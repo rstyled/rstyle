@@ -41,8 +41,32 @@ pub fn reject_edit(function: &Value, edit: impl FnOnce(&mut Value, usize)) {
 
 pub fn reject_facts(function: &Value, changed: &HirFnFacts) {
     reject_edit(function, |bundle, index| {
-        bundle["functions"][index] = serde_json::to_value(changed).unwrap();
+        let source = replace_source(bundle, index, &changed.source.bytes, &changed.source.digest);
+        let mut frontend = serde_json::to_value(changed).unwrap();
+        frontend["source"] = source;
+        bundle["functions"][index] = frontend;
     });
+}
+
+fn replace_source(bundle: &mut Value, index: usize, bytes: &str, digest: &str) -> Value {
+    let previous = bundle["functions"][index]["source"]["snapshot"]
+        .as_u64()
+        .unwrap();
+    let references = bundle["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|function| function["source"]["snapshot"] == previous)
+        .count();
+    let sources = bundle["sources"].as_array_mut().unwrap();
+    let snapshot = if references == 1 {
+        sources[previous as usize] = bytes.into();
+        previous as usize
+    } else {
+        sources.push(bytes.into());
+        sources.len() - 1
+    };
+    serde_json::json!({"snapshot": snapshot, "range": {"start": 0, "end": bytes.len()}, "digest": digest})
 }
 
 fn callee(bundle: &Value, caller: usize) -> (usize, usize) {
@@ -61,6 +85,13 @@ pub fn reject_helper(function: &Value, corruption: &str) {
         let (callee, helper) = callee(bundle, caller);
         if corruption.starts_with("output_") || corruption == "effects" {
             corrupt_summary(&mut bundle["helpers"][helper]["summary"], corruption);
+        } else if corruption == "source" {
+            let digest = bundle["functions"][callee]["source"]["digest"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            let source = replace_source(bundle, callee, "fn forged() {}", &digest);
+            bundle["functions"][callee]["source"] = source;
         } else {
             corrupt_frontend(&mut bundle["functions"][callee], corruption);
         }
@@ -82,7 +113,6 @@ fn reject_seal(function: &Value) {
 
 fn corrupt_frontend(frontend: &mut Value, corruption: &str) {
     match corruption {
-        "source" => frontend["source"]["bytes"] = "fn forged() {}".into(),
         "signature" => frontend["signature"]["return_ty"]["normalized"] = "i32".into(),
         "unit_invocation" => {
             frontend["build"]["frontend_options"]["invocation"] = serde_json::json!(["forged"])

@@ -35,6 +35,12 @@ impl SourceText {
         })))
     }
 
+    pub(crate) fn snapshot_range(&self) -> Result<(&Arc<str>, ByteSpan), String> {
+        let start = u32::try_from(self.0.range.start).map_err(|_| "Source range exceeds u32")?;
+        let end = u32::try_from(self.0.range.end).map_err(|_| "Source range exceeds u32")?;
+        Ok((&self.0.snapshot, ByteSpan { start, end }))
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0.snapshot[self.0.range.clone()]
     }

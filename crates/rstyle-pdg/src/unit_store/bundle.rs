@@ -2,8 +2,9 @@
 //! dense IDs survive a round trip but are never global persistent identities.
 use super::*;
 use std::io::Write;
+mod function_sources;
 
-const SCHEMA: &str = "rstyle.shared-unit/2";
+const SCHEMA: &str = "rstyle.shared-unit/3";
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -16,7 +17,8 @@ struct CallLink {
 struct Export<'a> {
     schema: &'static str,
     namespace: &'a UnitNamespace,
-    functions: &'a [HirFnFacts],
+    sources: Vec<&'a str>,
+    functions: Vec<function_sources::Export<'a>>,
     helpers: &'a [HelperRecord],
     graphs: &'a [Pair],
     roots: &'a [Option<GraphId>],
@@ -29,7 +31,8 @@ struct Export<'a> {
 struct Import {
     schema: String,
     namespace: UnitNamespace,
-    functions: Vec<HirFnFacts>,
+    sources: Vec<std::sync::Arc<str>>,
+    functions: Vec<function_sources::Import>,
     helpers: Vec<HelperRecord>,
     graphs: Vec<Pair>,
     roots: Vec<Option<GraphId>>,
@@ -37,13 +40,32 @@ struct Import {
     certified: Vec<Option<HelperId>>,
 }
 
+struct Decoded {
+    wire: Import,
+    functions: Vec<HirFnFacts>,
+}
+
+impl Import {
+    fn decode(bytes: &[u8]) -> Result<Decoded, String> {
+        let mut wire: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+        if wire.schema != SCHEMA {
+            return Err("Unsupported shared unit schema".into());
+        }
+        let functions =
+            function_sources::decode(&wire.sources, std::mem::take(&mut wire.functions))?;
+        Ok(Decoded { wire, functions })
+    }
+}
+
 impl UnitStore {
     /// Stream shared records directly; no frontend/proof trees are expanded.
     pub fn write_bundle(&self, writer: impl Write) -> Result<(), String> {
+        let sources = function_sources::encode(&self.functions)?;
         let export = Export {
             schema: SCHEMA,
             namespace: &self.namespace,
-            functions: &self.functions,
+            sources: sources.snapshots,
+            functions: sources.functions,
             helpers: &self.helpers,
             graphs: &self.graphs,
             roots: &self.roots,
@@ -96,11 +118,8 @@ impl UnitStore {
         inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,
         current_run: bool,
     ) -> Result<Self, String> {
-        let import: Import = crate::diagnostics::Stage::new("unit.decode", "bundle", None)
-            .observe(|| serde_json::from_slice(bytes).map_err(|error| error.to_string()))?;
-        if import.schema != SCHEMA {
-            return Err("Unsupported shared unit schema".into());
-        }
+        let import = crate::diagnostics::Stage::new("unit.decode", "bundle", None)
+            .observe(|| Import::decode(bytes))?;
         crate::diagnostics::Stage::new("unit.inspect", "bundle", None)
             .observe(|| inspect(&import.functions))?;
 
@@ -172,32 +191,29 @@ fn export_links(links: &BTreeMap<Site, FunctionId>) -> Vec<CallLink> {
         .collect()
 }
 
-impl Import {
+impl Decoded {
     fn into_store(self) -> Result<UnitStore, String> {
-        if self.schema != SCHEMA {
-            return Err("Unsupported shared unit schema".into());
-        }
-        let store = Builder::in_namespace(self.functions, self.namespace)?.store;
+        let store = Builder::in_namespace(self.functions, self.wire.namespace)?.store;
 
-        if self.certified.len() != store.functions.len() {
+        if self.wire.certified.len() != store.functions.len() {
             return Err("Shared unit certification table disagrees".into());
         }
-        if self.links.len() != store.links.len() {
+        if self.wire.links.len() != store.links.len() {
             return Err("Incomplete unit call link inventory".into());
         }
-        for (wire, expected) in self.links.into_iter().zip(&store.links) {
+        for (wire, expected) in self.wire.links.into_iter().zip(&store.links) {
             validate_links(wire, expected)?;
         }
-        u32::try_from(self.helpers.len()).map_err(|_| "Oversized helper table")?;
-        u32::try_from(self.graphs.len()).map_err(|_| "Oversized graph table")?;
+        u32::try_from(self.wire.helpers.len()).map_err(|_| "Oversized helper table")?;
+        u32::try_from(self.wire.graphs.len()).map_err(|_| "Oversized graph table")?;
         let store = UnitStore {
             namespace: store.namespace,
             functions: store.functions,
             links: store.links,
-            graphs: self.graphs,
-            roots: self.roots,
-            helpers: self.helpers,
-            certified: self.certified,
+            graphs: self.wire.graphs,
+            roots: self.wire.roots,
+            helpers: self.wire.helpers,
+            certified: self.wire.certified,
         };
         store.validate_roots()?;
         store.validate_certifications()?;

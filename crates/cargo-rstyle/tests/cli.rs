@@ -1097,7 +1097,7 @@ fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
     assert!(output.status.success(), "{}", stdout(&output));
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_persisted_report(&report);
-    assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/2");
+    assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/3");
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
     for function in report["functions"].as_array().unwrap() {
         assert!(function.get("artifact_prefix").is_none());
@@ -1134,6 +1134,37 @@ fn assert_shared_bundle_tables(report: &Value) {
     assert_eq!(wire["functions"].as_array().unwrap().len(), 3);
     assert_eq!(wire["helpers"].as_array().unwrap().len(), 3);
     assert_eq!(wire["graphs"].as_array().unwrap().len(), 3);
+    assert_eq!(wire["sources"].as_array().unwrap().len(), 1);
+    for (index, function) in store.functions().iter().enumerate() {
+        let reference = &wire["functions"][index]["source"];
+        assert!(reference.get("bytes").is_none());
+        let source = wire["sources"][reference["snapshot"].as_u64().unwrap() as usize]
+            .as_str()
+            .unwrap();
+        let range = &reference["range"];
+        assert_eq!(
+            source.get(
+                range["start"].as_u64().unwrap() as usize..range["end"].as_u64().unwrap() as usize
+            ),
+            Some(function.source.bytes.as_str())
+        );
+        assert_eq!(reference["digest"], function.source.digest);
+    }
+    let mut dangling = wire.clone();
+    dangling["functions"][0]["source"]["snapshot"] = u32::MAX.into();
+    assert!(
+        rstyle_pdg::unit_store::UnitStore::from_bundle(&serde_json::to_vec(&dangling).unwrap())
+            .is_err()
+    );
+    let mut unused = wire;
+    unused["sources"]
+        .as_array_mut()
+        .unwrap()
+        .push("unreferenced".into());
+    assert!(
+        rstyle_pdg::unit_store::UnitStore::from_bundle(&serde_json::to_vec(&unused).unwrap())
+            .is_err()
+    );
     let mut edited = bytes;
     edited.push(b' ');
     assert!(manifest.verify(&edited).is_err());

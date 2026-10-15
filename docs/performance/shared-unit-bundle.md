@@ -1,6 +1,6 @@
-# Shared unit bundle version 2
+# Shared unit bundle version 3
 
-The internal `rstyle.shared-unit/2` JSON bundle contains one unit's owned
+The internal `rstyle.shared-unit/3` JSON bundle contains one unit's owned
 frontend and graph records. It is available through
 `UnitStore::{write_bundle,from_bundle}` and is the normal driver/CLI handoff. It does not replace the pinned standalone PDG/CFG
 schemas or reinterpret their existing manifest hashes.
@@ -9,14 +9,15 @@ schemas or reinterpret their existing manifest hashes.
 | --- | --- |
 | `schema` | Exact versioned bundle discriminator |
 | `namespace` | Local producer allocation namespace, preserved on import |
-| `functions` | Raw frontend records, without attached nested helper proofs |
+| `sources` | Immutable original snapshots referenced only inside this bundle |
+| `functions` | Frontend records with checked source-range references, without nested helper proofs |
 | `graphs` | Unique typed PDG/CFG pairs |
 | `roots` | Optional graph handle for each function |
 | `helpers` | Function/graph handles, typed summary and bounded `u32` depth |
 | `links` | Per-function call occurrences with HIR site and target handle |
 | `certified` | Optional helper handle for each function |
 
-`FunctionId`, `HelperId` and `GraphId` are distinct private-constructor `u32`
+`FunctionId`, `HelperId`, `GraphId` and source-table `SourceId` are distinct private-constructor `u32`
 newtypes. Every index/count conversion is checked. IDs preserve their referents
 through a bundle round trip; they are scoped to that immutable owning store.
 They are not globally persistent identities and are not promised to survive
@@ -33,11 +34,15 @@ Standalone verification cannot resolve a shared-table reference. Readable
 names, source buffers, byte ranges, snippets and expanded provenance remain
 available through borrowed function views and paired graph records. Bundle
 writing streams typed records directly without expanding nested proof trees.
-It currently materializes only small call-link ID lists for JSON transport.
+It materializes call-link IDs and borrowed function/source reference records for
+JSON transport. Function source fields contain `snapshot`, `range` and the original
+`digest` claim; each snapshot string is written once in `sources`. See
+[source dictionary version 3](source-dictionary-v3.md).
 
 Import decodes one supplied owned byte snapshot into typed tables, then moves
 those tables into the store. It preserves the wire namespace and reconstructs exact call links,
-checks all bounds, duplicate sites, root/certificate agreement, unused graph
+resolves source ranges before frontend inspection and checks dangling/unused
+source entries, UTF-8 bounds, duplicate sites, root/certificate agreement, unused graph
 records, inventory completeness and paired-document correspondence. Only the
 helper certification relation must be acyclic and fit the existing depth-eight
 budget; legitimate CFG cycles retain their existing policy. Graph and source

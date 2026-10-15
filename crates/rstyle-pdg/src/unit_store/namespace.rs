@@ -79,7 +79,7 @@ mod store_tests {
         let imported = UnitStore::from_bundle(&wire).unwrap();
         assert_eq!(first.namespace(), imported.namespace());
         let mut document: serde_json::Value = serde_json::from_slice(&wire).unwrap();
-        assert_eq!(document["schema"], "rstyle.shared-unit/2");
+        assert_eq!(document["schema"], "rstyle.shared-unit/3");
         assert!(document.get("identity").is_none());
         document["identity"] = "retired fingerprint".into();
         assert!(UnitStore::from_bundle(&serde_json::to_vec(&document).unwrap()).is_err());
