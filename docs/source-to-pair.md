@@ -349,3 +349,9 @@ against the owned import buffer. The immutable verified snapshot is decoded
 without rehashing. Inventory completeness and selected-unit inspection remain
 separate checks. See [the hash audit](performance/hash-audit.md) for purposes,
 remaining overlap, and the publication-to-import consistency guarantee.
+
+Data field/helper locations use `rstyle.formal-field/2` with pair-local dense
+handles. These are references within one owning graph, not content fingerprints.
+Imports resolve exact typed root/projection keys and retain source/type checks;
+consistent local renumbering is supported. Version 1 hashed location IDs are
+retired. See [local location handles](performance/local-location-handles.md).

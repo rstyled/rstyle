@@ -443,8 +443,9 @@ fn verify_inventory(pair: producer::PairView<'_>, facts: &dyn EvidenceFacts) -> 
     {
         return Err("Paired serialized call inventories disagree".into());
     }
+    let mut locations = crate::data_documents::LocationContext::from_pair(pair, facts)?;
     for call in &calls {
-        verify_document_call(pair, facts, call, records)?;
+        verify_document_call(pair, &mut locations, call, records)?;
     }
     let nodes = pair
         .pdg
@@ -473,7 +474,7 @@ fn verify_inventory(pair: producer::PairView<'_>, facts: &dyn EvidenceFacts) -> 
 
 fn verify_document_call(
     pair: producer::PairView<'_>,
-    facts: &dyn EvidenceFacts,
+    locations: &mut crate::data_documents::LocationContext<'_>,
     call: &HirNode,
     records: &[Value],
 ) -> Result<(), String> {
@@ -493,7 +494,7 @@ fn verify_document_call(
         return Err("No unique serialized source-backed helper CALL".into());
     };
 
-    let dependency = verify_use(call, facts)?;
+    let dependency = verify_use(call, locations.facts)?;
     let inventory: Vec<_> = records
         .iter()
         .filter(|record| record["pdg_node_id"] == node.id)
@@ -502,7 +503,7 @@ fn verify_document_call(
         return Err("Missing or duplicate serialized helper summary".into());
     };
 
-    crate::helper_reads::verify_effects(node, call, facts, dependency.summary())?;
+    crate::helper_reads::verify_effects(node, call, dependency.summary(), locations)?;
     verify_call_metadata(node, call, record, dependency)?;
     verify_call_operands(pair, node, call, record)
 }

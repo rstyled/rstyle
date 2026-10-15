@@ -146,7 +146,28 @@ fn correspondence(
 ) -> Result<BTreeMap<String, String>, Vec<String>> {
     let mut names = node_names(actual, expected)?;
     add_binding_names(actual, expected, &mut names)?;
-    add_cfg_names(actual, expected, &mut names)?;
+    add_context_names(actual, expected, &mut names)?;
+    Ok(names)
+}
+
+fn add_context_names(
+    actual: PairView<'_>,
+    expected: PairView<'_>,
+    names: &mut BTreeMap<String, String>,
+) -> Result<(), Vec<String>> {
+    add_cfg_names(actual, expected, names)?;
+    for (actual, expected) in crate::data_documents::location_correspondence(actual, expected)
+        .map_err(|error| vec![error])?
+    {
+        if names
+            .get(&actual)
+            .is_some_and(|previous| previous != &expected)
+        {
+            return Err(vec!["Ambiguous local reference namespaces".into()]);
+        }
+        names.insert(actual, expected);
+    }
+
     if actual.pdg.sources.len() != expected.pdg.sources.len() {
         return Err(vec!["Source inventory differs".to_string()]);
     }
@@ -160,7 +181,7 @@ fn correspondence(
         names.insert(source.id.clone(), expected.id.clone());
     }
 
-    Ok(names)
+    Ok(())
 }
 
 fn add_binding_names(
@@ -381,7 +402,9 @@ fn unordered(field: &str) -> bool {
 fn reference_field(field: &str) -> bool {
     matches!(
         field,
-        "id" | "source"
+        "id" | "location_id"
+            | crate::data_places::KEY
+            | "source"
             | "target"
             | "node_id"
             | "symbol_id"

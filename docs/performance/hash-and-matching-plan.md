@@ -23,13 +23,14 @@ serialized evidence does not acquire that trust.
 - Baseline style: zero violations across 1,970 functions. Baseline patterns:
   zero actionable candidates; 15 existing reviewed ignores, unchanged.
 
-## Full remaining scope
+## Implementation scope and status
 
 1. Retire library-file reads/fingerprint gating with an explicit versioned
    supported-toolchain contract. First implementation increment; measurement and
    validation are recorded in `library-resolution-retirement.md`.
-2. Intern complete typed root/projection keys into location handles; intern exact
-   relevant build contexts with owner-scoped `BuildId`.
+2. Pair-local complete-key location interning is implemented in the next increment;
+   see `local-location-handles.md`. Interning exact relevant build contexts with
+   owner-scoped `BuildId` remains pending.
 3. Consolidate source snapshots, checked ranges and source/context correspondence.
    Reuse checked views within immutable owners without crossing edits, owners or
    strict/generated policy boundaries.

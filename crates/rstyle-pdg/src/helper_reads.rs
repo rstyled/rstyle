@@ -2,7 +2,7 @@
 
 mod calls;
 pub(crate) use calls::{
-    check_budgets, install, verify_arguments, verify_effects, verify_locations,
+    check_budgets, install, merge_locations, verify_arguments, verify_effects, verify_locations,
 };
 
 use crate::{NodeCategory, data_types::TypeToken, field_locations::Projection, producer::Pair};
@@ -98,7 +98,7 @@ pub(crate) fn derive(
 }
 
 fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String> {
-    if location.abstraction != "rstyle.formal-field/1" {
+    if location.abstraction != "rstyle.formal-field/2" {
         return Err("Helper read lacks registered formal location interpretation".into());
     }
     serde_json::from_value(

@@ -1,6 +1,7 @@
 //! Caller substitution and independent serialized access checks; no caller lowering.
 
 use super::*;
+use crate::data_documents::LocationContext;
 use crate::{Access, HirNode, MemoryLocation, PdgNode, helper_calls::Summary};
 use std::collections::BTreeMap;
 
@@ -10,21 +11,40 @@ struct Effects {
     locations: BTreeMap<String, MemoryLocation>,
 }
 
+struct ReadOccurrence<'a> {
+    read: &'a Read,
+    parameter: u32,
+    path: Vec<Projection>,
+}
+
 pub(crate) fn verify_arguments(
     summary: &Summary,
     call: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
-    expected(summary, call, facts).map(|_| ())
+    visit_reads(summary, call, facts, |_| Ok(()))
 }
 
 fn expected(
     summary: &Summary,
     call: &HirNode,
-    facts: &dyn crate::unit_store::EvidenceFacts,
+    context: &mut LocationContext<'_>,
 ) -> Result<Effects, String> {
+    let mut effects = Effects::default();
+    visit_reads(summary, call, context.facts, |occurrence| {
+        install_read(&mut effects, occurrence, context)
+    })?;
+    Ok(effects)
+}
+
+fn visit_reads(
+    summary: &Summary,
+    call: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    mut visit: impl FnMut(ReadOccurrence<'_>) -> Result<(), String>,
+) -> Result<(), String> {
     let Some(reads) = &summary.memory_reads else {
-        return Ok(Effects::default());
+        return Ok(());
     };
     if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         .supports("rust.verified-read-only-helper-calls")
@@ -32,7 +52,7 @@ fn expected(
         return Err("Helper memory reads require the registered Data-calls profile".into());
     }
 
-    let mut effects = Effects::default();
+    let mut count = 0;
     for read in reads {
         let actual = call
             .children
@@ -43,38 +63,55 @@ fn expected(
             return Err("Helper read actual has no verified shared referent origin".into());
         }
         for origin in origins {
-            install_read(&mut effects, read, origin, facts)?;
+            if count == crate::concrete_types::MAX_ENTRIES {
+                return Err(BUDGET_ERROR.into());
+            }
+            let occurrence = checked_read(read, origin, facts)?;
+            visit(occurrence)?;
+            count += 1;
         }
     }
-    Ok(effects)
+    Ok(())
 }
 
-fn install_read(
-    effects: &mut Effects,
-    read: &Read,
+fn checked_read<'a>(
+    read: &'a Read,
     origin: crate::data_origins::Origin,
     facts: &dyn crate::unit_store::EvidenceFacts,
-) -> Result<(), String> {
-    if effects.reads.len() == crate::concrete_types::MAX_ENTRIES {
-        return Err(BUDGET_ERROR.into());
-    }
+) -> Result<ReadOccurrence<'a>, String> {
     let path = substituted_path(&read.path, &origin.path)?;
     if type_at(facts, origin.parameter, &path)? != read.value {
         return Err("Substituted helper location disagrees with actual referent type".into());
     }
+    Ok(ReadOccurrence {
+        read,
+        parameter: origin.parameter,
+        path,
+    })
+}
 
-    let (id, location) =
-        crate::data_documents::formal_location(origin.parameter, &path, read.value.clone(), facts)?;
+fn install_read(
+    effects: &mut Effects,
+    occurrence: ReadOccurrence<'_>,
+    context: &mut LocationContext<'_>,
+) -> Result<(), String> {
+    let facts = context.facts;
+    let (id, location) = context.formal_location(
+        occurrence.parameter,
+        &occurrence.path,
+        occurrence.read.value.clone(),
+    )?;
     let root = facts
         .signature
         .params
-        .get(origin.parameter as usize)
+        .get(occurrence.parameter as usize)
         .ok_or("Missing actual formal root")?;
+
     effects.reads.push(Access {
         symbol_id: Some(root.symbol.clone()),
         location_id: Some(id.clone()),
         unresolved_reason: None,
-        operand_position: Some(u64::from(read.parameter)),
+        operand_position: Some(u64::from(occurrence.read.parameter)),
     });
     insert_location(&mut effects.locations, id, location)
 }
@@ -106,39 +143,37 @@ fn insert_location(
 
 pub(crate) fn install(
     pair: &mut Pair,
-    facts: &dyn crate::unit_store::EvidenceFacts,
-    locations: &mut BTreeMap<String, MemoryLocation>,
-) -> Result<(), String> {
-    for call in source_calls(facts) {
-        install_call_locations(pair, call, facts, locations)?;
+    context: &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, MemoryLocation>, String> {
+    source_calls(context.facts)
+        .into_iter()
+        .map(|call| install_call(pair, call, context))
+        .try_fold(BTreeMap::new(), |locations, added| {
+            merge_locations(locations, added?)
+        })
+}
+
+pub(crate) fn merge_locations(
+    mut locations: BTreeMap<String, MemoryLocation>,
+    added: BTreeMap<String, MemoryLocation>,
+) -> Result<BTreeMap<String, MemoryLocation>, String> {
+    for (id, location) in added {
+        insert_location(&mut locations, id, location)?;
     }
-    Ok(())
+    Ok(locations)
 }
 
 fn source_calls(facts: &dyn crate::unit_store::EvidenceFacts) -> Vec<&HirNode> {
     crate::helper_calls::call_nodes(facts)
 }
 
-fn install_call_locations(
-    pair: &mut Pair,
-    call: &HirNode,
-    facts: &dyn crate::unit_store::EvidenceFacts,
-    locations: &mut BTreeMap<String, MemoryLocation>,
-) -> Result<(), String> {
-    for (id, location) in install_call(pair, call, facts)? {
-        insert_location(locations, id, location)?;
-    }
-
-    Ok(())
-}
-
 fn install_call(
     pair: &mut Pair,
     call: &HirNode,
-    facts: &dyn crate::unit_store::EvidenceFacts,
+    context: &mut LocationContext<'_>,
 ) -> Result<BTreeMap<String, MemoryLocation>, String> {
-    let dependency = crate::helper_calls::verify_use(call, facts)?;
-    let effects = expected(dependency.summary(), call, facts)?;
+    let dependency = crate::helper_calls::verify_use(call, context.facts)?;
+    let effects = expected(dependency.summary(), call, context)?;
     let id = source_call(pair.as_view(), call)?.id.clone();
     let node = pair
         .pdg
@@ -153,13 +188,19 @@ fn install_call(
 
 pub(crate) fn verify_locations(
     pair: crate::producer::PairView<'_>,
-    facts: &dyn crate::unit_store::EvidenceFacts,
+    context: &mut LocationContext<'_>,
     locations: &mut BTreeMap<String, MemoryLocation>,
 ) -> Result<(), String> {
-    for call in source_calls(facts) {
-        let dependency = crate::helper_calls::verify_use(call, facts)?;
-        verify_effects(source_call(pair, call)?, call, facts, dependency.summary())?;
-        for (id, location) in expected(dependency.summary(), call, facts)?.locations {
+    for call in source_calls(context.facts) {
+        let dependency = crate::helper_calls::verify_use(call, context.facts)?;
+        let effects = expected(dependency.summary(), call, context)?;
+        check_effects(
+            source_call(pair, call)?,
+            call,
+            dependency.summary(),
+            &effects,
+        )?;
+        for (id, location) in effects.locations {
             insert_location(locations, id, location)?;
         }
     }
@@ -169,10 +210,19 @@ pub(crate) fn verify_locations(
 pub(crate) fn verify_effects(
     node: &PdgNode,
     call: &HirNode,
-    facts: &dyn crate::unit_store::EvidenceFacts,
     summary: &Summary,
+    context: &mut LocationContext<'_>,
 ) -> Result<(), String> {
-    let effects = expected(summary, call, facts)?;
+    let effects = expected(summary, call, context)?;
+    check_effects(node, call, summary, &effects)
+}
+
+fn check_effects(
+    node: &PdgNode,
+    call: &HirNode,
+    summary: &Summary,
+    effects: &Effects,
+) -> Result<(), String> {
     if node.synthetic
         || node.provenance.origin != crate::ProvenanceOrigin::Source
         || node.original_kind.known_value() != Some(call.kind.as_str())

@@ -1,7 +1,9 @@
 //! Data location transport and independent serialized semantic checks.
 
 mod borrows;
+mod locations;
 mod origins;
+pub(crate) use locations::{LocationContext, correspondence as location_correspondence};
 
 use crate::{NodeCategory, field_locations::*, producer::Pair};
 use serde_json::json;
@@ -24,13 +26,18 @@ fn install_locations(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Pair, String> {
     let fields = observations(facts)?;
-    let mut locations = fields
+    let mut context = LocationContext::new(facts);
+    let locations = fields
         .operations
         .iter()
-        .map(|field| install_field(&mut pair.pdg, field, facts))
+        .map(|field| install_field(&mut pair.pdg, field, &mut context))
         .collect::<Result<BTreeMap<_, _>, _>>()?;
-    crate::helper_reads::install(&mut pair, facts, &mut locations)?;
-    finish_locations(pair, locations)
+
+    let helpers = crate::helper_reads::install(&mut pair, &mut context)?;
+    finish_locations(
+        pair,
+        crate::helper_reads::merge_locations(locations, helpers)?,
+    )
 }
 
 fn finish_locations(
@@ -46,9 +53,9 @@ fn finish_locations(
 fn install_field(
     pdg: &mut crate::PdgDocument,
     field: &FieldOperation,
-    facts: &dyn crate::unit_store::EvidenceFacts,
+    context: &mut LocationContext<'_>,
 ) -> Result<(String, crate::MemoryLocation), String> {
-    let (id, location) = location(field, facts)?;
+    let (id, location) = location(field, context)?;
     let node = pdg
         .nodes
         .iter_mut()
@@ -139,18 +146,9 @@ fn observations(
         .data::<crate::field_locations::FieldObservations>()
 }
 
-#[derive(serde::Serialize)]
-struct LocationEvidence<'a> {
-    parameter: u32,
-    root_symbol: &'a str,
-    path: &'a [Projection],
-    #[serde(rename = "type")]
-    value: crate::data_types::TypeToken,
-}
-
 fn location(
     field: &FieldOperation,
-    facts: &dyn crate::unit_store::EvidenceFacts,
+    context: &mut LocationContext<'_>,
 ) -> Result<(String, crate::MemoryLocation), String> {
     let Location::Captured {
         parameter,
@@ -161,56 +159,11 @@ fn location(
         return Err("Missing field origin".into());
     };
 
-    formal_location(
+    context.formal_location(
         *parameter,
         path,
         crate::data_types::TypeToken::from_tree(value),
-        facts,
     )
-}
-
-pub(crate) fn formal_location(
-    parameter: u32,
-    path: &[Projection],
-    value: crate::data_types::TypeToken,
-    facts: &dyn crate::unit_store::EvidenceFacts,
-) -> Result<(String, crate::MemoryLocation), String> {
-    let root = &facts
-        .signature
-        .params
-        .get(parameter as usize)
-        .ok_or("Unknown formal location root")?
-        .symbol;
-
-    let identity = json!([root, path]);
-    let bytes = serde_json::to_vec(&identity).map_err(|error| error.to_string())?;
-    let id = format!("location:{}", crate::concrete_types::digest(&bytes));
-    Ok((
-        id.clone(),
-        crate::MemoryLocation {
-            id,
-            abstraction: "rstyle.formal-field/1".into(),
-            description: "Read-only formal projection; shared roots may alias".into(),
-            evidence: crate::Capability {
-                policy: Some(
-                    crate::extraction_profile::ExtractionProfile::from_facts(facts)?.policy(),
-                ),
-                status: crate::CapabilityStatus::Supported,
-                description: "Independent source/resolved field and immutable concrete type proof"
-                    .into(),
-            },
-            extensions: BTreeMap::from([(
-                LOCATION_KEY.into(),
-                serde_json::to_value(LocationEvidence {
-                    parameter,
-                    root_symbol: root,
-                    path,
-                    value,
-                })
-                .map_err(|error| error.to_string())?,
-            )]),
-        },
-    ))
 }
 
 /// Check semantic locations directly against independently verified source
@@ -233,10 +186,11 @@ pub fn verify<'a>(
 
     let fields = observations(facts)?;
     let mut expected = BTreeMap::new();
+    let mut context = LocationContext::from_pair(pair, facts)?;
     for field in &fields.operations {
-        verify_field(pair, facts, field, &mut expected)?;
+        verify_field(pair, &mut context, field, &mut expected)?;
     }
-    crate::helper_reads::verify_locations(pair, facts, &mut expected)?;
+    crate::helper_reads::verify_locations(pair, &mut context, &mut expected)?;
 
     let actual: BTreeMap<_, _> = pair
         .pdg
@@ -263,7 +217,7 @@ pub fn verify<'a>(
 
 fn verify_field(
     pair: crate::producer::PairView<'_>,
-    facts: &dyn crate::unit_store::EvidenceFacts,
+    context: &mut LocationContext<'_>,
     field: &FieldOperation,
     expected: &mut BTreeMap<String, crate::MemoryLocation>,
 ) -> Result<(), String> {
@@ -286,7 +240,8 @@ fn verify_field(
         return Err("Ambiguous or missing serialized field correspondence".into());
     };
 
-    let (id, location) = location(field, facts)?;
+    let (id, location) = location(field, context)?;
+    let facts = context.facts;
     let places = crate::data_places::Places::verify(facts)?;
     let source = origins::source_node(node, facts)?;
     if places.contains(source) {

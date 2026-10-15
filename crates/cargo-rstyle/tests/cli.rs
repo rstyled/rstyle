@@ -5636,10 +5636,62 @@ fn check_read_call_locations(report: &Value, unit: &rstyle_pdg::unit_store::Unit
             );
         }
     }
+    check_local_location_renumbering(report, unit);
     check_stored_read_path(shared_evidence::pair(
         unit,
         read_call_function(report, "stored"),
     ));
+}
+
+fn check_local_location_renumbering(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
+    let function = read_call_function(report, "choose_get");
+    let index = shared_evidence::index(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    let count = pair.pdg.memory_locations.len();
+    assert!(count > 1);
+    let renaming: std::collections::BTreeMap<_, _> = pair
+        .pdg
+        .memory_locations
+        .iter()
+        .enumerate()
+        .map(|(index, location)| {
+            (
+                location.id.clone(),
+                format!("location:local:{}", count - index - 1),
+            )
+        })
+        .collect();
+    let mut document = serde_json::to_value(pair).unwrap();
+    rename_location_references(&mut document, &renaming);
+    let mut changed: rstyle_pdg::producer::Pair = serde_json::from_value(document).unwrap();
+    changed.pdg.memory_locations.reverse();
+    rstyle_pdg::data_documents::verify(&changed, &facts).unwrap();
+    rstyle_pdg::producer::verify(&changed, &facts).unwrap();
+    changed.pdg.memory_locations[0].id = changed.pdg.memory_locations[1].id.clone();
+    assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&changed, &facts).is_err());
+}
+
+fn rename_location_references(
+    value: &mut Value,
+    names: &std::collections::BTreeMap<String, String>,
+) {
+    match value {
+        Value::String(name) => {
+            if let Some(replacement) = names.get(name) {
+                *name = replacement.clone();
+            }
+        }
+        Value::Array(values) => values
+            .iter_mut()
+            .for_each(|value| rename_location_references(value, names)),
+        Value::Object(values) => values
+            .values_mut()
+            .for_each(|value| rename_location_references(value, names)),
+        _ => {}
+    }
 }
 
 fn check_stored_read_path(stored: &rstyle_pdg::producer::Pair) {
