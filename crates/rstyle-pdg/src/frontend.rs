@@ -9,7 +9,9 @@
 //! reason and never becomes a fabricated default.
 
 mod options;
+mod source_text;
 pub use options::{DataEvidence, FrontendOptions};
+pub use source_text::SourceText;
 
 use crate::model::{BoolFact, CountFact, FactStatus, StringFact};
 use serde::{Deserialize, Serialize};
@@ -216,7 +218,7 @@ pub struct SignatureFacts {
 #[serde(deny_unknown_fields)]
 pub struct SourceFacts {
     /// Exact UTF-8 bytes of the assessed function (no added newline).
-    pub bytes: String,
+    pub bytes: SourceText,
     /// `sha256:<lowercase hex>` of those bytes.
     pub digest: String,
 }

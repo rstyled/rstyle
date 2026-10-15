@@ -4,7 +4,6 @@
 use super::{Pair, PairView, analyze_facts, emit, lower};
 use crate::*;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 pub fn verify(
@@ -30,8 +29,7 @@ fn verify_pair(
     if crate::verification_policy::is_generated() {
         return observation.finish(validate_boundary(pair, facts));
     }
-    let digest = format!("sha256:{:x}", Sha256::digest(facts.source.bytes.as_bytes()));
-    if digest != facts.source.digest {
+    if facts.source.bytes.identity() != facts.source.digest {
         return Err(vec!["Captured source identity is inconsistent".to_string()]);
     }
     let graph = lower(facts).map_err(|e| {
@@ -69,8 +67,6 @@ fn validate_boundary(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), Vec<String>> {
     validate_frontend_reference(pair, facts)?;
-    let bytes =
-        crate::validate::CapturedSources::new(&pair.pdg.sources, facts.source.bytes.as_bytes());
     let width = facts
         .build
         .pointer_width
@@ -80,7 +76,7 @@ fn validate_boundary(
     let context = ValidationContext::CompilerEvidence {
         pointer_width_bits: width,
     };
-    let report = crate::validate::validate_sources(pair.pdg, &context, &bytes);
+    let report = crate::validate::validate_source_text(pair.pdg, &context, &facts.source.bytes);
     let structural = validate_cfg(pair.cfg)
         .into_iter()
         .chain(validate_paired_agreement(

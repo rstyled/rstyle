@@ -507,7 +507,8 @@ impl FunctionSource<'_> {
             end: source_span(bytes, self.body.span()).end,
         };
         range == facts.fn_span
-            && bytes.get(range.start as usize..range.end as usize) == Some(&facts.source.bytes)
+            && bytes.get(range.start as usize..range.end as usize)
+                == Some(facts.source.bytes.as_str())
     }
 }
 

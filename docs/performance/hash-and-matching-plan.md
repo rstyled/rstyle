@@ -37,8 +37,10 @@ serialized evidence does not acquire that trust.
    Declaration origins now use borrowed typed frontend records; see
    `typed-declaration-origins.md`. Frozen origins now share exact census file
    buffers; see `shared-origin-buffers.md`.
-   Full function/declaration byte ownership, source wire dictionaries, repeated
-   range identities and remaining boundary reuse are still pending. Continue
+   Immutable function ranges and memoized actual range identities are implemented
+   next; see `owned-source-ranges.md`. Source wire dictionaries, capture-time
+   reconstruction, remaining declaration identities and boundary reuse are still
+   pending. Continue
    consolidation without crossing edits, owners or strict/generated policy.
 4. Replace local unit/function/ledger JSON-to-digest identities with explicit
    namespace-qualified typed handles, run-local assignment and exact duplicate

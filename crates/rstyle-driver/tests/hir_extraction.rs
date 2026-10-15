@@ -551,7 +551,7 @@ fn original_utf8_crlf_bytes_and_spans_are_preserved() {
     assert!(output.status.success(), "{:?}", output.stderr);
     let facts = facts.expect("captured source");
     let function = &facts[0];
-    assert_eq!(function.source.bytes, source);
+    assert_eq!(function.source.bytes.as_str(), source);
     assert_eq!(function.fn_span.start, "\u{feff}// prefix\r\n".len() as u32);
     assert_eq!(
         function.fn_span.end - function.fn_span.start,
@@ -1042,7 +1042,7 @@ fn source_identifiers_and_file_navigation_are_independent_of_module_paths() {
         let span = function.fn_span;
         assert_eq!(
             &source[span.start as usize..span.end as usize],
-            function.source.bytes
+            function.source.bytes.as_str()
         );
         let pair = rstyle_pdg::producer::produce(function).unwrap();
         assert_eq!(

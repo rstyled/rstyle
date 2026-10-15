@@ -338,3 +338,40 @@ fn origins_share_only_exact_census_snapshots_and_edits_detach() {
         assert_eq!(origin.file_bytes.as_ref(), file.bytes.as_ref());
     }
 }
+
+#[test]
+fn function_ranges_require_exact_source_path_and_original_bytes() {
+    let census = crate::nominal_boundary::resolution::environment::tests::census();
+    let mut options = FrontendOptions::default();
+    options.insert_data(Arc::clone(&census));
+    options.insert("source_file".into(), json!(census.files[0].path));
+    let source = crate::SourceFacts {
+        bytes: "pub struct Data { pub value: i32 }".into(),
+        digest: "unverified-claim".into(),
+    };
+    let start = census.files[0].bytes.find(source.bytes.as_str()).unwrap() as u32;
+    let span = crate::ByteSpan {
+        start,
+        end: start + source.bytes.len() as u32,
+    };
+    let view = options.function_source(&source, span).unwrap();
+    assert_eq!(view, source.bytes);
+    assert_eq!(
+        view.as_ptr(),
+        census.files[0].bytes[start as usize..].as_ptr()
+    );
+    assert_ne!(view.identity(), source.digest);
+    assert!(
+        options
+            .function_source(
+                &source,
+                crate::ByteSpan {
+                    start: start + 1,
+                    end: span.end
+                }
+            )
+            .is_err()
+    );
+    options.insert("source_file".into(), json!("/other/src/lib.rs"));
+    assert!(options.function_source(&source, span).is_err());
+}

@@ -198,7 +198,7 @@ fn check_range(
     span: crate::ByteSpan,
     function: &crate::SourceFacts,
 ) -> Result<(), String> {
-    if function.digest != digest(function.bytes.as_bytes())
+    if function.digest != function.bytes.identity()
         || source.get(span.start as usize..span.end as usize) != Some(function.bytes.as_str())
     {
         return Err(
@@ -356,7 +356,7 @@ mod tests {
             digest: digest(function.as_bytes()),
         };
         check_range(&file, span, &evidence).unwrap();
-        evidence.bytes = function.replace('3', "4");
+        evidence.bytes = function.replace('3', "4").into();
         evidence.digest = digest(evidence.bytes.as_bytes());
         assert!(check_range(&file, span, &evidence).is_err());
         evidence.bytes = function.into();

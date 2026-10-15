@@ -127,6 +127,37 @@ pub fn validate_sources(
     ctx: &ValidationContext,
     source_bytes: &dyn SourceBytes,
 ) -> ValidationReport {
+    let digests = check_source_digests(doc, ctx, source_bytes);
+    validate_with_digests(doc, ctx, source_bytes, digests)
+}
+
+/// Reuse only the actual identity cached by an immutable byte owner. Claimed
+/// document identities are still compared; no serialized claim installs a cache.
+pub(crate) fn validate_source_text(
+    doc: &PdgDocument,
+    ctx: &ValidationContext,
+    text: &crate::SourceText,
+) -> ValidationReport {
+    let bytes = CapturedSources::new(&doc.sources, text.as_bytes());
+    let digests = check_records(&doc.sources, |source| {
+        match source
+            .content_identity
+            .known_value()
+            .filter(|claim| is_sha256(claim))
+        {
+            Some(claimed) => compare_digest(source, claimed, text.identity()),
+            None => Vec::new(),
+        }
+    });
+    validate_with_digests(doc, ctx, &bytes, digests)
+}
+
+fn validate_with_digests(
+    doc: &PdgDocument,
+    ctx: &ValidationContext,
+    source_bytes: &dyn SourceBytes,
+    digests: CheckOutput,
+) -> ValidationReport {
     let parts = [
         check_schema_version(doc),
         check_unique_ids(doc),
@@ -141,7 +172,7 @@ pub fn validate_sources(
         check_capabilities(doc),
         check_capability_applicability(doc),
         check_source_identities(doc, ctx),
-        check_source_digests(doc, ctx, source_bytes),
+        digests,
         check_build_evidence(doc, ctx, source_bytes),
         check_extension_namespaces(doc),
         check_provenance_references(doc),
@@ -1278,21 +1309,21 @@ fn digest_issues(
                 )]
             }
         }
-        Some(bytes) => {
-            let actual = sha256_hex(bytes);
+        Some(bytes) => compare_digest(source, claimed, &sha256_hex(bytes)),
+    }
+}
 
-            if claimed == actual {
-                Vec::new()
-            } else {
-                vec![issue(
-                    "pdg.source-digest",
-                    format!(
-                        "source {:?} digest does not match supplied bytes",
-                        source.id
-                    ),
-                )]
-            }
-        }
+fn compare_digest(source: &Source, claimed: &str, actual: &str) -> Vec<Issue> {
+    if claimed == actual {
+        Vec::new()
+    } else {
+        vec![issue(
+            "pdg.source-digest",
+            format!(
+                "source {:?} digest does not match supplied bytes",
+                source.id
+            ),
+        )]
     }
 }
 
@@ -1481,3 +1512,6 @@ fn parameters_applicability(doc: &PdgDocument, caps: &BTreeMap<String, Capabilit
 
     Vec::new()
 }
+
+#[cfg(test)]
+mod source_text_tests;

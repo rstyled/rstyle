@@ -226,6 +226,27 @@ impl FrontendOptions {
         origins.value.share_sources(&census)
     }
 
+    pub(crate) fn function_source(
+        &self,
+        source: &crate::SourceFacts,
+        span: crate::ByteSpan,
+    ) -> Result<crate::SourceText, String> {
+        let Some(Entry::Census(census)) = self.0.get(crate::nominal_boundary::census::KEY) else {
+            return Ok(source.bytes.clone());
+        };
+        let path = self
+            .get("source_file")
+            .and_then(Value::as_str)
+            .ok_or("Missing captured function source-file identity")?;
+        let file = census
+            .value
+            .files
+            .iter()
+            .find(|file| file.path == std::path::Path::new(path))
+            .ok_or("Missing owned function source snapshot")?;
+        source.bytes.in_snapshot(Arc::clone(&file.bytes), span)
+    }
+
     pub fn contains_key(&self, key: &str) -> bool {
         self.0.contains_key(key)
     }

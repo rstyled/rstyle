@@ -89,6 +89,10 @@ pub(super) fn normalize(functions: Vec<HirFnFacts>) -> Result<Vec<HirFnFacts>, S
             facts.build.frontend_options.normalize_data();
             facts.build.frontend_options.intern_census(&mut sources)?;
             facts.build.frontend_options.share_origin_sources()?;
+            facts.source.bytes = facts
+                .build
+                .frontend_options
+                .function_source(&facts.source, facts.fn_span)?;
             Ok(facts)
         })
         .collect()

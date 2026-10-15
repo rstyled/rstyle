@@ -6364,7 +6364,7 @@ fn shared_unit_borrows_lexical_results_with_policy_and_context_isolation() {
         &*other_view.nominal_resolution().unwrap()
     ));
     let mut edited = view.facts().clone();
-    edited.source.bytes = edited.source.bytes.replace("self.n", "self.n + 1");
+    edited.source.bytes = edited.source.bytes.replace("self.n", "self.n + 1").into();
     edited.source.digest = rstyle_pdg::concrete_types::digest(edited.source.bytes.as_bytes());
     assert!(edited.nominal_resolution().is_err());
     assert!(edited.inherent_definition().is_err());

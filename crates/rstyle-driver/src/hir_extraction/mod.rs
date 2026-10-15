@@ -117,11 +117,12 @@ fn function_source<'tcx>(
     let scan = find_source_scan(&ctx, scanned, body_source_span(tcx, id));
     let source_diagnostics = source_findings(&ctx, scan, sig.span);
 
+    let source_bytes = rstyle_pdg::SourceText::from(source_bytes);
     let facts = HirFnFacts {
         name: tcx.def_path_str(id.to_def_id()),
         fn_span,
         source: SourceFacts {
-            digest: evidence::digest(source_bytes.as_bytes()),
+            digest: source_bytes.identity().to_owned(),
             bytes: source_bytes,
         },
         signature: signature(&ctx, sig, params, id),
