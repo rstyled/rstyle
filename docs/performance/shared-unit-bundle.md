@@ -1,6 +1,6 @@
-# Shared unit bundle version 3
+# Shared unit bundle version 4
 
-The internal `rstyle.shared-unit/3` JSON bundle contains one unit's owned
+The internal `rstyle.shared-unit/4` JSON bundle contains one unit's owned
 frontend and graph records. It is available through
 `UnitStore::{write_bundle,from_bundle}` and is the normal driver/CLI handoff. It does not replace the pinned standalone PDG/CFG
 schemas or reinterpret their existing manifest hashes.
@@ -37,7 +37,8 @@ writing streams typed records directly without expanding nested proof trees.
 It materializes call-link IDs and borrowed function/source reference records for
 JSON transport. Function source fields contain `snapshot`, `range` and the original
 `digest` claim; each snapshot string is written once in `sources`. See
-[source dictionary version 3](source-dictionary-v3.md).
+[source dictionary version 3](source-dictionary-v3.md) for the initial function-only format,
+and [source options version 4](source-options-v4.md) for the current census/origin sharing.
 
 Import decodes one supplied owned byte snapshot into typed tables, then moves
 those tables into the store. It preserves the wire namespace and reconstructs exact call links,

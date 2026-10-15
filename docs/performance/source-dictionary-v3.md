@@ -1,6 +1,6 @@
 # Function source dictionary in bundle version 3
 
-The internal handoff now uses `rstyle.shared-unit/3`. Its `sources` array owns
+This historical increment introduced `rstyle.shared-unit/3`. Its `sources` array owns
 original UTF-8 snapshots. Each function's `source` contains a numeric `snapshot`
 handle, a half-open byte `range` within that snapshot, and the unchanged actual
 function-content `digest` claim. Function navigation `fn_span` remains separate:
@@ -83,3 +83,7 @@ warning-free workspace/all-target Clippy, 24 study tests and two harness tests
 passed. Both required gates show zero style violations and zero actionable
 candidates; the same 15 reviewed ignores remain. Logs:
 `/tmp/rstyle-source-dictionary-*`.
+
+The current bundle is version 4, extending this dictionary to census and declaration
+origin file buffers. See [source options version 4](source-options-v4.md). The
+measurements above describe the historical version 3 increment.

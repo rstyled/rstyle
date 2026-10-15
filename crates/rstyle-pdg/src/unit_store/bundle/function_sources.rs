@@ -1,10 +1,13 @@
 //! Bundle-local source ownership; readable facts are restored before inspection.
 use crate::frontend::*;
+use crate::{
+    frontend::option_bundle,
+    source_table::{self, SourceId},
+};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc};
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-struct SourceId(u32);
+#[cfg(test)]
+use std::sync::Arc;
+mod build;
 
 #[derive(Serialize)]
 struct Reference<'a> {
@@ -29,7 +32,7 @@ pub(super) struct Export<'a> {
     signature: &'a SignatureFacts,
     bindings: &'a [BindingFact],
     body: &'a HirNode,
-    build: &'a BuildFacts,
+    build: build::Export<'a>,
     source_diagnostics: &'a [HirDiagnostic],
     source_scan_complete: bool,
 }
@@ -43,7 +46,7 @@ pub(super) struct Import {
     signature: SignatureFacts,
     bindings: Vec<BindingFact>,
     body: HirNode,
-    build: BuildFacts,
+    build: BuildFacts<option_bundle::Import>,
     source_diagnostics: Vec<HirDiagnostic>,
     source_scan_complete: bool,
 }
@@ -55,23 +58,14 @@ pub(super) struct Encoded<'a> {
 
 #[derive(Default)]
 struct Owners<'a> {
-    snapshots: Vec<&'a str>,
-    ids: BTreeMap<usize, SourceId>,
+    table: source_table::Owners<'a>,
 }
 
 impl<'a> Owners<'a> {
     fn reference(&mut self, source: &'a SourceFacts) -> Result<Reference<'a>, String> {
         let (snapshot, range) = source.bytes.snapshot_range()?;
-        let pointer = snapshot.as_ptr() as usize;
-        let next =
-            SourceId(u32::try_from(self.snapshots.len()).map_err(|_| "Oversized source table")?);
-        let id = *self.ids.entry(pointer).or_insert_with(|| {
-            self.snapshots.push(snapshot.as_ref());
-            next
-        });
-
         Ok(Reference {
-            snapshot: id,
+            snapshot: self.table.snapshot(snapshot)?,
             range,
             digest: &source.digest,
         })
@@ -82,50 +76,38 @@ pub(super) fn encode(facts: &[HirFnFacts]) -> Result<Encoded<'_>, String> {
     let mut owners = Owners::default();
     let functions = facts
         .iter()
-        .map(|function| Ok(Export::new(function, owners.reference(&function.source)?)))
+        .map(|function| {
+            let reference = owners.reference(&function.source)?;
+            Export::new(function, reference, &mut owners.table)
+        })
         .collect::<Result<_, String>>()?;
     Ok(Encoded {
-        snapshots: owners.snapshots,
+        snapshots: owners.table.snapshots,
         functions,
     })
 }
 
 impl<'a> Export<'a> {
-    fn new(facts: &'a HirFnFacts, source: Reference<'a>) -> Self {
-        Self {
+    fn new(
+        facts: &'a HirFnFacts,
+        source: Reference<'a>,
+        sources: &mut source_table::Owners<'a>,
+    ) -> Result<Self, String> {
+        Ok(Self {
             name: &facts.name,
             fn_span: facts.fn_span,
             source,
             signature: &facts.signature,
             bindings: &facts.bindings,
             body: &facts.body,
-            build: &facts.build,
+            build: build::Export::new(&facts.build, sources)?,
             source_diagnostics: &facts.source_diagnostics,
             source_scan_complete: facts.source_scan_complete,
-        }
-    }
-}
-
-pub(super) fn decode(
-    sources: &[Arc<str>],
-    functions: Vec<Import>,
-) -> Result<Vec<HirFnFacts>, String> {
-    let mut used = vec![false; sources.len()];
-    let facts = functions
-        .into_iter()
-        .map(|function| {
-            let index = function.source.snapshot.0 as usize;
-            let bytes = function.source.bytes(sources)?;
-            used[index] = true;
-            Ok(function.into_facts(bytes))
         })
-        .collect::<Result<_, String>>()?;
-    if used.contains(&false) {
-        return Err("Unreferenced bundle source snapshot".into());
     }
-    Ok(facts)
 }
 
+#[cfg(test)]
 impl ImportedReference {
     fn bytes(&self, sources: &[Arc<str>]) -> Result<SourceText, String> {
         let snapshot = sources
@@ -136,8 +118,12 @@ impl ImportedReference {
 }
 
 impl Import {
-    fn into_facts(self, bytes: SourceText) -> HirFnFacts {
-        HirFnFacts {
+    pub(super) fn into_facts(
+        self,
+        sources: &mut source_table::Imported<'_>,
+    ) -> Result<HirFnFacts, String> {
+        let bytes = sources.range(self.source.snapshot, self.source.range)?;
+        Ok(HirFnFacts {
             name: self.name,
             fn_span: self.fn_span,
             source: SourceFacts {
@@ -147,10 +133,12 @@ impl Import {
             signature: self.signature,
             bindings: self.bindings,
             body: self.body,
-            build: self.build,
+            build: self
+                .build
+                .try_map_options(|options| options.decode(sources))?,
             source_diagnostics: self.source_diagnostics,
             source_scan_complete: self.source_scan_complete,
-        }
+        })
     }
 }
 
@@ -188,7 +176,7 @@ mod tests {
         let first_wire = owners.reference(&first).unwrap();
         let second_wire = owners.reference(&second).unwrap();
         assert_eq!(first_wire.snapshot.0, second_wire.snapshot.0);
-        assert_eq!(owners.snapshots, [snapshot.as_ref()]);
+        assert_eq!(owners.table.snapshots, [snapshot.as_ref()]);
         let wire = serde_json::to_value(&first_wire).unwrap();
         let imported: ImportedReference = serde_json::from_value(wire).unwrap();
         let restored = imported.bytes(&[Arc::clone(&snapshot)]).unwrap();
@@ -263,7 +251,7 @@ mod tests {
             .is_err()
         );
         assert!(reference.bytes(&[]).is_err());
-        assert!(decode(&sources, Vec::new()).is_err());
-        assert!(decode(&[], Vec::new()).unwrap().is_empty());
+        assert!(source_table::Imported::new(&sources).finish().is_err());
+        assert!(source_table::Imported::new(&[]).finish().is_ok());
     }
 }

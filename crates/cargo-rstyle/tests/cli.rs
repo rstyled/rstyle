@@ -1097,7 +1097,7 @@ fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
     assert!(output.status.success(), "{}", stdout(&output));
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_persisted_report(&report);
-    assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/3");
+    assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/4");
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
     for function in report["functions"].as_array().unwrap() {
         assert!(function.get("artifact_prefix").is_none());

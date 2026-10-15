@@ -44,7 +44,19 @@ pub fn reject_facts(function: &Value, changed: &HirFnFacts) {
         let source = replace_source(bundle, index, &changed.source.bytes, &changed.source.digest);
         let mut frontend = serde_json::to_value(changed).unwrap();
         frontend["source"] = source;
+        let options = frontend["build"]["frontend_options"]
+            .as_object_mut()
+            .unwrap();
+        for key in [
+            rstyle_pdg::nominal_boundary::census::KEY,
+            rstyle_pdg::declaration_origins::KEY,
+        ] {
+            if let Some(value) = options.get_mut(key) {
+                *value = serde_json::json!({"kind": "inline", "value": value.take()});
+            }
+        }
         bundle["functions"][index] = frontend;
+        prune_source_table(bundle);
     });
 }
 
@@ -52,21 +64,68 @@ fn replace_source(bundle: &mut Value, index: usize, bytes: &str, digest: &str) -
     let previous = bundle["functions"][index]["source"]["snapshot"]
         .as_u64()
         .unwrap();
-    let references = bundle["functions"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|function| function["source"]["snapshot"] == previous)
-        .count();
+    let reference = &bundle["functions"][index]["source"];
+    let range = &reference["range"];
+    let original = bundle["sources"][previous as usize].as_str().unwrap();
+    if original
+        .get(range["start"].as_u64().unwrap() as usize..range["end"].as_u64().unwrap() as usize)
+        == Some(bytes)
+    {
+        let mut reference = reference.clone();
+        reference["digest"] = digest.into();
+        return reference;
+    }
     let sources = bundle["sources"].as_array_mut().unwrap();
-    let snapshot = if references == 1 {
-        sources[previous as usize] = bytes.into();
-        previous as usize
-    } else {
-        sources.push(bytes.into());
-        sources.len() - 1
-    };
+    sources.push(bytes.into());
+    let snapshot = sources.len() - 1;
     serde_json::json!({"snapshot": snapshot, "range": {"start": 0, "end": bytes.len()}, "digest": digest})
+}
+
+fn source_references(bundle: &mut Value, mut visit: impl FnMut(&mut Value)) {
+    for function in bundle["functions"].as_array_mut().unwrap() {
+        visit(&mut function["source"]["snapshot"]);
+        let options = function["build"]["frontend_options"]
+            .as_object_mut()
+            .unwrap();
+        for (key, kind, records) in [
+            (rstyle_pdg::nominal_boundary::census::KEY, "census", "files"),
+            (
+                rstyle_pdg::declaration_origins::KEY,
+                "origins",
+                "declarations",
+            ),
+        ] {
+            if let Some(option) = options.get_mut(key)
+                && option["kind"] == kind
+            {
+                for record in option["value"][records].as_array_mut().unwrap() {
+                    visit(&mut record["snapshot"]);
+                }
+            }
+        }
+    }
+}
+
+fn prune_source_table(bundle: &mut Value) {
+    let mut used = std::collections::BTreeSet::new();
+    source_references(bundle, |id| {
+        used.insert(id.as_u64().unwrap() as usize);
+    });
+    let mapping: std::collections::BTreeMap<_, _> = used
+        .into_iter()
+        .enumerate()
+        .map(|(new, old)| (old, new))
+        .collect();
+    let previous = std::mem::take(bundle["sources"].as_array_mut().unwrap());
+    bundle["sources"] = previous
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| mapping.contains_key(index))
+        .map(|(_, value)| value)
+        .collect();
+    source_references(bundle, |id| {
+        *id = mapping[&(id.as_u64().unwrap() as usize)].into();
+    });
 }
 
 fn callee(bundle: &Value, caller: usize) -> (usize, usize) {
@@ -92,6 +151,7 @@ pub fn reject_helper(function: &Value, corruption: &str) {
                 .to_owned();
             let source = replace_source(bundle, callee, "fn forged() {}", &digest);
             bundle["functions"][callee]["source"] = source;
+            prune_source_table(bundle);
         } else {
             corrupt_frontend(&mut bundle["functions"][callee], corruption);
         }

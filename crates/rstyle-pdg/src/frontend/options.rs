@@ -1,6 +1,7 @@
 //! Typed ownership for repeated data evidence, retaining the open JSON boundary.
+pub(crate) mod bundle;
 use crate::{concrete_types::InterfaceObservations, field_locations::FieldObservations};
-use serde::{Deserialize, Serialize, ser::SerializeMap};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     borrow::Cow,
@@ -312,11 +313,7 @@ impl Eq for FrontendOptions {}
 
 impl Serialize for FrontendOptions {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut map = serializer.serialize_map(Some(self.0.len()))?;
-        for (key, entry) in &self.0 {
-            map.serialize_entry(key, entry)?;
-        }
-        map.end()
+        serializer.collect_map(self.0.iter())
     }
 }
 

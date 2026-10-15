@@ -4,7 +4,7 @@ use super::*;
 use std::io::Write;
 mod function_sources;
 
-const SCHEMA: &str = "rstyle.shared-unit/3";
+const SCHEMA: &str = "rstyle.shared-unit/4";
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -51,8 +51,14 @@ impl Import {
         if wire.schema != SCHEMA {
             return Err("Unsupported shared unit schema".into());
         }
-        let functions =
-            function_sources::decode(&wire.sources, std::mem::take(&mut wire.functions))?;
+
+        let mut sources = crate::source_table::Imported::new(&wire.sources);
+        let functions = std::mem::take(&mut wire.functions)
+            .into_iter()
+            .map(|function| function.into_facts(&mut sources))
+            .collect::<Result<_, _>>()?;
+        sources.finish()?;
+
         Ok(Decoded { wire, functions })
     }
 }

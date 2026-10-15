@@ -9,6 +9,7 @@
 //! reason and never becomes a fabricated default.
 
 mod options;
+pub(crate) use options::bundle as option_bundle;
 mod source_text;
 pub use options::{DataEvidence, FrontendOptions};
 pub use source_text::SourceText;
@@ -226,11 +227,11 @@ pub struct SourceFacts {
 /// Captured build and semantic-setting evidence (never fabricated).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BuildFacts {
+pub struct BuildFacts<Options = FrontendOptions> {
     /// Actual producer source revision captured when the compiler driver built.
     pub producer_revision: StringFact,
     /// Relevant effective frontend options captured from the active session.
-    pub frontend_options: FrontendOptions,
+    pub frontend_options: Options,
     /// Exact rustc version string.
     pub rustc_version: StringFact,
     /// rustc commit hash.
@@ -255,6 +256,30 @@ pub struct BuildFacts {
     pub panic_strategy: StringFact,
     /// Optimization level (`-C opt-level`).
     pub opt_level: StringFact,
+}
+
+impl<Options> BuildFacts<Options> {
+    pub(crate) fn try_map_options<T>(
+        self,
+        map: impl FnOnce(Options) -> Result<T, String>,
+    ) -> Result<BuildFacts<T>, String> {
+        Ok(BuildFacts {
+            frontend_options: map(self.frontend_options)?,
+            producer_revision: self.producer_revision,
+            rustc_version: self.rustc_version,
+            rustc_commit: self.rustc_commit,
+            edition: self.edition,
+            target_triple: self.target_triple,
+            pointer_width: self.pointer_width,
+            data_layout: self.data_layout,
+            cfgs: self.cfgs,
+            features: self.features,
+            overflow_checks: self.overflow_checks,
+            debug_assertions: self.debug_assertions,
+            panic_strategy: self.panic_strategy,
+            opt_level: self.opt_level,
+        })
+    }
 }
 
 /// One assessed function's complete frontend evidence.
