@@ -1,5 +1,10 @@
 # Shared-evidence follow-ups
 
+For the subsequently implemented hash/matching task, see the
+[requirement audit](hash-and-matching-acceptance.md). The optional priorities below
+are historical shared-store follow-ups; source dictionaries and scoped ownership
+are now implemented, and executable hashing has since been removed entirely.
+
 The original shared-evidence and compact-graph implementation has no outstanding
 acceptance items. The historical [acceptance audit](shared-evidence-audit.md)
 records its original revision; subsequent work retired expanded evidence,

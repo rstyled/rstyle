@@ -1,5 +1,9 @@
 # Shared source options in bundle version 4
 
+The later [matching-build metadata change](matching-build-metadata.md) retires
+the graph captured-build copies mentioned below. These historical measurements
+remain associated with their stated baseline and implementation.
+
 The current internal handoff is `rstyle.shared-unit/4`. Its source table now
 serves function ranges, nominal census files and declaration-origin files.
 Publication registers immutable shared file allocations once and writes their

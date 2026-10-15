@@ -1,5 +1,9 @@
 # CFG content borrows the function source owner
 
+The later [matching-build metadata change](matching-build-metadata.md) retires
+the graph captured-build copies mentioned below. These historical measurements
+remain associated with their stated baseline and implementation.
+
 `CfgSource::content` now holds `Option<SourceText>` instead of `Option<String>`.
 Emission clones the checked function source range and its actual identity memo,
 not the text. Bundle import first checks root/certificate/depth structure, then

@@ -28,20 +28,19 @@ serialized evidence does not acquire that trust.
 1. Retire library-file reads/fingerprint gating with an explicit versioned
    supported-toolchain contract. First implementation increment; measurement and
    validation are recorded in `library-resolution-retirement.md`.
-2. Pair-local complete-key location interning is implemented in the next increment;
+2. Pair-local complete-key location interning is implemented in the linked increment;
    see `local-location-handles.md`. Unit-owned exact build-setting interning with
-   scoped `BuildId` is implemented in the following increment; see
-   `unit-build-contexts.md`. Source/package ownership remains pending.
+   scoped `BuildId` is implemented in the linked increment; see
+   `unit-build-contexts.md`. Source/package ownership is implemented by the increments below.
 3. Shared census ownership and policy/analysis-local checked source environments
-   are implemented in the next increment; see `shared-source-environments.md`.
+   are implemented in the linked increment; see `shared-source-environments.md`.
    Declaration origins now use borrowed typed frontend records; see
    `typed-declaration-origins.md`. Frozen origins now share exact census file
    buffers; see `shared-origin-buffers.md`.
-   Immutable function ranges and memoized actual range identities are implemented
-   next; see `owned-source-ranges.md`. Capture now recovers each original compiler
+   Immutable function ranges and memoized actual range identities are implemented; see `owned-source-ranges.md`. Capture now recovers each original compiler
    file once and shares ranges/file identities; see `capture-source-owner.md`.
    Function source snapshots now cross the bundle boundary once through checked
-   ranges; see `source-dictionary-v3.md`. Census/origin wire sharing is implemented in the next increment; see
+   ranges; see `source-dictionary-v3.md`. Census/origin wire sharing is implemented in the linked increment; see
    `source-options-v4.md`. Whole-file actual identity memos now belong to
    shared immutable snapshots; see `source-snapshot-identity.md`. Package manifests
    now use the same owner/memo mechanism; see `manifest-owner.md`. CFG content
@@ -76,9 +75,9 @@ serialized evidence does not acquire that trust.
    `wl-label-buffers.md` reuses pair-local label vectors across synchronous
    rounds. `diameter-scratch.md` records a rejected traversal-buffer candidate;
    mixed debug/release results did not justify replacing the retained traversal.
-   Tuple-neighbor allocation remains for further measured investigation.
+   Tuple-neighbor vectors remain owned complete keys; their allocation is a documented residual cost, rather than a claimed optimization.
 8. Diagnostic content fingerprints are replaced by process-local observation
-   IDs in the next increment; see `diagnostic-observation-ids.md`.
+   IDs in the linked increment; see `diagnostic-observation-ids.md`.
    Historical study snapshots, fixture hashes and precomputed contracts are not
    ordinary-runtime costs and remain outside this optimization.
 9. Minimal/read/inherent and broad fanout/many-pair/larger-graph before/after
@@ -92,3 +91,7 @@ serialized evidence does not acquire that trust.
 
 No entry is completed merely by documenting it. Remaining entries require code,
 regression evidence and measurements before overall completion is claimed.
+
+The [requirement audit](hash-and-matching-acceptance.md) maps the complete task
+to implementations, retained boundaries and measured limitations. Historical
+phrasing above describes increment order, not unfinished parallel runtimes.

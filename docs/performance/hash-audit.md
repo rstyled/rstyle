@@ -1,5 +1,12 @@
 # Hash purposes and boundary ownership
 
+> Historical audit at the shared-evidence prerequisite revision. The current
+> implementation supersedes several retained mechanisms below: library artifact
+> fingerprints, JSON-to-hash local identities, diagnostic hashes and SHA-256
+> transport seals have been retired. See [the implementation plan](hash-and-matching-plan.md),
+> especially its linked semantic increments, for current mechanisms. The original
+> inventory and validation results below describe that earlier revision only.
+
 Historical audit at `9cb2b32`. The implementation work in
 [hash-and-matching-plan.md](hash-and-matching-plan.md) supersedes its retention
 recommendations; the [version 2 library contract](../extraction-profiles/read-only-library-resolution-v2.md)
