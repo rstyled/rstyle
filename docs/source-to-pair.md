@@ -341,3 +341,9 @@ resolution. The initial unit-wide drop-free proof excludes trait impls, derives,
 macros, unsafe item forms and conditional/path-overridden modules. Scalar functions
 do not acquire nominal admission from successful compilation or a supplied flag.
 See [nominal-data-v1.md](extraction-profiles/nominal-data-v1.md).
+
+Bundle transport uses one streaming publication checksum and one verification
+against the owned import buffer. The immutable verified snapshot is decoded
+without rehashing. Inventory completeness and selected-unit inspection remain
+separate checks. See [the hash audit](performance/hash-audit.md) for purposes,
+remaining overlap, and the publication-to-import consistency guarantee.

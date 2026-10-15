@@ -263,13 +263,10 @@ fn consume_unit(
         return Err("Unit extraction profile disagrees with plan".into());
     }
     let snapshot = capture::load_inventory(unit)?;
-    let manifest = snapshot.json("unit.evidence.manifest.json")?;
     let mut bindings = Vec::new();
 
-    let store = rstyle_pdg::unit_store::UnitStore::from_current_run(
-        snapshot.bytes("unit.evidence.json")?,
-        &manifest,
-        |facts| {
+    let store =
+        rstyle_pdg::unit_store::UnitStore::from_verified_current_run(&snapshot.bundle, |facts| {
             for function in facts {
                 verify_frontend_invocation(function, unit, capture)?;
                 verify_receiver_inventory(function, unit.extraction_profile)?;
@@ -277,8 +274,7 @@ fn consume_unit(
             }
             bindings = nominal_bindings(facts, unit)?;
             Ok(())
-        },
-    )?;
+        })?;
     result
         .source_inventory
         .extend(source_inventory(unit, &snapshot)?);

@@ -742,6 +742,18 @@ fn artifact_inventory(
 }
 
 fn read_artifact(directory: &Path, file: String) -> Result<Artifact, String> {
+    if file == "unit.evidence.json" {
+        let bytes = std::fs::read(directory.join("unit.evidence.manifest.json"))
+            .map_err(|error| error.to_string())?;
+        let manifest: rstyle_pdg::unit_store::BundleManifest =
+            serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
+        let sha256 = manifest
+            .sha256
+            .strip_prefix("sha256:")
+            .ok_or("Invalid bundle seal digest")?
+            .to_owned();
+        return Ok(Artifact { file, sha256 });
+    }
     let bytes = std::fs::read(directory.join(&file)).map_err(|error| error.to_string())?;
     Ok(Artifact {
         file,
@@ -750,11 +762,15 @@ fn read_artifact(directory: &Path, file: String) -> Result<Artifact, String> {
 }
 
 pub struct Snapshot {
+    pub bundle: rstyle_pdg::unit_store::VerifiedBundle,
     files: std::collections::BTreeMap<String, Vec<u8>>,
 }
 
 impl Snapshot {
     pub fn bytes(&self, file: &str) -> Result<&[u8], String> {
+        if file == "unit.evidence.json" {
+            return Ok(self.bundle.bytes());
+        }
         self.files
             .get(file)
             .map(Vec::as_slice)
@@ -775,7 +791,7 @@ pub fn load_inventory(unit: &Unit) -> Result<Snapshot, String> {
         }
         let bytes = std::fs::read(unit.directory.join(&artifact.file))
             .map_err(|error| format!("missing captured artifact {}: {error}", artifact.file))?;
-        if super::digest(&bytes) != artifact.sha256 {
+        if artifact.file != "unit.evidence.json" && super::digest(&bytes) != artifact.sha256 {
             return Err(format!(
                 "captured artifact digest mismatch: {}",
                 artifact.file
@@ -792,7 +808,27 @@ pub fn load_inventory(unit: &Unit) -> Result<Snapshot, String> {
     {
         return Err("incomplete captured artifact inventory".into());
     }
-    Ok(Snapshot { files })
+    sealed_snapshot(unit, files)
+}
+
+fn sealed_snapshot(
+    unit: &Unit,
+    mut files: std::collections::BTreeMap<String, Vec<u8>>,
+) -> Result<Snapshot, String> {
+    let manifest: rstyle_pdg::unit_store::BundleManifest =
+        serde_json::from_slice(&files["unit.evidence.manifest.json"])
+            .map_err(|error| error.to_string())?;
+    let artifact = unit
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.file == "unit.evidence.json")
+        .ok_or("Missing bundle inventory entry")?;
+
+    if manifest.sha256.strip_prefix("sha256:") != Some(artifact.sha256.as_str()) {
+        return Err("Bundle inventory disagrees with publication seal".into());
+    }
+    let bundle = manifest.verify_owned(files.remove("unit.evidence.json").unwrap())?;
+    Ok(Snapshot { bundle, files })
 }
 
 fn intended_artifact(capture: &Capture, artifact: &Value, target: &Target) -> bool {
@@ -883,6 +919,29 @@ mod snapshot_tests {
     use super::*;
 
     #[test]
+    fn bundle_inventory_reuses_publication_checksum_without_reading_bundle() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = rstyle_pdg::unit_store::UnitStore::capture(Vec::new()).unwrap();
+        let manifest = store.write_sealed_bundle(Vec::new()).unwrap();
+        super::write_json(
+            &directory.path().join("unit.evidence.manifest.json"),
+            &manifest,
+        )
+        .unwrap();
+        // No bundle file exists: publication inventory consumes the streaming seal.
+        let artifacts = artifact_inventory(
+            directory.path(),
+            rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+        )
+        .unwrap();
+        let bundle = artifacts
+            .iter()
+            .find(|artifact| artifact.file == "unit.evidence.json")
+            .unwrap();
+        assert_eq!(format!("sha256:{}", bundle.sha256), manifest.sha256);
+    }
+
+    #[test]
     fn verified_snapshot_survives_file_edits_without_rereading() {
         let directory = tempfile::tempdir().unwrap();
         let store = rstyle_pdg::unit_store::UnitStore::capture(Vec::new()).unwrap();
@@ -894,7 +953,7 @@ mod snapshot_tests {
             &manifest,
         )
         .unwrap();
-        let unit = Unit {
+        let mut unit = Unit {
             extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
             target: Target {
                 package: "snapshot".into(),
@@ -915,18 +974,17 @@ mod snapshot_tests {
             .unwrap(),
         };
         let snapshot = load_inventory(&unit).unwrap();
+        let original = unit.artifacts[0].sha256.clone();
+        unit.artifacts[0].sha256 = super::super::digest(b"different seal");
+        assert!(load_inventory(&unit).is_err());
+        unit.artifacts[0].sha256 = original;
         std::fs::write(
             directory.path().join("unit.evidence.json"),
             b"corrupt replacement",
         )
         .unwrap();
-        let captured_manifest = snapshot.json("unit.evidence.manifest.json").unwrap();
-        rstyle_pdg::unit_store::UnitStore::from_current_run(
-            snapshot.bytes("unit.evidence.json").unwrap(),
-            &captured_manifest,
-            |_| Ok(()),
-        )
-        .unwrap();
+        rstyle_pdg::unit_store::UnitStore::from_verified_current_run(&snapshot.bundle, |_| Ok(()))
+            .unwrap();
         assert!(load_inventory(&unit).is_err());
     }
 }

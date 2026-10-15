@@ -2,7 +2,7 @@
 mod bundle;
 mod derived;
 mod manifest;
-pub use manifest::BundleManifest;
+pub use manifest::{BundleManifest, VerifiedBundle};
 
 use crate::{HirFnFacts, HirNode, helper_calls::Summary, producer::Pair};
 use serde::{Deserialize, Serialize};
@@ -614,8 +614,9 @@ fn function_links(
 
 fn unit_identity(functions: &[HirFnFacts]) -> Result<String, String> {
     use sha2::Digest;
-    let bytes = serde_json::to_vec(functions).map_err(|error| error.to_string())?;
-    Ok(format!("sha256:{:x}", sha2::Sha256::digest(bytes)))
+    let mut hash = sha2::Sha256::new();
+    serde_json::to_writer(&mut hash, functions).map_err(|error| error.to_string())?;
+    Ok(format!("sha256:{:x}", hash.finalize()))
 }
 
 #[cfg(test)]

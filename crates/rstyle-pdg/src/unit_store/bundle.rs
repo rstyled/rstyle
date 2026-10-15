@@ -81,6 +81,16 @@ impl UnitStore {
         Self::load_bundle(bytes, inspect, true)
     }
 
+    /// Import a sealed immutable snapshot without rehashing its bytes. The
+    /// current-run trust and independent selected-unit inspection requirements
+    /// are identical to `from_current_run`; this token only proves the seal.
+    pub fn from_verified_current_run(
+        bundle: &VerifiedBundle,
+        inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,
+    ) -> Result<Self, String> {
+        Self::load_bundle(bundle.bytes(), inspect, true)
+    }
+
     fn load_bundle(
         bytes: &[u8],
         inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,

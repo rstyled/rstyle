@@ -13,7 +13,26 @@ pub struct BundleManifest {
     pub bytes: u64,
 }
 
+/// Owned transport bytes checked against a publication seal. This establishes
+/// byte consistency only; importing still checks selected context and evidence.
+/// Private storage prevents mutation after verification.
+pub struct VerifiedBundle {
+    bytes: Vec<u8>,
+}
+
+impl VerifiedBundle {
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
 impl BundleManifest {
+    /// Verify once, then move the exact checked buffer into immutable ownership.
+    pub fn verify_owned(&self, bytes: Vec<u8>) -> Result<VerifiedBundle, String> {
+        self.verify(&bytes)?;
+        Ok(VerifiedBundle { bytes })
+    }
+
     pub fn verify(&self, bytes: &[u8]) -> Result<(), String> {
         let len = u64::try_from(bytes.len()).map_err(|_| "Oversized shared unit transport")?;
         if self.schema != SCHEMA
@@ -104,6 +123,27 @@ mod tests {
         assert_eq!(manifest.bytes, u64::try_from(writer.0.len()).unwrap());
         writer.0.push(b' ');
         assert!(manifest.verify(&writer.0).is_err());
+    }
+
+    #[test]
+    fn owned_snapshot_retains_checked_bytes_and_import_inspection() {
+        let store = UnitStore::capture(Vec::new()).unwrap();
+        let mut bytes = Vec::new();
+        let manifest = store.write_sealed_bundle(&mut bytes).unwrap();
+        let snapshot = manifest.verify_owned(bytes.clone()).unwrap();
+        bytes.push(b' ');
+        assert!(manifest.verify_owned(bytes).is_err());
+        manifest.verify(snapshot.bytes()).unwrap();
+        UnitStore::from_verified_current_run(&snapshot, |_| Ok(())).unwrap();
+        let error =
+            UnitStore::from_verified_current_run(&snapshot, |_| Err("wrong selected unit".into()));
+        assert!(matches!(error, Err(error) if error == "wrong selected unit"));
+        let mut wrong = manifest.clone();
+        wrong.schema.push('x');
+        assert!(wrong.verify_owned(snapshot.bytes().to_vec()).is_err());
+        wrong = manifest.clone();
+        wrong.bytes += 1;
+        assert!(wrong.verify_owned(snapshot.bytes().to_vec()).is_err());
     }
 
     #[test]
