@@ -312,7 +312,10 @@ fn origins_share_only_exact_census_snapshots_and_edits_detach() {
         file_digest: file.digest.clone(),
         declaration_span: crate::ByteSpan { start: 0, end: 3 },
     };
-    assert!(!Arc::ptr_eq(&file.bytes, &origin.file_bytes));
+    assert!(!crate::SourceSnapshot::ptr_eq(
+        &file.bytes,
+        &origin.file_bytes
+    ));
     let mut options = FrontendOptions::default();
     options.insert_data(Arc::clone(&census));
     options.insert_data(Origins {
@@ -322,7 +325,10 @@ fn origins_share_only_exact_census_snapshots_and_edits_detach() {
     let before = serde_json::to_vec(&options).unwrap();
     options.share_origin_sources().unwrap();
     let record = options.data::<Origins>().unwrap();
-    assert!(Arc::ptr_eq(&file.bytes, &record.declarations[0].file_bytes));
+    assert!(crate::SourceSnapshot::ptr_eq(
+        &file.bytes,
+        &record.declarations[0].file_bytes
+    ));
     assert_eq!(serde_json::to_vec(&options).unwrap(), before);
     unrendered(&options);
     for property in ["source_file", "file_digest", "file_bytes"] {
@@ -331,7 +337,7 @@ fn origins_share_only_exact_census_snapshots_and_edits_detach() {
             json!("edited");
         edited.normalize_data();
         assert!(edited.share_origin_sources().is_err());
-        assert!(Arc::ptr_eq(
+        assert!(crate::SourceSnapshot::ptr_eq(
             &file.bytes,
             &options.data::<Origins>().unwrap().declarations[0].file_bytes
         ));

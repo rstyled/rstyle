@@ -4,9 +4,11 @@
 mod files;
 pub(crate) use files::Sources;
 
+#[cfg(test)]
+use crate::concrete_types::digest;
 use crate::{
     ByteSpan,
-    concrete_types::{InterfaceObservations, Nominal, Observation, TypeTree, digest},
+    concrete_types::{InterfaceObservations, Nominal, Observation, TypeTree},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -20,7 +22,7 @@ pub const MAX_BYTES: usize = 8 * 1024 * 1024;
 pub struct Origin {
     pub nominal: Nominal,
     pub source_file: String,
-    pub file_bytes: std::sync::Arc<str>,
+    pub file_bytes: crate::SourceSnapshot,
     pub file_digest: String,
     pub declaration_span: ByteSpan,
 }
@@ -47,7 +49,7 @@ impl Origins {
                         && file.digest == origin.file_digest
                 })
                 .ok_or("Declaration origin disagrees with owned source snapshot")?;
-            origin.file_bytes = std::sync::Arc::clone(&file.bytes);
+            origin.file_bytes = file.bytes.clone();
         }
         Ok(())
     }

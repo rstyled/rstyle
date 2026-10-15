@@ -1,6 +1,5 @@
 //! Original-file checks owned by one declaration inventory/binding operation.
 use super::*;
-use std::sync::Arc;
 
 #[derive(Default)]
 pub(crate) struct Sources {
@@ -8,7 +7,7 @@ pub(crate) struct Sources {
 }
 
 struct CheckedFile {
-    bytes: Arc<str>,
+    bytes: crate::SourceSnapshot,
     digest: String,
     structs: Vec<ByteSpan>,
 }
@@ -38,9 +37,7 @@ impl Sources {
 
 impl CheckedFile {
     fn new(origin: &Origin) -> Result<Self, String> {
-        if origin.source_file.is_empty()
-            || origin.file_digest != digest(origin.file_bytes.as_bytes())
-        {
+        if origin.source_file.is_empty() || origin.file_digest != origin.file_bytes.identity() {
             return Err("Declaration origin file identity or original byte range disagrees".into());
         }
         let source = origin
@@ -57,7 +54,7 @@ impl CheckedFile {
         syn::visit::Visit::visit_file(&mut visitor, &file);
 
         Ok(Self {
-            bytes: Arc::clone(&origin.file_bytes),
+            bytes: origin.file_bytes.clone(),
             digest: origin.file_digest.clone(),
             structs: visitor.spans,
         })
@@ -107,7 +104,7 @@ mod tests {
     use super::*;
 
     fn evidence() -> (InterfaceObservations, Origins) {
-        let bytes: Arc<str> =
+        let bytes: crate::SourceSnapshot =
             "\u{feff}// π\r\npub struct A;\r\npub struct B;\r\n/* pub struct C; */\r\n".into();
         let declarations = ["A", "B"].map(|name| {
             let source = format!("pub struct {name};");
@@ -122,7 +119,7 @@ mod tests {
                     declaration_digest: digest(source.as_bytes()),
                 },
                 source_file: "/sample/src/lib.rs".into(),
-                file_bytes: Arc::clone(&bytes),
+                file_bytes: bytes.clone(),
                 file_digest: digest(bytes.as_bytes()),
                 declaration_span: ByteSpan {
                     start,
@@ -163,7 +160,7 @@ mod tests {
         assert_eq!(sources.files.len(), 1);
         let checked = &sources.files["/sample/src/lib.rs"];
         let spans = checked.structs.as_ptr();
-        assert!(Arc::ptr_eq(
+        assert!(crate::SourceSnapshot::ptr_eq(
             &checked.bytes,
             &origins.declarations[0].file_bytes
         ));
@@ -174,7 +171,7 @@ mod tests {
         let mut changed = origins.clone();
         for origin in &mut changed.declarations {
             origin.file_bytes = format!("{}// edited\r\n", origin.file_bytes).into();
-            origin.file_digest = digest(origin.file_bytes.as_bytes());
+            origin.file_digest = origin.file_bytes.identity().to_owned();
         }
         assert!(sources.verify(&interface, &changed).is_err());
         verify(&interface, &changed).unwrap();

@@ -1,13 +1,8 @@
 //! One original-byte reconstruction per compiler source file and capture owner.
-use rstyle_pdg::{ByteSpan, SourceText, diagnostics::Stage};
+use rstyle_pdg::{ByteSpan, SourceSnapshot, SourceText, diagnostics::Stage};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{SourceFile, Span};
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-    rc::Rc,
-    sync::{Arc, OnceLock},
-};
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 #[derive(Clone, Default)]
 pub(crate) struct Sources(Rc<RefCell<BTreeMap<CompilerSource, Rc<Snapshot>>>>);
@@ -16,21 +11,12 @@ pub(crate) struct Sources(Rc<RefCell<BTreeMap<CompilerSource, Rc<Snapshot>>>>);
 struct CompilerSource(u32);
 
 pub(super) struct Snapshot {
-    pub bytes: Arc<str>,
-    identity: OnceLock<String>,
+    pub bytes: SourceSnapshot,
 }
 
 impl Snapshot {
     pub fn identity(&self) -> &str {
-        self.identity.get_or_init(|| {
-            Stage::new(
-                "capture.source_hash",
-                "compiler-file",
-                Some(self.bytes.as_bytes()),
-            )
-            .observe(|| Ok::<_, String>(rstyle_pdg::concrete_types::digest(self.bytes.as_bytes())))
-            .expect("infallible captured source identity")
-        })
+        self.bytes.identity()
     }
 }
 
@@ -45,7 +31,6 @@ impl Sources {
         let bytes = observed_recovery(file)?;
         let snapshot = Rc::new(Snapshot {
             bytes: bytes.into(),
-            identity: OnceLock::new(),
         });
         files.insert(key, Rc::clone(&snapshot));
         Some(snapshot)
@@ -62,7 +47,7 @@ impl Sources {
             start: file.original_relative_byte_pos(span.lo()).0,
             end: file.original_relative_byte_pos(span.hi()).0,
         };
-        let bytes = SourceText::from_snapshot(Arc::clone(&snapshot.bytes), range).ok()?;
+        let bytes = SourceText::from_snapshot(snapshot.bytes.clone(), range).ok()?;
         Some((bytes, range))
     }
 }

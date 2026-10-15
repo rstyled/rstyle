@@ -31,7 +31,7 @@ struct Export<'a> {
 struct Import {
     schema: String,
     namespace: UnitNamespace,
-    sources: Vec<std::sync::Arc<str>>,
+    sources: Vec<crate::SourceSnapshot>,
     functions: Vec<function_sources::Import>,
     helpers: Vec<HelperRecord>,
     graphs: Vec<Pair>,

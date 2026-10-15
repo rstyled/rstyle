@@ -1,6 +1,7 @@
 //! Original unit buffers and independent ordinary-module closure.
 
 use super::UnitContext;
+#[cfg(test)]
 use crate::concrete_types::digest;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -17,7 +18,7 @@ pub const MAX_BYTES: usize = 8 * 1024 * 1024;
 #[serde(deny_unknown_fields)]
 pub struct UnitFile {
     pub path: PathBuf,
-    pub bytes: std::sync::Arc<str>,
+    pub bytes: crate::SourceSnapshot,
     pub digest: String,
 }
 
@@ -85,7 +86,7 @@ fn checked_files(census: &Census) -> Result<BTreeMap<PathBuf, &str>, String> {
                 .path
                 .components()
                 .any(|c| matches!(c, std::path::Component::ParentDir))
-            || file.digest != digest(file.bytes.as_bytes())
+            || file.digest != file.bytes.identity()
             || files
                 .insert(file.path.clone(), file.bytes.as_ref())
                 .is_some()

@@ -5,8 +5,6 @@ use crate::{
     source_table::{self, SourceId},
 };
 use serde::{Deserialize, Serialize};
-#[cfg(test)]
-use std::sync::Arc;
 mod build;
 
 #[derive(Serialize)]
@@ -109,11 +107,11 @@ impl<'a> Export<'a> {
 
 #[cfg(test)]
 impl ImportedReference {
-    fn bytes(&self, sources: &[Arc<str>]) -> Result<SourceText, String> {
+    fn bytes(&self, sources: &[crate::SourceSnapshot]) -> Result<SourceText, String> {
         let snapshot = sources
             .get(self.snapshot.0 as usize)
             .ok_or("Dangling bundle source reference")?;
-        SourceText::from_snapshot(Arc::clone(snapshot), self.range)
+        SourceText::from_snapshot(snapshot.clone(), self.range)
     }
 }
 
@@ -148,11 +146,11 @@ mod tests {
 
     #[test]
     fn ranges_share_one_snapshot_without_trusting_digest_claims() {
-        let snapshot: Arc<str> = "\u{feff}// π\r\nfn f() {}\r\nfn g() {}".into();
+        let snapshot: crate::SourceSnapshot = "\u{feff}// π\r\nfn f() {}\r\nfn g() {}".into();
         let start = snapshot.find("fn").unwrap() as u32;
         let first = SourceFacts {
             bytes: SourceText::from_snapshot(
-                Arc::clone(&snapshot),
+                snapshot.clone(),
                 ByteSpan {
                     start,
                     end: start + 9,
@@ -163,7 +161,7 @@ mod tests {
         };
         let second = SourceFacts {
             bytes: SourceText::from_snapshot(
-                Arc::clone(&snapshot),
+                snapshot.clone(),
                 ByteSpan {
                     start: start + 11,
                     end: snapshot.len() as u32,
@@ -179,14 +177,14 @@ mod tests {
         assert_eq!(owners.table.snapshots, [snapshot.as_ref()]);
         let wire = serde_json::to_value(&first_wire).unwrap();
         let imported: ImportedReference = serde_json::from_value(wire).unwrap();
-        let restored = imported.bytes(&[Arc::clone(&snapshot)]).unwrap();
+        let restored = imported.bytes(std::slice::from_ref(&snapshot)).unwrap();
         assert_eq!(restored, first.bytes);
         assert_eq!(restored.as_ptr(), first.bytes.as_ptr());
         assert_ne!(restored.identity(), imported.digest);
         let second_imported: ImportedReference =
             serde_json::from_value(serde_json::to_value(second_wire).unwrap()).unwrap();
         let second_restored = second_imported.bytes(&[snapshot]).unwrap();
-        assert!(Arc::ptr_eq(
+        assert!(crate::SourceSnapshot::ptr_eq(
             restored.snapshot_range().unwrap().0,
             second_restored.snapshot_range().unwrap().0
         ));
@@ -216,7 +214,7 @@ mod tests {
 
     #[test]
     fn imported_references_reject_missing_owners_and_invalid_ranges() {
-        let sources: Vec<Arc<str>> = vec!["π\r\nfn f() {}".into()];
+        let sources: Vec<crate::SourceSnapshot> = vec!["π\r\nfn f() {}".into()];
         let reference = ImportedReference {
             snapshot: SourceId(0),
             range: ByteSpan { start: 0, end: 2 },

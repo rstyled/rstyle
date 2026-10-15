@@ -81,3 +81,7 @@ Formatting, warning-free workspace/all-target Clippy, 24 study tests and two
 measurement-harness tests passed. Both gates show zero violations and zero
 actionable candidates, with the same 15 reviewed ignores. Logs:
 `/tmp/rstyle-capture-sources-*`.
+
+The subsequent [source snapshot identity](source-snapshot-identity.md) increment
+moves the actual file digest memo into the shared byte owner. Current diagnostics
+use `source.snapshot_hash`; the samples above retain `capture.source_hash`.

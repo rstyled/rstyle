@@ -164,3 +164,8 @@ nontrace histograms during output. Optional WL partition exports remain typed.
 JSON object member order follows the exporter; field values, ordered arrays,
 status precedence and nullable decisions retain their existing meaning. This
 readable presentation change does not alter evidence hashes or bundle format.
+
+File buffers now use `SourceSnapshot`, sharing their lazy actual content digest
+across census, origins and function ranges. Imported owners start with empty
+memos. See [snapshot identities](source-snapshot-identity.md). This changes no
+wire strings, stored digest claims or verification authority.

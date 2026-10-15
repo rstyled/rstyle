@@ -10,6 +10,8 @@
 
 mod options;
 pub(crate) use options::bundle as option_bundle;
+mod source_snapshot;
+pub use source_snapshot::SourceSnapshot;
 mod source_text;
 pub use options::{DataEvidence, FrontendOptions};
 pub use source_text::SourceText;

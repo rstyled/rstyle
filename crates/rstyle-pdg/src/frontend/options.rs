@@ -245,7 +245,7 @@ impl FrontendOptions {
             .iter()
             .find(|file| file.path == std::path::Path::new(path))
             .ok_or("Missing owned function source snapshot")?;
-        source.bytes.in_snapshot(Arc::clone(&file.bytes), span)
+        source.bytes.in_snapshot(file.bytes.clone(), span)
     }
 
     pub fn contains_key(&self, key: &str) -> bool {

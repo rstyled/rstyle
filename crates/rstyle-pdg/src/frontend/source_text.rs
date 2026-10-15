@@ -1,5 +1,5 @@
 //! Immutable original bytes and checked ranges; identities belong to the bytes.
-use crate::ByteSpan;
+use crate::{ByteSpan, SourceSnapshot};
 use serde::{Deserialize, Serialize};
 use std::{
     ops::{Deref, Range},
@@ -15,7 +15,7 @@ pub struct SourceText(Arc<TextRange>);
 
 #[derive(Debug)]
 struct TextRange {
-    snapshot: Arc<str>,
+    snapshot: SourceSnapshot,
     range: Range<usize>,
     identity: OnceLock<String>,
 }
@@ -23,7 +23,7 @@ struct TextRange {
 impl SourceText {
     /// Create a checked range without copying the immutable original snapshot.
     /// A digest claim is never accepted as the identity of the range.
-    pub fn from_snapshot(snapshot: Arc<str>, span: ByteSpan) -> Result<Self, String> {
+    pub fn from_snapshot(snapshot: SourceSnapshot, span: ByteSpan) -> Result<Self, String> {
         let range = span.start as usize..span.end as usize;
         snapshot
             .get(range.clone())
@@ -35,7 +35,7 @@ impl SourceText {
         })))
     }
 
-    pub(crate) fn snapshot_range(&self) -> Result<(&Arc<str>, ByteSpan), String> {
+    pub(crate) fn snapshot_range(&self) -> Result<(&SourceSnapshot, ByteSpan), String> {
         let start = u32::try_from(self.0.range.start).map_err(|_| "Source range exceeds u32")?;
         let end = u32::try_from(self.0.range.end).map_err(|_| "Source range exceeds u32")?;
         Ok((&self.0.snapshot, ByteSpan { start, end }))
@@ -47,12 +47,27 @@ impl SourceText {
 
     /// SHA-256 of this exact immutable range, calculated at most once.
     pub fn identity(&self) -> &str {
+        if self.0.range == (0..self.0.snapshot.len()) {
+            return self.0.snapshot.identity();
+        }
         self.0
             .identity
             .get_or_init(|| crate::concrete_types::digest(self.as_bytes()))
     }
 
-    pub(crate) fn in_snapshot(&self, snapshot: Arc<str>, span: ByteSpan) -> Result<Self, String> {
+    fn cached_identity(&self) -> Option<&String> {
+        if self.0.range == (0..self.0.snapshot.len()) {
+            self.0.snapshot.cached_identity()
+        } else {
+            self.0.identity.get()
+        }
+    }
+
+    pub(crate) fn in_snapshot(
+        &self,
+        snapshot: SourceSnapshot,
+        span: ByteSpan,
+    ) -> Result<Self, String> {
         let range = span.start as usize..span.end as usize;
         if snapshot.get(range.clone()) != Some(self.as_str()) {
             return Err("Captured function range disagrees with owned source snapshot".into());
@@ -60,7 +75,10 @@ impl SourceText {
         Ok(Self(Arc::new(TextRange {
             snapshot,
             range,
-            identity: self.0.identity.clone(),
+            identity: self
+                .cached_identity()
+                .cloned()
+                .map_or_else(OnceLock::new, OnceLock::from),
         })))
     }
 }
@@ -114,14 +132,14 @@ mod tests {
 
     #[test]
     fn checked_snapshot_construction_preserves_owner_and_range_bounds() {
-        let snapshot: Arc<str> = "π\r\nfn f() {}".into();
+        let snapshot: SourceSnapshot = "π\r\nfn f() {}".into();
         let range = ByteSpan {
             start: 4,
             end: snapshot.len() as u32,
         };
-        let source = SourceText::from_snapshot(Arc::clone(&snapshot), range).unwrap();
+        let source = SourceText::from_snapshot(snapshot.clone(), range).unwrap();
         assert_eq!(source.as_str(), "fn f() {}");
-        assert!(Arc::ptr_eq(&snapshot, &source.0.snapshot));
+        assert!(SourceSnapshot::ptr_eq(&snapshot, &source.0.snapshot));
         assert!(source.0.identity.get().is_none());
         assert_eq!(
             source.identity(),
@@ -136,28 +154,45 @@ mod tests {
                 end: u32::MAX,
             },
         ] {
-            assert!(SourceText::from_snapshot(Arc::clone(&snapshot), span).is_err());
+            assert!(SourceText::from_snapshot(snapshot.clone(), span).is_err());
         }
     }
 
     #[test]
+    fn full_ranges_borrow_the_snapshot_identity_memo() {
+        let snapshot: SourceSnapshot = "π\r\nfn f() {}".into();
+        let source = SourceText::from_snapshot(
+            snapshot.clone(),
+            ByteSpan {
+                start: 0,
+                end: snapshot.len() as u32,
+            },
+        )
+        .unwrap();
+        assert!(snapshot.cached_identity().is_none());
+        assert!(std::ptr::eq(source.identity(), snapshot.identity()));
+        assert!(source.0.identity.get().is_none());
+    }
+
+    #[test]
     fn exact_ranges_share_original_bytes_and_one_actual_identity() {
-        let snapshot: Arc<str> = "\u{feff}// π\r\nfn f() {}\r\n".into();
+        let snapshot: SourceSnapshot = "\u{feff}// π\r\nfn f() {}\r\n".into();
         let start = snapshot.find("fn").unwrap();
         let text = SourceText::from("fn f() {}");
         assert!(text.0.identity.get().is_none());
         let identity = text.identity().to_owned();
         let view = text
             .in_snapshot(
-                Arc::clone(&snapshot),
+                snapshot.clone(),
                 ByteSpan {
                     start: start as u32,
                     end: (start + text.len()) as u32,
                 },
             )
             .unwrap();
-        assert!(Arc::ptr_eq(&view.0.snapshot, &snapshot));
+        assert!(SourceSnapshot::ptr_eq(&view.0.snapshot, &snapshot));
         assert_eq!(view.as_ptr(), snapshot[start..].as_ptr());
+        assert!(view.0.identity.get().is_some());
         assert_eq!(view.identity(), identity);
         let cloned = view.clone();
         assert!(std::ptr::eq(view.identity(), cloned.identity()));
@@ -174,7 +209,7 @@ mod tests {
                 end: u32::MAX,
             },
         ] {
-            assert!(text.in_snapshot(Arc::clone(&snapshot), span).is_err());
+            assert!(text.in_snapshot(snapshot.clone(), span).is_err());
         }
         assert!(
             SourceText::from("different")

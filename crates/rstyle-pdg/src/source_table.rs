@@ -1,7 +1,7 @@
 //! Transport-local references to immutable source owners; no verification token.
 use crate::{ByteSpan, SourceText};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub(crate) struct SourceId(pub(crate) u32);
@@ -13,7 +13,7 @@ pub(crate) struct Owners<'a> {
 }
 
 impl<'a> Owners<'a> {
-    pub fn snapshot(&mut self, bytes: &'a Arc<str>) -> Result<SourceId, String> {
+    pub fn snapshot(&mut self, bytes: &'a crate::SourceSnapshot) -> Result<SourceId, String> {
         let pointer = bytes.as_ptr() as usize;
         let next =
             SourceId(u32::try_from(self.snapshots.len()).map_err(|_| "Oversized source table")?);
@@ -26,25 +26,25 @@ impl<'a> Owners<'a> {
 }
 
 pub(crate) struct Imported<'a> {
-    snapshots: &'a [Arc<str>],
+    snapshots: &'a [crate::SourceSnapshot],
     used: Vec<bool>,
 }
 
 impl<'a> Imported<'a> {
-    pub fn new(snapshots: &'a [Arc<str>]) -> Self {
+    pub fn new(snapshots: &'a [crate::SourceSnapshot]) -> Self {
         Self {
             snapshots,
             used: vec![false; snapshots.len()],
         }
     }
 
-    pub fn snapshot(&mut self, id: SourceId) -> Result<Arc<str>, String> {
+    pub fn snapshot(&mut self, id: SourceId) -> Result<crate::SourceSnapshot, String> {
         let bytes = self
             .snapshots
             .get(id.0 as usize)
             .ok_or("Dangling bundle source reference")?;
         self.used[id.0 as usize] = true;
-        Ok(Arc::clone(bytes))
+        Ok(bytes.clone())
     }
 
     pub fn range(&mut self, id: SourceId, range: ByteSpan) -> Result<SourceText, String> {

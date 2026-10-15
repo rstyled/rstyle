@@ -82,7 +82,7 @@ impl UnitBindings {
 
 struct BindingContext<'a> {
     package: &'a PackageContext,
-    files: BTreeMap<PathBuf, std::sync::Arc<str>>,
+    files: BTreeMap<PathBuf, crate::SourceSnapshot>,
     builds: BuildContexts,
     origins: declaration_origins::Sources,
 }
@@ -149,7 +149,7 @@ fn bind(facts: &HirFnFacts, unit: &mut BindingContext<'_>) -> Result<Option<Bind
 fn bind_declaration(
     origin: &declaration_origins::Origin,
     context: &PackageContext,
-    files: &mut BTreeMap<PathBuf, std::sync::Arc<str>>,
+    files: &mut BTreeMap<PathBuf, crate::SourceSnapshot>,
 ) -> Result<BoundDeclaration, String> {
     let nominal = &origin.nominal;
     if nominal
@@ -189,7 +189,7 @@ fn bind_declaration(
 
 fn check_function_source(
     facts: &HirFnFacts,
-    files: &BTreeMap<PathBuf, std::sync::Arc<str>>,
+    files: &BTreeMap<PathBuf, crate::SourceSnapshot>,
 ) -> Result<(), String> {
     if files.is_empty() {
         return Ok(());
