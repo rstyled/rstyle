@@ -43,8 +43,13 @@ reported as incomplete, never as a successful missing-artifact run.
 
 The embedded `rust-toolchain.toml` selects `nightly-2026-09-30`. The driver is
 resolved next to `cargo-rstyle`, or through the existing explicit `RSTYLE_DRIVER`
-override. The plan records the SHA-256 of both binaries, exact compiler and Cargo
-versions, workspace target selection and build options. Every captured function
+override. The plan records exact compiler and Cargo versions, workspace target selection
+and build options. Clone analysis does not read or fingerprint either executable.
+Reports omit `producer_binary_sha256` and `orchestration_binary_sha256`; plans
+omit `driver_sha256` and `orchestrator_sha256`. There is no fingerprint flag.
+Controlled studies hash their frozen binary snapshots independently, launch those
+exact paths, and retain full-byte before/after drift checks. Historical frozen
+studies require their original evaluator revision; changed inputs remain rejected. Every captured function
 records producer revision, compiler commit, target/layout, semantic settings,
 active cfg/features and the compiler arguments. Cargo's unit graph records resolved
 features, build profiles, targets, modes and dependency units before compilation.

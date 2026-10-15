@@ -935,6 +935,94 @@ fn clones(directory: &Path, arguments: &[&str]) -> (Output, Value) {
 }
 
 #[test]
+#[cfg(unix)]
+fn clones_runs_with_execute_only_binaries_without_fingerprint_fields() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = clone_workspace();
+    let executable = directory.path().join("running-cli");
+    std::fs::copy(cargo_bin("cargo-rstyle"), &executable).unwrap();
+    let producer = directory.path().join("execute-only-driver");
+    std::fs::copy(driver(), &producer).unwrap();
+    let baseline = Command::new(&executable)
+        .args(["clones", "--format", "json"])
+        .current_dir(directory.path())
+        .env("RSTYLE_DRIVER", &producer)
+        .env_remove("CARGO_TARGET_DIR")
+        .output()
+        .unwrap();
+    assert!(baseline.status.success());
+    let expected: Value = serde_json::from_slice(&baseline.stdout).unwrap();
+    for path in [&executable, &producer] {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o111)).unwrap();
+        assert_eq!(
+            std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
+            0o111
+        );
+    }
+    let child = Command::new(&executable)
+        .args(["clones", "--format", "json"])
+        .current_dir(directory.path())
+        .env("RSTYLE_DRIVER", &producer)
+        .env("RSTYLE_PERF", "1")
+        .env_remove("CARGO_TARGET_DIR")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let actual: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(expected["matching"], actual["matching"]);
+    assert_unfingerprinted_reports(&expected, &actual);
+    assert_no_binary_hash_events(&output.stderr);
+}
+
+fn assert_no_binary_hash_events(stderr: &[u8]) {
+    let events: Vec<Value> = String::from_utf8_lossy(stderr)
+        .lines()
+        .filter_map(|line| line.strip_prefix("rstyle-perf "))
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert!(events.iter().any(|event| event["stage"] == "cli.prepare"));
+    assert!(
+        !events
+            .iter()
+            .any(|event| event["stage"] == "capture.binary_hash")
+    );
+}
+
+fn assert_unfingerprinted_reports(expected: &Value, actual: &Value) {
+    for report in [expected, actual] {
+        assert_persisted_report(report);
+        for field in ["producer_binary_sha256", "orchestration_binary_sha256"] {
+            assert!(report.get(field).is_none(), "{field}");
+        }
+        for field in [
+            "capture_complete",
+            "assessment_complete",
+            "pair_enumeration_complete",
+            "pair_evaluation_complete",
+        ] {
+            assert_eq!(report[field], true, "{field}");
+        }
+        assert_eq!(report["compiler_identity"], expected["compiler_identity"]);
+        assert_eq!(report["contract_revision"], expected["contract_revision"]);
+        let plan = read_capture_plan(report);
+        assert!(plan.get("driver_sha256").is_none());
+        assert!(plan.get("orchestrator_sha256").is_none());
+    }
+}
+
+fn read_capture_plan(report: &Value) -> Value {
+    let directory = Path::new(report["run_directory"].as_str().unwrap());
+    serde_json::from_slice(&std::fs::read(directory.join("plan.json")).unwrap()).unwrap()
+}
+
+#[test]
 fn clones_rejects_retired_expanded_evidence_option() {
     let directory = clone_workspace();
     let output = rstyle(directory.path(), &["clones", "--expanded-evidence"]);

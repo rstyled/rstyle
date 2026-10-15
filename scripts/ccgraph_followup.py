@@ -107,7 +107,7 @@ def run(split, smoke=False):
             try:
                 report, cost, inventory = base.execute(scope, variant, raw)
                 base.require(snapshot() == snap, 'binary/configuration drift during execution')
-                base.require(report['producer_binary_sha256'] == snap['binaries']['rstyle-driver'] and report['orchestration_binary_sha256'] == snap['binaries']['cargo-rstyle'], 'reported binary drift')
+                base.require(not {'producer_binary_sha256', 'orchestration_binary_sha256'} & report.keys(), 'retired executable provenance fields')
                 result = base.assess(report, scope, manifest, variant, STUDY)
                 result['targets'] = quality_targets(result['metrics'])
                 result['correctness'] = correctness(report, result, manifest)

@@ -28,8 +28,6 @@ pub struct Plan {
     pub root: PathBuf,
     pub driver: PathBuf,
     pub targets: Vec<Target>,
-    pub driver_sha256: String,
-    pub orchestrator_sha256: String,
     pub compiler_identity: String,
     pub cargo_identity: String,
     pub primary_units: Vec<Value>,
@@ -125,66 +123,28 @@ fn plan(
     Plan {
         extraction_profile,
         root,
-        driver_sha256: environment.binaries.driver.digest,
-        orchestrator_sha256: environment.binaries.orchestrator.digest,
         compiler_identity: environment.compiler_identity,
         cargo_identity: environment.cargo_identity,
-        driver: environment.binaries.driver.path,
+        driver: environment.driver,
         targets,
         primary_units: Vec::new(),
     }
 }
 
 struct CaptureEnvironment {
-    binaries: BinaryIdentities,
+    driver: PathBuf,
     compiler_identity: String,
     cargo_identity: String,
 }
 
 fn capture_environment() -> Result<CaptureEnvironment, String> {
     Ok(CaptureEnvironment {
-        binaries: binary_identities()?,
+        driver: run::driver_path()?
+            .canonicalize()
+            .map_err(|e| e.to_string())?,
         compiler_identity: tool_identity("rustc", "-vV")?,
         cargo_identity: tool_identity("cargo", "--version")?,
     })
-}
-
-struct ExecutableIdentity {
-    path: PathBuf,
-    digest: String,
-}
-
-struct BinaryIdentities {
-    driver: ExecutableIdentity,
-    orchestrator: ExecutableIdentity,
-}
-
-fn binary_identities() -> Result<BinaryIdentities, String> {
-    Ok(BinaryIdentities {
-        driver: executable_identity(run::driver_path()?)?,
-        orchestrator: executable_identity(std::env::current_exe().map_err(|e| e.to_string())?)?,
-    })
-}
-
-fn executable_identity(path: PathBuf) -> Result<ExecutableIdentity, String> {
-    let path = path.canonicalize().map_err(|e| e.to_string())?;
-    let digest = file_digest(&path)?;
-
-    Ok(ExecutableIdentity { path, digest })
-}
-
-fn file_digest(path: &Path) -> Result<String, String> {
-    rstyle_pdg::diagnostics::Stage::new("capture.binary_hash", &path.display().to_string(), None)
-        .observe(|| hash_file(path))
-}
-
-fn hash_file(path: &Path) -> Result<String, String> {
-    use sha2::{Digest, Sha256};
-    let mut file = std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut digest = Sha256::new();
-    std::io::copy(&mut file, &mut digest).map_err(|e| format!("{}: {e}", path.display()))?;
-
-    Ok(format!("{:x}", digest.finalize()))
 }
 
 fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
@@ -890,27 +850,29 @@ fn invocation_features(invocation: &[String]) -> Vec<Value> {
 
 #[cfg(test)]
 mod digest_tests {
-    use super::*;
 
     #[test]
-    fn executable_digest_matches_standard_vectors_and_recaptures_edits() {
+    fn content_digest_matches_standard_vectors_and_recaptures_edits() {
         let directory = tempfile::tempdir().unwrap();
-        let file = directory.path().join("executable");
+        let file = directory.path().join("content");
         std::fs::write(&file, b"").unwrap();
         assert_eq!(
-            file_digest(&file).unwrap(),
+            super::super::digest(&std::fs::read(&file).unwrap()),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
         std::fs::write(&file, b"abc").unwrap();
         assert_eq!(
-            file_digest(&file).unwrap(),
+            super::super::digest(&std::fs::read(&file).unwrap()),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
         std::fs::write(&file, b"abd").unwrap();
-        assert_eq!(file_digest(&file).unwrap(), super::super::digest(b"abd"));
+        assert_eq!(
+            super::super::digest(&std::fs::read(&file).unwrap()),
+            super::super::digest(b"abd")
+        );
         std::fs::write(&file, vec![b'a'; 1_000_000]).unwrap();
         assert_eq!(
-            file_digest(&file).unwrap(),
+            super::super::digest(&std::fs::read(&file).unwrap()),
             "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
         );
     }

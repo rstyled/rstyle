@@ -1,5 +1,7 @@
 # Remaining production costs
 
+Historical measurements before [executable hash retirement](executable-hash-retirement.md).
+
 The optimized tool's largest measured phase on these workloads is compiler
 capture, followed by handoff and evidence verification. Hashing dominates the
 debug tool's runtime but is small in release. Matching, trace partitions and
