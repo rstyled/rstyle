@@ -4508,11 +4508,11 @@ fn clones_data_field_borrows_preserve_array_slice_and_str_referents() {
     );
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
     assert_eq!(report["pair_evaluation_complete"], true);
+    let (unit, _) = data_unit(&functions[0]);
+    let analysis = unit.analysis();
     for function in functions.iter().filter(|f| f["outcome"] == "admitted") {
-        let (unit, index) = data_unit(function);
-        let analysis = unit.analysis();
-        let facts = analysis.function(index).unwrap();
-        let pair = unit.pair(index).unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
         rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
         assert_eq!(pair.pdg.function.reference_count.value, Some(1));
         assert!(
@@ -4723,12 +4723,12 @@ fn clones_data_checks_serialized_receiver_evidence_without_reemission() {
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{report}");
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted");
-        let (unit, index) = data_unit(function);
-        let analysis = unit.analysis();
-        let facts = analysis.function(index).unwrap();
-        let pair = unit.pair(index).unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
         rstyle_pdg::data_receivers::verify_documents(pair, &facts).unwrap();
         let mut bad_signature = facts.clone();
         bad_signature
@@ -5121,12 +5121,12 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
     );
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (unit, index) = data_unit(function);
-        let analysis = unit.analysis();
-        let facts = analysis.function(index).unwrap();
-        let pair = unit.pair(index).unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
         rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
         rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     }

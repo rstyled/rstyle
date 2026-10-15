@@ -64,3 +64,53 @@ Final logs are `/tmp/rstyle-borrow-fixture-{fmt,clippy,nextest,patterns}.log`,
 `/tmp/rstyle-borrow-fixture-style.json` and
 `/tmp/rstyle-borrow-fixture-style.err`. The full-suite time is an observation;
 only the focused alternating samples support the reported local speedup.
+
+## Per-function loop follow-up
+
+After `ba4ec97`, three smaller regressions still imported their fixture unit
+inside per-function loops: array/slice/string field borrows (three admitted
+functions), serialized receiver evidence (two functions), and inherent-call
+selection (five functions). Each loop now owns one strictly loaded unit and
+one analysis context. Every function still verifies its documents; borrowed
+pair lookup checks the exact report/store identity before resolving its index.
+This removes seven full unit imports (10 to three) and seven analysis-context
+constructions across the three tests. It introduces no persistent cache and
+shares no owner across runs, profiles, or edited source.
+
+The receiver test retains independent invalid-frontend imports and both paired
+document corruption checks. All admission, reference-count, argument/read,
+legacy-profile exclusion, completeness and exhaustive pair-count assertions
+remain. These changes affect test setup and verification reuse only; no
+production API or evidence format changes.
+
+Three alternating samples of the complete inherent-call selection test used
+baseline `ba4ec97` and rebuilt test executables against the same unchanged CLI
+and driver. Conditions match the prior measurements: pinned nightly, locked
+dependencies, debug profile, aarch64, eight-CPU quota/16 GiB, fresh per-test
+fixtures, sequential runs, no concurrent builds, no performance instrumentation.
+Tool build/setup was excluded; each test includes its own fixture setup and
+both extraction-profile commands. All six test runs passed.
+
+| Inherent-call selection | Before | After |
+| --- | --- | --- |
+| Wall seconds | 5.07, 5.00, 5.08 | 4.70, 4.73, 4.76 |
+| Median wall seconds | 5.07 | 4.73 |
+| Median peak RSS KiB | 85,632 | 85,496 |
+
+This is about 7% faster for this local test; memory is effectively unchanged.
+Raw samples and the script are retained at
+`/tmp/rstyle-loop-owner-{before,after}-{0,1,2}.log`,
+`/tmp/rstyle-loop-owner-measure.jsonl` and
+`/tmp/rstyle-loop-owner-measure.py`. No production-analysis speedup is claimed.
+
+Follow-up validation passed: the two field/receiver focused tests, formatting,
+locked workspace/all-target warning-free Clippy, and
+`CARGO_TARGET_DIR=target timeout 600 ./scripts/test.sh --nextest` (642 passed,
+zero skipped, 106.168 seconds, no slow warnings, workspace doctests passed).
+The full-suite duration is observational, not a controlled speedup measurement.
+Both repository gates passed: 1,970 functions with zero style violations;
+zero actionable pattern candidates and 15 existing reviewed ignored candidates.
+After a conversation interruption, the completed reports were inspected and
+both gates rerun to confirm exit status. Logs use
+`/tmp/rstyle-loop-owner-{field,receiver,fmt,clippy,nextest,patterns}.log`,
+`/tmp/rstyle-loop-owner-style.json` and `/tmp/rstyle-loop-owner-style.err`.
