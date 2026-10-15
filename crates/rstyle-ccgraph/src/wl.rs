@@ -186,6 +186,8 @@ struct RefineState {
     labels_a: Vec<u64>,
     labels_b: Vec<u64>,
     interner: BTreeMap<WlTuple, u64>,
+    scratch_a: Vec<u64>,
+    scratch_b: Vec<u64>,
     rounds: Vec<(BTreeMap<u64, u64>, BTreeMap<u64, u64>)>,
 }
 
@@ -198,6 +200,8 @@ fn seed_both(a: &MatchingGraph, b: &MatchingGraph) -> RefineState {
         labels_a,
         labels_b,
         interner,
+        scratch_a: Vec::new(),
+        scratch_b: Vec::new(),
         rounds,
     }
 }
@@ -207,15 +211,19 @@ fn advance(a: &MatchingGraph, b: &MatchingGraph, state: RefineState) -> RefineSt
         labels_a,
         labels_b,
         interner,
+        scratch_a,
+        scratch_b,
         mut rounds,
     } = state;
-    let (labels_a, interner) = step(a, &labels_a, interner);
-    let (labels_b, interner) = step(b, &labels_b, interner);
-    rounds.push(histograms(&labels_a, &labels_b));
+    let (next_a, interner) = step(a, &labels_a, scratch_a, interner);
+    let (next_b, interner) = step(b, &labels_b, scratch_b, interner);
+    rounds.push(histograms(&next_a, &next_b));
 
     RefineState {
-        labels_a,
-        labels_b,
+        labels_a: next_a,
+        labels_b: next_b,
+        scratch_a: labels_a,
+        scratch_b: labels_b,
         interner,
         rounds,
     }
@@ -249,9 +257,12 @@ fn seed_labels(
 fn step(
     graph: &MatchingGraph,
     previous: &[u64],
+    mut labeled: Vec<u64>,
     interner: BTreeMap<WlTuple, u64>,
 ) -> (Vec<u64>, BTreeMap<WlTuple, u64>) {
-    let mut labeled = Vec::with_capacity(graph.node_count());
+    labeled.clear();
+    labeled.reserve(graph.node_count());
+
     let mut table = interner;
     for (id, _) in graph.nodes() {
         let tuple = WlTuple {
@@ -290,4 +301,45 @@ fn count<'a>(labels: impl Iterator<Item = &'a u64>) -> BTreeMap<u64, u64> {
         *out.entry(*label).or_default() += 1;
     }
     out
+}
+
+#[cfg(test)]
+mod buffer_tests {
+    use super::*;
+    use crate::graph::{CcLabel, ProjectedNode};
+
+    #[test]
+    fn refinement_rotates_allocations_without_overwriting_previous_labels() {
+        let projected = ProjectedGraph {
+            nodes: vec![ProjectedNode {
+                id: "node".into(),
+                label: CcLabel::State,
+            }],
+            edges: Vec::new(),
+        };
+        let graph = MatchingGraph::build(&projected).unwrap();
+        let initial = seed_both(&graph, &graph);
+        let first_buffers = (initial.labels_a.as_ptr(), initial.labels_b.as_ptr());
+        let first = advance(&graph, &graph, initial);
+        let second_buffers = (first.labels_a.as_ptr(), first.labels_b.as_ptr());
+        assert_eq!(
+            (first.scratch_a.as_ptr(), first.scratch_b.as_ptr()),
+            first_buffers
+        );
+        let second = advance(&graph, &graph, first);
+        assert_eq!(
+            (second.labels_a.as_ptr(), second.labels_b.as_ptr()),
+            first_buffers
+        );
+        assert_eq!(
+            (second.scratch_a.as_ptr(), second.scratch_b.as_ptr()),
+            second_buffers
+        );
+
+        let expected = refine(&projected, &projected, 2);
+        assert_eq!(second.rounds, expected.rounds);
+        assert_eq!(second.interner.len(), expected.interned_labels);
+        assert_eq!(second.labels_a, second.labels_b);
+        assert_ne!(second.labels_a, second.scratch_a);
+    }
 }
