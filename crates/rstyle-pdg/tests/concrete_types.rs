@@ -244,7 +244,7 @@ fn declaration_origins_require_exact_owned_struct_ranges() {
         nominal: nominal.clone(),
         source_file: "src/types.rs".into(),
         file_digest: digest(file.as_bytes()),
-        file_bytes: file,
+        file_bytes: file.into(),
         declaration_span: ByteSpan {
             start,
             end: start + source.len() as u32,
@@ -293,7 +293,7 @@ fn change_declaration_origin(
         "nominal" => changed.declarations[0].nominal.manifest_digest = digest(b"other package"),
         "comment" => {
             let entry = &mut changed.declarations[0];
-            entry.file_bytes = format!("/* {source} */");
+            entry.file_bytes = format!("/* {source} */").into();
             entry.file_digest = digest(entry.file_bytes.as_bytes());
             entry.declaration_span = ByteSpan {
                 start: 3,

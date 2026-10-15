@@ -100,7 +100,7 @@ pub fn bind_unit(facts: &[HirFnFacts], context: &PackageContext) -> Result<UnitB
 fn bind(
     facts: &HirFnFacts,
     context: &PackageContext,
-    files: &mut BTreeMap<PathBuf, String>,
+    files: &mut BTreeMap<PathBuf, std::sync::Arc<str>>,
     builds: &mut BuildContexts,
 ) -> Result<Option<Binding>, String> {
     let options = &facts.build.frontend_options;
@@ -134,7 +134,7 @@ fn bind(
 fn bind_declaration(
     origin: &declaration_origins::Origin,
     context: &PackageContext,
-    files: &mut BTreeMap<PathBuf, String>,
+    files: &mut BTreeMap<PathBuf, std::sync::Arc<str>>,
 ) -> Result<BoundDeclaration, String> {
     let nominal = &origin.nominal;
     if nominal
@@ -174,7 +174,7 @@ fn bind_declaration(
 
 fn check_function_source(
     facts: &HirFnFacts,
-    files: &BTreeMap<PathBuf, String>,
+    files: &BTreeMap<PathBuf, std::sync::Arc<str>>,
 ) -> Result<(), String> {
     if files.is_empty() {
         return Ok(());
@@ -337,7 +337,7 @@ mod tests {
         bind_declaration(&original, &context, &mut files).unwrap();
         bind_declaration(&original, &context, &mut files).unwrap();
         let mut changed = original;
-        changed.file_bytes.push_str("\n// changed source");
+        changed.file_bytes = format!("{}\n// changed source", changed.file_bytes).into();
         changed.file_digest = digest(changed.file_bytes.as_bytes());
         assert!(bind_declaration(&changed, &context, &mut files).is_err());
     }

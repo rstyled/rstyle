@@ -88,6 +88,7 @@ pub(super) fn normalize(functions: Vec<HirFnFacts>) -> Result<Vec<HirFnFacts>, S
         .map(|mut facts| {
             facts.build.frontend_options.normalize_data();
             facts.build.frontend_options.intern_census(&mut sources)?;
+            facts.build.frontend_options.share_origin_sources()?;
             Ok(facts)
         })
         .collect()
@@ -190,7 +191,7 @@ mod tests {
             &Sources::default().for_census(&census).unwrap()
         ));
         let mut changed = (*census).clone();
-        changed.files[0].bytes.push(' ');
+        changed.files[0].bytes = format!("{} ", changed.files[0].bytes).into();
         assert!(sources.for_census(&Arc::new(changed)).is_err());
     }
 }

@@ -73,6 +73,6 @@ fn original_file(
     Ok(UnitFile {
         path,
         digest: rstyle_pdg::concrete_types::digest(bytes.as_bytes()),
-        bytes,
+        bytes: bytes.into(),
     })
 }

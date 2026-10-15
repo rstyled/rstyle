@@ -17,7 +17,7 @@ pub const MAX_BYTES: usize = 8 * 1024 * 1024;
 pub struct Origin {
     pub nominal: Nominal,
     pub source_file: String,
-    pub file_bytes: String,
+    pub file_bytes: std::sync::Arc<str>,
     pub file_digest: String,
     pub declaration_span: ByteSpan,
 }
@@ -27,6 +27,27 @@ pub struct Origin {
 pub struct Origins {
     pub identity: String,
     pub declarations: Vec<Origin>,
+}
+
+impl Origins {
+    pub(crate) fn share_sources(
+        &mut self,
+        census: &crate::nominal_boundary::census::Census,
+    ) -> Result<(), String> {
+        for origin in &mut self.declarations {
+            let file = census
+                .files
+                .iter()
+                .find(|file| {
+                    file.path == std::path::Path::new(&origin.source_file)
+                        && file.bytes == origin.file_bytes
+                        && file.digest == origin.file_digest
+                })
+                .ok_or("Declaration origin disagrees with owned source snapshot")?;
+            origin.file_bytes = std::sync::Arc::clone(&file.bytes);
+        }
+        Ok(())
+    }
 }
 
 /// Independently checks a complete, unique declaration inventory against the

@@ -214,6 +214,18 @@ impl FrontendOptions {
         Ok(())
     }
 
+    /// Share exact original bytes without conferring source verification authority.
+    pub(crate) fn share_origin_sources(&mut self) -> Result<(), String> {
+        let Some(Entry::Census(census)) = self.0.get(crate::nominal_boundary::census::KEY) else {
+            return Ok(());
+        };
+        let census = Arc::clone(&census.value);
+        let Some(Entry::Origins(origins)) = self.0.get_mut(crate::declaration_origins::KEY) else {
+            return Ok(());
+        };
+        origins.value.share_sources(&census)
+    }
+
     pub fn contains_key(&self, key: &str) -> bool {
         self.0.contains_key(key)
     }

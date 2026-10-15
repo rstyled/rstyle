@@ -114,7 +114,7 @@ fn file_bytes<'a>(census: &'a census::Census, path: &std::path::Path) -> Result<
         .files
         .iter()
         .find(|file| file.path == path)
-        .map(|file| file.bytes.as_str())
+        .map(|file| file.bytes.as_ref())
         .ok_or_else(|| "Missing closed source file".into())
 }
 
@@ -323,7 +323,7 @@ fn verify_declarations(
             .ok_or("Missing nominal original-source origin")?;
         if origin.source_file != declaration.path.to_string_lossy()
             || origin.declaration_span != declaration.span
-            || origin.file_bytes != file_bytes(census, &declaration.path)?
+            || origin.file_bytes.as_ref() != file_bytes(census, &declaration.path)?
             || nominal.source_identity.as_deref() != Some(&census.context.package.package_id)
             || nominal.package_name != census.context.package.name
             || nominal.package_version != census.context.package.version

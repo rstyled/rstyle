@@ -412,7 +412,7 @@ impl<'tcx> Capture<'_, 'tcx> {
                 .to_string_lossy()
                 .into_owned(),
                 file_digest: digest(file_bytes.as_bytes()),
-                file_bytes,
+                file_bytes: file_bytes.into(),
                 declaration_span,
             },
         );

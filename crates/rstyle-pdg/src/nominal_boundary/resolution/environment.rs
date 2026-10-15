@@ -85,7 +85,7 @@ impl Environment {
     ) -> Result<(), String> {
         let path = Path::new(&origin.source_file);
         let source = self.source(path)?;
-        if origin.file_bytes != source.bytes()
+        if origin.file_bytes.as_ref() != source.bytes()
             || origin.file_digest != source.record.digest
             || source.range(origin.declaration_span)? != declaration
             || self
@@ -146,7 +146,7 @@ pub(crate) mod tests {
         }
         assert!(environment.source(Path::new("/other/src/lib.rs")).is_err());
         let mut changed = (*census).clone();
-        changed.files[0].bytes.push(' ');
+        changed.files[0].bytes = format!("{} ", changed.files[0].bytes).into();
         assert!(Environment::new(Arc::new(changed)).is_err());
     }
 
@@ -178,7 +178,7 @@ pub(crate) mod tests {
         origin.file_digest.push('x');
         assert!(environment.check_origin(&origin, declaration).is_err());
         origin.file_digest = census.files[0].digest.clone();
-        origin.file_bytes.push(' ');
+        origin.file_bytes = format!("{} ", origin.file_bytes).into();
         assert!(environment.check_origin(&origin, declaration).is_err());
         origin.file_bytes = bytes.clone();
         origin.declaration_span.start += 4;
@@ -191,7 +191,7 @@ pub(crate) mod tests {
     #[test]
     fn reordered_files_keep_owner_scoped_sources_and_ranges() {
         let mut raw = (*census()).clone();
-        raw.files[0].bytes.push_str("mod child;\n");
+        raw.files[0].bytes = format!("{}mod child;\n", raw.files[0].bytes).into();
         raw.files[0].digest = crate::concrete_types::digest(raw.files[0].bytes.as_bytes());
         raw.files.push(census::UnitFile {
             path: "/sample/src/child.rs".into(),

@@ -288,7 +288,7 @@ fn declaration_origins_borrow_owned_bytes_and_preserve_wire_mutations() {
     let Cow::Borrowed(record) = options.data::<Origins>().unwrap() else {
         panic!("origins not normalized");
     };
-    assert_eq!(record.declarations[0].file_bytes, "edited");
+    assert_eq!(record.declarations[0].file_bytes.as_ref(), "edited");
     assert_ne!(loaded, options);
     options.get_mut(KEY).unwrap()["declarations"][0]["declaration_span"]["start"] = json!(-1);
     options.normalize_data();
@@ -297,4 +297,44 @@ fn declaration_origins_borrow_owned_bytes_and_preserve_wire_mutations() {
         options[KEY]["declarations"][0]["declaration_span"]["start"],
         json!(-1)
     );
+}
+
+#[test]
+fn origins_share_only_exact_census_snapshots_and_edits_detach() {
+    use crate::declaration_origins::{Origin, Origins};
+    let census = crate::nominal_boundary::resolution::environment::tests::census();
+    let file = &census.files[0];
+    let nominal = nominal_interface()["result"]["ty"]["evidence"]["nominal"].clone();
+    let origin = Origin {
+        nominal: serde_json::from_value(nominal).unwrap(),
+        source_file: file.path.to_string_lossy().into_owned(),
+        file_bytes: file.bytes.to_string().into(),
+        file_digest: file.digest.clone(),
+        declaration_span: crate::ByteSpan { start: 0, end: 3 },
+    };
+    assert!(!Arc::ptr_eq(&file.bytes, &origin.file_bytes));
+    let mut options = FrontendOptions::default();
+    options.insert_data(Arc::clone(&census));
+    options.insert_data(Origins {
+        identity: crate::declaration_origins::IDENTITY.into(),
+        declarations: vec![origin.clone()],
+    });
+    let before = serde_json::to_vec(&options).unwrap();
+    options.share_origin_sources().unwrap();
+    let record = options.data::<Origins>().unwrap();
+    assert!(Arc::ptr_eq(&file.bytes, &record.declarations[0].file_bytes));
+    assert_eq!(serde_json::to_vec(&options).unwrap(), before);
+    unrendered(&options);
+    for property in ["source_file", "file_digest", "file_bytes"] {
+        let mut edited = options.clone();
+        edited.get_mut(crate::declaration_origins::KEY).unwrap()["declarations"][0][property] =
+            json!("edited");
+        edited.normalize_data();
+        assert!(edited.share_origin_sources().is_err());
+        assert!(Arc::ptr_eq(
+            &file.bytes,
+            &options.data::<Origins>().unwrap().declarations[0].file_bytes
+        ));
+        assert_eq!(origin.file_bytes.as_ref(), file.bytes.as_ref());
+    }
 }
