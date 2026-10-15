@@ -91,3 +91,19 @@ are unchanged. Logs are retained under `/tmp/rstyle-report-function-ids-*`.
 Unit-store frontend identity serialization, capture ledger hashing, transport
 checksums, source wire dictionaries and matcher interning/allocation work remain
 separate pending increments in the full optimization plan.
+
+Duplicate detection uses `(crate, HIR owner)` within the assigned compilation
+unit. Display paths and source-callsite spans are navigation only: distinct
+macro-generated definitions in separate block scopes may share both. Such
+functions must reach individual eligibility assessment rather than invalidating
+the unit. The CLI regression keeps two generated same-named/same-callsite
+functions excluded alongside two admitted ordinary functions and one evaluated
+pair. Source-file navigation remains required; duplicate compiler owners remain
+an invalid handoff.
+
+Validation of the three review fixes together: 701/701 nextest tests passed,
+zero skipped; workspace doctests, formatting and warning-free workspace/all-target
+Clippy passed. Both quality gates report zero violations/actionable candidates;
+the same 15 reviewed ignores remain. Logs: `/tmp/rstyle-findings-*`. Initial
+Clippy test-length and style-spacing failures were corrected without suppressions
+or removed assertions before the final clean run.

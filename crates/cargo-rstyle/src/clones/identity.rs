@@ -89,27 +89,23 @@ fn order(unit: &capture::Unit) -> (&str, &Path, &str, &[String], bool, &[String]
     )
 }
 
-/// A compiler source occurrence is unique within its exact unit, regardless of
-/// the forensic evidence attached to it. No build serialization enters labels.
+/// HIR owners distinguish definitions within this unit, including expansions.
+/// Display paths and callsite spans are navigation only, not definition identity.
 pub(super) fn functions(unit: UnitId, facts: &[HirFnFacts]) -> Result<Vec<FunctionKey>, String> {
     let mut seen = BTreeSet::new();
     facts
         .iter()
         .enumerate()
         .map(|(index, function)| {
-            let file = function
+            function
                 .build
                 .frontend_options
                 .get("source_file")
                 .and_then(serde_json::Value::as_str)
                 .ok_or("missing captured source-file navigation")?;
-            if !seen.insert((
-                file,
-                &function.name,
-                function.fn_span.start,
-                function.fn_span.end,
-            )) {
-                return Err("Duplicate function source occurrence in one compilation unit".into());
+            let owner = &function.body.hir;
+            if !seen.insert((owner.krate, owner.owner)) {
+                return Err("Duplicate compiler function owner in one compilation unit".into());
             }
             FunctionKey::new(unit, index)
         })

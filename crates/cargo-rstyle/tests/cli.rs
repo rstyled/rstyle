@@ -1557,6 +1557,68 @@ fn clones_unsupported_workspace_completes_assessment_with_zero_admitted_function
 }
 
 #[test]
+fn clones_distinct_macro_function_owners_do_not_invalidate_ordinary_functions() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"macro_rules! make {
+            () => { { fn f() {} } { fn f() {} } };
+        }
+        pub fn outer() { make!(); }
+        pub fn first(a: i32) -> i32 { a }
+        pub fn second(a: i32) -> i32 { a }
+        "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &[]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for flag in [
+        "capture_complete",
+        "assessment_complete",
+        "pair_enumeration_complete",
+        "pair_evaluation_complete",
+    ] {
+        assert_eq!(report[flag], true, "{flag}: {report}");
+    }
+    let functions = report["functions"].as_array().unwrap();
+    check_distinct_expanded_functions(functions);
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+}
+
+fn check_distinct_expanded_functions(functions: &[Value]) {
+    let generated: Vec<_> = functions
+        .iter()
+        .filter(|function| function["facts"]["name"].as_str().unwrap().ends_with("::f"))
+        .collect();
+    assert_eq!(generated.len(), 2);
+    assert_eq!(generated[0]["facts"]["name"], generated[1]["facts"]["name"]);
+    assert_eq!(
+        generated[0]["facts"]["fn_span"],
+        generated[1]["facts"]["fn_span"]
+    );
+    assert_ne!(
+        generated[0]["facts"]["body"]["hir"]["owner"],
+        generated[1]["facts"]["body"]["hir"]["owner"]
+    );
+    assert!(
+        generated
+            .iter()
+            .all(|function| function["outcome"] == "excluded")
+    );
+}
+
+#[test]
 fn clones_resource_failure_is_explicit_and_incomplete() {
     let directory = clone_workspace();
     let (output, report) = clones(directory.path(), &["--max-pairs", "2"]);
