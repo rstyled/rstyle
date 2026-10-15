@@ -171,6 +171,10 @@ impl Function {
 }
 
 impl Handoff {
+    fn capture(capture: &capture::Capture, args: &Args) -> Result<Self, String> {
+        Stage::new("cli.handoff", "run", None).observe(|| Ok(handoff(capture, args)))
+    }
+
     fn add(&mut self, mut record: Function, result: Result<Option<ImportedFunction>, String>) {
         match result {
             Ok(Some(function)) => self.admitted.push(function),
@@ -205,21 +209,10 @@ pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 
 fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
-    let mut capture =
-        Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))?;
-    if let Err(error) = capture::compile(&mut capture, cli, args) {
-        capture.failures.push(error);
-    }
-    let handoff = Stage::new("cli.handoff", "run", None)
-        .observe(|| Ok::<_, String>(handoff(&capture, args)))?;
-    let matching_stage = Stage::new("cli.matching", "run", None).enter();
-    let matching = rstyle_ccgraph::pipeline::evaluate_selected(
-        &handoff.admitted,
-        &config,
-        args.max_pairs,
-        matching_profile(args),
-    );
-    matching_stage.finish(Ok::<_, String>(()))?;
+    let capture = capture_for_analysis(cli, args)?;
+    let handoff = Handoff::capture(&capture, args)?;
+    let evaluation = evaluate_matching(&handoff, &config, args)?;
+    let matching = evaluation.report;
 
     let accepted = matching
         .pairs
@@ -228,22 +221,16 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         .count();
     let complete =
         capture.failures.is_empty() && handoff.failures.is_empty() && !matching.incomplete;
-    let mut report = report::make(report::Context {
+    let report = report::make(report::Context {
         cli,
         args,
         capture: &capture,
         handoff: &handoff,
         matching: &matching,
+        partitions: evaluation.partitions,
         complete,
     });
-    if args.trace {
-        Stage::new("cli.trace_partitions", "run", None)
-            .observe(|| report::attach_wl_partitions(&mut report, &handoff))?;
-    }
-    Stage::new("cli.report_write", "run", None)
-        .observe(|| report::write(&capture.directory.join("report.json"), &report))?;
-    let output = Stage::new("cli.report_render", "run", None)
-        .observe(|| report::render(cli.format, &report, accepted, &capture.directory))?;
+    let output = report.publish(cli.format, accepted)?;
     let code = if !complete {
         2
     } else {
@@ -251,6 +238,33 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     };
 
     Ok((output, code))
+}
+
+fn evaluate_matching(
+    handoff: &Handoff,
+    config: &CcgraphConfig,
+    args: &Args,
+) -> Result<rstyle_ccgraph::pipeline::Evaluation, String> {
+    Stage::new("cli.matching", "run", None).observe(|| {
+        Ok(rstyle_ccgraph::pipeline::evaluate_selected_with_options(
+            &handoff.admitted,
+            config,
+            rstyle_ccgraph::pipeline::EvaluationOptions {
+                maximum_pairs: args.max_pairs,
+                profile: matching_profile(args),
+                trace: args.trace,
+            },
+        ))
+    })
+}
+
+fn capture_for_analysis(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
+    let mut capture =
+        Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))?;
+    if let Err(error) = capture::compile(&mut capture, cli, args) {
+        capture.failures.push(error);
+    }
+    Ok(capture)
 }
 
 fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {

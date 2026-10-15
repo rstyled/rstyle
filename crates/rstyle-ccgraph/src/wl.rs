@@ -109,12 +109,26 @@ pub fn refine(a: &ProjectedGraph, b: &ProjectedGraph, h: usize) -> WlRefinement 
 }
 
 pub(crate) fn refine_compact(a: &MatchingGraph, b: &MatchingGraph, h: usize) -> WlRefinement {
-    let seeded = seed_both(a, b);
-    let finished = (0..h).fold(seeded, |state, _| advance(a, b, state));
+    refine_observed(a, b, h, |_, _| {})
+}
+
+/// Observe the exact synchronous labels used to form each scoring histogram.
+pub(crate) fn refine_observed(
+    a: &MatchingGraph,
+    b: &MatchingGraph,
+    h: usize,
+    mut observe: impl FnMut(&[u64], &[u64]),
+) -> WlRefinement {
+    let mut state = seed_both(a, b);
+    observe(&state.labels_a, &state.labels_b);
+    for _ in 0..h {
+        state = advance(a, b, state);
+        observe(&state.labels_a, &state.labels_b);
+    }
 
     WlRefinement {
-        rounds: finished.rounds,
-        interned_labels: finished.interner.len(),
+        rounds: state.rounds,
+        interned_labels: state.interner.len(),
     }
 }
 
@@ -123,36 +137,49 @@ pub(crate) fn refine_compact(a: &MatchingGraph, b: &MatchingGraph, h: usize) -> 
 pub fn trace_partitions(a: &ProjectedGraph, b: &ProjectedGraph, h: usize) -> Vec<LabelPartition> {
     let compact_a = MatchingGraph::build(a).expect("validated matching graph");
     let compact_b = MatchingGraph::build(b).expect("validated matching graph");
-    let state = seed_both(&compact_a, &compact_b);
-    let initial = label_partition(&state, a, b);
-    let (_, partitions) = (0..h).fold((state, vec![initial]), |(state, mut partitions), _| {
-        let next = advance(&compact_a, &compact_b, state);
-        partitions.push(label_partition(&next, a, b));
-        (next, partitions)
-    });
 
+    let first: Vec<_> = ordered_nodes(a)
+        .iter()
+        .map(|node| node.id.clone())
+        .collect();
+    let second: Vec<_> = ordered_nodes(b)
+        .iter()
+        .map(|node| node.id.clone())
+        .collect();
+    let names = LabelNames {
+        first: &first,
+        second: &second,
+    };
+
+    let mut partitions = Vec::new();
+    refine_observed(&compact_a, &compact_b, h, |first, second| {
+        partitions.push(names.partition(first, second));
+    });
     partitions
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
 pub struct LabelPartition {
     pub first: BTreeMap<String, u64>,
     pub second: BTreeMap<String, u64>,
 }
 
-fn label_partition(state: &RefineState, a: &ProjectedGraph, b: &ProjectedGraph) -> LabelPartition {
-    LabelPartition {
-        first: readable_labels(a, &state.labels_a),
-        second: readable_labels(b, &state.labels_b),
+pub(crate) struct LabelNames<'a> {
+    pub first: &'a [String],
+    pub second: &'a [String],
+}
+
+impl LabelNames<'_> {
+    pub fn partition(&self, first: &[u64], second: &[u64]) -> LabelPartition {
+        LabelPartition {
+            first: readable_labels(self.first, first),
+            second: readable_labels(self.second, second),
+        }
     }
 }
 
-fn readable_labels(graph: &ProjectedGraph, labels: &[u64]) -> BTreeMap<String, u64> {
-    ordered_nodes(graph)
-        .into_iter()
-        .zip(labels)
-        .map(|(node, label)| (node.id.clone(), *label))
-        .collect()
+fn readable_labels(names: &[String], labels: &[u64]) -> BTreeMap<String, u64> {
+    names.iter().cloned().zip(labels.iter().copied()).collect()
 }
 
 struct RefineState {

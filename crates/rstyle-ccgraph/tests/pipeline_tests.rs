@@ -37,6 +37,126 @@ fn two_node(key: &str, family: EdgeFamily, name: &str) -> ImportedFunction {
     )
 }
 
+#[test]
+fn integrated_trace_preserves_reports_and_standalone_partitions() {
+    let functions = [
+        chain("a", 12, "same"),
+        chain("b", 12, "same"),
+        chain("c", 10, "same"),
+    ];
+    for scoring in [Scoring::SmallerGraphOverlap, Scoring::CrossProductCosine] {
+        let config = CcgraphConfig {
+            scoring,
+            ..CcgraphConfig::default()
+        };
+        let plain =
+            pipeline::evaluate_selected(&functions, &config, None, MatchingProfile::ScalarV1);
+        let traced = pipeline::evaluate_selected_with_options(
+            &functions,
+            &config,
+            pipeline::EvaluationOptions {
+                maximum_pairs: None,
+                profile: MatchingProfile::ScalarV1,
+                trace: true,
+            },
+        );
+        assert_eq!(plain, traced.report);
+        assert!(!traced.partitions.is_empty());
+        for (index, partitions) in &traced.partitions {
+            let pair = &traced.report.pairs[*index];
+            let first = functions
+                .iter()
+                .find(|function| function.key == pair.first)
+                .unwrap();
+            let second = functions
+                .iter()
+                .find(|function| function.key == pair.second)
+                .unwrap();
+            let first = project(first).unwrap().graph;
+            let second = project(second).unwrap().graph;
+            let depth: usize = pair.stages[6].detail["depth"].parse().unwrap();
+            assert_eq!(*partitions, wl::trace_partitions(&first, &second, depth));
+            assert_eq!(partitions.len(), depth + 1);
+        }
+    }
+}
+
+#[test]
+fn normal_and_resource_limited_evaluation_keep_partitions_empty() {
+    let functions = [chain("a", 12, "same"), chain("b", 12, "same")];
+    let config = CcgraphConfig::default();
+    let normal = pipeline::evaluate_selected_with_options(
+        &functions,
+        &config,
+        pipeline::EvaluationOptions {
+            maximum_pairs: None,
+            profile: MatchingProfile::ScalarV1,
+            trace: false,
+        },
+    );
+    assert!(normal.partitions.is_empty());
+    assert!(!normal.report.incomplete);
+    let limited = pipeline::evaluate_selected_with_options(
+        &functions,
+        &config,
+        pipeline::EvaluationOptions {
+            maximum_pairs: Some(0),
+            profile: MatchingProfile::ScalarV1,
+            trace: true,
+        },
+    );
+    assert!(limited.partitions.is_empty());
+    assert!(limited.report.pairs.is_empty());
+    assert!(limited.report.incomplete);
+    assert_eq!(limited.report.functions.len(), 2);
+}
+
+#[test]
+fn traced_round_histograms_match_scoring_with_parallel_and_self_edges() {
+    let functions: Vec<_> = ["a", "b"]
+        .into_iter()
+        .map(|key| {
+            stage_function(
+                key,
+                vec![
+                    plain_node("x", NodeCategory::Computation),
+                    plain_node("y", NodeCategory::Assignment),
+                ],
+                vec![
+                    ("x", "y", EdgeFamily::Data),
+                    ("x", "y", EdgeFamily::Data),
+                    ("x", "x", EdgeFamily::Control),
+                ],
+                "same",
+            )
+        })
+        .collect();
+    let traced = pipeline::evaluate_selected_with_options(
+        &functions,
+        &CcgraphConfig::default(),
+        pipeline::EvaluationOptions {
+            maximum_pairs: None,
+            profile: MatchingProfile::ScalarV1,
+            trace: true,
+        },
+    );
+    let partitions = &traced.partitions[&0];
+    let first = project(&functions[0]).unwrap().graph;
+    let second = project(&functions[1]).unwrap().graph;
+    let refined = wl::refine(&first, &second, partitions.len() - 1);
+    for (partition, (first, second)) in partitions.iter().zip(&refined.rounds) {
+        let histogram = |labels: &std::collections::BTreeMap<String, u64>| {
+            let mut counts = std::collections::BTreeMap::new();
+            for label in labels.values() {
+                *counts.entry(*label).or_insert(0) += 1;
+            }
+            counts
+        };
+        assert_eq!(histogram(&partition.first), *first);
+        assert_eq!(histogram(&partition.second), *second);
+    }
+}
+
 fn accepted(report: &RunReport, first: &str, second: &str) -> bool {
     report
         .pairs

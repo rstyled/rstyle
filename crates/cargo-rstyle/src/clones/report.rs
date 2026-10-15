@@ -15,6 +15,7 @@ pub struct Context<'a> {
     pub capture: &'a capture::Capture,
     pub handoff: &'a Handoff,
     pub matching: &'a RunReport,
+    pub partitions: rstyle_ccgraph::pipeline::WlPartitions,
     pub complete: bool,
 }
 
@@ -140,7 +141,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
         handoff_failures: &ctx.handoff.failures,
         pair_evaluation_complete: ctx.complete,
         pair_enumeration_complete: enumeration_complete(&ctx),
-        matching: matching::Matching::new(ctx.matching, ctx.args.trace),
+        matching: matching::Matching::new(ctx.matching, ctx.args.trace, ctx.partitions),
         claim: "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
     }
 }
@@ -196,37 +197,18 @@ pub fn write(path: &Path, report: &Report<'_>) -> Result<(), String> {
         .map_err(|error| format!("{}: {error}", path.display()))
 }
 
+impl Report<'_> {
+    pub fn publish(&self, format: Format, accepted: usize) -> Result<String, String> {
+        rstyle_pdg::diagnostics::Stage::new("cli.report_write", "run", None)
+            .observe(|| write(&self.run_directory.join("report.json"), self))?;
+        rstyle_pdg::diagnostics::Stage::new("cli.report_render", "run", None)
+            .observe(|| render(format, self, accepted, self.run_directory))
+    }
+}
+
 fn write_to(mut writer: impl std::io::Write, report: &impl Serialize) -> Result<(), String> {
     serde_json::to_writer_pretty(&mut writer, report).map_err(|error| error.to_string())?;
     writer.flush().map_err(|error| error.to_string())
-}
-
-pub fn attach_wl_partitions(report: &mut Report<'_>, handoff: &Handoff) -> Result<(), String> {
-    for (index, pair) in report.matching.report.pairs.iter().enumerate() {
-        let Some(depth) = pair.stages.get(6).and_then(|s| s.detail.get("depth")) else {
-            continue;
-        };
-        let depth: usize = depth.parse().map_err(|_| "invalid WL depth")?;
-        let first = projected_function(handoff, &pair.first)?;
-        let second = projected_function(handoff, &pair.second)?;
-        let partitions = rstyle_ccgraph::wl::trace_partitions(&first, &second, depth);
-        report.matching.partitions.insert(index, partitions);
-    }
-    Ok(())
-}
-
-fn projected_function(
-    handoff: &Handoff,
-    key: &str,
-) -> Result<rstyle_ccgraph::ProjectedGraph, String> {
-    let function = handoff
-        .admitted
-        .iter()
-        .find(|f| key == f.key)
-        .ok_or("missing verified function for WL trace")?;
-    rstyle_ccgraph::project(function)
-        .map(|p| p.graph)
-        .map_err(|e| format!("{e:?}"))
 }
 
 #[cfg(test)]

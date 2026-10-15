@@ -13,11 +13,15 @@ pub(super) struct Matching<'a> {
 }
 
 impl<'a> Matching<'a> {
-    pub fn new(report: &'a RunReport, trace: bool) -> Self {
+    pub fn new(
+        report: &'a RunReport,
+        trace: bool,
+        partitions: rstyle_ccgraph::pipeline::WlPartitions,
+    ) -> Self {
         Self {
             report,
             trace,
-            partitions: BTreeMap::new(),
+            partitions,
         }
     }
 }

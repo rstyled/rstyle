@@ -17,10 +17,14 @@ use crate::interface::{
 };
 use crate::projection::{Projection, ProjectionFault, project};
 use crate::scoring::{LabelRound, RoundScores, cosine_score, overlap_score, score_label_rounds};
-use crate::wl::{diameter_compact, pair_depth, refine_compact, weights};
+use crate::wl::{LabelPartition, diameter_compact, pair_depth, weights};
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+};
 mod histograms;
+mod tracing;
 
 pub const PROFILE_ID: &str = "compat.ccgraph.strict";
 pub const PROFILE_VERSION: &str = "0.1.0";
@@ -130,6 +134,26 @@ pub struct RunReport {
     pub diagnostics: Vec<String>,
 }
 
+/// Reporting choices do not change matching policy or exhaustive enumeration.
+pub struct EvaluationOptions {
+    pub maximum_pairs: Option<usize>,
+    pub profile: crate::graph::MatchingProfile,
+    pub trace: bool,
+}
+
+pub type WlPartitions = BTreeMap<usize, Vec<LabelPartition>>;
+
+pub struct Evaluation {
+    pub report: RunReport,
+    pub partitions: WlPartitions,
+}
+
+struct PairEvaluation {
+    record: PairRecord,
+    incomplete: bool,
+    partitions: Option<Vec<LabelPartition>>,
+}
+
 struct PreparedFunction<'a> {
     imported: &'a ImportedFunction,
     valid: bool,
@@ -139,6 +163,7 @@ struct PreparedFunction<'a> {
 
 struct ProjectionData {
     graph: MatchingGraph,
+    trace_names: Option<Vec<String>>,
     record: FunctionProjection,
 }
 
@@ -162,18 +187,32 @@ pub fn evaluate_with_pair_limit(
     config: &CcgraphConfig,
     maximum_pairs: Option<usize>,
 ) -> RunReport {
+    evaluate(functions, config, maximum_pairs, false).report
+}
+
+fn evaluate(
+    functions: &[ImportedFunction],
+    config: &CcgraphConfig,
+    maximum_pairs: Option<usize>,
+    trace: bool,
+) -> Evaluation {
     let mut report = selected_report(functions, config);
     let duplicates = duplicate_keys(functions);
     flag_duplicates(&mut report, &duplicates);
 
-    let prepared = prepare_all(functions, &duplicates);
+    let prepared = prepare_all(functions, &duplicates, trace);
     record_functions(&mut report, &prepared);
+    let mut evaluation = Evaluation {
+        report,
+        partitions: BTreeMap::new(),
+    };
     if let Err(error) = check_pair_limit(functions.len(), maximum_pairs) {
-        return execution_failure(report, error);
+        evaluation.report = execution_failure(evaluation.report, error);
+        return evaluation;
     }
-    enumerate_pairs(&mut report, &prepared, config);
+    enumerate_pairs(&mut evaluation, &prepared, config);
 
-    report
+    evaluation
 }
 
 /// Explicit Cargo selection, including runs with no admitted inputs.
@@ -184,18 +223,36 @@ pub fn evaluate_selected(
     maximum_pairs: Option<usize>,
     profile: crate::graph::MatchingProfile,
 ) -> RunReport {
-    let report = evaluate_with_pair_limit(functions, config, maximum_pairs);
-    let report = profile_report(report, profile);
+    evaluate_selected_with_options(
+        functions,
+        config,
+        EvaluationOptions {
+            maximum_pairs,
+            profile,
+            trace: false,
+        },
+    )
+    .report
+}
+
+/// Collect optional partitions from scoring itself, using prepared graphs once.
+pub fn evaluate_selected_with_options(
+    functions: &[ImportedFunction],
+    config: &CcgraphConfig,
+    options: EvaluationOptions,
+) -> Evaluation {
+    let mut evaluation = evaluate(functions, config, options.maximum_pairs, options.trace);
+    evaluation.report = profile_report(evaluation.report, options.profile);
     if functions
         .iter()
-        .any(|function| function.matching_profile != profile)
+        .any(|function| function.matching_profile != options.profile)
     {
-        return execution_failure(
-            report,
+        evaluation.report = execution_failure(
+            evaluation.report,
             "Imported matching identity disagrees with selected profile".into(),
         );
     }
-    report
+    evaluation
 }
 
 fn profile_report(mut report: RunReport, profile: crate::graph::MatchingProfile) -> RunReport {
@@ -269,13 +326,14 @@ fn flag_duplicates(report: &mut RunReport, duplicates: &BTreeSet<String>) {
 fn prepare_all<'a>(
     functions: &'a [ImportedFunction],
     duplicates: &BTreeSet<String>,
+    trace: bool,
 ) -> BTreeMap<String, PreparedFunction<'a>> {
     let mut prepared = BTreeMap::new();
     for func in functions {
         if duplicates.contains(&func.key) {
             continue;
         }
-        prepared.insert(func.key.clone(), prepare(func));
+        prepared.insert(func.key.clone(), prepare(func, trace));
     }
     prepared
 }
@@ -301,7 +359,7 @@ fn record_functions(report: &mut RunReport, prepared: &BTreeMap<String, Prepared
 }
 
 fn enumerate_pairs(
-    report: &mut RunReport,
+    evaluation: &mut Evaluation,
     prepared: &BTreeMap<String, PreparedFunction<'_>>,
     config: &CcgraphConfig,
 ) {
@@ -314,10 +372,15 @@ fn enumerate_pairs(
                 &prepared[second.as_str()],
                 config,
             );
-            if pair.1 {
-                report.incomplete = true;
+            if pair.incomplete {
+                evaluation.report.incomplete = true;
             }
-            report.pairs.push(pair.0);
+            if let Some(partitions) = pair.partitions {
+                evaluation
+                    .partitions
+                    .insert(evaluation.report.pairs.len(), partitions);
+            }
+            evaluation.report.pairs.push(pair.record);
         }
     }
 }
@@ -369,11 +432,11 @@ fn duplicate_keys(functions: &[ImportedFunction]) -> BTreeSet<String> {
     dupes
 }
 
-fn prepare(func: &ImportedFunction) -> PreparedFunction<'_> {
+fn prepare(func: &ImportedFunction, trace: bool) -> PreparedFunction<'_> {
     let mut reasons = Vec::new();
     let valid = validate_imported(func, &mut reasons);
     let projection = if valid {
-        project_or_record(func, &mut reasons)
+        project_or_record(func, &mut reasons, trace)
     } else {
         Err(never_projected())
     };
@@ -394,9 +457,10 @@ fn never_projected() -> ProjectionFault {
 fn project_or_record(
     func: &ImportedFunction,
     reasons: &mut Vec<String>,
+    trace: bool,
 ) -> Result<ProjectionData, ProjectionFault> {
     match project(func) {
-        Ok(projection) => wrap_projection(func, projection),
+        Ok(projection) => wrap_projection(func, projection, trace),
         Err(fault) => {
             reasons.push(fault_reason(&fault));
             Err(fault)
@@ -413,8 +477,15 @@ fn fault_reason(fault: &ProjectionFault) -> String {
 fn wrap_projection(
     func: &ImportedFunction,
     projection: Projection,
+    trace: bool,
 ) -> Result<ProjectionData, ProjectionFault> {
     let graph = projection.graph;
+    let trace_names = trace.then(|| {
+        crate::compact::ordered_nodes(&graph)
+            .iter()
+            .map(|node| node.id.clone())
+            .collect()
+    });
     let features = numerical_features(&graph, projection.facts.reference_count);
     let (retained_nodes, removed_nodes) = disposition_counts(&projection.trace);
 
@@ -438,7 +509,11 @@ fn wrap_projection(
         removed_nodes,
         ignored_label_inputs: "operators, literals, kinds, names, types, ids, spans, outcomes, positions, annotations",
     };
-    Ok(ProjectionData { graph, record })
+    Ok(ProjectionData {
+        graph,
+        record,
+        trace_names,
+    })
 }
 
 fn disposition_counts(trace: &crate::projection::ProjectionTrace) -> (usize, usize) {
@@ -494,11 +569,12 @@ fn evaluate_pair(
     first: &PreparedFunction<'_>,
     second: &PreparedFunction<'_>,
     config: &CcgraphConfig,
-) -> (PairRecord, bool) {
+) -> PairEvaluation {
     let input = GateInput {
         first,
         second,
         config,
+        partitions: RefCell::default(),
     };
     let gates = [
         gate_validation,
@@ -524,13 +600,18 @@ fn evaluate_pair(
         stages.push(not_evaluated(*stage));
     }
 
-    (pair_record(&input, stages), incomplete)
+    PairEvaluation {
+        record: pair_record(&input, stages),
+        incomplete,
+        partitions: input.partitions.into_inner(),
+    }
 }
 
 struct GateInput<'a> {
     first: &'a PreparedFunction<'a>,
     second: &'a PreparedFunction<'a>,
     config: &'a CcgraphConfig,
+    partitions: RefCell<Option<Vec<LabelPartition>>>,
 }
 
 struct GateResult {
@@ -785,7 +866,7 @@ fn gate_strings(input: &GateInput) -> GateResult {
 }
 
 fn gate_wl_final(input: &GateInput) -> GateResult {
-    match wl_scores(input.first, input.second, input.config) {
+    match wl_scores(input.first, input.second, input.config, &input.partitions) {
         Ok(outcome) => GateResult {
             record: StageRecord {
                 stage: StageName::WlFinal,
@@ -971,9 +1052,8 @@ fn wl_scores(
     first: &PreparedFunction<'_>,
     second: &PreparedFunction<'_>,
     config: &CcgraphConfig,
+    partitions: &RefCell<Option<Vec<LabelPartition>>>,
 ) -> Result<WlOutcome, ArithError> {
-    let graph_a = graph_of(first);
-    let graph_b = graph_of(second);
     let record_a = record_of(first);
     let record_b = record_of(second);
     let h = pair_depth(
@@ -984,11 +1064,11 @@ fn wl_scores(
     );
 
     let selected_weights = weights(h);
-    let refinement = refine_compact(graph_a, graph_b, h);
-    let scores = score_label_rounds(&refinement.rounds, &selected_weights)?;
+    let refined = tracing::refine(first, second, h);
+    let scores = score_label_rounds(&refined.refinement.rounds, &selected_weights)?;
 
-    let mut detail = wl_detail(h, &selected_weights, &scores, &refinement.rounds);
-    Ok(match config.scoring {
+    let mut detail = wl_detail(h, &selected_weights, &scores, &refined.refinement.rounds);
+    let outcome = match config.scoring {
         Scoring::SmallerGraphOverlap => judge_overlap(
             &scores,
             (record_a.projected_nodes, record_b.projected_nodes),
@@ -996,7 +1076,9 @@ fn wl_scores(
             &mut detail,
         )?,
         Scoring::CrossProductCosine => judge_cosine(&scores, config, &mut detail)?,
-    })
+    };
+    partitions.replace(refined.partitions);
+    Ok(outcome)
 }
 
 fn wl_detail(
