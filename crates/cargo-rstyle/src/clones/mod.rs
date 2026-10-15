@@ -3,6 +3,7 @@
 pub mod capture;
 mod identity;
 mod report;
+mod selected_context;
 use crate::Cli;
 use clap::Args as ClapArgs;
 use identity::FunctionKey;
@@ -325,12 +326,13 @@ fn consume_unit(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), S
         return Err("Unit extraction profile disagrees with plan".into());
     }
     let snapshot = capture::load_inventory(unit)?;
+    let selected_context = selected_context::SelectedContext::new(unit)?;
     let mut bindings = rstyle_pdg::nominal_binding::UnitBindings::empty(0);
 
     let store =
         rstyle_pdg::unit_store::UnitStore::from_verified_current_run(&snapshot.bundle, |facts| {
             for function in facts {
-                verify_frontend_invocation(function, unit, capture)?;
+                verify_frontend_invocation(function, unit, capture, &selected_context)?;
                 verify_receiver_inventory(function, unit.extraction_profile)?;
                 rstyle_pdg::data_library::verify_evidence(function)?;
             }
@@ -465,6 +467,7 @@ fn verify_frontend_invocation(
     facts: &HirFnFacts,
     unit: &capture::Unit,
     capture: &capture::Capture,
+    selected_context: &selected_context::SelectedContext,
 ) -> Result<(), String> {
     if rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(facts)?
         != capture.plan.extraction_profile
@@ -487,7 +490,12 @@ fn verify_frontend_invocation(
     {
         return Err("frontend invocation or pinned compiler identity disagrees with run".into());
     }
-    verify_selected_unit(facts, unit)?;
+    selected_context.check(
+        facts
+            .build
+            .frontend_options
+            .get(rstyle_pdg::nominal_boundary::CONTEXT_KEY),
+    )?;
     verify_data_compiler_commit(facts, capture)
 }
 
@@ -506,27 +514,6 @@ fn verify_data_compiler_commit(
         .ok_or("Missing planned compiler commit identity")?;
     if facts.build.rustc_commit.known_value() != Some(expected) {
         return Err("Data compiler commit disagrees with frozen compiler identity".into());
-    }
-    Ok(())
-}
-
-fn verify_selected_unit(facts: &HirFnFacts, unit: &capture::Unit) -> Result<(), String> {
-    use rstyle_pdg::nominal_boundary::{CONTEXT_KEY, UnitContext};
-    let context = facts.build.frontend_options.get(CONTEXT_KEY);
-    if !unit.extraction_profile.is_data() {
-        return if context.is_none() {
-            Ok(())
-        } else {
-            Err("Unexpected selected-unit data context".into())
-        };
-    }
-    let actual: UnitContext =
-        Deserialize::deserialize(context.ok_or("Missing selected-unit data context")?)
-            .map_err(|e| e.to_string())?;
-
-    actual.transport()?;
-    if actual != capture::selected_unit_context(&unit.target, &unit.invocation)? {
-        return Err("Selected-unit context disagrees with frozen Cargo plan or invocation".into());
     }
     Ok(())
 }

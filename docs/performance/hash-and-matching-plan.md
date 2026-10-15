@@ -42,7 +42,9 @@ serialized evidence does not acquire that trust.
    reconstruction, remaining declaration identities and boundary reuse are still
    pending. Checked declaration-file inventories now consolidate nominal-binding
    hashes/parses and avoid temporary budget buffers; see
-   `origin-file-inventories.md`. Continue consolidation without crossing edits, owners or strict/generated policy.
+   `origin-file-inventories.md`. CLI selected-unit context checks now reuse a private checked owner; see
+   `selected-context-owner.md`. Continue consolidation without crossing edits,
+   owners or strict/generated policy.
 4. Replace local unit/function/ledger JSON-to-digest identities with explicit
    namespace-qualified typed handles, run-local assignment and exact duplicate
    descriptor checks. Version exports and state stability guarantees.
