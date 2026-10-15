@@ -9,6 +9,7 @@ mod library_resolution;
 mod nominal_census;
 pub mod output;
 pub mod source;
+mod sources;
 
 use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rstyle_pdg::frontend::*;
@@ -16,6 +17,7 @@ use rustc_hir::{self as rhir, def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
 
 pub struct Options<'a> {
+    pub(super) sources: sources::Sources,
     pub profile: Option<ExtractionProfile>,
     pub invocation: &'a [String],
     pub unit_context: Option<&'a rstyle_pdg::nominal_boundary::UnitContext>,
@@ -79,7 +81,7 @@ fn function(
         return Ok(None);
     };
     concrete_types::capture(&ctx, &mut facts)?;
-    inherent::capture(tcx, id, &mut facts, options)?;
+    inherent::capture(&ctx, id, &mut facts)?;
     rstyle_pdg::field_locations::capture(&mut facts)?;
 
     Ok(Some(facts))
@@ -96,12 +98,13 @@ fn function_source<'tcx>(
     let body = tcx.hir_body(node.body_id()?);
     let function_span = sig.span.to(body.value.span).source_callsite();
     let result = tcx.fn_sig(id).instantiate_identity().skip_binder().output();
-    let (source_bytes, fn_span) = original_source(tcx, function_span)?;
+    let (source_bytes, fn_span) = options.sources.range(tcx, function_span)?;
     let ctx = hir::Context {
         tcx,
         typeck: tcx.typeck(id),
         function_span,
         source_bytes: source_bytes.clone(),
+        sources: options.sources.clone(),
         result,
         unit_context: options.unit_context.cloned(),
         profile: options.selected(),
@@ -117,7 +120,6 @@ fn function_source<'tcx>(
     let scan = find_source_scan(&ctx, scanned, body_source_span(tcx, id));
     let source_diagnostics = source_findings(&ctx, scan, sig.span);
 
-    let source_bytes = rstyle_pdg::SourceText::from(source_bytes);
     let facts = HirFnFacts {
         name: tcx.def_path_str(id.to_def_id()),
         fn_span,
@@ -242,39 +244,6 @@ fn definition_identity(
     })
 }
 
-/// Recover the compiler's original input using its recorded normalization map.
-/// rustc removes only a leading BOM and the CR in CRLF; no filesystem reread
-/// can race with the source buffer actually used for compilation.
-fn original_source(tcx: TyCtxt<'_>, span: rustc_span::Span) -> Option<(String, ByteSpan)> {
-    let file = tcx.sess.source_map().lookup_source_file(span.lo());
-    let normalized = file.src.as_ref()?;
-    let mut bytes = normalized.as_bytes().to_vec();
-
-    for change in file.normalized_pos.iter().rev() {
-        if change.pos.0 == 0 && change.diff == 3 {
-            bytes.splice(0..0, [0xef, 0xbb, 0xbf]);
-        } else {
-            let position = change.pos.0.checked_sub(1)? as usize;
-            if bytes.get(position) != Some(&b'\n') {
-                return None;
-            }
-            bytes.insert(position, b'\r');
-        }
-    }
-
-    let start = file.original_relative_byte_pos(span.lo()).0 as usize;
-    let end = file.original_relative_byte_pos(span.hi()).0 as usize;
-    let source = String::from_utf8(bytes.get(start..end)?.to_vec()).ok()?;
-
-    Some((
-        source,
-        ByteSpan {
-            start: start as u32,
-            end: end as u32,
-        },
-    ))
-}
-
 fn parameters<'tcx>(
     ctx: &hir::Context<'tcx>,
     sig: &rhir::FnSig<'tcx>,
@@ -384,11 +353,18 @@ pub fn source_inventory(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
     facts: &[HirFnFacts],
+    options: &Options<'_>,
 ) -> Result<serde_json::Value, String> {
     let files = inventory_files(tcx, scanned)?;
     let records = files
         .into_iter()
-        .map(|(path, span)| inventory_file(tcx, &path, span, facts))
+        .map(|(path, span)| {
+            let (source, span) = options
+                .sources
+                .range(tcx, span)
+                .ok_or("Original compiler file buffer unavailable")?;
+            inventory_file(&path, source, span, facts)
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(serde_json::json!(
@@ -434,13 +410,11 @@ fn inventory_files(
 }
 
 fn inventory_file(
-    tcx: TyCtxt<'_>,
     path: &std::path::Path,
-    span: rustc_span::Span,
+    source: rstyle_pdg::SourceText,
+    original_span: ByteSpan,
     facts: &[HirFnFacts],
 ) -> Result<Vec<serde_json::Value>, String> {
-    let (source, original_span) =
-        original_source(tcx, span).ok_or("Original compiler file buffer unavailable")?;
     let definitions = match rstyle_pdg::source_evidence::functions(&source) {
         Ok(definitions) => definitions,
         Err(reason) => {

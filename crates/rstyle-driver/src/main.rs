@@ -151,6 +151,7 @@ impl Callbacks for HirExtract {
 
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
         let options = hir_extraction::Options {
+            sources: Default::default(),
             profile: self.profile,
             invocation: &self.invocation,
             unit_context: self.unit_context.as_ref(),
@@ -216,7 +217,7 @@ impl HirExtract {
             .selected()
             .supports("rust.conditional-source-correspondence")
             .then(|| {
-                hir_extraction::source_inventory(tcx, &self.scanned, facts)
+                hir_extraction::source_inventory(tcx, &self.scanned, facts, options)
                     .expect("capture owned source inventory")
             })
     }

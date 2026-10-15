@@ -386,17 +386,15 @@ impl<'tcx> Capture<'_, 'tcx> {
         let path = real
             .local_path()
             .ok_or_else(|| unsupported("Missing local declaration file"))?;
-        let full = rustc_span::Span::with_root_ctxt(file.start_pos, file.end_position());
-        let (mut file_bytes, file_span) = super::original_source(self.ctx.tcx, full)
+        let snapshot = self
+            .ctx
+            .sources
+            .file(&file)
             .ok_or_else(|| unsupported("Missing original declaration file buffer"))?;
-        // The compiler's full normalized span starts after a removed BOM;
-        // restore that prefix so original file-relative offsets stay exact.
-        if file_span.start == 3 {
-            file_bytes.insert(0, '\u{feff}');
-        } else if file_span.start != 0 {
-            return Err(unsupported("Unexpected original file prefix offset"));
-        }
-        let (_, declaration_span) = super::original_source(self.ctx.tcx, item)
+        let (_, declaration_span) = self
+            .ctx
+            .sources
+            .range(self.ctx.tcx, item)
             .ok_or_else(|| unsupported("Missing original declaration range"))?;
         self.origins.insert(
             nominal.definition_path.clone(),
@@ -411,8 +409,8 @@ impl<'tcx> Capture<'_, 'tcx> {
                 }
                 .to_string_lossy()
                 .into_owned(),
-                file_digest: digest(file_bytes.as_bytes()),
-                file_bytes: file_bytes.into(),
+                file_digest: snapshot.identity().to_owned(),
+                file_bytes: snapshot.bytes.clone(),
                 declaration_span,
             },
         );
@@ -429,7 +427,10 @@ impl<'tcx> Capture<'_, 'tcx> {
                 "Macro-generated struct declaration is unavailable",
             ));
         }
-        let (source, _) = super::original_source(self.ctx.tcx, item.span)
+        let (source, _) = self
+            .ctx
+            .sources
+            .range(self.ctx.tcx, item.span)
             .ok_or_else(|| unsupported("Missing original concrete declaration bytes"))?;
         if source.len() > MAX_SOURCE_BYTES {
             return Err(Failure::Budget(
@@ -437,7 +438,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             ));
         }
 
-        Ok(source)
+        Ok(source.to_string())
     }
 
     fn fields(

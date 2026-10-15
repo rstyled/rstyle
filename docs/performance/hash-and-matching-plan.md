@@ -38,9 +38,10 @@ serialized evidence does not acquire that trust.
    `typed-declaration-origins.md`. Frozen origins now share exact census file
    buffers; see `shared-origin-buffers.md`.
    Immutable function ranges and memoized actual range identities are implemented
-   next; see `owned-source-ranges.md`. Source wire dictionaries, capture-time
-   reconstruction, remaining declaration identities and boundary reuse are still
-   pending. Checked declaration-file inventories now consolidate nominal-binding
+   next; see `owned-source-ranges.md`. Capture now recovers each original compiler
+   file once and shares ranges/file identities; see `capture-source-owner.md`.
+   Source wire dictionaries, remaining declaration identities and boundary reuse
+   are still pending. Checked declaration-file inventories now consolidate nominal-binding
    hashes/parses and avoid temporary budget buffers; see
    `origin-file-inventories.md`. CLI selected-unit context checks now reuse a private checked owner; see
    `selected-context-owner.md`. Continue consolidation without crossing edits,

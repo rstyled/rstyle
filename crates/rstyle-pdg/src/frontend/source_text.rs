@@ -21,6 +21,20 @@ struct TextRange {
 }
 
 impl SourceText {
+    /// Create a checked range without copying the immutable original snapshot.
+    /// A digest claim is never accepted as the identity of the range.
+    pub fn from_snapshot(snapshot: Arc<str>, span: ByteSpan) -> Result<Self, String> {
+        let range = span.start as usize..span.end as usize;
+        snapshot
+            .get(range.clone())
+            .ok_or("Invalid original UTF-8 source range")?;
+        Ok(Self(Arc::new(TextRange {
+            snapshot,
+            range,
+            identity: OnceLock::new(),
+        })))
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0.snapshot[self.0.range.clone()]
     }
@@ -91,6 +105,34 @@ impl Serialize for SourceText {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checked_snapshot_construction_preserves_owner_and_range_bounds() {
+        let snapshot: Arc<str> = "π\r\nfn f() {}".into();
+        let range = ByteSpan {
+            start: 4,
+            end: snapshot.len() as u32,
+        };
+        let source = SourceText::from_snapshot(Arc::clone(&snapshot), range).unwrap();
+        assert_eq!(source.as_str(), "fn f() {}");
+        assert!(Arc::ptr_eq(&snapshot, &source.0.snapshot));
+        assert!(source.0.identity.get().is_none());
+        assert_eq!(
+            source.identity(),
+            crate::concrete_types::digest(b"fn f() {}")
+        );
+
+        for span in [
+            ByteSpan { start: 1, end: 2 },
+            ByteSpan { start: 5, end: 3 },
+            ByteSpan {
+                start: 0,
+                end: u32::MAX,
+            },
+        ] {
+            assert!(SourceText::from_snapshot(Arc::clone(&snapshot), span).is_err());
+        }
+    }
 
     #[test]
     fn exact_ranges_share_original_bytes_and_one_actual_identity() {
