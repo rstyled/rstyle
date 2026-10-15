@@ -1,10 +1,11 @@
 //! Isolated Cargo compilation and an explicit compiler-unit ledger.
+mod ledger;
 
 use super::{Args, read_json, write_json};
 use crate::{Cli, run};
 use rstyle_core::cli_args::flag_value;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::{
     path::{Path, PathBuf},
     process::Command,
@@ -24,6 +25,7 @@ pub struct Target {
 
 #[derive(Serialize, Deserialize)]
 pub struct Plan {
+    pub ledger_schema: String,
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub root: PathBuf,
     pub driver: PathBuf,
@@ -121,6 +123,7 @@ fn plan(
     environment: CaptureEnvironment,
 ) -> Plan {
     Plan {
+        ledger_schema: ledger::SCHEMA.into(),
         extraction_profile,
         root,
         compiler_identity: environment.compiler_identity,
@@ -465,7 +468,7 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         let test = artifact["profile"]["test"]
             .as_bool()
             .ok_or("missing artifact test context")?;
-        let unit_path = unit_ledger_path(capture, target, test)?;
+        let unit_path = ledger::path(&capture.plan, &capture.directory, target, test)?;
         let unit: Unit = read_json(&unit_path)?;
         if &unit.target != target
             || unit.test != test
@@ -511,14 +514,6 @@ fn matches_artifact(artifact: &Value, target: &Target) -> bool {
         && artifact["package_id"] == target.package
         && artifact["target"]["src_path"] == target.source.to_string_lossy().as_ref()
         && artifact["target"]["name"] == target.name
-}
-
-fn unit_ledger_path(capture: &Capture, target: &Target, test: bool) -> Result<PathBuf, String> {
-    let key = super::digest(
-        &serde_json::to_vec(&json!([target.package, target.source, test]))
-            .map_err(|e| e.to_string())?,
-    );
-    Ok(capture.directory.join(format!("unit-{key}.json")))
 }
 
 fn check_expected(capture: &mut Capture) {
@@ -669,6 +664,7 @@ fn capture_unit(
         return Err("strict capture requires incremental compilation disabled; remove explicit -C incremental flags".into());
     }
     let root = plan.parent().ok_or("missing run directory")?;
+    let selected_plan: Plan = read_json(plan)?;
     let directory = tempfile::Builder::new()
         .prefix("invocation-")
         .tempdir_in(root)
@@ -676,7 +672,7 @@ fn capture_unit(
         .keep();
     let test = invocation.iter().any(|a| a == "--test");
     let unit = Unit {
-        extraction_profile: read_json::<Plan>(plan)?.extraction_profile,
+        extraction_profile: selected_plan.extraction_profile,
         target,
         test,
         invocation,
@@ -688,7 +684,7 @@ fn capture_unit(
     if !status.success() {
         return Ok(2);
     }
-    publish_unit(root, unit)?;
+    publish_unit(&selected_plan, root, unit)?;
     Ok(0)
 }
 
@@ -699,13 +695,9 @@ fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitS
     command.status().map_err(|e| e.to_string())
 }
 
-fn publish_unit(root: &Path, mut unit: Unit) -> Result<(), String> {
+fn publish_unit(plan: &Plan, root: &Path, mut unit: Unit) -> Result<(), String> {
     unit.artifacts = artifact_inventory(&unit.directory, unit.extraction_profile)?;
-    let key = super::digest(
-        &serde_json::to_vec(&json!([unit.target.package, unit.target.source, unit.test]))
-            .map_err(|e| e.to_string())?,
-    );
-    let path = root.join(format!("unit-{key}.json"));
+    let path = ledger::path(plan, root, &unit.target, unit.test)?;
 
     let file = reserve_ledger(&path)?;
     serde_json::to_writer(file, &unit).map_err(|e| e.to_string())?;

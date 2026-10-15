@@ -48,7 +48,7 @@ serialized evidence does not acquire that trust.
    descriptor checks. Version exports and state stability guarantees.
    Report-local function handles are implemented in `report-function-handles.md`;
    unit-store identities are replaced in `unit-namespaces.md`; capture ledger
-   routing remains pending.
+   routing uses plan ordinals in `capture-ledger-ids.md`.
 5. Replace nonsecurity transport checksums consistently, with a measured fast
    streaming checksum and honestly named/versioned fields. Keep one publication
    and one exact-snapshot import check; retain completeness, flush and association.
