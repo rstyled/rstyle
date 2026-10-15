@@ -2342,7 +2342,8 @@ fn primitive_graphs_compare_across_diagnostic_provenance() {
     let second = rstyle_pdg::producer::produce(&changed).unwrap();
     assert_eq!(first.pdg.nodes, second.pdg.nodes);
     assert_eq!(first.pdg.edges, second.pdg.edges);
-    assert_ne!(
+    assert_ne!(original.build, changed.build);
+    assert_eq!(
         first.pdg.producer.configuration,
         second.pdg.producer.configuration
     );

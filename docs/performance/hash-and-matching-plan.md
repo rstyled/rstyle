@@ -46,6 +46,8 @@ serialized evidence does not acquire that trust.
    shared immutable snapshots; see `source-snapshot-identity.md`. Package manifests
    now use the same owner/memo mechanism; see `manifest-owner.md`. CFG content
    shares checked function source ranges on emission/import; see `cfg-source-owner.md`.
+   Full graph captured-build copies are retired in favor of the exact three
+   compatibility facts; see `matching-build-metadata.md`.
    Remaining declaration identities and boundary reuse
    still require review. Checked declaration-file inventories now consolidate nominal-binding
    hashes/parses and avoid temporary budget buffers; see

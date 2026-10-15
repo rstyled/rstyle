@@ -8,6 +8,7 @@ mod emit;
 mod graph;
 mod hazards;
 mod lower;
+pub mod matching_build;
 mod profile;
 mod summaries;
 mod verify;

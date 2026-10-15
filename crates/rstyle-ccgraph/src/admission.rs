@@ -305,19 +305,12 @@ fn local_context(pdg: &PdgDocument) -> Result<Option<String>, Vec<String>> {
     let build = pdg
         .producer
         .configuration
-        .get("captured_build")
-        .ok_or_else(|| vec!["Missing local captured build".into()])?;
-    let mut settings = BTreeMap::new();
-    // Captured compiler/target identities remain diagnostic metadata. Native
-    // widths are checked separately only when the function uses native types.
-    for key in ["overflow_checks", "debug_assertions", "panic_strategy"] {
-        settings.insert(
-            key,
-            build
-                .get(key)
-                .ok_or_else(|| vec![format!("Missing compatible build setting {key}")])?,
-        );
-    }
+        .get(rstyle_pdg::producer::matching_build::KEY)
+        .ok_or_else(|| vec!["Missing local matching build".into()])?;
+    let settings =
+        rstyle_pdg::producer::matching_build::settings(build).map_err(|error| vec![error])?;
+    // Compiler/target identities remain in the owning frontend. Native widths
+    // are checked separately only when the function uses native types.
     let context = if pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID {
         serde_json::json!([
             pdg.profile,

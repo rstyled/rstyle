@@ -286,7 +286,10 @@ fn producer(facts: &dyn EvidenceFacts, revision: &str) -> Result<Producer, Strin
     }
     let configuration = BTreeMap::from([
         ("producer_revision".to_string(), json!(revision)),
-        ("captured_build".to_string(), json!(build)),
+        (
+            super::matching_build::KEY.to_string(),
+            super::matching_build::capture(build),
+        ),
         (
             "normal_flow_scope".to_string(),
             json!("compat.rust.hir-r0/0.1.0; exceptional flow omitted"),

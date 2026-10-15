@@ -1117,6 +1117,39 @@ fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
     assert_shared_bundle_tables(&report);
 }
 
+fn assert_matching_build_metadata(graph: &Value, build: &Value) {
+    for kind in ["pdg", "cfg"] {
+        let configuration = &graph[kind]["producer"]["configuration"];
+        assert!(configuration.get("captured_build").is_none());
+        let matching = &configuration["matching_build"];
+        assert_eq!(matching["schema"], "rstyle.matching-build/1");
+        assert_eq!(matching.as_object().unwrap().len(), 4);
+        for key in ["overflow_checks", "debug_assertions", "panic_strategy"] {
+            assert_eq!(matching[key], build[key]);
+        }
+    }
+}
+
+fn assert_bundle_source_references(wire: &Value, store: &rstyle_pdg::unit_store::UnitStore) {
+    for (index, function) in store.functions().iter().enumerate() {
+        let reference = &wire["functions"][index]["source"];
+        assert!(reference.get("bytes").is_none());
+        let source = wire["sources"][reference["snapshot"].as_u64().unwrap() as usize]
+            .as_str()
+            .unwrap();
+        let range = &reference["range"];
+        assert_eq!(
+            source.get(
+                range["start"].as_u64().unwrap() as usize..range["end"].as_u64().unwrap() as usize
+            ),
+            Some(function.source.bytes.as_str())
+        );
+        assert_eq!(reference["digest"], function.source.digest);
+        let graph = &wire["graphs"][wire["roots"][index].as_u64().unwrap() as usize];
+        assert_matching_build_metadata(graph, &wire["functions"][index]["build"]);
+    }
+}
+
 fn assert_shared_bundle_tables(report: &Value) {
     let unit = &report["observed_units"][0];
     let path = Path::new(unit["directory"].as_str().unwrap());
@@ -1135,21 +1168,7 @@ fn assert_shared_bundle_tables(report: &Value) {
     assert_eq!(wire["helpers"].as_array().unwrap().len(), 3);
     assert_eq!(wire["graphs"].as_array().unwrap().len(), 3);
     assert_eq!(wire["sources"].as_array().unwrap().len(), 1);
-    for (index, function) in store.functions().iter().enumerate() {
-        let reference = &wire["functions"][index]["source"];
-        assert!(reference.get("bytes").is_none());
-        let source = wire["sources"][reference["snapshot"].as_u64().unwrap() as usize]
-            .as_str()
-            .unwrap();
-        let range = &reference["range"];
-        assert_eq!(
-            source.get(
-                range["start"].as_u64().unwrap() as usize..range["end"].as_u64().unwrap() as usize
-            ),
-            Some(function.source.bytes.as_str())
-        );
-        assert_eq!(reference["digest"], function.source.digest);
-    }
+    assert_bundle_source_references(&wire, &store);
     let mut dangling = wire.clone();
     dangling["functions"][0]["source"]["snapshot"] = u32::MAX.into();
     assert!(

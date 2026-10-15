@@ -173,3 +173,8 @@ wire strings, stored digest claims or verification authority.
 CFG content now uses checked `SourceText` ranges. Equal imported content shares
 the owning function range after structure checks, preserving all claims and
 subsequent semantic verification. See [CFG source ownership](cfg-source-owner.md).
+
+Graph producer configurations now carry the closed `rstyle.matching-build/1`
+record containing only overflow, debug-assertion and panic-strategy facts. Full
+build/source evidence remains in the owning frontend. No old `captured_build`
+runtime fallback remains. See [matching build metadata](matching-build-metadata.md).
