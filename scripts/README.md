@@ -138,3 +138,13 @@ calls and replay remain strict by default. To measure the normal production
 policy on one's own raw snapshot, add `--generated` to `helper_replay`. The
 reported scope remains diagnostic; choosing this policy does not certify capture
 completeness. Stage events and the CLI report declare the selected policy.
+
+### Complete clones and strict-import profiling
+
+`python3 scripts/profile_clones.py --profile debug` (or `release`) profiles
+minimal and complete read/inherent helper fixtures using already built tools.
+Build the workspace and `rstyle-pdg`'s `unit_import_replay` example in that profile
+first. The script retains reports, timing and diagnostic logs in a new temporary
+directory, checks completeness and pair decisions, and separates ordinary
+samples from `RSTYLE_PERF` observations. Commands and measured limits are in
+[the production profile](../docs/performance/production-profile.md).

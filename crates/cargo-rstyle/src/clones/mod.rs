@@ -5,6 +5,7 @@ mod report;
 use crate::Cli;
 use clap::Args as ClapArgs;
 use rstyle_ccgraph::{CcgraphConfig, Decision, ImportedFunction};
+use rstyle_pdg::diagnostics::Stage;
 use rstyle_pdg::{EligibilityVerdict, HirFnFacts, classify, producer};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -183,17 +184,21 @@ pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 
 fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
-    let mut capture = capture::prepare(cli, args)?;
+    let mut capture =
+        Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))?;
     if let Err(error) = capture::compile(&mut capture, cli, args) {
         capture.failures.push(error);
     }
-    let handoff = handoff(&capture, args);
+    let handoff = Stage::new("cli.handoff", "run", None)
+        .observe(|| Ok::<_, String>(handoff(&capture, args)))?;
+    let matching_stage = Stage::new("cli.matching", "run", None).enter();
     let matching = rstyle_ccgraph::pipeline::evaluate_selected(
         &handoff.admitted,
         &config,
         args.max_pairs,
         matching_profile(args),
     );
+    matching_stage.finish(Ok::<_, String>(()))?;
 
     let accepted = matching
         .pairs
@@ -211,10 +216,13 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         complete,
     });
     if args.trace {
-        report::attach_wl_partitions(&mut report, &handoff)?;
+        Stage::new("cli.trace_partitions", "run", None)
+            .observe(|| report::attach_wl_partitions(&mut report, &handoff))?;
     }
-    report::write(&capture.directory.join("report.json"), &report)?;
-    let output = report::render(cli.format, &report, accepted, &capture.directory)?;
+    Stage::new("cli.report_write", "run", None)
+        .observe(|| report::write(&capture.directory.join("report.json"), &report))?;
+    let output = Stage::new("cli.report_render", "run", None)
+        .observe(|| report::render(cli.format, &report, accepted, &capture.directory))?;
     let code = if !complete {
         2
     } else {

@@ -86,17 +86,26 @@ impl UnitStore {
         inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,
         current_run: bool,
     ) -> Result<Self, String> {
-        let import: Import = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+        let import: Import = crate::diagnostics::Stage::new("unit.decode", "bundle", None)
+            .observe(|| serde_json::from_slice(bytes).map_err(|error| error.to_string()))?;
         if import.schema != SCHEMA {
             return Err("Unsupported shared unit schema".into());
         }
-        inspect(&import.functions)?;
+        crate::diagnostics::Stage::new("unit.inspect", "bundle", None)
+            .observe(|| inspect(&import.functions))?;
 
-        let store = import.into_store()?;
+        let store = crate::diagnostics::Stage::new("unit.structure", "bundle", None)
+            .observe(|| import.into_store())?;
         if current_run {
-            crate::verification_policy::generated(|| store.validate_evidence())?;
+            crate::verification_policy::generated(|| {
+                crate::diagnostics::Stage::new("unit.verify", "bundle", None)
+                    .observe(|| store.validate_evidence())
+            })?;
         } else {
-            crate::verification_policy::strict(|| store.validate_evidence())?;
+            crate::verification_policy::strict(|| {
+                crate::diagnostics::Stage::new("unit.verify", "bundle", None)
+                    .observe(|| store.validate_evidence())
+            })?;
         }
         Ok(store)
     }

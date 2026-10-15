@@ -22,10 +22,11 @@ quality gates remain mandatory for further changes.
 
 ## Optional work, in priority order
 
-1. Profile current production capture, strict import, source/type validation and
-   matching on retained representative workloads. Keep uninstrumented timing
-   separate from diagnostics, use repeated alternating samples, and identify
-   the largest remaining stage before another architectural change.
+1. The [initial production profile](production-profile.md) is complete for the
+   retained helper workloads in debug and release. Next split compiler capture
+   into orchestration, HIR extraction, certification and publication, and
+   attribute strict source/type verification. Keep ordinary timing separate
+   from diagnostics before another architectural change.
 2. If profiling justifies it, share repeated build/source context within a unit.
    Preserve package/type context, exact source bytes, occurrence identity,
    independently checked evidence and strict/generated policy isolation.
