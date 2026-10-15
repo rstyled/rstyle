@@ -2834,7 +2834,7 @@ fn check_nominal_unit_binding(function: &Value, report: &Value) {
             "name" => changed.name.push('x'),
             "version" => changed.version.push('x'),
             "manifest" => {
-                changed.manifest_bytes.push_str("\n# changed");
+                changed.manifest_bytes = format!("{}\n# changed", changed.manifest_bytes).into();
                 changed.manifest_digest =
                     rstyle_pdg::concrete_types::digest(changed.manifest_bytes.as_bytes());
             }

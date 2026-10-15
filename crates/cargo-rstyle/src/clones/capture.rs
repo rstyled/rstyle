@@ -241,7 +241,7 @@ fn package_context(
             .into(),
         manifest_path,
         manifest_digest: digest(manifest_bytes.as_bytes()),
-        manifest_bytes,
+        manifest_bytes: manifest_bytes.into(),
     };
     context.validate()?;
 

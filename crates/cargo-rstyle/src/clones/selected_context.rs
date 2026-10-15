@@ -78,7 +78,7 @@ mod tests {
         assert!(checked.check(Some(&value)).is_ok());
         assert!(checked.check(None).is_err());
 
-        original.package.manifest_bytes.push('x');
+        original.package.manifest_bytes = format!("{}x", original.package.manifest_bytes).into();
         assert!(SelectedContext::checked(Some(original.clone())).is_err());
         assert!(
             checked

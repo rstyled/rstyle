@@ -43,7 +43,8 @@ serialized evidence does not acquire that trust.
    Function source snapshots now cross the bundle boundary once through checked
    ranges; see `source-dictionary-v3.md`. Census/origin wire sharing is implemented in the next increment; see
    `source-options-v4.md`. Whole-file actual identity memos now belong to
-   shared immutable snapshots; see `source-snapshot-identity.md`.
+   shared immutable snapshots; see `source-snapshot-identity.md`. Package manifests
+   now use the same owner/memo mechanism; see `manifest-owner.md`.
    Remaining declaration identities and boundary reuse
    still require review. Checked declaration-file inventories now consolidate nominal-binding
    hashes/parses and avoid temporary budget buffers; see

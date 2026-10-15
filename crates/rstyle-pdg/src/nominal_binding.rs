@@ -1,7 +1,9 @@
 //! Package/source observations bound to one independently selected Cargo unit.
 //! No data eligibility or effect certificate is issued by this module.
 
-use crate::concrete_types::{Nominal, digest};
+use crate::concrete_types::Nominal;
+#[cfg(test)]
+use crate::concrete_types::digest;
 use crate::declaration_origins::Origins;
 use crate::{HirFnFacts, concrete_types, declaration_origins};
 mod builds;
@@ -24,7 +26,7 @@ pub struct PackageContext {
     pub name: String,
     pub version: String,
     pub manifest_path: PathBuf,
-    pub manifest_bytes: String,
+    pub manifest_bytes: crate::SourceSnapshot,
     pub manifest_digest: String,
 }
 
@@ -35,7 +37,7 @@ impl PackageContext {
             || self.name.is_empty()
             || self.version.is_empty()
             || self.manifest_bytes.len() > MAX_MANIFEST_BYTES
-            || self.manifest_digest != digest(self.manifest_bytes.as_bytes())
+            || self.manifest_digest != self.manifest_bytes.identity()
             || !self.manifest_path.is_absolute()
             || self
                 .manifest_path
@@ -336,10 +338,10 @@ mod tests {
             );
         }
         let mut corrupt = context.clone();
-        corrupt.manifest_bytes.push('x');
+        corrupt.manifest_bytes = format!("{}x", corrupt.manifest_bytes).into();
         assert!(corrupt.validate().is_err());
         corrupt = context;
-        corrupt.manifest_bytes = "x".repeat(MAX_MANIFEST_BYTES + 1);
+        corrupt.manifest_bytes = "x".repeat(MAX_MANIFEST_BYTES + 1).into();
         corrupt.manifest_digest = digest(corrupt.manifest_bytes.as_bytes());
         assert!(corrupt.validate().is_err());
     }
