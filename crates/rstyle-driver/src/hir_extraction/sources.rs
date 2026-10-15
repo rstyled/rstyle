@@ -2,10 +2,14 @@
 use rstyle_pdg::{ByteSpan, SourceSnapshot, SourceText, diagnostics::Stage};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{SourceFile, Span};
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+use std::{cell::RefCell, collections::BTreeMap, path::Path, rc::Rc};
+mod manifests;
 
 #[derive(Clone, Default)]
-pub(crate) struct Sources(Rc<RefCell<BTreeMap<CompilerSource, Rc<Snapshot>>>>);
+pub(crate) struct Sources {
+    files: Rc<RefCell<BTreeMap<CompilerSource, Rc<Snapshot>>>>,
+    manifests: Rc<RefCell<manifests::Manifests>>,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct CompilerSource(u32);
@@ -34,9 +38,13 @@ impl Snapshot {
 }
 
 impl Sources {
+    pub(super) fn manifest(&self, path: &Path) -> Result<SourceSnapshot, String> {
+        self.manifests.borrow_mut().read(path)
+    }
+
     pub(super) fn file(&self, file: &SourceFile) -> Option<Rc<Snapshot>> {
         let key = CompilerSource(file.start_pos.0);
-        let mut files = self.0.borrow_mut();
+        let mut files = self.files.borrow_mut();
         if let Some(snapshot) = files.get(&key) {
             return Some(Rc::clone(snapshot));
         }
@@ -127,7 +135,7 @@ mod tests {
         assert_eq!(first.bytes.as_ref(), original);
         assert!(Rc::ptr_eq(&first, &borrowed));
         assert!(std::ptr::eq(first.identity(), borrowed.identity()));
-        assert_eq!(sources.0.borrow().len(), 1);
+        assert_eq!(sources.files.borrow().len(), 1);
 
         let span = ByteSpan {
             start: 3,
@@ -146,7 +154,7 @@ mod tests {
         let edited = map.new_source_file(FileName::Custom("edited".into()), "fn f() {1}".into());
         let edited = sources.file(&edited).unwrap();
         assert_ne!(first.identity(), edited.identity());
-        assert_eq!(sources.0.borrow().len(), 2);
+        assert_eq!(sources.files.borrow().len(), 2);
     }
 
     #[test]

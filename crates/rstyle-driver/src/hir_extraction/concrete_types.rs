@@ -509,14 +509,16 @@ fn nominal(
         .map_err(|_| unsupported("Missing Cargo package version"))?;
     let directory = std::env::var("CARGO_MANIFEST_DIR")
         .map_err(|_| unsupported("Missing Cargo manifest context"))?;
-    let manifest = std::fs::read(std::path::Path::new(&directory).join("Cargo.toml"))
+    let manifest = ctx
+        .sources
+        .manifest(&std::path::Path::new(&directory).join("Cargo.toml"))
         .map_err(|_| unsupported("Missing exact Cargo manifest bytes"))?;
 
     Ok(Nominal {
         package_name,
         source_identity: None,
         package_version,
-        manifest_digest: digest(&manifest),
+        manifest_digest: manifest.identity().to_owned(),
         definition_path,
         declaration_digest: source.identity().to_owned(),
     })
