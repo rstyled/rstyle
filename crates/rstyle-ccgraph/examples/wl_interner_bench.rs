@@ -81,6 +81,9 @@ fn hashed<S: BuildHasher + Default>(keys: &[WlTuple]) -> (Vec<u64>, usize) {
 }
 
 fn measure(name: &str, keys: &[WlTuple], run: impl Fn() -> (Vec<u64>, usize)) {
+    if std::env::var("RSTYLE_INTERNER_BACKEND").is_ok_and(|backend| backend != name) {
+        return;
+    }
     let expected = tree(keys, false);
     assert_eq!(run(), expected);
     let seconds: Vec<_> = (0..3)

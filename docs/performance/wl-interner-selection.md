@@ -126,3 +126,42 @@ This does not complete the broader optimization task. Source wire dictionaries,
 remaining manifest/declaration boundary reuse, integer scoring labels, scratch
 allocation and shared trace/scoring refinement remain to be implemented and
 measured before the requirement-by-requirement completion audit.
+
+## Isolated backend memory follow-up
+
+The development example accepts `RSTYLE_INTERNER_BACKEND` to execute one backend
+per process. Prebuilt debug/release binaries were run sequentially three times
+per backend, using the same ten key sets and three timed iterations per case as
+above. The exact tree oracle and parity assertions remain enabled. No production
+container or WL semantics changed in this follow-up.
+
+| Backend | Debug peak RSS range, KiB | Release peak RSS range, KiB |
+| --- | --- | --- |
+| tree get/insert | 4056–4276 | 4068–4072 |
+| tree entry | 4196–4276 | 4068–4120 |
+| FNV entry | 4684–4800 | 4520–4592 |
+| XXH3 entry | 4752–4812 | 4520–4592 |
+
+Raw samples and per-case timing/parity results are retained in
+`wl-interner-memory-samples.json`. Command pattern:
+
+```sh
+RSTYLE_INTERNER_BACKEND=tree-entry /usr/bin/time -f '%e %M' target/release/examples/wl_interner_bench
+```
+
+RSS includes input keys, result vectors, the common tree oracle, allocator
+retention and process startup; it is a process upper-bound proxy, not isolated
+container live bytes or an allocation census. No backend has an established
+memory advantage over the tree here. Structurally every owned-key visit clones
+two nonempty neighbor vectors for all four candidates, while table allocation
+strategies differ. An input key with `n` neighbors in each direction has
+`2 * n * size_of::<(u8,u64)>()` neighbor payload bytes before capacity/allocator
+and table overhead. This is a payload proxy, not a claimed measured allocation
+count. Entry-tree's demonstrated benefit remains fewer lookup traversals and
+its prior lookup runtime results, not fewer tuple-vector allocations.
+
+The residual neighbor-vector allocation is accepted for this task: replacing it
+requires different ownership/lookup tradeoffs, while exact complete-key equality
+remains mandatory. Label buffers and trace/scoring reuse have already removed
+other measured repeated work. The historical unfinished-work paragraph above
+is superseded by the [requirement audit](hash-and-matching-acceptance.md).
