@@ -9,6 +9,8 @@ the historical recommendation to retain content-derived CLI assessment keys.
 [Unit namespaces](unit-namespaces.md) retire the raw frontend unit fingerprint.
 [Capture ledger routing](capture-ledger-ids.md) replaces the historical
 JSON-to-digest filenames with exact frozen-plan target ordinals.
+The [version-2 transport checksum](transport-checksum-v2.md) replaces bundle and
+auxiliary inventory SHA-256 checks with explicitly named XXH3-64 checksums.
 
 This audit follows executable fingerprint retirement. It covers the remaining
 SHA-256 producers and their consumers in the Rust analysis path; fixture/test

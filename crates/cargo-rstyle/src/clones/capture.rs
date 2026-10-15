@@ -48,7 +48,7 @@ pub struct Unit {
 #[derive(Serialize, Deserialize)]
 pub struct Artifact {
     pub file: String,
-    pub sha256: String,
+    pub checksum: String,
 }
 
 pub struct Capture {
@@ -739,17 +739,15 @@ fn read_artifact(directory: &Path, file: String) -> Result<Artifact, String> {
             .map_err(|error| error.to_string())?;
         let manifest: rstyle_pdg::unit_store::BundleManifest =
             serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-        let sha256 = manifest
-            .sha256
-            .strip_prefix("sha256:")
-            .ok_or("Invalid bundle seal digest")?
-            .to_owned();
-        return Ok(Artifact { file, sha256 });
+        return Ok(Artifact {
+            file,
+            checksum: manifest.checksum,
+        });
     }
     let bytes = std::fs::read(directory.join(&file)).map_err(|error| error.to_string())?;
     Ok(Artifact {
         file,
-        sha256: super::digest(&bytes),
+        checksum: rstyle_pdg::unit_store::transport_checksum(&bytes),
     })
 }
 
@@ -783,9 +781,11 @@ pub fn load_inventory(unit: &Unit) -> Result<Snapshot, String> {
         }
         let bytes = std::fs::read(unit.directory.join(&artifact.file))
             .map_err(|error| format!("missing captured artifact {}: {error}", artifact.file))?;
-        if artifact.file != "unit.evidence.json" && super::digest(&bytes) != artifact.sha256 {
+        if artifact.file != "unit.evidence.json"
+            && rstyle_pdg::unit_store::transport_checksum(&bytes) != artifact.checksum
+        {
             return Err(format!(
-                "captured artifact digest mismatch: {}",
+                "captured artifact checksum mismatch: {}",
                 artifact.file
             ));
         }
@@ -816,7 +816,7 @@ fn sealed_snapshot(
         .find(|artifact| artifact.file == "unit.evidence.json")
         .ok_or("Missing bundle inventory entry")?;
 
-    if manifest.sha256.strip_prefix("sha256:") != Some(artifact.sha256.as_str()) {
+    if manifest.checksum != artifact.checksum {
         return Err("Bundle inventory disagrees with publication seal".into());
     }
     let bundle = manifest.verify_owned(files.remove("unit.evidence.json").unwrap())?;
@@ -930,7 +930,7 @@ mod snapshot_tests {
             .iter()
             .find(|artifact| artifact.file == "unit.evidence.json")
             .unwrap();
-        assert_eq!(format!("sha256:{}", bundle.sha256), manifest.sha256);
+        assert_eq!(bundle.checksum, manifest.checksum);
     }
 
     #[test]
@@ -966,10 +966,17 @@ mod snapshot_tests {
             .unwrap(),
         };
         let snapshot = load_inventory(&unit).unwrap();
-        let original = unit.artifacts[0].sha256.clone();
-        unit.artifacts[0].sha256 = super::super::digest(b"different seal");
+        let original = unit.artifacts[0].checksum.clone();
+        unit.artifacts[0].checksum = rstyle_pdg::unit_store::transport_checksum(b"different seal");
         assert!(load_inventory(&unit).is_err());
-        unit.artifacts[0].sha256 = original;
+        unit.artifacts[0].checksum = original;
+        let manifest_path = directory.path().join("unit.evidence.manifest.json");
+        let original_manifest = std::fs::read(&manifest_path).unwrap();
+        let mut changed_manifest = original_manifest.clone();
+        changed_manifest[0] ^= 1;
+        std::fs::write(&manifest_path, changed_manifest).unwrap();
+        assert!(load_inventory(&unit).is_err());
+        std::fs::write(&manifest_path, original_manifest).unwrap();
         std::fs::write(
             directory.path().join("unit.evidence.json"),
             b"corrupt replacement",

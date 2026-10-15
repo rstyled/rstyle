@@ -11,6 +11,7 @@ use rstyle_pdg::diagnostics::Stage;
 use rstyle_pdg::{EligibilityVerdict, HirFnFacts, classify, producer};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
+#[cfg(test)]
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
@@ -54,6 +55,7 @@ pub struct Args {
     pub jobs: Option<usize>,
 }
 
+#[cfg(test)]
 pub fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }

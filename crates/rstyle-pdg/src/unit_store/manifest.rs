@@ -1,15 +1,24 @@
 //! Exact transport-byte seal, separate from the raw unit evidence identity.
 use super::*;
-use sha2::{Digest, Sha256};
 use std::io::{self, Write};
+use xxhash_rust::xxh3::{Xxh3, xxh3_64};
 
-const SCHEMA: &str = "rstyle.shared-unit.manifest/1";
+const SCHEMA: &str = "rstyle.shared-unit.manifest/2";
+
+/// Nonadversarial byte-consistency checksum, never evidence authorization.
+pub fn transport_checksum(bytes: &[u8]) -> String {
+    encode(xxh3_64(bytes))
+}
+
+fn encode(value: u64) -> String {
+    format!("xxh3-64:{value:016x}")
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BundleManifest {
     pub schema: String,
-    pub sha256: String,
+    pub checksum: String,
     pub bytes: u64,
 }
 
@@ -35,9 +44,7 @@ impl BundleManifest {
 
     pub fn verify(&self, bytes: &[u8]) -> Result<(), String> {
         let len = u64::try_from(bytes.len()).map_err(|_| "Oversized shared unit transport")?;
-        if self.schema != SCHEMA
-            || self.bytes != len
-            || self.sha256 != format!("sha256:{:x}", Sha256::digest(bytes))
+        if self.schema != SCHEMA || self.bytes != len || self.checksum != transport_checksum(bytes)
         {
             return Err("Shared unit transport bytes disagree with driver manifest".into());
         }
@@ -47,7 +54,7 @@ impl BundleManifest {
 
 struct Recorder<W> {
     writer: W,
-    hash: Sha256,
+    hash: Xxh3,
     bytes: u64,
 }
 
@@ -72,7 +79,7 @@ impl UnitStore {
     pub fn write_sealed_bundle(&self, writer: impl Write) -> Result<BundleManifest, String> {
         let mut recorder = Recorder {
             writer,
-            hash: Sha256::new(),
+            hash: Xxh3::new(),
             bytes: 0,
         };
         self.write_bundle(&mut recorder)?;
@@ -80,7 +87,7 @@ impl UnitStore {
 
         Ok(BundleManifest {
             schema: SCHEMA.into(),
-            sha256: format!("sha256:{:x}", recorder.hash.finalize()),
+            checksum: encode(recorder.hash.digest()),
             bytes: recorder.bytes,
         })
     }
@@ -89,6 +96,20 @@ impl UnitStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn streaming_checksum_matches_vectors_and_chunk_boundaries() {
+        assert_eq!(transport_checksum(b""), "xxh3-64:2d06800538d394c2");
+        assert_eq!(transport_checksum(b"abc"), "xxh3-64:78af5f94892f3950");
+        let bytes: Vec<_> = (0..65537).map(|index| (index % 251) as u8).collect();
+        for size in [1, 3, 16, 64, 255, 1024, 4096, 65536] {
+            let mut hash = Xxh3::new();
+            for chunk in bytes.chunks(size) {
+                hash.update(chunk);
+            }
+            assert_eq!(encode(hash.digest()), transport_checksum(&bytes));
+        }
+    }
 
     struct ShortWriter(Vec<u8>);
 
@@ -121,6 +142,9 @@ mod tests {
         let manifest = store.write_sealed_bundle(&mut writer).unwrap();
         manifest.verify(&writer.0).unwrap();
         assert_eq!(manifest.bytes, u64::try_from(writer.0.len()).unwrap());
+        let mut changed = writer.0.clone();
+        changed[0] ^= 1;
+        assert!(manifest.verify(&changed).is_err());
         writer.0.push(b' ');
         assert!(manifest.verify(&writer.0).is_err());
     }

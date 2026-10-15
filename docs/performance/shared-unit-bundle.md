@@ -68,7 +68,9 @@ for helper/frontend resolution. Helper depth/read budgets and independent graph
 work budgets remain; the deleted expansion path has no expansion budget/runtime.
 
 The driver publishes `unit.evidence.json` and a separate
-`rstyle.shared-unit.manifest/1` seal containing the exact byte count and SHA256.
+`rstyle.shared-unit.manifest/2` seal containing the exact byte count and an
+explicit `xxh3-64` checksum. The [transport contract](transport-checksum-v2.md)
+documents the retired cryptographic collision-resistance guarantee.
 The seal hashes the bytes as they are written and requires successful flush.
 CLI artifact loading reads each artifact once, checks the inventory and seal,
 and decodes the same owned snapshot. The seal detects changed bytes; it does

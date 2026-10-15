@@ -52,6 +52,7 @@ serialized evidence does not acquire that trust.
 5. Replace nonsecurity transport checksums consistently, with a measured fast
    streaming checksum and honestly named/versioned fields. Keep one publication
    and one exact-snapshot import check; retain completeness, flush and association.
+   The implemented XXH3-64 contract and measurements are described in `transport-checksum-v2.md`.
 6. Benchmark full-key WL interning using FNV-1a and an appropriate alternative,
    including deliberate collisions. Keep a measured winner over the tree; retain
    partitions, direction, families, multiplicity, scores and deterministic reports.

@@ -3,7 +3,7 @@ mod bundle;
 mod derived;
 mod manifest;
 mod namespace;
-pub use manifest::{BundleManifest, VerifiedBundle};
+pub use manifest::{BundleManifest, VerifiedBundle, transport_checksum};
 pub use namespace::UnitNamespace;
 
 use crate::{HirFnFacts, HirNode, helper_calls::Summary, producer::Pair};
