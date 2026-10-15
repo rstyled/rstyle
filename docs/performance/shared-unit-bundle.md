@@ -87,6 +87,12 @@ available for source navigation. The report includes `unit_bundle_schema`;
 standalone graph schema revisions remain unchanged. This is an intentional
 internal CLI/report/API break, not a new bundle schema revision.
 
+Report function keys now follow the separately versioned
+[report-local handle contract](report-function-handles.md). The report's
+`unit_contexts` joins its function labels to observed compilation contexts;
+these labels make no cross-report content-identity claim. The bundle identity
+described above is separate and remains unchanged by that report-only change.
+
 Native-width propagation memoizes successful derived results by function handle
 within one owning analysis/builder. It is independent of verification policy;
 proof success remains separately partitioned by policy. Errors are not cached.

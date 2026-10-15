@@ -1,9 +1,11 @@
 //! Opt-in, verified source-to-pair analysis; no legacy miner involvement.
 
 pub mod capture;
+mod identity;
 mod report;
 use crate::Cli;
 use clap::Args as ClapArgs;
+use identity::FunctionKey;
 use rstyle_ccgraph::{CcgraphConfig, Decision, ImportedFunction};
 use rstyle_pdg::diagnostics::Stage;
 use rstyle_pdg::{EligibilityVerdict, HirFnFacts, classify, producer};
@@ -84,9 +86,9 @@ fn configuration(cli: &Cli, args: &Args) -> Result<CcgraphConfig, String> {
 
 #[derive(Serialize)]
 struct Function {
-    key: String,
+    key: FunctionKey,
     compilation_unit: String,
-    unit_evidence: Value,
+    unit_evidence: UnitEvidence,
     outcome: String,
     reasons: Vec<String>,
     facts: ReportFacts,
@@ -94,6 +96,14 @@ struct Function {
     nominal_unit_binding: Option<rstyle_pdg::nominal_binding::Binding>,
     projection_trace: Option<Value>,
     extraction_evidence: Option<Value>,
+}
+
+#[derive(Serialize)]
+struct UnitEvidence {
+    report_unit: identity::UnitId,
+    identity: String,
+    bundle: PathBuf,
+    function: u32,
 }
 
 struct ReportFacts {
@@ -126,10 +136,12 @@ struct Handoff {
     assessed: Vec<Function>,
     admitted: Vec<ImportedFunction>,
     failures: Vec<String>,
-    keys: BTreeSet<String>,
+    keys: BTreeSet<FunctionKey>,
+    unit_contexts: Vec<identity::UnitContext>,
 }
 
 struct UnitRequest<'a> {
+    id: identity::UnitId,
     unit: &'a capture::Unit,
     capture: &'a capture::Capture,
     args: &'a Args,
@@ -240,6 +252,19 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 }
 
 fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {
+    let assignments = identity::assign(&capture.units);
+    let unit_contexts = assignments
+        .as_ref()
+        .map(|units| {
+            units
+                .iter()
+                .map(|unit| identity::UnitContext {
+                    id: unit.context.id,
+                    observed_unit: unit.context.observed_unit,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let mut result = Handoff {
         build_contexts: Vec::new(),
         source_inventory: Vec::new(),
@@ -247,26 +272,39 @@ fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {
         admitted: Vec::new(),
         failures: Vec::new(),
         keys: BTreeSet::new(),
+        unit_contexts,
     };
     if !capture.failures.is_empty() {
         return result;
     }
 
-    for unit in &capture.units {
-        if let Err(error) = consume_unit(unit, capture, args, &mut result) {
+    let assignments = match assignments {
+        Ok(assignments) => assignments,
+        Err(error) => {
+            return Handoff {
+                failures: vec![error],
+                ..result
+            };
+        }
+    };
+    for assignment in assignments {
+        let request = UnitRequest {
+            id: assignment.context.id,
+            unit: assignment.unit,
+            capture,
+            args,
+        };
+        if let Err(error) = consume_unit(&request, &mut result) {
             result.failures.push(error);
         }
     }
-    result.assessed.sort_by(|a, b| a.key.cmp(&b.key));
+    result.assessed.sort_by_key(|function| function.key);
     result
 }
 
-fn consume_unit(
-    unit: &capture::Unit,
-    capture: &capture::Capture,
-    args: &Args,
-    result: &mut Handoff,
-) -> Result<(), String> {
+fn consume_unit(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), String> {
+    let unit = request.unit;
+    let capture = request.capture;
     if unit.extraction_profile != capture.plan.extraction_profile {
         return Err("Unit extraction profile disagrees with plan".into());
     }
@@ -286,16 +324,7 @@ fn consume_unit(
     result
         .source_inventory
         .extend(source_inventory(unit, &snapshot)?);
-    consume_store(
-        Arc::new(store),
-        bindings,
-        &UnitRequest {
-            unit,
-            capture,
-            args,
-        },
-        result,
-    )
+    consume_store(Arc::new(store), bindings, request, result)
 }
 
 fn consume_store(
@@ -310,10 +339,9 @@ fn consume_store(
         builds: bindings.builds,
     });
 
-    for (index, binding) in bindings.bindings.into_iter().enumerate() {
-        let function = &store.functions()[index];
-        let key = function_key(function, request.unit, request.capture)?;
-        if !result.keys.insert(key.clone()) {
+    let keys = identity::functions(request.id, store.functions())?;
+    for (index, (binding, key)) in bindings.bindings.into_iter().zip(keys).enumerate() {
+        if !result.keys.insert(key) {
             return Err(format!("duplicate function key {key}"));
         }
         let facts = ReportFacts {
@@ -392,7 +420,7 @@ fn source_inventory(
 
 fn function_record(
     function: ReportFacts,
-    key: String,
+    key: FunctionKey,
     unit: &capture::Unit,
     index: usize,
 ) -> Function {
@@ -402,7 +430,12 @@ fn function_record(
             "{}:{}:test={}",
             unit.target.package, unit.target.name, unit.test
         ),
-        unit_evidence: json!({"identity":function.store.identity(), "bundle": unit.directory.join("unit.evidence.json"), "function": u32::try_from(index).expect("checked unit function table")}),
+        unit_evidence: UnitEvidence {
+            report_unit: key.unit(),
+            identity: function.store.identity().to_owned(),
+            bundle: unit.directory.join("unit.evidence.json"),
+            function: u32::try_from(index).expect("checked unit function table"),
+        },
         outcome: "assessed".into(),
         reasons: Vec::new(),
         facts: function,
@@ -482,45 +515,6 @@ fn verify_selected_unit(facts: &HirFnFacts, unit: &capture::Unit) -> Result<(), 
     Ok(())
 }
 
-fn function_key(
-    facts: &HirFnFacts,
-    unit: &capture::Unit,
-    capture: &capture::Capture,
-) -> Result<String, String> {
-    let file = facts
-        .build
-        .frontend_options
-        .get("source_file")
-        .and_then(Value::as_str)
-        .ok_or("missing captured source-file navigation")?;
-    let mut build = serde_json::to_value(&facts.build).map_err(|e| e.to_string())?;
-
-    build["frontend_options"]
-        .as_object_mut()
-        .ok_or("missing frontend options")?
-        .remove("invocation");
-    let invocation: Vec<_> = unit
-        .invocation
-        .iter()
-        .map(|a| a.replace(capture.directory.to_string_lossy().as_ref(), "<run>"))
-        .collect();
-    let identity = json!([
-        unit.target.package,
-        unit.target.name,
-        unit.target.kind,
-        unit.test,
-        file,
-        facts.fn_span,
-        facts.name,
-        build,
-        invocation
-    ]);
-    Ok(format!(
-        "function:{}",
-        digest(&serde_json::to_vec(&identity).map_err(|e| e.to_string())?)
-    ))
-}
-
 fn consume_function(
     record: &mut Function,
     input: &FunctionInput<'_>,
@@ -553,7 +547,7 @@ fn consume_function(
         .ok_or("Missing eligible unit graph root")?;
     let mut function =
         rstyle_ccgraph::admit_produced(pair, &facts).map_err(|errors| errors.join("; "))?;
-    function.key = record.key.clone();
+    function.key = record.key.to_string();
     record.projection_trace = input.trace.then(|| projection_trace(&function));
     record_admission(record, pair)?;
     Ok(Some(function))

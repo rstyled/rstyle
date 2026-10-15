@@ -1270,6 +1270,70 @@ fn clones_exact_threshold_ingestion_and_explicit_cosine() {
     assert_eq!(output.status.code(), Some(2));
 }
 
+fn report_function_unit<'a>(report: &'a Value, function: &Value) -> &'a Value {
+    let unit_id = &function["unit_evidence"]["report_unit"];
+    let context = report["unit_contexts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|context| &context["id"] == unit_id)
+        .unwrap();
+    &report["observed_units"][context["observed_unit"].as_u64().unwrap() as usize]
+}
+
+fn assert_report_function_handles(report: &Value) {
+    assert_eq!(
+        report["function_identity_schema"],
+        "rstyle.report-function/2"
+    );
+    assert_eq!(
+        report["unit_contexts"].as_array().unwrap().len(),
+        report["observed_units"].as_array().unwrap().len()
+    );
+    for function in report["functions"].as_array().unwrap() {
+        let evidence = &function["unit_evidence"];
+        assert_eq!(
+            function["key"],
+            format!(
+                "function:u{}:f{}",
+                evidence["report_unit"], evidence["function"]
+            )
+        );
+        let unit = report_function_unit(report, function);
+        assert_eq!(
+            Path::new(evidence["bundle"].as_str().unwrap())
+                .parent()
+                .unwrap(),
+            Path::new(unit["directory"].as_str().unwrap())
+        );
+        assert_eq!(
+            function["compilation_unit"],
+            format!(
+                "{}:{}:test={}",
+                unit["target"]["package"].as_str().unwrap(),
+                unit["target"]["name"].as_str().unwrap(),
+                unit["test"]
+            )
+        );
+    }
+}
+
+fn assert_selected_release_handles(report: &Value, manifest_directory: &Path) {
+    assert_report_function_handles(report);
+    assert_eq!(report["scope"]["build_options"]["release"], true);
+    assert!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| {
+                let unit = report_function_unit(report, function);
+                unit["target"]["manifest_dir"] == manifest_directory.to_string_lossy().as_ref()
+                    && function["facts"]["build"]["opt_level"]["value"] == "Aggressive"
+            })
+    );
+}
+
 #[test]
 fn clones_all_targets_keep_compilation_contexts_distinct() {
     let directory = clone_workspace();
@@ -1295,6 +1359,7 @@ fn clones_all_targets_keep_compilation_contexts_distinct() {
             .all(|f| f["outcome"] == "excluded")
     );
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_report_function_handles(&report);
     let keys: std::collections::BTreeSet<_> = report["functions"]
         .as_array()
         .unwrap()
@@ -1375,13 +1440,7 @@ fn clones_identical_source_in_packages_and_modules_survives_concurrent_capture()
     assert!(output.status.success());
     assert_eq!(selected["functions"].as_array().unwrap().len(), 2);
     assert_eq!(selected["matching"]["pairs"].as_array().unwrap().len(), 1);
-    assert!(selected["functions"].as_array().unwrap().iter().all(|f| {
-        !report["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|old| old["key"] == f["key"])
-    }));
+    assert_selected_release_handles(&selected, &directory.path().join("a"));
 }
 
 #[test]

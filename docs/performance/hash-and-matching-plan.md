@@ -46,6 +46,8 @@ serialized evidence does not acquire that trust.
 4. Replace local unit/function/ledger JSON-to-digest identities with explicit
    namespace-qualified typed handles, run-local assignment and exact duplicate
    descriptor checks. Version exports and state stability guarantees.
+   Report-local function handles are implemented in `report-function-handles.md`;
+   unit-store identities and capture ledger routing remain pending.
 5. Replace nonsecurity transport checksums consistently, with a measured fast
    streaming checksum and honestly named/versioned fields. Keep one publication
    and one exact-snapshot import check; retain completeness, flush and association.
