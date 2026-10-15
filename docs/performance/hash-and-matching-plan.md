@@ -32,9 +32,11 @@ serialized evidence does not acquire that trust.
    see `local-location-handles.md`. Unit-owned exact build-setting interning with
    scoped `BuildId` is implemented in the following increment; see
    `unit-build-contexts.md`. Source/package ownership remains pending.
-3. Consolidate source snapshots, checked ranges and source/context correspondence.
-   Reuse checked views within immutable owners without crossing edits, owners or
-   strict/generated policy boundaries.
+3. Shared census ownership and policy/analysis-local checked source environments
+   are implemented in the next increment; see `shared-source-environments.md`.
+   Full function/declaration byte ownership, source wire dictionaries, repeated
+   range identities and remaining boundary reuse are still pending. Continue
+   consolidation without crossing edits, owners or strict/generated policy.
 4. Replace local unit/function/ledger JSON-to-digest identities with explicit
    namespace-qualified typed handles, run-local assignment and exact duplicate
    descriptor checks. Version exports and state stability guarantees.
@@ -50,9 +52,10 @@ serialized evidence does not acquire that trust.
    IDs in the next increment; see `diagnostic-observation-ids.md`.
    Historical study snapshots, fixture hashes and precomputed contracts are not
    ordinary-runtime costs and remain outside this optimization.
-9. Complete representative minimal, read/inherent, fanout, larger graph/pair,
-   trace on/off and strict-replay before/after measurements. Record structural
-   counts separately from ordinary timing, allocation proxies and peak memory.
+9. Minimal/read/inherent and broad fanout/many-pair/larger-graph before/after
+   measurements, trace modes and strict replay are recorded for the source
+   increment. Continue measurements for remaining identity/transport/matcher
+   increments, including interner alternatives, collisions and allocation proxies.
 10. Validate every semantic increment with focused tests and both quality gates.
     Finish with formatting, warning-free Clippy, full nextest/doctest wrapper and
     affected Python tests. Zero violations and actionable candidates are required;

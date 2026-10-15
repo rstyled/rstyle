@@ -2,7 +2,12 @@
 use crate::{concrete_types::InterfaceObservations, field_locations::FieldObservations};
 use serde::{Deserialize, Serialize, ser::SerializeMap};
 use serde_json::Value;
-use std::{borrow::Cow, collections::BTreeMap, ops::Index, sync::OnceLock};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    ops::Index,
+    sync::{Arc, OnceLock},
+};
 
 /// Open frontend options with single owned typed interface/field records.
 /// JSON compatibility access materializes only the requested record. Analysis
@@ -16,6 +21,7 @@ enum Entry {
     Invalid { value: Value, error: String },
     Interface(Record<InterfaceObservations>),
     Fields(Record<FieldObservations>),
+    Census(Record<Arc<crate::nominal_boundary::census::Census>>),
 }
 
 #[derive(Clone, Debug)]
@@ -61,6 +67,7 @@ impl Entry {
         match key {
             crate::concrete_types::KEY => Self::decode(json, Self::Interface),
             crate::field_locations::KEY => Self::decode(json, Self::Fields),
+            crate::nominal_boundary::census::KEY => Self::decode(json, Self::Census),
             _ => Self::Json(json),
         }
     }
@@ -84,6 +91,7 @@ impl Entry {
             Self::Json(value) | Self::Invalid { value, .. } => value,
             Self::Interface(record) => record.json(),
             Self::Fields(record) => record.json(),
+            Self::Census(record) => record.json(),
         }
     }
 
@@ -95,6 +103,9 @@ impl Entry {
             (Self::Interface(left), Self::Interface(right)) => {
                 left.value == right.value && left.nulls == right.nulls
             }
+            (Self::Census(left), Self::Census(right)) => {
+                left.value == right.value && left.nulls == right.nulls
+            }
             _ => self.json() == other.json(),
         }
     }
@@ -104,6 +115,7 @@ impl Entry {
             Self::Json(value) | Self::Invalid { value, .. } => value,
             Self::Interface(record) => record.into_json(),
             Self::Fields(record) => record.into_json(),
+            Self::Census(record) => record.into_json(),
         }
     }
 }
@@ -114,6 +126,7 @@ impl Serialize for Entry {
             Self::Json(value) | Self::Invalid { value, .. } => value.serialize(serializer),
             Self::Interface(record) => record.render().serialize(serializer),
             Self::Fields(record) => record.render().serialize(serializer),
+            Self::Census(record) => record.render().serialize(serializer),
         }
     }
 }
@@ -167,13 +180,29 @@ impl FrontendOptions {
     /// Re-establish typed ownership after compatibility JSON mutation, before
     /// freezing a unit. Invalid entries remain available with their exact error.
     pub(crate) fn normalize_data(&mut self) {
-        for key in [crate::concrete_types::KEY, crate::field_locations::KEY] {
+        for key in [
+            crate::concrete_types::KEY,
+            crate::field_locations::KEY,
+            crate::nominal_boundary::census::KEY,
+        ] {
             if matches!(self.0.get(key), Some(Entry::Json(_))) {
                 let entry = self.0.remove(key).expect("existing data evidence");
                 self.0
                     .insert(key.into(), Entry::new(key, entry.into_json()));
             }
         }
+    }
+
+    pub(crate) fn intern_census(
+        &mut self,
+        owners: &mut Vec<Arc<crate::nominal_boundary::census::Census>>,
+    ) -> Result<(), String> {
+        let Some(Entry::Census(record)) = self.0.get_mut(crate::nominal_boundary::census::KEY)
+        else {
+            return Ok(());
+        };
+        record.value = intern_owner(&record.value, owners)?;
+        Ok(())
     }
 
     pub fn contains_key(&self, key: &str) -> bool {
@@ -185,6 +214,22 @@ impl FrontendOptions {
     pub fn clear(&mut self) {
         self.0.clear();
     }
+}
+
+fn intern_owner(
+    census: &Arc<crate::nominal_boundary::census::Census>,
+    owners: &mut Vec<Arc<crate::nominal_boundary::census::Census>>,
+) -> Result<Arc<crate::nominal_boundary::census::Census>, String> {
+    for owner in owners.iter() {
+        if owner.context == census.context {
+            if **owner != **census {
+                return Err("Contradictory source snapshots in one selected-unit context".into());
+            }
+            return Ok(Arc::clone(owner));
+        }
+    }
+    owners.push(Arc::clone(census));
+    Ok(Arc::clone(census))
 }
 
 impl Extend<(String, Value)> for FrontendOptions {
@@ -272,6 +317,7 @@ mod sealed {
     pub trait Sealed {}
     impl Sealed for super::InterfaceObservations {}
     impl Sealed for super::FieldObservations {}
+    impl Sealed for std::sync::Arc<crate::nominal_boundary::census::Census> {}
 }
 
 /// The closed set of normalized data records. This selects the record's exact
@@ -310,6 +356,22 @@ impl DataEvidence for FieldObservations {
         options.0.insert(
             Self::KEY.into(),
             Entry::Fields(Record::new(self, Vec::new())),
+        );
+    }
+}
+
+impl DataEvidence for Arc<crate::nominal_boundary::census::Census> {
+    const KEY: &'static str = crate::nominal_boundary::census::KEY;
+    fn borrow(options: &FrontendOptions) -> Option<&Self> {
+        match options.0.get(Self::KEY) {
+            Some(Entry::Census(record)) => Some(&record.value),
+            _ => None,
+        }
+    }
+    fn install(self, options: &mut FrontendOptions) {
+        options.0.insert(
+            Self::KEY.into(),
+            Entry::Census(Record::new(self, Vec::new())),
         );
     }
 }

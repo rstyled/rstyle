@@ -2,9 +2,12 @@
 use super::*;
 use crate::{
     inherent_calls::Definition,
-    nominal_boundary::resolution::{Resolution, ResolutionView},
+    nominal_boundary::{
+        census::Census,
+        resolution::{Environment, Resolution, ResolutionView},
+    },
 };
-use std::{borrow::Cow, cell::OnceCell};
+use std::{borrow::Cow, cell::OnceCell, rc::Rc, sync::Arc};
 
 #[derive(Default)]
 pub(super) struct Derived {
@@ -35,6 +38,61 @@ impl<T> Checked<T> {
     }
 }
 
+#[derive(Default)]
+pub(super) struct Sources(RefCell<Vec<SourceContext>>);
+
+struct SourceContext {
+    census: Arc<Census>,
+    checked: Checked<Rc<Environment>>,
+}
+
+impl Sources {
+    fn environment(&self, facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
+        let census = facts.build.frontend_options.data::<Arc<Census>>()?;
+        self.for_census(&census)
+    }
+
+    fn for_census(&self, census: &Arc<Census>) -> Result<Rc<Environment>, String> {
+        let mut contexts = self.0.borrow_mut();
+        let index = if let Some(index) = contexts
+            .iter()
+            .position(|context| Arc::ptr_eq(&context.census, census))
+        {
+            index
+        } else {
+            contexts.push(SourceContext {
+                census: Arc::clone(census),
+                checked: Checked::default(),
+            });
+            contexts.len() - 1
+        };
+        contexts[index]
+            .checked
+            .get(|| Environment::new(Arc::clone(census)).map(Rc::new))
+            .map(Rc::clone)
+    }
+
+    fn resolve(&self, facts: &HirFnFacts) -> Result<Resolution, String> {
+        let interface = facts
+            .build
+            .frontend_options
+            .data::<crate::concrete_types::InterfaceObservations>()?;
+        crate::nominal_boundary::resolution::verify_in(facts, &interface, self.environment(facts)?)
+    }
+}
+
+pub(super) fn normalize(functions: Vec<HirFnFacts>) -> Result<Vec<HirFnFacts>, String> {
+    let mut sources = Vec::new();
+    functions
+        .into_iter()
+        .map(|mut facts| {
+            facts.build.frontend_options.normalize_data();
+            facts.build.frontend_options.intern_census(&mut sources)?;
+            Ok(facts)
+        })
+        .collect()
+}
+
 pub(super) fn contexts(count: usize) -> Box<[Derived]> {
     std::iter::repeat_with(Derived::default)
         .take(count)
@@ -46,7 +104,7 @@ impl FunctionView<'_> {
         let result = self
             .derived()
             .nominal
-            .get(|| crate::nominal_boundary::resolution::from_facts(self.facts()))?;
+            .get(|| self.resolver.sources().resolve(self.facts()))?;
         Ok(ResolutionView::borrowed(result))
     }
 
@@ -111,5 +169,28 @@ mod tests {
         assert!(checked.0.iter().all(|slot| slot.get().is_none()));
         assert_eq!(checked.get(|| Ok(vec![7])).unwrap(), &[7]);
         assert!(checked.0[1].get().is_none());
+    }
+    #[test]
+    fn source_environments_are_owner_and_policy_local_and_reused() {
+        let census = crate::nominal_boundary::resolution::environment::tests::census();
+        let sources = Sources::default();
+        let first = sources.for_census(&census).unwrap();
+        assert!(Rc::ptr_eq(&first, &sources.for_census(&census).unwrap()));
+        crate::verification_policy::generated(|| {
+            let generated = sources.for_census(&census).unwrap();
+            assert!(!Rc::ptr_eq(&first, &generated));
+            assert!(Rc::ptr_eq(
+                &generated,
+                &sources.for_census(&census).unwrap()
+            ));
+        });
+        assert!(Rc::ptr_eq(&first, &sources.for_census(&census).unwrap()));
+        assert!(!Rc::ptr_eq(
+            &first,
+            &Sources::default().for_census(&census).unwrap()
+        ));
+        let mut changed = (*census).clone();
+        changed.files[0].bytes.push(' ');
+        assert!(sources.for_census(&Arc::new(changed)).is_err());
     }
 }

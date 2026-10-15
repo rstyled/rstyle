@@ -32,6 +32,24 @@ pub struct Origins {
 /// Independently checks a complete, unique declaration inventory against the
 /// original file bytes. It does not re-run or compare producer serialization.
 pub fn verify(interface: &InterfaceObservations, origins: &Origins) -> Result<(), String> {
+    verify_inventory(interface, origins, check_source)
+}
+
+pub(crate) fn verify_in(
+    interface: &InterfaceObservations,
+    origins: &Origins,
+    environment: &crate::nominal_boundary::resolution::Environment,
+) -> Result<(), String> {
+    verify_inventory(interface, origins, |origin, declaration| {
+        environment.check_origin(origin, declaration)
+    })
+}
+
+fn verify_inventory(
+    interface: &InterfaceObservations,
+    origins: &Origins,
+    check: impl Fn(&Origin, &str) -> Result<(), String>,
+) -> Result<(), String> {
     interface.validate()?;
     if origins.identity != IDENTITY
         || serde_json::to_vec(origins)
@@ -52,7 +70,7 @@ pub fn verify(interface: &InterfaceObservations, origins: &Origins) -> Result<()
         if seen.insert(key, ()).is_some() || *nominal != &origin.nominal {
             return Err("Duplicate or inconsistent nominal declaration origin".into());
         }
-        check_source(origin, source)?;
+        check(origin, source)?;
     }
 
     Ok(())

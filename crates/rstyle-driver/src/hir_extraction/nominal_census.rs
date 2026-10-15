@@ -24,12 +24,12 @@ pub fn capture(
         files: captured,
     };
     census::check_budget(&census)?;
-    let value = serde_json::to_value(census).map_err(|e| e.to_string())?;
+    let census = std::sync::Arc::new(census);
     for function in facts {
         function
             .build
             .frontend_options
-            .insert(census::KEY.into(), value.clone());
+            .insert_data(std::sync::Arc::clone(&census));
     }
     Ok(())
 }

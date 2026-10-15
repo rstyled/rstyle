@@ -355,3 +355,12 @@ handles. These are references within one owning graph, not content fingerprints.
 Imports resolve exact typed root/projection keys and retain source/type checks;
 consistent local renumbering is supported. Version 1 hashed location IDs are
 retired. See [local location handles](performance/local-location-handles.md).
+
+Selected nominal-source censuses now share one typed immutable owner within a
+unit. Each analysis reuses checked source snapshots, module closure and lexical
+index in separate strict/generated policy contexts. Function ranges, nominal
+associations and receiver/type checks remain per function; standalone inputs
+still cross their public validation boundaries. See
+[shared checked source environments](performance/shared-source-environments.md)
+for the private source-handle scope, compatibility guarantees and remaining
+source ownership work.

@@ -149,11 +149,13 @@ pub struct UnitAnalysis<'a> {
     // Immutable derived values; policy-specific proof success is stored above.
     native_widths: RefCell<BTreeMap<FunctionId, bool>>,
     derived: Box<[derived::Derived]>,
+    sources: derived::Sources,
 }
 
 trait Resolver {
     fn tables(&self) -> Tables<'_>;
     fn derived(&self) -> &[derived::Derived];
+    fn sources(&self) -> &derived::Sources;
     fn proofs(&self) -> &Proofs;
     fn native_widths(&self) -> &RefCell<BTreeMap<FunctionId, bool>>;
     fn identity(&self) -> &str;
@@ -345,6 +347,7 @@ impl UnitStore {
             proofs: RefCell::default(),
             native_widths: RefCell::default(),
             derived: derived::contexts(self.functions.len()),
+            sources: derived::Sources::default(),
         }
     }
 }
@@ -366,6 +369,9 @@ impl UnitAnalysis<'_> {
 }
 
 impl Resolver for UnitAnalysis<'_> {
+    fn sources(&self) -> &derived::Sources {
+        &self.sources
+    }
     fn derived(&self) -> &[derived::Derived] {
         &self.derived
     }
@@ -401,9 +407,13 @@ struct Builder {
     proofs: Proofs,
     native_widths: RefCell<BTreeMap<FunctionId, bool>>,
     derived: Box<[derived::Derived]>,
+    sources: derived::Sources,
 }
 
 impl Resolver for Builder {
+    fn sources(&self) -> &derived::Sources {
+        &self.sources
+    }
     fn derived(&self) -> &[derived::Derived] {
         &self.derived
     }
@@ -422,10 +432,8 @@ impl Resolver for Builder {
 }
 
 impl Builder {
-    fn new(mut functions: Vec<HirFnFacts>) -> Result<Self, String> {
-        for facts in &mut functions {
-            facts.build.frontend_options.normalize_data();
-        }
+    fn new(functions: Vec<HirFnFacts>) -> Result<Self, String> {
+        let functions = derived::normalize(functions)?;
         u32::try_from(functions.len()).map_err(|_| "Oversized function table")?;
         let identity = unit_identity(&functions)?;
         let pending = (0..functions.len())
@@ -450,6 +458,7 @@ impl Builder {
             proofs: RefCell::default(),
             native_widths: RefCell::default(),
             derived,
+            sources: derived::Sources::default(),
         })
     }
 

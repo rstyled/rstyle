@@ -40,6 +40,7 @@ fn unrendered(options: &FrontendOptions) {
         match entry {
             Entry::Fields(record) => assert!(record.json.get().is_none()),
             Entry::Interface(record) => assert!(record.json.get().is_none()),
+            Entry::Census(record) => assert!(record.json.get().is_none()),
             _ => {}
         }
     }
@@ -208,4 +209,42 @@ fn compatibility_mutation_invalidates_typed_record_until_unit_freeze() {
         options[crate::field_locations::KEY]["operations"][0]["hir"]["owner"],
         json!(u64::MAX)
     );
+}
+
+#[test]
+fn source_census_is_shared_lossless_and_rejects_conflicting_snapshots() {
+    use crate::nominal_boundary::census::{Census, IDENTITY};
+    let census = Arc::new(Census {
+        identity: IDENTITY.into(),
+        context: crate::nominal_boundary::tests::context(),
+        files: Vec::new(),
+    });
+    let mut first = FrontendOptions::default();
+    first.insert_data(Arc::clone(&census));
+    let expected = serde_json::to_vec(&BTreeMap::from([(
+        crate::nominal_boundary::census::KEY,
+        serde_json::to_value(&census).unwrap(),
+    )]))
+    .unwrap();
+    assert_eq!(serde_json::to_vec(&first).unwrap(), expected);
+    let mut second: FrontendOptions = serde_json::from_slice(&expected).unwrap();
+    let mut owners = Vec::new();
+    first.intern_census(&mut owners).unwrap();
+    second.intern_census(&mut owners).unwrap();
+    let first = first.data::<Arc<Census>>().unwrap();
+    let second = second.data::<Arc<Census>>().unwrap();
+    assert!(Arc::ptr_eq(&first, &second));
+    assert_eq!(owners.len(), 1);
+    let mut changed = (**first).clone();
+    changed.identity.push_str("-changed");
+    let mut options = FrontendOptions::default();
+    options.insert_data(Arc::new(changed));
+    assert!(options.intern_census(&mut owners).is_err());
+    let mut changed = (**first).clone();
+    changed.context.package.package_id.push_str("-other");
+    options.insert_data(Arc::new(changed));
+    options.intern_census(&mut owners).unwrap();
+    assert_eq!(owners.len(), 2);
+    assert!(!Arc::ptr_eq(&owners[0], &owners[1]));
+    unrendered(&options);
 }

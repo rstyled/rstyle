@@ -47,6 +47,32 @@ def signature(report, count):
     return json.loads(json.dumps(result))
 
 
+SCORE_KEYS = {'ratio', 'threshold', 'dot', 'norm_a_squared', 'norm_b_squared',
+              'return_para', 'intro_para', 'name', 'mean', 'depth', 'weights',
+              'overlap_per_round', 'cross_per_round', 'self_a_per_round',
+              'self_b_per_round', 'score', 'larger_coverage', 'kab', 'kaa', 'kbb',
+              'displayed_score'}
+
+
+def exact_scores(report):
+    """Preserve exact score inputs; normalize pair orientation by function name."""
+    names = {function['key']: function['facts']['name'] for function in report['functions']}
+    records = []
+    for pair in report['matching']['pairs']:
+        first, second = names[pair['first']], names[pair['second']]
+        stages = []
+        for stage in pair['stages']:
+            detail = {key: value for key, value in stage['detail'].items() if key in SCORE_KEYS}
+            if first > second:
+                for left, right in [('norm_a_squared', 'norm_b_squared'),
+                                    ('self_a_per_round', 'self_b_per_round'), ('kaa', 'kbb')]:
+                    if left in detail and right in detail:
+                        detail[left], detail[right] = detail[right], detail[left]
+            stages.append([stage['stage'], detail])
+        records.append([sorted([first, second]), stages])
+    return sorted(records)
+
+
 def library_inventory(report):
     units = {}
     for function in report['functions']:
@@ -82,6 +108,12 @@ def measure_workload(phase, profile, bins, output, workload):
                 assert json.loads(expected.read_text()) == actual, tag
             else:
                 expected.write_text(json.dumps(actual))
+            exact_path = output / f'{profile}-{name}-exact-scores.json'
+            exact = exact_scores(report)
+            if exact_path.exists():
+                assert json.loads(exact_path.read_text()) == exact, tag
+            else:
+                exact_path.write_text(json.dumps(exact))
             cost.update(phase=phase, profile=profile, workload=name, iteration=iteration,
                         trace=trace, diagnostic=iteration == 4, report_bytes=(output / (tag + '.json')).stat().st_size,
                         **library_inventory(report))
@@ -100,21 +132,22 @@ def measure_workload(phase, profile, bins, output, workload):
     return samples
 
 
-def main():
+def main(cases=None):
+    cases = workloads() if cases is None else cases
     phase, root, destination = sys.argv[1:]
     assert phase in ['before', 'after']
     root, output = pathlib.Path(root).resolve(), pathlib.Path(destination).resolve()
     output.mkdir(exist_ok=True, parents=True)
     samples = []
     for profile in ['debug', 'release']:
-        for workload in workloads():
+        for workload in cases:
             samples.extend(measure_workload(phase, profile, root / profile, output, workload))
             (output / (phase + '-samples.json')).write_text(json.dumps(samples, indent=2) + '\n')
-    for name, *_ in workloads():
+    for name, *_ in cases:
         assert json.loads((output / f'debug-{name}-signature.json').read_text()) == json.loads(
             (output / f'release-{name}-signature.json').read_text()), name
     for profile in ['debug', 'release']:
-        for name, *_ in workloads():
+        for name, *_ in cases:
             for trace in [False, True]:
                 values = [sample['wall'] for sample in samples if sample.get('trace') == trace
                           and sample['profile'] == profile and sample['workload'] == name
