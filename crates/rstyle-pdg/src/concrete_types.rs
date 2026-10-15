@@ -172,14 +172,19 @@ fn check_many<'a>(
     Ok(())
 }
 
+pub(crate) fn check_declaration_budget(source: &str, fields: &[Field]) -> Result<(), String> {
+    if source.len() > MAX_SOURCE_BYTES || fields.len() > MAX_FIELDS {
+        return Err("Concrete declaration exceeds source/field budget".into());
+    }
+    Ok(())
+}
+
 fn check_declaration(
     nominal: &Nominal,
     source: &crate::SourceText,
     fields: &[Field],
 ) -> Result<(), String> {
-    if source.len() > MAX_SOURCE_BYTES || fields.len() > MAX_FIELDS {
-        return Err("Concrete declaration exceeds source/field budget".into());
-    }
+    check_declaration_budget(source, fields)?;
     if nominal.package_name.is_empty()
         || nominal.package_version.is_empty()
         || !is_digest(&nominal.manifest_digest)

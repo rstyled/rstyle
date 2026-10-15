@@ -136,6 +136,7 @@ impl Bindings<'_> {
     }
 
     fn structure(&mut self, declaration: Declaration, depth: usize) -> Result<TypeTree, String> {
+        crate::concrete_types::check_declaration_budget(&declaration.source, &declaration.fields)?;
         let source = self.declaration_source(&declaration.nominal, declaration.source)?;
         let fields = declaration
             .fields
@@ -270,6 +271,25 @@ mod tests {
                 fields[0].declaration.identity(),
                 other_fields[0].declaration.identity()
             ));
+        }
+    }
+
+    #[test]
+    fn oversized_declarations_fail_before_source_rebinding_or_field_walks() {
+        for oversized_source in [true, false] {
+            let mut wire = serde_json::to_value(options()).unwrap();
+            let evidence = &mut wire[crate::concrete_types::KEY]["parameters"][0]["ty"]["evidence"];
+            if oversized_source {
+                evidence["source"] = json!("x".repeat(crate::concrete_types::MAX_SOURCE_BYTES + 1));
+            } else {
+                let field = evidence["fields"][0].clone();
+                evidence["fields"] = json!(vec![field; crate::concrete_types::MAX_FIELDS + 1]);
+            }
+            let mut options: FrontendOptions = serde_json::from_value(wire).unwrap();
+            let error = options
+                .share_declaration_ranges(&mut Ranges::default())
+                .unwrap_err();
+            assert_eq!(error, "Concrete declaration exceeds source/field budget");
         }
     }
 

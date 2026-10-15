@@ -79,3 +79,17 @@ workspace/all-target Clippy, 24 study tests and two harness tests passed. Both
 quality gates report zero style violations/actionable pattern candidates; the
 same 15 reviewed ignores remain unchanged. Logs: `/tmp/rstyle-declaration-ranges-*`.
 Suite duration 32.132 seconds is observational, not a whole-suite speedup claim.
+
+Storage normalization now enforces the same declaration-source byte and field
+count limits as semantic declaration validation *before* origin lookup, range
+rebinding or per-field substring searches. The shared budget helper keeps these
+limits consistent. Regressions cover source text one byte over the maximum and
+field count one entry over the maximum. Both return the explicit budget error
+at normalization; valid range sharing and malformed-evidence checks remain.
+
+Validation of the three review fixes together: 701/701 nextest tests passed,
+zero skipped; workspace doctests, formatting and warning-free workspace/all-target
+Clippy passed. Both quality gates report zero violations/actionable candidates;
+the same 15 reviewed ignores remain. Logs: `/tmp/rstyle-findings-*`. Initial
+Clippy test-length and style-spacing failures were corrected without suppressions
+or removed assertions before the final clean run.
