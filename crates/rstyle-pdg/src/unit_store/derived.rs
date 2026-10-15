@@ -83,16 +83,22 @@ impl Sources {
 
 pub(super) fn normalize(functions: Vec<HirFnFacts>) -> Result<Vec<HirFnFacts>, String> {
     let mut sources = Vec::new();
+    let mut ranges = crate::source_table::Ranges::default();
     functions
         .into_iter()
         .map(|mut facts| {
             facts.build.frontend_options.normalize_data();
             facts.build.frontend_options.intern_census(&mut sources)?;
             facts.build.frontend_options.share_origin_sources()?;
-            facts.source.bytes = facts
+            facts
                 .build
                 .frontend_options
-                .function_source(&facts.source, facts.fn_span)?;
+                .share_declaration_ranges(&mut ranges)?;
+            facts.source.bytes = facts.build.frontend_options.function_source(
+                &facts.source,
+                facts.fn_span,
+                &mut ranges,
+            )?;
             Ok(facts)
         })
         .collect()

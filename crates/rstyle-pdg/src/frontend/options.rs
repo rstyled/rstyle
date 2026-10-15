@@ -1,5 +1,6 @@
 //! Typed ownership for repeated data evidence, retaining the open JSON boundary.
 pub(crate) mod bundle;
+mod source_ranges;
 use crate::{concrete_types::InterfaceObservations, field_locations::FieldObservations};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -231,6 +232,7 @@ impl FrontendOptions {
         &self,
         source: &crate::SourceFacts,
         span: crate::ByteSpan,
+        ranges: &mut crate::source_table::Ranges,
     ) -> Result<crate::SourceText, String> {
         let Some(Entry::Census(census)) = self.0.get(crate::nominal_boundary::census::KEY) else {
             return Ok(source.bytes.clone());
@@ -245,7 +247,7 @@ impl FrontendOptions {
             .iter()
             .find(|file| file.path == std::path::Path::new(path))
             .ok_or("Missing owned function source snapshot")?;
-        source.bytes.in_snapshot(file.bytes.clone(), span)
+        ranges.bind(&source.bytes, &file.bytes, span)
     }
 
     pub fn contains_key(&self, key: &str) -> bool {

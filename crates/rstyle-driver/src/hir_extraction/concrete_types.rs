@@ -336,7 +336,10 @@ impl<'tcx> Capture<'_, 'tcx> {
         Ok(())
     }
 
-    fn concrete_declaration(&self, instance: Instance<'tcx>) -> Result<String, Failure> {
+    fn concrete_declaration(
+        &self,
+        instance: Instance<'tcx>,
+    ) -> Result<rstyle_pdg::SourceText, Failure> {
         let Instance {
             definition,
             arguments,
@@ -418,7 +421,7 @@ impl<'tcx> Capture<'_, 'tcx> {
         Ok(())
     }
 
-    fn declaration(&self, id: DefId) -> Result<String, Failure> {
+    fn declaration(&self, id: DefId) -> Result<rstyle_pdg::SourceText, Failure> {
         let Node::Item(item) = self.ctx.tcx.hir_node_by_def_id(id.expect_local()) else {
             return Err(unsupported("Missing original struct declaration"));
         };
@@ -438,7 +441,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             ));
         }
 
-        Ok(source.to_string())
+        Ok(source)
     }
 
     fn fields(
@@ -473,7 +476,7 @@ impl<'tcx> Capture<'_, 'tcx> {
                 Ok(Field {
                     position,
                     name,
-                    declaration,
+                    declaration: declaration.into(),
                     ty,
                 })
             })
@@ -481,7 +484,11 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 }
 
-fn nominal(ctx: &Context<'_>, definition_path: String, source: &str) -> Result<Nominal, Failure> {
+fn nominal(
+    ctx: &Context<'_>,
+    definition_path: String,
+    source: &rstyle_pdg::SourceText,
+) -> Result<Nominal, Failure> {
     if ctx.profile.is_data() {
         let context = ctx
             .unit_context
@@ -493,7 +500,7 @@ fn nominal(ctx: &Context<'_>, definition_path: String, source: &str) -> Result<N
             manifest_digest: context.package.manifest_digest.clone(),
             source_identity: Some(context.package.package_id.clone()),
             definition_path,
-            declaration_digest: digest(source.as_bytes()),
+            declaration_digest: source.identity().to_owned(),
         });
     }
     let package_name = std::env::var("CARGO_PKG_NAME")
@@ -511,7 +518,7 @@ fn nominal(ctx: &Context<'_>, definition_path: String, source: &str) -> Result<N
         package_version,
         manifest_digest: digest(&manifest),
         definition_path,
-        declaration_digest: digest(source.as_bytes()),
+        declaration_digest: source.identity().to_owned(),
     })
 }
 

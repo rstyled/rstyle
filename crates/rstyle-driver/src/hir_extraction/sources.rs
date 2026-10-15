@@ -12,9 +12,22 @@ struct CompilerSource(u32);
 
 pub(super) struct Snapshot {
     pub bytes: SourceSnapshot,
+    ranges: RefCell<BTreeMap<(u32, u32), SourceText>>,
 }
 
 impl Snapshot {
+    fn range(&self, span: ByteSpan) -> Result<SourceText, String> {
+        let mut ranges = self.ranges.borrow_mut();
+        let key = (span.start, span.end);
+        if let Some(bytes) = ranges.get(&key) {
+            return Ok(bytes.clone());
+        }
+
+        let bytes = SourceText::from_snapshot(self.bytes.clone(), span)?;
+        ranges.insert(key, bytes.clone());
+        Ok(bytes)
+    }
+
     pub fn identity(&self) -> &str {
         self.bytes.identity()
     }
@@ -31,6 +44,7 @@ impl Sources {
         let bytes = observed_recovery(file)?;
         let snapshot = Rc::new(Snapshot {
             bytes: bytes.into(),
+            ranges: RefCell::new(BTreeMap::new()),
         });
         files.insert(key, Rc::clone(&snapshot));
         Some(snapshot)
@@ -47,8 +61,7 @@ impl Sources {
             start: file.original_relative_byte_pos(span.lo()).0,
             end: file.original_relative_byte_pos(span.hi()).0,
         };
-        let bytes = SourceText::from_snapshot(snapshot.bytes.clone(), range).ok()?;
-        Some((bytes, range))
+        Some((snapshot.range(range).ok()?, range))
     }
 }
 
@@ -115,6 +128,17 @@ mod tests {
         assert!(Rc::ptr_eq(&first, &borrowed));
         assert!(std::ptr::eq(first.identity(), borrowed.identity()));
         assert_eq!(sources.0.borrow().len(), 1);
+
+        let span = ByteSpan {
+            start: 3,
+            end: original.len() as u32,
+        };
+        let range = first.range(span).unwrap();
+        let repeated = borrowed.range(span).unwrap();
+        assert_eq!(range.as_str(), &original[3..]);
+        assert!(std::ptr::eq(range.identity(), repeated.identity()));
+        assert!(first.range(ByteSpan { start: 1, end: 3 }).is_err());
+        assert_eq!(first.ranges.borrow().len(), 1);
 
         let independent = Sources::default().file(&file).unwrap();
         assert!(!Rc::ptr_eq(&first, &independent));

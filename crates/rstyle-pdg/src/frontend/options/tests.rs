@@ -360,7 +360,8 @@ fn function_ranges_require_exact_source_path_and_original_bytes() {
         start,
         end: start + source.bytes.len() as u32,
     };
-    let view = options.function_source(&source, span).unwrap();
+    let mut ranges = crate::source_table::Ranges::default();
+    let view = options.function_source(&source, span, &mut ranges).unwrap();
     assert_eq!(view, source.bytes);
     assert_eq!(
         view.as_ptr(),
@@ -374,10 +375,11 @@ fn function_ranges_require_exact_source_path_and_original_bytes() {
                 crate::ByteSpan {
                     start: start + 1,
                     end: span.end
-                }
+                },
+                &mut ranges,
             )
             .is_err()
     );
     options.insert("source_file".into(), json!("/other/src/lib.rs"));
-    assert!(options.function_source(&source, span).is_err());
+    assert!(options.function_source(&source, span, &mut ranges).is_err());
 }

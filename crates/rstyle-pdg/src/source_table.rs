@@ -58,3 +58,30 @@ impl<'a> Imported<'a> {
         Ok(())
     }
 }
+
+/// Checked range owners local to one immutable normalization operation.
+#[derive(Default)]
+pub(crate) struct Ranges {
+    records: BTreeMap<(usize, u32, u32), SourceText>,
+}
+
+impl Ranges {
+    pub fn bind(
+        &mut self,
+        text: &SourceText,
+        snapshot: &crate::SourceSnapshot,
+        span: ByteSpan,
+    ) -> Result<SourceText, String> {
+        let key = (snapshot.as_ptr() as usize, span.start, span.end);
+        if let Some(owned) = self.records.get(&key) {
+            if owned != text {
+                return Err("Contradictory text for one owned source range".into());
+            }
+            return Ok(owned.clone());
+        }
+
+        let owned = text.in_snapshot(snapshot.clone(), span)?;
+        self.records.insert(key, owned.clone());
+        Ok(owned)
+    }
+}

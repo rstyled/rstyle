@@ -48,8 +48,8 @@ serialized evidence does not acquire that trust.
    shares checked function source ranges on emission/import; see `cfg-source-owner.md`.
    Full graph captured-build copies are retired in favor of the exact three
    compatibility facts; see `matching-build-metadata.md`.
-   Remaining declaration identities and boundary reuse
-   still require review. Checked declaration-file inventories now consolidate nominal-binding
+   Concrete declaration/field ranges and actual declaration identity reuse are
+   implemented in `declaration-ranges.md`. Checked declaration-file inventories now consolidate nominal-binding
    hashes/parses and avoid temporary budget buffers; see
    `origin-file-inventories.md`. CLI selected-unit context checks now reuse a private checked owner; see
    `selected-context-owner.md`. Continue consolidation without crossing edits,

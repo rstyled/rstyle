@@ -178,3 +178,7 @@ Graph producer configurations now carry the closed `rstyle.matching-build/1`
 record containing only overflow, debug-assertion and panic-strategy facts. Full
 build/source evidence remains in the owning frontend. No old `captured_build`
 runtime fallback remains. See [matching build metadata](matching-build-metadata.md).
+
+Concrete struct/field source text now uses checked immutable ranges; exact
+origin bytes and full nominal keys select storage sharing, while semantic
+validation stays separate. See [declaration ranges](declaration-ranges.md).
