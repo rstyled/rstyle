@@ -1,11 +1,13 @@
 //! Opt-in performance observations, separate from deterministic evidence.
 //! `RSTYLE_PERF=1` emits JSON lines to stderr; failures to log are nonfatal.
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::io::Write;
-use std::sync::OnceLock;
+use std::sync::{
+    OnceLock,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::Instant;
 
 #[derive(Default)]
@@ -18,15 +20,26 @@ thread_local! {
     static COUNTS: RefCell<Counts> = RefCell::default();
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+struct ObservationId(u64);
+
+impl ObservationId {
+    fn next() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        Self(NEXT.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
 #[derive(Clone, Serialize)]
 struct Event<'a> {
+    schema: &'static str,
+    observation_id: ObservationId,
     stage: &'a str,
     identity: &'a str,
     pid: u32,
     event: &'a str,
     depth: usize,
     visit: usize,
-    evidence_digest: Option<String>,
     evidence_bytes: usize,
     elapsed_seconds: f64,
     verification_policy: &'static str,
@@ -47,24 +60,24 @@ struct Observation<'a> {
 
 impl<'a> Observation<'a> {
     fn start(stage: &'a str, identity: &'a str, evidence: Option<&[u8]>) -> Self {
-        let digest = evidence.map(|bytes| format!("sha256:{:x}", Sha256::digest(bytes)));
         let (depth, visit) = COUNTS.with_borrow_mut(|counts| {
             counts.depth += 1;
             let visit = counts
                 .visits
-                .entry(format!("{stage}:{}", digest.as_deref().unwrap_or(identity)))
+                .entry(format!("{stage}:{identity}"))
                 .or_default();
             *visit += 1;
             (counts.depth, *visit)
         });
         let event = Event {
+            schema: "rstyle.performance-event/2",
+            observation_id: ObservationId::next(),
             stage,
             identity,
             pid: std::process::id(),
             event: "start",
             depth,
             visit,
-            evidence_digest: digest,
             evidence_bytes: evidence.map_or(0, <[u8]>::len),
             elapsed_seconds: 0.0,
             verification_policy: if crate::verification_policy::is_generated() {
@@ -112,7 +125,8 @@ impl Drop for Observation<'_> {
 }
 
 /// Metadata for one fallible operation, separate from its immutable inputs.
-/// Evidence digests count exact byte visits for diagnosis, never authorize reuse.
+/// Evidence is borrowed only to record its length, never scanned or fingerprinted.
+/// Observation IDs are process-local event handles, never verification authority.
 pub struct Stage<'a> {
     stage: &'a str,
     identity: &'a str,
@@ -179,16 +193,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn exact_evidence_counts_and_nested_depth_survive_failure() {
+    fn observation_ids_and_labeled_visits_survive_nested_failure() {
         let mut outer = Observation::start("test.verify", "caller", Some(b"proof"));
-        let mut repeated = Observation::start("test.verify", "other caller", Some(b"proof"));
+        let mut repeated = Observation::start("test.verify", "caller", Some(b"other"));
         let distinct = Observation::start("test.verify", "caller", Some(b"tampered"));
         assert_eq!(repeated.event.visit, outer.event.visit + 1);
         assert_eq!(repeated.event.depth, outer.event.depth + 1);
-        assert_ne!(distinct.event.evidence_digest, outer.event.evidence_digest);
+        assert_ne!(distinct.event.observation_id, outer.event.observation_id);
+        assert_ne!(repeated.event.observation_id, outer.event.observation_id);
+        assert_eq!(distinct.event.visit, repeated.event.visit + 1);
+        let event = serde_json::to_value(&distinct.event).unwrap();
+        assert_eq!(event["schema"], "rstyle.performance-event/2");
+        assert!(event.get("evidence_digest").is_none());
         assert_eq!(distinct.event.evidence_bytes, 8);
         repeated.finish(false);
         assert_eq!(repeated.event.event, "failure");
+        assert_eq!(
+            repeated.final_event().observation_id,
+            repeated.event.observation_id
+        );
         drop(distinct);
         drop(repeated);
         outer.finish(true);

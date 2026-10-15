@@ -46,7 +46,8 @@ serialized evidence does not acquire that trust.
    partitions, direction, families, multiplicity, scores and deterministic reports.
 7. Measure and reduce matching scratch allocation, clones, repeated graph
    preparation and trace refinement. Pair-dependent labels remain pair-local.
-8. Remove large diagnostic content fingerprints where observation IDs suffice.
+8. Diagnostic content fingerprints are replaced by process-local observation
+   IDs in the next increment; see `diagnostic-observation-ids.md`.
    Historical study snapshots, fixture hashes and precomputed contracts are not
    ordinary-runtime costs and remain outside this optimization.
 9. Complete representative minimal, read/inherent, fanout, larger graph/pair,
