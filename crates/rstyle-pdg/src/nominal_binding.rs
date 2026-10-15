@@ -80,29 +80,44 @@ impl UnitBindings {
     }
 }
 
+struct BindingContext<'a> {
+    package: &'a PackageContext,
+    files: BTreeMap<PathBuf, std::sync::Arc<str>>,
+    builds: BuildContexts,
+    origins: declaration_origins::Sources,
+}
+
+impl<'a> BindingContext<'a> {
+    fn new(package: &'a PackageContext) -> Result<Self, String> {
+        package.validate()?;
+        Ok(Self {
+            package,
+            files: BTreeMap::new(),
+            builds: BuildContexts::default(),
+            origins: declaration_origins::Sources::default(),
+        })
+    }
+}
+
 /// The context must come from the independently frozen selected Cargo plan,
 /// after observed target/unit and frontend invocation checks, not the producer.
 pub fn bind_unit(facts: &[HirFnFacts], context: &PackageContext) -> Result<UnitBindings, String> {
-    context.validate()?;
-    let mut files = BTreeMap::new();
-    let mut builds = BuildContexts::default();
+    let mut unit = BindingContext::new(context)?;
     let bindings = facts
         .iter()
-        .map(|function| bind(function, context, &mut files, &mut builds))
+        .map(|function| bind(function, &mut unit))
         .collect::<Result<Vec<_>, _>>()?;
     for function in facts {
-        check_function_source(function, &files)?;
+        check_function_source(function, &unit.files)?;
     }
 
-    Ok(UnitBindings { bindings, builds })
+    Ok(UnitBindings {
+        bindings,
+        builds: unit.builds,
+    })
 }
 
-fn bind(
-    facts: &HirFnFacts,
-    context: &PackageContext,
-    files: &mut BTreeMap<PathBuf, std::sync::Arc<str>>,
-    builds: &mut BuildContexts,
-) -> Result<Option<Binding>, String> {
+fn bind(facts: &HirFnFacts, unit: &mut BindingContext<'_>) -> Result<Option<Binding>, String> {
     let options = &facts.build.frontend_options;
     if !options.contains_key(concrete_types::KEY) {
         if options.contains_key(declaration_origins::KEY) {
@@ -115,18 +130,18 @@ fn bind(
         return Err("Missing original declaration evidence".into());
     }
     let origins = options.data::<Origins>()?;
-    declaration_origins::verify(&interface, &origins)?;
+    unit.origins.verify(&interface, &origins)?;
     let declarations = origins
         .declarations
         .iter()
-        .map(|origin| bind_declaration(origin, context, files))
+        .map(|origin| bind_declaration(origin, unit.package, &mut unit.files))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Some(Binding {
         identity: IDENTITY.into(),
-        package_id: context.package_id.clone(),
-        manifest_digest: context.manifest_digest.clone(),
-        build_id: builds.intern(&facts.build)?,
+        package_id: unit.package.package_id.clone(),
+        manifest_digest: unit.package.manifest_digest.clone(),
+        build_id: unit.builds.intern(&facts.build)?,
         declarations,
     }))
 }

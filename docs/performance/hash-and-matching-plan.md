@@ -40,8 +40,9 @@ serialized evidence does not acquire that trust.
    Immutable function ranges and memoized actual range identities are implemented
    next; see `owned-source-ranges.md`. Source wire dictionaries, capture-time
    reconstruction, remaining declaration identities and boundary reuse are still
-   pending. Continue
-   consolidation without crossing edits, owners or strict/generated policy.
+   pending. Checked declaration-file inventories now consolidate nominal-binding
+   hashes/parses and avoid temporary budget buffers; see
+   `origin-file-inventories.md`. Continue consolidation without crossing edits, owners or strict/generated policy.
 4. Replace local unit/function/ledger JSON-to-digest identities with explicit
    namespace-qualified typed handles, run-local assignment and exact duplicate
    descriptor checks. Version exports and state stability guarantees.
