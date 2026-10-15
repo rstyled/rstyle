@@ -764,7 +764,7 @@ fn cfg_source(facts: &dyn EvidenceFacts) -> CfgSource {
         id: "source".to_string(),
         path: source_path(facts),
         content_identity: StringFact::known(&facts.source.digest),
-        content: Some(facts.source.bytes.to_string()),
+        content: Some(facts.source.bytes.clone()),
     }
 }
 

@@ -3,6 +3,7 @@
 use super::*;
 use std::io::Write;
 mod function_sources;
+mod graph_sources;
 
 const SCHEMA: &str = "rstyle.shared-unit/4";
 
@@ -212,7 +213,7 @@ impl Decoded {
         }
         u32::try_from(self.wire.helpers.len()).map_err(|_| "Oversized helper table")?;
         u32::try_from(self.wire.graphs.len()).map_err(|_| "Oversized graph table")?;
-        let store = UnitStore {
+        let mut store = UnitStore {
             namespace: store.namespace,
             functions: store.functions,
             links: store.links,
@@ -224,6 +225,7 @@ impl Decoded {
         store.validate_roots()?;
         store.validate_certifications()?;
         store.validate_depths()?;
+        graph_sources::share(&mut store);
         Ok(store)
     }
 }

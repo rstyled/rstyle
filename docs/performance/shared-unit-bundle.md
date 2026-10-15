@@ -169,3 +169,7 @@ File buffers now use `SourceSnapshot`, sharing their lazy actual content digest
 across census, origins and function ranges. Imported owners start with empty
 memos. See [snapshot identities](source-snapshot-identity.md). This changes no
 wire strings, stored digest claims or verification authority.
+
+CFG content now uses checked `SourceText` ranges. Equal imported content shares
+the owning function range after structure checks, preserving all claims and
+subsequent semantic verification. See [CFG source ownership](cfg-source-owner.md).

@@ -369,7 +369,7 @@ fn cfg_doc(pdg_key: &str, cfg_key: &str) -> CfgDocument {
             id: "s0".to_string(),
             path: "a.rs".to_string(),
             content_identity: StringFact::known(DIGEST_A),
-            content: Some("a".to_string()),
+            content: Some("a".into()),
         }],
         function: CfgFunction {
             id: "f".to_string(),
