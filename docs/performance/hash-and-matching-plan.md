@@ -29,8 +29,9 @@ serialized evidence does not acquire that trust.
    supported-toolchain contract. First implementation increment; measurement and
    validation are recorded in `library-resolution-retirement.md`.
 2. Pair-local complete-key location interning is implemented in the next increment;
-   see `local-location-handles.md`. Interning exact relevant build contexts with
-   owner-scoped `BuildId` remains pending.
+   see `local-location-handles.md`. Unit-owned exact build-setting interning with
+   scoped `BuildId` is implemented in the following increment; see
+   `unit-build-contexts.md`. Source/package ownership remains pending.
 3. Consolidate source snapshots, checked ranges and source/context correspondence.
    Reuse checked views within immutable owners without crossing edits, owners or
    strict/generated policy boundaries.

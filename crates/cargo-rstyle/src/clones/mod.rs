@@ -114,7 +114,14 @@ impl Serialize for ReportFacts {
     }
 }
 
+#[derive(Serialize)]
+struct UnitBuildContexts {
+    unit_bundle: PathBuf,
+    builds: rstyle_pdg::nominal_binding::BuildContexts,
+}
+
 struct Handoff {
+    build_contexts: Vec<UnitBuildContexts>,
     source_inventory: Vec<Value>,
     assessed: Vec<Function>,
     admitted: Vec<ImportedFunction>,
@@ -234,6 +241,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 
 fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {
     let mut result = Handoff {
+        build_contexts: Vec::new(),
         source_inventory: Vec::new(),
         assessed: Vec::new(),
         admitted: Vec::new(),
@@ -263,7 +271,7 @@ fn consume_unit(
         return Err("Unit extraction profile disagrees with plan".into());
     }
     let snapshot = capture::load_inventory(unit)?;
-    let mut bindings = Vec::new();
+    let mut bindings = rstyle_pdg::nominal_binding::UnitBindings::empty(0);
 
     let store =
         rstyle_pdg::unit_store::UnitStore::from_verified_current_run(&snapshot.bundle, |facts| {
@@ -292,13 +300,17 @@ fn consume_unit(
 
 fn consume_store(
     store: Arc<rstyle_pdg::unit_store::UnitStore>,
-    bindings: Vec<Option<rstyle_pdg::nominal_binding::Binding>>,
+    bindings: rstyle_pdg::nominal_binding::UnitBindings,
     request: &UnitRequest,
     result: &mut Handoff,
 ) -> Result<(), String> {
     let analysis = store.analysis();
+    result.build_contexts.push(UnitBuildContexts {
+        unit_bundle: request.unit.directory.join("unit.evidence.json"),
+        builds: bindings.builds,
+    });
 
-    for (index, binding) in bindings.into_iter().enumerate() {
+    for (index, binding) in bindings.bindings.into_iter().enumerate() {
         let function = &store.functions()[index];
         let key = function_key(function, request.unit, request.capture)?;
         if !result.keys.insert(key.clone()) {
@@ -339,12 +351,14 @@ fn verify_receiver_inventory(
 fn nominal_bindings(
     facts: &[HirFnFacts],
     unit: &capture::Unit,
-) -> Result<Vec<Option<rstyle_pdg::nominal_binding::Binding>>, String> {
+) -> Result<rstyle_pdg::nominal_binding::UnitBindings, String> {
     if !unit
         .extraction_profile
         .supports("rust.verified-helper-calls")
     {
-        return Ok(vec![None; facts.len()]);
+        return Ok(rstyle_pdg::nominal_binding::UnitBindings::empty(
+            facts.len(),
+        ));
     }
     let context = unit
         .target

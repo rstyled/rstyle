@@ -155,7 +155,8 @@ exact original function bytes and digests. Source names are absolute; outside-ro
 and contradictory observations fail handoff explicitly. No source reread, evidence
 cache or compiler-order dependence was introduced.
 
-Function reports include `rstyle.rust.nominal-unit-binding/1` for observed concrete
+Function reports include `rstyle.rust.nominal-unit-binding/2` (see
+[unit-owned build contexts](../performance/unit-build-contexts.md)) for observed concrete
 interfaces, with selected package identity, manifest digest, declaration identities
 and source navigation, and an exact build-evidence digest. Empty declaration
 inventories may accompany unsupported interface observations, including generated

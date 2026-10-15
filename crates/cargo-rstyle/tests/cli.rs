@@ -2728,14 +2728,15 @@ fn check_nominal_unit_binding(function: &Value, report: &Value) {
         rstyle_pdg::concrete_types::digest(context.manifest_bytes.as_bytes())
     );
     let actual = nominal_binding::bind_unit(std::slice::from_ref(&facts), &context).unwrap();
+    checked_build_context(function, report);
     assert_eq!(
-        serde_json::to_value(&actual[0]).unwrap(),
+        serde_json::to_value(&actual.bindings[0]).unwrap(),
         function["nominal_unit_binding"]
     );
     check_nominal_evidence_corruption(
         &facts,
         &context,
-        !actual[0].as_ref().unwrap().declarations.is_empty(),
+        !actual.bindings[0].as_ref().unwrap().declarations.is_empty(),
     );
     for change in ["name", "version", "manifest", "root"] {
         let mut changed = context.clone();
@@ -2750,7 +2751,7 @@ fn check_nominal_unit_binding(function: &Value, report: &Value) {
             "root" => changed.manifest_path = PathBuf::from("/different/package/Cargo.toml"),
             _ => unreachable!(),
         }
-        if !actual[0].as_ref().unwrap().declarations.is_empty() {
+        if !actual.bindings[0].as_ref().unwrap().declarations.is_empty() {
             assert!(
                 nominal_binding::bind_unit(std::slice::from_ref(&facts), &changed).is_err(),
                 "{change}"
@@ -3322,13 +3323,37 @@ fn clones_nominal_bindings_preserve_inherited_packages_and_target_contexts() {
     for function in functions {
         if let Some(binding) = checked_getter_binding(function) {
             packages.insert(binding["package_id"].as_str().unwrap().to_owned());
-            builds.insert(binding["build_digest"].as_str().unwrap().to_owned());
+            let contexts = checked_build_context(function, &report);
+            builds.insert((
+                function["unit_evidence"]["bundle"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+                binding["build_id"].as_u64().unwrap(),
+            ));
+            assert_eq!(contexts["features"], function["facts"]["build"]["features"]);
         }
     }
     assert_eq!(packages.len(), 2);
     assert_eq!(builds.len(), 4);
     assert_eq!(report["pair_evaluation_complete"], true);
     assert_eq!(report["pair_enumeration_complete"], true);
+}
+
+fn checked_build_context<'a>(function: &Value, report: &'a Value) -> &'a Value {
+    let binding = &function["nominal_unit_binding"];
+    assert!(binding.get("build_digest").is_none());
+    let tables = report["build_contexts"].as_array().unwrap();
+    let table = tables
+        .iter()
+        .find(|table| table["unit_bundle"] == function["unit_evidence"]["bundle"])
+        .unwrap();
+    assert_eq!(
+        table["builds"]["identity"],
+        "rstyle.rust.unit-build-contexts/1"
+    );
+    assert_eq!(table["builds"]["contexts"].as_array().unwrap().len(), 1);
+    &table["builds"]["contexts"][binding["build_id"].as_u64().unwrap() as usize]
 }
 
 fn checked_getter_binding(function: &Value) -> Option<&Value> {
@@ -3407,9 +3432,13 @@ fn check_nominal_refresh(before: &Value, after: &Value) {
     }
     let old = &before["functions"][0]["nominal_unit_binding"];
     let new = &after["functions"][0]["nominal_unit_binding"];
-    for key in ["package_id", "manifest_digest", "build_digest"] {
+    for key in ["package_id", "manifest_digest"] {
         assert_ne!(old[key], new[key], "{key}");
     }
+    let old_build = checked_build_context(&before["functions"][0], before);
+    let new_build = checked_build_context(&after["functions"][0], after);
+    assert_ne!(old_build["debug_assertions"], new_build["debug_assertions"]);
+    assert_ne!(old_build["frontend_options"], new_build["frontend_options"]);
     assert_ne!(
         old["declarations"][0]["file_digest"],
         new["declarations"][0]["file_digest"]

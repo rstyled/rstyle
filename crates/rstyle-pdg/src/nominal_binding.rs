@@ -3,7 +3,9 @@
 
 use crate::concrete_types::{Nominal, digest};
 use crate::declaration_origins::Origins;
-use crate::{BuildFacts, HirFnFacts, concrete_types, declaration_origins};
+use crate::{HirFnFacts, concrete_types, declaration_origins};
+mod builds;
+pub use builds::{BuildContexts, BuildId};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -11,7 +13,7 @@ use std::{
 };
 
 pub const PACKAGE_IDENTITY: &str = "rstyle.rust.cargo-package-capture/1";
-pub const IDENTITY: &str = "rstyle.rust.nominal-unit-binding/1";
+pub const IDENTITY: &str = "rstyle.rust.nominal-unit-binding/2";
 pub const MAX_MANIFEST_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,39 +57,51 @@ pub struct BoundDeclaration {
     pub file_digest: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Binding {
     pub identity: String,
     pub package_id: String,
     pub manifest_digest: String,
-    pub build_digest: String,
+    pub build_id: BuildId,
     pub declarations: Vec<BoundDeclaration>,
+}
+
+pub struct UnitBindings {
+    pub bindings: Vec<Option<Binding>>,
+    pub builds: BuildContexts,
+}
+
+impl UnitBindings {
+    pub fn empty(count: usize) -> Self {
+        Self {
+            bindings: vec![None; count],
+            builds: BuildContexts::default(),
+        }
+    }
 }
 
 /// The context must come from the independently frozen selected Cargo plan,
 /// after observed target/unit and frontend invocation checks, not the producer.
-pub fn bind_unit(
-    facts: &[HirFnFacts],
-    context: &PackageContext,
-) -> Result<Vec<Option<Binding>>, String> {
+pub fn bind_unit(facts: &[HirFnFacts], context: &PackageContext) -> Result<UnitBindings, String> {
     context.validate()?;
     let mut files = BTreeMap::new();
+    let mut builds = BuildContexts::default();
     let bindings = facts
         .iter()
-        .map(|function| bind(function, context, &mut files))
+        .map(|function| bind(function, context, &mut files, &mut builds))
         .collect::<Result<Vec<_>, _>>()?;
     for function in facts {
         check_function_source(function, &files)?;
     }
 
-    Ok(bindings)
+    Ok(UnitBindings { bindings, builds })
 }
 
 fn bind(
     facts: &HirFnFacts,
     context: &PackageContext,
     files: &mut BTreeMap<PathBuf, String>,
+    builds: &mut BuildContexts,
 ) -> Result<Option<Binding>, String> {
     let options = &facts.build.frontend_options;
     if !options.contains_key(concrete_types::KEY) {
@@ -115,7 +129,7 @@ fn bind(
         identity: IDENTITY.into(),
         package_id: context.package_id.clone(),
         manifest_digest: context.manifest_digest.clone(),
-        build_digest: build_digest(&facts.build)?,
+        build_id: builds.intern(&facts.build)?,
         declarations,
     }))
 }
@@ -196,12 +210,6 @@ fn check_range(
     }
 
     Ok(())
-}
-
-pub fn build_digest(build: &BuildFacts) -> Result<String, String> {
-    serde_json::to_vec(build)
-        .map(|bytes| digest(&bytes))
-        .map_err(|e| e.to_string())
 }
 
 fn absolute_path(path: &Path) -> Result<PathBuf, String> {
