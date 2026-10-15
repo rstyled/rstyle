@@ -56,6 +56,8 @@ serialized evidence does not acquire that trust.
 6. Benchmark full-key WL interning using FNV-1a and an appropriate alternative,
    including deliberate collisions. Keep a measured winner over the tree; retain
    partitions, direction, families, multiplicity, scores and deterministic reports.
+   `wl-interner-selection.md` records the benchmark and retained entry-tree implementation;
+   hash maps are not presumed faster.
 7. Measure and reduce matching scratch allocation, clones, repeated graph
    preparation and trace refinement. Pair-dependent labels remain pair-local.
 8. Diagnostic content fingerprints are replaced by process-local observation

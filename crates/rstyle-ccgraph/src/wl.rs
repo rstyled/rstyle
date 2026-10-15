@@ -12,6 +12,8 @@ use crate::{
     graph::{ProjectedGraph, family_rank},
 };
 use std::collections::BTreeMap;
+mod key;
+use key::WlTuple;
 
 /// Maximum finite shortest-path distance over reachable distinct ordered
 /// vertex pairs, following recorded direction. Unreachable pairs are
@@ -90,13 +92,6 @@ pub fn pair_depth(nodes_a: usize, diameter_a: usize, nodes_b: usize, diameter_b:
 /// Positive integer weights `w_r = h + 1 - r` for rounds `0..=h`.
 pub fn weights(h: usize) -> Vec<u64> {
     (0..=h).map(|r| (h + 1 - r) as u64).collect()
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct WlTuple {
-    label: u64,
-    incoming: Vec<(u8, u64)>,
-    outgoing: Vec<(u8, u64)>,
 }
 
 pub struct WlRefinement {
@@ -200,11 +195,8 @@ fn advance(a: &MatchingGraph, b: &MatchingGraph, state: RefineState) -> RefineSt
 }
 
 fn intern(tuple: WlTuple, mut interner: BTreeMap<WlTuple, u64>) -> (u64, BTreeMap<WlTuple, u64>) {
-    if let Some(id) = interner.get(&tuple) {
-        return (*id, interner);
-    }
     let id = interner.len() as u64;
-    interner.insert(tuple, id);
+    let id = *interner.entry(tuple).or_insert(id);
     (id, interner)
 }
 

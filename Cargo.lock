@@ -1137,6 +1137,7 @@ dependencies = [
  "rstyle-pdg",
  "serde",
  "serde_json",
+ "xxhash-rust",
 ]
 
 [[package]]
