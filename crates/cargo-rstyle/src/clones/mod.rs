@@ -27,9 +27,6 @@ pub struct Args {
     /// Include conformance evidence (projection traces and WL round histograms).
     #[arg(long)]
     trace: bool,
-    /// Export bounded expanded standalone evidence for compatibility/debugging.
-    #[arg(long)]
-    expanded_evidence: bool,
     /// Exit 1 if any pair is accepted; similarity does not prove equivalence.
     #[arg(long)]
     fail_on_accepted_pairs: bool,
@@ -88,33 +85,25 @@ fn configuration(cli: &Cli, args: &Args) -> Result<CcgraphConfig, String> {
 struct Function {
     key: String,
     compilation_unit: String,
-    artifact_prefix: Option<PathBuf>,
     unit_evidence: Value,
     outcome: String,
     reasons: Vec<String>,
     facts: ReportFacts,
-    document_manifest: Option<producer::Manifest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     nominal_unit_binding: Option<rstyle_pdg::nominal_binding::Binding>,
     projection_trace: Option<Value>,
     extraction_evidence: Option<Value>,
 }
 
-enum ReportFacts {
-    Shared {
-        store: Arc<rstyle_pdg::unit_store::UnitStore>,
-        index: usize,
-    },
-    Expanded(Box<HirFnFacts>),
+struct ReportFacts {
+    store: Arc<rstyle_pdg::unit_store::UnitStore>,
+    index: usize,
 }
 
 impl Deref for ReportFacts {
     type Target = HirFnFacts;
     fn deref(&self) -> &HirFnFacts {
-        match self {
-            Self::Shared { store, index } => &store.functions()[*index],
-            Self::Expanded(facts) => facts,
-        }
+        &self.store.functions()[self.index]
     }
 }
 
@@ -304,7 +293,6 @@ fn consume_store(
     result: &mut Handoff,
 ) -> Result<(), String> {
     let analysis = store.analysis();
-    let first = result.assessed.len();
 
     for (index, binding) in bindings.into_iter().enumerate() {
         let function = &store.functions()[index];
@@ -312,7 +300,7 @@ fn consume_store(
         if !result.keys.insert(key.clone()) {
             return Err(format!("duplicate function key {key}"));
         }
-        let facts = ReportFacts::Shared {
+        let facts = ReportFacts {
             store: Arc::clone(&store),
             index,
         };
@@ -325,9 +313,6 @@ fn consume_store(
         };
         let admission = consume_function(&mut record, &input);
         result.add(record, admission);
-    }
-    if request.args.expanded_evidence {
-        export_unit_readable(&mut result.assessed[first..], &store, request.unit)?;
     }
     Ok(())
 }
@@ -399,12 +384,10 @@ fn function_record(
             "{}:{}:test={}",
             unit.target.package, unit.target.name, unit.test
         ),
-        artifact_prefix: None,
-        unit_evidence: json!({"bundle": unit.directory.join("unit.evidence.json"), "function": u32::try_from(index).expect("checked unit function table")}),
+        unit_evidence: json!({"identity":function.store.identity(), "bundle": unit.directory.join("unit.evidence.json"), "function": u32::try_from(index).expect("checked unit function table")}),
         outcome: "assessed".into(),
         reasons: Vec::new(),
         facts: function,
-        document_manifest: None,
         nominal_unit_binding: None,
         projection_trace: None,
         extraction_evidence: None,
@@ -556,75 +539,6 @@ fn consume_function(
     record.projection_trace = input.trace.then(|| projection_trace(&function));
     record_admission(record, pair)?;
     Ok(Some(function))
-}
-
-fn export_unit_readable(
-    records: &mut [Function],
-    store: &rstyle_pdg::unit_store::UnitStore,
-    unit: &capture::Unit,
-) -> Result<(), String> {
-    let exports = readable_exports(store, unit)?;
-    let completed = exports
-        .into_iter()
-        .map(export_readable)
-        .collect::<Result<Vec<_>, _>>()?;
-    apply_readable_exports(records, completed);
-    Ok(())
-}
-
-struct ReadableExport {
-    facts: HirFnFacts,
-    prefix: PathBuf,
-    has_pair: bool,
-    manifest: Option<rstyle_pdg::producer::Manifest>,
-}
-
-fn readable_exports(
-    store: &rstyle_pdg::unit_store::UnitStore,
-    unit: &capture::Unit,
-) -> Result<Vec<ReadableExport>, String> {
-    let expanded = store.expanded_frontends()?;
-    Ok(expanded
-        .into_iter()
-        .enumerate()
-        .map(|(index, facts)| ReadableExport {
-            facts,
-            prefix: unit
-                .directory
-                .join("readable")
-                .join(format!("function-{index}")),
-            has_pair: store.pair(index).is_some(),
-            manifest: None,
-        })
-        .collect())
-}
-
-fn apply_readable_exports(records: &mut [Function], exports: Vec<ReadableExport>) {
-    for (record, export) in records.iter_mut().zip(exports) {
-        record.document_manifest = export.manifest;
-        record.artifact_prefix = Some(export.prefix);
-        record.facts = ReportFacts::Expanded(Box::new(export.facts));
-    }
-}
-
-fn export_readable(mut export: ReadableExport) -> Result<ReadableExport, String> {
-    let prefix = &export.prefix;
-    std::fs::create_dir_all(prefix.parent().ok_or("Missing readable export directory")?)
-        .map_err(|error| error.to_string())?;
-    if export.has_pair {
-        let pair = producer::produce(&export.facts).map_err(|errors| errors.join("; "))?;
-        let serialized = pair.serialize().map_err(|error| error.to_string())?;
-        std::fs::write(prefix.with_extension("pdg.json"), serialized.pdg_bytes)
-            .map_err(|error| error.to_string())?;
-        std::fs::write(prefix.with_extension("cfg.json"), serialized.cfg_bytes)
-            .map_err(|error| error.to_string())?;
-        write_json(
-            &prefix.with_extension("manifest.json"),
-            &serialized.manifest,
-        )?;
-        export.manifest = Some(serialized.manifest);
-    }
-    Ok(export)
 }
 
 fn record_admission(record: &mut Function, pair: &producer::Pair) -> Result<(), String> {

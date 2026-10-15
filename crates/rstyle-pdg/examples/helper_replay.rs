@@ -62,27 +62,10 @@ fn replay(path: &Path, generated: bool, storage: bool) -> Result<(), String> {
 fn storage_report(store: &UnitStore) -> Result<serde_json::Value, String> {
     let mut bundle = Vec::new();
     store.write_bundle(&mut bundle)?;
-    let expanded = store.expanded_frontends()?;
-    let expanded_bytes = serde_json::to_vec(&expanded)
-        .map_err(|error| error.to_string())?
-        .len();
-    let mut pairs_bytes = 0;
-    for (index, facts) in expanded.iter().enumerate() {
-        if store.pair(index).is_some() {
-            let pair = rstyle_pdg::producer::produce(facts).map_err(|errors| errors.join("; "))?;
-            let pair = pair.serialize().map_err(|error| error.to_string())?;
-            pairs_bytes += pair.pdg_bytes.len()
-                + pair.cfg_bytes.len()
-                + serde_json::to_vec(&pair.manifest)
-                    .map_err(|error| error.to_string())?
-                    .len();
-        }
-    }
-    Ok(
-        serde_json::json!({"scope":"optional-storage-comparison", "shared_bundle_bytes":bundle.len(),
-        "expanded_frontend_bytes":expanded_bytes,"standalone_pair_bytes":pairs_bytes,
-        "unique_graphs":store.graph_count(),"unique_helpers":store.helper_count()}),
-    )
+    Ok(serde_json::json!({
+        "scope":"shared-storage", "shared_bundle_bytes":bundle.len(),
+        "unique_graphs":store.graph_count(), "unique_helpers":store.helper_count(),
+    }))
 }
 
 fn main() -> std::process::ExitCode {

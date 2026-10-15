@@ -52,22 +52,21 @@ dispatch, argument and effect checks remain. An imported graph is deserialized
 once into the graph table; roots and helper records subsequently borrow it.
 This is ordinary owned deserialization, not zero-copy loading.
 
-The bundle is an explicit new format. Legacy standalone facts/pairs remain a
-narrow supported adapter, and legacy canonical byte manifests keep their
-meaning. The CLI requests shared publication explicitly; direct legacy driver users retain
-the standalone adapter.
-Storage sharing does not bound legitimate pairwise matching work or optional
-expanded output. Existing read/depth budgets and graph-validation checks remain
-in force; further buffer/layout normalization is separate measured tuning.
+The bundle is the compiler/CLI handoff format. Standalone typed pair
+serialization and strict validation remain available for interchange, but there
+is no exporter that reconstructs nested helper proofs. The driver publishes
+shared tables whenever a document directory is selected; the old
+`RSTYLE_HIR_SHARED_UNIT` publication switch is removed. Raw facts-only driver
+output contains observations without attached helper proofs, not a standalone
+helper certification capability. Existing graph schemas and canonical byte
+manifests retain their meaning.
 
-`UnitStore::expanded_frontends` is an explicit standalone compatibility/debug
-export, separate from shared loading. It retains depth-eight and 8 MiB per-call
-bounds and applies a separate 512 MiB aggregate expansion-work budget. Exhaustion
-returns an error rather than truncated evidence. The legacy mutable-facts
-capture entry point now delegates to shared capture and this exporter instead
-of maintaining a second certification runtime. The CLI invokes this exporter only with `--expanded-evidence`, writing separate
-readable standalone pairs. Ordinary analysis never expands helper proof trees.
-
+`--expanded-evidence`, `UnitStore::expanded_frontends` and the mutable
+`helper_calls::capture` adapter are retired. Resolve a function through
+`UnitStore::analysis().function(index)` and its root through `UnitStore::pair`.
+Readable pair serialization preserves references and requires the owning bundle
+for helper/frontend resolution. Helper depth/read budgets and independent graph
+work budgets remain; the deleted expansion path has no expansion budget/runtime.
 
 The driver publishes `unit.evidence.json` and a separate
 `rstyle.shared-unit.manifest/1` seal containing the exact byte count and SHA256.
@@ -79,11 +78,14 @@ structural verification only for independently selected compiler output after
 checking the frozen invocation and selected-unit context. Ordinary `from_bundle`
 always performs strict validation, including inside a generated ambient scope.
 
-Report functions carry a bundle/function reference instead of a mandatory
-standalone artifact prefix. Raw facts remain available for source navigation.
-The report includes `unit_bundle_schema`; standalone graph schema revisions
-remain unchanged. Consumers requiring individual graph artifacts must opt into
-`--expanded-evidence`. The optional export obeys the separate expansion budget.
+Report functions carry `unit_evidence` with the bundle path, local function
+index and exact unit identity. `artifact_prefix` and `document_manifest` are
+removed; no per-function expanded files are published. The path is navigation,
+not persistent identity. The raw unit identity changes after a transitive
+callee edit even when its caller's raw tree is unchanged. Raw facts remain
+available for source navigation. The report includes `unit_bundle_schema`;
+standalone graph schema revisions remain unchanged. This is an intentional
+internal CLI/report/API break, not a new bundle schema revision.
 
 Native-width propagation memoizes successful derived results by function handle
 within one owning analysis/builder. It is independent of verification policy;

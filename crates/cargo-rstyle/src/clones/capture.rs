@@ -730,9 +730,7 @@ fn capture_unit(
 
 fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitStatus, String> {
     write_json(&unit.directory.join("started.json"), unit)?;
-    command
-        .env("RSTYLE_HIR_DOCUMENT_DIR", &unit.directory)
-        .env("RSTYLE_HIR_SHARED_UNIT", "1");
+    command.env("RSTYLE_HIR_DOCUMENT_DIR", &unit.directory);
 
     command.status().map_err(|e| e.to_string())
 }

@@ -191,18 +191,6 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
     calls
 }
 
-/// Capture all local bodies first, then build the acyclic dependency handoff.
-/// Compatibility export for the legacy mutable-facts contract. Ordinary unit
-/// analysis uses UnitStore directly; this adapter deliberately expands proofs.
-pub fn capture(facts: &mut [HirFnFacts]) -> Result<(), String> {
-    let store = crate::unit_store::UnitStore::capture(facts.to_vec())?;
-    let expanded = store.expanded_frontends()?;
-    for (destination, source) in facts.iter_mut().zip(expanded) {
-        *destination = source;
-    }
-    Ok(())
-}
-
 pub(crate) fn certify_view(
     facts: &dyn EvidenceFacts,
 ) -> Result<Option<(Summary, producer::Pair)>, String> {

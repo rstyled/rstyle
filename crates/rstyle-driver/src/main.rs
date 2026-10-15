@@ -114,7 +114,6 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         output: hir_extraction::output::Destination {
             facts_file: path,
             document_directory: document_dir,
-            shared_unit: rstyle_pdg::diagnostics::switch("RSTYLE_HIR_SHARED_UNIT"),
         },
         scanned: Vec::new(),
         invocation: args.clone(),

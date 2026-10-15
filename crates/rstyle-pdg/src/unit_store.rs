@@ -1,7 +1,6 @@
 //! Unit-local ownership and borrowed analysis. Dense IDs are handles, not names.
 mod bundle;
 mod derived;
-mod expanded;
 mod manifest;
 pub use manifest::BundleManifest;
 
@@ -281,6 +280,12 @@ impl UnitStore {
     pub fn capture(functions: Vec<HirFnFacts>) -> Result<Self, String> {
         crate::diagnostics::Stage::new("unit.capture", "unit", None)
             .observe(|| Builder::new(functions)?.capture())
+    }
+
+    /// Strong identity of the exact raw unit evidence and build context.
+    /// Distinct from logical definition identity and local table handles.
+    pub fn identity(&self) -> &str {
+        &self.identity
     }
 
     pub fn functions(&self) -> &[HirFnFacts] {

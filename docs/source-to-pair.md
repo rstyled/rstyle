@@ -56,7 +56,8 @@ profile through source scanning and HIR capture. The recorded rustc invocation
 contains only compiler arguments. `RSTYLE_HIR_EXTRACTION_PROFILE` does not select
 a profile; inherited values are ignored. Unregistered, duplicate or misplaced
 private selection arguments fail before compilation. A standalone driver without
-that argument retains its default R0 capture and historical evidence shape.
+that argument retains its default R0 capture. Facts-only output contains raw
+observations; selecting a document directory publishes a shared unit bundle.
 Only primary compilation units selected as Cargo unit-graph roots receive
 extraction destinations. Probes, build scripts and dependency compilation units
 compile without HIR capture, including selected packages compiled as build
@@ -86,7 +87,8 @@ Each wrapped compiler invocation creates its own directory. `started.json` recor
 its selection and arguments. Only after rustc succeeds and all declared artifacts
 are present does the wrapper publish a compilation-unit ledger using `create_new`.
 Duplicate or ambiguous ledger identities fail visibly. The ledger inventories
-facts, per-function assessments, graphs and manifests with exact byte digests.
+the shared unit bundle, its byte seal and selected source inventory with exact
+byte digests.
 No two compiler processes write the same artifact files.
 
 Successful Cargo compiler-artifact messages identify the ledgers to consume. The
@@ -119,8 +121,9 @@ the exact original function bytes, including CRLF/BOM normalization reversal, an
 filename; graph spans remain function-relative. Add `fn_span.start` to obtain
 file-relative offsets. Graph-local
 node/binding IDs stay local; document keys are resolved within their compilation
-unit's manifest namespace. `artifact_prefix` and the observed unit directories
-locate each exact serialized document and its correspondence extensions.
+owning unit. `unit_evidence` supplies the bundle path, local function index and
+exact unit identity; resolve its paired documents through that store. There are
+no expanded per-function artifacts or `artifact_prefix` fields.
 
 `source_identifier` captures the exact unqualified identifier token spelling,
 removing raw identifier syntax in the Name feature and preserving Unicode spelling
@@ -219,7 +222,8 @@ Capture, assessment, enumeration and pair-evaluation completeness remain distinc
 Trace mode records existing traces without changing decisions.
 
 Every scored local function crosses real compiler capture, paired serialized
-documents and exact manifests, current-run frontend assessment, structural producer
+documents in a shared bundle and its exact byte seal, current-run frontend
+assessment, structural producer
 validation, imported admission and unchanged projection. Every distinct
 unordered admitted pair is enumerated; incompatibilities are recorded at the
 validation gate rather than filtered to inflate successful pair counts. Mixed

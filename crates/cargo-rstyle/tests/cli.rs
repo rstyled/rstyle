@@ -2,6 +2,8 @@
 
 #[path = "../src/diagnostic_process.rs"]
 mod diagnostic_process;
+mod shared_evidence;
+use shared_evidence::{load as data_unit, reject_helper};
 
 use assert_cmd::cargo::cargo_bin;
 use serde_json::Value;
@@ -924,12 +926,24 @@ fn clone_workspace() -> TempDir {
 }
 
 fn clones(directory: &Path, arguments: &[&str]) -> (Output, Value) {
-    let mut args = vec!["clones", "--format", "json", "--expanded-evidence"];
+    let mut args = vec!["clones", "--format", "json"];
     args.extend_from_slice(arguments);
     let output = rstyle(directory, &args);
     let report = serde_json::from_slice(&output.stdout)
         .unwrap_or_else(|error| panic!("{error}: {}", String::from_utf8_lossy(&output.stderr)));
     (output, report)
+}
+
+#[test]
+fn clones_rejects_retired_expanded_evidence_option() {
+    let directory = clone_workspace();
+    let output = rstyle(directory.path(), &["clones", "--expanded-evidence"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("unexpected argument '--expanded-evidence'")
+    );
+    assert!(!directory.path().join("target/rstyle").exists());
 }
 
 #[test]
@@ -998,7 +1012,8 @@ fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
     assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/1");
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
     for function in report["functions"].as_array().unwrap() {
-        assert!(function["artifact_prefix"].is_null());
+        assert!(function.get("artifact_prefix").is_none());
+        assert!(function.get("document_manifest").is_none());
         let facts: rstyle_pdg::HirFnFacts =
             serde_json::from_value(function["facts"].clone()).unwrap();
         let mut calls = Vec::new();
@@ -2158,14 +2173,8 @@ fn clones_helpers_verify_serialized_dependencies_and_transitive_edits() {
         .iter()
         .find(|function| function["facts"]["name"] == "second")
         .unwrap();
-    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(wrapper["facts"].clone()).unwrap();
     for corruption in ["manifest", "source", "signature", "effects"] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, corruption));
-        assert!(
-            rstyle_pdg::producer::produce(&changed).is_err(),
-            "{corruption}"
-        );
+        reject_helper(wrapper, corruption);
     }
     std::fs::write(&callee, "pub fn positive(x: i32) -> bool { x >= 0 }\n").unwrap();
     let (output, edited) = clones(
@@ -2179,8 +2188,11 @@ fn clones_helpers_verify_serialized_dependencies_and_transitive_edits() {
         .iter()
         .find(|function| function["facts"]["name"] == "second")
         .unwrap();
-    assert_ne!(wrapper["facts"]["body"], changed["facts"]["body"]);
-    assert_ne!(wrapper["document_manifest"], changed["document_manifest"]);
+    assert_eq!(wrapper["facts"]["body"], changed["facts"]["body"]);
+    assert_ne!(
+        wrapper["unit_evidence"]["identity"],
+        changed["unit_evidence"]["identity"]
+    );
     check_native_helper(directory.path(), &callee);
 }
 
@@ -2198,64 +2210,11 @@ fn check_native_helper(directory: &Path, callee: &Path) {
         .iter()
         .find(|function| function["facts"]["name"] == "second")
         .unwrap();
-    let native_facts: rstyle_pdg::HirFnFacts =
-        serde_json::from_value(function["facts"].clone()).unwrap();
-    let pair = rstyle_pdg::producer::produce(&native_facts).unwrap();
-    let imported = rstyle_ccgraph::admit_produced(&pair, &native_facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let imported = rstyle_ccgraph::admit_produced(unit.pair(index).unwrap(), &facts).unwrap();
     assert!(imported.native_width_involved);
-}
-
-fn corrupt_helper(node: &mut rstyle_pdg::HirNode, corruption: &str) -> bool {
-    if node.kind == "expr_call" {
-        let resolution = node.res.as_mut().unwrap();
-        let mut value: Value = serde_json::from_str(&resolution.description).unwrap();
-        let dependency = &mut value[rstyle_pdg::helper_calls::KEY];
-        match corruption {
-            "effects" => dependency["summary"]["always_returns"] = Value::Bool(false),
-            "manifest" => {
-                dependency["manifest"]["documents"][0]["sha256"] =
-                    Value::String("sha256:bad".into())
-            }
-            "source" => {
-                dependency["frontend"]["source"]["bytes"] = Value::String("fn forged() {}".into())
-            }
-            "signature" => {
-                dependency["frontend"]["signature"]["return_ty"]["normalized"] =
-                    Value::String("i32".into())
-            }
-            "output_missing" => {
-                dependency["summary"]
-                    .as_object_mut()
-                    .unwrap()
-                    .remove("reference_outputs");
-            }
-            "output_parameter" => {
-                dependency["summary"]["reference_outputs"][0]["parameter"] = serde_json::json!(0)
-            }
-            "output_empty" => dependency["summary"]["reference_outputs"] = serde_json::json!([]),
-            "output_path" => {
-                dependency["summary"]["reference_outputs"][0]["path"] = serde_json::json!([])
-            }
-            "output_identity" => {
-                dependency["summary"]["identity"] = serde_json::json!("rstyle.helper.source-body/1")
-            }
-            "unit_invocation" => {
-                dependency["frontend"]["build"]["frontend_options"]["invocation"] =
-                    serde_json::json!(["forged"])
-            }
-            "unit_target" => {
-                dependency["frontend"]["build"]["target_triple"]["value"] =
-                    serde_json::json!("another-target")
-            }
-            _ => unreachable!(),
-        }
-        resolution.description = serde_json::to_string(&value).unwrap();
-        return true;
-    }
-
-    node.children
-        .iter_mut()
-        .any(|child| corrupt_helper(child, corruption))
 }
 
 #[test]
@@ -2335,10 +2294,24 @@ fn assert_capture_order(facts: &[rstyle_pdg::HirFnFacts]) {
     }
     let mut reversed = forward.clone();
     reversed.reverse();
-    rstyle_pdg::helper_calls::capture(&mut forward).unwrap();
-    rstyle_pdg::helper_calls::capture(&mut reversed).unwrap();
-    reversed.reverse();
-    assert_eq!(forward, reversed);
+    let forward = rstyle_pdg::unit_store::UnitStore::capture(forward).unwrap();
+    let reversed = rstyle_pdg::unit_store::UnitStore::capture(reversed).unwrap();
+    assert_eq!(forward.helper_count(), reversed.helper_count());
+    assert_eq!(admitted_unit(&forward), admitted_unit(&reversed));
+}
+
+fn admitted_unit(
+    store: &rstyle_pdg::unit_store::UnitStore,
+) -> Vec<rstyle_ccgraph::ImportedFunction> {
+    let analysis = store.analysis();
+    let mut admitted: Vec<_> = (0..store.functions().len())
+        .filter_map(|index| {
+            let pair = store.pair(index)?;
+            Some(rstyle_ccgraph::admit_produced(pair, &analysis.function(index).unwrap()).unwrap())
+        })
+        .collect();
+    admitted.sort_by(|a, b| a.key.cmp(&b.key));
+    admitted
 }
 
 #[test]
@@ -2500,14 +2473,13 @@ fn corrupt_unit_bundle(wire: &mut Value, corruption: &str) {
 fn assert_shared_unit(store: &rstyle_pdg::unit_store::UnitStore) {
     use rstyle_pdg::unit_store::EvidenceFacts;
     let analysis = store.analysis();
-    let standalone = store.expanded_frontends().unwrap();
     for (index, facts) in store.functions().iter().enumerate() {
         let view = analysis.function(index).unwrap();
         rstyle_pdg::producer::verify(store.pair(index).unwrap(), &view).unwrap();
         let imported = rstyle_ccgraph::admit_produced(store.pair(index).unwrap(), &view).unwrap();
-        let legacy_pair = rstyle_pdg::producer::produce(&standalone[index]).unwrap();
-        let legacy = rstyle_ccgraph::admit_produced(&legacy_pair, &standalone[index]).unwrap();
-        assert_eq!(imported, legacy);
+        let produced = rstyle_pdg::producer::produce(&view).unwrap();
+        let reproduced = rstyle_ccgraph::admit_produced(&produced, &view).unwrap();
+        assert_eq!(imported, reproduced);
         let generated =
             rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::produce(&view))
                 .unwrap();
@@ -3450,23 +3422,23 @@ fn check_data_registration(report: &Value) {
     assert_eq!(report["matching"]["profile_version"], "1.0.0");
 }
 
-fn data_pair(function: &Value) -> (rstyle_pdg::producer::Pair, rstyle_pdg::HirFnFacts) {
-    let prefix = function["artifact_prefix"].as_str().unwrap();
-    let pdg =
-        serde_json::from_slice(&std::fs::read(format!("{prefix}.pdg.json")).unwrap()).unwrap();
-    let cfg =
-        serde_json::from_slice(&std::fs::read(format!("{prefix}.cfg.json")).unwrap()).unwrap();
-    let facts = serde_json::from_value(function["facts"].clone()).unwrap();
-    (rstyle_pdg::producer::Pair { pdg, cfg }, facts)
+fn copy_pair(pair: &rstyle_pdg::producer::Pair) -> rstyle_pdg::producer::Pair {
+    rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    }
 }
 
 fn check_data_document_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     for change in [
         "path", "read", "alias", "count", "policy", "write", "operand", "root",
     ] {
-        let (mut changed, _) = data_pair(function);
+        let mut changed = copy_pair(pair);
         tamper_data_document(&mut changed, change);
         assert!(
             rstyle_pdg::data_documents::verify(&changed, &facts).is_err(),
@@ -3533,10 +3505,13 @@ fn data_read(pair: &mut rstyle_pdg::producer::Pair) -> &mut rstyle_pdg::PdgNode 
 }
 
 fn check_data_origins_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     for change in ["origin", "value", "type"] {
-        let (mut changed, _) = data_pair(function);
+        let mut changed = copy_pair(pair);
         match change {
             "origin" => {
                 changed
@@ -3709,7 +3684,10 @@ fn check_nominal_projection(report: &Value, method: &Value) {
         projection["projection"]["features"],
         serde_json::json!([0, 3, 5, 0, 0, 0, 0, 5, 2])
     );
-    let (pair, facts) = data_pair(method);
+    let (unit, index) = data_unit(method);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
     assert_eq!(
         pair.pdg.function.inputs[0].role,
         rstyle_pdg::ParamRole::Receiver
@@ -3725,7 +3703,7 @@ fn check_nominal_projection(report: &Value, method: &Value) {
         serde_json::to_value(rstyle_pdg::StringFact::known("bool")).unwrap(),
     );
     assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
-    let mut changed = pair;
+    let mut changed = copy_pair(pair);
     changed.pdg.function.inputs[0].role = rstyle_pdg::ParamRole::Parameter;
     assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
 }
@@ -3935,8 +3913,11 @@ fn clones_data_stored_reference_fields_preserve_nested_origins_and_all_pairs() {
 
 fn check_stored_reference_origins(function: &Value, name: &str) {
     use rstyle_pdg::{NodeCategory, data_origins};
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     let returned = pair
         .pdg
         .nodes
@@ -4190,8 +4171,11 @@ fn clones_data_field_context_preserves_pointer_reads_and_aggregate_places() {
 
 fn check_stored_pointer_read_tampering(function: &Value) {
     use rstyle_pdg::{NodeCategory, data_places};
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     let mut changed = facts.clone();
     assert!(tamper_pointer_value_type(&mut changed.body));
     assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
@@ -4205,7 +4189,7 @@ fn check_stored_pointer_read_tampering(function: &Value) {
         })
         .unwrap();
     for change in ["read", "role", "operand"] {
-        let (mut changed, _) = data_pair(function);
+        let mut changed = copy_pair(pair);
         if change == "operand" {
             changed
                 .pdg
@@ -4275,7 +4259,10 @@ fn check_lifetime_interface_pair(report: &Value) {
 }
 
 fn check_lifetime_source_tampering(function: &Value) {
-    let (_, facts) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let _ = unit.pair(index).unwrap();
     rstyle_pdg::data_frontend::verify(&facts).unwrap();
     let observed: rstyle_pdg::concrete_types::InterfaceObservations = serde_json::from_value(
         facts.build.frontend_options[rstyle_pdg::concrete_types::KEY].clone(),
@@ -4337,8 +4324,11 @@ fn check_borrow_pair(report: &Value, getter: &Value) {
 }
 
 fn check_borrow_document_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     for change in ["span", "type", "child"] {
         let mut changed = facts.clone();
         assert!(tamper_source_borrow(&mut changed.body, change));
@@ -4519,8 +4509,11 @@ fn clones_data_field_borrows_preserve_array_slice_and_str_referents() {
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
     assert_eq!(report["pair_evaluation_complete"], true);
     for function in functions.iter().filter(|f| f["outcome"] == "admitted") {
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+        let (unit, index) = data_unit(function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
         assert_eq!(pair.pdg.function.reference_count.value, Some(1));
         assert!(
             pair.pdg
@@ -4732,8 +4725,11 @@ fn clones_data_checks_serialized_receiver_evidence_without_reemission() {
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::data_receivers::verify_documents(&pair, &facts).unwrap();
+        let (unit, index) = data_unit(function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::data_receivers::verify_documents(pair, &facts).unwrap();
         let mut bad_signature = facts.clone();
         bad_signature
             .build
@@ -4741,6 +4737,7 @@ fn clones_data_checks_serialized_receiver_evidence_without_reemission() {
             .get_mut(rstyle_pdg::data_receivers::KEY)
             .unwrap()["methods"][0]["signature_inputs"] = serde_json::json!([]);
         assert!(rstyle_pdg::data_receivers::verify(&bad_signature).is_err());
+        shared_evidence::reject_facts(function, &bad_signature);
         for document in ["pdg", "cfg"] {
             let mut changed = rstyle_pdg::producer::Pair {
                 pdg: pair.pdg.clone(),
@@ -4751,12 +4748,9 @@ fn clones_data_checks_serialized_receiver_evidence_without_reemission() {
             } else {
                 &mut changed.cfg.extensions
             };
-            let frontend = &mut extensions
+            extensions
                 .get_mut(rstyle_pdg::extraction_profile::EVIDENCE_KEY)
-                .unwrap()["frontend"];
-            let inputs = &mut frontend["build"]["frontend_options"]
-                [rstyle_pdg::data_receivers::KEY]["methods"][0]["signature_inputs"];
-            *inputs = serde_json::json!([]);
+                .unwrap()["frontend_ref"]["function"] = u32::MAX.into();
             assert!(
                 rstyle_pdg::data_receivers::verify_documents(&changed, &facts).is_err(),
                 "{document}"
@@ -4835,11 +4829,15 @@ fn clones_data_length_family_composes_fields_calls_loops_and_borrowed_branches()
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 105);
     assert_eq!(report["pair_evaluation_complete"], true);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in functions {
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::data_library::verify_documents(&pair, &facts).unwrap();
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::data_library::verify_documents(pair, &facts).unwrap();
         if facts.name == "str_len" {
-            check_length_document_tampering(&pair, &facts);
+            check_length_document_tampering(pair, &facts);
             check_length_frontend_tampering(&facts);
             let projected = report["matching"]["functions"]
                 .as_array()
@@ -4875,10 +4873,14 @@ fn clones_data_verifies_memory_free_shared_argument_helper_families() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 6);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in functions {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
     assert_eq!(report["pair_evaluation_complete"], true);
@@ -4895,12 +4897,13 @@ fn check_shared_helper_dependency(report: &Value) {
         .iter()
         .find(|function| function["facts"]["name"] == "third")
         .unwrap();
-    let (_, facts) = data_pair(wrapper);
+    let (unit, index) = data_unit(wrapper);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let _ = unit.pair(index).unwrap();
     assert!(rstyle_pdg::helper_calls::native_width(&facts).unwrap());
     for corruption in ["manifest", "source", "signature", "effects"] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, corruption));
-        assert!(rstyle_pdg::producer::produce(&changed).is_err());
+        reject_helper(wrapper, corruption);
     }
 }
 
@@ -4943,12 +4946,16 @@ fn clones_data_shared_results_verify_selected_argument_origins_and_all_pairs() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 10);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in functions {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        check_shared_result_origins(&pair, &facts);
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        check_shared_result_origins(pair, &facts);
         if facts.name == "swapped" {
-            check_shared_result_tampering(&pair, &facts);
+            check_shared_result_tampering(pair, &facts, function);
         }
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 45);
@@ -4980,9 +4987,13 @@ fn check_shared_result_edit(directory: &Path, previous: &Value) {
     let before = wrapper(previous);
     let after = wrapper(&report);
     assert_eq!(after["outcome"], "admitted");
-    assert_ne!(before["document_manifest"], after["document_manifest"]);
-    assert_ne!(before["facts"]["body"], after["facts"]["body"]);
-    let (pair, _) = data_pair(&after);
+    assert_ne!(
+        before["unit_evidence"]["identity"],
+        after["unit_evidence"]["identity"]
+    );
+    assert_eq!(before["facts"]["body"], after["facts"]["body"]);
+    let (unit, index) = data_unit(&after);
+    let pair = unit.pair(index).unwrap();
     for node in pair
         .pdg
         .nodes
@@ -5000,7 +5011,10 @@ fn check_shared_result_edit(directory: &Path, previous: &Value) {
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
-fn check_shared_result_origins(pair: &rstyle_pdg::producer::Pair, facts: &rstyle_pdg::HirFnFacts) {
+fn check_shared_result_origins(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+) {
     rstyle_pdg::helper_calls::verify_documents(pair, facts).unwrap();
     if facts.name == "branch" {
         assert_eq!(
@@ -5109,9 +5123,12 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
     );
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
-        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+        let (unit, index) = data_unit(function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
     assert_eq!(report["pair_evaluation_complete"], true);
@@ -5172,11 +5189,15 @@ fn clones_data_inherent_family_composes_source_methods_fields_and_helpers() {
     let assertions =
         rstyle_pdg::diagnostics::Stage::new("test.inherent.assertions", "family", None).enter();
     assert_eq!(report["functions"].as_array().unwrap().len(), 21);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
-        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 210);
     assert_eq!(report["pair_evaluation_complete"], true);
@@ -5203,8 +5224,12 @@ fn check_inherent_call_edit(directory: &Path, previous: &Value) {
     for name in ["model::Data::wrap", "model::Data::third", "invoke"] {
         let old = read_call_function(previous, name);
         let new = read_call_function(&report, name);
-        assert_ne!(old["document_manifest"], new["document_manifest"]);
-        let (pair, _) = data_pair(new);
+        assert_ne!(
+            old["unit_evidence"]["identity"],
+            new["unit_evidence"]["identity"]
+        );
+        let (unit, index) = data_unit(new);
+        let pair = unit.pair(index).unwrap();
         assert_eq!(
             pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
                 [2]["name"],
@@ -5277,7 +5302,10 @@ fn check_unproved_inherent_calls(report: &Value) {
 }
 
 fn check_inherent_call_evidence(report: &Value) {
-    let (pair, facts) = data_pair(read_call_function(report, "model::Data::wrap"));
+    let (unit, index) = data_unit(read_call_function(report, "model::Data::wrap"));
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
     let call = pair
         .pdg
         .nodes
@@ -5312,7 +5340,8 @@ fn check_inherent_call_evidence(report: &Value) {
         projection["projection"]["features"],
         serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 2])
     );
-    let (direct, _) = data_pair(read_call_function(report, "ufcs"));
+    let (unit, index) = data_unit(read_call_function(report, "ufcs"));
+    let direct = unit.pair(index).unwrap();
     let direct = direct
         .pdg
         .nodes
@@ -5323,7 +5352,10 @@ fn check_inherent_call_evidence(report: &Value) {
 }
 
 fn check_inherent_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
     for change in [
         "owner",
         "implementation",
@@ -5335,11 +5367,7 @@ fn check_inherent_tampering(function: &Value) {
     ] {
         let mut changed = facts.clone();
         tamper_inherent_evidence(&mut changed, change);
-        assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
-        assert!(
-            rstyle_pdg::helper_calls::verify_documents(&pair, &changed).is_err(),
-            "{change}"
-        );
+        shared_evidence::reject_facts(function, &changed);
     }
     for change in ["missing", "root", "location", "position", "write"] {
         let mut changed = rstyle_pdg::producer::Pair {
@@ -5407,11 +5435,15 @@ fn clones_data_read_calls_compose_complete_shared_field_helper_families() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 20);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in functions {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
-        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 190);
     assert_eq!(report["pair_evaluation_complete"], true);
@@ -5495,7 +5527,8 @@ fn check_read_call_locations(report: &Value) {
         ("repeat_wrap", 2, 1),
         ("choose_get", 2, 2),
     ] {
-        let (pair, _) = data_pair(read_call_function(report, name));
+        let (unit, index) = data_unit(read_call_function(report, name));
+        let pair = unit.pair(index).unwrap();
         assert_eq!(
             pair.pdg
                 .nodes
@@ -5522,7 +5555,8 @@ fn check_read_call_locations(report: &Value) {
 }
 
 fn check_stored_read_path(function: &Value) {
-    let (stored, _) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let stored = unit.pair(index).unwrap();
     let path = &stored
         .pdg
         .memory_locations
@@ -5543,7 +5577,10 @@ fn check_stored_read_path(function: &Value) {
 }
 
 fn check_read_call_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
     for change in [
         "missing",
         "extra",
@@ -5581,10 +5618,10 @@ fn check_read_call_tampering(function: &Value) {
             "{change}"
         );
     }
-    check_read_summary_tampering(&facts);
+    check_read_summary_tampering(function);
 }
 
-fn check_read_summary_tampering(facts: &rstyle_pdg::HirFnFacts) {
+fn check_read_summary_tampering(function: &Value) {
     for change in [
         "missing",
         "empty",
@@ -5597,14 +5634,10 @@ fn check_read_summary_tampering(facts: &rstyle_pdg::HirFnFacts) {
         "effect",
         "identity",
     ] {
-        let mut changed = facts.clone();
-        assert!(tamper_read_summary(&mut changed.body, change));
-        assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
+        shared_evidence::reject_read_summary(function, change);
     }
     for change in ["manifest", "source", "signature", "effects"] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, change));
-        assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
+        reject_helper(function, change);
     }
 }
 
@@ -5660,38 +5693,6 @@ fn tamper_read_location(pair: &mut rstyle_pdg::producer::Pair, change: &str) {
     }
 }
 
-fn tamper_read_summary(node: &mut rstyle_pdg::HirNode, change: &str) -> bool {
-    if node.kind != "expr_call" {
-        return node
-            .children
-            .iter_mut()
-            .any(|child| tamper_read_summary(child, change));
-    }
-    let resolution = node.res.as_mut().unwrap();
-    let mut value: Value = serde_json::from_str(&resolution.description).unwrap();
-    let summary = &mut value[rstyle_pdg::helper_calls::KEY]["summary"];
-    match change {
-        "missing" => {
-            summary.as_object_mut().unwrap().remove("memory_reads");
-        }
-        "empty" => summary["memory_reads"] = serde_json::json!([]),
-        "extra" => {
-            let read = summary["memory_reads"][0].clone();
-            summary["memory_reads"].as_array_mut().unwrap().push(read);
-        }
-        "operation" => summary["memory_reads"][0]["operation"] = serde_json::json!("forged"),
-        "access" => summary["memory_reads"][0]["access"] = serde_json::json!(1),
-        "parameter" => summary["memory_reads"][0]["parameter"] = serde_json::json!(1),
-        "path" => summary["memory_reads"][0]["path"] = serde_json::json!([]),
-        "type" => summary["memory_reads"][0]["value"]["value"] = serde_json::json!("u16"),
-        "effect" => summary["memory_effects"] = serde_json::json!(false),
-        "identity" => summary["identity"] = serde_json::json!("rstyle.helper.source-body/1"),
-        _ => unreachable!(),
-    }
-    resolution.description = serde_json::to_string(&value).unwrap();
-    true
-}
-
 fn check_read_call_edit(directory: &Path, previous: &Value) {
     let source = DATA_READ_CALL_FAMILY.replace(
         "pub fn get(v: &Data) -> u8 { v.inner.n }",
@@ -5703,8 +5704,12 @@ fn check_read_call_edit(directory: &Path, previous: &Value) {
     for name in ["wrap", "third"] {
         let old = read_call_function(previous, name);
         let new = read_call_function(&report, name);
-        assert_ne!(old["document_manifest"], new["document_manifest"]);
-        let (pair, _) = data_pair(new);
+        assert_ne!(
+            old["unit_evidence"]["identity"],
+            new["unit_evidence"]["identity"]
+        );
+        let (unit, index) = data_unit(new);
+        let pair = unit.pair(index).unwrap();
         assert_eq!(
             pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
                 [2]["name"],
@@ -5717,7 +5722,8 @@ fn check_read_call_edit(directory: &Path, previous: &Value) {
 
 fn check_shared_result_tampering(
     pair: &rstyle_pdg::producer::Pair,
-    facts: &rstyle_pdg::HirFnFacts,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    function: &Value,
 ) {
     for corruption in [
         "output_missing",
@@ -5728,12 +5734,7 @@ fn check_shared_result_tampering(
         "unit_invocation",
         "unit_target",
     ] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, corruption));
-        assert!(
-            rstyle_pdg::producer::produce(&changed).is_err(),
-            "{corruption}"
-        );
+        reject_helper(function, corruption);
     }
     let mut changed = rstyle_pdg::producer::Pair {
         pdg: pair.pdg.clone(),
@@ -6029,7 +6030,10 @@ fn clones_generated_policy_preserves_documents_and_structural_validation() {
         .iter()
         .find(|function| function["facts"]["name"] == "first")
         .unwrap();
-    let (mut pair, facts) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let mut pair = copy_pair(unit.pair(index).unwrap());
     rstyle_pdg::producer::verify(&pair, &facts).unwrap();
     let strict = rstyle_pdg::producer::produce(&facts)
         .unwrap()
@@ -6056,7 +6060,7 @@ fn clones_generated_policy_preserves_documents_and_structural_validation() {
 
 fn check_borrowed_serialized_pair(
     strict: &rstyle_pdg::producer::SerializedPair,
-    facts: &rstyle_pdg::HirFnFacts,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
 ) {
     let borrowed = rstyle_pdg::producer::verify_serialized_view(strict.as_view(), facts)
         .unwrap()
@@ -6094,8 +6098,11 @@ fn clones_helpers_repeated_dependencies_preserve_strict_checks() {
     );
     assert!(output.status.success(), "{report}");
     let function = read_call_function(&report, "repeated");
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::producer::verify(pair, &facts).unwrap();
     let strict = rstyle_pdg::producer::produce(&facts)
         .unwrap()
         .serialize()
@@ -6105,14 +6112,9 @@ fn clones_helpers_repeated_dependencies_preserve_strict_checks() {
     assert_eq!(strict.cfg_bytes, original.cfg_bytes);
     assert_eq!(strict.manifest, original.manifest);
     for corruption in ["manifest", "source", "signature", "effects"] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, corruption));
-        assert!(
-            rstyle_pdg::producer::produce(&changed).is_err(),
-            "{corruption}"
-        );
+        reject_helper(function, corruption);
     }
-    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
+    rstyle_pdg::producer::verify(pair, &facts).unwrap();
 }
 
 #[test]
@@ -6188,24 +6190,29 @@ fn clones_borrowed_typed_pairs_preserve_verification_and_strict_admission() {
         .iter()
         .find(|f| f["facts"]["name"] == "caller")
         .unwrap();
-    let (pair, facts) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
     let borrowed = pair.as_view();
     assert!(std::ptr::eq(borrowed.pdg, &pair.pdg));
     assert!(std::ptr::eq(borrowed.cfg, &pair.cfg));
     assert_eq!(
-        serde_json::to_vec(&pair).unwrap(),
+        serde_json::to_vec(pair).unwrap(),
         serde_json::to_vec(&borrowed).unwrap()
     );
     assert_eq!(
         rstyle_pdg::producer::verify_view(borrowed, &facts),
-        rstyle_pdg::producer::verify(&pair, &facts)
+        rstyle_pdg::producer::verify(pair, &facts)
     );
     let generated = rstyle_pdg::verification_policy::generated(|| {
         rstyle_pdg::producer::verify_view(borrowed, &facts)
     });
     assert!(generated.is_ok());
-    check_borrowed_pair_admission(&pair, &facts);
-    check_borrowed_pair_tampering(&pair, &facts);
+    let leaf = unit.functions().iter().find(|f| f.name == "leaf").unwrap();
+    let standalone = rstyle_pdg::producer::produce(leaf).unwrap();
+    check_borrowed_pair_admission(&standalone, leaf);
+    check_borrowed_pair_tampering(pair, &facts);
 }
 
 fn check_borrowed_pair_admission(
@@ -6238,7 +6245,7 @@ fn check_borrowed_pair_admission(
 
 fn check_borrowed_pair_tampering(
     pair: &rstyle_pdg::producer::Pair,
-    facts: &rstyle_pdg::HirFnFacts,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
 ) {
     let mut cfg = pair.cfg.clone();
     cfg.entry_node_id = "missing".into();

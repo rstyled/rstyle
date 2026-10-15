@@ -1,5 +1,9 @@
 # Shared evidence acceptance audit
 
+This audit records revision `d5f3d5f`. The subsequent
+[expanded-evidence retirement](expanded-evidence-retirement.md) removes its
+optional expansion adapter and updates the current API contract.
+
 This is the consolidated status for the shared-evidence refactor. The earlier
 sections of [shared-evidence.md](shared-evidence.md) are a chronological journal;
 statements there about pending integration describe those earlier commits.

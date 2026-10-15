@@ -1,6 +1,7 @@
 # Shared evidence ownership work
 
-Current consolidated status: [acceptance audit](shared-evidence-audit.md).
+Original refactor status: [acceptance audit](shared-evidence-audit.md).
+Current follow-up: [expanded-evidence retirement](expanded-evidence-retirement.md).
 The sections below retain the chronology and intermediate limitations.
 
 Branch: `perf/shared-evidence-store`. Base: fetched `main`
@@ -696,3 +697,14 @@ Clippy pass. The full nextest wrapper passes 642 tests in 167.312 seconds (one
 slow, zero skipped), followed by workspace doctests. Both wrappers complete:
 1,994 assessed functions, zero style violations; zero actionable patterns and
 15 existing reviewed ignores. Logs: `/tmp/rstyle-report-{tests.log,clippy.log,nextest.log,style.json,patterns.log}`.
+
+## Retire expanded evidence and migrate its consumers
+
+The follow-up [retirement record](expanded-evidence-retirement.md) supersedes the
+optional export contract described in earlier sections. The CLI flag and report
+variant, standalone driver publication branch, mutable-facts capture adapter and
+nested-proof exporter are removed together. Tests use strict shared imports,
+resolver-backed document views and shared-record corruption instead. Paired
+serialization, strict byte-seal/tampering checks, all pair decisions and source
+navigation remain. The internal report/API break is documented in the current
+[shared-unit contract](shared-unit-bundle.md).
