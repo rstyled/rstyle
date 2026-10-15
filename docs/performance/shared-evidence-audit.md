@@ -3,6 +3,7 @@
 This audit records revision `d5f3d5f`. The subsequent
 [expanded-evidence retirement](expanded-evidence-retirement.md) removes its
 optional expansion adapter and updates the current API contract.
+The current status and optional investigations are in [remaining work](remaining-work.md).
 
 This is the consolidated status for the shared-evidence refactor. The earlier
 sections of [shared-evidence.md](shared-evidence.md) are a chronological journal;

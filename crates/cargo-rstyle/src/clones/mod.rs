@@ -6,7 +6,7 @@ use crate::Cli;
 use clap::Args as ClapArgs;
 use rstyle_ccgraph::{CcgraphConfig, Decision, ImportedFunction};
 use rstyle_pdg::{EligibilityVerdict, HirFnFacts, classify, producer};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -409,7 +409,7 @@ fn verify_frontend_invocation(
         .frontend_options
         .get("invocation")
         .ok_or("missing captured invocation")?;
-    let actual: Vec<String> = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+    let actual: Vec<String> = Deserialize::deserialize(value).map_err(|e| e.to_string())?;
     let suffix = actual
         .strip_prefix(unit.invocation.as_slice())
         .ok_or("frontend evidence belongs to another compiler invocation")?;
@@ -454,7 +454,7 @@ fn verify_selected_unit(facts: &HirFnFacts, unit: &capture::Unit) -> Result<(), 
         };
     }
     let actual: UnitContext =
-        serde_json::from_value(context.ok_or("Missing selected-unit data context")?.clone())
+        Deserialize::deserialize(context.ok_or("Missing selected-unit data context")?)
             .map_err(|e| e.to_string())?;
 
     actual.transport()?;
