@@ -4927,6 +4927,7 @@ fn clones_data_length_family_composes_fields_calls_loops_and_borrowed_branches()
         if facts.name == "str_len" {
             check_length_document_tampering(pair, &facts);
             check_length_frontend_tampering(&facts);
+            check_library_toolchain_contract(&facts);
             let projected = report["matching"]["functions"]
                 .as_array()
                 .unwrap()
@@ -5919,7 +5920,7 @@ fn tamper_length_document(pair: &mut rstyle_pdg::producer::Pair, change: &str) {
 }
 
 fn check_length_frontend_tampering(facts: &rstyle_pdg::HirFnFacts) {
-    for change in ["missing", "artifact", "signature", "definition"] {
+    for change in ["missing", "crate", "signature", "definition"] {
         let mut changed = facts.clone();
         match change {
             "missing" => {
@@ -5928,13 +5929,13 @@ fn check_length_frontend_tampering(facts: &rstyle_pdg::HirFnFacts) {
                     .frontend_options
                     .remove(rstyle_pdg::data_library::KEY);
             }
-            "artifact" => {
+            "crate" => {
                 changed
                     .build
                     .frontend_options
                     .get_mut(rstyle_pdg::data_library::KEY)
-                    .unwrap()["libraries"][0]["files"][0]["sha256"] =
-                    serde_json::json!(format!("sha256:{}", "0".repeat(64)))
+                    .unwrap()["libraries"][0]["crate_hash"] =
+                    serde_json::json!("contradictory core identity")
             }
             "signature" => {
                 changed
@@ -5952,6 +5953,39 @@ fn check_length_frontend_tampering(facts: &rstyle_pdg::HirFnFacts) {
             rstyle_pdg::data_library::verify_evidence(&changed).is_err(),
             "{change}"
         );
+    }
+}
+
+fn check_library_toolchain_contract(facts: &rstyle_pdg::HirFnFacts) {
+    use rstyle_pdg::data_library::{IDENTITY, KEY, resolve, verify_evidence};
+    let libraries = serde_json::to_value(verify_evidence(facts).unwrap()).unwrap();
+    assert_eq!(libraries["identity"], IDENTITY);
+    assert!(libraries["libraries"][0].get("files").is_none());
+    assert!(
+        !facts
+            .build
+            .frontend_options
+            .contains_key("data_library_artifacts")
+    );
+    for change in ["compiler", "target", "width"] {
+        let mut changed = facts.clone();
+        match change {
+            "compiler" => changed.build.rustc_commit = rstyle_pdg::StringFact::known("unsupported"),
+            "target" => changed.build.target_triple = rstyle_pdg::StringFact::known("unsupported"),
+            "width" => changed.build.pointer_width.value = Some(128),
+            _ => unreachable!(),
+        }
+        let method = first_library_method(&changed.body).unwrap();
+        assert!(resolve(method, &changed).unwrap().is_none(), "{change}");
+        assert!(changed.build.frontend_options.contains_key(KEY));
+    }
+}
+
+fn first_library_method(node: &rstyle_pdg::HirNode) -> Option<&rstyle_pdg::HirNode> {
+    if rstyle_pdg::data_library::operation(node).is_some() {
+        Some(node)
+    } else {
+        node.children.iter().find_map(first_library_method)
     }
 }
 
@@ -6033,9 +6067,9 @@ fn clones_data_library_corruption_is_incomplete_execution() {
     let shim = directory.path().join("driver-shim");
     let real = driver().to_string_lossy().replace('\'', "'\\''");
     for mutation in [
-        "options.pop('data_library_artifacts')",
-        "options['data_library_artifacts']['libraries'][0]['files'][0]['sha256'] = 'sha256:' + '0' * 64",
-        "options['data_library_artifacts']['libraries'][0]['files'][0]['bytes'] = 128 * 1024 * 1024 + 1",
+        "options.pop('data_library_resolution')",
+        "options['data_library_resolution']['libraries'][0]['crate_hash'] = 'contradictory core identity'",
+        "options['data_library_resolution']['identity'] = 'rstyle.rust.library-artifact-capture/1'",
         "function['build']['rustc_commit']['value'] = '0' * 40",
     ] {
         let script = format!(

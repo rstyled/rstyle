@@ -45,8 +45,8 @@ fn source_token(
     if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?.is_data() {
         return Ok(None);
     }
-    let artifacts = super::verify_evidence(facts)?;
-    if !super::verify::registered_build_with(facts, &artifacts)? {
+    let libraries = super::verify_evidence(facts)?;
+    if !super::verify::registered_build_with(facts, &libraries)? {
         return Ok(None);
     }
     let capture = crate::data_receivers::verify(facts)?;

@@ -1,5 +1,9 @@
 # Pinned read-only length registry, version 1
 
+Historical version 1: runtime artifact fingerprint requirements are superseded by
+[read-only-library-resolution-v2.md](read-only-library-resolution-v2.md).
+
+
 Implementation baseline: `affb3a1`. This prospective supplement completes the
 provenance requirements of `read-only-lengths-v1.md` and
 `receiver-verification-v1.md`; it authorizes no call before implementation/tests.

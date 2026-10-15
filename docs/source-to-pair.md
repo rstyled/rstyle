@@ -288,9 +288,11 @@ slice elements or UTF-8 bytes, with no invented buffer read/write or panic edge.
 Stored fields, grouped explicit field borrows, scalar helper calls, scalar loops
 and borrowed branching outputs compose through the existing command. All fifteen
 functions in the independent family admit and all 105 pairs receive decisions;
-this is correctness evidence only. See `read-only-length-registry-v1.md` for exact
-provenance, signatures/effects and independent CALL verification obligations,
-and `read-only-lengths-x86_64-v1.md` for the separate x86_64 core authority.
+this is correctness evidence only. The current
+[version 2 library contract](extraction-profiles/read-only-library-resolution-v2.md)
+uses supported compiler/target identities and exact resolved definitions, without
+reading or fingerprinting library files. Historical version 1 artifact provenance
+is retired; signatures/effects and independent CALL verification remain.
 Same-unit direct helpers additionally support shared inputs with scalar/unit
 results under the existing verified memory-free boundary. Whole shared-formal
 results require `rstyle.helper.shared-return/1` and an exact verified return-origin

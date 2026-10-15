@@ -5,7 +5,7 @@ pub mod diagnostics;
 mod evidence;
 mod hir;
 mod inherent;
-mod library_artifacts;
+mod library_resolution;
 mod nominal_census;
 pub mod output;
 pub mod source;
@@ -65,7 +65,7 @@ fn capture_unit_evidence(
     facts: &mut [HirFnFacts],
 ) -> Result<(), String> {
     nominal_census::capture(tcx, options, facts)?;
-    library_artifacts::capture(tcx, options, facts)?;
+    library_resolution::capture(tcx, options, facts)?;
     inherent::capture_unit(facts, options)
 }
 

@@ -1,5 +1,10 @@
 # Hash purposes and boundary ownership
 
+Historical audit at `9cb2b32`. The implementation work in
+[hash-and-matching-plan.md](hash-and-matching-plan.md) supersedes its retention
+recommendations; the [version 2 library contract](../extraction-profiles/read-only-library-resolution-v2.md)
+retires runtime library artifact fingerprinting.
+
 This audit follows executable fingerprint retirement. It covers the remaining
 SHA-256 producers and their consumers in the Rust analysis path; fixture/test
 hashes and Python experiment snapshots are called out separately. It does not

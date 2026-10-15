@@ -17,7 +17,7 @@ pub fn evidence(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Value, Stri
     serde_json::to_value(LibraryEvidence {
         registry_identity: &registry.identity,
         semantic_source_digests: &registry.source_digests,
-        core_artifacts: verify_evidence(facts)?,
+        core_resolution: verify_evidence(facts)?,
         callee: callee(node)?,
         receiver,
         origins: crate::data_origins::origins(&node.children[0], facts)?,
@@ -35,7 +35,7 @@ pub fn evidence(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Value, Stri
 struct LibraryEvidence<'a> {
     registry_identity: &'a str,
     semantic_source_digests: &'a BTreeMap<String, String>,
-    core_artifacts: Artifacts,
+    core_resolution: Libraries,
     callee: Callee,
     receiver: &'a crate::data_receivers::Method,
     origins: Vec<crate::data_origins::Origin>,
