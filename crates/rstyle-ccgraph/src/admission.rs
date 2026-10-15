@@ -14,9 +14,10 @@ use crate::graph::{ImportedEdge, ImportedFunction, ImportedNode, InterfaceElemen
 use crate::pipeline::{
     Decision, FunctionRecord, PairRecord, RunReport, StageName, StageOutcome, StageRecord,
 };
+use rstyle_pdg::unit_store::EvidenceFacts;
 use rstyle_pdg::{
     CfgDocument, NodeCategory, PdgDocument, ValidationContext, reachable_vertices,
-    read_operation_map, validate, validate_cfg, validate_correspondence, validate_paired_agreement,
+    read_operation_map, validate_cfg, validate_correspondence, validate_paired_agreement,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -36,15 +37,13 @@ pub struct StrictBundle<'a> {
 /// then use the unchanged strict imported-document admission boundary.
 pub fn admit_produced(
     pair: &rstyle_pdg::producer::Pair,
-    facts: &rstyle_pdg::HirFnFacts,
+    facts: &dyn EvidenceFacts,
 ) -> Result<ImportedFunction, Vec<String>> {
     rstyle_pdg::producer::verify(pair, facts)?;
-    let source_bytes = pair
-        .pdg
-        .sources
-        .iter()
-        .map(|source| (source.id.clone(), facts.source.bytes.as_bytes().to_vec()))
-        .collect();
+    let source_bytes = rstyle_pdg::validate::CapturedSources::new(
+        &pair.pdg.sources,
+        facts.source.bytes.as_bytes(),
+    );
     let width = facts
         .build
         .pointer_width
@@ -55,12 +54,15 @@ pub fn admit_produced(
         pointer_width_bits: width,
     };
 
-    admit_strict(&StrictBundle {
-        pdg: &pair.pdg,
-        cfg: &pair.cfg,
-        source_bytes: &source_bytes,
-        ctx: &ctx,
-    })
+    admit_checked(
+        &AdmissionInput {
+            pdg: &pair.pdg,
+            cfg: &pair.cfg,
+            source_bytes: &source_bytes,
+            ctx: &ctx,
+        },
+        Some(facts),
+    )
 }
 
 /// Admit one validated document pair into a matching input.
@@ -72,7 +74,34 @@ pub fn admit_produced(
 /// CFG entry; administrative status comes from boundary cleanliness. Failures
 /// are returned as reason strings and never coerce missing evidence.
 pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<String>> {
-    let StrictBundle {
+    admit_checked(
+        &AdmissionInput {
+            pdg: bundle.pdg,
+            cfg: bundle.cfg,
+            source_bytes: bundle.source_bytes,
+            ctx: bundle.ctx,
+        },
+        None,
+    )
+}
+
+struct AdmissionInput<'a> {
+    pdg: &'a PdgDocument,
+    cfg: &'a CfgDocument,
+    source_bytes: &'a dyn rstyle_pdg::validate::SourceBytes,
+    ctx: &'a ValidationContext,
+}
+
+struct AdmissionContext<'a> {
+    validation: &'a ValidationContext,
+    frontend: Option<&'a dyn EvidenceFacts>,
+}
+
+fn admit_checked(
+    bundle: &AdmissionInput,
+    frontend: Option<&dyn EvidenceFacts>,
+) -> Result<ImportedFunction, Vec<String>> {
+    let AdmissionInput {
         pdg,
         cfg,
         source_bytes,
@@ -80,27 +109,52 @@ pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<Strin
     } = bundle;
 
     require_compiler_evidence(ctx)?;
-    check_local_producer(pdg, cfg)?;
-    check_pdg_eligibility(pdg, ctx, source_bytes)?;
+    let imported = if frontend.is_some() {
+        check_local_profile(pdg, cfg)?;
+        None
+    } else {
+        check_local_producer(pdg, cfg)?
+    };
+    let frontend = frontend.or_else(|| imported.as_ref().map(|facts| facts as &dyn EvidenceFacts));
+    check_pdg_eligibility(pdg, ctx, *source_bytes)?;
 
     let admitted = AdmittedPair { pdg, cfg };
     admitted.check_cfg()?;
     let map = admitted.check_agreement()?;
     admitted.check_correspondence(&map)?;
 
-    assemble_function(pdg, cfg, &map, ctx)
+    assemble_function(
+        pdg,
+        cfg,
+        &map,
+        &AdmissionContext {
+            validation: ctx,
+            frontend,
+        },
+    )
 }
 
-fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<String>> {
-    use rstyle_pdg::extraction_profile::{EVIDENCE_KEY, LOCAL_ID};
+fn check_local_profile(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<bool, Vec<String>> {
+    use rstyle_pdg::extraction_profile::LOCAL_ID;
     if pdg.profile.id != LOCAL_ID
         && pdg.profile.id != "rstyle.rust.hir-helpers"
         && pdg.profile.id != rstyle_pdg::extraction_profile::DATA_ID
     {
-        return Ok(());
+        return Ok(false);
     }
     if cfg.profile.name != pdg.profile.id || cfg.profile.version != pdg.profile.version {
         return Err(vec!["Paired extraction profiles disagree".into()]);
+    }
+    Ok(true)
+}
+
+fn check_local_producer(
+    pdg: &PdgDocument,
+    cfg: &CfgDocument,
+) -> Result<Option<rstyle_pdg::HirFnFacts>, Vec<String>> {
+    use rstyle_pdg::extraction_profile::EVIDENCE_KEY;
+    if !check_local_profile(pdg, cfg)? {
+        return Ok(None);
     }
     let evidence = pdg
         .extensions
@@ -109,14 +163,12 @@ fn check_local_producer(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<
     if cfg.extensions.get(EVIDENCE_KEY) != Some(evidence) {
         return Err(vec!["Paired local frontend evidence disagrees".into()]);
     }
-    let facts = serde_json::from_value(evidence["frontend"].clone())
+    let facts: rstyle_pdg::HirFnFacts = serde::Deserialize::deserialize(&evidence["frontend"])
         .map_err(|e| vec![format!("Invalid local frontend evidence: {e}")])?;
-    let pair = rstyle_pdg::producer::Pair {
-        pdg: pdg.clone(),
-        cfg: cfg.clone(),
-    };
+    let pair = rstyle_pdg::producer::PairView { pdg, cfg };
 
-    rstyle_pdg::producer::verify(&pair, &facts)
+    rstyle_pdg::producer::verify_view(pair, &facts)?;
+    Ok(Some(facts))
 }
 
 struct AdmittedPair<'a> {
@@ -136,9 +188,9 @@ fn require_compiler_evidence(ctx: &ValidationContext) -> Result<(), Vec<String>>
 fn check_pdg_eligibility(
     pdg: &PdgDocument,
     ctx: &ValidationContext,
-    source_bytes: &BTreeMap<String, Vec<u8>>,
+    source_bytes: &dyn rstyle_pdg::validate::SourceBytes,
 ) -> Result<(), Vec<String>> {
-    let report = validate(pdg, ctx, source_bytes);
+    let report = rstyle_pdg::validate::validate_sources(pdg, ctx, source_bytes);
 
     if report.matching == rstyle_pdg::Eligibility::Eligible {
         return Ok(());
@@ -187,7 +239,7 @@ fn assemble_function(
     pdg: &PdgDocument,
     cfg: &CfgDocument,
     map: &[rstyle_pdg::OperationMapEntry],
-    ctx: &ValidationContext,
+    ctx: &AdmissionContext,
 ) -> Result<ImportedFunction, Vec<String>> {
     let reachability = node_reachability(cfg, map);
     let value_sites = rstyle_pdg::validate_value_sites(pdg, cfg)?;
@@ -253,19 +305,12 @@ fn local_context(pdg: &PdgDocument) -> Result<Option<String>, Vec<String>> {
     let build = pdg
         .producer
         .configuration
-        .get("captured_build")
-        .ok_or_else(|| vec!["Missing local captured build".into()])?;
-    let mut settings = BTreeMap::new();
-    // Captured compiler/target identities remain diagnostic metadata. Native
-    // widths are checked separately only when the function uses native types.
-    for key in ["overflow_checks", "debug_assertions", "panic_strategy"] {
-        settings.insert(
-            key,
-            build
-                .get(key)
-                .ok_or_else(|| vec![format!("Missing compatible build setting {key}")])?,
-        );
-    }
+        .get(rstyle_pdg::producer::matching_build::KEY)
+        .ok_or_else(|| vec!["Missing local matching build".into()])?;
+    let settings =
+        rstyle_pdg::producer::matching_build::settings(build).map_err(|error| vec![error])?;
+    // Compiler/target identities remain in the owning frontend. Native widths
+    // are checked separately only when the function uses native types.
     let context = if pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID {
         serde_json::json!([
             pdg.profile,
@@ -557,9 +602,9 @@ fn import_key(pdg: &PdgDocument) -> String {
 
 fn import_widths(
     pdg: &PdgDocument,
-    ctx: &ValidationContext,
+    ctx: &AdmissionContext,
 ) -> Result<(Option<u16>, bool), Vec<String>> {
-    let width = match ctx {
+    let width = match ctx.validation {
         ValidationContext::CompilerEvidence { pointer_width_bits } => {
             Some(*pointer_width_bits as u16)
         }
@@ -591,7 +636,7 @@ fn import_widths(
                 .and_then(|token| rstyle_pdg::data_types::parse(token).ok())
                 .is_some_and(|token| token.native_width())
         });
-    let transitive_native = helper_native_width(pdg)?;
+    let transitive_native = helper_native_width(pdg, ctx.frontend)?;
 
     Ok((
         width,
@@ -599,16 +644,22 @@ fn import_widths(
     ))
 }
 
-fn helper_native_width(pdg: &PdgDocument) -> Result<bool, Vec<String>> {
+fn helper_native_width(
+    pdg: &PdgDocument,
+    frontend: Option<&dyn EvidenceFacts>,
+) -> Result<bool, Vec<String>> {
     if !rstyle_pdg::extraction_profile::policy_supports(&pdg.profile, "rust.verified-helper-calls")
     {
         return Ok(false);
+    }
+    if let Some(facts) = frontend {
+        return rstyle_pdg::helper_calls::native_width(facts).map_err(|error| vec![error]);
     }
     let evidence = pdg
         .extensions
         .get(rstyle_pdg::extraction_profile::EVIDENCE_KEY)
         .ok_or_else(|| vec!["Missing helper frontend evidence for target compatibility".into()])?;
-    let facts = serde_json::from_value(evidence["frontend"].clone())
+    let facts: rstyle_pdg::HirFnFacts = serde::Deserialize::deserialize(&evidence["frontend"])
         .map_err(|error| vec![error.to_string()])?;
 
     rstyle_pdg::helper_calls::native_width(&facts).map_err(|error| vec![error])

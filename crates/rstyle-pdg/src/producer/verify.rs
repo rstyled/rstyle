@@ -1,23 +1,35 @@
 //! Producer handoff checks using captured source/build evidence and the real
 //! interchange boundary. Producer conformance flags are never an input proof.
 
-use super::{Pair, analyze_facts, emit, lower};
+use super::{Pair, PairView, analyze_facts, emit, lower};
 use crate::*;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
-pub fn verify(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
+pub fn verify(
+    pair: &Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), Vec<String>> {
+    verify_view(pair.as_view(), facts)
+}
+
+/// Apply the exact same verification to borrowed typed documents.
+pub fn verify_view(
+    pair: PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), Vec<String>> {
     crate::verification_session::within(|| verify_pair(pair, facts))
 }
 
-fn verify_pair(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
+fn verify_pair(
+    pair: PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), Vec<String>> {
     let observation = crate::diagnostics::Stage::new("producer.verify", &facts.name, None).enter();
     if crate::verification_policy::is_generated() {
         return observation.finish(validate_boundary(pair, facts));
     }
-    let digest = format!("sha256:{:x}", Sha256::digest(facts.source.bytes.as_bytes()));
-    if digest != facts.source.digest {
+    if facts.source.bytes.identity() != facts.source.digest {
         return Err(vec!["Captured source identity is inconsistent".to_string()]);
     }
     let graph = lower(facts).map_err(|e| {
@@ -33,8 +45,8 @@ fn verify_pair(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
         .known_value()
         .ok_or_else(|| vec!["Missing captured producer revision".to_string()])?;
     let expected = emit(facts, &graph, &analysis, revision).map_err(|e| vec![e])?;
-    let renaming = correspondence(pair, &expected)?;
-    compare_documents(pair, &expected, &renaming)?;
+    let renaming = correspondence(pair, expected.as_view())?;
+    compare_documents(pair, expected.as_view(), &renaming)?;
 
     if crate::extraction_profile::ExtractionProfile::from_facts(facts)
         .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
@@ -50,13 +62,11 @@ fn verify_pair(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
     observation.finish(validate_boundary(pair, facts))
 }
 
-fn validate_boundary(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
-    let bytes = pair
-        .pdg
-        .sources
-        .iter()
-        .map(|s| (s.id.clone(), facts.source.bytes.as_bytes().to_vec()))
-        .collect();
+fn validate_boundary(
+    pair: PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), Vec<String>> {
+    validate_frontend_reference(pair, facts)?;
     let width = facts
         .build
         .pointer_width
@@ -66,8 +76,8 @@ fn validate_boundary(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>>
     let context = ValidationContext::CompilerEvidence {
         pointer_width_bits: width,
     };
-    let report = validate(&pair.pdg, &context, &bytes);
-    let structural = validate_cfg(&pair.cfg)
+    let report = crate::validate::validate_source_text(pair.pdg, &context, &facts.source.bytes);
+    let structural = validate_cfg(pair.cfg)
         .into_iter()
         .chain(validate_paired_agreement(
             &pair.pdg.extensions,
@@ -76,10 +86,10 @@ fn validate_boundary(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>>
         .map(|i| i.message);
     let map = read_operation_map(&pair.pdg.extensions).map_err(|e| vec![e])?;
     let node_ids = pair.pdg.nodes.iter().map(|n| n.id.clone()).collect();
-    let correspondence = validate_correspondence(&map, &pair.cfg, &node_ids)
+    let correspondence = validate_correspondence(&map, pair.cfg, &node_ids)
         .into_iter()
         .map(|i| i.message);
-    let values = validate_value_sites(&pair.pdg, &pair.cfg)
+    let values = validate_value_sites(pair.pdg, pair.cfg)
         .err()
         .unwrap_or_default();
     let errors: Vec<_> = report
@@ -98,10 +108,62 @@ fn validate_boundary(pair: &Pair, facts: &HirFnFacts) -> Result<(), Vec<String>>
     }
 }
 
-fn correspondence(actual: &Pair, expected: &Pair) -> Result<BTreeMap<String, String>, Vec<String>> {
+fn validate_frontend_reference(
+    pair: PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), Vec<String>> {
+    let key = crate::extraction_profile::EVIDENCE_KEY;
+    let actual = pair
+        .pdg
+        .extensions
+        .get(key)
+        .and_then(|evidence| evidence.get("frontend_ref"));
+    let expected = facts.frontend_reference();
+
+    if actual.is_some() && pair.pdg.extensions[key].get("frontend").is_some() {
+        return Err(vec![
+            "Contradictory inline and referenced frontend evidence".into(),
+        ]);
+    }
+    if pair.pdg.extensions.contains_key(key) && actual != expected.as_ref() {
+        return Err(vec![
+            "Frontend reference requires its exact owning unit/function".into(),
+        ]);
+    }
+    if pair.cfg.extensions.get(key) != pair.pdg.extensions.get(key) {
+        return Err(vec!["Paired frontend references disagree".into()]);
+    }
+    Ok(())
+}
+
+fn correspondence(
+    actual: PairView<'_>,
+    expected: PairView<'_>,
+) -> Result<BTreeMap<String, String>, Vec<String>> {
     let mut names = node_names(actual, expected)?;
     add_binding_names(actual, expected, &mut names)?;
-    add_cfg_names(actual, expected, &mut names)?;
+    add_context_names(actual, expected, &mut names)?;
+    Ok(names)
+}
+
+fn add_context_names(
+    actual: PairView<'_>,
+    expected: PairView<'_>,
+    names: &mut BTreeMap<String, String>,
+) -> Result<(), Vec<String>> {
+    add_cfg_names(actual, expected, names)?;
+    for (actual, expected) in crate::data_documents::location_correspondence(actual, expected)
+        .map_err(|error| vec![error])?
+    {
+        if names
+            .get(&actual)
+            .is_some_and(|previous| previous != &expected)
+        {
+            return Err(vec!["Ambiguous local reference namespaces".into()]);
+        }
+        names.insert(actual, expected);
+    }
+
     if actual.pdg.sources.len() != expected.pdg.sources.len() {
         return Err(vec!["Source inventory differs".to_string()]);
     }
@@ -115,19 +177,22 @@ fn correspondence(actual: &Pair, expected: &Pair) -> Result<BTreeMap<String, Str
         names.insert(source.id.clone(), expected.id.clone());
     }
 
-    Ok(names)
+    Ok(())
 }
 
 fn add_binding_names(
-    actual: &Pair,
-    expected: &Pair,
+    actual: PairView<'_>,
+    expected: PairView<'_>,
     names: &mut BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
     add_symbols(actual, expected, names)?;
     add_definitions(actual, expected, names)
 }
 
-fn node_names(actual: &Pair, expected: &Pair) -> Result<BTreeMap<String, String>, Vec<String>> {
+fn node_names(
+    actual: PairView<'_>,
+    expected: PairView<'_>,
+) -> Result<BTreeMap<String, String>, Vec<String>> {
     if actual.pdg.nodes.len() != expected.pdg.nodes.len() {
         return Err(vec!["Source/value operation inventory differs".to_string()]);
     }
@@ -170,8 +235,8 @@ fn node_names(actual: &Pair, expected: &Pair) -> Result<BTreeMap<String, String>
 }
 
 fn add_symbols(
-    actual: &Pair,
-    expected: &Pair,
+    actual: PairView<'_>,
+    expected: PairView<'_>,
     names: &mut BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
     for symbol in &actual.pdg.symbols {
@@ -195,8 +260,8 @@ fn add_symbols(
 }
 
 fn add_definitions(
-    actual: &Pair,
-    expected: &Pair,
+    actual: PairView<'_>,
+    expected: PairView<'_>,
     names: &mut BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
     for definition in &actual.pdg.definitions {
@@ -213,8 +278,8 @@ fn add_definitions(
 }
 
 fn add_cfg_names(
-    actual: &Pair,
-    expected: &Pair,
+    actual: PairView<'_>,
+    expected: PairView<'_>,
     names: &mut BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
     let actual_map = read_operation_map(&actual.pdg.extensions).map_err(|e| vec![e])?;
@@ -245,17 +310,17 @@ fn add_cfg_names(
 }
 
 fn compare_documents(
-    actual: &Pair,
-    expected: &Pair,
+    actual: PairView<'_>,
+    expected: PairView<'_>,
     renaming: &BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
     let actual_docs = [
-        serde_json::to_value(&actual.pdg),
-        serde_json::to_value(&actual.cfg),
+        serde_json::to_value(actual.pdg),
+        serde_json::to_value(actual.cfg),
     ];
     let expected_docs = [
-        serde_json::to_value(&expected.pdg),
-        serde_json::to_value(&expected.cfg),
+        serde_json::to_value(expected.pdg),
+        serde_json::to_value(expected.cfg),
     ];
     let empty = BTreeMap::new();
     for (actual, expected) in actual_docs.into_iter().zip(expected_docs) {
@@ -333,7 +398,9 @@ fn unordered(field: &str) -> bool {
 fn reference_field(field: &str) -> bool {
     matches!(
         field,
-        "id" | "source"
+        "id" | "location_id"
+            | crate::data_places::KEY
+            | "source"
             | "target"
             | "node_id"
             | "symbol_id"

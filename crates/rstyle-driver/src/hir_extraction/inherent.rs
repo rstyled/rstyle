@@ -1,6 +1,6 @@
 //! Concrete same-unit inherent ownership, captured before helper linking.
 
-use super::{Options, original_source};
+use super::{Options, hir::Context};
 use rstyle_pdg::{
     HirFnFacts,
     data_types::TypeToken,
@@ -32,13 +32,9 @@ pub fn call_owner(tcx: TyCtxt<'_>, owner: DefId) -> CallOwner {
     }
 }
 
-pub fn capture(
-    tcx: TyCtxt<'_>,
-    id: LocalDefId,
-    facts: &mut HirFnFacts,
-    options: &Options<'_>,
-) -> Result<(), String> {
-    let Some(implementation) = implementation(tcx, id.to_def_id(), options.selected()) else {
+pub fn capture(ctx: &Context<'_>, id: LocalDefId, facts: &mut HirFnFacts) -> Result<(), String> {
+    let tcx = ctx.tcx;
+    let Some(implementation) = implementation(tcx, id.to_def_id(), ctx.profile) else {
         return Ok(());
     };
     if !facts.signature.has_self {
@@ -51,8 +47,10 @@ pub fn capture(
     let rustc_hir::Node::Item(item) = tcx.hir_node_by_def_id(implementation.expect_local()) else {
         return Err("Inherent owner is not an original implementation item".into());
     };
-    let (_, implementation_span) =
-        original_source(tcx, item.span).ok_or("Missing original inherent implementation span")?;
+    let (_, implementation_span) = ctx
+        .sources
+        .range(tcx, item.span)
+        .ok_or("Missing original inherent implementation span")?;
     let record = Definition {
         identity: rstyle_pdg::inherent_calls::IDENTITY.into(),
         definition_identity: format!("{:?}", tcx.def_path_hash(id.to_def_id())),

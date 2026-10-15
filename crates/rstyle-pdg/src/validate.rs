@@ -34,7 +34,7 @@ pub struct Issue {
     pub message: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidationReport {
     pub matching: Eligibility,
     pub producer_conformance: ProducerConformance,
@@ -79,11 +79,84 @@ struct CheckOutput {
     notes: Vec<Issue>,
 }
 
+/// Borrowed source resolution. Missing bytes remain unknown evidence.
+pub trait SourceBytes {
+    fn bytes(&self, source_id: &str) -> Option<&[u8]>;
+}
+
+impl SourceBytes for BTreeMap<String, Vec<u8>> {
+    fn bytes(&self, source_id: &str) -> Option<&[u8]> {
+        self.get(source_id).map(Vec::as_slice)
+    }
+}
+
+/// The producer's captured buffer, scoped to its declared source inventory.
+/// Resolving aliases borrows the same buffer rather than copying it per ID.
+pub struct CapturedSources<'a> {
+    sources: BTreeSet<&'a str>,
+    bytes: &'a [u8],
+}
+
+impl<'a> CapturedSources<'a> {
+    pub fn new(sources: &'a [Source], bytes: &'a [u8]) -> Self {
+        Self {
+            sources: sources.iter().map(|source| source.id.as_str()).collect(),
+            bytes,
+        }
+    }
+}
+
+impl SourceBytes for CapturedSources<'_> {
+    fn bytes(&self, source_id: &str) -> Option<&[u8]> {
+        self.sources.contains(source_id).then_some(self.bytes)
+    }
+}
+
 /// Validate one interchange document for imported-graph matching.
 pub fn validate(
     doc: &PdgDocument,
     ctx: &ValidationContext,
     source_bytes: &BTreeMap<String, Vec<u8>>,
+) -> ValidationReport {
+    validate_sources(doc, ctx, source_bytes)
+}
+
+/// Run identical checks using borrowed buffers owned by the calling context.
+pub fn validate_sources(
+    doc: &PdgDocument,
+    ctx: &ValidationContext,
+    source_bytes: &dyn SourceBytes,
+) -> ValidationReport {
+    let digests = check_source_digests(doc, ctx, source_bytes);
+    validate_with_digests(doc, ctx, source_bytes, digests)
+}
+
+/// Reuse only the actual identity cached by an immutable byte owner. Claimed
+/// document identities are still compared; no serialized claim installs a cache.
+pub(crate) fn validate_source_text(
+    doc: &PdgDocument,
+    ctx: &ValidationContext,
+    text: &crate::SourceText,
+) -> ValidationReport {
+    let bytes = CapturedSources::new(&doc.sources, text.as_bytes());
+    let digests = check_records(&doc.sources, |source| {
+        match source
+            .content_identity
+            .known_value()
+            .filter(|claim| is_sha256(claim))
+        {
+            Some(claimed) => compare_digest(source, claimed, text.identity()),
+            None => Vec::new(),
+        }
+    });
+    validate_with_digests(doc, ctx, &bytes, digests)
+}
+
+fn validate_with_digests(
+    doc: &PdgDocument,
+    ctx: &ValidationContext,
+    source_bytes: &dyn SourceBytes,
+    digests: CheckOutput,
 ) -> ValidationReport {
     let parts = [
         check_schema_version(doc),
@@ -99,7 +172,7 @@ pub fn validate(
         check_capabilities(doc),
         check_capability_applicability(doc),
         check_source_identities(doc, ctx),
-        check_source_digests(doc, ctx, source_bytes),
+        digests,
         check_build_evidence(doc, ctx, source_bytes),
         check_extension_namespaces(doc),
         check_provenance_references(doc),
@@ -737,7 +810,7 @@ fn access_issue(
     }
 }
 
-fn check_spans(doc: &PdgDocument, source_bytes: &BTreeMap<String, Vec<u8>>) -> CheckOutput {
+fn check_spans(doc: &PdgDocument, source_bytes: &dyn SourceBytes) -> CheckOutput {
     let mut blocking = span_issues(&doc.function.source_span, "function", source_bytes);
     blocking.extend(
         doc.nodes
@@ -754,14 +827,14 @@ fn check_spans(doc: &PdgDocument, source_bytes: &BTreeMap<String, Vec<u8>>) -> C
     }
 }
 
-fn span_issues(span: &Span, owner: &str, source_bytes: &BTreeMap<String, Vec<u8>>) -> Vec<Issue> {
+fn span_issues(span: &Span, owner: &str, source_bytes: &dyn SourceBytes) -> Vec<Issue> {
     if span.start > span.end {
         return vec![issue(
             "pdg.span-order",
             format!("{owner} span starts after it ends"),
         )];
     }
-    match source_bytes.get(&span.source_id) {
+    match source_bytes.bytes(&span.source_id) {
         Some(bytes) if span.end > bytes.len() as u64 => vec![issue(
             "pdg.span-bounds",
             format!("{owner} span exceeds source length {}", bytes.len()),
@@ -771,10 +844,12 @@ fn span_issues(span: &Span, owner: &str, source_bytes: &BTreeMap<String, Vec<u8>
 }
 
 fn check_node_requirements(doc: &PdgDocument) -> CheckOutput {
-    let blocking = doc.nodes.iter().flat_map(node_requirement_issues).collect();
+    check_records(&doc.nodes, node_requirement_issues)
+}
 
+fn check_records<T>(records: &[T], issues: impl Fn(&T) -> Vec<Issue>) -> CheckOutput {
     CheckOutput {
-        blocking,
+        blocking: records.iter().flat_map(issues).collect(),
         notes: Vec::new(),
     }
 }
@@ -1145,16 +1220,7 @@ fn dangling_origin_span_issues(node: &PdgNode, sources: &BTreeSet<String>) -> Ve
 
 /// Source byte identities must be checkable; compiler evidence needs digests.
 fn check_source_identities(doc: &PdgDocument, ctx: &ValidationContext) -> CheckOutput {
-    let blocking = doc
-        .sources
-        .iter()
-        .flat_map(|source| source_identity_issues(source, ctx))
-        .collect();
-
-    CheckOutput {
-        blocking,
-        notes: Vec::new(),
-    }
+    check_records(&doc.sources, |source| source_identity_issues(source, ctx))
 }
 
 fn source_identity_issues(source: &Source, ctx: &ValidationContext) -> Vec<Issue> {
@@ -1201,10 +1267,10 @@ fn document_spans(doc: &PdgDocument) -> Vec<&Span> {
 
 /// Accurate bound-check coverage: true only when every span's source had
 /// bytes supplied, so every bound was actually verified.
-fn spans_fully_checked(doc: &PdgDocument, source_bytes: &BTreeMap<String, Vec<u8>>) -> bool {
+fn spans_fully_checked(doc: &PdgDocument, source_bytes: &dyn SourceBytes) -> bool {
     document_spans(doc)
         .iter()
-        .all(|span| source_bytes.contains_key(&span.source_id))
+        .all(|span| source_bytes.bytes(&span.source_id).is_some())
 }
 
 /// Source digests are verified against supplied bytes. A mismatch blocks
@@ -1212,24 +1278,17 @@ fn spans_fully_checked(doc: &PdgDocument, source_bytes: &BTreeMap<String, Vec<u8
 fn check_source_digests(
     doc: &PdgDocument,
     ctx: &ValidationContext,
-    source_bytes: &BTreeMap<String, Vec<u8>>,
+    source_bytes: &dyn SourceBytes,
 ) -> CheckOutput {
-    let blocking = doc
-        .sources
-        .iter()
-        .flat_map(|source| digest_issues(source, ctx, source_bytes))
-        .collect();
-
-    CheckOutput {
-        blocking,
-        notes: Vec::new(),
-    }
+    check_records(&doc.sources, |source| {
+        digest_issues(source, ctx, source_bytes)
+    })
 }
 
 fn digest_issues(
     source: &Source,
     ctx: &ValidationContext,
-    source_bytes: &BTreeMap<String, Vec<u8>>,
+    source_bytes: &dyn SourceBytes,
 ) -> Vec<Issue> {
     let Some(claimed) = source.content_identity.known_value() else {
         return Vec::new();
@@ -1239,7 +1298,7 @@ fn digest_issues(
         return Vec::new();
     }
 
-    match source_bytes.get(&source.id) {
+    match source_bytes.bytes(&source.id) {
         None => {
             if ctx.is_fixture_only() {
                 Vec::new()
@@ -1250,21 +1309,21 @@ fn digest_issues(
                 )]
             }
         }
-        Some(bytes) => {
-            let actual = sha256_hex(bytes);
+        Some(bytes) => compare_digest(source, claimed, &sha256_hex(bytes)),
+    }
+}
 
-            if claimed == actual {
-                Vec::new()
-            } else {
-                vec![issue(
-                    "pdg.source-digest",
-                    format!(
-                        "source {:?} digest does not match supplied bytes",
-                        source.id
-                    ),
-                )]
-            }
-        }
+fn compare_digest(source: &Source, claimed: &str, actual: &str) -> Vec<Issue> {
+    if claimed == actual {
+        Vec::new()
+    } else {
+        vec![issue(
+            "pdg.source-digest",
+            format!(
+                "source {:?} digest does not match supplied bytes",
+                source.id
+            ),
+        )]
     }
 }
 
@@ -1279,7 +1338,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 fn check_build_evidence(
     doc: &PdgDocument,
     ctx: &ValidationContext,
-    source_bytes: &BTreeMap<String, Vec<u8>>,
+    source_bytes: &dyn SourceBytes,
 ) -> CheckOutput {
     let ValidationContext::CompilerEvidence { pointer_width_bits } = ctx else {
         return clear();
@@ -1453,3 +1512,6 @@ fn parameters_applicability(doc: &PdgDocument, caps: &BTreeMap<String, Capabilit
 
     Vec::new()
 }
+
+#[cfg(test)]
+mod source_text_tests;

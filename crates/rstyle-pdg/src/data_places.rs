@@ -4,7 +4,7 @@ use crate::{
     HirFnFacts, HirNode,
     data_origins::Origin,
     data_types::{self, TypeToken},
-    field_locations::{self, Location, Projection},
+    field_locations::{FieldObservations, Location, Projection},
 };
 use std::collections::BTreeSet;
 
@@ -79,8 +79,7 @@ pub fn is_place_base(node: &HirNode) -> Result<bool, String> {
 }
 
 fn verify_dereferences(facts: &HirFnFacts) -> Result<(), String> {
-    let fields: field_locations::FieldObservations =
-        crate::data_frontend::evidence(facts, field_locations::KEY)?;
+    let fields = facts.build.frontend_options.data::<FieldObservations>()?;
     for field in &fields.operations {
         if let Location::Captured { path, .. } = &field.location
             && path
@@ -120,8 +119,7 @@ pub fn borrow_origin(node: &HirNode, facts: &HirFnFacts) -> Result<Origin, Strin
     if place.kind != "expr_field" {
         return Err("Unsupported borrow place".into());
     }
-    let fields: field_locations::FieldObservations =
-        crate::data_frontend::evidence(facts, field_locations::KEY)?;
+    let fields = facts.build.frontend_options.data::<FieldObservations>()?;
     let location = fields
         .operations
         .iter()

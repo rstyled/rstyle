@@ -69,10 +69,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
     observations.validate()?;
     capture.install_data(facts, &observations)?;
     capture.install_origins(&observations, facts)?;
-    facts.build.frontend_options.insert(
-        KEY.into(),
-        serde_json::to_value(observations).map_err(|error| error.to_string())?,
-    );
+    facts.build.frontend_options.insert_data(observations);
 
     Ok(())
 }
@@ -179,10 +176,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             declarations: self.origins.into_values().collect(),
         };
         rstyle_pdg::declaration_origins::verify(observations, &origins)?;
-        facts.build.frontend_options.insert(
-            rstyle_pdg::declaration_origins::KEY.into(),
-            serde_json::to_value(origins).map_err(|error| error.to_string())?,
-        );
+        facts.build.frontend_options.insert_data(origins);
 
         Ok(())
     }
@@ -342,7 +336,10 @@ impl<'tcx> Capture<'_, 'tcx> {
         Ok(())
     }
 
-    fn concrete_declaration(&self, instance: Instance<'tcx>) -> Result<String, Failure> {
+    fn concrete_declaration(
+        &self,
+        instance: Instance<'tcx>,
+    ) -> Result<rstyle_pdg::SourceText, Failure> {
         let Instance {
             definition,
             arguments,
@@ -392,17 +389,15 @@ impl<'tcx> Capture<'_, 'tcx> {
         let path = real
             .local_path()
             .ok_or_else(|| unsupported("Missing local declaration file"))?;
-        let full = rustc_span::Span::with_root_ctxt(file.start_pos, file.end_position());
-        let (mut file_bytes, file_span) = super::original_source(self.ctx.tcx, full)
+        let snapshot = self
+            .ctx
+            .sources
+            .file(&file)
             .ok_or_else(|| unsupported("Missing original declaration file buffer"))?;
-        // The compiler's full normalized span starts after a removed BOM;
-        // restore that prefix so original file-relative offsets stay exact.
-        if file_span.start == 3 {
-            file_bytes.insert(0, '\u{feff}');
-        } else if file_span.start != 0 {
-            return Err(unsupported("Unexpected original file prefix offset"));
-        }
-        let (_, declaration_span) = super::original_source(self.ctx.tcx, item)
+        let (_, declaration_span) = self
+            .ctx
+            .sources
+            .range(self.ctx.tcx, item)
             .ok_or_else(|| unsupported("Missing original declaration range"))?;
         self.origins.insert(
             nominal.definition_path.clone(),
@@ -417,8 +412,8 @@ impl<'tcx> Capture<'_, 'tcx> {
                 }
                 .to_string_lossy()
                 .into_owned(),
-                file_digest: digest(file_bytes.as_bytes()),
-                file_bytes,
+                file_digest: snapshot.identity().to_owned(),
+                file_bytes: snapshot.bytes.clone(),
                 declaration_span,
             },
         );
@@ -426,7 +421,7 @@ impl<'tcx> Capture<'_, 'tcx> {
         Ok(())
     }
 
-    fn declaration(&self, id: DefId) -> Result<String, Failure> {
+    fn declaration(&self, id: DefId) -> Result<rstyle_pdg::SourceText, Failure> {
         let Node::Item(item) = self.ctx.tcx.hir_node_by_def_id(id.expect_local()) else {
             return Err(unsupported("Missing original struct declaration"));
         };
@@ -435,7 +430,10 @@ impl<'tcx> Capture<'_, 'tcx> {
                 "Macro-generated struct declaration is unavailable",
             ));
         }
-        let (source, _) = super::original_source(self.ctx.tcx, item.span)
+        let (source, _) = self
+            .ctx
+            .sources
+            .range(self.ctx.tcx, item.span)
             .ok_or_else(|| unsupported("Missing original concrete declaration bytes"))?;
         if source.len() > MAX_SOURCE_BYTES {
             return Err(Failure::Budget(
@@ -478,7 +476,7 @@ impl<'tcx> Capture<'_, 'tcx> {
                 Ok(Field {
                     position,
                     name,
-                    declaration,
+                    declaration: declaration.into(),
                     ty,
                 })
             })
@@ -486,7 +484,11 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 }
 
-fn nominal(ctx: &Context<'_>, definition_path: String, source: &str) -> Result<Nominal, Failure> {
+fn nominal(
+    ctx: &Context<'_>,
+    definition_path: String,
+    source: &rstyle_pdg::SourceText,
+) -> Result<Nominal, Failure> {
     if ctx.profile.is_data() {
         let context = ctx
             .unit_context
@@ -498,7 +500,7 @@ fn nominal(ctx: &Context<'_>, definition_path: String, source: &str) -> Result<N
             manifest_digest: context.package.manifest_digest.clone(),
             source_identity: Some(context.package.package_id.clone()),
             definition_path,
-            declaration_digest: digest(source.as_bytes()),
+            declaration_digest: source.identity().to_owned(),
         });
     }
     let package_name = std::env::var("CARGO_PKG_NAME")
@@ -507,16 +509,18 @@ fn nominal(ctx: &Context<'_>, definition_path: String, source: &str) -> Result<N
         .map_err(|_| unsupported("Missing Cargo package version"))?;
     let directory = std::env::var("CARGO_MANIFEST_DIR")
         .map_err(|_| unsupported("Missing Cargo manifest context"))?;
-    let manifest = std::fs::read(std::path::Path::new(&directory).join("Cargo.toml"))
+    let manifest = ctx
+        .sources
+        .manifest(&std::path::Path::new(&directory).join("Cargo.toml"))
         .map_err(|_| unsupported("Missing exact Cargo manifest bytes"))?;
 
     Ok(Nominal {
         package_name,
         source_identity: None,
         package_version,
-        manifest_digest: digest(&manifest),
+        manifest_digest: manifest.identity().to_owned(),
         definition_path,
-        declaration_digest: digest(source.as_bytes()),
+        declaration_digest: source.identity().to_owned(),
     })
 }
 

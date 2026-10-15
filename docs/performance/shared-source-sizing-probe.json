@@ -1,0 +1,14 @@
+{
+  "source_revision": "3211768",
+  "scope": "initial larger-graph sizing probe; not a before/after speedup claim",
+  "analyzer": "debug",
+  "functions": 16,
+  "updates_per_function": 32,
+  "pdg_nodes_per_function": 131,
+  "pairs": 120,
+  "cold_plain_wall_seconds": 46.58,
+  "plain_peak_rss_kib": 124400,
+  "trace_wall_and_rss": "59.74 437260",
+  "status": "both completed; remaining large pilot repetitions deliberately stopped",
+  "repeated_workload": "8 functions, 16 updates each, 67 PDG nodes/function, 28 pairs"
+}

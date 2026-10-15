@@ -1,6 +1,7 @@
 //! Schema-faithful paired documents and an external byte-identity manifest.
 
 use super::{Analysis, Dependence, Graph, Operation};
+use crate::unit_store::EvidenceFacts;
 use crate::{cfg::*, frontend::*, model::*};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -23,15 +24,61 @@ pub struct Manifest {
     pub documents: Vec<DocumentIdentity>,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Pair {
     pub pdg: PdgDocument,
     pub cfg: CfgDocument,
+}
+
+/// Borrow paired typed documents without copying their evidence. This view
+/// grants no trust; ordinary paired/source/policy checks still apply.
+#[derive(Clone, Copy, Serialize)]
+pub struct PairView<'a> {
+    pub pdg: &'a PdgDocument,
+    pub cfg: &'a CfgDocument,
+}
+
+impl Pair {
+    pub fn as_view(&self) -> PairView<'_> {
+        PairView {
+            pdg: &self.pdg,
+            cfg: &self.cfg,
+        }
+    }
+}
+
+impl<'a> From<&'a Pair> for PairView<'a> {
+    fn from(pair: &'a Pair) -> Self {
+        pair.as_view()
+    }
+}
+
+impl<'a> From<&'a mut Pair> for PairView<'a> {
+    fn from(pair: &'a mut Pair) -> Self {
+        pair.as_view()
+    }
+}
+
+impl<'a> From<&PairView<'a>> for PairView<'a> {
+    fn from(pair: &PairView<'a>) -> Self {
+        *pair
+    }
 }
 
 pub struct SerializedPair {
     pub pdg_bytes: Vec<u8>,
     pub cfg_bytes: Vec<u8>,
     pub manifest: Manifest,
+}
+
+/// Exact owned-byte snapshot borrowed for verification. The manifest and both
+/// documents must come from the same load; constructing this view grants no trust.
+#[derive(Clone, Copy)]
+pub struct SerializedPairView<'a> {
+    pub pdg_bytes: &'a [u8],
+    pub cfg_bytes: &'a [u8],
+    pub manifest: &'a Manifest,
 }
 
 struct DocumentMetadata {
@@ -77,16 +124,30 @@ struct WireSite<'a> {
 }
 
 impl SerializedPair {
+    pub fn as_view(&self) -> SerializedPairView<'_> {
+        SerializedPairView {
+            pdg_bytes: &self.pdg_bytes,
+            cfg_bytes: &self.cfg_bytes,
+            manifest: &self.manifest,
+        }
+    }
+
+    pub fn verify_identities(&self, pair: &Pair) -> Result<(), String> {
+        self.as_view().verify_identities(pair)
+    }
+}
+
+impl SerializedPairView<'_> {
     pub fn verify_identities(&self, pair: &Pair) -> Result<(), String> {
         let links = read_paired_graph(&pair.pdg.extensions)?;
-        let mut actual = self.manifest.documents.clone();
-        let mut expected = vec![
-            identity(links.pdg_document_key, &self.pdg_bytes),
-            identity(links.cfg_document_key, &self.cfg_bytes),
+        let mut actual: Vec<_> = self.manifest.documents.iter().collect();
+        let mut expected = [
+            identity(links.pdg_document_key, self.pdg_bytes),
+            identity(links.cfg_document_key, self.cfg_bytes),
         ];
         actual.sort_by(|a, b| a.key.cmp(&b.key));
         expected.sort_by(|a, b| a.key.cmp(&b.key));
-        if actual != expected {
+        if !actual.into_iter().eq(expected.iter()) {
             return Err("External document byte identities or paired keys disagree".to_string());
         }
 
@@ -122,7 +183,7 @@ fn identity(key: String, bytes: &[u8]) -> DocumentIdentity {
 }
 
 pub fn emit(
-    facts: &HirFnFacts,
+    facts: &dyn EvidenceFacts,
     graph: &Graph,
     analysis: &Analysis,
     revision: &str,
@@ -162,7 +223,7 @@ pub fn emit(
 }
 
 fn pdg_document(
-    facts: &HirFnFacts,
+    facts: &dyn EvidenceFacts,
     graph: &Graph,
     analysis: &Analysis,
     metadata: &DocumentMetadata,
@@ -195,7 +256,7 @@ fn pdg_document(
     }
 }
 
-fn producer(facts: &HirFnFacts, revision: &str) -> Result<Producer, String> {
+fn producer(facts: &dyn EvidenceFacts, revision: &str) -> Result<Producer, String> {
     let build = &facts.build;
     let required = [
         &build.producer_revision,
@@ -225,7 +286,10 @@ fn producer(facts: &HirFnFacts, revision: &str) -> Result<Producer, String> {
     }
     let configuration = BTreeMap::from([
         ("producer_revision".to_string(), json!(revision)),
-        ("captured_build".to_string(), json!(build)),
+        (
+            super::matching_build::KEY.to_string(),
+            super::matching_build::capture(build),
+        ),
         (
             "normal_flow_scope".to_string(),
             json!("compat.rust.hir-r0/0.1.0; exceptional flow omitted"),
@@ -450,7 +514,7 @@ fn symbol(binding: &BindingFact) -> Symbol {
     }
 }
 
-fn input_role(facts: &HirFnFacts, position: u32) -> ParamRole {
+fn input_role(facts: &dyn EvidenceFacts, position: u32) -> ParamRole {
     if position == 0
         && facts.signature.has_self
         && crate::extraction_profile::ExtractionProfile::from_facts(facts)
@@ -462,7 +526,7 @@ fn input_role(facts: &HirFnFacts, position: u32) -> ParamRole {
     }
 }
 
-fn function(facts: &HirFnFacts, graph: &Graph, analysis: &Analysis) -> FunctionInfo {
+fn function(facts: &dyn EvidenceFacts, graph: &Graph, analysis: &Analysis) -> FunctionInfo {
     let inputs = facts
         .signature
         .params
@@ -513,7 +577,7 @@ fn function(facts: &HirFnFacts, graph: &Graph, analysis: &Analysis) -> FunctionI
     }
 }
 
-fn source_identifier(facts: &HirFnFacts) -> &str {
+fn source_identifier(facts: &dyn EvidenceFacts) -> &str {
     facts
         .build
         .frontend_options
@@ -523,7 +587,7 @@ fn source_identifier(facts: &HirFnFacts) -> &str {
         .trim_start_matches("r#")
 }
 
-fn source_path(facts: &HirFnFacts) -> String {
+fn source_path(facts: &dyn EvidenceFacts) -> String {
     facts
         .build
         .frontend_options
@@ -568,7 +632,7 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
 }
 
 fn extensions(
-    facts: &HirFnFacts,
+    facts: &dyn EvidenceFacts,
     graph: &Graph,
     analysis: &Analysis,
 ) -> Result<Extensions, String> {
@@ -650,7 +714,11 @@ fn value_site(site: &super::ValueSite) -> Result<Value, String> {
     serde_json::to_value(wire).map_err(|e| e.to_string())
 }
 
-fn cfg_document(facts: &HirFnFacts, graph: &Graph, metadata: DocumentMetadata) -> CfgDocument {
+fn cfg_document(
+    facts: &dyn EvidenceFacts,
+    graph: &Graph,
+    metadata: DocumentMetadata,
+) -> CfgDocument {
     let DocumentMetadata {
         producer,
         extensions,
@@ -669,12 +737,7 @@ fn cfg_document(facts: &HirFnFacts, graph: &Graph, metadata: DocumentMetadata) -
             language_version: producer.language_version,
             configuration: producer.configuration,
         },
-        sources: vec![CfgSource {
-            id: "source".to_string(),
-            path: source_path(facts),
-            content_identity: StringFact::known(&facts.source.digest),
-            content: Some(facts.source.bytes.clone()),
-        }],
+        sources: vec![cfg_source(facts)],
         function: CfgFunction {
             id: facts.source.digest.clone(),
             name: StringFact::known(&facts.name),
@@ -699,7 +762,16 @@ fn cfg_document(facts: &HirFnFacts, graph: &Graph, metadata: DocumentMetadata) -
     }
 }
 
-fn cfg_nodes(graph: &Graph, facts: &HirFnFacts) -> Vec<CfgNode> {
+fn cfg_source(facts: &dyn EvidenceFacts) -> CfgSource {
+    CfgSource {
+        id: "source".to_string(),
+        path: source_path(facts),
+        content_identity: StringFact::known(&facts.source.digest),
+        content: Some(facts.source.bytes.clone()),
+    }
+}
+
+fn cfg_nodes(graph: &Graph, facts: &dyn EvidenceFacts) -> Vec<CfgNode> {
     let mut nodes = vec![
         boundary("E", CfgNodeKind::Entry),
         boundary("X", CfgNodeKind::Exit),
@@ -752,7 +824,7 @@ fn boundary(id: &str, kind: CfgNodeKind) -> CfgNode {
     }
 }
 
-fn cfg_node(node: &Operation, facts: &HirFnFacts) -> CfgNode {
+fn cfg_node(node: &Operation, facts: &dyn EvidenceFacts) -> CfgNode {
     CfgNode {
         id: node.id.clone(),
         kind: match node.category {

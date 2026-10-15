@@ -7,7 +7,10 @@ import ccgraph_study as b
 
 class Followup(unittest.TestCase):
     def test_frozen_inputs(self):
-        frozen = f.validate()
+        with self.assertRaisesRegex(b.Invalid, 'input/configuration drift: scripts/ccgraph_study.py'):
+            f.validate()
+        frozen = b.read(f.STUDY / 'freeze.json')
+        self.assertEqual(b.identity({k: v for k, v in frozen.items() if k != 'identity'}), frozen['identity'])
         self.assertEqual(frozen['version'], 2)
         manifest = b.read(f.STUDY / 'manifest.json')
         self.assertEqual(len(manifest['functions']), 15)

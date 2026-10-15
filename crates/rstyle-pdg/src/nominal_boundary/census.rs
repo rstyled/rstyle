@@ -1,6 +1,7 @@
 //! Original unit buffers and independent ordinary-module closure.
 
 use super::UnitContext;
+#[cfg(test)]
 use crate::concrete_types::digest;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -17,7 +18,7 @@ pub const MAX_BYTES: usize = 8 * 1024 * 1024;
 #[serde(deny_unknown_fields)]
 pub struct UnitFile {
     pub path: PathBuf,
-    pub bytes: String,
+    pub bytes: crate::SourceSnapshot,
     pub digest: String,
 }
 
@@ -85,9 +86,9 @@ fn checked_files(census: &Census) -> Result<BTreeMap<PathBuf, &str>, String> {
                 .path
                 .components()
                 .any(|c| matches!(c, std::path::Component::ParentDir))
-            || file.digest != digest(file.bytes.as_bytes())
+            || file.digest != file.bytes.identity()
             || files
-                .insert(file.path.clone(), file.bytes.as_str())
+                .insert(file.path.clone(), file.bytes.as_ref())
                 .is_some()
         {
             return Err("Invalid, duplicate, escaping or over-budget census file".into());
@@ -328,12 +329,12 @@ mod tests {
     #[test]
     fn source_tampering_navigation_and_resource_failures_are_explicit() {
         let mut proof = sample(&[("/sample/src/lib.rs", "")]);
-        proof.files[0].bytes.push('x');
+        proof.files[0].bytes = format!("{}x", proof.files[0].bytes).into();
         assert!(verify(&proof).is_err());
         proof = sample(&[("/sample/src/../outside.rs", "")]);
         assert!(verify(&proof).is_err());
         proof = sample(&[("/sample/src/lib.rs", "")]);
-        proof.files[0].bytes = " ".repeat(MAX_BYTES + 1);
+        proof.files[0].bytes = " ".repeat(MAX_BYTES + 1).into();
         proof.files[0].digest = digest(proof.files[0].bytes.as_bytes());
         assert!(verify(&proof).is_err());
         proof.files = (0..=MAX_FILES)

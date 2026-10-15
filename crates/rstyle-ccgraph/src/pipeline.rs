@@ -6,19 +6,25 @@
 //! `not_evaluated`; arithmetic failures become explicit errors and mark the
 //! run incomplete instead of silently truncating results.
 
+use crate::compact::MatchingGraph;
 use crate::config::{CcgraphConfig, Scoring};
 use crate::features::{CosineParts, Vector9, cosine_parts, cosine_passes, numerical_features};
 use crate::frac::{ArithError, Frac};
-use crate::graph::{ImportedFunction, ProjectedGraph};
+use crate::graph::ImportedFunction;
 use crate::interface::{
     is_known_role, is_native_width, is_supported_type, jaro_winkler, serialize_interface,
     string_mean,
 };
 use crate::projection::{Projection, ProjectionFault, project};
-use crate::scoring::{Histogram, RoundScores, cosine_score, overlap_score, score_rounds};
-use crate::wl::{diameter, pair_depth, refine, weights};
+use crate::scoring::{LabelRound, RoundScores, cosine_score, overlap_score, score_label_rounds};
+use crate::wl::{LabelPartition, diameter_compact, pair_depth, weights};
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+};
+mod histograms;
+mod tracing;
 
 pub const PROFILE_ID: &str = "compat.ccgraph.strict";
 pub const PROFILE_VERSION: &str = "0.1.0";
@@ -128,15 +134,36 @@ pub struct RunReport {
     pub diagnostics: Vec<String>,
 }
 
-struct PreparedFunction {
-    imported: ImportedFunction,
+/// Reporting choices do not change matching policy or exhaustive enumeration.
+pub struct EvaluationOptions {
+    pub maximum_pairs: Option<usize>,
+    pub profile: crate::graph::MatchingProfile,
+    pub trace: bool,
+}
+
+pub type WlPartitions = BTreeMap<usize, Vec<LabelPartition>>;
+
+pub struct Evaluation {
+    pub report: RunReport,
+    pub partitions: WlPartitions,
+}
+
+struct PairEvaluation {
+    record: PairRecord,
+    incomplete: bool,
+    partitions: Option<Vec<LabelPartition>>,
+}
+
+struct PreparedFunction<'a> {
+    imported: &'a ImportedFunction,
     valid: bool,
     reasons: Vec<String>,
     projection: Result<ProjectionData, ProjectionFault>,
 }
 
 struct ProjectionData {
-    graph: ProjectedGraph,
+    graph: MatchingGraph,
+    trace_names: Option<Vec<String>>,
     record: FunctionProjection,
 }
 
@@ -160,18 +187,32 @@ pub fn evaluate_with_pair_limit(
     config: &CcgraphConfig,
     maximum_pairs: Option<usize>,
 ) -> RunReport {
+    evaluate(functions, config, maximum_pairs, false).report
+}
+
+fn evaluate(
+    functions: &[ImportedFunction],
+    config: &CcgraphConfig,
+    maximum_pairs: Option<usize>,
+    trace: bool,
+) -> Evaluation {
     let mut report = selected_report(functions, config);
     let duplicates = duplicate_keys(functions);
     flag_duplicates(&mut report, &duplicates);
 
-    let prepared = prepare_all(functions, &duplicates);
+    let prepared = prepare_all(functions, &duplicates, trace);
     record_functions(&mut report, &prepared);
+    let mut evaluation = Evaluation {
+        report,
+        partitions: BTreeMap::new(),
+    };
     if let Err(error) = check_pair_limit(functions.len(), maximum_pairs) {
-        return execution_failure(report, error);
+        evaluation.report = execution_failure(evaluation.report, error);
+        return evaluation;
     }
-    enumerate_pairs(&mut report, &prepared, config);
+    enumerate_pairs(&mut evaluation, &prepared, config);
 
-    report
+    evaluation
 }
 
 /// Explicit Cargo selection, including runs with no admitted inputs.
@@ -182,18 +223,36 @@ pub fn evaluate_selected(
     maximum_pairs: Option<usize>,
     profile: crate::graph::MatchingProfile,
 ) -> RunReport {
-    let report = evaluate_with_pair_limit(functions, config, maximum_pairs);
-    let report = profile_report(report, profile);
+    evaluate_selected_with_options(
+        functions,
+        config,
+        EvaluationOptions {
+            maximum_pairs,
+            profile,
+            trace: false,
+        },
+    )
+    .report
+}
+
+/// Collect optional partitions from scoring itself, using prepared graphs once.
+pub fn evaluate_selected_with_options(
+    functions: &[ImportedFunction],
+    config: &CcgraphConfig,
+    options: EvaluationOptions,
+) -> Evaluation {
+    let mut evaluation = evaluate(functions, config, options.maximum_pairs, options.trace);
+    evaluation.report = profile_report(evaluation.report, options.profile);
     if functions
         .iter()
-        .any(|function| function.matching_profile != profile)
+        .any(|function| function.matching_profile != options.profile)
     {
-        return execution_failure(
-            report,
+        evaluation.report = execution_failure(
+            evaluation.report,
             "Imported matching identity disagrees with selected profile".into(),
         );
     }
-    report
+    evaluation
 }
 
 fn profile_report(mut report: RunReport, profile: crate::graph::MatchingProfile) -> RunReport {
@@ -264,21 +323,22 @@ fn flag_duplicates(report: &mut RunReport, duplicates: &BTreeSet<String>) {
     }
 }
 
-fn prepare_all(
-    functions: &[ImportedFunction],
+fn prepare_all<'a>(
+    functions: &'a [ImportedFunction],
     duplicates: &BTreeSet<String>,
-) -> BTreeMap<String, PreparedFunction> {
+    trace: bool,
+) -> BTreeMap<String, PreparedFunction<'a>> {
     let mut prepared = BTreeMap::new();
     for func in functions {
         if duplicates.contains(&func.key) {
             continue;
         }
-        prepared.insert(func.key.clone(), prepare(func));
+        prepared.insert(func.key.clone(), prepare(func, trace));
     }
     prepared
 }
 
-fn record_functions(report: &mut RunReport, prepared: &BTreeMap<String, PreparedFunction>) {
+fn record_functions(report: &mut RunReport, prepared: &BTreeMap<String, PreparedFunction<'_>>) {
     for (key, item) in prepared {
         report.functions.push(FunctionRecord {
             key: key.clone(),
@@ -299,8 +359,8 @@ fn record_functions(report: &mut RunReport, prepared: &BTreeMap<String, Prepared
 }
 
 fn enumerate_pairs(
-    report: &mut RunReport,
-    prepared: &BTreeMap<String, PreparedFunction>,
+    evaluation: &mut Evaluation,
+    prepared: &BTreeMap<String, PreparedFunction<'_>>,
     config: &CcgraphConfig,
 ) {
     let mut keys: Vec<&String> = prepared.keys().collect();
@@ -312,10 +372,15 @@ fn enumerate_pairs(
                 &prepared[second.as_str()],
                 config,
             );
-            if pair.1 {
-                report.incomplete = true;
+            if pair.incomplete {
+                evaluation.report.incomplete = true;
             }
-            report.pairs.push(pair.0);
+            if let Some(partitions) = pair.partitions {
+                evaluation
+                    .partitions
+                    .insert(evaluation.report.pairs.len(), partitions);
+            }
+            evaluation.report.pairs.push(pair.record);
         }
     }
 }
@@ -367,16 +432,16 @@ fn duplicate_keys(functions: &[ImportedFunction]) -> BTreeSet<String> {
     dupes
 }
 
-fn prepare(func: &ImportedFunction) -> PreparedFunction {
+fn prepare(func: &ImportedFunction, trace: bool) -> PreparedFunction<'_> {
     let mut reasons = Vec::new();
     let valid = validate_imported(func, &mut reasons);
     let projection = if valid {
-        project_or_record(func, &mut reasons)
+        project_or_record(func, &mut reasons, trace)
     } else {
         Err(never_projected())
     };
     PreparedFunction {
-        imported: func.clone(),
+        imported: func,
         valid,
         reasons,
         projection,
@@ -392,9 +457,10 @@ fn never_projected() -> ProjectionFault {
 fn project_or_record(
     func: &ImportedFunction,
     reasons: &mut Vec<String>,
+    trace: bool,
 ) -> Result<ProjectionData, ProjectionFault> {
     match project(func) {
-        Ok(projection) => Ok(wrap_projection(func, projection)),
+        Ok(projection) => wrap_projection(func, projection, trace),
         Err(fault) => {
             reasons.push(fault_reason(&fault));
             Err(fault)
@@ -408,14 +474,26 @@ fn fault_reason(fault: &ProjectionFault) -> String {
     }
 }
 
-fn wrap_projection(func: &ImportedFunction, projection: Projection) -> ProjectionData {
+fn wrap_projection(
+    func: &ImportedFunction,
+    projection: Projection,
+    trace: bool,
+) -> Result<ProjectionData, ProjectionFault> {
     let graph = projection.graph;
+    let trace_names = trace.then(|| {
+        crate::compact::ordered_nodes(&graph)
+            .iter()
+            .map(|node| node.id.clone())
+            .collect()
+    });
     let features = numerical_features(&graph, projection.facts.reference_count);
     let (retained_nodes, removed_nodes) = disposition_counts(&projection.trace);
 
+    let graph =
+        MatchingGraph::build(&graph).map_err(|reason| ProjectionFault::Ineligible { reason })?;
     let record = FunctionProjection {
         projected_nodes: graph.node_count(),
-        diameter: diameter(&graph),
+        diameter: diameter_compact(&graph),
         features,
         intro_para: serialize_interface(&func.inputs),
         return_para: serialize_interface(&func.outputs),
@@ -431,7 +509,11 @@ fn wrap_projection(func: &ImportedFunction, projection: Projection) -> Projectio
         removed_nodes,
         ignored_label_inputs: "operators, literals, kinds, names, types, ids, spans, outcomes, positions, annotations",
     };
-    ProjectionData { graph, record }
+    Ok(ProjectionData {
+        graph,
+        record,
+        trace_names,
+    })
 }
 
 fn disposition_counts(trace: &crate::projection::ProjectionTrace) -> (usize, usize) {
@@ -484,14 +566,15 @@ fn check_reference(func: &ImportedFunction, reasons: &mut Vec<String>) {
 
 /// Evaluate one ordered pair; the boolean flags an incomplete run.
 fn evaluate_pair(
-    first: &PreparedFunction,
-    second: &PreparedFunction,
+    first: &PreparedFunction<'_>,
+    second: &PreparedFunction<'_>,
     config: &CcgraphConfig,
-) -> (PairRecord, bool) {
+) -> PairEvaluation {
     let input = GateInput {
         first,
         second,
         config,
+        partitions: RefCell::default(),
     };
     let gates = [
         gate_validation,
@@ -517,13 +600,18 @@ fn evaluate_pair(
         stages.push(not_evaluated(*stage));
     }
 
-    (pair_record(&input, stages), incomplete)
+    PairEvaluation {
+        record: pair_record(&input, stages),
+        incomplete,
+        partitions: input.partitions.into_inner(),
+    }
 }
 
 struct GateInput<'a> {
-    first: &'a PreparedFunction,
-    second: &'a PreparedFunction,
+    first: &'a PreparedFunction<'a>,
+    second: &'a PreparedFunction<'a>,
     config: &'a CcgraphConfig,
+    partitions: RefCell<Option<Vec<LabelPartition>>>,
 }
 
 struct GateResult {
@@ -604,9 +692,8 @@ fn pair_record(input: &GateInput, stages: Vec<StageRecord>) -> PairRecord {
 
 fn gate_validation(input: &GateInput) -> GateResult {
     let mut detail = BTreeMap::new();
-    let pair_ok = widths_compatible(&input.first.imported, &input.second.imported, &mut detail);
-    let context_ok =
-        contexts_compatible(&input.first.imported, &input.second.imported, &mut detail);
+    let pair_ok = widths_compatible(input.first.imported, input.second.imported, &mut detail);
+    let context_ok = contexts_compatible(input.first.imported, input.second.imported, &mut detail);
     let ok = input.first.valid && input.second.valid && pair_ok && context_ok;
 
     if ok {
@@ -779,7 +866,7 @@ fn gate_strings(input: &GateInput) -> GateResult {
 }
 
 fn gate_wl_final(input: &GateInput) -> GateResult {
-    match wl_scores(input.first, input.second, input.config) {
+    match wl_scores(input.first, input.second, input.config, &input.partitions) {
         Ok(outcome) => GateResult {
             record: StageRecord {
                 stage: StageName::WlFinal,
@@ -793,7 +880,7 @@ fn gate_wl_final(input: &GateInput) -> GateResult {
     }
 }
 
-fn graph_of(prepared: &PreparedFunction) -> &ProjectedGraph {
+fn graph_of<'a>(prepared: &'a PreparedFunction<'_>) -> &'a MatchingGraph {
     match &prepared.projection {
         Ok(data) => &data.graph,
         Err(_) => panic_projection_checked(),
@@ -804,7 +891,7 @@ fn panic_projection_checked() -> ! {
     panic!("projection checked before use")
 }
 
-fn record_of(prepared: &PreparedFunction) -> &FunctionProjection {
+fn record_of<'a>(prepared: &'a PreparedFunction<'_>) -> &'a FunctionProjection {
     match &prepared.projection {
         Ok(data) => &data.record,
         Err(_) => panic_projection_checked(),
@@ -861,8 +948,8 @@ fn native_involved(func: &ImportedFunction) -> bool {
 }
 
 fn projection_detail(
-    first: &PreparedFunction,
-    second: &PreparedFunction,
+    first: &PreparedFunction<'_>,
+    second: &PreparedFunction<'_>,
 ) -> BTreeMap<String, String> {
     BTreeMap::from([
         (
@@ -876,7 +963,7 @@ fn projection_detail(
     ])
 }
 
-fn projection_failure(first: &PreparedFunction, second: &PreparedFunction) -> String {
+fn projection_failure(first: &PreparedFunction<'_>, second: &PreparedFunction<'_>) -> String {
     let mut reasons = Vec::new();
     for prepared in [first, second] {
         if let Err(fault) = &prepared.projection {
@@ -934,8 +1021,8 @@ impl StringScores {
 }
 
 fn string_scores(
-    first: &PreparedFunction,
-    second: &PreparedFunction,
+    first: &PreparedFunction<'_>,
+    second: &PreparedFunction<'_>,
 ) -> Result<StringScores, ArithError> {
     let a = record_of(first);
     let b = record_of(second);
@@ -962,12 +1049,11 @@ struct WlOutcome {
 }
 
 fn wl_scores(
-    first: &PreparedFunction,
-    second: &PreparedFunction,
+    first: &PreparedFunction<'_>,
+    second: &PreparedFunction<'_>,
     config: &CcgraphConfig,
+    partitions: &RefCell<Option<Vec<LabelPartition>>>,
 ) -> Result<WlOutcome, ArithError> {
-    let graph_a = graph_of(first);
-    let graph_b = graph_of(second);
     let record_a = record_of(first);
     let record_b = record_of(second);
     let h = pair_depth(
@@ -978,13 +1064,11 @@ fn wl_scores(
     );
 
     let selected_weights = weights(h);
-    let refinement = refine(graph_a, graph_b, h);
-    let rounds: Vec<(Histogram, Histogram)> =
-        refinement.rounds.iter().map(label_histograms).collect();
-    let scores = score_rounds(&rounds, &selected_weights)?;
+    let refined = tracing::refine(first, second, h);
+    let scores = score_label_rounds(&refined.refinement.rounds, &selected_weights)?;
 
-    let mut detail = wl_detail(h, &selected_weights, &scores, &rounds);
-    Ok(match config.scoring {
+    let mut detail = wl_detail(h, &selected_weights, &scores, &refined.refinement.rounds);
+    let outcome = match config.scoring {
         Scoring::SmallerGraphOverlap => judge_overlap(
             &scores,
             (record_a.projected_nodes, record_b.projected_nodes),
@@ -992,24 +1076,16 @@ fn wl_scores(
             &mut detail,
         )?,
         Scoring::CrossProductCosine => judge_cosine(&scores, config, &mut detail)?,
-    })
-}
-
-fn label_histograms(round: &(BTreeMap<u64, u64>, BTreeMap<u64, u64>)) -> (Histogram, Histogram) {
-    (rename(&round.0), rename(&round.1))
-}
-
-fn rename(hist: &BTreeMap<u64, u64>) -> Histogram {
-    hist.iter()
-        .map(|(label, count)| (format!("L{label}"), *count))
-        .collect()
+    };
+    partitions.replace(refined.partitions);
+    Ok(outcome)
 }
 
 fn wl_detail(
     h: usize,
     selected_weights: &[u64],
     scores: &RoundScores,
-    rounds: &[(Histogram, Histogram)],
+    rounds: &[LabelRound<u64>],
 ) -> BTreeMap<String, String> {
     let mut detail = BTreeMap::from([
         ("depth".to_string(), h.to_string()),
@@ -1032,8 +1108,14 @@ fn wl_detail(
         ),
     ]);
     for (index, (hist_a, hist_b)) in rounds.iter().enumerate() {
-        detail.insert(format!("round_{index}_a"), format!("{hist_a:?}"));
-        detail.insert(format!("round_{index}_b"), format!("{hist_b:?}"));
+        detail.insert(
+            format!("round_{index}_a"),
+            format!("{:?}", histograms::Readable(hist_a)),
+        );
+        detail.insert(
+            format!("round_{index}_b"),
+            format!("{:?}", histograms::Readable(hist_b)),
+        );
     }
     detail
 }

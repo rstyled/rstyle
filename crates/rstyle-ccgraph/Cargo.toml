@@ -8,5 +8,8 @@ rstyle-pdg = { path = "../rstyle-pdg" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 
+[dev-dependencies]
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
 [lints]
 workspace = true

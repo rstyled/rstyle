@@ -151,6 +151,7 @@ impl Callbacks for HirExtract {
 
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
         let options = hir_extraction::Options {
+            sources: Default::default(),
             profile: self.profile,
             invocation: &self.invocation,
             unit_context: self.unit_context.as_ref(),
@@ -195,12 +196,12 @@ impl HirExtract {
         &self,
         tcx: TyCtxt<'_>,
         options: &hir_extraction::Options<'_>,
-        facts: &[rstyle_pdg::HirFnFacts],
+        store: &rstyle_pdg::unit_store::UnitStore,
     ) {
-        let inventory = self.inventory(tcx, options, facts);
+        let inventory = self.inventory(tcx, options, store.functions());
         self.output
             .write_capture(&hir_extraction::output::CapturedOutput {
-                facts,
+                store,
                 inventory: inventory.as_ref(),
             })
             .expect("write captured evidence");
@@ -216,7 +217,7 @@ impl HirExtract {
             .selected()
             .supports("rust.conditional-source-correspondence")
             .then(|| {
-                hir_extraction::source_inventory(tcx, &self.scanned, facts)
+                hir_extraction::source_inventory(tcx, &self.scanned, facts, options)
                     .expect("capture owned source inventory")
             })
     }

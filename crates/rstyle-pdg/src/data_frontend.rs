@@ -1,6 +1,6 @@
 //! Independently checked source/type/origin boundary for local data extraction.
 
-use crate::{HirFnFacts, HirNode, concrete_types::*, data_types, field_locations};
+use crate::{HirNode, concrete_types::*, data_types, field_locations};
 use source_proof::PathResolution;
 
 struct Unresolved;
@@ -10,13 +10,13 @@ impl PathResolution for Unresolved {
     }
 }
 
-pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
+pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     let interface = interface(facts)?;
     let source: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
     verify_lifetimes(&source)?;
     let resolution = nominal_resolution(facts, &interface)?;
-    verify_interface(facts, &source, &interface, resolution.as_ref())?;
+    verify_interface(facts, &source, &interface, resolution.as_deref())?;
 
     for parameter in &facts.signature.params {
         crate::data_origins::parameter(parameter)?;
@@ -27,14 +27,14 @@ pub fn verify(facts: &HirFnFacts) -> Result<(), String> {
     verify_nodes(&facts.body, facts, &places)
 }
 
-fn nominal_resolution(
-    facts: &HirFnFacts,
+fn nominal_resolution<'a>(
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
     interface: &InterfaceObservations,
-) -> Result<Option<crate::nominal_boundary::resolution::Resolution>, String> {
+) -> Result<Option<crate::nominal_boundary::resolution::ResolutionView<'a>>, String> {
     if crate::declaration_origins::declarations(interface)?.is_empty() {
         return Ok(None);
     }
-    crate::nominal_boundary::resolution::verify(facts, interface).map(Some)
+    facts.nominal_resolution().map(Some)
 }
 
 struct Resolver<'a>(Option<&'a crate::nominal_boundary::resolution::Resolution>);
@@ -47,8 +47,13 @@ impl PathResolution for Resolver<'_> {
     }
 }
 
-fn interface(facts: &HirFnFacts) -> Result<InterfaceObservations, String> {
-    let interface: InterfaceObservations = evidence(facts, KEY)?;
+fn interface(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<std::borrow::Cow<'_, InterfaceObservations>, String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
     interface.validate()?;
     Ok(interface)
 }
@@ -78,7 +83,7 @@ fn verify_lifetimes(source: &syn::ItemFn) -> Result<(), String> {
 }
 
 fn verify_interface(
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     source: &syn::ItemFn,
     interface: &InterfaceObservations,
     resolution: Option<&crate::nominal_boundary::resolution::Resolution>,
@@ -144,8 +149,11 @@ fn verify_receiver(
     Ok(())
 }
 
-fn verify_fields(facts: &HirFnFacts) -> Result<(), String> {
-    let fields: field_locations::FieldObservations = evidence(facts, field_locations::KEY)?;
+fn verify_fields(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+    let fields = facts
+        .build
+        .frontend_options
+        .data::<crate::field_locations::FieldObservations>()?;
     field_locations::verify(facts, &fields)?;
     let nodes = field_locations::fields(&facts.body);
 
@@ -208,7 +216,7 @@ fn spelling<'a>(bytes: &'a str, source: &syn::Type) -> Result<&'a str, String> {
 }
 
 fn verify_output(
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     source: &syn::ReturnType,
     observation: &Observation,
     resolution: Option<&crate::nominal_boundary::resolution::Resolution>,
@@ -231,7 +239,7 @@ fn verify_output(
 
 fn verify_nodes(
     node: &HirNode,
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
     if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
@@ -264,7 +272,11 @@ fn verify_nodes(
     Ok(())
 }
 
-fn verify_path(node: &HirNode, facts: &HirFnFacts, token: &str) -> Result<(), String> {
+fn verify_path(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    token: &str,
+) -> Result<(), String> {
     let target = node
         .res
         .as_ref()
@@ -291,7 +303,7 @@ pub fn accepted(token: &str) -> bool {
 }
 
 pub(crate) fn evidence<T: serde::de::DeserializeOwned>(
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     key: &str,
 ) -> Result<T, String> {
     let value = facts
@@ -299,7 +311,7 @@ pub(crate) fn evidence<T: serde::de::DeserializeOwned>(
         .frontend_options
         .get(key)
         .ok_or_else(|| format!("Missing data evidence {key}"))?;
-    serde_json::from_value(value.clone()).map_err(|error| error.to_string())
+    serde::Deserialize::deserialize(value).map_err(|error: serde_json::Error| error.to_string())
 }
 
 fn verify_parameter_origins(parameter: &crate::ParamFact) -> Result<(), String> {

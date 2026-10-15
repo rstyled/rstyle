@@ -30,7 +30,7 @@ pub enum TypeTree {
     Str,
     Struct {
         nominal: Nominal,
-        source: String,
+        source: crate::SourceText,
         fields: Vec<Field>,
     },
 }
@@ -52,7 +52,7 @@ pub struct Nominal {
 pub struct Field {
     pub position: usize,
     pub name: String,
-    pub declaration: String,
+    pub declaration: crate::SourceText,
     pub ty: TypeTree,
 }
 
@@ -172,14 +172,23 @@ fn check_many<'a>(
     Ok(())
 }
 
-fn check_declaration(nominal: &Nominal, source: &str, fields: &[Field]) -> Result<(), String> {
+pub(crate) fn check_declaration_budget(source: &str, fields: &[Field]) -> Result<(), String> {
     if source.len() > MAX_SOURCE_BYTES || fields.len() > MAX_FIELDS {
         return Err("Concrete declaration exceeds source/field budget".into());
     }
+    Ok(())
+}
+
+fn check_declaration(
+    nominal: &Nominal,
+    source: &crate::SourceText,
+    fields: &[Field],
+) -> Result<(), String> {
+    check_declaration_budget(source, fields)?;
     if nominal.package_name.is_empty()
         || nominal.package_version.is_empty()
         || !is_digest(&nominal.manifest_digest)
-        || nominal.declaration_digest != digest(source.as_bytes())
+        || nominal.declaration_digest != source.identity()
     {
         return Err(
             "Concrete nominal source/package identity is incomplete or inconsistent".into(),

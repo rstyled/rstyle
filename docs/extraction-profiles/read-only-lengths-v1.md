@@ -1,5 +1,9 @@
 # Resolved read-only length operations, version 1
 
+Historical version 1: runtime artifact fingerprint requirements are superseded by
+[read-only-library-resolution-v2.md](read-only-library-resolution-v2.md).
+
+
 Implementation baseline: `0bb807e`, clean `ccgraph/read-only-api-coverage`.
 This is a prospective local `hir-data-v1` supplement, not authority to admit
 length calls before its capture, semantic registry and independent serialized

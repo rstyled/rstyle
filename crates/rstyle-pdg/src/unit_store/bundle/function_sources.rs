@@ -1,0 +1,255 @@
+//! Bundle-local source ownership; readable facts are restored before inspection.
+use crate::frontend::*;
+use crate::{
+    frontend::option_bundle,
+    source_table::{self, SourceId},
+};
+use serde::{Deserialize, Serialize};
+mod build;
+
+#[derive(Serialize)]
+struct Reference<'a> {
+    snapshot: SourceId,
+    range: ByteSpan,
+    digest: &'a str,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ImportedReference {
+    snapshot: SourceId,
+    range: ByteSpan,
+    digest: String,
+}
+
+#[derive(Serialize)]
+pub(super) struct Export<'a> {
+    name: &'a str,
+    fn_span: ByteSpan,
+    source: Reference<'a>,
+    signature: &'a SignatureFacts,
+    bindings: &'a [BindingFact],
+    body: &'a HirNode,
+    build: build::Export<'a>,
+    source_diagnostics: &'a [HirDiagnostic],
+    source_scan_complete: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Import {
+    name: String,
+    fn_span: ByteSpan,
+    source: ImportedReference,
+    signature: SignatureFacts,
+    bindings: Vec<BindingFact>,
+    body: HirNode,
+    build: BuildFacts<option_bundle::Import>,
+    source_diagnostics: Vec<HirDiagnostic>,
+    source_scan_complete: bool,
+}
+
+pub(super) struct Encoded<'a> {
+    pub snapshots: Vec<&'a str>,
+    pub functions: Vec<Export<'a>>,
+}
+
+#[derive(Default)]
+struct Owners<'a> {
+    table: source_table::Owners<'a>,
+}
+
+impl<'a> Owners<'a> {
+    fn reference(&mut self, source: &'a SourceFacts) -> Result<Reference<'a>, String> {
+        let (snapshot, range) = source.bytes.snapshot_range()?;
+        Ok(Reference {
+            snapshot: self.table.snapshot(snapshot)?,
+            range,
+            digest: &source.digest,
+        })
+    }
+}
+
+pub(super) fn encode(facts: &[HirFnFacts]) -> Result<Encoded<'_>, String> {
+    let mut owners = Owners::default();
+    let functions = facts
+        .iter()
+        .map(|function| {
+            let reference = owners.reference(&function.source)?;
+            Export::new(function, reference, &mut owners.table)
+        })
+        .collect::<Result<_, String>>()?;
+    Ok(Encoded {
+        snapshots: owners.table.snapshots,
+        functions,
+    })
+}
+
+impl<'a> Export<'a> {
+    fn new(
+        facts: &'a HirFnFacts,
+        source: Reference<'a>,
+        sources: &mut source_table::Owners<'a>,
+    ) -> Result<Self, String> {
+        Ok(Self {
+            name: &facts.name,
+            fn_span: facts.fn_span,
+            source,
+            signature: &facts.signature,
+            bindings: &facts.bindings,
+            body: &facts.body,
+            build: build::Export::new(&facts.build, sources)?,
+            source_diagnostics: &facts.source_diagnostics,
+            source_scan_complete: facts.source_scan_complete,
+        })
+    }
+}
+
+#[cfg(test)]
+impl ImportedReference {
+    fn bytes(&self, sources: &[crate::SourceSnapshot]) -> Result<SourceText, String> {
+        let snapshot = sources
+            .get(self.snapshot.0 as usize)
+            .ok_or("Dangling bundle source reference")?;
+        SourceText::from_snapshot(snapshot.clone(), self.range)
+    }
+}
+
+impl Import {
+    pub(super) fn into_facts(
+        self,
+        sources: &mut source_table::Imported<'_>,
+    ) -> Result<HirFnFacts, String> {
+        let bytes = sources.range(self.source.snapshot, self.source.range)?;
+        Ok(HirFnFacts {
+            name: self.name,
+            fn_span: self.fn_span,
+            source: SourceFacts {
+                bytes,
+                digest: self.source.digest,
+            },
+            signature: self.signature,
+            bindings: self.bindings,
+            body: self.body,
+            build: self
+                .build
+                .try_map_options(|options| options.decode(sources))?,
+            source_diagnostics: self.source_diagnostics,
+            source_scan_complete: self.source_scan_complete,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ranges_share_one_snapshot_without_trusting_digest_claims() {
+        let snapshot: crate::SourceSnapshot = "\u{feff}// π\r\nfn f() {}\r\nfn g() {}".into();
+        let start = snapshot.find("fn").unwrap() as u32;
+        let first = SourceFacts {
+            bytes: SourceText::from_snapshot(
+                snapshot.clone(),
+                ByteSpan {
+                    start,
+                    end: start + 9,
+                },
+            )
+            .unwrap(),
+            digest: "sha256:untrusted-claim".into(),
+        };
+        let second = SourceFacts {
+            bytes: SourceText::from_snapshot(
+                snapshot.clone(),
+                ByteSpan {
+                    start: start + 11,
+                    end: snapshot.len() as u32,
+                },
+            )
+            .unwrap(),
+            digest: "sha256:another-claim".into(),
+        };
+        let mut owners = Owners::default();
+        let first_wire = owners.reference(&first).unwrap();
+        let second_wire = owners.reference(&second).unwrap();
+        assert_eq!(first_wire.snapshot.0, second_wire.snapshot.0);
+        assert_eq!(owners.table.snapshots, [snapshot.as_ref()]);
+        let wire = serde_json::to_value(&first_wire).unwrap();
+        let imported: ImportedReference = serde_json::from_value(wire).unwrap();
+        let restored = imported.bytes(std::slice::from_ref(&snapshot)).unwrap();
+        assert_eq!(restored, first.bytes);
+        assert_eq!(restored.as_ptr(), first.bytes.as_ptr());
+        assert_ne!(restored.identity(), imported.digest);
+        let second_imported: ImportedReference =
+            serde_json::from_value(serde_json::to_value(second_wire).unwrap()).unwrap();
+        let second_restored = second_imported.bytes(&[snapshot]).unwrap();
+        assert!(crate::SourceSnapshot::ptr_eq(
+            restored.snapshot_range().unwrap().0,
+            second_restored.snapshot_range().unwrap().0
+        ));
+    }
+
+    #[test]
+    fn equal_content_from_independent_owners_keeps_distinct_local_handles() {
+        let first = SourceFacts {
+            bytes: "fn f() {}".into(),
+            digest: "claim".into(),
+        };
+        let second = SourceFacts {
+            bytes: "fn f() {}".into(),
+            digest: "claim".into(),
+        };
+        let clone = first.clone();
+        let mut owners = Owners::default();
+        assert_eq!(
+            owners.reference(&first).unwrap().snapshot.0,
+            owners.reference(&clone).unwrap().snapshot.0
+        );
+        assert_ne!(
+            owners.reference(&first).unwrap().snapshot.0,
+            owners.reference(&second).unwrap().snapshot.0
+        );
+    }
+
+    #[test]
+    fn imported_references_reject_missing_owners_and_invalid_ranges() {
+        let sources: Vec<crate::SourceSnapshot> = vec!["π\r\nfn f() {}".into()];
+        let reference = ImportedReference {
+            snapshot: SourceId(0),
+            range: ByteSpan { start: 0, end: 2 },
+            digest: "claim".into(),
+        };
+        assert!(reference.bytes(&sources).is_ok());
+        for range in [
+            ByteSpan { start: 1, end: 2 },
+            ByteSpan { start: 4, end: 3 },
+            ByteSpan {
+                start: 0,
+                end: u32::MAX,
+            },
+        ] {
+            assert!(
+                ImportedReference {
+                    range,
+                    snapshot: reference.snapshot,
+                    digest: "claim".into()
+                }
+                .bytes(&sources)
+                .is_err()
+            );
+        }
+        assert!(
+            ImportedReference {
+                snapshot: SourceId(1),
+                range: reference.range,
+                digest: "claim".into()
+            }
+            .bytes(&sources)
+            .is_err()
+        );
+        assert!(reference.bytes(&[]).is_err());
+        assert!(source_table::Imported::new(&sources).finish().is_err());
+        assert!(source_table::Imported::new(&[]).finish().is_ok());
+    }
+}

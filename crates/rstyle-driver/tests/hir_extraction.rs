@@ -551,7 +551,7 @@ fn original_utf8_crlf_bytes_and_spans_are_preserved() {
     assert!(output.status.success(), "{:?}", output.stderr);
     let facts = facts.expect("captured source");
     let function = &facts[0];
-    assert_eq!(function.source.bytes, source);
+    assert_eq!(function.source.bytes.as_str(), source);
     assert_eq!(function.fn_span.start, "\u{feff}// prefix\r\n".len() as u32);
     assert_eq!(
         function.fn_span.end - function.fn_span.start,
@@ -998,25 +998,26 @@ fn opt_in_driver_artifacts_cross_the_serialized_strict_handoff() {
         .output()
         .unwrap();
     assert!(output.status.success(), "{:?}", output.stderr);
-    let facts: Vec<HirFnFacts> =
-        serde_json::from_slice(&std::fs::read(&facts_path).unwrap()).unwrap();
-    let serialized = rstyle_pdg::producer::SerializedPair {
-        pdg_bytes: std::fs::read(documents.join("function-0.pdg.json")).unwrap(),
-        cfg_bytes: std::fs::read(documents.join("function-0.cfg.json")).unwrap(),
-        manifest: serde_json::from_slice(
-            &std::fs::read(documents.join("function-0.manifest.json")).unwrap(),
-        )
-        .unwrap(),
-    };
-    let pair = rstyle_pdg::producer::verify_serialized(&serialized, &facts[0]).unwrap();
-    rstyle_ccgraph::admit_produced(&pair, &facts[0]).unwrap();
-    assert!(!documents.join("function-1.pdg.json").exists());
-    let rejected: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(documents.join("function-1.assessment.json")).unwrap(),
+    let bytes = std::fs::read(documents.join("unit.evidence.json")).unwrap();
+    let manifest: rstyle_pdg::unit_store::BundleManifest = serde_json::from_slice(
+        &std::fs::read(documents.join("unit.evidence.manifest.json")).unwrap(),
     )
     .unwrap();
-    assert_eq!(rejected["eligibility"], "Ineligible");
-    assert_eq!(rejected["matching_admission"], "not_evaluated");
+    manifest.verify(&bytes).unwrap();
+    let store = rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).unwrap();
+    let analysis = store.analysis();
+    let facts = analysis.function(0).unwrap();
+    let pair = store.pair(0).unwrap();
+    let serialized = pair.serialize().unwrap();
+    let verified = rstyle_pdg::producer::verify_serialized(&serialized, &facts).unwrap();
+    rstyle_ccgraph::admit_produced(&verified, &facts).unwrap();
+    assert!(store.pair(1).is_none());
+    let rejected = analysis.function(1).unwrap();
+    assert_eq!(classify(&rejected).status, EligibilityVerdict::Ineligible);
+    assert!(rstyle_pdg::producer::produce(&rejected).is_err());
+    assert!(!documents.join("function-0.pdg.json").exists());
+    assert!(!documents.join("function-1.pdg.json").exists());
+    assert!(!facts_path.exists());
     std::fs::remove_dir_all(dir).unwrap();
 }
 
@@ -1041,7 +1042,7 @@ fn source_identifiers_and_file_navigation_are_independent_of_module_paths() {
         let span = function.fn_span;
         assert_eq!(
             &source[span.start as usize..span.end as usize],
-            function.source.bytes
+            function.source.bytes.as_str()
         );
         let pair = rstyle_pdg::producer::produce(function).unwrap();
         assert_eq!(
@@ -1130,16 +1131,22 @@ fn explicit_driver_profile_ignores_inherited_environment_and_keeps_rustc_invocat
         );
         let facts: Vec<HirFnFacts> =
             serde_json::from_slice(&std::fs::read(&facts_path).unwrap()).unwrap();
-        let wrapper = facts
+        let store = rstyle_pdg::unit_store::UnitStore::capture(facts).unwrap();
+        let index = store
+            .functions()
             .iter()
-            .find(|function| function.name == "wrapper")
+            .position(|function| function.name == "wrapper")
             .unwrap();
-        assert_driver_profile(wrapper, profile);
+        let analysis = store.analysis();
+        assert_driver_profile(&analysis.function(index).unwrap(), profile);
         std::fs::remove_dir_all(directory).unwrap();
     }
 }
 
-fn assert_driver_profile(wrapper: &HirFnFacts, profile: Option<&str>) {
+fn assert_driver_profile(
+    wrapper: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    profile: Option<&str>,
+) {
     use rstyle_pdg::extraction_profile::{DRIVER_SELECTION_FLAG, ExtractionProfile, SELECTION_KEY};
     let expected = if profile.is_some() {
         ExtractionProfile::HelpersV1
@@ -2335,7 +2342,8 @@ fn primitive_graphs_compare_across_diagnostic_provenance() {
     let second = rstyle_pdg::producer::produce(&changed).unwrap();
     assert_eq!(first.pdg.nodes, second.pdg.nodes);
     assert_eq!(first.pdg.edges, second.pdg.edges);
-    assert_ne!(
+    assert_ne!(original.build, changed.build);
+    assert_eq!(
         first.pdg.producer.configuration,
         second.pdg.producer.configuration
     );

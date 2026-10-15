@@ -162,7 +162,7 @@ fn straightline_facts() -> HirFnFacts {
         name: "f".to_string(),
         fn_span: span(0, 36),
         source: SourceFacts {
-            bytes: "fn f(a: i32) -> i32 { a + 1 }".to_string(),
+            bytes: "fn f(a: i32) -> i32 { a + 1 }".into(),
             digest: "sha256:placeholder".to_string(),
         },
         signature: signature(),

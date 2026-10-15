@@ -2,6 +2,8 @@
 
 #[path = "../src/diagnostic_process.rs"]
 mod diagnostic_process;
+mod shared_evidence;
+use shared_evidence::{load as data_unit, reject_helper};
 
 use assert_cmd::cargo::cargo_bin;
 use serde_json::Value;
@@ -933,6 +935,261 @@ fn clones(directory: &Path, arguments: &[&str]) -> (Output, Value) {
 }
 
 #[test]
+#[cfg(unix)]
+fn clones_runs_with_execute_only_binaries_without_fingerprint_fields() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = clone_workspace();
+    let executable = directory.path().join("running-cli");
+    std::fs::copy(cargo_bin("cargo-rstyle"), &executable).unwrap();
+    let producer = directory.path().join("execute-only-driver");
+    std::fs::copy(driver(), &producer).unwrap();
+    let baseline = Command::new(&executable)
+        .args(["clones", "--format", "json"])
+        .current_dir(directory.path())
+        .env("RSTYLE_DRIVER", &producer)
+        .env_remove("CARGO_TARGET_DIR")
+        .output()
+        .unwrap();
+    assert!(baseline.status.success());
+    let expected: Value = serde_json::from_slice(&baseline.stdout).unwrap();
+    for path in [&executable, &producer] {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o111)).unwrap();
+        assert_eq!(
+            std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
+            0o111
+        );
+    }
+    let child = Command::new(&executable)
+        .args(["clones", "--format", "json"])
+        .current_dir(directory.path())
+        .env("RSTYLE_DRIVER", &producer)
+        .env("RSTYLE_PERF", "1")
+        .env_remove("CARGO_TARGET_DIR")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let actual: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(expected["matching"], actual["matching"]);
+    assert_unfingerprinted_reports(&expected, &actual);
+    assert_no_binary_hash_events(&output.stderr);
+}
+
+fn assert_no_binary_hash_events(stderr: &[u8]) {
+    let events: Vec<Value> = String::from_utf8_lossy(stderr)
+        .lines()
+        .filter_map(|line| line.strip_prefix("rstyle-perf "))
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert!(events.iter().any(|event| event["stage"] == "cli.prepare"));
+    assert!(
+        !events
+            .iter()
+            .any(|event| event["stage"] == "capture.binary_hash")
+    );
+}
+
+fn assert_unfingerprinted_reports(expected: &Value, actual: &Value) {
+    for report in [expected, actual] {
+        assert_persisted_report(report);
+        for field in ["producer_binary_sha256", "orchestration_binary_sha256"] {
+            assert!(report.get(field).is_none(), "{field}");
+        }
+        for field in [
+            "capture_complete",
+            "assessment_complete",
+            "pair_enumeration_complete",
+            "pair_evaluation_complete",
+        ] {
+            assert_eq!(report[field], true, "{field}");
+        }
+        assert_eq!(report["compiler_identity"], expected["compiler_identity"]);
+        assert_eq!(report["contract_revision"], expected["contract_revision"]);
+        let plan = read_capture_plan(report);
+        assert!(plan.get("driver_sha256").is_none());
+        assert!(plan.get("orchestrator_sha256").is_none());
+    }
+}
+
+fn read_capture_plan(report: &Value) -> Value {
+    let directory = Path::new(report["run_directory"].as_str().unwrap());
+    serde_json::from_slice(&std::fs::read(directory.join("plan.json")).unwrap()).unwrap()
+}
+
+#[test]
+fn clones_rejects_retired_expanded_evidence_option() {
+    let directory = clone_workspace();
+    let output = rstyle(directory.path(), &["clones", "--expanded-evidence"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("unexpected argument '--expanded-evidence'")
+    );
+    assert!(!directory.path().join("target/rstyle").exists());
+}
+
+#[test]
+fn clones_shared_fanout_keeps_transitive_analysis_bounded() {
+    let directory = clone_workspace();
+    let mut source = String::from("pub fn level0(x: i32) -> bool { x > 0 }\n");
+    for level in 1..8 {
+        let calls = std::iter::repeat_n(format!("level{}(x)", level - 1), 6)
+            .collect::<Vec<_>>()
+            .join(" && ");
+        source.push_str(&format!(
+            "pub fn level{level}(x: i32) -> bool {{ {calls} }}\n"
+        ));
+    }
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let output = rstyle(
+        directory.path(),
+        &[
+            "clones",
+            "--format",
+            "json",
+            "--extraction-profile",
+            "hir-helpers-v1",
+        ],
+    );
+    assert!(output.status.success(), "{}", stdout(&output));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 8);
+    assert!(
+        functions
+            .iter()
+            .all(|function| function["outcome"] == "admitted"),
+        "{functions:#?}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 28);
+}
+
+fn assert_persisted_report(report: &Value) {
+    let persisted: Value = serde_json::from_slice(
+        &std::fs::read(Path::new(report["run_directory"].as_str().unwrap()).join("report.json"))
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(&persisted, report);
+}
+
+#[test]
+fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub fn leaf(x: i32) -> bool { x > 0 }\npub fn first(x: i32) -> bool { leaf(x) }\npub fn second(x: i32) -> bool { leaf(x) }\n").unwrap();
+    let output = rstyle(
+        directory.path(),
+        &[
+            "clones",
+            "--format",
+            "json",
+            "--extraction-profile",
+            "hir-helpers-v1",
+        ],
+    );
+    assert!(output.status.success(), "{}", stdout(&output));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_persisted_report(&report);
+    assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/4");
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
+    for function in report["functions"].as_array().unwrap() {
+        assert!(function.get("artifact_prefix").is_none());
+        assert!(function.get("document_manifest").is_none());
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function["facts"].clone()).unwrap();
+        let mut calls = Vec::new();
+        shared_call_nodes(&facts.body, &mut calls);
+        for call in calls {
+            assert!(
+                rstyle_pdg::helper_calls::direct_resolution(call).unwrap()
+                    [rstyle_pdg::helper_calls::KEY]
+                    .is_null()
+            );
+        }
+    }
+    assert_shared_bundle_tables(&report);
+}
+
+fn assert_matching_build_metadata(graph: &Value, build: &Value) {
+    for kind in ["pdg", "cfg"] {
+        let configuration = &graph[kind]["producer"]["configuration"];
+        assert!(configuration.get("captured_build").is_none());
+        let matching = &configuration["matching_build"];
+        assert_eq!(matching["schema"], "rstyle.matching-build/1");
+        assert_eq!(matching.as_object().unwrap().len(), 4);
+        for key in ["overflow_checks", "debug_assertions", "panic_strategy"] {
+            assert_eq!(matching[key], build[key]);
+        }
+    }
+}
+
+fn assert_bundle_source_references(wire: &Value, store: &rstyle_pdg::unit_store::UnitStore) {
+    for (index, function) in store.functions().iter().enumerate() {
+        let reference = &wire["functions"][index]["source"];
+        assert!(reference.get("bytes").is_none());
+        let source = wire["sources"][reference["snapshot"].as_u64().unwrap() as usize]
+            .as_str()
+            .unwrap();
+        let range = &reference["range"];
+        assert_eq!(
+            source.get(
+                range["start"].as_u64().unwrap() as usize..range["end"].as_u64().unwrap() as usize
+            ),
+            Some(function.source.bytes.as_str())
+        );
+        assert_eq!(reference["digest"], function.source.digest);
+        let graph = &wire["graphs"][wire["roots"][index].as_u64().unwrap() as usize];
+        assert_matching_build_metadata(graph, &wire["functions"][index]["build"]);
+    }
+}
+
+fn assert_shared_bundle_tables(report: &Value) {
+    let unit = &report["observed_units"][0];
+    let path = Path::new(unit["directory"].as_str().unwrap());
+    let bytes = std::fs::read(path.join("unit.evidence.json")).unwrap();
+    let manifest: rstyle_pdg::unit_store::BundleManifest =
+        serde_json::from_slice(&std::fs::read(path.join("unit.evidence.manifest.json")).unwrap())
+            .unwrap();
+    manifest.verify(&bytes).unwrap();
+    let store = rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).unwrap();
+    assert_eq!(store.helper_count(), 3);
+    assert_eq!(store.graph_count(), 3);
+    assert!(!path.join("facts.json").exists());
+    assert!(!path.join("readable").exists());
+    let wire: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(wire["functions"].as_array().unwrap().len(), 3);
+    assert_eq!(wire["helpers"].as_array().unwrap().len(), 3);
+    assert_eq!(wire["graphs"].as_array().unwrap().len(), 3);
+    assert_eq!(wire["sources"].as_array().unwrap().len(), 1);
+    assert_bundle_source_references(&wire, &store);
+    let mut dangling = wire.clone();
+    dangling["functions"][0]["source"]["snapshot"] = u32::MAX.into();
+    assert!(
+        rstyle_pdg::unit_store::UnitStore::from_bundle(&serde_json::to_vec(&dangling).unwrap())
+            .is_err()
+    );
+    let mut unused = wire;
+    unused["sources"]
+        .as_array_mut()
+        .unwrap()
+        .push("unreferenced".into());
+    assert!(
+        rstyle_pdg::unit_store::UnitStore::from_bundle(&serde_json::to_vec(&unused).unwrap())
+            .is_err()
+    );
+    let mut edited = bytes;
+    edited.push(b' ');
+    assert!(manifest.verify(&edited).is_err());
+}
+
+#[test]
 fn clones_real_source_handoff_has_independent_features_and_gate_expectations() {
     let directory = clone_workspace();
     let (output, report) = clones(directory.path(), &["--trace"]);
@@ -1063,6 +1320,70 @@ fn clones_exact_threshold_ingestion_and_explicit_cosine() {
     assert_eq!(output.status.code(), Some(2));
 }
 
+fn report_function_unit<'a>(report: &'a Value, function: &Value) -> &'a Value {
+    let unit_id = &function["unit_evidence"]["report_unit"];
+    let context = report["unit_contexts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|context| &context["id"] == unit_id)
+        .unwrap();
+    &report["observed_units"][context["observed_unit"].as_u64().unwrap() as usize]
+}
+
+fn assert_report_function_handles(report: &Value) {
+    assert_eq!(
+        report["function_identity_schema"],
+        "rstyle.report-function/2"
+    );
+    assert_eq!(
+        report["unit_contexts"].as_array().unwrap().len(),
+        report["observed_units"].as_array().unwrap().len()
+    );
+    for function in report["functions"].as_array().unwrap() {
+        let evidence = &function["unit_evidence"];
+        assert_eq!(
+            function["key"],
+            format!(
+                "function:u{}:f{}",
+                evidence["report_unit"], evidence["function"]
+            )
+        );
+        let unit = report_function_unit(report, function);
+        assert_eq!(
+            Path::new(evidence["bundle"].as_str().unwrap())
+                .parent()
+                .unwrap(),
+            Path::new(unit["directory"].as_str().unwrap())
+        );
+        assert_eq!(
+            function["compilation_unit"],
+            format!(
+                "{}:{}:test={}",
+                unit["target"]["package"].as_str().unwrap(),
+                unit["target"]["name"].as_str().unwrap(),
+                unit["test"]
+            )
+        );
+    }
+}
+
+fn assert_selected_release_handles(report: &Value, manifest_directory: &Path) {
+    assert_report_function_handles(report);
+    assert_eq!(report["scope"]["build_options"]["release"], true);
+    assert!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| {
+                let unit = report_function_unit(report, function);
+                unit["target"]["manifest_dir"] == manifest_directory.to_string_lossy().as_ref()
+                    && function["facts"]["build"]["opt_level"]["value"] == "Aggressive"
+            })
+    );
+}
+
 #[test]
 fn clones_all_targets_keep_compilation_contexts_distinct() {
     let directory = clone_workspace();
@@ -1088,6 +1409,7 @@ fn clones_all_targets_keep_compilation_contexts_distinct() {
             .all(|f| f["outcome"] == "excluded")
     );
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_report_function_handles(&report);
     let keys: std::collections::BTreeSet<_> = report["functions"]
         .as_array()
         .unwrap()
@@ -1168,13 +1490,7 @@ fn clones_identical_source_in_packages_and_modules_survives_concurrent_capture()
     assert!(output.status.success());
     assert_eq!(selected["functions"].as_array().unwrap().len(), 2);
     assert_eq!(selected["matching"]["pairs"].as_array().unwrap().len(), 1);
-    assert!(selected["functions"].as_array().unwrap().iter().all(|f| {
-        !report["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|old| old["key"] == f["key"])
-    }));
+    assert_selected_release_handles(&selected, &directory.path().join("a"));
 }
 
 #[test]
@@ -1241,6 +1557,68 @@ fn clones_unsupported_workspace_completes_assessment_with_zero_admitted_function
 }
 
 #[test]
+fn clones_distinct_macro_function_owners_do_not_invalidate_ordinary_functions() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"macro_rules! make {
+            () => { { fn f() {} } { fn f() {} } };
+        }
+        pub fn outer() { make!(); }
+        pub fn first(a: i32) -> i32 { a }
+        pub fn second(a: i32) -> i32 { a }
+        "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &[]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for flag in [
+        "capture_complete",
+        "assessment_complete",
+        "pair_enumeration_complete",
+        "pair_evaluation_complete",
+    ] {
+        assert_eq!(report[flag], true, "{flag}: {report}");
+    }
+    let functions = report["functions"].as_array().unwrap();
+    check_distinct_expanded_functions(functions);
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        2
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+}
+
+fn check_distinct_expanded_functions(functions: &[Value]) {
+    let generated: Vec<_> = functions
+        .iter()
+        .filter(|function| function["facts"]["name"].as_str().unwrap().ends_with("::f"))
+        .collect();
+    assert_eq!(generated.len(), 2);
+    assert_eq!(generated[0]["facts"]["name"], generated[1]["facts"]["name"]);
+    assert_eq!(
+        generated[0]["facts"]["fn_span"],
+        generated[1]["facts"]["fn_span"]
+    );
+    assert_ne!(
+        generated[0]["facts"]["body"]["hir"]["owner"],
+        generated[1]["facts"]["body"]["hir"]["owner"]
+    );
+    assert!(
+        generated
+            .iter()
+            .all(|function| function["outcome"] == "excluded")
+    );
+}
+
+#[test]
 fn clones_resource_failure_is_explicit_and_incomplete() {
     let directory = clone_workspace();
     let (output, report) = clones(directory.path(), &["--max-pairs", "2"]);
@@ -1266,10 +1644,10 @@ fn clones_missing_corrupt_and_mismatched_serialized_artifacts_fail_closed() {
     let shim = directory.path().join("driver-shim");
     let real = driver().to_string_lossy().replace('\'', "'\\''");
     for operation in [
-        "rm \"$RSTYLE_HIR_DOCUMENT_DIR/function-0.cfg.json\"",
-        "printf '{}' > \"$RSTYLE_HIR_DOCUMENT_DIR/function-0.pdg.json\"",
-        "printf '{\"documents\":[]}' > \"$RSTYLE_HIR_DOCUMENT_DIR/function-0.manifest.json\"",
-        "printf ' ' >> \"$RSTYLE_HIR_DOCUMENT_DIR/function-0.cfg.json\"",
+        "rm \"$RSTYLE_HIR_DOCUMENT_DIR/unit.evidence.json\"",
+        "printf '{}' > \"$RSTYLE_HIR_DOCUMENT_DIR/unit.evidence.json\"",
+        "printf '{\"documents\":[]}' > \"$RSTYLE_HIR_DOCUMENT_DIR/unit.evidence.manifest.json\"",
+        "printf ' ' >> \"$RSTYLE_HIR_DOCUMENT_DIR/unit.evidence.json\"",
     ] {
         let script = format!(
             "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\n{operation}\nfi\nexit \"$code\"\n"
@@ -2054,14 +2432,8 @@ fn clones_helpers_verify_serialized_dependencies_and_transitive_edits() {
         .iter()
         .find(|function| function["facts"]["name"] == "second")
         .unwrap();
-    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(wrapper["facts"].clone()).unwrap();
     for corruption in ["manifest", "source", "signature", "effects"] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, corruption));
-        assert!(
-            rstyle_pdg::producer::produce(&changed).is_err(),
-            "{corruption}"
-        );
+        reject_helper(wrapper, corruption);
     }
     std::fs::write(&callee, "pub fn positive(x: i32) -> bool { x >= 0 }\n").unwrap();
     let (output, edited) = clones(
@@ -2075,8 +2447,11 @@ fn clones_helpers_verify_serialized_dependencies_and_transitive_edits() {
         .iter()
         .find(|function| function["facts"]["name"] == "second")
         .unwrap();
-    assert_ne!(wrapper["facts"]["body"], changed["facts"]["body"]);
-    assert_ne!(wrapper["document_manifest"], changed["document_manifest"]);
+    assert_eq!(wrapper["facts"]["body"], changed["facts"]["body"]);
+    assert_ne!(
+        wrapper["unit_evidence"]["namespace"],
+        changed["unit_evidence"]["namespace"]
+    );
     check_native_helper(directory.path(), &callee);
 }
 
@@ -2094,64 +2469,11 @@ fn check_native_helper(directory: &Path, callee: &Path) {
         .iter()
         .find(|function| function["facts"]["name"] == "second")
         .unwrap();
-    let native_facts: rstyle_pdg::HirFnFacts =
-        serde_json::from_value(function["facts"].clone()).unwrap();
-    let pair = rstyle_pdg::producer::produce(&native_facts).unwrap();
-    let imported = rstyle_ccgraph::admit_produced(&pair, &native_facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let imported = rstyle_ccgraph::admit_produced(unit.pair(index).unwrap(), &facts).unwrap();
     assert!(imported.native_width_involved);
-}
-
-fn corrupt_helper(node: &mut rstyle_pdg::HirNode, corruption: &str) -> bool {
-    if node.kind == "expr_call" {
-        let resolution = node.res.as_mut().unwrap();
-        let mut value: Value = serde_json::from_str(&resolution.description).unwrap();
-        let dependency = &mut value[rstyle_pdg::helper_calls::KEY];
-        match corruption {
-            "effects" => dependency["summary"]["always_returns"] = Value::Bool(false),
-            "manifest" => {
-                dependency["manifest"]["documents"][0]["sha256"] =
-                    Value::String("sha256:bad".into())
-            }
-            "source" => {
-                dependency["frontend"]["source"]["bytes"] = Value::String("fn forged() {}".into())
-            }
-            "signature" => {
-                dependency["frontend"]["signature"]["return_ty"]["normalized"] =
-                    Value::String("i32".into())
-            }
-            "output_missing" => {
-                dependency["summary"]
-                    .as_object_mut()
-                    .unwrap()
-                    .remove("reference_outputs");
-            }
-            "output_parameter" => {
-                dependency["summary"]["reference_outputs"][0]["parameter"] = serde_json::json!(0)
-            }
-            "output_empty" => dependency["summary"]["reference_outputs"] = serde_json::json!([]),
-            "output_path" => {
-                dependency["summary"]["reference_outputs"][0]["path"] = serde_json::json!([])
-            }
-            "output_identity" => {
-                dependency["summary"]["identity"] = serde_json::json!("rstyle.helper.source-body/1")
-            }
-            "unit_invocation" => {
-                dependency["frontend"]["build"]["frontend_options"]["invocation"] =
-                    serde_json::json!(["forged"])
-            }
-            "unit_target" => {
-                dependency["frontend"]["build"]["target_triple"]["value"] =
-                    serde_json::json!("another-target")
-            }
-            _ => unreachable!(),
-        }
-        resolution.description = serde_json::to_string(&value).unwrap();
-        return true;
-    }
-
-    node.children
-        .iter_mut()
-        .any(|child| corrupt_helper(child, corruption))
 }
 
 #[test]
@@ -2231,10 +2553,269 @@ fn assert_capture_order(facts: &[rstyle_pdg::HirFnFacts]) {
     }
     let mut reversed = forward.clone();
     reversed.reverse();
-    rstyle_pdg::helper_calls::capture(&mut forward).unwrap();
-    rstyle_pdg::helper_calls::capture(&mut reversed).unwrap();
+    let forward = rstyle_pdg::unit_store::UnitStore::capture(forward).unwrap();
+    let reversed = rstyle_pdg::unit_store::UnitStore::capture(reversed).unwrap();
+    assert_eq!(forward.helper_count(), reversed.helper_count());
+    assert_eq!(admitted_unit(&forward), admitted_unit(&reversed));
+}
+
+fn admitted_unit(
+    store: &rstyle_pdg::unit_store::UnitStore,
+) -> Vec<rstyle_ccgraph::ImportedFunction> {
+    let analysis = store.analysis();
+    let mut admitted: Vec<_> = (0..store.functions().len())
+        .filter_map(|index| {
+            let pair = store.pair(index)?;
+            Some(rstyle_ccgraph::admit_produced(pair, &analysis.function(index).unwrap()).unwrap())
+        })
+        .collect();
+    admitted.sort_by(|a, b| a.key.cmp(&b.key));
+    admitted
+}
+
+#[test]
+fn shared_unit_owns_diamond_helpers_once() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub fn leaf(x: i32) -> bool { x > 0 }\npub fn left(x: i32) -> bool { leaf(x) }\npub fn right(x: i32) -> bool { leaf(x) }\npub fn diamond(x: i32) -> bool { left(x) && right(x) }\npub fn repeated(x: i32) -> bool { leaf(x) && leaf(x) && leaf(x) }\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{report}");
+    let mut facts: Vec<rstyle_pdg::HirFnFacts> = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|function| serde_json::from_value(function["facts"].clone()).unwrap())
+        .collect();
+    for function in &mut facts {
+        clear_helper_dependencies(&mut function.body);
+    }
+    let mut reversed = facts.clone();
     reversed.reverse();
-    assert_eq!(forward, reversed);
+    let store = rstyle_pdg::verification_policy::generated(|| {
+        rstyle_pdg::unit_store::UnitStore::capture(facts)
+    })
+    .unwrap();
+    let reordered = rstyle_pdg::unit_store::UnitStore::capture(reversed).unwrap();
+    assert_eq!(store.helper_count(), 5);
+    assert_eq!(store.graph_count(), 5);
+    assert_eq!(reordered.helper_count(), 5);
+    assert_shared_unit(&store);
+    assert_shared_unit(&reordered);
+    assert_unit_bundle(&store);
+}
+
+fn assert_unit_bundle(store: &rstyle_pdg::unit_store::UnitStore) {
+    let mut bytes = Vec::new();
+    store.write_bundle(&mut bytes).unwrap();
+    let imported = rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).unwrap();
+    assert_shared_unit(&imported);
+    let mut round_trip = Vec::new();
+    imported.write_bundle(&mut round_trip).unwrap();
+    assert_eq!(bytes, round_trip);
+    let wire: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_renumbered_unit(store, &wire);
+    for corruption in [
+        "schema", "helper", "function", "kind", "link", "depth", "summary", "missing", "graph",
+        "pair",
+    ] {
+        let mut changed = wire.clone();
+        corrupt_unit_bundle(&mut changed, corruption);
+        let edited = serde_json::to_vec(&changed).unwrap();
+        assert!(
+            rstyle_pdg::unit_store::UnitStore::from_bundle(&edited).is_err(),
+            "{corruption}"
+        );
+        assert!(
+            rstyle_pdg::verification_policy::generated(|| {
+                rstyle_pdg::unit_store::UnitStore::from_bundle(&edited)
+            })
+            .is_err(),
+            "generated import: {corruption}"
+        );
+    }
+}
+
+fn assert_renumbered_unit(store: &rstyle_pdg::unit_store::UnitStore, wire: &Value) {
+    let mut renumbered = wire.clone();
+    let helpers = renumbered["helpers"].as_array().unwrap().len() as u64;
+    let graphs = renumbered["graphs"].as_array().unwrap().len() as u64;
+    renumbered["helpers"].as_array_mut().unwrap().reverse();
+    renumbered["graphs"].as_array_mut().unwrap().reverse();
+    for helper in renumbered["helpers"].as_array_mut().unwrap() {
+        helper["graph"] = (graphs - 1 - helper["graph"].as_u64().unwrap()).into();
+    }
+    renumber_ids(&mut renumbered["certified"], helpers);
+    renumber_ids(&mut renumbered["roots"], graphs);
+    renumber_helper_references(&mut renumbered["graphs"], helpers);
+    let imported =
+        rstyle_pdg::unit_store::UnitStore::from_bundle(&serde_json::to_vec(&renumbered).unwrap())
+            .unwrap();
+    assert_shared_unit(&imported);
+    for index in 0..store.functions().len() {
+        let before = store.pair(index).unwrap();
+        let after = imported.pair(index).unwrap();
+        assert_eq!(
+            serde_json::to_value(&before.pdg.nodes).unwrap(),
+            serde_json::to_value(&after.pdg.nodes).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&before.pdg.edges).unwrap(),
+            serde_json::to_value(&after.pdg.edges).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&before.cfg.edges).unwrap(),
+            serde_json::to_value(&after.cfg.edges).unwrap()
+        );
+    }
+}
+
+fn renumber_ids(ids: &mut Value, count: u64) {
+    for id in ids.as_array_mut().unwrap() {
+        if let Some(index) = id.as_u64() {
+            *id = (count - 1 - index).into();
+        }
+    }
+}
+
+fn renumber_helper_references(value: &mut Value, count: u64) {
+    match value {
+        Value::Object(fields) => {
+            if fields.get("identity").and_then(Value::as_str)
+                == Some("rstyle.helper.unit-reference/1")
+            {
+                let index = fields["helper"].as_u64().unwrap();
+                fields.insert("helper".into(), (count - 1 - index).into());
+            }
+            for field in fields.values_mut() {
+                renumber_helper_references(field, count);
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                renumber_helper_references(value, count);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn corrupt_unit_bundle(wire: &mut Value, corruption: &str) {
+    match corruption {
+        "schema" => wire["schema"] = "unknown version".into(),
+        "helper" => wire["certified"][0] = u32::MAX.into(),
+        "function" => wire["helpers"][0]["function"] = u32::MAX.into(),
+        "kind" => wire["helpers"][0]["function"] = serde_json::json!({"helper": 0}),
+        "link" => {
+            let links = wire["links"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|links| !links.as_array().unwrap().is_empty())
+                .unwrap();
+            links[0]["function"] = u32::MAX.into();
+        }
+        "graph" => wire["roots"][0] = u32::MAX.into(),
+        "pair" => wire["graphs"][0]["cfg"]["function"]["id"] = "disagreement".into(),
+        "depth" => wire["helpers"][0]["depth"] = u32::MAX.into(),
+        "summary" => wire["helpers"][0]["summary"]["always_returns"] = false.into(),
+        "missing" => {
+            wire["helpers"] = serde_json::json!([]);
+            wire["certified"].as_array_mut().unwrap().fill(Value::Null);
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn assert_shared_unit(store: &rstyle_pdg::unit_store::UnitStore) {
+    use rstyle_pdg::unit_store::EvidenceFacts;
+    let analysis = store.analysis();
+    for (index, facts) in store.functions().iter().enumerate() {
+        let view = analysis.function(index).unwrap();
+        rstyle_pdg::producer::verify(store.pair(index).unwrap(), &view).unwrap();
+        let imported = rstyle_ccgraph::admit_produced(store.pair(index).unwrap(), &view).unwrap();
+        let produced = rstyle_pdg::producer::produce(&view).unwrap();
+        let reproduced = rstyle_ccgraph::admit_produced(&produced, &view).unwrap();
+        assert_eq!(imported, reproduced);
+        let generated =
+            rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::produce(&view))
+                .unwrap();
+        let strict = rstyle_pdg::producer::produce(&view).unwrap();
+        assert_shared_reference_checks(&strict, &view);
+        assert_eq!(
+            generated.serialize().unwrap().pdg_bytes,
+            strict.serialize().unwrap().pdg_bytes
+        );
+        assert!(!rstyle_pdg::helper_calls::native_width(&view).unwrap());
+        if facts.name.ends_with("repeated") {
+            let mut calls = Vec::new();
+            shared_call_nodes(&facts.body, &mut calls);
+            assert_eq!(calls.len(), 3);
+            let first = view.helper(calls[0]).unwrap().unwrap();
+            for call in calls {
+                let helper = view.helper(call).unwrap().unwrap();
+                assert!(std::ptr::eq(first.summary(), helper.summary()));
+                assert!(
+                    rstyle_pdg::helper_calls::direct_resolution(call).unwrap()
+                        [rstyle_pdg::helper_calls::KEY]
+                        .is_null()
+                );
+            }
+        }
+    }
+}
+
+fn assert_shared_reference_checks(
+    pair: &rstyle_pdg::producer::Pair,
+    view: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+) {
+    let key = rstyle_pdg::extraction_profile::EVIDENCE_KEY;
+    assert!(rstyle_pdg::producer::verify(pair, view.facts()).is_err());
+    let mut contradictory = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    contradictory.pdg.extensions.get_mut(key).unwrap()["frontend"] =
+        serde_json::to_value(view.facts()).unwrap();
+    contradictory
+        .cfg
+        .extensions
+        .insert(key.into(), contradictory.pdg.extensions[key].clone());
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::verify(
+            &contradictory,
+            view
+        ))
+        .is_err()
+    );
+    let mut wrong_unit = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    wrong_unit.pdg.extensions.get_mut(key).unwrap()["frontend_ref"]["namespace"] =
+        Value::String("other unit".into());
+    wrong_unit
+        .cfg
+        .extensions
+        .insert(key.into(), wrong_unit.pdg.extensions[key].clone());
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::verify(
+            &wrong_unit,
+            view
+        ))
+        .is_err()
+    );
+}
+
+fn shared_call_nodes<'a>(node: &'a rstyle_pdg::HirNode, calls: &mut Vec<&'a rstyle_pdg::HirNode>) {
+    if rstyle_pdg::helper_calls::direct_resolution(node).is_some() {
+        calls.push(node);
+    }
+    for child in &node.children {
+        shared_call_nodes(child, calls);
+    }
 }
 
 fn clear_helper_dependencies(node: &mut rstyle_pdg::HirNode) {
@@ -2318,14 +2899,15 @@ fn check_nominal_unit_binding(function: &Value, report: &Value) {
         rstyle_pdg::concrete_types::digest(context.manifest_bytes.as_bytes())
     );
     let actual = nominal_binding::bind_unit(std::slice::from_ref(&facts), &context).unwrap();
+    checked_build_context(function, report);
     assert_eq!(
-        serde_json::to_value(&actual[0]).unwrap(),
+        serde_json::to_value(&actual.bindings[0]).unwrap(),
         function["nominal_unit_binding"]
     );
     check_nominal_evidence_corruption(
         &facts,
         &context,
-        !actual[0].as_ref().unwrap().declarations.is_empty(),
+        !actual.bindings[0].as_ref().unwrap().declarations.is_empty(),
     );
     for change in ["name", "version", "manifest", "root"] {
         let mut changed = context.clone();
@@ -2333,14 +2915,14 @@ fn check_nominal_unit_binding(function: &Value, report: &Value) {
             "name" => changed.name.push('x'),
             "version" => changed.version.push('x'),
             "manifest" => {
-                changed.manifest_bytes.push_str("\n# changed");
+                changed.manifest_bytes = format!("{}\n# changed", changed.manifest_bytes).into();
                 changed.manifest_digest =
                     rstyle_pdg::concrete_types::digest(changed.manifest_bytes.as_bytes());
             }
             "root" => changed.manifest_path = PathBuf::from("/different/package/Cargo.toml"),
             _ => unreachable!(),
         }
-        if !actual[0].as_ref().unwrap().declarations.is_empty() {
+        if !actual.bindings[0].as_ref().unwrap().declarations.is_empty() {
             assert!(
                 nominal_binding::bind_unit(std::slice::from_ref(&facts), &changed).is_err(),
                 "{change}"
@@ -2912,13 +3494,37 @@ fn clones_nominal_bindings_preserve_inherited_packages_and_target_contexts() {
     for function in functions {
         if let Some(binding) = checked_getter_binding(function) {
             packages.insert(binding["package_id"].as_str().unwrap().to_owned());
-            builds.insert(binding["build_digest"].as_str().unwrap().to_owned());
+            let contexts = checked_build_context(function, &report);
+            builds.insert((
+                function["unit_evidence"]["bundle"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+                binding["build_id"].as_u64().unwrap(),
+            ));
+            assert_eq!(contexts["features"], function["facts"]["build"]["features"]);
         }
     }
     assert_eq!(packages.len(), 2);
     assert_eq!(builds.len(), 4);
     assert_eq!(report["pair_evaluation_complete"], true);
     assert_eq!(report["pair_enumeration_complete"], true);
+}
+
+fn checked_build_context<'a>(function: &Value, report: &'a Value) -> &'a Value {
+    let binding = &function["nominal_unit_binding"];
+    assert!(binding.get("build_digest").is_none());
+    let tables = report["build_contexts"].as_array().unwrap();
+    let table = tables
+        .iter()
+        .find(|table| table["unit_bundle"] == function["unit_evidence"]["bundle"])
+        .unwrap();
+    assert_eq!(
+        table["builds"]["identity"],
+        "rstyle.rust.unit-build-contexts/1"
+    );
+    assert_eq!(table["builds"]["contexts"].as_array().unwrap().len(), 1);
+    &table["builds"]["contexts"][binding["build_id"].as_u64().unwrap() as usize]
 }
 
 fn checked_getter_binding(function: &Value) -> Option<&Value> {
@@ -2997,9 +3603,13 @@ fn check_nominal_refresh(before: &Value, after: &Value) {
     }
     let old = &before["functions"][0]["nominal_unit_binding"];
     let new = &after["functions"][0]["nominal_unit_binding"];
-    for key in ["package_id", "manifest_digest", "build_digest"] {
+    for key in ["package_id", "manifest_digest"] {
         assert_ne!(old[key], new[key], "{key}");
     }
+    let old_build = checked_build_context(&before["functions"][0], before);
+    let new_build = checked_build_context(&after["functions"][0], after);
+    assert_ne!(old_build["debug_assertions"], new_build["debug_assertions"]);
+    assert_ne!(old_build["frontend_options"], new_build["frontend_options"]);
     assert_ne!(
         old["declarations"][0]["file_digest"],
         new["declarations"][0]["file_digest"]
@@ -3100,23 +3710,23 @@ fn check_data_registration(report: &Value) {
     assert_eq!(report["matching"]["profile_version"], "1.0.0");
 }
 
-fn data_pair(function: &Value) -> (rstyle_pdg::producer::Pair, rstyle_pdg::HirFnFacts) {
-    let prefix = function["artifact_prefix"].as_str().unwrap();
-    let pdg =
-        serde_json::from_slice(&std::fs::read(format!("{prefix}.pdg.json")).unwrap()).unwrap();
-    let cfg =
-        serde_json::from_slice(&std::fs::read(format!("{prefix}.cfg.json")).unwrap()).unwrap();
-    let facts = serde_json::from_value(function["facts"].clone()).unwrap();
-    (rstyle_pdg::producer::Pair { pdg, cfg }, facts)
+fn copy_pair(pair: &rstyle_pdg::producer::Pair) -> rstyle_pdg::producer::Pair {
+    rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    }
 }
 
 fn check_data_document_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     for change in [
         "path", "read", "alias", "count", "policy", "write", "operand", "root",
     ] {
-        let (mut changed, _) = data_pair(function);
+        let mut changed = copy_pair(pair);
         tamper_data_document(&mut changed, change);
         assert!(
             rstyle_pdg::data_documents::verify(&changed, &facts).is_err(),
@@ -3183,10 +3793,13 @@ fn data_read(pair: &mut rstyle_pdg::producer::Pair) -> &mut rstyle_pdg::PdgNode 
 }
 
 fn check_data_origins_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     for change in ["origin", "value", "type"] {
-        let (mut changed, _) = data_pair(function);
+        let mut changed = copy_pair(pair);
         match change {
             "origin" => {
                 changed
@@ -3359,7 +3972,10 @@ fn check_nominal_projection(report: &Value, method: &Value) {
         projection["projection"]["features"],
         serde_json::json!([0, 3, 5, 0, 0, 0, 0, 5, 2])
     );
-    let (pair, facts) = data_pair(method);
+    let (unit, index) = data_unit(method);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
     assert_eq!(
         pair.pdg.function.inputs[0].role,
         rstyle_pdg::ParamRole::Receiver
@@ -3375,7 +3991,7 @@ fn check_nominal_projection(report: &Value, method: &Value) {
         serde_json::to_value(rstyle_pdg::StringFact::known("bool")).unwrap(),
     );
     assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
-    let mut changed = pair;
+    let mut changed = copy_pair(pair);
     changed.pdg.function.inputs[0].role = rstyle_pdg::ParamRole::Parameter;
     assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
 }
@@ -3437,7 +4053,7 @@ fn tamper_nominal_proof(changed: &mut rstyle_pdg::HirFnFacts, change: &str) {
 }
 
 fn duplicate_census_file(
-    options: &mut std::collections::BTreeMap<String, Value>,
+    options: &mut rstyle_pdg::FrontendOptions,
     facts: &rstyle_pdg::HirFnFacts,
     change: &str,
 ) {
@@ -3585,8 +4201,11 @@ fn clones_data_stored_reference_fields_preserve_nested_origins_and_all_pairs() {
 
 fn check_stored_reference_origins(function: &Value, name: &str) {
     use rstyle_pdg::{NodeCategory, data_origins};
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     let returned = pair
         .pdg
         .nodes
@@ -3840,8 +4459,11 @@ fn clones_data_field_context_preserves_pointer_reads_and_aggregate_places() {
 
 fn check_stored_pointer_read_tampering(function: &Value) {
     use rstyle_pdg::{NodeCategory, data_places};
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     let mut changed = facts.clone();
     assert!(tamper_pointer_value_type(&mut changed.body));
     assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
@@ -3855,7 +4477,7 @@ fn check_stored_pointer_read_tampering(function: &Value) {
         })
         .unwrap();
     for change in ["read", "role", "operand"] {
-        let (mut changed, _) = data_pair(function);
+        let mut changed = copy_pair(pair);
         if change == "operand" {
             changed
                 .pdg
@@ -3925,7 +4547,10 @@ fn check_lifetime_interface_pair(report: &Value) {
 }
 
 fn check_lifetime_source_tampering(function: &Value) {
-    let (_, facts) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let _ = unit.pair(index).unwrap();
     rstyle_pdg::data_frontend::verify(&facts).unwrap();
     let observed: rstyle_pdg::concrete_types::InterfaceObservations = serde_json::from_value(
         facts.build.frontend_options[rstyle_pdg::concrete_types::KEY].clone(),
@@ -3987,8 +4612,11 @@ fn check_borrow_pair(report: &Value, getter: &Value) {
 }
 
 fn check_borrow_document_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     for change in ["span", "type", "child"] {
         let mut changed = facts.clone();
         assert!(tamper_source_borrow(&mut changed.body, change));
@@ -4168,9 +4796,12 @@ fn clones_data_field_borrows_preserve_array_slice_and_str_referents() {
     );
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
     assert_eq!(report["pair_evaluation_complete"], true);
+    let (unit, _) = data_unit(&functions[0]);
+    let analysis = unit.analysis();
     for function in functions.iter().filter(|f| f["outcome"] == "admitted") {
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
         assert_eq!(pair.pdg.function.reference_count.value, Some(1));
         assert!(
             pair.pdg
@@ -4380,10 +5011,13 @@ fn clones_data_checks_serialized_receiver_evidence_without_reemission() {
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{report}");
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 1);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::data_receivers::verify_documents(&pair, &facts).unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        rstyle_pdg::data_receivers::verify_documents(pair, &facts).unwrap();
         let mut bad_signature = facts.clone();
         bad_signature
             .build
@@ -4391,6 +5025,7 @@ fn clones_data_checks_serialized_receiver_evidence_without_reemission() {
             .get_mut(rstyle_pdg::data_receivers::KEY)
             .unwrap()["methods"][0]["signature_inputs"] = serde_json::json!([]);
         assert!(rstyle_pdg::data_receivers::verify(&bad_signature).is_err());
+        shared_evidence::reject_facts(function, &bad_signature);
         for document in ["pdg", "cfg"] {
             let mut changed = rstyle_pdg::producer::Pair {
                 pdg: pair.pdg.clone(),
@@ -4401,12 +5036,9 @@ fn clones_data_checks_serialized_receiver_evidence_without_reemission() {
             } else {
                 &mut changed.cfg.extensions
             };
-            let frontend = &mut extensions
+            extensions
                 .get_mut(rstyle_pdg::extraction_profile::EVIDENCE_KEY)
-                .unwrap()["frontend"];
-            let inputs = &mut frontend["build"]["frontend_options"]
-                [rstyle_pdg::data_receivers::KEY]["methods"][0]["signature_inputs"];
-            *inputs = serde_json::json!([]);
+                .unwrap()["frontend_ref"]["function"] = u32::MAX.into();
             assert!(
                 rstyle_pdg::data_receivers::verify_documents(&changed, &facts).is_err(),
                 "{document}"
@@ -4433,7 +5065,7 @@ fn clones_data_corrupt_receiver_inventory_is_incomplete_handoff() {
         "options['data_method_receivers']['methods'][0]['receiver']['local'] += 1",
     ] {
         let script = format!(
-            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'facts.json'\nfacts = json.loads(p.read_text())\nfor function in facts:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(facts))\nPY\nfi\nexit \"$code\"\n"
+            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'unit.evidence.json'\nbundle = json.loads(p.read_text())\nfor function in bundle['functions']:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(bundle))\nPY\nfi\nexit \"$code\"\n"
         );
         std::fs::write(&shim, script).unwrap();
         std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -4485,12 +5117,17 @@ fn clones_data_length_family_composes_fields_calls_loops_and_borrowed_branches()
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 105);
     assert_eq!(report["pair_evaluation_complete"], true);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in functions {
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::data_library::verify_documents(&pair, &facts).unwrap();
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::data_library::verify_documents(pair, &facts).unwrap();
         if facts.name == "str_len" {
-            check_length_document_tampering(&pair, &facts);
+            check_length_document_tampering(pair, &facts);
             check_length_frontend_tampering(&facts);
+            check_library_toolchain_contract(&facts);
             let projected = report["matching"]["functions"]
                 .as_array()
                 .unwrap()
@@ -4525,10 +5162,14 @@ fn clones_data_verifies_memory_free_shared_argument_helper_families() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 6);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in functions {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
     assert_eq!(report["pair_evaluation_complete"], true);
@@ -4545,12 +5186,13 @@ fn check_shared_helper_dependency(report: &Value) {
         .iter()
         .find(|function| function["facts"]["name"] == "third")
         .unwrap();
-    let (_, facts) = data_pair(wrapper);
+    let (unit, index) = data_unit(wrapper);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let _ = unit.pair(index).unwrap();
     assert!(rstyle_pdg::helper_calls::native_width(&facts).unwrap());
     for corruption in ["manifest", "source", "signature", "effects"] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, corruption));
-        assert!(rstyle_pdg::producer::produce(&changed).is_err());
+        reject_helper(wrapper, corruption);
     }
 }
 
@@ -4593,12 +5235,16 @@ fn clones_data_shared_results_verify_selected_argument_origins_and_all_pairs() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 10);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in functions {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        check_shared_result_origins(&pair, &facts);
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        check_shared_result_origins(pair, &facts);
         if facts.name == "swapped" {
-            check_shared_result_tampering(&pair, &facts);
+            check_shared_result_tampering(pair, &facts, function);
         }
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 45);
@@ -4630,9 +5276,13 @@ fn check_shared_result_edit(directory: &Path, previous: &Value) {
     let before = wrapper(previous);
     let after = wrapper(&report);
     assert_eq!(after["outcome"], "admitted");
-    assert_ne!(before["document_manifest"], after["document_manifest"]);
-    assert_ne!(before["facts"]["body"], after["facts"]["body"]);
-    let (pair, _) = data_pair(&after);
+    assert_ne!(
+        before["unit_evidence"]["namespace"],
+        after["unit_evidence"]["namespace"]
+    );
+    assert_eq!(before["facts"]["body"], after["facts"]["body"]);
+    let (unit, index) = data_unit(&after);
+    let pair = unit.pair(index).unwrap();
     for node in pair
         .pdg
         .nodes
@@ -4650,7 +5300,10 @@ fn check_shared_result_edit(directory: &Path, previous: &Value) {
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
-fn check_shared_result_origins(pair: &rstyle_pdg::producer::Pair, facts: &rstyle_pdg::HirFnFacts) {
+fn check_shared_result_origins(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+) {
     rstyle_pdg::helper_calls::verify_documents(pair, facts).unwrap();
     if facts.name == "branch" {
         assert_eq!(
@@ -4757,11 +5410,14 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
     );
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
-        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
     assert_eq!(report["pair_evaluation_complete"], true);
@@ -4822,15 +5478,19 @@ fn clones_data_inherent_family_composes_source_methods_fields_and_helpers() {
     let assertions =
         rstyle_pdg::diagnostics::Stage::new("test.inherent.assertions", "family", None).enter();
     assert_eq!(report["functions"].as_array().unwrap().len(), 21);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in report["functions"].as_array().unwrap() {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
-        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 210);
     assert_eq!(report["pair_evaluation_complete"], true);
-    check_inherent_call_evidence(&report);
+    check_inherent_call_evidence(&report, &unit);
     check_inherent_tampering(read_call_function(&report, "model::Data::wrap"));
     assertions.finish(Ok::<(), String>(())).unwrap();
     let warm_run =
@@ -4850,11 +5510,15 @@ fn check_inherent_call_edit(directory: &Path, previous: &Value) {
     std::fs::write(directory.join("src/lib.rs"), source).unwrap();
     let (output, report) = clones(directory, &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
+    let (unit, _) = data_unit(&report["functions"][0]);
     for name in ["model::Data::wrap", "model::Data::third", "invoke"] {
         let old = read_call_function(previous, name);
         let new = read_call_function(&report, name);
-        assert_ne!(old["document_manifest"], new["document_manifest"]);
-        let (pair, _) = data_pair(new);
+        assert_ne!(
+            old["unit_evidence"]["namespace"],
+            new["unit_evidence"]["namespace"]
+        );
+        let pair = shared_evidence::pair(&unit, new);
         assert_eq!(
             pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
                 [2]["name"],
@@ -4926,8 +5590,10 @@ fn check_unproved_inherent_calls(report: &Value) {
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
-fn check_inherent_call_evidence(report: &Value) {
-    let (pair, facts) = data_pair(read_call_function(report, "model::Data::wrap"));
+fn check_inherent_call_evidence(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
+    let function = read_call_function(report, "model::Data::wrap");
+    let facts = &unit.functions()[shared_evidence::index(function)];
+    let pair = shared_evidence::pair(unit, function);
     let call = pair
         .pdg
         .nodes
@@ -4951,7 +5617,6 @@ fn check_inherent_call_evidence(report: &Value) {
             [1]["name"],
         "inner"
     );
-    let function = read_call_function(report, "model::Data::wrap");
     let projection = report["matching"]["functions"]
         .as_array()
         .unwrap()
@@ -4962,7 +5627,7 @@ fn check_inherent_call_evidence(report: &Value) {
         projection["projection"]["features"],
         serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 2])
     );
-    let (direct, _) = data_pair(read_call_function(report, "ufcs"));
+    let direct = shared_evidence::pair(unit, read_call_function(report, "ufcs"));
     let direct = direct
         .pdg
         .nodes
@@ -4973,7 +5638,10 @@ fn check_inherent_call_evidence(report: &Value) {
 }
 
 fn check_inherent_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
     for change in [
         "owner",
         "implementation",
@@ -4985,11 +5653,7 @@ fn check_inherent_tampering(function: &Value) {
     ] {
         let mut changed = facts.clone();
         tamper_inherent_evidence(&mut changed, change);
-        assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
-        assert!(
-            rstyle_pdg::helper_calls::verify_documents(&pair, &changed).is_err(),
-            "{change}"
-        );
+        shared_evidence::reject_facts(function, &changed);
     }
     for change in ["missing", "root", "location", "position", "write"] {
         let mut changed = rstyle_pdg::producer::Pair {
@@ -5057,15 +5721,19 @@ fn clones_data_read_calls_compose_complete_shared_field_helper_families() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 20);
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
     for function in functions {
         assert_eq!(function["outcome"], "admitted", "{function}");
-        let (pair, facts) = data_pair(function);
-        rstyle_pdg::helper_calls::verify_documents(&pair, &facts).unwrap();
-        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
+        let index = shared_evidence::index(function);
+        let facts = analysis.function(index).unwrap();
+        let pair = unit.pair(index).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     }
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 190);
     assert_eq!(report["pair_evaluation_complete"], true);
-    check_read_call_locations(&report);
+    check_read_call_locations(&report, &unit);
     check_read_call_tampering(read_call_function(&report, "wrap"));
     let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
     assert!(output.status.success(), "{warm}");
@@ -5124,7 +5792,7 @@ pub fn divergent_call(v: &Data) -> u8 { divergent(v) }\n";
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
-fn check_read_call_locations(report: &Value) {
+fn check_read_call_locations(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
     let wrapper = read_call_function(report, "wrap");
     let projected = report["matching"]["functions"]
         .as_array()
@@ -5145,7 +5813,7 @@ fn check_read_call_locations(report: &Value) {
         ("repeat_wrap", 2, 1),
         ("choose_get", 2, 2),
     ] {
-        let (pair, _) = data_pair(read_call_function(report, name));
+        let pair = shared_evidence::pair(unit, read_call_function(report, name));
         assert_eq!(
             pair.pdg
                 .nodes
@@ -5168,11 +5836,65 @@ fn check_read_call_locations(report: &Value) {
             );
         }
     }
-    check_stored_read_path(read_call_function(report, "stored"));
+    check_local_location_renumbering(report, unit);
+    check_stored_read_path(shared_evidence::pair(
+        unit,
+        read_call_function(report, "stored"),
+    ));
 }
 
-fn check_stored_read_path(function: &Value) {
-    let (stored, _) = data_pair(function);
+fn check_local_location_renumbering(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
+    let function = read_call_function(report, "choose_get");
+    let index = shared_evidence::index(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    let count = pair.pdg.memory_locations.len();
+    assert!(count > 1);
+    let renaming: std::collections::BTreeMap<_, _> = pair
+        .pdg
+        .memory_locations
+        .iter()
+        .enumerate()
+        .map(|(index, location)| {
+            (
+                location.id.clone(),
+                format!("location:local:{}", count - index - 1),
+            )
+        })
+        .collect();
+    let mut document = serde_json::to_value(pair).unwrap();
+    rename_location_references(&mut document, &renaming);
+    let mut changed: rstyle_pdg::producer::Pair = serde_json::from_value(document).unwrap();
+    changed.pdg.memory_locations.reverse();
+    rstyle_pdg::data_documents::verify(&changed, &facts).unwrap();
+    rstyle_pdg::producer::verify(&changed, &facts).unwrap();
+    changed.pdg.memory_locations[0].id = changed.pdg.memory_locations[1].id.clone();
+    assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&changed, &facts).is_err());
+}
+
+fn rename_location_references(
+    value: &mut Value,
+    names: &std::collections::BTreeMap<String, String>,
+) {
+    match value {
+        Value::String(name) => {
+            if let Some(replacement) = names.get(name) {
+                *name = replacement.clone();
+            }
+        }
+        Value::Array(values) => values
+            .iter_mut()
+            .for_each(|value| rename_location_references(value, names)),
+        Value::Object(values) => values
+            .values_mut()
+            .for_each(|value| rename_location_references(value, names)),
+        _ => {}
+    }
+}
+
+fn check_stored_read_path(stored: &rstyle_pdg::producer::Pair) {
     let path = &stored
         .pdg
         .memory_locations
@@ -5193,7 +5915,10 @@ fn check_stored_read_path(function: &Value) {
 }
 
 fn check_read_call_tampering(function: &Value) {
-    let (pair, facts) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
     for change in [
         "missing",
         "extra",
@@ -5231,10 +5956,10 @@ fn check_read_call_tampering(function: &Value) {
             "{change}"
         );
     }
-    check_read_summary_tampering(&facts);
+    check_read_summary_tampering(function);
 }
 
-fn check_read_summary_tampering(facts: &rstyle_pdg::HirFnFacts) {
+fn check_read_summary_tampering(function: &Value) {
     for change in [
         "missing",
         "empty",
@@ -5247,14 +5972,10 @@ fn check_read_summary_tampering(facts: &rstyle_pdg::HirFnFacts) {
         "effect",
         "identity",
     ] {
-        let mut changed = facts.clone();
-        assert!(tamper_read_summary(&mut changed.body, change));
-        assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
+        shared_evidence::reject_read_summary(function, change);
     }
     for change in ["manifest", "source", "signature", "effects"] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, change));
-        assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
+        reject_helper(function, change);
     }
 }
 
@@ -5310,38 +6031,6 @@ fn tamper_read_location(pair: &mut rstyle_pdg::producer::Pair, change: &str) {
     }
 }
 
-fn tamper_read_summary(node: &mut rstyle_pdg::HirNode, change: &str) -> bool {
-    if node.kind != "expr_call" {
-        return node
-            .children
-            .iter_mut()
-            .any(|child| tamper_read_summary(child, change));
-    }
-    let resolution = node.res.as_mut().unwrap();
-    let mut value: Value = serde_json::from_str(&resolution.description).unwrap();
-    let summary = &mut value[rstyle_pdg::helper_calls::KEY]["summary"];
-    match change {
-        "missing" => {
-            summary.as_object_mut().unwrap().remove("memory_reads");
-        }
-        "empty" => summary["memory_reads"] = serde_json::json!([]),
-        "extra" => {
-            let read = summary["memory_reads"][0].clone();
-            summary["memory_reads"].as_array_mut().unwrap().push(read);
-        }
-        "operation" => summary["memory_reads"][0]["operation"] = serde_json::json!("forged"),
-        "access" => summary["memory_reads"][0]["access"] = serde_json::json!(1),
-        "parameter" => summary["memory_reads"][0]["parameter"] = serde_json::json!(1),
-        "path" => summary["memory_reads"][0]["path"] = serde_json::json!([]),
-        "type" => summary["memory_reads"][0]["value"]["value"] = serde_json::json!("u16"),
-        "effect" => summary["memory_effects"] = serde_json::json!(false),
-        "identity" => summary["identity"] = serde_json::json!("rstyle.helper.source-body/1"),
-        _ => unreachable!(),
-    }
-    resolution.description = serde_json::to_string(&value).unwrap();
-    true
-}
-
 fn check_read_call_edit(directory: &Path, previous: &Value) {
     let source = DATA_READ_CALL_FAMILY.replace(
         "pub fn get(v: &Data) -> u8 { v.inner.n }",
@@ -5350,11 +6039,15 @@ fn check_read_call_edit(directory: &Path, previous: &Value) {
     std::fs::write(directory.join("src/lib.rs"), source).unwrap();
     let (output, report) = clones(directory, &["--extraction-profile", "hir-data-v2"]);
     assert!(output.status.success(), "{report}");
+    let (unit, _) = data_unit(&report["functions"][0]);
     for name in ["wrap", "third"] {
         let old = read_call_function(previous, name);
         let new = read_call_function(&report, name);
-        assert_ne!(old["document_manifest"], new["document_manifest"]);
-        let (pair, _) = data_pair(new);
+        assert_ne!(
+            old["unit_evidence"]["namespace"],
+            new["unit_evidence"]["namespace"]
+        );
+        let pair = shared_evidence::pair(&unit, new);
         assert_eq!(
             pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
                 [2]["name"],
@@ -5367,7 +6060,8 @@ fn check_read_call_edit(directory: &Path, previous: &Value) {
 
 fn check_shared_result_tampering(
     pair: &rstyle_pdg::producer::Pair,
-    facts: &rstyle_pdg::HirFnFacts,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    function: &Value,
 ) {
     for corruption in [
         "output_missing",
@@ -5378,12 +6072,7 @@ fn check_shared_result_tampering(
         "unit_invocation",
         "unit_target",
     ] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, corruption));
-        assert!(
-            rstyle_pdg::producer::produce(&changed).is_err(),
-            "{corruption}"
-        );
+        reject_helper(function, corruption);
     }
     let mut changed = rstyle_pdg::producer::Pair {
         pdg: pair.pdg.clone(),
@@ -5483,7 +6172,7 @@ fn tamper_length_document(pair: &mut rstyle_pdg::producer::Pair, change: &str) {
 }
 
 fn check_length_frontend_tampering(facts: &rstyle_pdg::HirFnFacts) {
-    for change in ["missing", "artifact", "signature", "definition"] {
+    for change in ["missing", "crate", "signature", "definition"] {
         let mut changed = facts.clone();
         match change {
             "missing" => {
@@ -5492,13 +6181,13 @@ fn check_length_frontend_tampering(facts: &rstyle_pdg::HirFnFacts) {
                     .frontend_options
                     .remove(rstyle_pdg::data_library::KEY);
             }
-            "artifact" => {
+            "crate" => {
                 changed
                     .build
                     .frontend_options
                     .get_mut(rstyle_pdg::data_library::KEY)
-                    .unwrap()["libraries"][0]["files"][0]["sha256"] =
-                    serde_json::json!(format!("sha256:{}", "0".repeat(64)))
+                    .unwrap()["libraries"][0]["crate_hash"] =
+                    serde_json::json!("contradictory core identity")
             }
             "signature" => {
                 changed
@@ -5516,6 +6205,39 @@ fn check_length_frontend_tampering(facts: &rstyle_pdg::HirFnFacts) {
             rstyle_pdg::data_library::verify_evidence(&changed).is_err(),
             "{change}"
         );
+    }
+}
+
+fn check_library_toolchain_contract(facts: &rstyle_pdg::HirFnFacts) {
+    use rstyle_pdg::data_library::{IDENTITY, KEY, resolve, verify_evidence};
+    let libraries = serde_json::to_value(verify_evidence(facts).unwrap()).unwrap();
+    assert_eq!(libraries["identity"], IDENTITY);
+    assert!(libraries["libraries"][0].get("files").is_none());
+    assert!(
+        !facts
+            .build
+            .frontend_options
+            .contains_key("data_library_artifacts")
+    );
+    for change in ["compiler", "target", "width"] {
+        let mut changed = facts.clone();
+        match change {
+            "compiler" => changed.build.rustc_commit = rstyle_pdg::StringFact::known("unsupported"),
+            "target" => changed.build.target_triple = rstyle_pdg::StringFact::known("unsupported"),
+            "width" => changed.build.pointer_width.value = Some(128),
+            _ => unreachable!(),
+        }
+        let method = first_library_method(&changed.body).unwrap();
+        assert!(resolve(method, &changed).unwrap().is_none(), "{change}");
+        assert!(changed.build.frontend_options.contains_key(KEY));
+    }
+}
+
+fn first_library_method(node: &rstyle_pdg::HirNode) -> Option<&rstyle_pdg::HirNode> {
+    if rstyle_pdg::data_library::operation(node).is_some() {
+        Some(node)
+    } else {
+        node.children.iter().find_map(first_library_method)
     }
 }
 
@@ -5597,13 +6319,13 @@ fn clones_data_library_corruption_is_incomplete_execution() {
     let shim = directory.path().join("driver-shim");
     let real = driver().to_string_lossy().replace('\'', "'\\''");
     for mutation in [
-        "options.pop('data_library_artifacts')",
-        "options['data_library_artifacts']['libraries'][0]['files'][0]['sha256'] = 'sha256:' + '0' * 64",
-        "options['data_library_artifacts']['libraries'][0]['files'][0]['bytes'] = 128 * 1024 * 1024 + 1",
+        "options.pop('data_library_resolution')",
+        "options['data_library_resolution']['libraries'][0]['crate_hash'] = 'contradictory core identity'",
+        "options['data_library_resolution']['identity'] = 'rstyle.rust.library-artifact-capture/1'",
         "function['build']['rustc_commit']['value'] = '0' * 40",
     ] {
         let script = format!(
-            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'facts.json'\nfacts = json.loads(p.read_text())\nfor function in facts:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(facts))\nPY\nfi\nexit \"$code\"\n"
+            "#!/bin/sh\n'{real}' \"$@\"\ncode=$?\nif [ \"$code\" = 0 ] && [ -n \"$RSTYLE_HIR_DOCUMENT_DIR\" ]; then\npython3 - <<'PY'\nimport os, json\nfrom pathlib import Path\np = Path(os.environ['RSTYLE_HIR_DOCUMENT_DIR']) / 'unit.evidence.json'\nbundle = json.loads(p.read_text())\nfor function in bundle['functions']:\n    options = function['build']['frontend_options']\n    {mutation}\np.write_text(json.dumps(bundle))\nPY\nfi\nexit \"$code\"\n"
         );
         std::fs::write(&shim, script).unwrap();
         std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -5679,7 +6401,10 @@ fn clones_generated_policy_preserves_documents_and_structural_validation() {
         .iter()
         .find(|function| function["facts"]["name"] == "first")
         .unwrap();
-    let (mut pair, facts) = data_pair(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let mut pair = copy_pair(unit.pair(index).unwrap());
     rstyle_pdg::producer::verify(&pair, &facts).unwrap();
     let strict = rstyle_pdg::producer::produce(&facts)
         .unwrap()
@@ -5694,10 +6419,37 @@ fn clones_generated_policy_preserves_documents_and_structural_validation() {
     assert_eq!(strict.pdg_bytes, generated.pdg_bytes);
     assert_eq!(strict.cfg_bytes, generated.cfg_bytes);
     assert_eq!(strict.manifest, generated.manifest);
+    check_borrowed_serialized_pair(&strict, &facts);
     pair.pdg.nodes[1].id = pair.pdg.nodes[0].id.clone();
     assert!(
         rstyle_pdg::verification_policy::generated(|| {
             rstyle_pdg::producer::verify(&pair, &facts)
+        })
+        .is_err()
+    );
+}
+
+fn check_borrowed_serialized_pair(
+    strict: &rstyle_pdg::producer::SerializedPair,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+) {
+    let borrowed = rstyle_pdg::producer::verify_serialized_view(strict.as_view(), facts)
+        .unwrap()
+        .serialize()
+        .unwrap();
+    assert_eq!(strict.pdg_bytes, borrowed.pdg_bytes);
+    assert_eq!(strict.cfg_bytes, borrowed.cfg_bytes);
+    let mut edited_cfg = strict.cfg_bytes.clone();
+    edited_cfg.push(b' ');
+    let edited = rstyle_pdg::producer::SerializedPairView {
+        pdg_bytes: &strict.pdg_bytes,
+        cfg_bytes: &edited_cfg,
+        manifest: &strict.manifest,
+    };
+    assert!(rstyle_pdg::producer::verify_serialized_view(edited, facts).is_err());
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| {
+            rstyle_pdg::producer::verify_serialized_view(edited, facts)
         })
         .is_err()
     );
@@ -5717,8 +6469,11 @@ fn clones_helpers_repeated_dependencies_preserve_strict_checks() {
     );
     assert!(output.status.success(), "{report}");
     let function = read_call_function(&report, "repeated");
-    let (pair, facts) = data_pair(function);
-    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    rstyle_pdg::producer::verify(pair, &facts).unwrap();
     let strict = rstyle_pdg::producer::produce(&facts)
         .unwrap()
         .serialize()
@@ -5728,12 +6483,152 @@ fn clones_helpers_repeated_dependencies_preserve_strict_checks() {
     assert_eq!(strict.cfg_bytes, original.cfg_bytes);
     assert_eq!(strict.manifest, original.manifest);
     for corruption in ["manifest", "source", "signature", "effects"] {
-        let mut changed = facts.clone();
-        assert!(corrupt_helper(&mut changed.body, corruption));
-        assert!(
-            rstyle_pdg::producer::produce(&changed).is_err(),
-            "{corruption}"
-        );
+        reject_helper(function, corruption);
     }
-    rstyle_pdg::producer::verify(&pair, &facts).unwrap();
+    rstyle_pdg::producer::verify(pair, &facts).unwrap();
+}
+
+#[test]
+fn shared_unit_borrows_lexical_results_with_policy_and_context_isolation() {
+    use rstyle_pdg::unit_store::EvidenceFacts;
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub struct Data { pub n: u8 }\nimpl Data { pub fn get(&self) -> u8 { self.n } }\npub fn first(v: &Data) -> u8 { v.get() }\npub fn second(v: &Data) -> u8 { v.get() }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let path = Path::new(report["observed_units"][0]["directory"].as_str().unwrap());
+    let bytes = std::fs::read(path.join("unit.evidence.json")).unwrap();
+    let store = rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).unwrap();
+    let index = store
+        .functions()
+        .iter()
+        .position(|facts| facts.name.ends_with("::get"))
+        .unwrap();
+    let analysis = store.analysis();
+    let view = analysis.function(index).unwrap();
+    let first = view.nominal_resolution().unwrap();
+    let second = view.nominal_resolution().unwrap();
+    assert!(std::ptr::eq(&*first, &*second));
+    let inherent = view.inherent_definition().unwrap().unwrap();
+    assert!(matches!(inherent, std::borrow::Cow::Borrowed(_)));
+    assert!(std::ptr::eq(
+        inherent.as_ref(),
+        view.inherent_definition().unwrap().unwrap().as_ref()
+    ));
+    rstyle_pdg::verification_policy::generated(|| {
+        let generated = view.nominal_resolution().unwrap();
+        assert!(!std::ptr::eq(&*first, &*generated));
+        assert_eq!(first.namespace, generated.namespace);
+        assert_eq!(first.receiver, generated.receiver);
+    });
+    let independent = store.analysis();
+    let independent_view = independent.function(index).unwrap();
+    assert!(!std::ptr::eq(
+        &*first,
+        &*independent_view.nominal_resolution().unwrap()
+    ));
+    let other_store = rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).unwrap();
+    let other_analysis = other_store.analysis();
+    let other_view = other_analysis.function(index).unwrap();
+    assert!(!std::ptr::eq(
+        &*first,
+        &*other_view.nominal_resolution().unwrap()
+    ));
+    let mut edited = view.facts().clone();
+    edited.source.bytes = edited.source.bytes.replace("self.n", "self.n + 1").into();
+    edited.source.digest = rstyle_pdg::concrete_types::digest(edited.source.bytes.as_bytes());
+    assert!(edited.nominal_resolution().is_err());
+    assert!(edited.inherent_definition().is_err());
+    assert!(std::ptr::eq(&*first, &*view.nominal_resolution().unwrap()));
+}
+
+#[test]
+fn clones_borrowed_typed_pairs_preserve_verification_and_strict_admission() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn leaf(x: usize) -> usize { x }\npub fn caller(x: usize) -> usize { leaf(x) }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--extraction-profile", "hir-helpers-v1"],
+    );
+    assert!(output.status.success(), "{report}");
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["facts"]["name"] == "caller")
+        .unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    let borrowed = pair.as_view();
+    assert!(std::ptr::eq(borrowed.pdg, &pair.pdg));
+    assert!(std::ptr::eq(borrowed.cfg, &pair.cfg));
+    assert_eq!(
+        serde_json::to_vec(pair).unwrap(),
+        serde_json::to_vec(&borrowed).unwrap()
+    );
+    assert_eq!(
+        rstyle_pdg::producer::verify_view(borrowed, &facts),
+        rstyle_pdg::producer::verify(pair, &facts)
+    );
+    let generated = rstyle_pdg::verification_policy::generated(|| {
+        rstyle_pdg::producer::verify_view(borrowed, &facts)
+    });
+    assert!(generated.is_ok());
+    let leaf = unit.functions().iter().find(|f| f.name == "leaf").unwrap();
+    let standalone = rstyle_pdg::producer::produce(leaf).unwrap();
+    check_borrowed_pair_admission(&standalone, leaf);
+    check_borrowed_pair_tampering(pair, &facts);
+}
+
+fn check_borrowed_pair_admission(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &rstyle_pdg::HirFnFacts,
+) {
+    let borrowed = pair.as_view();
+    let sources = pair
+        .pdg
+        .sources
+        .iter()
+        .map(|source| (source.id.clone(), facts.source.bytes.as_bytes().to_vec()))
+        .collect();
+    let context = rstyle_pdg::ValidationContext::CompilerEvidence {
+        pointer_width_bits: u8::try_from(facts.build.pointer_width.value.unwrap()).unwrap(),
+    };
+    let standalone = rstyle_ccgraph::admit_strict(&rstyle_ccgraph::StrictBundle {
+        pdg: borrowed.pdg,
+        cfg: borrowed.cfg,
+        source_bytes: &sources,
+        ctx: &context,
+    })
+    .unwrap();
+    assert!(standalone.native_width_involved);
+    assert_eq!(
+        standalone,
+        rstyle_ccgraph::admit_produced(pair, facts).unwrap()
+    );
+}
+
+fn check_borrowed_pair_tampering(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+) {
+    let mut cfg = pair.cfg.clone();
+    cfg.entry_node_id = "missing".into();
+    let changed = rstyle_pdg::producer::PairView {
+        pdg: &pair.pdg,
+        cfg: &cfg,
+    };
+    assert!(rstyle_pdg::producer::verify_view(changed, facts).is_err());
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::verify_view(
+            changed, facts
+        ))
+        .is_err()
+    );
 }

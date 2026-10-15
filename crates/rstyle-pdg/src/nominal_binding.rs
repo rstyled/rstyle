@@ -1,9 +1,13 @@
 //! Package/source observations bound to one independently selected Cargo unit.
 //! No data eligibility or effect certificate is issued by this module.
 
-use crate::concrete_types::{InterfaceObservations, Nominal, digest};
+use crate::concrete_types::Nominal;
+#[cfg(test)]
+use crate::concrete_types::digest;
 use crate::declaration_origins::Origins;
-use crate::{BuildFacts, HirFnFacts, concrete_types, declaration_origins};
+use crate::{HirFnFacts, concrete_types, declaration_origins};
+mod builds;
+pub use builds::{BuildContexts, BuildId};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -11,7 +15,7 @@ use std::{
 };
 
 pub const PACKAGE_IDENTITY: &str = "rstyle.rust.cargo-package-capture/1";
-pub const IDENTITY: &str = "rstyle.rust.nominal-unit-binding/1";
+pub const IDENTITY: &str = "rstyle.rust.nominal-unit-binding/2";
 pub const MAX_MANIFEST_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,7 +26,7 @@ pub struct PackageContext {
     pub name: String,
     pub version: String,
     pub manifest_path: PathBuf,
-    pub manifest_bytes: String,
+    pub manifest_bytes: crate::SourceSnapshot,
     pub manifest_digest: String,
 }
 
@@ -33,7 +37,7 @@ impl PackageContext {
             || self.name.is_empty()
             || self.version.is_empty()
             || self.manifest_bytes.len() > MAX_MANIFEST_BYTES
-            || self.manifest_digest != digest(self.manifest_bytes.as_bytes())
+            || self.manifest_digest != self.manifest_bytes.identity()
             || !self.manifest_path.is_absolute()
             || self
                 .manifest_path
@@ -55,68 +59,91 @@ pub struct BoundDeclaration {
     pub file_digest: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Binding {
     pub identity: String,
     pub package_id: String,
     pub manifest_digest: String,
-    pub build_digest: String,
+    pub build_id: BuildId,
     pub declarations: Vec<BoundDeclaration>,
+}
+
+pub struct UnitBindings {
+    pub bindings: Vec<Option<Binding>>,
+    pub builds: BuildContexts,
+}
+
+impl UnitBindings {
+    pub fn empty(count: usize) -> Self {
+        Self {
+            bindings: vec![None; count],
+            builds: BuildContexts::default(),
+        }
+    }
+}
+
+struct BindingContext<'a> {
+    package: &'a PackageContext,
+    files: BTreeMap<PathBuf, crate::SourceSnapshot>,
+    builds: BuildContexts,
+    origins: declaration_origins::Sources,
+}
+
+impl<'a> BindingContext<'a> {
+    fn new(package: &'a PackageContext) -> Result<Self, String> {
+        package.validate()?;
+        Ok(Self {
+            package,
+            files: BTreeMap::new(),
+            builds: BuildContexts::default(),
+            origins: declaration_origins::Sources::default(),
+        })
+    }
 }
 
 /// The context must come from the independently frozen selected Cargo plan,
 /// after observed target/unit and frontend invocation checks, not the producer.
-pub fn bind_unit(
-    facts: &[HirFnFacts],
-    context: &PackageContext,
-) -> Result<Vec<Option<Binding>>, String> {
-    context.validate()?;
-    let mut files = BTreeMap::new();
+pub fn bind_unit(facts: &[HirFnFacts], context: &PackageContext) -> Result<UnitBindings, String> {
+    let mut unit = BindingContext::new(context)?;
     let bindings = facts
         .iter()
-        .map(|function| bind(function, context, &mut files))
+        .map(|function| bind(function, &mut unit))
         .collect::<Result<Vec<_>, _>>()?;
     for function in facts {
-        check_function_source(function, &files)?;
+        check_function_source(function, &unit.files)?;
     }
 
-    Ok(bindings)
+    Ok(UnitBindings {
+        bindings,
+        builds: unit.builds,
+    })
 }
 
-fn bind(
-    facts: &HirFnFacts,
-    context: &PackageContext,
-    files: &mut BTreeMap<PathBuf, String>,
-) -> Result<Option<Binding>, String> {
+fn bind(facts: &HirFnFacts, unit: &mut BindingContext<'_>) -> Result<Option<Binding>, String> {
     let options = &facts.build.frontend_options;
-    let Some(value) = options.get(concrete_types::KEY) else {
+    if !options.contains_key(concrete_types::KEY) {
         if options.contains_key(declaration_origins::KEY) {
             return Err("Orphan concrete declaration origins".into());
         }
         return Ok(None);
-    };
-    let interface: InterfaceObservations =
-        serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
-    let origins: Origins = serde_json::from_value(
-        options
-            .get(declaration_origins::KEY)
-            .ok_or("Missing original declaration evidence")?
-            .clone(),
-    )
-    .map_err(|e| e.to_string())?;
-    declaration_origins::verify(&interface, &origins)?;
+    }
+    let interface = options.data::<crate::concrete_types::InterfaceObservations>()?;
+    if !options.contains_key(declaration_origins::KEY) {
+        return Err("Missing original declaration evidence".into());
+    }
+    let origins = options.data::<Origins>()?;
+    unit.origins.verify(&interface, &origins)?;
     let declarations = origins
         .declarations
         .iter()
-        .map(|origin| bind_declaration(origin, context, files))
+        .map(|origin| bind_declaration(origin, unit.package, &mut unit.files))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Some(Binding {
         identity: IDENTITY.into(),
-        package_id: context.package_id.clone(),
-        manifest_digest: context.manifest_digest.clone(),
-        build_digest: build_digest(&facts.build)?,
+        package_id: unit.package.package_id.clone(),
+        manifest_digest: unit.package.manifest_digest.clone(),
+        build_id: unit.builds.intern(&facts.build)?,
         declarations,
     }))
 }
@@ -124,7 +151,7 @@ fn bind(
 fn bind_declaration(
     origin: &declaration_origins::Origin,
     context: &PackageContext,
-    files: &mut BTreeMap<PathBuf, String>,
+    files: &mut BTreeMap<PathBuf, crate::SourceSnapshot>,
 ) -> Result<BoundDeclaration, String> {
     let nominal = &origin.nominal;
     if nominal
@@ -164,7 +191,7 @@ fn bind_declaration(
 
 fn check_function_source(
     facts: &HirFnFacts,
-    files: &BTreeMap<PathBuf, String>,
+    files: &BTreeMap<PathBuf, crate::SourceSnapshot>,
 ) -> Result<(), String> {
     if files.is_empty() {
         return Ok(());
@@ -188,7 +215,7 @@ fn check_range(
     span: crate::ByteSpan,
     function: &crate::SourceFacts,
 ) -> Result<(), String> {
-    if function.digest != digest(function.bytes.as_bytes())
+    if function.digest != function.bytes.identity()
         || source.get(span.start as usize..span.end as usize) != Some(function.bytes.as_str())
     {
         return Err(
@@ -197,12 +224,6 @@ fn check_range(
     }
 
     Ok(())
-}
-
-pub fn build_digest(build: &BuildFacts) -> Result<String, String> {
-    serde_json::to_vec(build)
-        .map(|bytes| digest(&bytes))
-        .map_err(|e| e.to_string())
 }
 
 fn absolute_path(path: &Path) -> Result<PathBuf, String> {
@@ -317,10 +338,10 @@ mod tests {
             );
         }
         let mut corrupt = context.clone();
-        corrupt.manifest_bytes.push('x');
+        corrupt.manifest_bytes = format!("{}x", corrupt.manifest_bytes).into();
         assert!(corrupt.validate().is_err());
         corrupt = context;
-        corrupt.manifest_bytes = "x".repeat(MAX_MANIFEST_BYTES + 1);
+        corrupt.manifest_bytes = "x".repeat(MAX_MANIFEST_BYTES + 1).into();
         corrupt.manifest_digest = digest(corrupt.manifest_bytes.as_bytes());
         assert!(corrupt.validate().is_err());
     }
@@ -333,7 +354,7 @@ mod tests {
         bind_declaration(&original, &context, &mut files).unwrap();
         bind_declaration(&original, &context, &mut files).unwrap();
         let mut changed = original;
-        changed.file_bytes.push_str("\n// changed source");
+        changed.file_bytes = format!("{}\n// changed source", changed.file_bytes).into();
         changed.file_digest = digest(changed.file_bytes.as_bytes());
         assert!(bind_declaration(&changed, &context, &mut files).is_err());
     }
@@ -352,7 +373,7 @@ mod tests {
             digest: digest(function.as_bytes()),
         };
         check_range(&file, span, &evidence).unwrap();
-        evidence.bytes = function.replace('3', "4");
+        evidence.bytes = function.replace('3', "4").into();
         evidence.digest = digest(evidence.bytes.as_bytes());
         assert!(check_range(&file, span, &evidence).is_err());
         evidence.bytes = function.into();

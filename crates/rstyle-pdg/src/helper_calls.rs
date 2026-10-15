@@ -1,16 +1,16 @@
 //! Verified same-compilation-unit helper dependencies. Names never prove effects.
 
+use crate::unit_store::EvidenceFacts;
 use crate::{HirFnFacts, HirNode, producer};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{cell::OnceCell, collections::BTreeMap};
 
 pub(crate) mod transport;
 mod transport_lexical;
 
 pub const KEY: &str = "verified_helper";
-const MAX_DEPTH: usize = 8;
-const MAX_BYTES: usize = 8 * 1024 * 1024;
+pub(crate) const MAX_DEPTH: usize = 8;
+pub(crate) const MAX_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -40,7 +40,7 @@ pub struct Summary {
     pub memory_reads: Option<Vec<crate::helper_reads::Read>>,
 }
 
-fn summary(facts: &HirFnFacts, pair: &producer::Pair) -> Result<Summary, String> {
+fn summary(facts: &dyn EvidenceFacts, pair: &producer::Pair) -> Result<Summary, String> {
     let argument_types = facts
         .signature
         .params
@@ -62,7 +62,7 @@ fn summary(facts: &HirFnFacts, pair: &producer::Pair) -> Result<Summary, String>
 
     let reference_outputs = crate::helper_references::returned(facts, pair)?;
     let references = reference_outputs.is_some();
-    let memory_reads = crate::helper_reads::derive(facts, pair)?;
+    let memory_reads = crate::helper_reads::derive(facts, pair.as_view())?;
     let reads = memory_reads.is_some();
     Ok(Summary {
         identity: if reads {
@@ -101,7 +101,11 @@ fn identity(facts: &HirFnFacts) -> Option<&str> {
 
 /// Native-width semantics propagate through verified dependencies, even when
 /// a caller's own interface and operations have only fixed-width scalar types.
-pub fn native_width(facts: &HirFnFacts) -> Result<bool, String> {
+pub fn native_width(facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    facts.native_width()
+}
+
+pub(crate) fn compute_native_width(facts: &dyn EvidenceFacts) -> Result<bool, String> {
     let data = crate::extraction_profile::ExtractionProfile::from_facts(facts)?.is_data();
     let interface = facts
         .signature
@@ -112,7 +116,7 @@ pub fn native_width(facts: &HirFnFacts) -> Result<bool, String> {
         })?
         | native_type(&facts.signature.return_ty, data)?;
 
-    Ok(interface | node_native_width(&facts.body, data)?)
+    Ok(interface | node_native_width(&facts.body, data, facts)?)
 }
 
 fn native_type(ty: &crate::ResolvedTy, data: bool) -> Result<bool, String> {
@@ -125,7 +129,11 @@ fn native_type(ty: &crate::ResolvedTy, data: bool) -> Result<bool, String> {
     Ok(matches!(token, "isize" | "usize"))
 }
 
-fn node_native_width(node: &HirNode, data: bool) -> Result<bool, String> {
+fn node_native_width(
+    node: &HirNode,
+    data: bool,
+    facts: &dyn EvidenceFacts,
+) -> Result<bool, String> {
     let own = node
         .ty
         .as_ref()
@@ -133,17 +141,25 @@ fn node_native_width(node: &HirNode, data: bool) -> Result<bool, String> {
         .transpose()?
         .unwrap_or(false);
     let children = node.children.iter().try_fold(false, |native, child| {
-        node_native_width(child, data).map(|seen| native | seen)
+        node_native_width(child, data, facts).map(|seen| native | seen)
     })?;
-    let callee = if let Some(resolution) = direct_resolution(node) {
-        let dependency: Dependency = transport::decode(&resolution[KEY])
-            .map_err(|_| "Missing verified dependency for transitive target-width evidence")?;
-        native_width(&dependency.frontend)?
+    let callee = if direct_resolution(node).is_some() {
+        native_dependency(node, facts)?
     } else {
         false
     };
 
     Ok(own | children | callee)
+}
+
+fn native_dependency(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    if let Some(helper) = facts.helper(node)? {
+        return native_width(&helper.frontend());
+    }
+    let resolution = direct_resolution(node).ok_or("Missing direct helper resolution")?;
+    let dependency: Dependency = transport::decode(&resolution[KEY])
+        .map_err(|_| "Missing verified dependency for transitive target-width evidence")?;
+    native_width(&dependency.frontend)
 }
 
 pub fn direct_resolution(node: &HirNode) -> Option<Value> {
@@ -175,180 +191,9 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
     calls
 }
 
-/// Capture all local bodies first, then build the acyclic dependency handoff.
-pub fn capture(facts: &mut [HirFnFacts]) -> Result<(), String> {
-    crate::verification_session::within(|| capture_unit(facts))
-}
-
-fn capture_unit(facts: &mut [HirFnFacts]) -> Result<(), String> {
-    let observation = crate::diagnostics::Stage::new("helper.capture", "unit", None).enter();
-    let mut state = CaptureState {
-        verified: BTreeMap::new(),
-        pending: (0..facts.len()).collect(),
-    };
-    for _depth in 0..=MAX_DEPTH {
-        if !state.advance(facts)? {
-            break;
-        }
-    }
-    // Unsupported or recursive callees remain explicit call exclusions.
-    attach_all(facts, &state.verified)?;
-
-    for function in facts {
-        crate::helper_reads::check_budgets(function)?;
-    }
-    observation.finish(Ok(()))
-}
-
-struct CaptureState {
-    verified: BTreeMap<String, CertifiedDependency>,
-    pending: Vec<usize>,
-}
-
-/// One immutable proof and its lossless transport, owned by this capture only.
-struct CertifiedDependency {
-    dependency: Dependency,
-    encoded: OnceCell<Result<Value, String>>,
-}
-
-impl CertifiedDependency {
-    fn new(dependency: Dependency) -> Self {
-        Self {
-            dependency,
-            encoded: OnceCell::new(),
-        }
-    }
-
-    fn encoded(&self) -> Result<&Value, String> {
-        self.encoded
-            .get_or_init(|| transport::encode(&self.dependency))
-            .as_ref()
-            .map_err(Clone::clone)
-    }
-}
-
-struct Prepared {
-    index: usize,
-    facts: HirFnFacts,
-    dependency: Option<Dependency>,
-}
-
-impl CaptureState {
-    fn prepare(&self, index: usize, facts: &HirFnFacts) -> Result<Prepared, String> {
-        let mut facts = facts.clone();
-        attach(&mut facts.body, &self.verified)?;
-        let dependency = if crate::classify(&facts).status == crate::EligibilityVerdict::Eligible {
-            certify(&facts)?
-        } else {
-            None
-        };
-
-        Ok(Prepared {
-            index,
-            facts,
-            dependency,
-        })
-    }
-
-    fn advance(&mut self, facts: &mut [HirFnFacts]) -> Result<bool, String> {
-        let prepared = self
-            .pending
-            .iter()
-            .map(|index| self.prepare(*index, &facts[*index]))
-            .collect::<Result<Vec<_>, _>>()?;
-        let completed: BTreeMap<_, _> = prepared
-            .iter()
-            .filter_map(|record| {
-                record.dependency.as_ref().map(|dependency| {
-                    (
-                        identity(&record.facts).unwrap_or_default().to_owned(),
-                        CertifiedDependency::new(dependency.clone()),
-                    )
-                })
-            })
-            .collect();
-        let count = prepared
-            .iter()
-            .filter(|record| record.dependency.is_some())
-            .count();
-        if count != completed.len() || completed.contains_key("") {
-            return Err("Missing or duplicate resolved helper definition identity".into());
-        }
-        if completed.is_empty() {
-            return Ok(false);
-        }
-        self.verified.extend(completed);
-        self.pending = prepared
-            .iter()
-            .filter(|record| record.dependency.is_none())
-            .map(|record| record.index)
-            .collect();
-        apply_prepared(facts, prepared);
-
-        Ok(!self.pending.is_empty())
-    }
-}
-
-fn apply_prepared(facts: &mut [HirFnFacts], prepared: Vec<Prepared>) {
-    for record in prepared
-        .into_iter()
-        .filter(|record| record.dependency.is_some())
-    {
-        facts[record.index] = record.facts;
-    }
-}
-
-fn attach_all(
-    facts: &mut [HirFnFacts],
-    verified: &BTreeMap<String, CertifiedDependency>,
-) -> Result<(), String> {
-    for function in facts {
-        attach(&mut function.body, verified)?;
-    }
-
-    Ok(())
-}
-
-fn attach(
-    node: &mut HirNode,
-    verified: &BTreeMap<String, CertifiedDependency>,
-) -> Result<(), String> {
-    attach_children(node, verified)?;
-    let Some(mut resolution) = direct_resolution(node) else {
-        return Ok(());
-    };
-    let Some(dependency) = resolution["definition_identity"]
-        .as_str()
-        .and_then(|key| verified.get(key))
-    else {
-        return Ok(());
-    };
-    if resolution["local"] != true {
-        return Ok(());
-    }
-    resolution[KEY] = dependency.encoded()?.clone();
-    let description = serde_json::to_string(&resolution).map_err(|error| error.to_string())?;
-    if description.len() > MAX_BYTES {
-        return Err("Helper evidence exceeds explicit 8 MiB per-call budget".into());
-    }
-    node.res.as_mut().expect("resolved callee").description = description;
-    check_depth(node, 0)?;
-
-    Ok(())
-}
-
-fn attach_children(
-    node: &mut HirNode,
-    verified: &BTreeMap<String, CertifiedDependency>,
-) -> Result<(), String> {
-    for child in &mut node.children {
-        attach(child, verified)?;
-    }
-
-    Ok(())
-}
-
-fn certify(facts: &HirFnFacts) -> Result<Option<Dependency>, String> {
+pub(crate) fn certify_view(
+    facts: &dyn EvidenceFacts,
+) -> Result<Option<(Summary, producer::Pair)>, String> {
     if !crate::helper_references::supported_result(facts)? {
         return Ok(None);
     }
@@ -356,20 +201,80 @@ fn certify(facts: &HirFnFacts) -> Result<Option<Dependency>, String> {
     if check_boundary(&pair, facts).is_err() {
         return Ok(None);
     }
-    let serialized = pair.serialize().map_err(|error| error.to_string())?;
-
-    Ok(Some(Dependency {
-        summary: summary(facts, &pair)?,
-        frontend: facts.clone(),
-        pdg: String::from_utf8(serialized.pdg_bytes).map_err(|error| error.to_string())?,
-        cfg: String::from_utf8(serialized.cfg_bytes).map_err(|error| error.to_string())?,
-        manifest: serialized.manifest,
-    }))
+    Ok(Some((summary(facts, &pair)?, pair)))
 }
 
-fn check_boundary(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), Vec<String>> {
+pub(crate) enum VerifiedDependency<'a> {
+    Shared(crate::unit_store::HelperView<'a>),
+    Legacy(Box<Dependency>),
+}
+
+impl VerifiedDependency<'_> {
+    pub(crate) fn summary(&self) -> &Summary {
+        match self {
+            Self::Shared(view) => view.summary(),
+            Self::Legacy(dependency) => &dependency.summary,
+        }
+    }
+
+    pub(crate) fn wire(&self) -> Result<Value, String> {
+        match self {
+            Self::Shared(view) => Ok(view.reference()),
+            Self::Legacy(dependency) => transport::encode(dependency),
+        }
+    }
+}
+
+pub(crate) fn verify_use<'a>(
+    node: &HirNode,
+    caller: &'a dyn EvidenceFacts,
+) -> Result<VerifiedDependency<'a>, String> {
+    let Some(view) = caller.helper(node)? else {
+        return verify(node, caller.facts())
+            .map(|dependency| VerifiedDependency::Legacy(Box::new(dependency)));
+    };
+    verify_shared(node, caller, &view)?;
+    Ok(VerifiedDependency::Shared(view))
+}
+
+fn verify_shared(
+    node: &HirNode,
+    caller: &dyn EvidenceFacts,
+    helper: &crate::unit_store::HelperView<'_>,
+) -> Result<(), String> {
+    let callee = helper.frontend();
+    let resolution = direct_resolution(node).ok_or("Unresolved direct helper call")?;
+
+    if helper.depth() + 1 > MAX_DEPTH {
+        return Err("Helper dependencies exceed explicit depth budget 8".into());
+    }
+    check_signature(node, caller, &resolution, &callee)?;
+    crate::inherent_calls::verify(node, caller, &callee, &resolution)?;
+    if !helper.verified() {
+        verify_shared_callee(helper, &callee)?;
+        helper.remember();
+    }
+    crate::helper_reads::verify_arguments(helper.summary(), node, caller)
+}
+
+pub(crate) fn verify_shared_callee(
+    helper: &crate::unit_store::HelperView<'_>,
+    callee: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    producer::verify(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
+    check_boundary(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
+    if !crate::verification_policy::is_generated()
+        && helper.summary() != &summary(callee, helper.pair())?
+    {
+        return Err("Helper summary disagrees with verified callee evidence".into());
+    }
+    Ok(())
+}
+
+fn check_boundary(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<(), Vec<String>> {
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
-        || !pair.pdg.memory_locations.is_empty() && !crate::helper_reads::supported(facts, pair)
+        || !pair.pdg.memory_locations.is_empty()
+            && !crate::helper_reads::supported(facts, pair.as_view())
         || pair
             .pdg
             .nodes
@@ -422,12 +327,12 @@ fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, 
 }
 
 fn verify_callee(dependency: &Dependency) -> Result<(), String> {
-    let serialized = producer::SerializedPair {
-        pdg_bytes: dependency.pdg.as_bytes().to_vec(),
-        cfg_bytes: dependency.cfg.as_bytes().to_vec(),
-        manifest: dependency.manifest.clone(),
+    let serialized = producer::SerializedPairView {
+        pdg_bytes: dependency.pdg.as_bytes(),
+        cfg_bytes: dependency.cfg.as_bytes(),
+        manifest: &dependency.manifest,
     };
-    let pair = producer::verify_serialized(&serialized, &dependency.frontend)
+    let pair = producer::verify_serialized_view(serialized, &dependency.frontend)
         .map_err(|errors| errors.join("; "))?;
     check_boundary(&pair, &dependency.frontend).map_err(|errors| errors.join("; "))?;
     if !crate::verification_policy::is_generated()
@@ -441,9 +346,9 @@ fn verify_callee(dependency: &Dependency) -> Result<(), String> {
 
 fn check_signature(
     node: &HirNode,
-    caller: &HirFnFacts,
+    caller: &dyn EvidenceFacts,
     resolution: &Value,
-    callee: &HirFnFacts,
+    callee: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     let dispatch = node
         .dispatch
@@ -484,7 +389,7 @@ fn check_signature(
     Ok(())
 }
 
-fn same_build(caller: &HirFnFacts, callee: &HirFnFacts) -> Result<bool, String> {
+fn same_build(caller: &dyn EvidenceFacts, callee: &dyn EvidenceFacts) -> Result<bool, String> {
     let profile = crate::extraction_profile::ExtractionProfile::from_facts(caller)?;
     let compatible = caller.build.overflow_checks == callee.build.overflow_checks
         && caller.build.debug_assertions == callee.build.debug_assertions
@@ -516,11 +421,15 @@ fn check_depth(node: &HirNode, depth: usize) -> Result<(), String> {
 }
 
 /// Independent serialized inventory validation; never invokes caller lowering.
-pub fn verify_documents(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), String> {
+pub fn verify_documents<'a>(
+    pair: impl Into<producer::PairView<'a>>,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let pair = pair.into();
     crate::verification_session::within(|| verify_inventory(pair, facts))
 }
 
-fn verify_inventory(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), String> {
+fn verify_inventory(pair: producer::PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
     crate::inherent_calls::definition(facts)?;
     let calls = call_nodes(facts);
     let records = pair
@@ -534,8 +443,9 @@ fn verify_inventory(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), Str
     {
         return Err("Paired serialized call inventories disagree".into());
     }
+    let mut locations = crate::data_documents::LocationContext::from_pair(pair, facts)?;
     for call in &calls {
-        verify_document_call(pair, facts, call, records)?;
+        verify_document_call(pair, &mut locations, call, records)?;
     }
     let nodes = pair
         .pdg
@@ -563,8 +473,8 @@ fn verify_inventory(pair: &producer::Pair, facts: &HirFnFacts) -> Result<(), Str
 }
 
 fn verify_document_call(
-    pair: &producer::Pair,
-    facts: &HirFnFacts,
+    pair: producer::PairView<'_>,
+    locations: &mut crate::data_documents::LocationContext<'_>,
     call: &HirNode,
     records: &[Value],
 ) -> Result<(), String> {
@@ -584,7 +494,7 @@ fn verify_document_call(
         return Err("No unique serialized source-backed helper CALL".into());
     };
 
-    let dependency = verify(call, facts)?;
+    let dependency = verify_use(call, locations.facts)?;
     let inventory: Vec<_> = records
         .iter()
         .filter(|record| record["pdg_node_id"] == node.id)
@@ -593,7 +503,7 @@ fn verify_document_call(
         return Err("Missing or duplicate serialized helper summary".into());
     };
 
-    crate::helper_reads::verify_effects(node, call, facts, &dependency.summary)?;
+    crate::helper_reads::verify_effects(node, call, dependency.summary(), locations)?;
     verify_call_metadata(node, call, record, dependency)?;
     verify_call_operands(pair, node, call, record)
 }
@@ -602,9 +512,9 @@ fn verify_call_metadata(
     node: &crate::PdgNode,
     call: &HirNode,
     record: &Value,
-    dependency: Dependency,
+    dependency: VerifiedDependency<'_>,
 ) -> Result<(), String> {
-    if record["dependency"] != transport::encode(&dependency)?
+    if record["dependency"] != dependency.wire()?
         || record["source_span"]
             != serde_json::to_value(call.span).map_err(|error| error.to_string())?
         || node
@@ -624,7 +534,7 @@ fn verify_call_metadata(
 }
 
 pub(crate) fn verify_call_operands(
-    pair: &producer::Pair,
+    pair: producer::PairView<'_>,
     node: &crate::PdgNode,
     call: &HirNode,
     record: &Value,
@@ -669,7 +579,11 @@ pub(crate) fn verify_call_operands(
     Ok(())
 }
 
-fn verify_operand(pair: &producer::Pair, operand: &str, argument: &HirNode) -> Result<(), String> {
+fn verify_operand(
+    pair: producer::PairView<'_>,
+    operand: &str,
+    argument: &HirNode,
+) -> Result<(), String> {
     let value = pair
         .pdg
         .nodes

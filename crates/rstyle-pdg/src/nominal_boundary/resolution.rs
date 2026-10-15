@@ -9,7 +9,9 @@ use crate::{
     data_frontend::evidence,
     declaration_origins,
 };
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
+pub(crate) mod environment;
+pub(crate) use environment::Environment;
 use syn::spanned::Spanned;
 
 type Namespace = Vec<String>;
@@ -18,7 +20,43 @@ pub struct Resolution {
     pub namespace: Namespace,
     pub receiver: Option<TypeTree>,
     trees: BTreeMap<Namespace, TypeTree>,
-    imports: BTreeMap<(Namespace, String), Namespace>,
+    environment: Rc<Environment>,
+}
+
+/// Borrow a checked immutable lexical environment, or own the standalone result.
+/// This view carries no helper proof or serialized verification capability.
+pub struct ResolutionView<'a>(ResolutionStorage<'a>);
+
+enum ResolutionStorage<'a> {
+    Borrowed(&'a Resolution),
+    Owned(Box<Resolution>),
+}
+
+impl<'a> ResolutionView<'a> {
+    pub(crate) fn borrowed(value: &'a Resolution) -> Self {
+        Self(ResolutionStorage::Borrowed(value))
+    }
+    pub(crate) fn owned(value: Resolution) -> Self {
+        Self(ResolutionStorage::Owned(Box::new(value)))
+    }
+}
+
+impl std::ops::Deref for ResolutionView<'_> {
+    type Target = Resolution;
+    fn deref(&self) -> &Resolution {
+        match &self.0 {
+            ResolutionStorage::Borrowed(value) => value,
+            ResolutionStorage::Owned(value) => value,
+        }
+    }
+}
+
+pub(crate) fn from_facts(facts: &HirFnFacts) -> Result<Resolution, String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    verify(facts, &interface)
 }
 
 struct Declaration {
@@ -28,21 +66,27 @@ struct Declaration {
 }
 
 pub fn verify(facts: &HirFnFacts, interface: &InterfaceObservations) -> Result<Resolution, String> {
-    let census: census::Census = evidence(facts, census::KEY)?;
-    let context: UnitContext = evidence(facts, CONTEXT_KEY)?;
-    if context != census.context {
-        return Err("Nominal census belongs to another selected unit".into());
-    }
-    let modules = census::verify(&census)?;
-    let index = build_index(&modules, &census)?;
+    let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
+    let environment = Rc::new(Environment::new(Arc::clone(&census))?);
+    verify_in(facts, interface, environment)
+}
 
-    let origins: declaration_origins::Origins = evidence(facts, declaration_origins::KEY)?;
-    declaration_origins::verify(interface, &origins)?;
+pub(crate) fn verify_in(
+    facts: &HirFnFacts,
+    interface: &InterfaceObservations,
+    environment: Rc<Environment>,
+) -> Result<Resolution, String> {
+    environment.check_context(facts)?;
+    let origins = facts
+        .build
+        .frontend_options
+        .data::<declaration_origins::Origins>()?;
+    declaration_origins::verify_in(interface, &origins, &environment)?;
     let mut resolution = Resolution {
         namespace: Vec::new(),
         receiver: None,
         trees: BTreeMap::new(),
-        imports: index.imports,
+        environment: Rc::clone(&environment),
     };
 
     for observation in interface.parameters.iter().chain([&interface.result]) {
@@ -50,8 +94,18 @@ pub fn verify(facts: &HirFnFacts, interface: &InterfaceObservations) -> Result<R
             collect(ty, &mut resolution.trees)?;
         }
     }
-    verify_declarations(&resolution, &index.declarations, &origins, &census)?;
-    function_scope(facts, &modules, &census, &mut resolution)?;
+    verify_declarations(
+        &resolution,
+        &environment.index.declarations,
+        &origins,
+        environment.census(),
+    )?;
+    function_scope(
+        facts,
+        &environment.modules,
+        environment.census(),
+        &mut resolution,
+    )?;
     Ok(resolution)
 }
 
@@ -60,7 +114,7 @@ fn file_bytes<'a>(census: &'a census::Census, path: &std::path::Path) -> Result<
         .files
         .iter()
         .find(|file| file.path == path)
-        .map(|file| file.bytes.as_str())
+        .map(|file| file.bytes.as_ref())
         .ok_or_else(|| "Missing closed source file".into())
 }
 
@@ -269,7 +323,7 @@ fn verify_declarations(
             .ok_or("Missing nominal original-source origin")?;
         if origin.source_file != declaration.path.to_string_lossy()
             || origin.declaration_span != declaration.span
-            || origin.file_bytes != file_bytes(census, &declaration.path)?
+            || origin.file_bytes.as_ref() != file_bytes(census, &declaration.path)?
             || nominal.source_identity.as_deref() != Some(&census.context.package.package_id)
             || nominal.package_name != census.context.package.name
             || nominal.package_version != census.context.package.version
@@ -328,13 +382,24 @@ fn function_scope(
     Ok(())
 }
 
+/// A checked inherent owner borrows its tree through the lexical environment.
+/// The standalone environment remains owned by this view until it is dropped.
+pub struct OwnerView<'a>(ResolutionView<'a>);
+
+impl std::ops::Deref for OwnerView<'_> {
+    type Target = TypeTree;
+    fn deref(&self) -> &TypeTree {
+        self.0.receiver.as_ref().expect("checked inherent owner")
+    }
+}
+
 /// Independently locate the exact nongeneric inherent implementation containing
 /// this owned function, then resolve its concrete owner in the closed unit.
-pub fn inherent_owner(facts: &HirFnFacts, implementation: &ByteSpan) -> Result<TypeTree, String> {
-    let interface = evidence(facts, crate::concrete_types::KEY)?;
-    let resolution = verify(facts, &interface)?;
-    let census: census::Census = evidence(facts, census::KEY)?;
-    let modules = census::verify(&census)?;
+pub fn inherent_owner<'a>(
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+    implementation: &ByteSpan,
+) -> Result<OwnerView<'a>, String> {
+    let resolution = facts.nominal_resolution()?;
     let file = facts
         .build
         .frontend_options
@@ -343,11 +408,13 @@ pub fn inherent_owner(facts: &HirFnFacts, implementation: &ByteSpan) -> Result<T
         .ok_or("Missing inherent source file")?;
 
     let mut owners = 0;
-    for module in modules
+    for module in resolution
+        .environment
+        .modules
         .iter()
         .filter(|module| module.path.to_string_lossy() == file)
     {
-        let bytes = file_bytes(&census, &module.path)?;
+        let bytes = resolution.environment.source(&module.path)?.bytes();
         for item in &module.items {
             if let syn::Item::Impl(item) = item
                 && source_span(bytes, item.span()) == *implementation
@@ -362,9 +429,10 @@ pub fn inherent_owner(facts: &HirFnFacts, implementation: &ByteSpan) -> Result<T
         return Err("Missing or ambiguous exact nongeneric inherent implementation".into());
     }
 
-    resolution
-        .receiver
-        .ok_or_else(|| "Missing independently resolved inherent owner".into())
+    if resolution.receiver.is_none() {
+        return Err("Missing independently resolved inherent owner".into());
+    }
+    Ok(OwnerView(resolution))
 }
 
 fn supported_inherent_member(item: &syn::ItemImpl, bytes: &str, facts: &HirFnFacts) -> bool {
@@ -439,7 +507,8 @@ impl FunctionSource<'_> {
             end: source_span(bytes, self.body.span()).end,
         };
         range == facts.fn_span
-            && bytes.get(range.start as usize..range.end as usize) == Some(&facts.source.bytes)
+            && bytes.get(range.start as usize..range.end as usize)
+                == Some(facts.source.bytes.as_str())
     }
 }
 
@@ -484,6 +553,8 @@ impl PathResolution for Scoped<'_> {
         if let Some(first) = names.first()
             && let Some(import) = self
                 .resolution
+                .environment
+                .index
                 .imports
                 .get(&(self.namespace.clone(), first.clone()))
         {
