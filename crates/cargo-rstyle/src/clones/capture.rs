@@ -179,8 +179,12 @@ fn file_digest(path: &Path) -> Result<String, String> {
 }
 
 fn hash_file(path: &Path) -> Result<String, String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(super::digest(&bytes))
+    use sha2::{Digest, Sha256};
+    let mut file = std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut digest = Sha256::new();
+    std::io::copy(&mut file, &mut digest).map_err(|e| format!("{}: {e}", path.display()))?;
+
+    Ok(format!("{:x}", digest.finalize()))
 }
 
 fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
@@ -902,6 +906,8 @@ mod digest_tests {
             file_digest(&file).unwrap(),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+        std::fs::write(&file, b"abd").unwrap();
+        assert_eq!(file_digest(&file).unwrap(), super::super::digest(b"abd"));
         std::fs::write(&file, vec![b'a'; 1_000_000]).unwrap();
         assert_eq!(
             file_digest(&file).unwrap(),
