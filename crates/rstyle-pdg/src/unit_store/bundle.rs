@@ -3,7 +3,7 @@
 use super::*;
 use std::io::Write;
 
-const SCHEMA: &str = "rstyle.shared-unit/1";
+const SCHEMA: &str = "rstyle.shared-unit/2";
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -15,7 +15,7 @@ struct CallLink {
 #[derive(Serialize)]
 struct Export<'a> {
     schema: &'static str,
-    identity: &'a str,
+    namespace: &'a UnitNamespace,
     functions: &'a [HirFnFacts],
     helpers: &'a [HelperRecord],
     graphs: &'a [Pair],
@@ -28,7 +28,7 @@ struct Export<'a> {
 #[serde(deny_unknown_fields)]
 struct Import {
     schema: String,
-    identity: String,
+    namespace: UnitNamespace,
     functions: Vec<HirFnFacts>,
     helpers: Vec<HelperRecord>,
     graphs: Vec<Pair>,
@@ -42,7 +42,7 @@ impl UnitStore {
     pub fn write_bundle(&self, writer: impl Write) -> Result<(), String> {
         let export = Export {
             schema: SCHEMA,
-            identity: &self.identity,
+            namespace: &self.namespace,
             functions: &self.functions,
             helpers: &self.helpers,
             graphs: &self.graphs,
@@ -177,10 +177,10 @@ impl Import {
         if self.schema != SCHEMA {
             return Err("Unsupported shared unit schema".into());
         }
-        let store = Builder::new(self.functions)?.store;
+        let store = Builder::in_namespace(self.functions, self.namespace)?.store;
 
-        if self.identity != store.identity || self.certified.len() != store.functions.len() {
-            return Err("Shared unit identity or certification table disagrees".into());
+        if self.certified.len() != store.functions.len() {
+            return Err("Shared unit certification table disagrees".into());
         }
         if self.links.len() != store.links.len() {
             return Err("Incomplete unit call link inventory".into());
@@ -191,7 +191,7 @@ impl Import {
         u32::try_from(self.helpers.len()).map_err(|_| "Oversized helper table")?;
         u32::try_from(self.graphs.len()).map_err(|_| "Oversized graph table")?;
         let store = UnitStore {
-            identity: store.identity,
+            namespace: store.namespace,
             functions: store.functions,
             links: store.links,
             graphs: self.graphs,

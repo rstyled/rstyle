@@ -2,7 +2,9 @@
 mod bundle;
 mod derived;
 mod manifest;
+mod namespace;
 pub use manifest::{BundleManifest, VerifiedBundle};
+pub use namespace::UnitNamespace;
 
 use crate::{HirFnFacts, HirNode, helper_calls::Summary, producer::Pair};
 use serde::{Deserialize, Serialize};
@@ -132,7 +134,7 @@ type Proofs = RefCell<BTreeSet<(HelperId, bool)>>;
 /// Immutable evidence tables. Each frontend and certified pair is owned once.
 /// Private local IDs are resolved only through this owning unit's views.
 pub struct UnitStore {
-    identity: String,
+    namespace: UnitNamespace,
     functions: Vec<HirFnFacts>,
     helpers: Vec<HelperRecord>,
     graphs: Vec<Pair>,
@@ -158,7 +160,7 @@ trait Resolver {
     fn sources(&self) -> &derived::Sources;
     fn proofs(&self) -> &Proofs;
     fn native_widths(&self) -> &RefCell<BTreeMap<FunctionId, bool>>;
-    fn identity(&self) -> &str;
+    fn namespace(&self) -> &UnitNamespace;
 }
 
 struct Tables<'a> {
@@ -212,7 +214,7 @@ impl EvidenceFacts for FunctionView<'_> {
 
     fn frontend_reference(&self) -> Option<serde_json::Value> {
         Some(
-            serde_json::json!({"identity":"rstyle.unit.function-reference/1", "unit":self.resolver.identity(), "function":self.id}),
+            serde_json::json!({"identity":"rstyle.unit.function-reference/2", "namespace":self.resolver.namespace(), "function":self.id}),
         )
     }
 
@@ -284,10 +286,9 @@ impl UnitStore {
             .observe(|| Builder::new(functions)?.capture())
     }
 
-    /// Strong identity of the exact raw unit evidence and build context.
-    /// Distinct from logical definition identity and local table handles.
-    pub fn identity(&self) -> &str {
-        &self.identity
+    /// Namespace for local references, independent of evidence contents.
+    pub fn namespace(&self) -> &UnitNamespace {
+        &self.namespace
     }
 
     pub fn functions(&self) -> &[HirFnFacts] {
@@ -375,8 +376,8 @@ impl Resolver for UnitAnalysis<'_> {
     fn derived(&self) -> &[derived::Derived] {
         &self.derived
     }
-    fn identity(&self) -> &str {
-        &self.store.identity
+    fn namespace(&self) -> &UnitNamespace {
+        &self.store.namespace
     }
     fn tables(&self) -> Tables<'_> {
         self.store.tables()
@@ -417,8 +418,8 @@ impl Resolver for Builder {
     fn derived(&self) -> &[derived::Derived] {
         &self.derived
     }
-    fn identity(&self) -> &str {
-        &self.store.identity
+    fn namespace(&self) -> &UnitNamespace {
+        &self.store.namespace
     }
     fn tables(&self) -> Tables<'_> {
         self.store.tables()
@@ -433,9 +434,12 @@ impl Resolver for Builder {
 
 impl Builder {
     fn new(functions: Vec<HirFnFacts>) -> Result<Self, String> {
+        Self::in_namespace(functions, UnitNamespace::fresh()?)
+    }
+
+    fn in_namespace(functions: Vec<HirFnFacts>, namespace: UnitNamespace) -> Result<Self, String> {
         let functions = derived::normalize(functions)?;
         u32::try_from(functions.len()).map_err(|_| "Oversized function table")?;
-        let identity = unit_identity(&functions)?;
         let pending = (0..functions.len())
             .map(|index| local_id(index, FunctionId))
             .collect::<Result<Vec<_>, _>>()?;
@@ -446,7 +450,7 @@ impl Builder {
 
         Ok(Self {
             store: UnitStore {
-                identity,
+                namespace,
                 functions,
                 helpers: Vec::new(),
                 graphs: Vec::new(),
@@ -619,13 +623,6 @@ fn function_links(
         }
     }
     Ok(links)
-}
-
-fn unit_identity(functions: &[HirFnFacts]) -> Result<String, String> {
-    use sha2::Digest;
-    let mut hash = sha2::Sha256::new();
-    serde_json::to_writer(&mut hash, functions).map_err(|error| error.to_string())?;
-    Ok(format!("sha256:{:x}", hash.finalize()))
 }
 
 #[cfg(test)]

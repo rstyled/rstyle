@@ -11,7 +11,7 @@ fn replay(path: &Path) -> Result<(), String> {
         "{}",
         serde_json::json!({
             "scope": "diagnostic-strict-unit-import",
-            "identity": store.identity(),
+            "namespace": store.namespace(),
             "functions": store.functions().len(),
             "unique_helpers": store.helper_count(),
             "unique_graphs": store.graph_count(),

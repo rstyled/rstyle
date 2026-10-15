@@ -1097,7 +1097,7 @@ fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
     assert!(output.status.success(), "{}", stdout(&output));
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_persisted_report(&report);
-    assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/1");
+    assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/2");
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
     for function in report["functions"].as_array().unwrap() {
         assert!(function.get("artifact_prefix").is_none());
@@ -2337,8 +2337,8 @@ fn clones_helpers_verify_serialized_dependencies_and_transitive_edits() {
         .unwrap();
     assert_eq!(wrapper["facts"]["body"], changed["facts"]["body"]);
     assert_ne!(
-        wrapper["unit_evidence"]["identity"],
-        changed["unit_evidence"]["identity"]
+        wrapper["unit_evidence"]["namespace"],
+        changed["unit_evidence"]["namespace"]
     );
     check_native_helper(directory.path(), &callee);
 }
@@ -2682,7 +2682,7 @@ fn assert_shared_reference_checks(
         pdg: pair.pdg.clone(),
         cfg: pair.cfg.clone(),
     };
-    wrong_unit.pdg.extensions.get_mut(key).unwrap()["frontend_ref"]["unit"] =
+    wrong_unit.pdg.extensions.get_mut(key).unwrap()["frontend_ref"]["namespace"] =
         Value::String("other unit".into());
     wrong_unit
         .cfg
@@ -5165,8 +5165,8 @@ fn check_shared_result_edit(directory: &Path, previous: &Value) {
     let after = wrapper(&report);
     assert_eq!(after["outcome"], "admitted");
     assert_ne!(
-        before["unit_evidence"]["identity"],
-        after["unit_evidence"]["identity"]
+        before["unit_evidence"]["namespace"],
+        after["unit_evidence"]["namespace"]
     );
     assert_eq!(before["facts"]["body"], after["facts"]["body"]);
     let (unit, index) = data_unit(&after);
@@ -5403,8 +5403,8 @@ fn check_inherent_call_edit(directory: &Path, previous: &Value) {
         let old = read_call_function(previous, name);
         let new = read_call_function(&report, name);
         assert_ne!(
-            old["unit_evidence"]["identity"],
-            new["unit_evidence"]["identity"]
+            old["unit_evidence"]["namespace"],
+            new["unit_evidence"]["namespace"]
         );
         let pair = shared_evidence::pair(&unit, new);
         assert_eq!(
@@ -5932,8 +5932,8 @@ fn check_read_call_edit(directory: &Path, previous: &Value) {
         let old = read_call_function(previous, name);
         let new = read_call_function(&report, name);
         assert_ne!(
-            old["unit_evidence"]["identity"],
-            new["unit_evidence"]["identity"]
+            old["unit_evidence"]["namespace"],
+            new["unit_evidence"]["namespace"]
         );
         let pair = shared_evidence::pair(&unit, new);
         assert_eq!(

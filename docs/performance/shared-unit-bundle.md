@@ -1,6 +1,6 @@
-# Shared unit bundle version 1
+# Shared unit bundle version 2
 
-The internal `rstyle.shared-unit/1` JSON bundle contains one unit's owned
+The internal `rstyle.shared-unit/2` JSON bundle contains one unit's owned
 frontend and graph records. It is available through
 `UnitStore::{write_bundle,from_bundle}` and is the normal driver/CLI handoff. It does not replace the pinned standalone PDG/CFG
 schemas or reinterpret their existing manifest hashes.
@@ -8,7 +8,7 @@ schemas or reinterpret their existing manifest hashes.
 | Field | Meaning |
 | --- | --- |
 | `schema` | Exact versioned bundle discriminator |
-| `identity` | SHA256 of serialized raw frontend facts including build context |
+| `namespace` | Local producer allocation namespace, preserved on import |
 | `functions` | Raw frontend records, without attached nested helper proofs |
 | `graphs` | Unique typed PDG/CFG pairs |
 | `roots` | Optional graph handle for each function |
@@ -22,10 +22,9 @@ through a bundle round trip; they are scoped to that immutable owning store.
 They are not globally persistent identities and are not promised to survive
 insertions, edits or renumbering. Equivalent explicit renumbering can preserve
 graph meaning when all references are updated. Logical definition identity
-remains in the compiler evidence, distinct from exact unit evidence identity.
-The current unit hash includes function record order and therefore changes if
-records are reordered. No unchecked truncated hash or persistent ID registry
-is used.
+remains in the compiler evidence, distinct from the allocation namespace.
+The namespace is not a content fingerprint. See [unit namespaces](unit-namespaces.md)
+for allocation, owner isolation and the deliberately retired digest guarantee.
 
 A function root and its helper certificate reference the same graph handle;
 they do not carry duplicate paired documents. Call metadata uses local helper
@@ -37,7 +36,7 @@ writing streams typed records directly without expanding nested proof trees.
 It currently materializes only small call-link ID lists for JSON transport.
 
 Import decodes one supplied owned byte snapshot into typed tables, then moves
-those tables into the store. It recomputes raw evidence identity and call links,
+those tables into the store. It preserves the wire namespace and reconstructs exact call links,
 checks all bounds, duplicate sites, root/certificate agreement, unused graph
 records, inventory completeness and paired-document correspondence. Only the
 helper certification relation must be acyclic and fit the existing depth-eight
@@ -79,10 +78,10 @@ checking the frozen invocation and selected-unit context. Ordinary `from_bundle`
 always performs strict validation, including inside a generated ambient scope.
 
 Report functions carry `unit_evidence` with the bundle path, local function
-index and exact unit identity. `artifact_prefix` and `document_manifest` are
+index and unit namespace. `artifact_prefix` and `document_manifest` are
 removed; no per-function expanded files are published. The path is navigation,
-not persistent identity. The raw unit identity changes after a transitive
-callee edit even when its caller's raw tree is unchanged. Raw facts remain
+not persistent identity. A fresh capture receives a new namespace even when its facts are unchanged.
+Namespaces do not detect content edits; exact source and graph verification do. Raw facts remain
 available for source navigation. The report includes `unit_bundle_schema`;
 standalone graph schema revisions remain unchanged. This is an intentional
 internal CLI/report/API break, not a new bundle schema revision.
@@ -90,8 +89,7 @@ internal CLI/report/API break, not a new bundle schema revision.
 Report function keys now follow the separately versioned
 [report-local handle contract](report-function-handles.md). The report's
 `unit_contexts` joins its function labels to observed compilation contexts;
-these labels make no cross-report content-identity claim. The bundle identity
-described above is separate and remains unchanged by that report-only change.
+these labels make no cross-report content-identity claim. The bundle namespace is separate from these report-local ordinals.
 
 Native-width propagation memoizes successful derived results by function handle
 within one owning analysis/builder. It is independent of verification policy;
@@ -104,8 +102,8 @@ Frontend data options now use `FrontendOptions` in the Rust API instead of a
 plain `BTreeMap<String, Value>`. The sealed `DataEvidence` types select their
 own keys and kinds: `data::<T>()` borrows interface/field records, and
 `insert_data` moves compiler-created records into their owner. The JSON object
-shape, sorted output keys, explicit optional nulls, dense handles, strong unit
-identity, and `rstyle.shared-unit/1` format are unchanged. Existing map producers
+shape, sorted output keys, explicit optional nulls, dense handles and the current namespace are preserved. The typed-options change
+itself did not revise the bundle format; the namespace change separately versions it. Existing map producers
 can convert with `.into()`. Open/unregistered options remain JSON.
 
 An imported interface/field option is decoded to a typed record once when its

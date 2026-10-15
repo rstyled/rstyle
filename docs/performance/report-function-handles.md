@@ -23,7 +23,9 @@ table instead of assuming keys from separate reports cannot overlap.
 
 Bundle identity, source identity, strict import verification, graph admission,
 matching mathematics, pair enumeration and completeness checks are unchanged.
-The bundle schema remains `/1`; the report-function schema changes independently.
+At introduction the bundle schema remained `/1`; the report-function schema
+changes independently. The subsequent [unit-namespace change](unit-namespaces.md)
+versions the bundle to `/2` without changing these report-local labels.
 Pair orientation can change with the new ordering; compare named unordered pairs
 when checking cross-schema score parity.
 

@@ -101,7 +101,7 @@ struct Function {
 #[derive(Serialize)]
 struct UnitEvidence {
     report_unit: identity::UnitId,
-    identity: String,
+    namespace: rstyle_pdg::unit_store::UnitNamespace,
     bundle: PathBuf,
     function: u32,
 }
@@ -432,7 +432,7 @@ fn function_record(
         ),
         unit_evidence: UnitEvidence {
             report_unit: key.unit(),
-            identity: function.store.identity().to_owned(),
+            namespace: *function.store.namespace(),
             bundle: unit.directory.join("unit.evidence.json"),
             function: u32::try_from(index).expect("checked unit function table"),
         },

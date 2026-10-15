@@ -1,7 +1,6 @@
 //! Strict shared-bundle mutation fixtures; never reconstruct nested proofs.
 use rstyle_pdg::{HirFnFacts, unit_store::UnitStore};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 
 pub fn wire(function: &Value) -> Value {
     let path = function["unit_evidence"]["bundle"].as_str().unwrap();
@@ -15,12 +14,18 @@ pub fn index(function: &Value) -> usize {
 pub fn load(function: &Value) -> (UnitStore, usize) {
     let bytes = std::fs::read(function["unit_evidence"]["bundle"].as_str().unwrap()).unwrap();
     let store = UnitStore::from_bundle(&bytes).unwrap();
-    assert_eq!(function["unit_evidence"]["identity"], store.identity());
+    assert_eq!(
+        function["unit_evidence"]["namespace"],
+        serde_json::to_value(store.namespace()).unwrap()
+    );
     (store, index(function))
 }
 
 pub fn pair<'a>(store: &'a UnitStore, function: &Value) -> &'a rstyle_pdg::producer::Pair {
-    assert_eq!(function["unit_evidence"]["identity"], store.identity());
+    assert_eq!(
+        function["unit_evidence"]["namespace"],
+        serde_json::to_value(store.namespace()).unwrap()
+    );
     store.pair(index(function)).unwrap()
 }
 
@@ -28,26 +33,10 @@ pub fn reject_edit(function: &Value, edit: impl FnOnce(&mut Value, usize)) {
     let mut bundle = wire(function);
     UnitStore::from_bundle(&serde_json::to_vec(&bundle).unwrap()).unwrap();
     edit(&mut bundle, index(function));
-    refresh_identity(&mut bundle);
     let bytes = serde_json::to_vec(&bundle).unwrap();
 
     assert!(UnitStore::from_bundle(&bytes).is_err());
     assert!(rstyle_pdg::verification_policy::generated(|| UnitStore::from_bundle(&bytes)).is_err());
-}
-
-fn refresh_identity(bundle: &mut Value) {
-    let facts: Vec<HirFnFacts> = serde_json::from_value(bundle["functions"].clone()).unwrap();
-    let identity = format!(
-        "sha256:{:x}",
-        Sha256::digest(serde_json::to_vec(&facts).unwrap())
-    );
-    bundle["identity"] = identity.clone().into();
-    for graph in bundle["graphs"].as_array_mut().unwrap() {
-        for kind in ["pdg", "cfg"] {
-            graph[kind]["extensions"][rstyle_pdg::extraction_profile::EVIDENCE_KEY]["frontend_ref"]
-                ["unit"] = identity.clone().into();
-        }
-    }
 }
 
 pub fn reject_facts(function: &Value, changed: &HirFnFacts) {

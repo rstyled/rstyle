@@ -6,6 +6,7 @@ recommendations; the [version 2 library contract](../extraction-profiles/read-on
 retires runtime library artifact fingerprinting.
 The [report-function handle contract](report-function-handles.md) also supersedes
 the historical recommendation to retain content-derived CLI assessment keys.
+[Unit namespaces](unit-namespaces.md) retire the raw frontend unit fingerprint.
 
 This audit follows executable fingerprint retirement. It covers the remaining
 SHA-256 producers and their consumers in the Rust analysis path; fixture/test
