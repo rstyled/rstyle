@@ -60,6 +60,8 @@ serialized evidence does not acquire that trust.
    hash maps are not presumed faster.
 7. Measure and reduce matching scratch allocation, clones, repeated graph
    preparation and trace refinement. Pair-dependent labels remain pair-local.
+   `integer-scoring-labels.md` removes copied string histogram trees from scoring;
+   scratch reuse and shared trace refinement remain pending.
 8. Diagnostic content fingerprints are replaced by process-local observation
    IDs in the next increment; see `diagnostic-observation-ids.md`.
    Historical study snapshots, fixture hashes and precomputed contracts are not

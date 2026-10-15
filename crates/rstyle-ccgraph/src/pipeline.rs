@@ -16,10 +16,11 @@ use crate::interface::{
     string_mean,
 };
 use crate::projection::{Projection, ProjectionFault, project};
-use crate::scoring::{Histogram, RoundScores, cosine_score, overlap_score, score_rounds};
+use crate::scoring::{LabelRound, RoundScores, cosine_score, overlap_score, score_label_rounds};
 use crate::wl::{diameter_compact, pair_depth, refine_compact, weights};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+mod histograms;
 
 pub const PROFILE_ID: &str = "compat.ccgraph.strict";
 pub const PROFILE_VERSION: &str = "0.1.0";
@@ -984,11 +985,9 @@ fn wl_scores(
 
     let selected_weights = weights(h);
     let refinement = refine_compact(graph_a, graph_b, h);
-    let rounds: Vec<(Histogram, Histogram)> =
-        refinement.rounds.iter().map(label_histograms).collect();
-    let scores = score_rounds(&rounds, &selected_weights)?;
+    let scores = score_label_rounds(&refinement.rounds, &selected_weights)?;
 
-    let mut detail = wl_detail(h, &selected_weights, &scores, &rounds);
+    let mut detail = wl_detail(h, &selected_weights, &scores, &refinement.rounds);
     Ok(match config.scoring {
         Scoring::SmallerGraphOverlap => judge_overlap(
             &scores,
@@ -1000,21 +999,11 @@ fn wl_scores(
     })
 }
 
-fn label_histograms(round: &(BTreeMap<u64, u64>, BTreeMap<u64, u64>)) -> (Histogram, Histogram) {
-    (rename(&round.0), rename(&round.1))
-}
-
-fn rename(hist: &BTreeMap<u64, u64>) -> Histogram {
-    hist.iter()
-        .map(|(label, count)| (format!("L{label}"), *count))
-        .collect()
-}
-
 fn wl_detail(
     h: usize,
     selected_weights: &[u64],
     scores: &RoundScores,
-    rounds: &[(Histogram, Histogram)],
+    rounds: &[LabelRound<u64>],
 ) -> BTreeMap<String, String> {
     let mut detail = BTreeMap::from([
         ("depth".to_string(), h.to_string()),
@@ -1037,8 +1026,14 @@ fn wl_detail(
         ),
     ]);
     for (index, (hist_a, hist_b)) in rounds.iter().enumerate() {
-        detail.insert(format!("round_{index}_a"), format!("{hist_a:?}"));
-        detail.insert(format!("round_{index}_b"), format!("{hist_b:?}"));
+        detail.insert(
+            format!("round_{index}_a"),
+            format!("{:?}", histograms::Readable(hist_a)),
+        );
+        detail.insert(
+            format!("round_{index}_b"),
+            format!("{:?}", histograms::Readable(hist_b)),
+        );
     }
     detail
 }
