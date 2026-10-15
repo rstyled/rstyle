@@ -383,3 +383,44 @@ fn function_ranges_require_exact_source_path_and_original_bytes() {
     options.insert("source_file".into(), json!("/other/src/lib.rs"));
     assert!(options.function_source(&source, span, &mut ranges).is_err());
 }
+
+#[test]
+fn reordered_census_files_preserve_meaning_and_readable_order() {
+    use crate::nominal_boundary::census::{Census, IDENTITY, UnitFile, verify};
+    let context = crate::nominal_boundary::tests::context();
+    let root = context.root_source.clone();
+    let child = root.parent().unwrap().join("child.rs");
+    let file = |path, bytes: &str| UnitFile {
+        path,
+        bytes: bytes.into(),
+        digest: crate::concrete_types::digest(bytes.as_bytes()),
+    };
+    let first = Arc::new(Census {
+        identity: IDENTITY.into(),
+        context,
+        files: vec![file(root, "mod child;"), file(child, "pub struct Child;")],
+    });
+    let mut reversed = (*first).clone();
+    reversed.files.reverse();
+    verify(&first).unwrap();
+    verify(&reversed).unwrap();
+    let mut owners = Vec::new();
+    let mut options = FrontendOptions::default();
+    for census in [first, Arc::new(reversed)] {
+        options.insert_data(Arc::clone(&census));
+        let before = serde_json::to_vec(&options).unwrap();
+        options.intern_census(&mut owners).unwrap();
+        assert_eq!(serde_json::to_vec(&options).unwrap(), before);
+        assert_eq!(**options.data::<Arc<Census>>().unwrap(), *census);
+    }
+    assert_eq!(owners.len(), 2);
+    assert!(!Arc::ptr_eq(&owners[0], &owners[1]));
+    let mut changed = (*owners[1]).clone();
+    changed.files[0].bytes = "pub struct Changed;".into();
+    options.insert_data(Arc::new(changed));
+    assert!(options.intern_census(&mut owners).is_err());
+    let mut duplicate = (*owners[1]).clone();
+    duplicate.files.push(duplicate.files[0].clone());
+    options.insert_data(Arc::new(duplicate));
+    assert!(options.intern_census(&mut owners).is_err());
+}

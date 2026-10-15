@@ -186,3 +186,20 @@ cross-profile checks pass. No scoring or admission code changed. No source
 integrity guarantee was deliberately removed; redundant proof execution within
 an immutable checked environment was retired. Remaining source ownership and
 identity/transport/matching requirements remain active.
+
+Census interning compares inventory meaning by exact path, bytes and claimed
+digest, rather than interpreting file-vector order as a contradiction. Equivalent
+reordered inventories keep separate immutable owners so each readable wire order
+survives. Identically ordered records still share an owner. Different identities,
+file sets, bytes or claims in the same selected-unit context remain contradictory;
+duplicate-path inventories are not accepted as equivalent to unique inventories.
+Order-independent comparison checks file/byte budgets first. A regression runs
+the source verifier on both orders, checks lossless options normalization, and
+retains conflicting-byte and duplicate-path rejection.
+
+Validation of the three review fixes together: 701/701 nextest tests passed,
+zero skipped; workspace doctests, formatting and warning-free workspace/all-target
+Clippy passed. Both quality gates report zero violations/actionable candidates;
+the same 15 reviewed ignores remain. Logs: `/tmp/rstyle-findings-*`. Initial
+Clippy test-length and style-spacing failures were corrected without suppressions
+or removed assertions before the final clean run.

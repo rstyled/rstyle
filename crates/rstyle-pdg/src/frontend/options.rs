@@ -267,14 +267,41 @@ fn intern_owner(
 ) -> Result<Arc<crate::nominal_boundary::census::Census>, String> {
     for owner in owners.iter() {
         if owner.context == census.context {
-            if **owner != **census {
+            if **owner == **census {
+                return Ok(Arc::clone(owner));
+            }
+            if !same_inventory(owner, census)? {
                 return Err("Contradictory source snapshots in one selected-unit context".into());
             }
-            return Ok(Arc::clone(owner));
+            // Equivalent orderings keep separate owners to preserve readable order.
         }
     }
     owners.push(Arc::clone(census));
     Ok(Arc::clone(census))
+}
+
+fn same_inventory(
+    first: &crate::nominal_boundary::census::Census,
+    second: &crate::nominal_boundary::census::Census,
+) -> Result<bool, String> {
+    use crate::nominal_boundary::census::check_budget;
+    check_budget(first)?;
+    check_budget(second)?;
+
+    let files = |census: &crate::nominal_boundary::census::Census| {
+        census
+            .files
+            .iter()
+            .map(|file| (file.path.clone(), file.clone()))
+            .collect::<BTreeMap<_, _>>()
+    };
+    let a = files(first);
+    let b = files(second);
+
+    Ok(first.identity == second.identity
+        && a.len() == first.files.len()
+        && b.len() == second.files.len()
+        && a == b)
 }
 
 impl Extend<(String, Value)> for FrontendOptions {
