@@ -21,6 +21,7 @@ enum Entry {
     Invalid { value: Value, error: String },
     Interface(Record<InterfaceObservations>),
     Fields(Record<FieldObservations>),
+    Origins(Record<crate::declaration_origins::Origins>),
     Census(Record<Arc<crate::nominal_boundary::census::Census>>),
 }
 
@@ -68,6 +69,7 @@ impl Entry {
             crate::concrete_types::KEY => Self::decode(json, Self::Interface),
             crate::field_locations::KEY => Self::decode(json, Self::Fields),
             crate::nominal_boundary::census::KEY => Self::decode(json, Self::Census),
+            crate::declaration_origins::KEY => Self::decode(json, Self::Origins),
             _ => Self::Json(json),
         }
     }
@@ -92,6 +94,7 @@ impl Entry {
             Self::Interface(record) => record.json(),
             Self::Fields(record) => record.json(),
             Self::Census(record) => record.json(),
+            Self::Origins(record) => record.json(),
         }
     }
 
@@ -101,6 +104,9 @@ impl Entry {
                 left.value == right.value && left.nulls == right.nulls
             }
             (Self::Interface(left), Self::Interface(right)) => {
+                left.value == right.value && left.nulls == right.nulls
+            }
+            (Self::Origins(left), Self::Origins(right)) => {
                 left.value == right.value && left.nulls == right.nulls
             }
             (Self::Census(left), Self::Census(right)) => {
@@ -116,6 +122,7 @@ impl Entry {
             Self::Interface(record) => record.into_json(),
             Self::Fields(record) => record.into_json(),
             Self::Census(record) => record.into_json(),
+            Self::Origins(record) => record.into_json(),
         }
     }
 }
@@ -127,6 +134,7 @@ impl Serialize for Entry {
             Self::Interface(record) => record.render().serialize(serializer),
             Self::Fields(record) => record.render().serialize(serializer),
             Self::Census(record) => record.render().serialize(serializer),
+            Self::Origins(record) => record.render().serialize(serializer),
         }
     }
 }
@@ -184,6 +192,7 @@ impl FrontendOptions {
             crate::concrete_types::KEY,
             crate::field_locations::KEY,
             crate::nominal_boundary::census::KEY,
+            crate::declaration_origins::KEY,
         ] {
             if matches!(self.0.get(key), Some(Entry::Json(_))) {
                 let entry = self.0.remove(key).expect("existing data evidence");
@@ -317,6 +326,7 @@ mod sealed {
     pub trait Sealed {}
     impl Sealed for super::InterfaceObservations {}
     impl Sealed for super::FieldObservations {}
+    impl Sealed for crate::declaration_origins::Origins {}
     impl Sealed for std::sync::Arc<crate::nominal_boundary::census::Census> {}
 }
 
@@ -372,6 +382,22 @@ impl DataEvidence for Arc<crate::nominal_boundary::census::Census> {
         options.0.insert(
             Self::KEY.into(),
             Entry::Census(Record::new(self, Vec::new())),
+        );
+    }
+}
+
+impl DataEvidence for crate::declaration_origins::Origins {
+    const KEY: &'static str = crate::declaration_origins::KEY;
+    fn borrow(options: &FrontendOptions) -> Option<&Self> {
+        match options.0.get(Self::KEY) {
+            Some(Entry::Origins(record)) => Some(&record.value),
+            _ => None,
+        }
+    }
+    fn install(self, options: &mut FrontendOptions) {
+        options.0.insert(
+            Self::KEY.into(),
+            Entry::Origins(Record::new(self, Vec::new())),
         );
     }
 }

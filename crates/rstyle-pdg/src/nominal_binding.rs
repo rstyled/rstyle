@@ -111,13 +111,10 @@ fn bind(
         return Ok(None);
     }
     let interface = options.data::<crate::concrete_types::InterfaceObservations>()?;
-    let origins: Origins = serde_json::from_value(
-        options
-            .get(declaration_origins::KEY)
-            .ok_or("Missing original declaration evidence")?
-            .clone(),
-    )
-    .map_err(|e| e.to_string())?;
+    if !options.contains_key(declaration_origins::KEY) {
+        return Err("Missing original declaration evidence".into());
+    }
+    let origins = options.data::<Origins>()?;
     declaration_origins::verify(&interface, &origins)?;
     let declarations = origins
         .declarations

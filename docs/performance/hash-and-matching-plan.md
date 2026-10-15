@@ -34,6 +34,8 @@ serialized evidence does not acquire that trust.
    `unit-build-contexts.md`. Source/package ownership remains pending.
 3. Shared census ownership and policy/analysis-local checked source environments
    are implemented in the next increment; see `shared-source-environments.md`.
+   Declaration origins now use borrowed typed frontend records; see
+   `typed-declaration-origins.md`.
    Full function/declaration byte ownership, source wire dictionaries, repeated
    range identities and remaining boundary reuse are still pending. Continue
    consolidation without crossing edits, owners or strict/generated policy.

@@ -176,10 +176,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             declarations: self.origins.into_values().collect(),
         };
         rstyle_pdg::declaration_origins::verify(observations, &origins)?;
-        facts.build.frontend_options.insert(
-            rstyle_pdg::declaration_origins::KEY.into(),
-            serde_json::to_value(origins).map_err(|error| error.to_string())?,
-        );
+        facts.build.frontend_options.insert_data(origins);
 
         Ok(())
     }

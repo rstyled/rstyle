@@ -41,6 +41,7 @@ fn unrendered(options: &FrontendOptions) {
             Entry::Fields(record) => assert!(record.json.get().is_none()),
             Entry::Interface(record) => assert!(record.json.get().is_none()),
             Entry::Census(record) => assert!(record.json.get().is_none()),
+            Entry::Origins(record) => assert!(record.json.get().is_none()),
             _ => {}
         }
     }
@@ -247,4 +248,53 @@ fn source_census_is_shared_lossless_and_rejects_conflicting_snapshots() {
     assert_eq!(owners.len(), 2);
     assert!(!Arc::ptr_eq(&owners[0], &owners[1]));
     unrendered(&options);
+}
+
+#[test]
+fn declaration_origins_borrow_owned_bytes_and_preserve_wire_mutations() {
+    use crate::declaration_origins::{IDENTITY, KEY, Origin, Origins};
+    let nominal = nominal_interface()["result"]["ty"]["evidence"]["nominal"].clone();
+    let origins = Origins {
+        identity: IDENTITY.into(),
+        declarations: vec![Origin {
+            nominal: serde_json::from_value(nominal).unwrap(),
+            source_file: "original.rs".into(),
+            file_bytes: "\u{feff}struct Data { value: i32 }\r\n".into(),
+            file_digest: "unverified-claim".into(),
+            declaration_span: crate::ByteSpan { start: 3, end: 29 },
+        }],
+    };
+    let bytes = origins.declarations[0].file_bytes.as_ptr();
+    let expected = serde_json::to_vec(&BTreeMap::from([(
+        KEY,
+        serde_json::to_value(&origins).unwrap(),
+    )]))
+    .unwrap();
+    let mut options = FrontendOptions::default();
+    options.insert_data(origins);
+    for _ in 0..100 {
+        let Cow::Borrowed(record) = options.data::<Origins>().unwrap() else {
+            panic!("copied declaration origins");
+        };
+        assert_eq!(record.declarations[0].file_bytes.as_ptr(), bytes);
+    }
+    unrendered(&options);
+    assert_eq!(serde_json::to_vec(&options).unwrap(), expected);
+    let loaded: FrontendOptions = serde_json::from_slice(&expected).unwrap();
+    assert_eq!(loaded, options);
+    unrendered(&loaded);
+    options.get_mut(KEY).unwrap()["declarations"][0]["file_bytes"] = json!("edited");
+    options.normalize_data();
+    let Cow::Borrowed(record) = options.data::<Origins>().unwrap() else {
+        panic!("origins not normalized");
+    };
+    assert_eq!(record.declarations[0].file_bytes, "edited");
+    assert_ne!(loaded, options);
+    options.get_mut(KEY).unwrap()["declarations"][0]["declaration_span"]["start"] = json!(-1);
+    options.normalize_data();
+    assert!(options.data::<Origins>().is_err());
+    assert_eq!(
+        options[KEY]["declarations"][0]["declaration_span"]["start"],
+        json!(-1)
+    );
 }

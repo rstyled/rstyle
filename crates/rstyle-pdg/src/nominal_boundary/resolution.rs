@@ -77,7 +77,10 @@ pub(crate) fn verify_in(
     environment: Rc<Environment>,
 ) -> Result<Resolution, String> {
     environment.check_context(facts)?;
-    let origins: declaration_origins::Origins = evidence(facts, declaration_origins::KEY)?;
+    let origins = facts
+        .build
+        .frontend_options
+        .data::<declaration_origins::Origins>()?;
     declaration_origins::verify_in(interface, &origins, &environment)?;
     let mut resolution = Resolution {
         namespace: Vec::new(),
