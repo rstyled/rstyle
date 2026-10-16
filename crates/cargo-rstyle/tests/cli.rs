@@ -1371,17 +1371,25 @@ fn assert_report_function_handles(report: &Value) {
 fn assert_selected_release_handles(report: &Value, manifest_directory: &Path) {
     assert_report_function_handles(report);
     assert_eq!(report["scope"]["build_options"]["release"], true);
-    assert!(
-        report["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|function| {
-                let unit = report_function_unit(report, function);
-                unit["target"]["manifest_dir"] == manifest_directory.to_string_lossy().as_ref()
-                    && function["facts"]["build"]["opt_level"]["value"] == "Aggressive"
-            })
-    );
+    let expected_directory = manifest_directory.canonicalize().unwrap();
+    for function in report["functions"].as_array().unwrap() {
+        let unit = report_function_unit(report, function);
+        let actual_directory = Path::new(unit["target"]["manifest_dir"].as_str().unwrap());
+        assert_eq!(actual_directory.canonicalize().unwrap(), expected_directory);
+        assert_eq!(
+            function["facts"]["build"]["opt_level"]["value"],
+            "Aggressive"
+        );
+    }
+}
+
+#[cfg(unix)]
+fn assert_selected_release_alias(report: &Value, manifest_directory: &Path) {
+    let directory = tempfile::tempdir().unwrap();
+    let alias = directory.path().join("manifest-alias");
+    std::os::unix::fs::symlink(manifest_directory, &alias).unwrap();
+
+    assert_selected_release_handles(report, &alias);
 }
 
 #[test]
@@ -1491,6 +1499,8 @@ fn clones_identical_source_in_packages_and_modules_survives_concurrent_capture()
     assert_eq!(selected["functions"].as_array().unwrap().len(), 2);
     assert_eq!(selected["matching"]["pairs"].as_array().unwrap().len(), 1);
     assert_selected_release_handles(&selected, &directory.path().join("a"));
+    #[cfg(unix)]
+    assert_selected_release_alias(&selected, &directory.path().join("a"));
 }
 
 #[test]
