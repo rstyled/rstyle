@@ -1371,17 +1371,25 @@ fn assert_report_function_handles(report: &Value) {
 fn assert_selected_release_handles(report: &Value, manifest_directory: &Path) {
     assert_report_function_handles(report);
     assert_eq!(report["scope"]["build_options"]["release"], true);
-    assert!(
-        report["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|function| {
-                let unit = report_function_unit(report, function);
-                unit["target"]["manifest_dir"] == manifest_directory.to_string_lossy().as_ref()
-                    && function["facts"]["build"]["opt_level"]["value"] == "Aggressive"
-            })
-    );
+    let expected_directory = manifest_directory.canonicalize().unwrap();
+    for function in report["functions"].as_array().unwrap() {
+        let unit = report_function_unit(report, function);
+        let actual_directory = Path::new(unit["target"]["manifest_dir"].as_str().unwrap());
+        assert_eq!(actual_directory.canonicalize().unwrap(), expected_directory);
+        assert_eq!(
+            function["facts"]["build"]["opt_level"]["value"],
+            "Aggressive"
+        );
+    }
+}
+
+#[cfg(unix)]
+fn assert_selected_release_alias(report: &Value, manifest_directory: &Path) {
+    let directory = tempfile::tempdir().unwrap();
+    let alias = directory.path().join("manifest-alias");
+    std::os::unix::fs::symlink(manifest_directory, &alias).unwrap();
+
+    assert_selected_release_handles(report, &alias);
 }
 
 #[test]
@@ -1484,13 +1492,15 @@ fn clones_identical_source_in_packages_and_modules_survives_concurrent_capture()
     assert_eq!(pairs.len(), 6);
     assert!(pairs.iter().all(|p| p["decision"] == "Accepted"));
     let (output, serial) = clones(directory.path(), &["--jobs", "1"]);
-    assert!(output.status.success());
+    assert!(output.status.success(), "{serial}");
     assert_eq!(report["matching"], serial["matching"]);
     let (output, selected) = clones(directory.path(), &["-p", "a", "--release"]);
-    assert!(output.status.success());
+    assert!(output.status.success(), "{selected}");
     assert_eq!(selected["functions"].as_array().unwrap().len(), 2);
     assert_eq!(selected["matching"]["pairs"].as_array().unwrap().len(), 1);
     assert_selected_release_handles(&selected, &directory.path().join("a"));
+    #[cfg(unix)]
+    assert_selected_release_alias(&selected, &directory.path().join("a"));
 }
 
 #[test]
@@ -4816,6 +4826,41 @@ fn clones_data_field_borrows_preserve_array_slice_and_str_referents() {
     }
 }
 
+// Library summaries require a reviewed compiler/target authority. Other hosts
+// still capture receivers and must exclude calls whose semantics are unproved.
+fn has_length_authority(report: &Value) -> bool {
+    let facts = serde_json::from_value(report["functions"][0]["facts"].clone()).unwrap();
+    rstyle_pdg::data_library::registry_for(&facts).is_some()
+}
+
+fn check_data_family<'a>(report: &'a Value, length_dependent: &[&str]) -> Vec<&'a Value> {
+    let registered = has_length_authority(report);
+    let mut admitted = Vec::new();
+    for function in report["functions"].as_array().unwrap() {
+        let name = function["facts"]["name"].as_str().unwrap();
+        let excluded = !registered && length_dependent.contains(&name);
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+        if !excluded {
+            admitted.push(function);
+        }
+    }
+
+    check_complete_data_pairs(report, admitted.len());
+    admitted
+}
+
+fn check_complete_data_pairs(report: &Value, admitted: usize) {
+    assert_eq!(
+        report["matching"]["pairs"].as_array().unwrap().len(),
+        admitted * admitted.saturating_sub(1) / 2
+    );
+    assert_eq!(report["pair_evaluation_complete"], true);
+}
+
 #[test]
 fn clones_data_records_resolved_receivers_and_verified_length_calls() {
     use rstyle_pdg::data_receivers;
@@ -4830,9 +4875,9 @@ fn clones_data_records_resolved_receivers_and_verified_length_calls() {
             .iter()
             .filter(|f| f["outcome"] == "admitted")
             .count(),
-        5
+        if has_length_authority(&report) { 5 } else { 0 }
     );
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
+    check_complete_data_pairs(&report, if has_length_authority(&report) { 5 } else { 0 });
     for function in functions {
         check_length_receiver_capture(function);
     }
@@ -5112,14 +5157,27 @@ fn clones_data_length_family_composes_fields_calls_loops_and_borrowed_branches()
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 15);
-    for function in functions {
-        assert_eq!(function["outcome"], "admitted", "{function}");
-    }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 105);
+    let functions = check_data_family(
+        &report,
+        &[
+            "View::<'a>::bytes_len",
+            "View::<'a>::bytes_empty",
+            "View::<'a>::text_len",
+            "View::<'a>::text_empty",
+            "explicit_borrow",
+            "slice_len",
+            "slice_empty",
+            "str_len",
+            "str_empty",
+            "short",
+            "counted",
+            "choose",
+        ],
+    );
     assert_eq!(report["pair_evaluation_complete"], true);
     let (unit, _) = data_unit(&report["functions"][0]);
     let analysis = unit.analysis();
-    for function in functions {
+    for function in &functions {
         let index = shared_evidence::index(function);
         let facts = analysis.function(index).unwrap();
         let pair = unit.pair(index).unwrap();
@@ -5128,23 +5186,27 @@ fn clones_data_length_family_composes_fields_calls_loops_and_borrowed_branches()
             check_length_document_tampering(pair, &facts);
             check_length_frontend_tampering(&facts);
             check_library_toolchain_contract(&facts);
-            let projected = report["matching"]["functions"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|f| f["key"] == function["key"])
-                .unwrap();
-            // One formal, receiver read, source CALL and return. Three value
-            // dependences, two execution edges, one call and one read location.
-            assert_eq!(
-                projected["projection"]["features"],
-                serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 1])
-            );
+            check_length_projection(&report, function);
         }
     }
     let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{warm}");
     assert_eq!(pair_decisions(&report), pair_decisions(&warm));
+}
+
+fn check_length_projection(report: &Value, function: &Value) {
+    let projected = report["matching"]["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["key"] == function["key"])
+        .unwrap();
+    // One formal, receiver read, source CALL and return. Three value
+    // dependences, two execution edges, one call and one read location.
+    assert_eq!(
+        projected["projection"]["features"],
+        serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 1])
+    );
 }
 
 #[test]
@@ -5162,18 +5224,29 @@ fn clones_data_verifies_memory_free_shared_argument_helper_families() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 6);
+    let functions = check_data_family(
+        &report,
+        &[
+            "predicates::short",
+            "first",
+            "second",
+            "third",
+            "empty",
+            "text",
+        ],
+    );
     let (unit, _) = data_unit(&report["functions"][0]);
     let analysis = unit.analysis();
-    for function in functions {
-        assert_eq!(function["outcome"], "admitted", "{function}");
+    for function in &functions {
         let index = shared_evidence::index(function);
         let facts = analysis.function(index).unwrap();
         let pair = unit.pair(index).unwrap();
         rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
     assert_eq!(report["pair_evaluation_complete"], true);
-    check_shared_helper_dependency(&report);
+    if has_length_authority(&report) {
+        check_shared_helper_dependency(&report);
+    }
     let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{warm}");
     assert_eq!(pair_decisions(&report), pair_decisions(&warm));
@@ -5235,10 +5308,10 @@ fn clones_data_shared_results_verify_selected_argument_origins_and_all_pairs() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 10);
+    let functions = check_data_family(&report, &["empty"]);
     let (unit, _) = data_unit(&report["functions"][0]);
     let analysis = unit.analysis();
-    for function in functions {
-        assert_eq!(function["outcome"], "admitted", "{function}");
+    for function in &functions {
         let index = shared_evidence::index(function);
         let facts = analysis.function(index).unwrap();
         let pair = unit.pair(index).unwrap();
@@ -5247,7 +5320,6 @@ fn clones_data_shared_results_verify_selected_argument_origins_and_all_pairs() {
             check_shared_result_tampering(pair, &facts, function);
         }
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 45);
     assert_eq!(report["pair_evaluation_complete"], true);
     check_shared_result_projection(&report);
     let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
@@ -5296,7 +5368,7 @@ fn check_shared_result_edit(directory: &Path, previous: &Value) {
             ])
         );
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 45);
+    check_data_family(&report, &["empty"]);
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
@@ -5381,16 +5453,13 @@ fn clones_data_v2_registers_separately_and_preserves_verified_data_paths() {
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
     );
-    for function in report["functions"].as_array().unwrap() {
-        assert_eq!(function["outcome"], "admitted", "{function}");
-    }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
-    assert_eq!(report["pair_evaluation_complete"], true);
+    assert_eq!(report["functions"].as_array().unwrap().len(), 5);
+    check_data_family(&report, &["empty"]);
     let (output, old) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{old}");
     assert_eq!(old["matching"]["profile_id"], "rstyle.ccgraph.data");
     assert_eq!(old["extraction_policy"]["version"], "1.0.0");
-    assert_eq!(old["matching"]["pairs"].as_array().unwrap().len(), 6);
+    check_complete_data_pairs(&old, if has_length_authority(&old) { 4 } else { 3 });
 }
 
 const DATA_READ_CALL_FAMILY: &str = "pub struct Inner { pub n: u8, pub other: u8 }\npub struct Data { pub inner: Inner, pub extra: u8 }\npub struct Holder<'a> { pub ptr: &'a Data }\npub fn get(v: &Data) -> u8 { v.inner.n }\npub fn wrap(v: &Data) -> u8 { get(v) }\npub fn third(v: &Data) -> u8 { wrap(v) }\npub fn equal(left: &Data, right: &Data) -> bool { get(left) == get(right) }\npub fn alias_inputs(v: &Data) -> bool { equal(v, v) }\npub fn repeated(v: &Data) -> bool { v.inner.n == v.inner.n }\npub fn repeat_wrap(v: &Data) -> bool { repeated(v) }\npub mod access { use super::Data; pub fn read(v: &Data) -> u8 { v.extra } }\nuse access::read as imported;\npub fn qualified(v: &Data) -> u8 { access::read(v) }\npub fn aliased(v: &Data) -> u8 { imported(v) }\npub fn read_inner(v: &Inner) -> u8 { v.n }\npub fn nested(v: &Data) -> u8 { read_inner(&v.inner) }\npub fn choose<'a>(flag: bool, left: &'a Data, right: &'a Data) -> &'a Data { if flag { left } else { right } }\npub fn choose_get(flag: bool, left: &Data, right: &Data) -> u8 { get(choose(flag, left, right)) }\npub fn stored(v: &Holder<'_>) -> u8 { get(v.ptr) }\npub fn consume(v: &Data) { get(v); }\npub fn conditional(v: &Data, flag: bool) { if flag { consume(v); } }\npub fn casted(v: &Data) -> u32 { get(v) as u32 }\npub fn with_length(v: &Data, text: &str) -> bool { get(v) == 0 && text.is_empty() }\npub fn looped(v: &Data) -> u8 { let mut n = 0u8; while n < get(v) { n += 1; } n }\n";
@@ -5480,15 +5549,13 @@ fn clones_data_inherent_family_composes_source_methods_fields_and_helpers() {
     assert_eq!(report["functions"].as_array().unwrap().len(), 21);
     let (unit, _) = data_unit(&report["functions"][0]);
     let analysis = unit.analysis();
-    for function in report["functions"].as_array().unwrap() {
-        assert_eq!(function["outcome"], "admitted", "{function}");
+    for function in check_data_family(&report, &["model::Data::with_length"]) {
         let index = shared_evidence::index(function);
         let facts = analysis.function(index).unwrap();
         let pair = unit.pair(index).unwrap();
         rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
         rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 210);
     assert_eq!(report["pair_evaluation_complete"], true);
     check_inherent_call_evidence(&report, &unit);
     check_inherent_tampering(read_call_function(&report, "model::Data::wrap"));
@@ -5525,7 +5592,7 @@ fn check_inherent_call_edit(directory: &Path, previous: &Value) {
             "other"
         );
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 210);
+    check_data_family(&report, &["model::Data::with_length"]);
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
@@ -5721,17 +5788,16 @@ fn clones_data_read_calls_compose_complete_shared_field_helper_families() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 20);
+    let functions = check_data_family(&report, &["with_length"]);
     let (unit, _) = data_unit(&report["functions"][0]);
     let analysis = unit.analysis();
-    for function in functions {
-        assert_eq!(function["outcome"], "admitted", "{function}");
+    for function in &functions {
         let index = shared_evidence::index(function);
         let facts = analysis.function(index).unwrap();
         let pair = unit.pair(index).unwrap();
         rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
         rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 190);
     assert_eq!(report["pair_evaluation_complete"], true);
     check_read_call_locations(&report, &unit);
     check_read_call_tampering(read_call_function(&report, "wrap"));
@@ -6054,7 +6120,7 @@ fn check_read_call_edit(directory: &Path, previous: &Value) {
             "other"
         );
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 190);
+    check_data_family(&report, &["with_length"]);
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
@@ -6277,17 +6343,19 @@ fn clones_data_lengths_keep_unsupported_combinations_and_legacy_profiles_closed(
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 10);
     for function in functions {
-        let admitted = matches!(
-            function["facts"]["name"].as_str().unwrap(),
-            "Shadow::len" | "slice" | "text"
-        );
+        let admitted = matches!(function["facts"]["name"].as_str().unwrap(), "Shadow::len")
+            || (has_length_authority(&report)
+                && matches!(
+                    function["facts"]["name"].as_str().unwrap(),
+                    "slice" | "text"
+                ));
         assert_eq!(
             function["outcome"],
             if admitted { "admitted" } else { "excluded" },
             "{function}"
         );
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
+    check_complete_data_pairs(&report, if has_length_authority(&report) { 3 } else { 1 });
     assert_eq!(report["pair_evaluation_complete"], true);
     for profile in ["r0", "hir-expanded-v1", "hir-helpers-v1"] {
         let (output, legacy) = clones(directory.path(), &["--extraction-profile", profile]);
@@ -6342,17 +6410,16 @@ fn clones_data_library_corruption_is_incomplete_execution() {
             .env_remove("CARGO_TARGET_DIR")
             .output()
             .unwrap();
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "{mutation}: {}",
-            stdout(&output)
-        );
-        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(report["assessment_complete"], false);
-        assert_eq!(report["pair_evaluation_complete"], false);
-        assert!(!report["handoff_failures"].as_array().unwrap().is_empty());
+        check_library_corruption(&output, mutation);
     }
+}
+
+fn check_library_corruption(output: &Output, mutation: &str) {
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(output.status.code(), Some(2), "{mutation}: {report}");
+    assert_eq!(report["assessment_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(!report["handoff_failures"].as_array().unwrap().is_empty());
 }
 
 #[test]
