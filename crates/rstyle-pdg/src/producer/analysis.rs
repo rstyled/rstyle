@@ -438,37 +438,127 @@ fn control_edges(graph: &Graph, reached: &BTreeSet<String>, post: &Sets) -> Vec<
         .collect()
 }
 
-fn divergence_postdominators(vertices: &BTreeSet<String>, successors: &Sets) -> Sets {
-    let mut result: Sets = vertices
-        .iter()
-        .map(|id| (id.clone(), BTreeSet::new()))
-        .collect();
-    for candidate in vertices {
-        let mut must_encounter = BTreeSet::from([candidate.clone()]);
-        loop {
-            let next: BTreeSet<_> = must_encounter
-                .iter()
-                .cloned()
-                .chain(
-                    successors
-                        .iter()
-                        .filter(|(_, next)| !next.is_empty() && next.is_subset(&must_encounter))
-                        .map(|(id, _)| id.clone()),
-                )
-                .collect();
-            if next == must_encounter {
-                break;
+// Indexed once per analysis; Sets already deduplicate outcome-labelled transfers.
+struct PostGraph<'a> {
+    ids: Vec<&'a String>,
+    successors: Vec<Vec<usize>>,
+    predecessors: Vec<Vec<usize>>,
+}
+
+impl<'a> PostGraph<'a> {
+    fn new(vertices: &'a BTreeSet<String>, successors: &Sets) -> Self {
+        let ids: Vec<_> = vertices.iter().collect();
+        let indices: BTreeMap<_, _> = ids.iter().enumerate().map(|(i, id)| (*id, i)).collect();
+        let next: Vec<Vec<_>> = ids
+            .iter()
+            .map(|id| {
+                successors[*id]
+                    .iter()
+                    .map(|target| indices[target])
+                    .collect()
+            })
+            .collect();
+        let mut predecessors = vec![Vec::new(); ids.len()];
+        for (source, targets) in next.iter().enumerate() {
+            for &target in targets {
+                predecessors[target].push(source);
             }
-            must_encounter = next;
         }
-        for vertex in must_encounter {
-            result
-                .get_mut(&vertex)
-                .expect("reachable vertex")
-                .insert(candidate.clone());
+
+        Self {
+            ids,
+            successors: next,
+            predecessors,
         }
     }
-    result
+
+    fn materialize(&self, relation: &[Vec<usize>]) -> Sets {
+        self.ids
+            .iter()
+            .zip(relation)
+            .map(|(id, post)| {
+                (
+                    (*id).clone(),
+                    post.iter().map(|&z| self.ids[z].clone()).collect(),
+                )
+            })
+            .collect()
+    }
+
+    fn divergence_relation(&self) -> Vec<Vec<usize>> {
+        let degrees: Vec<_> = self.successors.iter().map(Vec::len).collect();
+        let mut scratch = Admission::new(degrees.len());
+        let mut relation = vec![Vec::new(); degrees.len()];
+        for candidate in 0..degrees.len() {
+            scratch.seed(candidate, &degrees);
+            scratch.propagate(&self.predecessors);
+            for &vertex in &scratch.queue {
+                relation[vertex].push(candidate);
+            }
+        }
+
+        relation
+    }
+}
+
+struct Admission {
+    remaining: Vec<usize>,
+    admitted: Vec<bool>,
+    queue: Vec<usize>,
+}
+
+impl Admission {
+    fn new(size: usize) -> Self {
+        Self {
+            remaining: vec![0; size],
+            admitted: vec![false; size],
+            queue: Vec::with_capacity(size),
+        }
+    }
+
+    fn seed(&mut self, candidate: usize, degrees: &[usize]) {
+        self.reset(degrees);
+        self.admitted[candidate] = true;
+        self.queue.push(candidate);
+    }
+
+    fn reset(&mut self, degrees: &[usize]) {
+        self.remaining.copy_from_slice(degrees);
+        self.admitted.fill(false);
+        self.queue.clear();
+    }
+
+    fn propagate(&mut self, predecessors: &[Vec<usize>]) {
+        let mut head = 0;
+        while head < self.queue.len() {
+            let vertex = self.queue[head];
+            head += 1;
+            self.process(&predecessors[vertex]);
+        }
+    }
+
+    fn process(&mut self, predecessors: &[usize]) {
+        for &vertex in predecessors {
+            if self.admitted[vertex] {
+                continue;
+            }
+            self.remaining[vertex] -= 1;
+            if self.remaining[vertex] == 0 {
+                self.admitted[vertex] = true;
+                self.queue.push(vertex);
+            }
+        }
+    }
+}
+
+/// lfp S . {z} union {v | succ(v) != empty and succ(v) subset S}.
+/// For every unadmitted v, remaining[v] counts successors whose queue events
+/// have not been processed (not successors that have not yet been admitted).
+/// Each admitted vertex has exactly one event. Only z bypasses the counter.
+fn divergence_postdominators(vertices: &BTreeSet<String>, successors: &Sets) -> Sets {
+    let graph = PostGraph::new(vertices, successors);
+
+    graph.materialize(&graph.divergence_relation())
 }
 
 fn cyclic_control_edges(graph: &Graph, reached: &BTreeSet<String>, post: &Sets) -> Vec<Dependence> {
@@ -499,3 +589,7 @@ fn cyclic_control_edges(graph: &Graph, reached: &BTreeSet<String>, post: &Sets) 
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "analysis_tests.rs"]
+mod tests;
