@@ -1162,10 +1162,10 @@ fn clones_identical_source_in_packages_and_modules_survives_concurrent_capture()
     assert_eq!(pairs.len(), 6);
     assert!(pairs.iter().all(|p| p["decision"] == "Accepted"));
     let (output, serial) = clones(directory.path(), &["--jobs", "1"]);
-    assert!(output.status.success());
+    assert!(output.status.success(), "{serial}");
     assert_eq!(report["matching"], serial["matching"]);
     let (output, selected) = clones(directory.path(), &["-p", "a", "--release"]);
-    assert!(output.status.success());
+    assert!(output.status.success(), "{selected}");
     assert_eq!(selected["functions"].as_array().unwrap().len(), 2);
     assert_eq!(selected["matching"]["pairs"].as_array().unwrap().len(), 1);
     assert!(selected["functions"].as_array().unwrap().iter().all(|f| {
@@ -4539,23 +4539,27 @@ fn clones_data_length_family_composes_fields_calls_loops_and_borrowed_branches()
         if facts.name == "str_len" {
             check_length_document_tampering(&pair, &facts);
             check_length_frontend_tampering(&facts);
-            let projected = report["matching"]["functions"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|f| f["key"] == function["key"])
-                .unwrap();
-            // One formal, receiver read, source CALL and return. Three value
-            // dependences, two execution edges, one call and one read location.
-            assert_eq!(
-                projected["projection"]["features"],
-                serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 1])
-            );
+            check_length_projection(&report, function);
         }
     }
     let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{warm}");
     assert_eq!(pair_decisions(&report), pair_decisions(&warm));
+}
+
+fn check_length_projection(report: &Value, function: &Value) {
+    let projected = report["matching"]["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["key"] == function["key"])
+        .unwrap();
+    // One formal, receiver read, source CALL and return. Three value
+    // dependences, two execution edges, one call and one read location.
+    assert_eq!(
+        projected["projection"]["features"],
+        serde_json::json!([0, 2, 3, 0, 0, 0, 1, 3, 1])
+    );
 }
 
 #[test]
@@ -4791,7 +4795,7 @@ fn clones_data_v2_registers_separately_and_preserves_verified_data_paths() {
     assert!(output.status.success(), "{old}");
     assert_eq!(old["matching"]["profile_id"], "rstyle.ccgraph.data");
     assert_eq!(old["extraction_policy"]["version"], "1.0.0");
-    assert_eq!(old["matching"]["pairs"].as_array().unwrap().len(), 6);
+    check_complete_data_pairs(&old, if has_length_authority(&old) { 4 } else { 3 });
 }
 
 const DATA_READ_CALL_FAMILY: &str = "pub struct Inner { pub n: u8, pub other: u8 }\npub struct Data { pub inner: Inner, pub extra: u8 }\npub struct Holder<'a> { pub ptr: &'a Data }\npub fn get(v: &Data) -> u8 { v.inner.n }\npub fn wrap(v: &Data) -> u8 { get(v) }\npub fn third(v: &Data) -> u8 { wrap(v) }\npub fn equal(left: &Data, right: &Data) -> bool { get(left) == get(right) }\npub fn alias_inputs(v: &Data) -> bool { equal(v, v) }\npub fn repeated(v: &Data) -> bool { v.inner.n == v.inner.n }\npub fn repeat_wrap(v: &Data) -> bool { repeated(v) }\npub mod access { use super::Data; pub fn read(v: &Data) -> u8 { v.extra } }\nuse access::read as imported;\npub fn qualified(v: &Data) -> u8 { access::read(v) }\npub fn aliased(v: &Data) -> u8 { imported(v) }\npub fn read_inner(v: &Inner) -> u8 { v.n }\npub fn nested(v: &Data) -> u8 { read_inner(&v.inner) }\npub fn choose<'a>(flag: bool, left: &'a Data, right: &'a Data) -> &'a Data { if flag { left } else { right } }\npub fn choose_get(flag: bool, left: &Data, right: &Data) -> u8 { get(choose(flag, left, right)) }\npub fn stored(v: &Holder<'_>) -> u8 { get(v.ptr) }\npub fn consume(v: &Data) { get(v); }\npub fn conditional(v: &Data, flag: bool) { if flag { consume(v); } }\npub fn casted(v: &Data) -> u32 { get(v) as u32 }\npub fn with_length(v: &Data, text: &str) -> bool { get(v) == 0 && text.is_empty() }\npub fn looped(v: &Data) -> u8 { let mut n = 0u8; while n < get(v) { n += 1; } n }\n";
