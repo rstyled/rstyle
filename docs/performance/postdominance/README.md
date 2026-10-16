@@ -124,3 +124,149 @@ Style scope: `cargo rstyle` and `cargo rstyle patterns` are run for all PDG targ
 Existing package-wide findings outside these files are not refactored as part of
 this algorithm change. New/modified analysis functions must have no findings;
 pattern candidates are inspected rather than suppressed.
+
+## Commit 2: direct ordinary immediate postdominators
+
+The ordinary consumer requires only membership `target in post(source)` and the
+immediate-postdominator chain. It never enumerates postdominator sets. A direct
+tree therefore avoids full-relation materialization. In particular, a chain has
+R=V(V+1)/2 pairs but needs only V parents. The chosen representation stores
+borrowed node names, parent/depth indices and binary-lifting jump rows. Only
+tests reconstruct its relation; production never builds the ordinary Sets map.
+This removes both convergence rounds and quadratic relation output, rather than
+only making set evaluation faster. The common entry-dominator algorithm is
+unchanged.
+
+The existing `check_acyclic_exit` still runs first with the identical error string
+and acceptance policy. It seeds X regardless of X's outgoing edges; that subtle
+existing root convention is preserved. The new exit-order propagation seeds X
+in the same way. All other vertices must have nonempty successors. When a
+non-X vertex is admitted, every successor's event was processed already, so
+every successor appears earlier in the queue. Queue length must equal V after
+successful existing validation. Equivalently, non-X dependency edges form a DAG
+when treating X as an absorbing root, even for malformed X-outgoing inputs.
+Unreachable cycles still do not cause rejection.
+
+Processing invariant: before attaching v, every successor's complete parent,
+depth and jump rows are final and correct. The intersection of their ancestor
+chains is the ancestor chain of their lowest common ancestor p. Every maximal
+normal path from v begins with a successor, so p is exactly ipost(v); attach v
+as a new leaf beneath p. This changes no ancestor chain of an existing vertex,
+preserving the invariant. Initialize X as its own internal parent at depth zero;
+its public immediate postdominator is None. Binary lifting equalizes depths,
+then lifts both vertices from largest jump to smallest to find their LCA.
+Membership lifts v to the candidate's depth and checks equality. These queries
+reconstruct exactly the old reflexive relation, so the unchanged control-walk
+logic emits identical ordered edges, outcomes and X boundary suppression.
+Cyclic control continues using the first commit's full relation and self-control
+rule; no tree is imposed on mutual postdominance.
+
+Scheduling costs O(V+E). Tree construction costs O((V+E) log V), including
+jump-row initialization, LCA folds and name indexing. Temporary adjacency costs
+O(V+E); retained tree storage is O(V log V). There is no R-sized production
+ordinary representation. Name lookup/membership and parent lookup cost O(log V),
+so edge emission costs O((T+C) log V) plus output strings, for T inspected
+transfers and C emitted control edges. The previous `immediate` repeatedly
+scanned postdominator sets; the new parent query does not. The existing ordinary
+validation, entry dominance, reaching definitions, and neighbourhood construction
+remain unchanged and can dominate full-analyzer cost. These bounds describe the
+replacement postdominator path, not the entire analyzer.
+
+Exhaustive validation covers all 33,867 forward-edge graphs on 1..6 vertices in a
+fixed topological labelling. All 10,106 graphs in which every non-X vertex reaches
+X are checked against the old algorithm and an independent oracle enumerating
+all paths to X and intersecting their vertex sets. The rejected DAGs are also
+checked against the non-X-sink criterion. Every DAG has such a topological
+labelling; this does not enumerate every permutation of labels. For every
+accepted graph, tests reconstruct every pair from the compact tree, compare all
+immediate postdominators, and compare full ordered control Dependence vectors
+against the old emitter with both outcomes on every transfer. Targeted tests
+cover E/X boundaries, diamonds, duplicate successor transfers, deep lifting
+across multiple jump levels, the existing X-root convention, missing exits,
+reachable self/other cycles and ignored unreachable cycles.
+
+Before switching the ordinary production call, an ignored HIR integration test
+captured actual lowered if/while graphs and **all** data/execution/control edges
+into `crates/rstyle-pdg/tests/fixtures/postdominance_lowered.json`. The sources
+are embedded in that file. A unit regression checks complete Analysis equality
+with the first-commit algorithm and exact equality with these baseline edge
+vectors; the capture test can independently regenerate the snapshots:
+
+```sh
+cargo test -p rstyle-driver --test hir_extraction capture_postdominance_baselines -- --ignored --nocapture
+cargo test -p rstyle-pdg --release --lib benchmark_ -- --ignored --nocapture --test-threads=1
+```
+
+The second command produces `commit2.txt`, including a rerun of the cyclic
+benchmark and the real lowered CFGs. Run benchmarks serially as shown, with no
+other build/analysis work running. Old/new samples are interleaved; no warm-up
+samples are silently removed. Environment: ARM aarch64 (Cortex-X925/A725 host),
+nightly rustc 1.101.0-nightly (5c543b0b8, 2026-09-29), LLVM 23.1.1; ordinary
+Cargo release optimization, no custom allocator or CPU pinning.
+
+DAG CSV columns:
+`dag,family,V,E,R,control_edges,repeat,old_post_ns,new_post_ns,index_ns,
+schedule_ns,tree_allocation_ns,tree_propagation_ns,test_reconstruction_ns,control_ns,old_post_control_ns,
+new_post_control_ns,old_vertex_evaluations,new_vertex_evaluations,
+schedule_predecessor_visits,LCA_calls,jump_cells_written`.
+The first-commit ordinary baseline is the unchanged old `dominators(...,"X")`
+and old control emitter, not the pre-first-commit cyclic path. `new_post_ns`
+includes indexing, scheduling and all tree representation construction. There
+is no separate string-relation materialization in production: the explicitly
+labelled reconstruction timing is test-only and excluded from new totals.
+Tree representation allocation/initial fill is timed separately from LCA
+propagation/attachment and scheduling. Jump-row writes during attachment are
+intrinsic to the algorithm and included in propagation. Test-only operation counts derive exact calls/table writes
+from the schedule and distinct outdegrees, with no counters in production.
+Old evaluations include the final unchanged round; new includes X's initialization
+and one attachment per other vertex. Predecessor visits count all original
+adjacency entries, including ignored X-root entries in targeted cases.
+
+`lowered-complete,cyclic,V,all_dependence_edges,repeat,first_commit_ns,new_ns`
+measures the **whole analyzer**, including unchanged validation, entry dominance,
+reachability, dataflow, and data/execution/control edge allocation. Its cyclic
+baseline already uses commit 1; a cyclic difference here is noise, not a second
+claim for the shared improvement. `lowered-original-cyclic,V,all_edges,repeat,
+original_ns,first_commit_ns` supplies a supplemental complete-analyzer comparison
+for commit 1 using the preserved original cyclic function. Synthetic control
+benchmarks still deliberately use both outcomes on every transfer; lowered
+complete-analyzer benchmarks use the actual captured transfers and operations.
+
+Validation limitations: exhaustive bounds are finite and DAG label permutations
+are not separately enumerated; large-graph confidence additionally rests on the
+invariants above and targeted tests. Captured lowered benchmarks cover a scalar
+if and while, not a broad real-world CFG corpus. Nanosecond-scale samples and
+cold first samples are noisy. No claim is made that unrelated whole-analyzer
+quadratic work has been removed.
+
+Commit 2 medians in microseconds, against commit 1's ordinary path:
+
+| Family | V/E | R / control edges | old post | new tree | old post+control | new post+control | old evaluations / new evaluations |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| chain | 128/127 | 8256/0 | 161027.59 | 81.088 | 160775.09 | 178.000 | 16256/128 |
+| branch | 128/253 | 255/502 | 91582.98 | 41.696 | 91345.64 | 185.504 | 8320/128 |
+| lowered if | 7/7 | 21/4 | 20.58 | 0.896 | 21.68 | 2.160 | 42/7 |
+
+For the 128-vertex chain/branch, scheduling visits 127/253 predecessor entries,
+LCA folds make 0/126 calls, and attachments populate 1016 jump cells in either
+case (excluding table allocation/initial fill). These counts are distinct from
+membership queries and output walks; the latter are included in timings.
+
+Complete actual lowered-if analysis (7 reachable vertices, 11 total dependence
+edges) improved from median 124.59 to 89.46 us. The unchanged cyclic path (8
+reachable vertices, 17 edges) measured 126.58 vs 117.42 us; this is noise and not an
+improvement claim. The supplemental original-cyclic vs first-commit complete
+analysis measured 122.56 vs 112.99 us in its separate three-sample group. These
+small full-analyzer results show why the much larger postdominator-only gains
+must not be presented as equivalent whole-pipeline speedups.
+
+All raw samples are retained, including first samples prefixed by libtest's
+`test ... ...` line when using one test thread. To parse, extract each CSV record
+from its policy prefix (`cyclic,`, `dag,`, `lowered-complete,` or
+`lowered-original-cyclic,`), rather than requiring the prefix at column zero.
+Final validation results and style scope are recorded in `validation.txt`.
+
+Stage timings are separate samples and need not sum to complete timings: cache
+state and deallocation scopes differ. On sparse relations the jump table may
+contain more indices than there are relation pairs; its benefit is a uniform
+O(V log V) bound and avoiding repeated set scans, not a universal space reduction.

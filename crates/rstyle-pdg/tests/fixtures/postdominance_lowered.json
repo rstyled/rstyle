@@ -1,0 +1,856 @@
+[
+  {
+    "cyclic": false,
+    "edges": [
+      {
+        "definition": "d0",
+        "family": "data",
+        "guards": null,
+        "outcome": null,
+        "position": 0,
+        "source": "n0",
+        "subkind": "reaching_definition",
+        "symbol": "s:3:2",
+        "target": "n1"
+      },
+      {
+        "definition": null,
+        "family": "data",
+        "guards": null,
+        "outcome": null,
+        "position": 0,
+        "source": "n1",
+        "subkind": "value_operand",
+        "symbol": null,
+        "target": "n2"
+      },
+      {
+        "definition": null,
+        "family": "data",
+        "guards": null,
+        "outcome": null,
+        "position": 0,
+        "source": "n5",
+        "subkind": "value_operand",
+        "symbol": null,
+        "target": "n6"
+      },
+      {
+        "definition": null,
+        "family": "data",
+        "guards": [
+          [
+            {
+              "controller_pdg_node_id": "n2",
+              "outcome": "true"
+            }
+          ]
+        ],
+        "outcome": "true",
+        "position": 0,
+        "source": "n3",
+        "subkind": "value_alternative",
+        "symbol": null,
+        "target": "n5"
+      },
+      {
+        "definition": null,
+        "family": "data",
+        "guards": [
+          [
+            {
+              "controller_pdg_node_id": "n2",
+              "outcome": "false"
+            }
+          ]
+        ],
+        "outcome": "false",
+        "position": 1,
+        "source": "n4",
+        "subkind": "value_alternative",
+        "symbol": null,
+        "target": "n5"
+      },
+      {
+        "definition": null,
+        "family": "execution",
+        "guards": null,
+        "outcome": null,
+        "position": null,
+        "source": "n1",
+        "subkind": "nearest_dominating_operation",
+        "symbol": null,
+        "target": "n2"
+      },
+      {
+        "definition": null,
+        "family": "execution",
+        "guards": null,
+        "outcome": null,
+        "position": null,
+        "source": "n2",
+        "subkind": "nearest_dominating_operation",
+        "symbol": null,
+        "target": "n3"
+      },
+      {
+        "definition": null,
+        "family": "execution",
+        "guards": null,
+        "outcome": null,
+        "position": null,
+        "source": "n2",
+        "subkind": "nearest_dominating_operation",
+        "symbol": null,
+        "target": "n4"
+      },
+      {
+        "definition": null,
+        "family": "execution",
+        "guards": null,
+        "outcome": null,
+        "position": null,
+        "source": "n2",
+        "subkind": "nearest_dominating_operation",
+        "symbol": null,
+        "target": "n6"
+      },
+      {
+        "definition": null,
+        "family": "control",
+        "guards": null,
+        "outcome": "true",
+        "position": null,
+        "source": "n2",
+        "subkind": "postdominance",
+        "symbol": null,
+        "target": "n3"
+      },
+      {
+        "definition": null,
+        "family": "control",
+        "guards": null,
+        "outcome": "false",
+        "position": null,
+        "source": "n2",
+        "subkind": "postdominance",
+        "symbol": null,
+        "target": "n4"
+      }
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "category": "formal_input",
+          "construct": null,
+          "construct_span": {
+            "end": 6,
+            "start": 5
+          },
+          "definition": "d0",
+          "id": "n0",
+          "literal": null,
+          "operands": [],
+          "operator": null,
+          "original_kind": "pat_binding",
+          "position": 0,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 6,
+            "start": 5
+          },
+          "symbol": "s:3:2",
+          "ty": "bool",
+          "write_form": null
+        },
+        {
+          "category": "read",
+          "construct": null,
+          "construct_span": {
+            "end": 27,
+            "start": 26
+          },
+          "definition": null,
+          "id": "n1",
+          "literal": null,
+          "operands": [],
+          "operator": null,
+          "original_kind": "expr_path",
+          "position": null,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 27,
+            "start": 26
+          },
+          "symbol": "s:3:2",
+          "ty": "bool",
+          "write_form": null
+        },
+        {
+          "category": "control",
+          "construct": "if",
+          "construct_span": {
+            "end": 44,
+            "start": 23
+          },
+          "definition": null,
+          "id": "n2",
+          "literal": null,
+          "operands": [
+            "n1"
+          ],
+          "operator": null,
+          "original_kind": "expr_path",
+          "position": null,
+          "return_form": null,
+          "role": "predicate",
+          "span": {
+            "end": 27,
+            "start": 26
+          },
+          "symbol": null,
+          "ty": "bool",
+          "write_form": null
+        },
+        {
+          "category": "computation",
+          "construct": null,
+          "construct_span": {
+            "end": 31,
+            "start": 30
+          },
+          "definition": null,
+          "id": "n3",
+          "literal": "1",
+          "operands": [],
+          "operator": null,
+          "original_kind": "expr_lit",
+          "position": null,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 31,
+            "start": 30
+          },
+          "symbol": null,
+          "ty": "i32",
+          "write_form": null
+        },
+        {
+          "category": "computation",
+          "construct": null,
+          "construct_span": {
+            "end": 42,
+            "start": 41
+          },
+          "definition": null,
+          "id": "n4",
+          "literal": "2",
+          "operands": [],
+          "operator": null,
+          "original_kind": "expr_lit",
+          "position": null,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 42,
+            "start": 41
+          },
+          "symbol": null,
+          "ty": "i32",
+          "write_form": null
+        },
+        {
+          "category": "merge",
+          "construct": null,
+          "construct_span": {
+            "end": 44,
+            "start": 23
+          },
+          "definition": null,
+          "id": "n5",
+          "literal": null,
+          "operands": [],
+          "operator": null,
+          "original_kind": "compat.rust.hir-r0.expression_merge",
+          "position": null,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 44,
+            "start": 23
+          },
+          "symbol": null,
+          "ty": "i32",
+          "write_form": null
+        },
+        {
+          "category": "return",
+          "construct": null,
+          "construct_span": {
+            "end": 44,
+            "start": 23
+          },
+          "definition": null,
+          "id": "n6",
+          "literal": null,
+          "operands": [
+            "n5"
+          ],
+          "operator": null,
+          "original_kind": "expr_if",
+          "position": null,
+          "return_form": "implicit",
+          "role": "source_operation",
+          "span": {
+            "end": 44,
+            "start": 23
+          },
+          "symbol": null,
+          "ty": "i32",
+          "write_form": null
+        }
+      ],
+      "transfers": [
+        {
+          "kind": "normal",
+          "loop_role": null,
+          "source": "E",
+          "target": "n1"
+        },
+        {
+          "kind": "normal",
+          "loop_role": null,
+          "source": "n1",
+          "target": "n2"
+        },
+        {
+          "kind": "true",
+          "loop_role": null,
+          "source": "n2",
+          "target": "n3"
+        },
+        {
+          "kind": "false",
+          "loop_role": null,
+          "source": "n2",
+          "target": "n4"
+        },
+        {
+          "kind": "normal",
+          "loop_role": null,
+          "source": "n3",
+          "target": "n6"
+        },
+        {
+          "kind": "normal",
+          "loop_role": null,
+          "source": "n4",
+          "target": "n6"
+        },
+        {
+          "kind": "return",
+          "loop_role": null,
+          "source": "n6",
+          "target": "X"
+        }
+      ],
+      "value_sites": [
+        {
+          "alternatives": [
+            {
+              "completion_cfg_node_ids": [
+                "n3"
+              ],
+              "guards": [
+                [
+                  {
+                    "controller_pdg_node_id": "n2",
+                    "outcome": "true"
+                  }
+                ]
+              ],
+              "outcome": "true",
+              "value_pdg_node_id": "n3"
+            },
+            {
+              "completion_cfg_node_ids": [
+                "n4"
+              ],
+              "guards": [
+                [
+                  {
+                    "controller_pdg_node_id": "n2",
+                    "outcome": "false"
+                  }
+                ]
+              ],
+              "outcome": "false",
+              "value_pdg_node_id": "n4"
+            }
+          ],
+          "cfg_successor_node_id": "n6",
+          "construct_span": {
+            "end": 44,
+            "start": 23
+          },
+          "controller_pdg_node_id": "n2",
+          "guards": [
+            []
+          ],
+          "pdg_node_id": "n5",
+          "selection_kind": null
+        }
+      ]
+    },
+    "source": "fn f(b: bool) -> i32 { if b { 1 } else { 2 } }"
+  },
+  {
+    "cyclic": true,
+    "edges": [
+      {
+        "definition": "d1",
+        "family": "data",
+        "guards": null,
+        "outcome": null,
+        "position": 0,
+        "source": "n1",
+        "subkind": "reaching_definition",
+        "symbol": "s:3:4",
+        "target": "n2"
+      },
+      {
+        "definition": "d0",
+        "family": "data",
+        "guards": null,
+        "outcome": null,
+        "position": 0,
+        "source": "n0",
+        "subkind": "reaching_definition",
+        "symbol": "s:3:2",
+        "target": "n6"
+      },
+      {
+        "definition": "d5",
+        "family": "data",
+        "guards": null,
+        "outcome": null,
+        "position": 0,
+        "source": "n5",
+        "subkind": "reaching_definition",
+        "symbol": "s:3:2",
+        "target": "n6"
+      },
+      {
+        "definition": null,
+        "family": "data",
+        "guards": null,
+        "outcome": null,
+        "position": 0,
+        "source": "n2",
+        "subkind": "value_operand",
+        "symbol": null,
+        "target": "n3"
+      },
+      {
+        "definition": null,
+        "family": "data",
+        "guards": null,
+        "outcome": null,
+        "position": 0,
+        "source": "n4",
+        "subkind": "value_operand",
+        "symbol": null,
+        "target": "n5"
+      },
+      {
+        "definition": null,
+        "family": "data",
+        "guards": null,
+        "outcome": null,
+        "position": 0,
+        "source": "n6",
+        "subkind": "value_operand",
+        "symbol": null,
+        "target": "n7"
+      },
+      {
+        "definition": null,
+        "family": "execution",
+        "guards": null,
+        "outcome": null,
+        "position": null,
+        "source": "n2",
+        "subkind": "nearest_dominating_operation",
+        "symbol": null,
+        "target": "n3"
+      },
+      {
+        "definition": null,
+        "family": "execution",
+        "guards": null,
+        "outcome": null,
+        "position": null,
+        "source": "n3",
+        "subkind": "nearest_dominating_operation",
+        "symbol": null,
+        "target": "n4"
+      },
+      {
+        "definition": null,
+        "family": "execution",
+        "guards": null,
+        "outcome": null,
+        "position": null,
+        "source": "n4",
+        "subkind": "nearest_dominating_operation",
+        "symbol": null,
+        "target": "n5"
+      },
+      {
+        "definition": null,
+        "family": "execution",
+        "guards": null,
+        "outcome": null,
+        "position": null,
+        "source": "n3",
+        "subkind": "nearest_dominating_operation",
+        "symbol": null,
+        "target": "n6"
+      },
+      {
+        "definition": null,
+        "family": "execution",
+        "guards": null,
+        "outcome": null,
+        "position": null,
+        "source": "n6",
+        "subkind": "nearest_dominating_operation",
+        "symbol": null,
+        "target": "n7"
+      },
+      {
+        "definition": null,
+        "family": "control",
+        "guards": null,
+        "outcome": "true",
+        "position": null,
+        "source": "n3",
+        "subkind": "divergence_sensitive_postdominance",
+        "symbol": null,
+        "target": "n2"
+      },
+      {
+        "definition": null,
+        "family": "control",
+        "guards": null,
+        "outcome": "true",
+        "position": null,
+        "source": "n3",
+        "subkind": "divergence_sensitive_postdominance",
+        "symbol": null,
+        "target": "n3"
+      },
+      {
+        "definition": null,
+        "family": "control",
+        "guards": null,
+        "outcome": "true",
+        "position": null,
+        "source": "n3",
+        "subkind": "divergence_sensitive_postdominance",
+        "symbol": null,
+        "target": "n4"
+      },
+      {
+        "definition": null,
+        "family": "control",
+        "guards": null,
+        "outcome": "true",
+        "position": null,
+        "source": "n3",
+        "subkind": "divergence_sensitive_postdominance",
+        "symbol": null,
+        "target": "n5"
+      },
+      {
+        "definition": null,
+        "family": "control",
+        "guards": null,
+        "outcome": "false",
+        "position": null,
+        "source": "n3",
+        "subkind": "divergence_sensitive_postdominance",
+        "symbol": null,
+        "target": "n6"
+      },
+      {
+        "definition": null,
+        "family": "control",
+        "guards": null,
+        "outcome": "false",
+        "position": null,
+        "source": "n3",
+        "subkind": "divergence_sensitive_postdominance",
+        "symbol": null,
+        "target": "n7"
+      }
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "category": "formal_input",
+          "construct": null,
+          "construct_span": {
+            "end": 10,
+            "start": 9
+          },
+          "definition": "d0",
+          "id": "n0",
+          "literal": null,
+          "operands": [],
+          "operator": null,
+          "original_kind": "pat_binding",
+          "position": 0,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 10,
+            "start": 9
+          },
+          "symbol": "s:3:2",
+          "ty": "i32",
+          "write_form": null
+        },
+        {
+          "category": "formal_input",
+          "construct": null,
+          "construct_span": {
+            "end": 18,
+            "start": 17
+          },
+          "definition": "d1",
+          "id": "n1",
+          "literal": null,
+          "operands": [],
+          "operator": null,
+          "original_kind": "pat_binding",
+          "position": 1,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 18,
+            "start": 17
+          },
+          "symbol": "s:3:4",
+          "ty": "bool",
+          "write_form": null
+        },
+        {
+          "category": "read",
+          "construct": null,
+          "construct_span": {
+            "end": 42,
+            "start": 41
+          },
+          "definition": null,
+          "id": "n2",
+          "literal": null,
+          "operands": [],
+          "operator": null,
+          "original_kind": "expr_path",
+          "position": null,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 42,
+            "start": 41
+          },
+          "symbol": "s:3:4",
+          "ty": "bool",
+          "write_form": null
+        },
+        {
+          "category": "control",
+          "construct": "while",
+          "construct_span": {
+            "end": 53,
+            "start": 35
+          },
+          "definition": null,
+          "id": "n3",
+          "literal": null,
+          "operands": [
+            "n2"
+          ],
+          "operator": null,
+          "original_kind": "expr_while",
+          "position": null,
+          "return_form": null,
+          "role": "while_predicate",
+          "span": {
+            "end": 53,
+            "start": 35
+          },
+          "symbol": null,
+          "ty": "bool",
+          "write_form": null
+        },
+        {
+          "category": "computation",
+          "construct": null,
+          "construct_span": {
+            "end": 50,
+            "start": 49
+          },
+          "definition": null,
+          "id": "n4",
+          "literal": "1",
+          "operands": [],
+          "operator": null,
+          "original_kind": "expr_lit",
+          "position": null,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 50,
+            "start": 49
+          },
+          "symbol": null,
+          "ty": "i32",
+          "write_form": null
+        },
+        {
+          "category": "assignment",
+          "construct": null,
+          "construct_span": {
+            "end": 50,
+            "start": 45
+          },
+          "definition": "d5",
+          "id": "n5",
+          "literal": null,
+          "operands": [
+            "n4"
+          ],
+          "operator": "=",
+          "original_kind": "expr_assign",
+          "position": null,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 50,
+            "start": 45
+          },
+          "symbol": "s:3:2",
+          "ty": "unit",
+          "write_form": "reassignment"
+        },
+        {
+          "category": "read",
+          "construct": null,
+          "construct_span": {
+            "end": 55,
+            "start": 54
+          },
+          "definition": null,
+          "id": "n6",
+          "literal": null,
+          "operands": [],
+          "operator": null,
+          "original_kind": "expr_path",
+          "position": null,
+          "return_form": null,
+          "role": "source_operation",
+          "span": {
+            "end": 55,
+            "start": 54
+          },
+          "symbol": "s:3:2",
+          "ty": "i32",
+          "write_form": null
+        },
+        {
+          "category": "return",
+          "construct": null,
+          "construct_span": {
+            "end": 55,
+            "start": 54
+          },
+          "definition": null,
+          "id": "n7",
+          "literal": null,
+          "operands": [
+            "n6"
+          ],
+          "operator": null,
+          "original_kind": "expr_path",
+          "position": null,
+          "return_form": "implicit",
+          "role": "source_operation",
+          "span": {
+            "end": 55,
+            "start": 54
+          },
+          "symbol": null,
+          "ty": "i32",
+          "write_form": null
+        }
+      ],
+      "transfers": [
+        {
+          "kind": "normal",
+          "loop_role": null,
+          "source": "E",
+          "target": "n2"
+        },
+        {
+          "kind": "normal",
+          "loop_role": null,
+          "source": "n2",
+          "target": "n3"
+        },
+        {
+          "kind": "true",
+          "loop_role": null,
+          "source": "n3",
+          "target": "n4"
+        },
+        {
+          "kind": "normal",
+          "loop_role": null,
+          "source": "n4",
+          "target": "n5"
+        },
+        {
+          "kind": "normal",
+          "loop_role": null,
+          "source": "n6",
+          "target": "n7"
+        },
+        {
+          "kind": "return",
+          "loop_role": null,
+          "source": "n7",
+          "target": "X"
+        },
+        {
+          "kind": "normal",
+          "loop_role": "back_edge",
+          "source": "n5",
+          "target": "n2"
+        },
+        {
+          "kind": "false",
+          "loop_role": "loop_exit",
+          "source": "n3",
+          "target": "n6"
+        }
+      ],
+      "value_sites": []
+    },
+    "source": "fn f(mut x: i32, b: bool) -> i32 { while b { x = 1; } x }"
+  }
+]

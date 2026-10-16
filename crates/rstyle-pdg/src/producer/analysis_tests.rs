@@ -312,3 +312,428 @@ fn lowered_while() -> Sets {
         ("n7", "X"),
     ])
 }
+
+fn dag(n: usize, mask: u64) -> Sets {
+    let ids: Vec<_> = (0..n)
+        .map(|i| {
+            if i + 1 == n {
+                "X".into()
+            } else if i == 0 {
+                "E".into()
+            } else {
+                format!("n{i}")
+            }
+        })
+        .collect();
+    let mut bit = 0;
+    ids.iter()
+        .enumerate()
+        .map(|(i, id)| {
+            let targets = ids
+                .iter()
+                .skip(i + 1)
+                .filter(|_| {
+                    let present = mask & (1 << bit) != 0;
+                    bit += 1;
+                    present
+                })
+                .cloned()
+                .collect();
+            (id.clone(), targets)
+        })
+        .collect()
+}
+
+fn exit_paths(id: &str, successors: &Sets) -> Vec<BTreeSet<String>> {
+    if id == "X" {
+        return vec![BTreeSet::from(["X".into()])];
+    }
+    successors[id]
+        .iter()
+        .flat_map(|next| {
+            exit_paths(next, successors).into_iter().map(|mut path| {
+                path.insert(id.into());
+                path
+            })
+        })
+        .collect()
+}
+
+fn oracle_dag(successors: &Sets) -> Sets {
+    successors
+        .keys()
+        .map(|id| {
+            let paths = exit_paths(id, successors);
+            let common = paths.iter().skip(1).fold(paths[0].clone(), |shared, path| {
+                shared.intersection(path).cloned().collect()
+            });
+            (id.clone(), common)
+        })
+        .collect()
+}
+
+fn reconstruct(tree: &PostTree<'_>) -> Sets {
+    tree.ids
+        .iter()
+        .map(|id| {
+            let post = tree
+                .ids
+                .iter()
+                .filter(|z| tree.contains(id, z))
+                .map(|id| (*id).clone())
+                .collect();
+            ((*id).clone(), post)
+        })
+        .collect()
+}
+
+fn compare_dag(successors: &Sets) {
+    let vertices: BTreeSet<_> = successors.keys().cloned().collect();
+    let baseline = dominators(&vertices, successors, "X");
+    let tree = acyclic_postdominators(&vertices, successors);
+    let actual = reconstruct(&tree);
+    assert_eq!(actual, baseline, "{successors:?}");
+    assert_eq!(actual, oracle_dag(successors), "{successors:?}");
+    for id in &vertices {
+        assert_eq!(tree.immediate(id), immediate(id, &baseline));
+    }
+    let graph = graph_from(successors);
+
+    assert_eq!(
+        control_edges(&graph, &vertices, &tree),
+        baseline_control_edges(&graph, &vertices, &baseline)
+    );
+}
+
+#[test]
+fn exhaustive_dags() {
+    // Every forward-edge DAG through six vertices in one fixed topological
+    // labelling (33,867 graphs); relabelling cannot change the relation.
+    let mut valid = 0;
+    for n in 1..=6 {
+        for mask in 0..(1 << (n * (n - 1) / 2)) {
+            let successors = dag(n, mask);
+            let vertices = successors.keys().cloned().collect();
+            let accepted = check_acyclic_exit(&graph_from(&successors), &vertices).is_ok();
+            assert_eq!(
+                accepted,
+                successors
+                    .iter()
+                    .all(|(id, next)| id == "X" || !next.is_empty())
+            );
+            if accepted {
+                compare_dag(&successors);
+                valid += 1;
+            }
+        }
+    }
+    assert_eq!(valid, 10106);
+}
+
+#[test]
+fn ordinary_boundaries_and_rejection() {
+    for edges in [
+        vec![("E", "X")],
+        vec![("E", "a"), ("a", "b"), ("a", "c"), ("b", "X"), ("c", "X")],
+        // Existing root semantics: X outgoing edges are ignored for postdom.
+        vec![("E", "a"), ("a", "X"), ("X", "a")],
+    ] {
+        compare_dag(&fixture(&edges));
+    }
+    for edges in [
+        vec![("E", "a")],
+        vec![("E", "a"), ("a", "a"), ("a", "X")],
+        vec![("E", "a"), ("a", "b"), ("b", "a"), ("E", "X")],
+    ] {
+        assert!(analyze(&graph_from(&fixture(&edges))).is_err());
+    }
+}
+
+fn dag_family(kind: &str, n: usize) -> Sets {
+    let successors = family(kind, n);
+    let sink = successors
+        .iter()
+        .find(|(_, next)| next.is_empty())
+        .unwrap()
+        .0;
+    successors
+        .iter()
+        .map(|(id, next)| {
+            let rename = |id: &String| {
+                if id == sink {
+                    "X".to_string()
+                } else {
+                    id.clone()
+                }
+            };
+            (rename(id), next.iter().map(rename).collect())
+        })
+        .collect()
+}
+
+#[test]
+#[ignore = "release benchmark; run with --ignored --nocapture"]
+fn benchmark_dag() {
+    for row in dag_samples() {
+        println!("{row}");
+    }
+}
+
+fn dag_samples() -> Vec<String> {
+    let mut rows = Vec::new();
+    for kind in ["chain", "branch"] {
+        for n in [32, 64, 128] {
+            rows.extend(benchmark_dag_graph(kind, &dag_family(kind, n)));
+        }
+    }
+    let case = lowered_cases().remove(0);
+    let successors = neighbours(&case.graph, &reachability(&case.graph), true);
+    rows.extend(benchmark_dag_graph("lowered-if", &successors));
+
+    rows
+}
+
+fn benchmark_dag_graph(kind: &str, successors: &Sets) -> Vec<String> {
+    let vertices = successors.keys().cloned().collect();
+    let graph = graph_from(successors);
+    let scans = ordinary_scans(&vertices, successors);
+    (0..3).map(|repeat| {
+        let (old, old_ns) = timed(|| dominators(&vertices, successors, "X"));
+        let (new, new_ns) = timed(|| acyclic_postdominators(&vertices, successors));
+        assert_eq!(old, reconstruct(&new));
+        let (indexed, index_ns) = timed(|| PostGraph::new(&vertices, successors));
+        let (order, schedule_ns) = timed(|| indexed.exit_order());
+        let (mut tree, allocation_ns) = timed(|| PostTree::empty(&indexed, order[0]));
+        let (_, evaluation_ns) = timed(|| tree.attach_order(&indexed, &order));
+        let (_, reconstruction_ns) = timed(|| reconstruct(&tree));
+        let (edges, output_ns) = timed(|| control_edges(&graph, &vertices, &new));
+        let (_, old_complete_ns) = timed(|| baseline_control_edges(&graph, &vertices, &dominators(&vertices, successors, "X")));
+        let (_, new_complete_ns) = timed(|| control_edges(&graph, &vertices, &acyclic_postdominators(&vertices, successors)));
+
+        let lca_calls: usize = indexed.successors.iter().enumerate()
+            .filter(|(vertex, _)| indexed.ids[*vertex] != "X")
+            .map(|(_, next)| next.len().saturating_sub(1)).sum();
+        let jump_cells = (order.len()-1) * tree.jumps[0].len();
+        let predecessor_visits: usize = indexed.predecessors.iter().map(Vec::len).sum();
+
+        format!("dag,{kind},{},{},{},{},{repeat},{old_ns},{new_ns},{index_ns},{schedule_ns},{allocation_ns},{evaluation_ns},{reconstruction_ns},{output_ns},{old_complete_ns},{new_complete_ns},{scans},{},{predecessor_visits},{lca_calls},{jump_cells}", successors.len(), successors.values().map(BTreeSet::len).sum::<usize>(), old.values().map(BTreeSet::len).sum::<usize>(), edges.len(), order.len())
+    }).collect()
+}
+
+fn ordinary_scans(vertices: &BTreeSet<String>, successors: &Sets) -> usize {
+    let mut sets: Sets = vertices
+        .iter()
+        .map(|id| {
+            (
+                id.clone(),
+                if id == "X" {
+                    BTreeSet::from([id.clone()])
+                } else {
+                    vertices.clone()
+                },
+            )
+        })
+        .collect();
+    let mut scans = 0;
+    loop {
+        scans += vertices.len();
+        let next: Sets = vertices
+            .iter()
+            .map(|id| {
+                let post = if id == "X" {
+                    BTreeSet::from([id.clone()])
+                } else {
+                    successors[id]
+                        .iter()
+                        .fold(vertices.clone(), |shared, next| {
+                            shared.intersection(&sets[next]).cloned().collect()
+                        })
+                        .into_iter()
+                        .chain([id.clone()])
+                        .collect()
+                };
+                (id.clone(), post)
+            })
+            .collect();
+        if next == sets {
+            return scans;
+        }
+        sets = next;
+    }
+}
+
+fn baseline_control_edges(
+    graph: &Graph,
+    reached: &BTreeSet<String>,
+    post: &Sets,
+) -> Vec<Dependence> {
+    graph
+        .transfers
+        .iter()
+        .filter(|e| {
+            reached.contains(&e.source)
+                && matches!(e.kind.as_str(), "true" | "false")
+                && !post[&e.source].contains(&e.target)
+        })
+        .flat_map(|transfer| {
+            let stop = immediate(&transfer.source, post);
+            let mut current = Some(transfer.target.clone());
+            let mut edges = Vec::new();
+            while current.is_some() && current != stop {
+                let id = current.expect("current postdominator");
+                if id != "X" {
+                    edges.push(Dependence {
+                        outcome: Some(transfer.kind.clone()),
+                        ..edge(&transfer.source, &id, EdgeFamily::Control, "postdominance")
+                    });
+                }
+                current = immediate(&id, post);
+            }
+            edges
+        })
+        .collect()
+}
+
+#[derive(serde::Deserialize)]
+struct LoweredCase {
+    cyclic: bool,
+    graph: Graph,
+    edges: Vec<Dependence>,
+}
+
+fn lowered_cases() -> Vec<LoweredCase> {
+    serde_json::from_str(include_str!(
+        "../../tests/fixtures/postdominance_lowered.json"
+    ))
+    .unwrap()
+}
+
+#[test]
+fn lowered_cfgs_preserve_every_dependence() {
+    for case in lowered_cases() {
+        let baseline = baseline_analysis(&case.graph, case.cyclic).unwrap();
+        let actual = analyze_policy(&case.graph, case.cyclic).unwrap();
+        assert_eq!(baseline.edges, case.edges);
+        assert_eq!(actual, baseline);
+    }
+}
+
+fn baseline_analysis(graph: &Graph, cyclic: bool) -> Result<Analysis, String> {
+    baseline_analysis_using(graph, cyclic, divergence_postdominators)
+}
+
+fn baseline_analysis_using(
+    graph: &Graph,
+    cyclic: bool,
+    cyclic_post: fn(&BTreeSet<String>, &Sets) -> Sets,
+) -> Result<Analysis, String> {
+    let reachable = reachability(graph);
+    if !cyclic {
+        check_acyclic_exit(graph, &reachable)?;
+    }
+    let predecessors = neighbours(graph, &reachable, false);
+    let successors = neighbours(graph, &reachable, true);
+    let dom = dominators(&reachable, &predecessors, "E");
+    let post = if cyclic {
+        cyclic_post(&reachable, &successors)
+    } else {
+        dominators(&reachable, &successors, "X")
+    };
+    let (definition_in, definition_out) = reaching(graph, &reachable, &predecessors);
+    let edges = data_edges(graph, &reachable, &definition_in)?;
+    let execution = execution_edges(graph, &reachable, &dom);
+    let control = if cyclic {
+        cyclic_control_edges(graph, &reachable, &post)
+    } else {
+        baseline_control_edges(graph, &reachable, &post)
+    };
+
+    Ok(Analysis {
+        edges: edges.into_iter().chain(execution).chain(control).collect(),
+        reachable,
+        definition_in,
+        definition_out,
+    })
+}
+
+#[test]
+#[ignore = "release benchmark including unchanged analysis costs"]
+fn benchmark_lowered_complete() {
+    for row in lowered_complete_samples() {
+        println!("{row}");
+    }
+}
+
+fn lowered_complete_samples() -> Vec<String> {
+    lowered_cases()
+        .iter()
+        .flat_map(|case| {
+            (0..3)
+                .map(|repeat| {
+                    let (old, old_ns) =
+                        timed(|| baseline_analysis(&case.graph, case.cyclic).unwrap());
+                    let (new, new_ns) = timed(|| analyze_policy(&case.graph, case.cyclic).unwrap());
+                    assert_eq!(old, new);
+
+                    format!(
+                        "lowered-complete,{},{},{},{repeat},{old_ns},{new_ns}",
+                        case.cyclic,
+                        new.reachable.len(),
+                        new.edges.len()
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+#[test]
+fn deep_tree_lifting() {
+    let mut successors = dag_family("chain", 80);
+    let ids: Vec<_> = family("chain", 80).keys().cloned().collect();
+    successors
+        .get_mut(&ids[0])
+        .unwrap()
+        .extend([ids[32].clone(), ids[63].clone()]);
+    successors
+        .get_mut(&ids[20])
+        .unwrap()
+        .insert(ids[50].clone());
+
+    compare_dag(&successors);
+}
+
+#[test]
+fn unreachable_cycles_remain_ignored() {
+    let graph = graph_from(&fixture(&[("E", "X"), ("unreachable", "unreachable")]));
+    assert_eq!(
+        analyze(&graph).unwrap(),
+        baseline_analysis(&graph, false).unwrap()
+    );
+}
+
+#[test]
+#[ignore = "supplemental full-analyzer comparison for commit 1"]
+fn benchmark_original_cyclic_complete() {
+    for row in original_cyclic_samples() {
+        println!("{row}");
+    }
+}
+
+fn original_cyclic_samples() -> Vec<String> {
+    let case = lowered_cases().remove(1);
+    (0..3)
+        .map(|repeat| {
+            let (old, old_ns) =
+                timed(|| baseline_analysis_using(&case.graph, true, baseline_cyclic).unwrap());
+            let (new, new_ns) = timed(|| baseline_analysis(&case.graph, true).unwrap());
+            assert_eq!(old, new);
+
+            format!(
+                "lowered-original-cyclic,{},{},{repeat},{old_ns},{new_ns}",
+                new.reachable.len(),
+                new.edges.len()
+            )
+        })
+        .collect()
+}

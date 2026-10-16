@@ -2452,3 +2452,50 @@ fn local_contract_identity_uses_registry_and_preserves_historical_annotations() 
         assert!(rstyle_ccgraph::admit_produced(&pair, &facts).is_err());
     }
 }
+
+// Recreate the concrete benchmark/edge snapshots before changing analysis.
+#[test]
+#[ignore = "prints lowered CFG and baseline edges for postdominance evidence"]
+fn capture_postdominance_baselines() {
+    capture_postdominance_case("fn f(b: bool) -> i32 { if b { 1 } else { 2 } }", false);
+    capture_postdominance_case(
+        "fn f(mut x: i32, b: bool) -> i32 { while b { x = 1; } x }",
+        true,
+    );
+}
+
+#[derive(serde::Serialize)]
+struct PostdominanceSnapshot<'a> {
+    source: &'a str,
+    cyclic: bool,
+    graph: rstyle_pdg::producer::Graph,
+    edges: Vec<rstyle_pdg::producer::Dependence>,
+}
+
+fn capture_postdominance_case(source: &str, cyclic: bool) {
+    let snapshot = postdominance_snapshot(source, cyclic);
+    println!(
+        "POSTDOM_BASELINE={}",
+        serde_json::to_string(&snapshot).unwrap()
+    );
+}
+
+fn postdominance_snapshot(source: &str, cyclic: bool) -> PostdominanceSnapshot<'_> {
+    let profile = if cyclic { "hir-loops-v1" } else { "r0" };
+    let facts = compile_selected(source, profile).remove(0);
+    let graph = rstyle_pdg::producer::lower(&facts).unwrap();
+    let analysis = if cyclic {
+        rstyle_pdg::producer::analyze_cyclic(&graph)
+    } else {
+        rstyle_pdg::producer::analyze(&graph)
+    }
+    .unwrap();
+    let edges = analysis.edges;
+
+    PostdominanceSnapshot {
+        source,
+        cyclic,
+        graph,
+        edges,
+    }
+}

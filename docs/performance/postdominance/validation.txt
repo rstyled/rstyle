@@ -1,0 +1,75 @@
+Commands ran from the repository root using the pinned nightly.
+
+BEFORE PRODUCTION EDITS: cargo test -p rstyle-pdg --tests
+test result: ok. 91 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+BASELINE: cargo test -p rstyle-driver --test hir_extraction
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.94s
+
+COMMIT 1: cargo test -p rstyle-pdg
+test result: ok. 93 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 5.44s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+COMMIT 1: cargo test -p rstyle-driver --test hir_extraction
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.00s
+
+COMMIT 1: final exhaustive unit checks
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 91 filtered out; finished in 5.38s
+
+COMMIT 2: cargo test -p rstyle-pdg
+test result: ok. 99 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 5.36s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+COMMIT 2: cargo test -p rstyle-driver --test hir_extraction
+test result: ok. 47 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 3.86s
+
+COMMIT 2: release benchmarks (command in README)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 99 filtered out; finished in 3.64s
+
+STYLE / PATTERNS (all targets):
+PDG style: 161 existing findings; zero in added/changed functions.
+driver style: 58 existing findings; zero in added/changed functions.
+PDG patterns: 1 existing findings; zero in added/changed functions.
+driver patterns: 0 existing findings; zero in added/changed functions.
+The remaining PDG pattern candidate is cfg::id_set / cfg::sorted_triples.
+No new suppressions, ignores, or configuration changes.
+Baseline lowered snapshots were recaptured after optimization and compare equal as JSON.
+Only the pre-existing untracked src/slice_access directory is excluded from commits.
+
+REBASE / CLIPPY FOLLOW-UP:
+Rebased both commits onto origin/main ea219839e4a1d7fe87721467c21824955da2594b.
+Resolved clippy::needless_range_loop in PostTree::lift without a suppression:
+visit the set bits of the remaining distance, looking up the current vertex's
+jump row after every step. This preserves the relation and O(log V) bound while
+skipping unused levels. Existing raw benchmark files predate this small change.
+cargo fmt --all -- --check: passed.
+cargo clippy --workspace --all-targets --locked -- -D warnings: passed.
+CARGO_TARGET_DIR=target ./scripts/test.sh --nextest: 709 passed, 5 skipped;
+workspace doctests passed.
+The first full run passed 708 tests but its workspace self-style test consumed
+three stale example fact files from the earlier all-targets scan. Moving only
+those generated cache files aside made the full rerun pass; no source changes
+or suppressions were used for that cache issue.
+PDG rstyle and patterns were rerun: zero findings in changed functions and zero
+new pattern candidates; existing unrelated all-targets findings remain.

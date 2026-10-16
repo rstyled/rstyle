@@ -45,18 +45,21 @@ fn analyze_policy(graph: &Graph, cyclic: bool) -> Result<Analysis, String> {
     let predecessors = neighbours(graph, &reachable, false);
     let successors = neighbours(graph, &reachable, true);
     let dom = dominators(&reachable, &predecessors, "E");
-    let post = if cyclic {
-        divergence_postdominators(&reachable, &successors)
-    } else {
-        dominators(&reachable, &successors, "X")
-    };
     let (definition_in, definition_out) = reaching(graph, &reachable, &predecessors);
     let edges = data_edges(graph, &reachable, &definition_in)?;
     let execution = execution_edges(graph, &reachable, &dom);
     let control = if cyclic {
-        cyclic_control_edges(graph, &reachable, &post)
+        cyclic_control_edges(
+            graph,
+            &reachable,
+            &divergence_postdominators(&reachable, &successors),
+        )
     } else {
-        control_edges(graph, &reachable, &post)
+        control_edges(
+            graph,
+            &reachable,
+            &acyclic_postdominators(&reachable, &successors),
+        )
     };
 
     Ok(Analysis {
@@ -410,17 +413,21 @@ fn execution_edges(graph: &Graph, reached: &BTreeSet<String>, dom: &Sets) -> Vec
         .collect()
 }
 
-fn control_edges(graph: &Graph, reached: &BTreeSet<String>, post: &Sets) -> Vec<Dependence> {
+fn control_edges(
+    graph: &Graph,
+    reached: &BTreeSet<String>,
+    post: &PostTree<'_>,
+) -> Vec<Dependence> {
     graph
         .transfers
         .iter()
         .filter(|e| {
             reached.contains(&e.source)
                 && matches!(e.kind.as_str(), "true" | "false")
-                && !post[&e.source].contains(&e.target)
+                && !post.contains(&e.source, &e.target)
         })
         .flat_map(|transfer| {
-            let stop = immediate(&transfer.source, post);
+            let stop = post.immediate(&transfer.source);
             let mut current = Some(transfer.target.clone());
             let mut edges = Vec::new();
             while current.is_some() && current != stop {
@@ -431,7 +438,7 @@ fn control_edges(graph: &Graph, reached: &BTreeSet<String>, post: &Sets) -> Vec<
                         ..edge(&transfer.source, &id, EdgeFamily::Control, "postdominance")
                     });
                 }
-                current = immediate(&id, post);
+                current = post.immediate(&id);
             }
             edges
         })
@@ -499,6 +506,139 @@ impl<'a> PostGraph<'a> {
 
         relation
     }
+}
+
+impl PostGraph<'_> {
+    fn exit_order(&self) -> Vec<usize> {
+        let exit = self
+            .ids
+            .iter()
+            .position(|id| id.as_str() == "X")
+            .expect("validated normal exit");
+        let degrees: Vec<_> = self.successors.iter().map(Vec::len).collect();
+        let mut admission = Admission::new(self.ids.len());
+        admission.seed(exit, &degrees);
+        admission.propagate(&self.predecessors);
+        assert_eq!(
+            admission.queue.len(),
+            self.ids.len(),
+            "validated acyclic normal flow"
+        );
+
+        admission.queue
+    }
+}
+
+// The postdominator tree stores O(V log V) indices instead of O(R) strings.
+struct PostTree<'a> {
+    ids: Vec<&'a String>,
+    indices: BTreeMap<&'a str, usize>,
+    parent: Vec<usize>,
+    depth: Vec<usize>,
+    jumps: Vec<Vec<usize>>,
+}
+
+impl<'a> PostTree<'a> {
+    fn new(graph: &PostGraph<'a>, order: &[usize]) -> Self {
+        let mut tree = Self::empty(graph, order[0]);
+        tree.attach_order(graph, order);
+
+        tree
+    }
+
+    fn empty(graph: &PostGraph<'a>, root: usize) -> Self {
+        let size = graph.ids.len();
+        let levels = (usize::BITS - size.leading_zeros()) as usize;
+
+        Self {
+            ids: graph.ids.clone(),
+            indices: graph
+                .ids
+                .iter()
+                .enumerate()
+                .map(|(i, id)| (id.as_str(), i))
+                .collect(),
+            parent: vec![root; size],
+            depth: vec![0; size],
+            jumps: vec![vec![root; levels]; size],
+        }
+    }
+
+    fn attach_order(&mut self, graph: &PostGraph<'_>, order: &[usize]) {
+        for &vertex in &order[1..] {
+            let (first, rest) = graph.successors[vertex]
+                .split_first()
+                .expect("validated successor");
+            let parent = rest
+                .iter()
+                .fold(*first, |shared, &next| self.common_ancestor(shared, next));
+            self.attach(vertex, parent);
+        }
+    }
+
+    fn attach(&mut self, vertex: usize, parent: usize) {
+        self.parent[vertex] = parent;
+        self.depth[vertex] = self.depth[parent] + 1;
+        self.fill_jumps(vertex, parent);
+    }
+
+    fn fill_jumps(&mut self, vertex: usize, parent: usize) {
+        self.jumps[vertex][0] = parent;
+        for level in 1..self.jumps[vertex].len() {
+            self.jumps[vertex][level] = self.jumps[self.jumps[vertex][level - 1]][level - 1];
+        }
+    }
+
+    fn lift(&self, mut vertex: usize, mut distance: usize) -> usize {
+        while distance != 0 {
+            let level = distance.trailing_zeros() as usize;
+            vertex = self.jumps[vertex][level];
+            distance &= distance - 1;
+        }
+
+        vertex
+    }
+
+    fn common_ancestor(&self, left: usize, right: usize) -> usize {
+        let (mut left, mut right) = if self.depth[left] >= self.depth[right] {
+            (self.lift(left, self.depth[left] - self.depth[right]), right)
+        } else {
+            (left, self.lift(right, self.depth[right] - self.depth[left]))
+        };
+        if left == right {
+            return left;
+        }
+        for level in (0..self.jumps[left].len()).rev() {
+            if self.jumps[left][level] != self.jumps[right][level] {
+                left = self.jumps[left][level];
+                right = self.jumps[right][level];
+            }
+        }
+
+        self.parent[left]
+    }
+
+    fn contains(&self, vertex: &str, candidate: &str) -> bool {
+        let vertex = self.indices[vertex];
+        let candidate = self.indices[candidate];
+        self.depth[vertex] >= self.depth[candidate]
+            && self.lift(vertex, self.depth[vertex] - self.depth[candidate]) == candidate
+    }
+
+    fn immediate(&self, vertex: &str) -> Option<String> {
+        let vertex = self.indices[vertex];
+        (self.depth[vertex] != 0).then(|| self.ids[self.parent[vertex]].clone())
+    }
+}
+
+/// Successors precede their non-X source in exit_order. Their postdominator
+/// trees are final, so the intersection of their ancestor chains is precisely
+/// the ancestor chain of their lowest common ancestor, the source's ipost.
+fn acyclic_postdominators<'a>(vertices: &'a BTreeSet<String>, successors: &Sets) -> PostTree<'a> {
+    let graph = PostGraph::new(vertices, successors);
+    let order = graph.exit_order();
+
+    PostTree::new(&graph, &order)
 }
 
 struct Admission {
