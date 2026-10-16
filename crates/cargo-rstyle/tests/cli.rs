@@ -4518,10 +4518,10 @@ fn clones_data_length_family_composes_fields_calls_loops_and_borrowed_branches()
     let functions = check_data_family(
         &report,
         &[
-            "View::bytes_len",
-            "View::bytes_empty",
-            "View::text_len",
-            "View::text_empty",
+            "View::<'a>::bytes_len",
+            "View::<'a>::bytes_empty",
+            "View::<'a>::text_len",
+            "View::<'a>::text_empty",
             "explicit_borrow",
             "slice_len",
             "slice_empty",
@@ -4708,7 +4708,7 @@ fn check_shared_result_edit(directory: &Path, previous: &Value) {
             ])
         );
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 45);
+    check_data_family(&report, &["empty"]);
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
@@ -5651,6 +5651,9 @@ fn clones_data_library_corruption_is_incomplete_execution() {
         "pub fn length(value: &str) -> usize { value.len() }\n",
     )
     .unwrap();
+    let (output, baseline) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
+    assert!(output.status.success(), "{baseline}");
+    let registered = has_length_authority(&baseline);
     let shim = directory.path().join("driver-shim");
     let real = driver().to_string_lossy().replace('\'', "'\\''");
     for mutation in [
@@ -5677,17 +5680,25 @@ fn clones_data_library_corruption_is_incomplete_execution() {
             .env_remove("CARGO_TARGET_DIR")
             .output()
             .unwrap();
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "{mutation}: {}",
-            stdout(&output)
-        );
-        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(report["assessment_complete"], false);
-        assert_eq!(report["pair_evaluation_complete"], false);
-        assert!(!report["handoff_failures"].as_array().unwrap().is_empty());
+        check_library_corruption(&output, mutation, registered);
     }
+}
+
+fn check_library_corruption(output: &Output, mutation: &str, registered: bool) {
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    if !registered && mutation.contains("'0' * 64") {
+        // A well-formed digest cannot be checked against an unknown core build.
+        // The length call must still be excluded rather than gain a summary.
+        assert!(output.status.success(), "{report}");
+        assert_eq!(report["functions"][0]["outcome"], "excluded");
+        check_complete_data_pairs(&report, 0);
+        return;
+    }
+
+    assert_eq!(output.status.code(), Some(2), "{mutation}: {report}");
+    assert_eq!(report["assessment_complete"], false);
+    assert_eq!(report["pair_evaluation_complete"], false);
+    assert!(!report["handoff_failures"].as_array().unwrap().is_empty());
 }
 
 #[test]
