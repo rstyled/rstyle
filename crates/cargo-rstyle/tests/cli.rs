@@ -4790,6 +4790,7 @@ fn clones_data_v2_registers_separately_and_preserves_verified_data_paths() {
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
     );
+    assert_eq!(report["functions"].as_array().unwrap().len(), 5);
     check_data_family(&report, &["empty"]);
     let (output, old) = clones(directory.path(), &["--extraction-profile", "hir-data-v1"]);
     assert!(output.status.success(), "{old}");
