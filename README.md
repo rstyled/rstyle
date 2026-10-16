@@ -13,6 +13,8 @@ Rust style checker built on rustc HIR (resolved names and types, not just syntax
 See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
 
 Opt-in strict source-to-pair analysis is available with `cargo rstyle clones`.
+See [the Rust feature coverage matrix](docs/rust-feature-coverage.md) for current
+support, examples, and the remaining real-world Rust roadmap.
 See [the integration workflow](docs/source-to-pair.md) for build selection,
 verified evidence, reports and exit codes. It does not activate abstraction mining.
 
@@ -28,8 +30,76 @@ Other top-level folders:
 
 ## Requirements
 
-- `rustup`. The pinned nightly (`nightly-2026-09-30`, with `rustc-dev`, `llvm-tools-preview`, `rust-src`, `clippy`, `rustfmt`) installs automatically from `rust-toolchain.toml`.
+- `rustup` and a native build toolchain (for example, Xcode Command Line Tools on macOS).
+- When working in a checkout, the pinned nightly (`nightly-2026-09-30`, with `rustc-dev`, `llvm-tools-preview`, `rust-src`, `clippy`, `rustfmt`) installs automatically from `rust-toolchain.toml`. For installation directly from GitHub, install the toolchain explicitly as shown below.
 - The toolchain is pinned because rustc-internal APIs change between nightlies. Bump deliberately and re-run the tests.
+
+## Install from GitHub (alpha)
+
+No manual clone or existing local checkout is needed. With `rustup` and a native
+build toolchain installed, download and run the [installer](scripts/install.sh)
+from any directory:
+
+```sh
+curl --proto '=https' --tlsv1.2 -fsSL \
+  https://raw.githubusercontent.com/rstyled/rstyle/HEAD/scripts/install.sh | sh
+```
+
+This executes the downloaded script directly, so only use it with a repository
+you trust. To inspect it first, download the script instead of piping it to `sh`.
+The installer installs the pinned nightly and both binaries; it does not install
+`rustup`, use `sudo`, or change your shell configuration.
+
+To replace an existing installation:
+
+```sh
+curl --proto '=https' --tlsv1.2 -fsSL \
+  https://raw.githubusercontent.com/rstyled/rstyle/HEAD/scripts/install.sh | sh -s -- --force
+```
+
+From an existing checkout, use `sh scripts/install.sh`. The installer always
+installs from GitHub, not from local source changes. Add `--force` to replace an
+existing installation, or use `--help` for details. `CARGO_INSTALL_ROOT` and
+`CARGO_HOME` are respected when choosing the installation directory.
+
+Alternatively, install manually:
+
+```sh
+rustup toolchain install nightly-2026-09-30 --profile minimal \
+  --component rustc-dev \
+  --component llvm-tools-preview \
+  --component rust-src
+
+cargo +nightly-2026-09-30 install \
+  --git https://github.com/rstyled/rstyle.git \
+  --locked \
+  cargo-rstyle rstyle-driver
+```
+
+Cargo automatically downloads the repository into its Git cache (normally under
+`~/.cargo/git`), resolves dependencies, compiles both binaries on your machine,
+and installs them side by side in Cargo's binary directory (normally
+`~/.cargo/bin`). It does not create a project checkout in your current directory.
+This is a source-based installation, not a prebuilt binary download; it needs
+network access, disk space, and time to compile.
+
+Ensure Cargo's binary directory is on `PATH`, then run from the Rust project you
+want to analyze:
+
+```sh
+cargo rstyle
+```
+
+Both binaries are required. The driver links against the pinned toolchain's
+compiler libraries, so keep that toolchain installed after installation. Building
+locally lets the driver's runtime library path point to your own toolchain; no
+release-library repackaging is needed for this installation method.
+
+The command installs the repository's default branch. For a published alpha tag,
+add `--tag TAG` to the `cargo install` command, replacing `TAG` with the actual
+release tag, and use the nightly pinned by that revision. To update, rerun the
+installation commands; add `--force` to `cargo install` if you need to replace an
+existing installation.
 
 ## Fix groups
 

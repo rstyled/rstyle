@@ -1,12 +1,14 @@
 # scripts
 
-All run from anywhere (they `cd` to the repo root). Python is stdlib only. Outputs go to [`eval/`](../eval/README.md) or [`site/wl/data`](../site/wl/README.md). Caches live in `/tmp/rx_*`, `/tmp/cn_*`.
+Repository scripts run from anywhere (shell drivers generally `cd` to the repo root). `install.sh` also works without a checkout and installs from GitHub. Python is stdlib only. Outputs go to [`eval/`](../eval/README.md) or [`site/wl/data`](../site/wl/README.md). Caches live in `/tmp/rx_*`, `/tmp/cn_*`.
 
 ## Everyday
 
 | Script | Usage |
 | --- | --- |
 | `style.sh` | `scripts/style.sh [args]` builds driver + CLI, runs rstyle on this workspace. Must report 0 violations. `scripts/style.sh patterns --fail-on-candidates` is the CI merge-candidate gate: every candidate must be fixed or dismissed in `rstyle-ignore.toml`. |
+| `install.sh` | `sh scripts/install.sh [--force]` installs the pinned nightly and builds both binaries from GitHub without needing a local checkout. Requires rustup and a native build toolchain. |
+| `test_install.py` | `python3 scripts/test_install.py` checks installer commands, options, paths, and failures using a mocked rustup; no downloads or compilation. |
 | `install-hooks.sh` | Run once per clone. Sets `core.hooksPath=.githooks` so `pre-commit` runs `cargo fmt --check`, clippy (`-D warnings`) and rstyle. Skips when no Rust files are staged; bypass with `--no-verify`. |
 | `test.sh` | `scripts/test.sh [cargo test args]` runs `cargo test --workspace --locked` against a shared `CARGO_TARGET_DIR` (default `~/.cache/rstyle/target`) so worktrees don't rebuild dependencies. |
 | `test_codenet.py` | `python3 scripts/test_codenet.py` tests `codenet_sample.py` on a fake package (needs cargo). |
