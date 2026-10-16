@@ -43,8 +43,13 @@ reported as incomplete, never as a successful missing-artifact run.
 
 The embedded `rust-toolchain.toml` selects `nightly-2026-09-30`. The driver is
 resolved next to `cargo-rstyle`, or through the existing explicit `RSTYLE_DRIVER`
-override. The plan records the SHA-256 of both binaries, exact compiler and Cargo
-versions, workspace target selection and build options. Every captured function
+override. The plan records exact compiler and Cargo versions, workspace target selection
+and build options. Clone analysis does not read or fingerprint either executable.
+Reports omit `producer_binary_sha256` and `orchestration_binary_sha256`; plans
+omit `driver_sha256` and `orchestrator_sha256`. There is no fingerprint flag.
+Controlled studies hash their frozen binary snapshots independently, launch those
+exact paths, and retain full-byte before/after drift checks. Historical frozen
+studies require their original evaluator revision; changed inputs remain rejected. Every captured function
 records producer revision, compiler commit, target/layout, semantic settings,
 active cfg/features and the compiler arguments. Cargo's unit graph records resolved
 features, build profiles, targets, modes and dependency units before compilation.
@@ -56,7 +61,8 @@ profile through source scanning and HIR capture. The recorded rustc invocation
 contains only compiler arguments. `RSTYLE_HIR_EXTRACTION_PROFILE` does not select
 a profile; inherited values are ignored. Unregistered, duplicate or misplaced
 private selection arguments fail before compilation. A standalone driver without
-that argument retains its default R0 capture and historical evidence shape.
+that argument retains its default R0 capture. Facts-only output contains raw
+observations; selecting a document directory publishes a shared unit bundle.
 Only primary compilation units selected as Cargo unit-graph roots receive
 extraction destinations. Probes, build scripts and dependency compilation units
 compile without HIR capture, including selected packages compiled as build
@@ -86,7 +92,8 @@ Each wrapped compiler invocation creates its own directory. `started.json` recor
 its selection and arguments. Only after rustc succeeds and all declared artifacts
 are present does the wrapper publish a compilation-unit ledger using `create_new`.
 Duplicate or ambiguous ledger identities fail visibly. The ledger inventories
-facts, per-function assessments, graphs and manifests with exact byte digests.
+the shared unit bundle, its byte seal and selected source inventory with exact
+byte digests.
 No two compiler processes write the same artifact files.
 
 Successful Cargo compiler-artifact messages identify the ledgers to consume. The
@@ -119,8 +126,9 @@ the exact original function bytes, including CRLF/BOM normalization reversal, an
 filename; graph spans remain function-relative. Add `fn_span.start` to obtain
 file-relative offsets. Graph-local
 node/binding IDs stay local; document keys are resolved within their compilation
-unit's manifest namespace. `artifact_prefix` and the observed unit directories
-locate each exact serialized document and its correspondence extensions.
+owning unit. `unit_evidence` supplies the bundle path, local function index and
+exact unit identity; resolve its paired documents through that store. There are
+no expanded per-function artifacts or `artifact_prefix` fields.
 
 `source_identifier` captures the exact unqualified identifier token spelling,
 removing raw identifier syntax in the Name feature and preserving Unicode spelling
@@ -219,7 +227,8 @@ Capture, assessment, enumeration and pair-evaluation completeness remain distinc
 Trace mode records existing traces without changing decisions.
 
 Every scored local function crosses real compiler capture, paired serialized
-documents and exact manifests, current-run frontend assessment, structural producer
+documents in a shared bundle and its exact byte seal, current-run frontend
+assessment, structural producer
 validation, imported admission and unchanged projection. Every distinct
 unordered admitted pair is enumerated; incompatibilities are recorded at the
 validation gate rather than filtered to inflate successful pair counts. Mixed
@@ -279,9 +288,11 @@ slice elements or UTF-8 bytes, with no invented buffer read/write or panic edge.
 Stored fields, grouped explicit field borrows, scalar helper calls, scalar loops
 and borrowed branching outputs compose through the existing command. All fifteen
 functions in the independent family admit and all 105 pairs receive decisions;
-this is correctness evidence only. See `read-only-length-registry-v1.md` for exact
-provenance, signatures/effects and independent CALL verification obligations,
-and `read-only-lengths-x86_64-v1.md` for the separate x86_64 core authority.
+this is correctness evidence only. The current
+[version 2 library contract](extraction-profiles/read-only-library-resolution-v2.md)
+uses supported compiler/target identities and exact resolved definitions, without
+reading or fingerprinting library files. Historical version 1 artifact provenance
+is retired; signatures/effects and independent CALL verification remain.
 Same-unit direct helpers additionally support shared inputs with scalar/unit
 results under the existing verified memory-free boundary. Whole shared-formal
 results require `rstyle.helper.shared-return/1` and an exact verified return-origin
@@ -332,3 +343,24 @@ resolution. The initial unit-wide drop-free proof excludes trait impls, derives,
 macros, unsafe item forms and conditional/path-overridden modules. Scalar functions
 do not acquire nominal admission from successful compilation or a supplied flag.
 See [nominal-data-v1.md](extraction-profiles/nominal-data-v1.md).
+
+Bundle transport uses one streaming publication checksum and one verification
+against the owned import buffer. The immutable verified snapshot is decoded
+without rehashing. Inventory completeness and selected-unit inspection remain
+separate checks. See [the hash audit](performance/hash-audit.md) for purposes,
+remaining overlap, and the publication-to-import consistency guarantee.
+
+Data field/helper locations use `rstyle.formal-field/2` with pair-local dense
+handles. These are references within one owning graph, not content fingerprints.
+Imports resolve exact typed root/projection keys and retain source/type checks;
+consistent local renumbering is supported. Version 1 hashed location IDs are
+retired. See [local location handles](performance/local-location-handles.md).
+
+Selected nominal-source censuses now share one typed immutable owner within a
+unit. Each analysis reuses checked source snapshots, module closure and lexical
+index in separate strict/generated policy contexts. Function ranges, nominal
+associations and receiver/type checks remain per function; standalone inputs
+still cross their public validation boundaries. See
+[shared checked source environments](performance/shared-source-environments.md)
+for the private source-handle scope, compatibility guarantees and remaining
+source ownership work.

@@ -12,13 +12,12 @@ use crate::HirNode;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::OnceLock};
 
-pub const KEY: &str = "data_library_artifacts";
-pub const IDENTITY: &str = "rstyle.rust.library-artifact-capture/1";
-pub const MAX_FILE_BYTES: u64 = 128 * 1024 * 1024;
+pub const KEY: &str = "data_library_resolution";
+pub const IDENTITY: &str = "rstyle.rust.library-resolution/2";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Artifacts {
+pub struct Libraries {
     pub identity: String,
     pub libraries: Vec<Library>,
 }
@@ -27,15 +26,6 @@ pub struct Artifacts {
 pub struct Library {
     pub crate_name: String,
     pub crate_hash: String,
-    pub files: Vec<File>,
-}
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct File {
-    pub format: String,
-    pub path: String,
-    pub bytes: u64,
-    pub sha256: String,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -54,7 +44,6 @@ pub struct Registry {
     pub target: String,
     pub pointer_width: u64,
     pub core_hash: String,
-    pub artifacts: BTreeMap<String, String>,
     pub source_digests: BTreeMap<String, String>,
     pub operations: Vec<Operation>,
 }
@@ -71,7 +60,7 @@ pub struct Operation {
 pub fn registry() -> &'static Registry {
     static REGISTRY: OnceLock<Registry> = OnceLock::new();
     REGISTRY.get_or_init(|| {
-        serde_json::from_str(include_str!("../contracts/read-only-lengths-v1.json"))
+        serde_json::from_str(include_str!("../contracts/read-only-lengths-v2.json"))
             .expect("independently tested read-only library registry")
     })
 }
@@ -80,7 +69,7 @@ pub fn registries() -> [&'static Registry; 2] {
     static X86_64: OnceLock<Registry> = OnceLock::new();
     let x86_64 = X86_64.get_or_init(|| {
         serde_json::from_str(include_str!(
-            "../contracts/read-only-lengths-x86_64-v1.json"
+            "../contracts/read-only-lengths-x86_64-v2.json"
         ))
         .expect("independently tested x86_64 read-only library registry")
     });
@@ -138,12 +127,11 @@ mod tests {
     }
 
     #[test]
-    fn target_authorities_share_semantics_but_not_definition_or_artifact_identity() {
+    fn target_authorities_share_semantics_but_not_definition_identity() {
         let [arm, x86] = registries();
         assert_ne!(arm.identity, x86.identity);
         assert_ne!(arm.target, x86.target);
         assert_ne!(arm.core_hash, x86.core_hash);
-        assert_ne!(arm.artifacts, x86.artifacts);
         assert_eq!(arm.rustc_commit, x86.rustc_commit);
         assert_eq!(arm.source_digests, x86.source_digests);
         assert_eq!(arm.operations.len(), x86.operations.len());

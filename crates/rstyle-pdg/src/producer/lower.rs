@@ -35,13 +35,13 @@ struct Arms {
 
 struct Builder<'a> {
     loops: Vec<loops::LoopFrame>,
-    facts: &'a HirFnFacts,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
     nodes: Vec<Operation>,
     transfers: Vec<Transfer>,
     sites: Vec<ValueSite>,
 }
 
-pub fn lower(facts: &HirFnFacts) -> Result<Graph, HirEligibility> {
+pub fn lower(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Graph, HirEligibility> {
     let eligibility = crate::classify(facts);
     if eligibility.status != EligibilityVerdict::Eligible {
         return Err(eligibility);
@@ -237,10 +237,12 @@ impl Builder<'_> {
 
     fn field_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.field_base(node, flow);
-        let fields: crate::field_locations::FieldObservations = serde_json::from_value(
-            self.facts.build.frontend_options[crate::field_locations::KEY].clone(),
-        )
-        .expect("verified data locations");
+        let fields = self
+            .facts
+            .build
+            .frontend_options
+            .data::<crate::field_locations::FieldObservations>()
+            .expect("verified data locations");
         let field = fields
             .operations
             .iter()

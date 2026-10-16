@@ -326,11 +326,11 @@ impl Reader {
     }
 
     fn charge(&mut self, bytes: usize) -> Result<(), String> {
-        self.remaining = self
-            .remaining
-            .checked_sub(bytes)
-            .ok_or("Helper restoration exceeds explicit 8 MiB work budget")?;
-        Ok(())
+        crate::evidence_budget::charge(
+            &mut self.remaining,
+            bytes,
+            "Helper restoration exceeds explicit 8 MiB work budget",
+        )
     }
 }
 

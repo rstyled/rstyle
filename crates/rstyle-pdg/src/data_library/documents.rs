@@ -1,11 +1,12 @@
 //! Independent inspection of serialized metadata CALLs and their value operands.
 
 use super::*;
-use crate::{HirFnFacts, HirNode, NodeCategory, producer::Pair};
+use crate::unit_store::EvidenceFacts;
+use crate::{HirNode, NodeCategory, producer::PairView};
 use serde::Serialize;
 use serde_json::Value;
 
-pub fn evidence(node: &HirNode, facts: &HirFnFacts) -> Result<Value, String> {
+pub fn evidence(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Value, String> {
     let registry = registry_for(facts).ok_or("Unregistered library build")?;
     let capture = crate::data_receivers::verify(facts)?;
     let receiver = capture
@@ -16,7 +17,7 @@ pub fn evidence(node: &HirNode, facts: &HirFnFacts) -> Result<Value, String> {
     serde_json::to_value(LibraryEvidence {
         registry_identity: &registry.identity,
         semantic_source_digests: &registry.source_digests,
-        core_artifacts: verify_evidence(facts)?,
+        core_resolution: verify_evidence(facts)?,
         callee: callee(node)?,
         receiver,
         origins: crate::data_origins::origins(&node.children[0], facts)?,
@@ -34,7 +35,7 @@ pub fn evidence(node: &HirNode, facts: &HirFnFacts) -> Result<Value, String> {
 struct LibraryEvidence<'a> {
     registry_identity: &'a str,
     semantic_source_digests: &'a BTreeMap<String, String>,
-    core_artifacts: Artifacts,
+    core_resolution: Libraries,
     callee: Callee,
     receiver: &'a crate::data_receivers::Method,
     origins: Vec<crate::data_origins::Origin>,
@@ -48,7 +49,11 @@ struct Width {
     bits: Option<u64>,
 }
 
-pub fn verify_documents(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
+pub fn verify_documents<'a>(
+    pair: impl Into<PairView<'a>>,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let pair = pair.into();
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
     let records = pair
@@ -62,19 +67,7 @@ pub fn verify_documents(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
     {
         return Err("Paired library call inventories disagree".into());
     }
-    if pair
-        .pdg
-        .nodes
-        .iter()
-        .filter(|node| {
-            node.category == NodeCategory::Call
-                && node.original_kind.known_value() == Some("expr_method_call")
-        })
-        .count()
-        != methods.len()
-    {
-        return Err("Serialized method CALL inventory is incomplete or excessive".into());
-    }
+    check_method_inventory(pair, methods.len())?;
 
     let context = Documents {
         pair,
@@ -98,9 +91,27 @@ pub fn verify_documents(pair: &Pair, facts: &HirFnFacts) -> Result<(), String> {
     Ok(())
 }
 
+fn check_method_inventory(pair: PairView<'_>, expected: usize) -> Result<(), String> {
+    if pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| {
+            node.category == NodeCategory::Call
+                && node.original_kind.known_value() == Some("expr_method_call")
+        })
+        .count()
+        != expected
+    {
+        return Err("Serialized method CALL inventory is incomplete or excessive".into());
+    }
+
+    Ok(())
+}
+
 struct Documents<'a> {
-    pair: &'a Pair,
-    facts: &'a HirFnFacts,
+    pair: PairView<'a>,
+    facts: &'a dyn EvidenceFacts,
     records: &'a [Value],
 }
 
@@ -150,7 +161,7 @@ impl Documents<'_> {
         {
             return Err("Serialized library/core/receiver/build evidence disagrees".into());
         }
-        crate::helper_calls::verify_call_operands(pair, node, call, record)
+        crate::helper_calls::verify_call_operands(*pair, node, call, record)
     }
 }
 

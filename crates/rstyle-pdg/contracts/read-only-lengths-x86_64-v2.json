@@ -1,0 +1,41 @@
+{
+  "identity": "rstyle.rust.read-only-length-registry.x86_64/2",
+  "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+  "target": "x86_64-unknown-linux-gnu",
+  "pointer_width": 64,
+  "core_hash": "f961ecb4c84cffc7c73b0d153b2677a7",
+  "source_digests": {
+    "slice": "sha256:062320a86dc6a3d20718bc8fca824bd1f3df0bb8bb0c3d72e101be989cf576bf",
+    "str": "sha256:bb2e4e174e8db5c79f6c602565c1f97f049f10ca600540bfb1d3c7f382de9bc5"
+  },
+  "operations": [
+    {
+      "id": "rstyle.data.slice.len",
+      "path": "core::slice::<impl [T]>::len",
+      "definition_hash": "DefPathHash(Fingerprint(2625310331494506890, 4301500677719972613))",
+      "referent": "slice",
+      "result": "usize"
+    },
+    {
+      "id": "rstyle.data.slice.is-empty",
+      "path": "core::slice::<impl [T]>::is_empty",
+      "definition_hash": "DefPathHash(Fingerprint(2625310331494506890, 15784485536792729161))",
+      "referent": "slice",
+      "result": "bool"
+    },
+    {
+      "id": "rstyle.data.str.len",
+      "path": "core::str::<impl str>::len",
+      "definition_hash": "DefPathHash(Fingerprint(2625310331494506890, 1291990020261160599))",
+      "referent": "str",
+      "result": "usize"
+    },
+    {
+      "id": "rstyle.data.str.is-empty",
+      "path": "core::str::<impl str>::is_empty",
+      "definition_hash": "DefPathHash(Fingerprint(2625310331494506890, 939469410544972960))",
+      "referent": "str",
+      "result": "bool"
+    }
+  ]
+}

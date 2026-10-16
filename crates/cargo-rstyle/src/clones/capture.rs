@@ -1,10 +1,11 @@
 //! Isolated Cargo compilation and an explicit compiler-unit ledger.
+mod ledger;
 
 use super::{Args, read_json, write_json};
 use crate::{Cli, run};
 use rstyle_core::cli_args::flag_value;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::{
     path::{Path, PathBuf},
     process::Command,
@@ -24,12 +25,11 @@ pub struct Target {
 
 #[derive(Serialize, Deserialize)]
 pub struct Plan {
+    pub ledger_schema: String,
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub root: PathBuf,
     pub driver: PathBuf,
     pub targets: Vec<Target>,
-    pub driver_sha256: String,
-    pub orchestrator_sha256: String,
     pub compiler_identity: String,
     pub cargo_identity: String,
     pub primary_units: Vec<Value>,
@@ -48,7 +48,7 @@ pub struct Unit {
 #[derive(Serialize, Deserialize)]
 pub struct Artifact {
     pub file: String,
-    pub sha256: String,
+    pub checksum: String,
 }
 
 pub struct Capture {
@@ -123,64 +123,31 @@ fn plan(
     environment: CaptureEnvironment,
 ) -> Plan {
     Plan {
+        ledger_schema: ledger::SCHEMA.into(),
         extraction_profile,
         root,
-        driver_sha256: environment.binaries.driver.digest,
-        orchestrator_sha256: environment.binaries.orchestrator.digest,
         compiler_identity: environment.compiler_identity,
         cargo_identity: environment.cargo_identity,
-        driver: environment.binaries.driver.path,
+        driver: environment.driver,
         targets,
         primary_units: Vec::new(),
     }
 }
 
 struct CaptureEnvironment {
-    binaries: BinaryIdentities,
+    driver: PathBuf,
     compiler_identity: String,
     cargo_identity: String,
 }
 
 fn capture_environment() -> Result<CaptureEnvironment, String> {
     Ok(CaptureEnvironment {
-        binaries: binary_identities()?,
+        driver: run::driver_path()?
+            .canonicalize()
+            .map_err(|e| e.to_string())?,
         compiler_identity: tool_identity("rustc", "-vV")?,
         cargo_identity: tool_identity("cargo", "--version")?,
     })
-}
-
-struct ExecutableIdentity {
-    path: PathBuf,
-    digest: String,
-}
-
-struct BinaryIdentities {
-    driver: ExecutableIdentity,
-    orchestrator: ExecutableIdentity,
-}
-
-fn binary_identities() -> Result<BinaryIdentities, String> {
-    Ok(BinaryIdentities {
-        driver: executable_identity(run::driver_path()?)?,
-        orchestrator: executable_identity(std::env::current_exe().map_err(|e| e.to_string())?)?,
-    })
-}
-
-fn executable_identity(path: PathBuf) -> Result<ExecutableIdentity, String> {
-    let path = path.canonicalize().map_err(|e| e.to_string())?;
-    let digest = file_digest(&path)?;
-
-    Ok(ExecutableIdentity { path, digest })
-}
-
-fn file_digest(path: &Path) -> Result<String, String> {
-    rstyle_pdg::diagnostics::Stage::new("capture.binary_hash", &path.display().to_string(), None)
-        .observe(|| hash_file(path))
-}
-
-fn hash_file(path: &Path) -> Result<String, String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(super::digest(&bytes))
 }
 
 fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
@@ -274,7 +241,7 @@ fn package_context(
             .into(),
         manifest_path,
         manifest_digest: digest(manifest_bytes.as_bytes()),
-        manifest_bytes,
+        manifest_bytes: manifest_bytes.into(),
     };
     context.validate()?;
 
@@ -501,7 +468,7 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         let test = artifact["profile"]["test"]
             .as_bool()
             .ok_or("missing artifact test context")?;
-        let unit_path = unit_ledger_path(capture, target, test)?;
+        let unit_path = ledger::path(&capture.plan, &capture.directory, target, test)?;
         let unit: Unit = read_json(&unit_path)?;
         if &unit.target != target
             || unit.test != test
@@ -547,14 +514,6 @@ fn matches_artifact(artifact: &Value, target: &Target) -> bool {
         && artifact["package_id"] == target.package
         && artifact["target"]["src_path"] == target.source.to_string_lossy().as_ref()
         && artifact["target"]["name"] == target.name
-}
-
-fn unit_ledger_path(capture: &Capture, target: &Target, test: bool) -> Result<PathBuf, String> {
-    let key = super::digest(
-        &serde_json::to_vec(&json!([target.package, target.source, test]))
-            .map_err(|e| e.to_string())?,
-    );
-    Ok(capture.directory.join(format!("unit-{key}.json")))
 }
 
 fn check_expected(capture: &mut Capture) {
@@ -705,6 +664,7 @@ fn capture_unit(
         return Err("strict capture requires incremental compilation disabled; remove explicit -C incremental flags".into());
     }
     let root = plan.parent().ok_or("missing run directory")?;
+    let selected_plan: Plan = read_json(plan)?;
     let directory = tempfile::Builder::new()
         .prefix("invocation-")
         .tempdir_in(root)
@@ -712,7 +672,7 @@ fn capture_unit(
         .keep();
     let test = invocation.iter().any(|a| a == "--test");
     let unit = Unit {
-        extraction_profile: read_json::<Plan>(plan)?.extraction_profile,
+        extraction_profile: selected_plan.extraction_profile,
         target,
         test,
         invocation,
@@ -724,7 +684,7 @@ fn capture_unit(
     if !status.success() {
         return Ok(2);
     }
-    publish_unit(root, unit)?;
+    publish_unit(&selected_plan, root, unit)?;
     Ok(0)
 }
 
@@ -735,13 +695,9 @@ fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitS
     command.status().map_err(|e| e.to_string())
 }
 
-fn publish_unit(root: &Path, mut unit: Unit) -> Result<(), String> {
+fn publish_unit(plan: &Plan, root: &Path, mut unit: Unit) -> Result<(), String> {
     unit.artifacts = artifact_inventory(&unit.directory, unit.extraction_profile)?;
-    let key = super::digest(
-        &serde_json::to_vec(&json!([unit.target.package, unit.target.source, unit.test]))
-            .map_err(|e| e.to_string())?,
-    );
-    let path = root.join(format!("unit-{key}.json"));
+    let path = ledger::path(plan, root, &unit.target, unit.test)?;
 
     let file = reserve_ledger(&path)?;
     serde_json::to_writer(file, &unit).map_err(|e| e.to_string())?;
@@ -756,70 +712,115 @@ fn reserve_ledger(path: &Path) -> Result<std::fs::File, String> {
         .map_err(|e| format!("duplicate or missing unit ledger: {e}"))
 }
 
+fn artifact_files(profile: rstyle_pdg::extraction_profile::ExtractionProfile) -> Vec<String> {
+    let mut files = vec![
+        "unit.evidence.json".into(),
+        "unit.evidence.manifest.json".into(),
+    ];
+    if profile.supports("rust.conditional-source-correspondence") {
+        files.push("source-inventory.json".into());
+    }
+    files
+}
+
 fn artifact_inventory(
     directory: &Path,
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> Result<Vec<Artifact>, String> {
-    let facts: Vec<rstyle_pdg::HirFnFacts> = read_json(&directory.join("facts.json"))?;
-    let mut files = vec!["facts.json".to_string()];
-    if profile.supports("rust.conditional-source-correspondence") {
-        files.push("source-inventory.json".into());
-    }
-    for index in 0..facts.len() {
-        let assessment = format!("function-{index}.assessment.json");
-        let value: Value = read_json(&directory.join(&assessment))?;
-        files.push(assessment);
-        if !value["manifest_file"].is_null() {
-            let expected = format!("function-{index}.manifest.json");
-            if value["manifest_file"] != expected {
-                return Err("ambiguous manifest filename".into());
-            }
-            files.extend([
-                expected,
-                format!("function-{index}.pdg.json"),
-                format!("function-{index}.cfg.json"),
-            ]);
-        }
-    }
-
-    files
+    artifact_files(profile)
         .into_iter()
-        .map(|file| {
-            let bytes = std::fs::read(directory.join(&file)).map_err(|e| e.to_string())?;
-            Ok(Artifact {
-                file,
-                sha256: super::digest(&bytes),
-            })
-        })
+        .map(|file| read_artifact(directory, file))
         .collect()
 }
 
-pub fn verify_inventory(unit: &Unit) -> Result<(), String> {
-    let mut names = std::collections::BTreeSet::new();
+fn read_artifact(directory: &Path, file: String) -> Result<Artifact, String> {
+    if file == "unit.evidence.json" {
+        let bytes = std::fs::read(directory.join("unit.evidence.manifest.json"))
+            .map_err(|error| error.to_string())?;
+        let manifest: rstyle_pdg::unit_store::BundleManifest =
+            serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
+        return Ok(Artifact {
+            file,
+            checksum: manifest.checksum,
+        });
+    }
+    let bytes = std::fs::read(directory.join(&file)).map_err(|error| error.to_string())?;
+    Ok(Artifact {
+        file,
+        checksum: rstyle_pdg::unit_store::transport_checksum(&bytes),
+    })
+}
+
+pub struct Snapshot {
+    pub bundle: rstyle_pdg::unit_store::VerifiedBundle,
+    files: std::collections::BTreeMap<String, Vec<u8>>,
+}
+
+impl Snapshot {
+    pub fn bytes(&self, file: &str) -> Result<&[u8], String> {
+        if file == "unit.evidence.json" {
+            return Ok(self.bundle.bytes());
+        }
+        self.files
+            .get(file)
+            .map(Vec::as_slice)
+            .ok_or_else(|| format!("Missing captured artifact {file}"))
+    }
+
+    pub fn json<T: serde::de::DeserializeOwned>(&self, file: &str) -> Result<T, String> {
+        serde_json::from_slice(self.bytes(file)?).map_err(|error| format!("{file}: {error}"))
+    }
+}
+
+pub fn load_inventory(unit: &Unit) -> Result<Snapshot, String> {
+    let mut files = std::collections::BTreeMap::new();
     for artifact in &unit.artifacts {
-        if !names.insert(&artifact.file) || Path::new(&artifact.file).components().count() != 1 {
+        if files.contains_key(&artifact.file) || Path::new(&artifact.file).components().count() != 1
+        {
             return Err("ambiguous artifact inventory".into());
         }
         let bytes = std::fs::read(unit.directory.join(&artifact.file))
-            .map_err(|e| format!("missing captured artifact {}: {e}", artifact.file))?;
-        if super::digest(&bytes) != artifact.sha256 {
+            .map_err(|error| format!("missing captured artifact {}: {error}", artifact.file))?;
+        if artifact.file != "unit.evidence.json"
+            && rstyle_pdg::unit_store::transport_checksum(&bytes) != artifact.checksum
+        {
             return Err(format!(
-                "captured artifact digest mismatch: {}",
+                "captured artifact checksum mismatch: {}",
                 artifact.file
             ));
         }
+        files.insert(artifact.file.clone(), bytes);
     }
 
-    let actual = artifact_inventory(&unit.directory, unit.extraction_profile)?;
+    let actual: std::collections::BTreeSet<_> = files.keys().cloned().collect();
     if actual
-        .iter()
-        .map(|a| &a.file)
-        .collect::<std::collections::BTreeSet<_>>()
-        != names
+        != artifact_files(unit.extraction_profile)
+            .into_iter()
+            .collect()
     {
         return Err("incomplete captured artifact inventory".into());
     }
-    Ok(())
+    sealed_snapshot(unit, files)
+}
+
+fn sealed_snapshot(
+    unit: &Unit,
+    mut files: std::collections::BTreeMap<String, Vec<u8>>,
+) -> Result<Snapshot, String> {
+    let manifest: rstyle_pdg::unit_store::BundleManifest =
+        serde_json::from_slice(&files["unit.evidence.manifest.json"])
+            .map_err(|error| error.to_string())?;
+    let artifact = unit
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.file == "unit.evidence.json")
+        .ok_or("Missing bundle inventory entry")?;
+
+    if manifest.checksum != artifact.checksum {
+        return Err("Bundle inventory disagrees with publication seal".into());
+    }
+    let bundle = manifest.verify_owned(files.remove("unit.evidence.json").unwrap())?;
+    Ok(Snapshot { bundle, files })
 }
 
 fn intended_artifact(capture: &Capture, artifact: &Value, target: &Target) -> bool {
@@ -877,26 +878,112 @@ fn invocation_features(invocation: &[String]) -> Vec<Value> {
 
 #[cfg(test)]
 mod digest_tests {
-    use super::*;
 
     #[test]
-    fn executable_digest_matches_standard_vectors_and_recaptures_edits() {
+    fn content_digest_matches_standard_vectors_and_recaptures_edits() {
         let directory = tempfile::tempdir().unwrap();
-        let file = directory.path().join("executable");
+        let file = directory.path().join("content");
         std::fs::write(&file, b"").unwrap();
         assert_eq!(
-            file_digest(&file).unwrap(),
+            super::super::digest(&std::fs::read(&file).unwrap()),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
         std::fs::write(&file, b"abc").unwrap();
         assert_eq!(
-            file_digest(&file).unwrap(),
+            super::super::digest(&std::fs::read(&file).unwrap()),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        std::fs::write(&file, b"abd").unwrap();
+        assert_eq!(
+            super::super::digest(&std::fs::read(&file).unwrap()),
+            super::super::digest(b"abd")
         );
         std::fs::write(&file, vec![b'a'; 1_000_000]).unwrap();
         assert_eq!(
-            file_digest(&file).unwrap(),
+            super::super::digest(&std::fs::read(&file).unwrap()),
             "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
         );
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+
+    #[test]
+    fn bundle_inventory_reuses_publication_checksum_without_reading_bundle() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = rstyle_pdg::unit_store::UnitStore::capture(Vec::new()).unwrap();
+        let manifest = store.write_sealed_bundle(Vec::new()).unwrap();
+        super::write_json(
+            &directory.path().join("unit.evidence.manifest.json"),
+            &manifest,
+        )
+        .unwrap();
+        // No bundle file exists: publication inventory consumes the streaming seal.
+        let artifacts = artifact_inventory(
+            directory.path(),
+            rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+        )
+        .unwrap();
+        let bundle = artifacts
+            .iter()
+            .find(|artifact| artifact.file == "unit.evidence.json")
+            .unwrap();
+        assert_eq!(bundle.checksum, manifest.checksum);
+    }
+
+    #[test]
+    fn verified_snapshot_survives_file_edits_without_rereading() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = rstyle_pdg::unit_store::UnitStore::capture(Vec::new()).unwrap();
+        let mut bytes = Vec::new();
+        let manifest = store.write_sealed_bundle(&mut bytes).unwrap();
+        std::fs::write(directory.path().join("unit.evidence.json"), &bytes).unwrap();
+        super::write_json(
+            &directory.path().join("unit.evidence.manifest.json"),
+            &manifest,
+        )
+        .unwrap();
+        let mut unit = Unit {
+            extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+            target: Target {
+                package: "snapshot".into(),
+                manifest_dir: directory.path().into(),
+                package_context: None,
+                source: directory.path().join("lib.rs"),
+                name: "snapshot".into(),
+                kind: vec!["lib".into()],
+                test: false,
+            },
+            test: false,
+            invocation: Vec::new(),
+            directory: directory.path().into(),
+            artifacts: artifact_inventory(
+                directory.path(),
+                rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+            )
+            .unwrap(),
+        };
+        let snapshot = load_inventory(&unit).unwrap();
+        let original = unit.artifacts[0].checksum.clone();
+        unit.artifacts[0].checksum = rstyle_pdg::unit_store::transport_checksum(b"different seal");
+        assert!(load_inventory(&unit).is_err());
+        unit.artifacts[0].checksum = original;
+        let manifest_path = directory.path().join("unit.evidence.manifest.json");
+        let original_manifest = std::fs::read(&manifest_path).unwrap();
+        let mut changed_manifest = original_manifest.clone();
+        changed_manifest[0] ^= 1;
+        std::fs::write(&manifest_path, changed_manifest).unwrap();
+        assert!(load_inventory(&unit).is_err());
+        std::fs::write(&manifest_path, original_manifest).unwrap();
+        std::fs::write(
+            directory.path().join("unit.evidence.json"),
+            b"corrupt replacement",
+        )
+        .unwrap();
+        rstyle_pdg::unit_store::UnitStore::from_verified_current_run(&snapshot.bundle, |_| Ok(()))
+            .unwrap();
+        assert!(load_inventory(&unit).is_err());
     }
 }

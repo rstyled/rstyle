@@ -1,6 +1,6 @@
 //! Explicit producer artifacts, independent of matching orchestration.
 
-use rstyle_pdg::{HirFnFacts, classify, producer};
+use rstyle_pdg::unit_store::UnitStore;
 use serde::Serialize;
 use std::{
     io,
@@ -14,20 +14,8 @@ pub struct Destination {
 
 /// The source inventory and facts published together for one completed capture.
 pub struct CapturedOutput<'a> {
-    pub facts: &'a [HirFnFacts],
+    pub store: &'a rstyle_pdg::unit_store::UnitStore,
     pub inventory: Option<&'a serde_json::Value>,
-}
-
-#[derive(Serialize)]
-struct Assessment<'a> {
-    function: &'a str,
-    compilation: &'static str,
-    eligibility: String,
-    normal_flow_validation: &'static str,
-    matching_admission: &'static str,
-    diagnostics: &'a [rstyle_pdg::HirDiagnostic],
-    extraction_errors: Vec<String>,
-    manifest_file: Option<String>,
 }
 
 impl Destination {
@@ -35,7 +23,29 @@ impl Destination {
         if let Some(inventory) = capture.inventory {
             self.write_source_inventory(inventory)?;
         }
-        self.write(capture.facts)
+        self.write_evidence(capture.store)
+    }
+
+    fn write_evidence(&self, store: &UnitStore) -> io::Result<()> {
+        if self.document_directory.is_some() {
+            self.write_shared(store)
+        } else {
+            // Raw frontend observations only; local helpers resolve through bundles.
+            write_json(&self.facts_file, store.functions())
+        }
+    }
+
+    fn shared_directory(&self) -> io::Result<&Path> {
+        self.document_directory
+            .as_deref()
+            .ok_or_else(|| io::Error::other("Shared publication requires a unit directory"))
+    }
+
+    fn write_shared(&self, store: &UnitStore) -> io::Result<()> {
+        let directory = self.shared_directory()?;
+        std::fs::create_dir_all(directory)?;
+        let manifest = write_sealed_file(directory.join("unit.evidence.json"), store)?;
+        write_json(&directory.join("unit.evidence.manifest.json"), &manifest)
     }
 
     pub fn write_source_inventory(&self, value: &serde_json::Value) -> io::Result<()> {
@@ -45,105 +55,15 @@ impl Destination {
         }
         Ok(())
     }
-    pub fn write(&self, facts: &[HirFnFacts]) -> io::Result<()> {
-        if let Some(directory) = &self.document_directory {
-            write(directory, facts)?;
-        }
-        write_json(&self.facts_file, facts)
-    }
 }
 
-fn write(directory: &Path, facts: &[HirFnFacts]) -> io::Result<()> {
-    std::fs::create_dir_all(directory)?;
-    for (index, function) in facts.iter().enumerate() {
-        write_function(directory, index, function)?;
-    }
-
-    Ok(())
-}
-
-fn write_function(directory: &Path, index: usize, facts: &HirFnFacts) -> io::Result<()> {
-    let eligibility = classify(facts);
-    let result = produce_function(directory, index, facts)?;
-    let assessment = assessment(facts, &eligibility, result);
-
-    write_json(
-        &directory.join(format!("function-{index}.assessment.json")),
-        &assessment,
-    )
-}
-
-fn produce_function(
-    directory: &Path,
-    index: usize,
-    facts: &HirFnFacts,
-) -> io::Result<AssessmentResult> {
-    let result = producer::produce(facts)
-        .and_then(|pair| rstyle_ccgraph::admit_produced(&pair, facts).map(|_| pair));
-    publish_function(directory, index, result)
-}
-
-fn publish_function(
-    directory: &Path,
-    index: usize,
-    result: Result<producer::Pair, Vec<String>>,
-) -> io::Result<AssessmentResult> {
-    let (manifest_file, extraction_errors) = match result {
-        Ok(pair) => (Some(write_pair(directory, index, &pair)?), Vec::new()),
-        Err(errors) => (None, errors),
-    };
-
-    Ok(AssessmentResult {
-        manifest_file,
-        extraction_errors,
-    })
-}
-
-fn assessment<'a>(
-    facts: &'a HirFnFacts,
-    eligibility: &'a rstyle_pdg::HirEligibility,
-    result: AssessmentResult,
-) -> Assessment<'a> {
-    let AssessmentResult {
-        manifest_file,
-        extraction_errors,
-    } = result;
-    let validation = if manifest_file.is_some() {
-        "validated"
-    } else {
-        "not_evaluated"
-    };
-    Assessment {
-        function: &facts.name,
-        compilation: "successful",
-        eligibility: format!("{:?}", eligibility.status),
-        normal_flow_validation: validation,
-        matching_admission: validation,
-        diagnostics: &eligibility.diagnostics,
-        extraction_errors,
-        manifest_file,
-    }
-}
-
-struct AssessmentResult {
-    manifest_file: Option<String>,
-    extraction_errors: Vec<String>,
-}
-
-fn write_pair(directory: &Path, index: usize, pair: &producer::Pair) -> io::Result<String> {
-    let serialized = pair.serialize().map_err(io::Error::other)?;
-    std::fs::write(
-        directory.join(format!("function-{index}.pdg.json")),
-        serialized.pdg_bytes,
-    )?;
-    std::fs::write(
-        directory.join(format!("function-{index}.cfg.json")),
-        serialized.cfg_bytes,
-    )?;
-    let manifest = format!("function-{index}.manifest.json");
-    write_json(&directory.join(&manifest), &serialized.manifest)?;
-
-    Ok(manifest)
+fn write_sealed_file(
+    path: PathBuf,
+    store: &UnitStore,
+) -> io::Result<rstyle_pdg::unit_store::BundleManifest> {
+    let file = std::fs::File::create(path)?;
+    let writer = io::BufWriter::new(file);
+    store.write_sealed_bundle(writer).map_err(io::Error::other)
 }
 
 fn write_json(path: &Path, value: &(impl Serialize + ?Sized)) -> io::Result<()> {

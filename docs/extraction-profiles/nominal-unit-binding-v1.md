@@ -1,3 +1,7 @@
+> Historical version 1 format. Current reports use
+> [unit-owned build contexts and nominal binding version 2](../performance/unit-build-contexts.md).
+> The former `build_digest` is replaced with a unit-scoped `build_id`.
+
 # Nominal compilation-unit binding, version 1
 
 This is an observational prerequisite for the unavailable read-only data tier,

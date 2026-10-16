@@ -8,17 +8,18 @@ mod emit;
 mod graph;
 mod hazards;
 mod lower;
+pub mod matching_build;
 mod profile;
 mod summaries;
 mod verify;
-pub use verify::verify;
+pub use verify::{verify, verify_view};
 
 /// Build and validate one bounded normal-flow pair from captured frontend facts.
-pub fn produce(facts: &crate::HirFnFacts) -> Result<Pair, Vec<String>> {
+pub fn produce(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, Vec<String>> {
     crate::verification_session::within(|| produce_function(facts))
 }
 
-fn produce_function(facts: &crate::HirFnFacts) -> Result<Pair, Vec<String>> {
+fn produce_function(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, Vec<String>> {
     let observation = crate::diagnostics::Stage::new("producer.produce", &facts.name, None).enter();
     let graph = lower(facts).map_err(|e| {
         e.diagnostics
@@ -61,10 +62,19 @@ fn conformance_reason(profile: crate::extraction_profile::ExtractionProfile) -> 
 /// Verify exact serialized identities before decoding and checking the pair.
 pub fn verify_serialized(
     serialized: &SerializedPair,
-    facts: &crate::HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Pair, Vec<String>> {
-    let pdg = serde_json::from_slice(&serialized.pdg_bytes).map_err(|e| vec![e.to_string()])?;
-    let cfg = serde_json::from_slice(&serialized.cfg_bytes).map_err(|e| vec![e.to_string()])?;
+    verify_serialized_view(serialized.as_view(), facts)
+}
+
+/// Validate a borrowed byte snapshot without copying documents or the manifest.
+/// Strict/generated verification policy is identical to `verify_serialized`.
+pub fn verify_serialized_view(
+    serialized: SerializedPairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Pair, Vec<String>> {
+    let pdg = serde_json::from_slice(serialized.pdg_bytes).map_err(|e| vec![e.to_string()])?;
+    let cfg = serde_json::from_slice(serialized.cfg_bytes).map_err(|e| vec![e.to_string()])?;
     let pair = Pair { pdg, cfg };
     serialized.verify_identities(&pair).map_err(|e| vec![e])?;
     verify(&pair, facts)?;
@@ -74,7 +84,10 @@ pub fn verify_serialized(
 
 pub use analysis::{Analysis, DefinitionSet, Dependence, analyze, analyze_cyclic, reachability};
 
-fn analyze_facts(graph: &Graph, facts: &crate::HirFnFacts) -> Result<Analysis, String> {
+fn analyze_facts(
+    graph: &Graph,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Analysis, String> {
     if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         .supports("rust.scalar-loops")
         && graph
@@ -87,6 +100,8 @@ fn analyze_facts(graph: &Graph, facts: &crate::HirFnFacts) -> Result<Analysis, S
         analyze(graph)
     }
 }
-pub use emit::{DocumentIdentity, Manifest, Pair, SerializedPair, emit};
+pub use emit::{
+    DocumentIdentity, Manifest, Pair, PairView, SerializedPair, SerializedPairView, emit,
+};
 pub use graph::{Alternative, Atom, Graph, Guard, Operation, Transfer, ValueSite};
 pub use lower::lower;

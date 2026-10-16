@@ -170,7 +170,7 @@ fn make_facts(
         source_scan_complete: true,
         fn_span: span(0, 9),
         source: SourceFacts {
-            bytes: "fn f() {}".to_string(),
+            bytes: "fn f() {}".into(),
             digest: "sha256:test".to_string(),
         },
         signature: signature(params, ret),

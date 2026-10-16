@@ -63,11 +63,17 @@ pub struct FieldObservations {
 }
 
 pub fn capture(facts: &mut HirFnFacts) -> Result<(), String> {
-    let Some(value) = facts.build.frontend_options.get(super::concrete_types::KEY) else {
+    if !facts
+        .build
+        .frontend_options
+        .contains_key(super::concrete_types::KEY)
+    {
         return Ok(());
-    };
-    let interface: InterfaceObservations =
-        serde_json::from_value(value.clone()).map_err(|error| error.to_string())?;
+    }
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
     interface.validate()?;
     if interface.parameters.len() != facts.signature.params.len()
         || interface.parameters.len() > MAX_ENTRIES
@@ -96,10 +102,7 @@ pub fn capture(facts: &mut HirFnFacts) -> Result<(), String> {
     if encoded.len() > MAX_BYTES {
         return Err("Formal field observation exceeds evidence byte budget".into());
     }
-    facts.build.frontend_options.insert(
-        KEY.into(),
-        serde_json::to_value(observations).map_err(|error| error.to_string())?,
-    );
+    facts.build.frontend_options.insert_data(observations);
 
     Ok(())
 }
@@ -243,15 +246,17 @@ pub fn verify(facts: &HirFnFacts, observations: &FieldObservations) -> Result<()
     {
         return Err("Field observations exceed evidence byte budget".into());
     }
-    let interface: InterfaceObservations = serde_json::from_value(
-        facts
-            .build
-            .frontend_options
-            .get(super::concrete_types::KEY)
-            .ok_or("Missing concrete interface evidence")?
-            .clone(),
-    )
-    .map_err(|error| error.to_string())?;
+    if !facts
+        .build
+        .frontend_options
+        .contains_key(super::concrete_types::KEY)
+    {
+        return Err("Missing concrete interface evidence".into());
+    }
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
     interface.validate()?;
     if interface.parameters.len() != facts.signature.params.len()
         || interface.parameters.len() > MAX_ENTRIES
@@ -267,7 +272,7 @@ pub fn verify(facts: &HirFnFacts, observations: &FieldObservations) -> Result<()
     if observations.possibly_aliasing_formals != aliases(&interface) {
         return Err("Shared formal alias uncertainty is incomplete or inconsistent".into());
     }
-    if digest(facts.source.bytes.as_bytes()) != facts.source.digest {
+    if facts.source.bytes.identity() != facts.source.digest {
         return Err("Field observations lack exact captured source identity".into());
     }
 

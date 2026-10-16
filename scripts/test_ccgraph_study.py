@@ -5,7 +5,7 @@ import json
 import pathlib
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import ccgraph_study_evidence as evidence
 import ccgraph_study as s
 
@@ -32,6 +32,27 @@ class Bookkeeping(unittest.TestCase):
         self.report=dict(observed_units=units,intended_primary_units=[{},{}],functions=functions,capture_failures=[],handoff_failures=[],contract_revision=s.CONTRACT,
                          matching=dict(incomplete=False,diagnostics=[],profile_id='compat.ccgraph.strict',profile_version='0.1.0',scoring='smaller_graph_overlap',
                                        effective_config=dict(s.DEFAULTS,scoring='smaller_graph_overlap'),functions=[dict(key=f['key']) for f in functions],pairs=pairs),**dict.fromkeys(s.FLAGS,True))
+
+    def test_binary_snapshots_detect_same_length_edits(self):
+        for name in ('cargo-rstyle', 'rstyle-driver'):
+            (self.study / name).write_bytes(b'abc')
+        with patch.object(s, 'BIN_DIR', self.study):
+            before = s.binaries()
+            self.assertEqual(before, dict.fromkeys(('cargo-rstyle', 'rstyle-driver'), s.digest(b'abc')))
+            (self.study / 'rstyle-driver').write_bytes(b'abd')
+            after = s.binaries()
+        self.assertEqual(before['cargo-rstyle'], after['cargo-rstyle'])
+        self.assertNotEqual(before['rstyle-driver'], after['rstyle-driver'])
+
+    def test_execute_launches_the_snapshotted_binary_paths(self):
+        process = Mock(returncode=1)
+        process.poll.return_value = 1
+        with patch.object(s, 'BIN_DIR', self.study), patch.object(s.subprocess, 'Popen', return_value=process) as launch:
+            with self.assertRaisesRegex(s.Invalid, 'real command failed'):
+                s.execute(dict(self.scope, manifest='sample/Cargo.toml'), 'default', self.study / 'execution')
+        command = launch.call_args.args[0]
+        self.assertEqual(command[5], str((self.study / 'cargo-rstyle').resolve()))
+        self.assertEqual(launch.call_args.kwargs['env']['RSTYLE_DRIVER'], str((self.study / 'rstyle-driver').resolve()))
 
     def assess(self): return s.assess(self.report,self.scope,self.manifest,'default',self.study)
 

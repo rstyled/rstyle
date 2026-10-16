@@ -22,6 +22,7 @@ pub mod data_types;
 pub mod declaration_origins;
 pub mod diagnostics;
 pub mod eligibility;
+mod evidence_budget;
 pub mod extraction_profile;
 pub mod field_locations;
 pub mod frontend;
@@ -34,6 +35,8 @@ pub mod nominal_binding;
 pub mod nominal_boundary;
 pub mod producer;
 pub mod source_evidence;
+mod source_table;
+pub mod unit_store;
 pub mod validate;
 pub mod value_sites;
 pub mod verification_policy;
@@ -42,10 +45,10 @@ pub use value_sites::validate_value_sites;
 
 pub use eligibility::{classify, span};
 pub use frontend::{
-    BindingFact, BuildFacts, ByteSpan, Dispatch, EligibilityVerdict, ExpansionSite, GenericFact,
-    HirDiagnostic, HirEligibility, HirFnFacts, HirNode, HirRef, ParamFact, PathRes, ReceiverFact,
-    ResolvedTy, SignatureFacts, SourceFacts, known_bool, known_count, known_str, unknown_bool,
-    unknown_count, unknown_str,
+    BindingFact, BuildFacts, ByteSpan, DataEvidence, Dispatch, EligibilityVerdict, ExpansionSite,
+    FrontendOptions, GenericFact, HirDiagnostic, HirEligibility, HirFnFacts, HirNode, HirRef,
+    ParamFact, PathRes, ReceiverFact, ResolvedTy, SignatureFacts, SourceFacts, SourceSnapshot,
+    SourceText, known_bool, known_count, known_str, unknown_bool, unknown_count, unknown_str,
 };
 
 pub use cfg::{

@@ -1,7 +1,7 @@
 //! Reference-valued source correspondence; no purity flags or erased origins.
 
 use crate::{
-    HirFnFacts, HirNode,
+    HirNode,
     data_types::{self, TypeToken},
     field_locations::{self, Projection},
 };
@@ -27,7 +27,10 @@ pub fn shared(token: &TypeToken) -> bool {
     }
 }
 
-pub fn origins(node: &HirNode, facts: &HirFnFacts) -> Result<Vec<Origin>, String> {
+pub fn origins(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
     let Some(text) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) else {
         return Ok(Vec::new());
     };
@@ -74,7 +77,11 @@ fn same_type(expected: &str, node: &HirNode) -> Result<(), String> {
     Ok(())
 }
 
-fn alternatives(node: &HirNode, facts: &HirFnFacts, expected: &str) -> Result<Vec<Origin>, String> {
+fn alternatives(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    expected: &str,
+) -> Result<Vec<Origin>, String> {
     if node.children.len() != 3 {
         return Err("Reference branch requires both alternatives".into());
     }
@@ -86,7 +93,11 @@ fn alternatives(node: &HirNode, facts: &HirFnFacts, expected: &str) -> Result<Ve
     Ok(values)
 }
 
-fn formal(node: &HirNode, facts: &HirFnFacts, ty: &TypeToken) -> Result<Vec<Origin>, String> {
+fn formal(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    ty: &TypeToken,
+) -> Result<Vec<Origin>, String> {
     let target = node
         .res
         .as_ref()
@@ -107,10 +118,15 @@ fn formal(node: &HirNode, facts: &HirFnFacts, ty: &TypeToken) -> Result<Vec<Orig
         .collect())
 }
 
-fn field(node: &HirNode, facts: &HirFnFacts, ty: &TypeToken) -> Result<Vec<Origin>, String> {
-    let fields: field_locations::FieldObservations =
-        serde_json::from_value(facts.build.frontend_options[field_locations::KEY].clone())
-            .map_err(|error| error.to_string())?;
+fn field(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    ty: &TypeToken,
+) -> Result<Vec<Origin>, String> {
+    let fields = facts
+        .build
+        .frontend_options
+        .data::<crate::field_locations::FieldObservations>()?;
     let field = fields
         .operations
         .iter()
@@ -198,7 +214,7 @@ fn member_paths<'a>(
         .map(|paths| paths.into_iter().flatten().collect())
 }
 
-pub fn aliases(facts: &HirFnFacts) -> Result<Vec<[u32; 2]>, String> {
+pub fn aliases(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Vec<[u32; 2]>, String> {
     let mut roots = Vec::new();
     for parameter in &facts.signature.params {
         let ty = data_types::parse(

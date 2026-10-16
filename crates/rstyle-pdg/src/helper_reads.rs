@@ -2,12 +2,10 @@
 
 mod calls;
 pub(crate) use calls::{
-    check_budgets, install, verify_arguments, verify_effects, verify_locations,
+    check_budgets, install, merge_locations, verify_arguments, verify_effects, verify_locations,
 };
 
-use crate::{
-    HirFnFacts, NodeCategory, data_types::TypeToken, field_locations::Projection, producer::Pair,
-};
+use crate::{NodeCategory, data_types::TypeToken, field_locations::Projection, producer::Pair};
 use serde::{Deserialize, Serialize};
 
 pub const BUDGET_ERROR: &str = "Verified helper read evidence exceeds explicit 4096-entry budget";
@@ -32,7 +30,10 @@ struct CapturedLocation {
     value: TypeToken,
 }
 
-pub(crate) fn supported(facts: &HirFnFacts, pair: &Pair) -> bool {
+pub(crate) fn supported(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    pair: crate::producer::PairView<'_>,
+) -> bool {
     crate::extraction_profile::ExtractionProfile::from_facts(facts)
         .is_ok_and(|profile| profile.supports("rust.verified-read-only-helper-calls"))
         && facts
@@ -51,7 +52,10 @@ pub(crate) fn supported(facts: &HirFnFacts, pair: &Pair) -> bool {
         })
 }
 
-pub(crate) fn derive(facts: &HirFnFacts, pair: &Pair) -> Result<Option<Vec<Read>>, String> {
+pub(crate) fn derive(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    pair: crate::producer::PairView<'_>,
+) -> Result<Option<Vec<Read>>, String> {
     if pair.pdg.memory_locations.is_empty() {
         return Ok(None);
     }
@@ -94,7 +98,7 @@ pub(crate) fn derive(facts: &HirFnFacts, pair: &Pair) -> Result<Option<Vec<Read>
 }
 
 fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String> {
-    if location.abstraction != "rstyle.formal-field/1" {
+    if location.abstraction != "rstyle.formal-field/2" {
         return Err("Helper read lacks registered formal location interpretation".into());
     }
     serde_json::from_value(
@@ -108,7 +112,7 @@ fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String
 }
 
 fn verify_location(
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     location: &CapturedLocation,
     access: &crate::Access,
 ) -> Result<(), String> {
@@ -127,7 +131,10 @@ fn verify_location(
     Ok(())
 }
 
-fn formal_type(facts: &HirFnFacts, parameter: u32) -> Result<TypeToken, String> {
+fn formal_type(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    parameter: u32,
+) -> Result<TypeToken, String> {
     crate::data_types::parse(
         facts
             .signature
@@ -139,7 +146,7 @@ fn formal_type(facts: &HirFnFacts, parameter: u32) -> Result<TypeToken, String> 
 }
 
 pub(crate) fn type_at(
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     parameter: u32,
     path: &[Projection],
 ) -> Result<TypeToken, String> {

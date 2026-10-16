@@ -1,9 +1,14 @@
 //! Original compiler-file origins for observational nominal types.
 //! These checks bind bytes and locations, not effects or package authority.
 
+mod files;
+pub(crate) use files::Sources;
+
+#[cfg(test)]
+use crate::concrete_types::digest;
 use crate::{
     ByteSpan,
-    concrete_types::{InterfaceObservations, Nominal, Observation, TypeTree, digest},
+    concrete_types::{InterfaceObservations, Nominal, Observation, TypeTree},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -17,7 +22,7 @@ pub const MAX_BYTES: usize = 8 * 1024 * 1024;
 pub struct Origin {
     pub nominal: Nominal,
     pub source_file: String,
-    pub file_bytes: String,
+    pub file_bytes: crate::SourceSnapshot,
     pub file_digest: String,
     pub declaration_span: ByteSpan,
 }
@@ -29,15 +34,51 @@ pub struct Origins {
     pub declarations: Vec<Origin>,
 }
 
+impl Origins {
+    pub(crate) fn share_sources(
+        &mut self,
+        census: &crate::nominal_boundary::census::Census,
+    ) -> Result<(), String> {
+        for origin in &mut self.declarations {
+            let file = census
+                .files
+                .iter()
+                .find(|file| {
+                    file.path == std::path::Path::new(&origin.source_file)
+                        && file.bytes == origin.file_bytes
+                        && file.digest == origin.file_digest
+                })
+                .ok_or("Declaration origin disagrees with owned source snapshot")?;
+            origin.file_bytes = file.bytes.clone();
+        }
+        Ok(())
+    }
+}
+
 /// Independently checks a complete, unique declaration inventory against the
 /// original file bytes. It does not re-run or compare producer serialization.
 pub fn verify(interface: &InterfaceObservations, origins: &Origins) -> Result<(), String> {
+    Sources::default().verify(interface, origins)
+}
+
+pub(crate) fn verify_in(
+    interface: &InterfaceObservations,
+    origins: &Origins,
+    environment: &crate::nominal_boundary::resolution::Environment,
+) -> Result<(), String> {
+    verify_inventory(interface, origins, |origin, declaration| {
+        environment.check_origin(origin, declaration)
+    })
+}
+
+fn verify_inventory(
+    interface: &InterfaceObservations,
+    origins: &Origins,
+    mut check: impl FnMut(&Origin, &str) -> Result<(), String>,
+) -> Result<(), String> {
     interface.validate()?;
     if origins.identity != IDENTITY
-        || serde_json::to_vec(origins)
-            .map_err(|e| e.to_string())?
-            .len()
-            > MAX_BYTES
+        || crate::evidence_budget::serialized_len(origins).map_err(|e| e.to_string())? > MAX_BYTES
     {
         return Err("Unregistered or over-budget declaration origins".into());
     }
@@ -52,65 +93,10 @@ pub fn verify(interface: &InterfaceObservations, origins: &Origins) -> Result<()
         if seen.insert(key, ()).is_some() || *nominal != &origin.nominal {
             return Err("Duplicate or inconsistent nominal declaration origin".into());
         }
-        check_source(origin, source)?;
+        check(origin, source)?;
     }
 
     Ok(())
-}
-
-fn check_source(origin: &Origin, declaration: &str) -> Result<(), String> {
-    let span = origin.declaration_span;
-    if origin.source_file.is_empty()
-        || origin.file_digest != digest(origin.file_bytes.as_bytes())
-        || origin
-            .file_bytes
-            .get(span.start as usize..span.end as usize)
-            != Some(declaration)
-    {
-        return Err("Declaration origin file identity or original byte range disagrees".into());
-    }
-    // Parsing the entire file rejects a forged range into a string/comment.
-    let source = origin
-        .file_bytes
-        .strip_prefix('\u{feff}')
-        .unwrap_or(&origin.file_bytes);
-    let prefix = origin.file_bytes.len() - source.len();
-    let file = syn::parse_file(source).map_err(|e| e.to_string())?;
-    let mut visitor = StructSpans {
-        source,
-        prefix: prefix as u32,
-        spans: Vec::new(),
-    };
-    syn::visit::Visit::visit_file(&mut visitor, &file);
-    if visitor
-        .spans
-        .iter()
-        .filter(|candidate| **candidate == span)
-        .count()
-        != 1
-    {
-        return Err("Declaration origin does not identify an exact source struct item".into());
-    }
-
-    Ok(())
-}
-
-struct StructSpans<'a> {
-    source: &'a str,
-    prefix: u32,
-    spans: Vec<ByteSpan>,
-}
-
-impl<'ast> syn::visit::Visit<'ast> for StructSpans<'_> {
-    fn visit_item_struct(&mut self, item: &'ast syn::ItemStruct) {
-        use syn::spanned::Spanned;
-        let span = item.span();
-        self.spans.push(ByteSpan {
-            start: crate::source_evidence::byte_offset(self.source, span.start()) as u32
-                + self.prefix,
-            end: crate::source_evidence::byte_offset(self.source, span.end()) as u32 + self.prefix,
-        });
-    }
 }
 
 pub fn declarations(

@@ -9,6 +9,7 @@ use crate::frac::{ArithError, Frac, as_i128};
 use std::collections::BTreeMap;
 
 pub type Histogram = BTreeMap<String, u64>;
+pub(crate) type LabelRound<K> = (BTreeMap<K, u64>, BTreeMap<K, u64>);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RoundScores {
@@ -23,6 +24,14 @@ pub struct RoundScores {
 /// cover the same vertex counts; a mismatch is a diagnostic error.
 pub fn score_rounds(
     rounds: &[(Histogram, Histogram)],
+    weights: &[u64],
+) -> Result<RoundScores, ArithError> {
+    score_label_rounds(rounds, weights)
+}
+
+/// Label representation is irrelevant to the exact histogram arithmetic.
+pub(crate) fn score_label_rounds<K: Ord>(
+    rounds: &[LabelRound<K>],
     weights: &[u64],
 ) -> Result<RoundScores, ArithError> {
     if rounds.len() != weights.len() {
@@ -51,7 +60,7 @@ pub fn score_rounds(
     })
 }
 
-fn round_overlap(a: &Histogram, b: &Histogram) -> Result<u64, ArithError> {
+fn round_overlap<K: Ord>(a: &BTreeMap<K, u64>, b: &BTreeMap<K, u64>) -> Result<u64, ArithError> {
     let mut total: u64 = 0;
     for (label, count_a) in a {
         let count_b = b.get(label).copied().unwrap_or(0);
@@ -64,7 +73,7 @@ fn round_overlap(a: &Histogram, b: &Histogram) -> Result<u64, ArithError> {
     Ok(total)
 }
 
-fn round_cross(a: &Histogram, b: &Histogram) -> Result<u128, ArithError> {
+fn round_cross<K: Ord>(a: &BTreeMap<K, u64>, b: &BTreeMap<K, u64>) -> Result<u128, ArithError> {
     let mut total: u128 = 0;
     for (label, count_a) in a {
         let count_b = u128::from(b.get(label).copied().unwrap_or(0));
@@ -80,7 +89,7 @@ fn round_cross(a: &Histogram, b: &Histogram) -> Result<u128, ArithError> {
     Ok(total)
 }
 
-fn round_self(hist: &Histogram) -> Result<u128, ArithError> {
+fn round_self<K: Ord>(hist: &BTreeMap<K, u64>) -> Result<u128, ArithError> {
     round_cross(hist, hist)
 }
 
@@ -217,5 +226,49 @@ fn frac_term(a: u128, b: u128, c: i128, d: i128) -> Result<Frac, ArithError> {
 fn fail() -> ArithError {
     ArithError {
         what: "scoring overflow",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn integer_and_readable_labels_have_identical_exact_scores() {
+        let rounds = vec![
+            (
+                BTreeMap::from([(2, 3), (10, 5)]),
+                BTreeMap::from([(2, 1), (10, 7)]),
+            ),
+            (
+                BTreeMap::from([(1, 4), (11, 4)]),
+                BTreeMap::from([(1, 3), (12, 5)]),
+            ),
+        ];
+        let readable: Vec<_> = rounds
+            .iter()
+            .map(|(first, second)| {
+                let rename = |hist: &BTreeMap<u64, u64>| {
+                    hist.iter()
+                        .map(|(label, count)| (format!("L{label}"), *count))
+                        .collect::<Histogram>()
+                };
+                (rename(first), rename(second))
+            })
+            .collect();
+        assert_eq!(
+            score_label_rounds(&rounds, &[2, 1]).unwrap(),
+            score_rounds(&readable, &[2, 1]).unwrap()
+        );
+    }
+
+    #[test]
+    fn integer_histograms_preserve_checked_overflow_failures() {
+        let histogram = BTreeMap::from([(2, u64::MAX), (10, u64::MAX)]);
+        let result = score_label_rounds(&[(histogram.clone(), histogram)], &[1]);
+        assert_eq!(result.unwrap_err().what, "overlap overflow");
+        let histogram = BTreeMap::from([(2, u64::MAX)]);
+        let result = score_label_rounds(&[(histogram.clone(), histogram)], &[1, 2]);
+        assert_eq!(result.unwrap_err().what, "round/weight count mismatch");
     }
 }

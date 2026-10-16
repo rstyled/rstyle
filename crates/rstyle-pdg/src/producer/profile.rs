@@ -1,18 +1,31 @@
 //! Local policy transport, preserving the pinned wire schema and base vocabulary.
 
-use super::Pair;
-use crate::{HirFnFacts, ProfileId, extraction_profile::*};
-use serde::{Serialize, de::DeserializeOwned};
-use serde_json::{Value, json};
+mod shape;
+#[cfg(test)]
+mod tests;
+mod transport;
 
-pub fn apply(pair: Pair, facts: &HirFnFacts) -> Result<Pair, String> {
+use super::Pair;
+use crate::{ProfileId, extraction_profile::*};
+use serde::Serialize;
+#[cfg(test)]
+use serde::de::DeserializeOwned;
+use serde_json::Value;
+#[cfg(test)]
+use serde_json::json;
+
+pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, String> {
+    crate::diagnostics::Stage::new("producer.profile", &facts.name, None)
+        .observe(|| apply_profile(pair, facts))
+}
+
+fn apply_profile(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, String> {
     let profile = ExtractionProfile::from_facts(facts)?;
     if profile == ExtractionProfile::R0 {
         return Ok(pair);
     }
     let policy = profile.policy();
-    let mut pdg: crate::PdgDocument = convert(&pair.pdg, &policy)?;
-    let mut cfg: crate::CfgDocument = convert(&pair.cfg, &policy)?;
+    let Pair { mut pdg, mut cfg } = transport::apply(pair, &policy)?;
     configure_cfg(&mut cfg, &policy, profile);
     let evidence = selection_evidence(facts, profile)?;
     if profile.supports("rust.scalar-loops") {
@@ -48,13 +61,18 @@ fn cyclic_policy() -> Result<Value, String> {
     serde_json::from_str(r#"{"reaching_definitions":"finite-monotone-kill-gen/1","postdominance":"all-maximal-paths-least-fixed-point/1","execution":"nearest-strict-entry-dominator/1","value_availability":"strict-dominance-without-conditional-value-merges/1","virtual_executable_exits":false}"#).map_err(|e| e.to_string())
 }
 
-fn selection_evidence(facts: &HirFnFacts, profile: ExtractionProfile) -> Result<Value, String> {
+fn selection_evidence(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    profile: ExtractionProfile,
+) -> Result<Value, String> {
+    let frontend_ref = facts.frontend_reference();
     let selection = SelectionEvidence {
         profile: profile.policy(),
         selection: profile.token(),
         capabilities: profile.capabilities(),
         signature: &facts.signature,
-        frontend: facts,
+        frontend: frontend_ref.is_none().then_some(facts),
+        frontend_ref,
         semantics: "local expansion conformance; bounded normal flow; exceptional flow omitted",
     };
 
@@ -67,10 +85,14 @@ struct SelectionEvidence<'a> {
     selection: &'static str,
     capabilities: &'static [&'static str],
     signature: &'a crate::SignatureFacts,
-    frontend: &'a HirFnFacts,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frontend: Option<&'a dyn crate::unit_store::EvidenceFacts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frontend_ref: Option<Value>,
     semantics: &'static str,
 }
 
+#[cfg(test)]
 fn convert<T: Serialize + DeserializeOwned>(value: &T, policy: &ProfileId) -> Result<T, String> {
     let value = serde_json::to_value(value).map_err(|e| e.to_string())?;
     let value = replace_policies(value, policy);
@@ -78,6 +100,7 @@ fn convert<T: Serialize + DeserializeOwned>(value: &T, policy: &ProfileId) -> Re
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
+#[cfg(test)]
 fn replace_policies(value: Value, policy: &ProfileId) -> Value {
     match value {
         Value::Object(object) => replace_object(object, policy),
@@ -91,6 +114,7 @@ fn replace_policies(value: Value, policy: &ProfileId) -> Value {
     }
 }
 
+#[cfg(test)]
 fn replace_object(object: serde_json::Map<String, Value>, policy: &ProfileId) -> Value {
     let identity = object.get("id").and_then(Value::as_str) == Some(crate::R0_POLICY_ID)
         && object.get("version").and_then(Value::as_str) == Some(crate::R0_POLICY_VERSION);
@@ -110,6 +134,7 @@ fn replace_object(object: serde_json::Map<String, Value>, policy: &ProfileId) ->
     )
 }
 
+#[cfg(test)]
 fn replace_child(key: &str, child: Value, policy: &ProfileId) -> Value {
     // Dependencies are already verified documents/frontend snapshots. Their
     // identities and policies must survive caller-policy transport unchanged.

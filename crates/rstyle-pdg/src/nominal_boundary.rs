@@ -97,7 +97,7 @@ pub(crate) mod tests {
         value["trusted"] = true.into();
         assert!(UnitContext::parse(&value.to_string()).is_err());
         let mut changed = original.clone();
-        changed.package.manifest_bytes.push('x');
+        changed.package.manifest_bytes = format!("{}x", changed.package.manifest_bytes).into();
         assert!(changed.transport().is_err());
         changed = original;
         changed.package.package_id.push('x');
@@ -115,7 +115,7 @@ pub(crate) mod tests {
         value.crate_name = "sample-invalid".into();
         assert!(value.transport().is_err());
         value = context();
-        value.package.manifest_bytes = "x".repeat(MAX_CONTEXT_BYTES);
+        value.package.manifest_bytes = "x".repeat(MAX_CONTEXT_BYTES).into();
         value.package.manifest_digest = digest(value.package.manifest_bytes.as_bytes());
         assert!(value.transport().is_err());
         assert!(UnitContext::parse(&" ".repeat(MAX_CONTEXT_BYTES + 1)).is_err());

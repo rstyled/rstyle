@@ -17,7 +17,7 @@
 
 use crate::frontend::{
     BindingFact, ByteSpan, EligibilityVerdict, ExpansionSite, HirDiagnostic, HirEligibility,
-    HirFnFacts, HirNode, ParamFact, ResolvedTy, SignatureFacts,
+    HirNode, ParamFact, ResolvedTy, SignatureFacts,
 };
 use crate::model::{FactStatus, StringFact};
 use std::collections::{BTreeMap, BTreeSet};
@@ -105,7 +105,7 @@ impl Outcome {
 /// Read-only classifier context: binding cross-references.
 #[derive(Clone)]
 struct Ctx<'a> {
-    facts: &'a HirFnFacts,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
     loops: Vec<crate::HirRef>,
     profile: crate::extraction_profile::ExtractionProfile,
     bindings: BTreeMap<(u32, u32, u32), &'a BindingFact>,
@@ -160,7 +160,7 @@ fn node_norm(node: &HirNode) -> Option<&str> {
 }
 
 /// Classify one assessed function.
-pub fn classify(facts: &HirFnFacts) -> HirEligibility {
+pub fn classify(facts: &dyn crate::unit_store::EvidenceFacts) -> HirEligibility {
     let profile = match crate::extraction_profile::ExtractionProfile::from_facts(facts) {
         Ok(profile) => profile,
         Err(reason) => {
@@ -200,7 +200,7 @@ pub fn classify(facts: &HirFnFacts) -> HirEligibility {
 }
 
 fn check_data_frontend(
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Outcome {
     if !profile.supports("rust.concrete-read-only-data") {
@@ -222,7 +222,10 @@ fn accepted_type(ty: &str, profile: crate::extraction_profile::ExtractionProfile
         || profile.supports("rust.concrete-read-only-data") && crate::data_frontend::accepted(ty)
 }
 
-fn context(facts: &HirFnFacts, profile: crate::extraction_profile::ExtractionProfile) -> Ctx<'_> {
+fn context(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Ctx<'_> {
     Ctx {
         facts,
         loops: Vec::new(),
@@ -245,7 +248,7 @@ fn context(facts: &HirFnFacts, profile: crate::extraction_profile::ExtractionPro
     }
 }
 
-fn check_source_scan(facts: &HirFnFacts) -> Outcome {
+fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
     let source = Outcome {
         diagnostics: facts.source_diagnostics.clone(),
         gap: false,
@@ -301,7 +304,7 @@ fn signature_node(signature: &SignatureFacts) -> HirNode {
     }
 }
 
-fn check_signature(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
+fn check_signature(facts: &dyn crate::unit_store::EvidenceFacts, ctx: &Ctx<'_>) -> Outcome {
     Outcome::combine(vec![
         check_sig_subject(&facts.signature, ctx.profile),
         check_sig_header(&facts.signature, ctx.profile),
@@ -485,7 +488,7 @@ fn check_param(param: &ParamFact, ctx: &Ctx<'_>) -> Outcome {
     Outcome::combine(vec![pat, ty])
 }
 
-fn check_bindings(facts: &HirFnFacts, ctx: &Ctx<'_>) -> Outcome {
+fn check_bindings(facts: &dyn crate::unit_store::EvidenceFacts, ctx: &Ctx<'_>) -> Outcome {
     let mut seen: BTreeSet<&str> = BTreeSet::new();
 
     Outcome::check_each(&facts.bindings, |binding| {
@@ -612,7 +615,7 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 
     match node.kind.as_str() {
         "expr_call" if ctx.profile.supports("rust.verified-helper-calls") => {
-            match crate::helper_calls::verify(node, ctx.facts) {
+            match crate::helper_calls::verify_use(node, ctx.facts) {
                 Ok(_) => Outcome::ok(),
                 Err(reason) => error("rust.call-summaries", "unverified_helper", node, &reason),
             }
@@ -632,7 +635,7 @@ fn check_method(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     if ctx.profile.supports("rust.verified-inherent-helper-calls")
         && crate::helper_calls::direct_resolution(node).is_some()
     {
-        return match crate::helper_calls::verify(node, ctx.facts) {
+        return match crate::helper_calls::verify_use(node, ctx.facts) {
             Ok(_) => Outcome::ok(),
             Err(reason) => error(
                 "rust.call-summaries",

@@ -1,5 +1,9 @@
 # Pinned x86_64 read-only length authority, version 1
 
+Historical version 1: runtime artifact fingerprint requirements are superseded by
+[read-only-library-resolution-v2.md](read-only-library-resolution-v2.md).
+
+
 Registered at implementation baseline `6439720`, after Ubuntu CI run
 `38461968140` exposed the aarch64-only authority boundary. This supplements
 `read-only-length-registry-v1.md`; it changes no supported signatures, effects,

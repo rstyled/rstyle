@@ -261,7 +261,8 @@ def tree_rss(pid):
 def execute(scope, variant, destination):
     destination.mkdir(parents=True, exist_ok=False)
     env = dict(os.environ); env['PATH'] = str(BIN_DIR) + ':/home/dev/.cargo/bin:' + env.get('PATH', '')
-    command = ['cargo', 'rstyle', 'clones', '--format', 'json', '--all-targets', '--locked', '--offline', '--jobs', '2',
+    env['RSTYLE_DRIVER'] = str((BIN_DIR / 'rstyle-driver').resolve())
+    command = [str((BIN_DIR / 'cargo-rstyle').resolve()), 'clones', '--format', 'json', '--all-targets', '--locked', '--offline', '--jobs', '2',
                '--max-pairs', '1000', '--trace', '--matching-config', str(STUDY / (variant + '.json')),
                '--manifest-path', str(STUDY / scope['manifest'])]
     actual = ['/usr/bin/time', '-f', '%U %S %M', '-o', str(destination / 'time.txt')] + command
@@ -326,7 +327,7 @@ def run_split(split, smoke=False):
             try:
                 report, cost, inventory = execute(scope, variant, raw)
                 require(snapshot() == snap, 'binary/configuration drift during execution')
-                require(report['producer_binary_sha256'] == snap['binaries']['rstyle-driver'] and report['orchestration_binary_sha256'] == snap['binaries']['cargo-rstyle'], 'reported binary drift')
+                require(not {'producer_binary_sha256', 'orchestration_binary_sha256'} & report.keys(), 'retired executable provenance fields')
                 result = assess(report, scope, manifest, variant)
                 result.update(identities=snap, cost=cost, raw_report_sha256=digest((raw / 'stdout.json').read_bytes()),
                               evidence_inventory_identity=inventory, raw_directory=str(raw.relative_to(ROOT)),
