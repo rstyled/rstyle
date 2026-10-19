@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.1.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.2.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records inventory work without changing extraction semantics.
 
@@ -77,7 +77,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F03 | Short-circuit boolean evaluation | Covered | `a && b`, `a \|\| b` | Saved left values and conditional right evaluation; restricted in loop-containing functions. |
 | F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee, 1–16 arms, literal arms including negative integer literals, final unguarded wildcard; not general exhaustive pattern matching. |
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
-| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.1.0 supports flat integer/bool literal OR alternatives, including negatives and guards; see [contract](docs/extraction-profiles/scalar-or-patterns-v1.md). Ranges and resolved constants remain missing. |
+| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.2.0 supports integer/bool literal alternatives and integer ranges, including mixed OR arms and guards; see [range contract](docs/extraction-profiles/scalar-range-patterns-v1.md). Resolved constants and other pattern tiers remain missing. |
 | F07 | Destructuring, reference, slice, and enum patterns | Missing | `Some(x) => x`, `[a, ..] => a` | Payload/field/element dependencies, binding modes, and ownership/borrow effects. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
@@ -401,3 +401,21 @@ capture. Repository-built style checks: 2,131 functions / 0 violations; patterns
 Next scalar slices remain range patterns, resolved constants (V12), and assertions
 (F14), followed by the connected read-only data ladder. The full roadmap remains
 in progress; no broader Rust or detection-quality completion is claimed.
+
+### F06 integer range-pattern slice
+
+Data-v3 extraction 3.2.0 adds `rust.scalar-range-patterns`: integer literal ranges
+with inclusive/exclusive/open bounds, negative endpoints and mixed literal/range
+OR arms. The compiler capture retains bounds once, and independent source checks
+preserve their exact spellings and upper-bound inclusivity. One selector uses the
+saved scrutinee; guards/bodies and individual range values are never expanded.
+No provenance fields or caches were added. F06 remains Partial because resolved
+constants and other pattern tiers remain unfinished.
+
+The [range contract](docs/extraction-profiles/scalar-range-patterns-v1.md) records
+capture, source verification, lowering, handoff and the admitted boundary. The
+workspace suite passes 717 tests in 28 suites (5 existing ignores); final targeted
+Cargo checks also pass after checking source-bound consistency. Clippy passes
+with warnings denied. Repository-built rstyle: 2,143 functions, 0 violations;
+patterns: 0 remaining candidates, existing ignore entries unchanged. The frozen
+natural refresh is recorded in the inventory report when it completes.

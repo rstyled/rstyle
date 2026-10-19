@@ -2066,13 +2066,12 @@ fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaul
 }
 
 #[test]
-fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_boundaries() {
+fn clones_data_integer_ranges_compose_with_alternatives_guards_and_open_bounds() {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"),
-        "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
+        "pub fn classify(x: i128, b: bool) -> i32 { match x { ..=-6 if b => 1, -5..0 => 2, 0 | 1..=3 if b => 3, 4.. => 4, _ => 5 } }\npub fn wide(x: u128) -> bool { match x { 0x80..=340282366920938463463374607431768211455u128 => true, _ => false } }\npub fn narrow(x: i8) -> bool { match x { -128..127 => true, _ => false } }\npub fn characters(x: char) -> bool { match x { 'a'..='z' => true, _ => false } }\nconst LIMIT: i32 = 9;\npub fn constant_range(x: i32) -> bool { match x { 0..=LIMIT => true, _ => false } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.1.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -2080,9 +2079,126 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
             .filter(|function| function["outcome"] == "admitted")
             .count(),
         3,
-        "{report}"
+        "{:?}",
+        functions
+            .iter()
+            .map(|function| (&function["facts"]["name"], &function["reasons"]))
+            .collect::<Vec<_>>()
     );
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
+        functions
+            .iter()
+            .find(|function| function["facts"]["name"] == "classify")
+            .unwrap()["facts"]
+            .clone(),
+    )
+    .unwrap();
+    check_range_pattern_graph(&facts);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded")
+    );
+}
+
+fn check_range_pattern_graph(facts: &rstyle_pdg::HirFnFacts) {
+    let mut pair = rstyle_pdg::producer::produce(facts).unwrap();
+    let ranges: Vec<_> = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.attributes.construct.as_deref() == Some("match.range"))
+        .collect();
+    assert_eq!(ranges.len(), 3);
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("match.or-patterns"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("match.guard"))
+            .count(),
+        2
+    );
+    check_range_descriptor(
+        ranges[0]
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value()
+            .unwrap(),
+    );
+    let range = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("match.range"))
+        .unwrap();
+    range.attributes.literal = Some(rstyle_pdg::StringFact::known("{}"));
+    assert!(rstyle_pdg::producer::verify(&pair, facts).is_err());
+    check_range_source_payload(facts);
+}
+
+fn check_range_descriptor(value: &str) {
+    let first: rstyle_pdg::scalar_patterns::IntegerRange = serde_json::from_str(value).unwrap();
+    assert_eq!(
+        first,
+        rstyle_pdg::scalar_patterns::IntegerRange {
+            start: None,
+            end: Some("-6".into()),
+            inclusive: true,
+        }
+    );
+}
+
+fn check_range_source_payload(facts: &rstyle_pdg::HirFnFacts) {
+    let mut changed = facts.clone();
+    let pattern = &mut changed.body.children[0].children[1].children[0];
+    assert_eq!(pattern.kind, "pat_range");
+    pattern.lit = Some(
+        rstyle_pdg::scalar_patterns::IntegerRange {
+            start: None,
+            end: Some("-6".into()),
+            inclusive: false,
+        }
+        .text(),
+    );
+    assert_eq!(
+        rstyle_pdg::classify(&changed).status,
+        rstyle_pdg::EligibilityVerdict::Ineligible
+    );
+}
+
+#[test]
+fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_boundaries() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["extraction_policy"]["version"], "3.2.0");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        4,
+        "{report}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 6);
     assert_eq!(report["pair_evaluation_complete"], true);
     let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
         functions
@@ -3315,7 +3431,7 @@ fn clones_helpers_concrete_capture_budget_is_not_an_exclusion() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        &format!("pub fn deep(_: {}u8) {{}}\n", "&".repeat(17)),
+        format!("pub fn deep(_: {}u8) {{}}\n", "&".repeat(17)),
     )
     .unwrap();
     let (output, report) = clones(
@@ -5626,7 +5742,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.1.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.2.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"

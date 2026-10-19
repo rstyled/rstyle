@@ -102,6 +102,7 @@ impl<'tcx> Context<'tcx> {
             PatKind::Binding(..) => ("pat_binding_pattern", pat.span),
             PatKind::Wild => ("pat_wild", pat.span),
             PatKind::Or(_) if self.scalar_or_pattern(pat) => ("pat_or", pat.span),
+            PatKind::Range(..) if self.scalar_range_pattern(pat) => ("pat_range", pat.span),
             PatKind::Expr(expression)
                 if matches!(expression.kind, hir::PatExprKind::Lit { .. }) =>
             {
@@ -122,7 +123,7 @@ impl<'tcx> Context<'tcx> {
                 .map(|ty| resolved(ty, String::new())),
             binding,
             binding_mut,
-            lit: (kind == "pat_literal").then(|| self.snippet(pat.span)),
+            lit: self.pattern_literal(pat, kind),
             children: match pat.kind {
                 PatKind::Or(patterns) if kind == "pat_or" => patterns
                     .iter()
@@ -140,6 +141,41 @@ impl<'tcx> Context<'tcx> {
                 .typeck
                 .node_type_opt(pattern.hir_id)
                 .is_some_and(|ty| matches!(ty.kind(), ty::Int(_) | ty::Uint(_) | ty::Bool))
+    }
+
+    fn scalar_range_pattern(&self, pattern: &hir::Pat<'tcx>) -> bool {
+        let PatKind::Range(start, end, _) = pattern.kind else {
+            return false;
+        };
+
+        self.profile.supports("rust.scalar-range-patterns")
+            && self
+                .typeck
+                .node_type_opt(pattern.hir_id)
+                .is_some_and(|ty| matches!(ty.kind(), ty::Int(_) | ty::Uint(_)))
+            && start
+                .into_iter()
+                .chain(end)
+                .all(|bound| matches!(bound.kind, hir::PatExprKind::Lit { .. }))
+    }
+
+    fn pattern_literal(&self, pattern: &hir::Pat<'tcx>, kind: &str) -> Option<String> {
+        if kind == "pat_literal" {
+            return Some(self.snippet(pattern.span));
+        }
+        if let PatKind::Range(start, end, ending) = pattern.kind
+            && kind == "pat_range"
+        {
+            return Some(
+                rstyle_pdg::scalar_patterns::IntegerRange {
+                    start: start.map(|bound| self.snippet(bound.span)),
+                    end: end.map(|bound| self.snippet(bound.span)),
+                    inclusive: end.is_some() && matches!(ending, hir::RangeEnd::Included),
+                }
+                .text(),
+            );
+        }
+        None
     }
 
     pub fn expression(&self, expr: &Expr<'tcx>) -> HirNode {

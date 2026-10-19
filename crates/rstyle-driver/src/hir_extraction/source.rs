@@ -117,12 +117,7 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_pat(&mut self, pattern: &'a ast::Pat) {
-        if self.match_pattern
-            && source_match_pattern(
-                &pattern.kind,
-                self.profile.supports("rust.scalar-or-patterns"),
-            )
-        {
+        if self.match_pattern && source_match_pattern(&pattern.kind, self.profile) {
             return;
         }
         if !matches!(
@@ -238,19 +233,41 @@ pub fn scan(
     scan.functions
 }
 
-fn source_match_pattern(kind: &ast::PatKind, alternatives: bool) -> bool {
+fn source_match_pattern(
+    kind: &ast::PatKind,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> bool {
+    match kind {
+        ast::PatKind::Or(patterns) if profile.supports("rust.scalar-or-patterns") => patterns
+            .iter()
+            .all(|pattern| source_match_leaf(&pattern.kind, profile)),
+        _ => source_match_leaf(kind, profile),
+    }
+}
+
+fn source_match_leaf(
+    kind: &ast::PatKind,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> bool {
     match kind {
         ast::PatKind::Wild => true,
-        ast::PatKind::Or(patterns) if alternatives => patterns
-            .iter()
-            .all(|pattern| source_match_pattern(&pattern.kind, false)),
-        ast::PatKind::Expr(expression) => match &expression.kind {
-            ast::ExprKind::Lit(literal) => supported_literal(literal),
-            ast::ExprKind::Unary(ast::UnOp::Neg, value) => {
-                matches!(&value.kind, ast::ExprKind::Lit(literal) if supported_literal(literal))
-            }
-            _ => false,
-        },
+        ast::PatKind::Range(start, end, _) if profile.supports("rust.scalar-range-patterns") => {
+            start
+                .iter()
+                .chain(end)
+                .all(|value| source_pattern_literal(value))
+        }
+        ast::PatKind::Expr(expression) => source_pattern_literal(expression),
+        _ => false,
+    }
+}
+
+fn source_pattern_literal(expression: &ast::Expr) -> bool {
+    match &expression.kind {
+        ast::ExprKind::Lit(literal) => supported_literal(literal),
+        ast::ExprKind::Unary(ast::UnOp::Neg, value) => {
+            matches!(&value.kind, ast::ExprKind::Lit(literal) if supported_literal(literal))
+        }
         _ => false,
     }
 }

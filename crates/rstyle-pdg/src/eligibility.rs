@@ -1063,7 +1063,7 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
             "rust.scalar-match",
             "arm_shape",
             arm,
-            "Only registered scalar literal/OR arms and a final unguarded wildcard are supported.",
+            "Only registered scalar literal/range/OR arms and a final unguarded wildcard are supported.",
         )
     };
     let body = Outcome::combine(
@@ -1083,19 +1083,36 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
 }
 
 fn scalar_match_pattern(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) -> bool {
-    let literal = |pattern: &HirNode| {
-        pattern.kind == "pat_literal"
-            && pattern.lit.is_some()
-            && pattern.children.is_empty()
-            && node_norm(pattern) == node_norm(scrutinee)
-    };
-
-    literal(pattern)
+    scalar_pattern_leaf(pattern, scrutinee, ctx)
         || (ctx.profile.supports("rust.scalar-or-patterns")
             && pattern.kind == "pat_or"
             && pattern.children.len() >= 2
             && node_norm(pattern) == node_norm(scrutinee)
-            && pattern.children.iter().all(literal))
+            && pattern
+                .children
+                .iter()
+                .all(|child| scalar_pattern_leaf(child, scrutinee, ctx)))
+}
+
+fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) -> bool {
+    if !pattern.children.is_empty() || node_norm(pattern) != node_norm(scrutinee) {
+        return false;
+    }
+    if pattern.kind == "pat_literal" {
+        return pattern.lit.is_some();
+    }
+
+    ctx.profile.supports("rust.scalar-range-patterns")
+        && pattern.kind == "pat_range"
+        && node_norm(pattern)
+            .is_some_and(|ty| crate::concrete_types::scalar(ty) && !matches!(ty, "bool" | "unit"))
+        && ctx
+            .facts
+            .source
+            .bytes
+            .get(pattern.span.start as usize..pattern.span.end as usize)
+            .and_then(|source| crate::scalar_patterns::IntegerRange::from_source(source).ok())
+            .is_some_and(|range| pattern.lit.as_deref() == Some(range.text().as_str()))
 }
 
 fn check_match_guard(wrapper: &HirNode, ctx: &Ctx<'_>) -> Outcome {

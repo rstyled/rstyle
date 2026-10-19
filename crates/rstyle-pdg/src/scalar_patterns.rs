@@ -1,0 +1,62 @@
+//! Compact integer range tests; bounds are compile-time literals, not reads.
+
+use crate::source_evidence::byte_offset;
+use serde::{Deserialize, Serialize};
+use syn::{parse::Parser, spanned::Spanned};
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntegerRange {
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub inclusive: bool,
+}
+
+impl IntegerRange {
+    pub fn text(&self) -> String {
+        serde_json::to_string(self).expect("integer range strings")
+    }
+
+    pub fn from_source(source: &str) -> Result<Self, String> {
+        let pattern = syn::Pat::parse_single
+            .parse_str(source)
+            .map_err(|e| e.to_string())?;
+        let syn::Pat::Range(range) = pattern else {
+            return Err("Expected an integer range pattern".into());
+        };
+        if !integer_range(&range) {
+            return Err("Range bounds must be integer literals".into());
+        }
+
+        Ok(Self {
+            start: range.start.as_ref().map(|value| spelling(source, value)),
+            end: range.end.as_ref().map(|value| spelling(source, value)),
+            inclusive: matches!(range.limits, syn::RangeLimits::Closed(_)),
+        })
+    }
+}
+
+pub fn integer_range(range: &syn::PatRange) -> bool {
+    (range.start.is_some() || range.end.is_some())
+        && (!matches!(range.limits, syn::RangeLimits::Closed(_)) || range.end.is_some())
+        && range
+            .start
+            .iter()
+            .chain(&range.end)
+            .all(|value| integer_bound(value))
+}
+
+fn integer_bound(value: &syn::Expr) -> bool {
+    match value {
+        syn::Expr::Lit(literal) => matches!(literal.lit, syn::Lit::Int(_)),
+        syn::Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Neg(_)) => {
+            matches!(&*unary.expr, syn::Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Int(_)))
+        }
+        _ => false,
+    }
+}
+
+fn spelling(source: &str, value: &syn::Expr) -> String {
+    let span = value.span();
+    source[byte_offset(source, span.start())..byte_offset(source, span.end())].into()
+}

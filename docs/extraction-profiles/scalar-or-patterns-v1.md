@@ -33,3 +33,7 @@ Measured inventory: `time-core::weeks_in_year` becomes admitted; total admission
 rise from 8 to 9 out of the unchanged 60 selected contexts. See the
 [refresh report](../../eval/hir-coverage/REPORT-data-v3.md). Unsupported-type OR
 patterns do not gain child evidence merely because they share the syntax.
+
+Extraction 3.2.0 extends this slice with integer ranges and mixed literal/range
+alternatives; see the [range contract](scalar-range-patterns-v1.md). Literal-only
+OR selectors keep their existing representation.

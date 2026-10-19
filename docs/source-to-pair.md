@@ -324,7 +324,7 @@ not completion of that work or a natural-coverage/quality result. Existing R0,
 expanded, helper, style and patterns selections retain their semantics.
 
 `--extraction-profile hir-data-v3` separately selects
-`rstyle.rust.hir-data/3.1.0` with the existing data-calls matching profile.
+`rstyle.rust.hir-data/3.2.0` with the existing data-calls matching profile.
 Version 3.1.0 adds [scalar literal OR patterns](extraction-profiles/scalar-or-patterns-v1.md)
 to the inherent-call selection without adding provenance fields.
 It adds verified same-unit concrete inherent methods with shared receivers,
@@ -366,3 +366,6 @@ still cross their public validation boundaries. See
 [shared checked source environments](performance/shared-source-environments.md)
 for the private source-handle scope, compatibility guarantees and remaining
 source ownership work.
+
+Data-v3 extraction 3.2.0 also admits [integer range patterns](extraction-profiles/scalar-range-patterns-v1.md),
+including mixed literal/range OR arms, under the existing bounded match contract.

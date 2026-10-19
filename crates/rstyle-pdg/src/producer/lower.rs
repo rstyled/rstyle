@@ -727,32 +727,14 @@ impl Builder<'_> {
         } = input;
         let pattern = &input.arm.children[0];
 
+        let (construct, literal) = match_predicate(pattern);
+
         Operation {
             construct_span: node.span,
             role: format!("match_pattern:{index}"),
             ty: "bool".into(),
-            construct: Some(
-                match pattern.kind.as_str() {
-                    "pat_literal" => "match.literal",
-                    "pat_or" => "match.or",
-                    _ => "match.wildcard",
-                }
-                .into(),
-            ),
-            literal: if pattern.kind == "pat_or" {
-                Some(
-                    serde_json::to_string(
-                        &pattern
-                            .children
-                            .iter()
-                            .map(|child| &child.lit)
-                            .collect::<Vec<_>>(),
-                    )
-                    .expect("literal alternatives"),
-                )
-            } else {
-                pattern.lit.clone()
-            },
+            construct: Some(construct.into()),
+            literal,
             operands: if pattern.kind != "pat_wild" {
                 vec![(*saved).into()]
             } else {
@@ -919,6 +901,39 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_ret" => Builder::explicit_return,
         _ => unreachable!("eligibility rejects unsupported constructs"),
     }
+}
+
+fn match_predicate(pattern: &HirNode) -> (&'static str, Option<String>) {
+    match pattern.kind.as_str() {
+        "pat_literal" => ("match.literal", pattern.lit.clone()),
+        "pat_range" => ("match.range", pattern.lit.clone()),
+        "pat_or" => match_alternatives(pattern),
+        _ => ("match.wildcard", None),
+    }
+}
+
+fn match_alternatives(pattern: &HirNode) -> (&'static str, Option<String>) {
+    if pattern
+        .children
+        .iter()
+        .all(|child| child.kind == "pat_literal")
+    {
+        let values: Vec<_> = pattern.children.iter().map(|child| &child.lit).collect();
+        return (
+            "match.or",
+            Some(serde_json::to_string(&values).expect("literal alternatives")),
+        );
+    }
+    let values: Vec<_> = pattern
+        .children
+        .iter()
+        .map(|child| (&child.kind, &child.lit))
+        .collect();
+
+    (
+        "match.or-patterns",
+        Some(serde_json::to_string(&values).expect("pattern alternatives")),
+    )
 }
 
 fn template(node: &HirNode, category: NodeCategory) -> Operation {
