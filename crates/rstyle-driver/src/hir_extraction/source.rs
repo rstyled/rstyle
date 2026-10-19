@@ -251,13 +251,21 @@ fn source_match_leaf(
 ) -> bool {
     match kind {
         ast::PatKind::Wild => true,
+        ast::PatKind::Path(..) => profile.supports("rust.scalar-constant-patterns"),
         ast::PatKind::Range(start, end, _) if profile.supports("rust.scalar-range-patterns") => {
             start
                 .iter()
                 .chain(end)
                 .all(|value| source_pattern_literal(value))
         }
-        ast::PatKind::Expr(expression) => source_pattern_literal(expression),
+        ast::PatKind::Expr(expression) => {
+            source_pattern_literal(expression)
+                || (profile.supports("rust.scalar-constant-patterns")
+                    && matches!(expression.kind, ast::ExprKind::Path(..)))
+        }
+        ast::PatKind::Ident(ast::BindingMode(ast::ByRef::No, ast::Mutability::Not), _, None) => {
+            profile.supports("rust.scalar-constant-patterns")
+        }
         _ => false,
     }
 }

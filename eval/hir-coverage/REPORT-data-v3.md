@@ -96,3 +96,21 @@ warnings denied passes. Repository-built rstyle reports 0 violations across
 2,155 functions and patterns reports 0 remaining candidates with all 15 existing
 ignores unchanged. Constants reuse the existing resolution record and rustc's
 cached evaluator. No formal performance benchmark or detector-quality claim is made.
+
+## Constant-pattern increment, extraction 3.4.0
+
+Focused fresh run `target/hir-coverage/run-nhkwv78q/`, started at `52966e7` with
+the constant-pattern implementation in the working tree, completes all three
+packages. Data-v3 retains **9 admitted, 44 excluded, 7 unknown out of 60**,
+with 53 assessed, 0 failed and 0 proven inactive. All 60 selected identities
+and outcomes match 3.3.0; no frozen admission is gained. Twenty-two admitted
+CFG/PDG documents pass the unchanged schema checks, including functions outside
+the frozen selection. Exclusion combinations and unknowns remain in the complete
+assessment. Pair evaluation remains incomplete; no quality claim follows.
+
+The workspace passes 722 tests (5 existing ignores). The final mixed
+constant/literal/range fixture and Clippy with warnings denied pass. Repository-built
+rstyle reports 0 violations across 2,158 functions; patterns reports 0 remaining
+candidates with the same 15 existing ignores. The implementation reuses constant
+records and existing selector/guard flow without new provenance fields, caches or
+alternative expansion. No formal performance benchmark is claimed.

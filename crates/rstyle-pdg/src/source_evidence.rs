@@ -134,13 +134,24 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
     }
 
     fn visit_pat(&mut self, pattern: &'ast syn::Pat) {
+        let constants = crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+            .is_ok_and(|profile| profile.supports("rust.scalar-constant-patterns"));
         let kind = match pattern {
             syn::Pat::Lit(_) => Some("pat_literal"),
             syn::Pat::Wild(_) => Some("pat_wild"),
+            syn::Pat::Path(_) if constants => Some("pat_constant"),
+            syn::Pat::Ident(ident)
+                if constants
+                    && ident.by_ref.is_none()
+                    && ident.mutability.is_none()
+                    && ident.subpat.is_none() =>
+            {
+                Some("pat_name")
+            }
             syn::Pat::Range(range) if crate::scalar_patterns::integer_range(range) => {
                 Some("pat_range")
             }
-            syn::Pat::Or(pattern) if scalar_alternatives(pattern) => Some("pat_or"),
+            syn::Pat::Or(pattern) if scalar_alternatives(pattern, constants) => Some("pat_or"),
             _ => None,
         };
         if let Some(kind) = kind {
@@ -148,7 +159,7 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
         }
 
         if let syn::Pat::Or(pattern) = pattern
-            && scalar_alternatives(pattern)
+            && scalar_alternatives(pattern, constants)
         {
             for case in &pattern.cases {
                 self.visit_pat(case);
@@ -200,9 +211,10 @@ pub(crate) fn byte_offset(source: &str, position: proc_macro2::LineColumn) -> us
 
 impl Inventory<'_> {
     fn find(&self, node: &HirNode, kind: &str, span: ByteSpan) -> Vec<HirRef> {
-        let own = (node.kind == kind
-            && corresponding_span(&self.facts.source.bytes, span, node.span))
-        .then(|| node.hir.clone());
+        let matches_kind = node.kind == kind
+            || (kind == "pat_name" && matches!(node.kind.as_str(), "pat_binding" | "pat_constant"));
+        let own = (matches_kind && corresponding_span(&self.facts.source.bytes, span, node.span))
+            .then(|| node.hir.clone());
 
         own.into_iter()
             .chain(
@@ -234,10 +246,17 @@ fn corresponding_span(source: &str, syntax: ByteSpan, hir: ByteSpan) -> bool {
             == after.chars().filter(|ch| *ch == ')').count()
 }
 
-fn scalar_alternatives(pattern: &syn::PatOr) -> bool {
+fn scalar_alternatives(pattern: &syn::PatOr, constants: bool) -> bool {
     pattern.cases.iter().all(|case| match case {
         syn::Pat::Lit(literal) => matches!(literal.lit, syn::Lit::Int(_) | syn::Lit::Bool(_)),
         syn::Pat::Range(range) => crate::scalar_patterns::integer_range(range),
+        syn::Pat::Path(_) => constants,
+        syn::Pat::Ident(ident) => {
+            constants
+                && ident.by_ref.is_none()
+                && ident.mutability.is_none()
+                && ident.subpat.is_none()
+        }
         _ => false,
     })
 }

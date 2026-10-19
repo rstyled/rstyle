@@ -928,6 +928,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
 fn match_predicate(pattern: &HirNode) -> (&'static str, Option<String>) {
     match pattern.kind.as_str() {
         "pat_literal" => ("match.literal", pattern.lit.clone()),
+        "pat_constant" => ("match.constant", pattern.lit.clone()),
         "pat_range" => ("match.range", pattern.lit.clone()),
         "pat_or" => match_alternatives(pattern),
         _ => ("match.wildcard", None),

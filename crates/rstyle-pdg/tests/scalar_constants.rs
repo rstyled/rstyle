@@ -94,3 +94,18 @@ fn scalar_constant_declarations_and_hir_types_must_agree() {
     constant.declaration = "const r#type: i32 = 15;".into();
     ScalarConstant::verify(&node(&constant), None).unwrap();
 }
+
+#[test]
+fn constant_pattern_selectors_must_match_the_resolved_value() {
+    let constant = constant("i32", "15");
+    let mut pattern = node(&constant);
+    pattern.kind = "pat_constant".into();
+    pattern.lit = Some("15".into());
+    ScalarConstant::verify_pattern(&pattern, None).unwrap();
+    assert!(ScalarConstant::verify(&pattern, None).is_err());
+    pattern.lit = Some("16".into());
+    assert!(ScalarConstant::verify_pattern(&pattern, None).is_err());
+    pattern.lit = Some("15".into());
+    pattern.ty.as_mut().unwrap().normalized = Some("u32".into());
+    assert!(ScalarConstant::verify_pattern(&pattern, None).is_err());
+}

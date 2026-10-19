@@ -95,6 +95,7 @@ impl<'tcx> Context<'tcx> {
     }
 
     pub fn pattern(&self, pat: &hir::Pat<'tcx>) -> HirNode {
+        let constant = self.constant_pattern(pat);
         let (kind, span) = match pat.kind {
             PatKind::Binding(hir::BindingMode(hir::ByRef::No, _), _, ident, None) => {
                 ("pat_binding", ident.span)
@@ -103,6 +104,7 @@ impl<'tcx> Context<'tcx> {
             PatKind::Wild => ("pat_wild", pat.span),
             PatKind::Or(_) if self.scalar_or_pattern(pat) => ("pat_or", pat.span),
             PatKind::Range(..) if self.scalar_range_pattern(pat) => ("pat_range", pat.span),
+            PatKind::Expr(_) if constant.is_some() => ("pat_constant", pat.span),
             PatKind::Expr(expression)
                 if matches!(expression.kind, hir::PatExprKind::Lit { .. }) =>
             {
@@ -123,7 +125,14 @@ impl<'tcx> Context<'tcx> {
                 .map(|ty| resolved(ty, String::new())),
             binding,
             binding_mut,
-            lit: self.pattern_literal(pat, kind),
+            lit: constant
+                .as_ref()
+                .and_then(|resolution| {
+                    rstyle_pdg::scalar_constants::ScalarConstant::decode(resolution).ok()
+                })
+                .map(|constant| constant.value)
+                .or_else(|| self.pattern_literal(pat, kind)),
+            res: constant,
             children: match pat.kind {
                 PatKind::Or(patterns) if kind == "pat_or" => patterns
                     .iter()

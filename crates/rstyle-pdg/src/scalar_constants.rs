@@ -24,10 +24,24 @@ impl ScalarConstant {
     }
 
     pub fn verify(node: &HirNode, pointer_width: Option<u64>) -> Result<Self, String> {
+        if node.kind != "expr_path" {
+            return Err("Expected a constant expression path".into());
+        }
+        Self::verify_value(node, pointer_width)
+    }
+
+    pub fn verify_pattern(node: &HirNode, pointer_width: Option<u64>) -> Result<Self, String> {
+        let constant = Self::verify_value(node, pointer_width)?;
+        if node.kind != "pat_constant" || node.lit.as_deref() != Some(&constant.value) {
+            return Err("Constant pattern selector disagrees with its resolved value".into());
+        }
+        Ok(constant)
+    }
+
+    fn verify_value(node: &HirNode, pointer_width: Option<u64>) -> Result<Self, String> {
         let resolution = node.res.as_ref().ok_or("Missing constant resolution")?;
         let constant = Self::decode(resolution)?;
-        if node.kind != "expr_path"
-            || !node.children.is_empty()
+        if !node.children.is_empty()
             || node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some(&constant.ty)
             || !constant.value_valid(pointer_width)
         {

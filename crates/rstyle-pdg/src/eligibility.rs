@@ -1125,6 +1125,14 @@ fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) ->
     if pattern.kind == "pat_literal" {
         return pattern.lit.is_some();
     }
+    if pattern.kind == "pat_constant" {
+        return ctx.profile.supports("rust.scalar-constant-patterns")
+            && crate::scalar_constants::ScalarConstant::verify_pattern(
+                pattern,
+                ctx.facts.build.pointer_width.value,
+            )
+            .is_ok();
+    }
 
     ctx.profile.supports("rust.scalar-range-patterns")
         && pattern.kind == "pat_range"

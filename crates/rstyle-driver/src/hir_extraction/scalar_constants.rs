@@ -13,6 +13,20 @@ use rustc_middle::{
 };
 
 impl Context<'_> {
+    pub(super) fn constant_pattern(&self, pattern: &rustc_hir::Pat<'_>) -> Option<PathRes> {
+        if !self.profile.supports("rust.scalar-constant-patterns") {
+            return None;
+        }
+        let rustc_hir::PatKind::Expr(expression) = pattern.kind else {
+            return None;
+        };
+        let rustc_hir::PatExprKind::Path(ref path) = expression.kind else {
+            return None;
+        };
+
+        self.constant_resolution(self.typeck.qpath_res(path, expression.hir_id))
+    }
+
     pub(super) fn constant_resolution(&self, resolution: Res) -> Option<PathRes> {
         let Res::Def(kind, definition) = resolution else {
             return None;
