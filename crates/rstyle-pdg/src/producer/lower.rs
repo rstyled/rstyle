@@ -245,6 +245,30 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
+    fn assertion(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if node.lit.as_deref() == Some("false") {
+            return Flow {
+                value: None,
+                ..flow
+            };
+        }
+        let flow = self.expression(&node.children[0], flow);
+        let operation = Operation {
+            operator: Some("assert".into()),
+            construct: Some(
+                node.res
+                    .as_ref()
+                    .expect("verified assertion")
+                    .description
+                    .clone(),
+            ),
+            operands: self.operand(&flow.value),
+            ..template(node, NodeCategory::Computation)
+        };
+
+        self.emit(operation, flow)
+    }
+
     fn read(&mut self, node: &HirNode, flow: Flow) -> Flow {
         self.emit(self.read_operation(node), flow)
     }
@@ -888,6 +912,7 @@ fn arm(predicate: &Flow, outcome: &str) -> Flow {
 fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
     match node.kind.as_str() {
         "expr_block" => Builder::block,
+        "expr_assert" => Builder::assertion,
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,
         "expr_path"

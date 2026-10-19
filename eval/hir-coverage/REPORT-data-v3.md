@@ -132,3 +132,29 @@ reports 0 violations across 2,166 functions; patterns reports 0 remaining candid
 with all 15 existing ignores unchanged. Range capture adds at most two constant
 records and reuses them for the descriptor, without per-integer expansion, runtime
 bound reads, new provenance fields or caches. No formal performance benchmark is claimed.
+
+## Standard assertion increment, extraction 3.6.0
+
+Focused fresh run `target/hir-coverage/run-i3z4hul6/`, started at `0894f5c` with
+the assertion implementation in the working tree, completes all three packages.
+Data-v3 measures **10 admitted, 42 excluded, 8 unknown out of 60**, with the same
+53 captured/assessed contexts, 0 failed and 0 proven inactive. All 60 selected
+source identities match 3.5.0. Twenty-four admitted CFG/PDG documents, including
+functions outside the selection, pass the unchanged schema checks.
+
+`time-core::days_in_month_leap` moves from excluded to admitted. Its debug
+assertions retain disclosed partial exceptional-flow evidence; this is bounded
+normal-flow admission, not a panic-free result. No selected admission is lost.
+The cfg-selected `time-core::is_leap_year` context moves from excluded to unknown:
+removing assertion rejection exposes its still-unmatched original-source
+operations. The seven previously unknown uncaptured contexts remain unknown.
+This increases the unknown count rather than proving any context inactive.
+The complete assessment retains exclusion/blocker combinations. Pair evaluation
+remains incomplete, and no detector-quality claim follows.
+
+The workspace passes 727 tests (5 existing ignores), and Clippy with warnings
+denied passes. Repository-built rstyle reports 0 violations across 2,182 functions;
+patterns reports 0 remaining candidates with all 15 existing ignores unchanged.
+Assertion capture reuses existing resolution/callsite fields and the ordinary
+exceptional-flow assessment. No new provenance tables, snapshots or caches are
+introduced, and no formal performance benchmark is claimed.

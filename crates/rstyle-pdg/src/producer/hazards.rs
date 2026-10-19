@@ -45,16 +45,18 @@ pub fn assess(
             constant(node, graph, analysis, &values).filter(|value| fits(facts, &node.ty, *value));
         let safe = proven_safe(facts, graph, node, &operands);
         if relevant(node) && !safe {
-            assessment.limitations.push(format!("{} at bytes {}..{} may panic under captured {}-bit target and overflow-checks={:?}; exceptional transfer and unwinding/cleanup are omitted.",
-                node.operator.as_deref().unwrap_or("integer operation"), node.span.start, node.span.end, facts.build.pointer_width.value.unwrap_or(0), facts.build.overflow_checks.value));
+            assessment.limitations.push(limitation(facts, node));
         }
         if relevant(node) {
             assessment.checked_operations.push(Proof {
                 operation_id: node.id.clone(),
                 resolved_type: node.ty.clone(),
-                operand_constants: operands.iter().map(|value| value.map(|v| v.to_string())).collect(),
+                operand_constants: operands
+                    .iter()
+                    .map(|value| value.map(|v| v.to_string()))
+                    .collect(),
                 omitted_panic_impossible: safe,
-                method: "resolved-width checked constant evaluation, unique reaching-definition snapshots, captured overflow settings, and source literal-negation exception",
+                method: proof_method(node),
             });
         }
         values.insert(node.id.clone(), value);
@@ -63,12 +65,37 @@ pub fn assess(
     assessment
 }
 
+fn proof_method(node: &Operation) -> &'static str {
+    if node.operator.as_deref() == Some("assert") {
+        "resolved standard assertion; only a directly known true boolean discharges omitted panic flow"
+    } else {
+        "resolved-width checked constant evaluation, unique reaching-definition snapshots, captured overflow settings, and source literal-negation exception"
+    }
+}
+
+fn limitation(facts: &dyn crate::unit_store::EvidenceFacts, node: &Operation) -> String {
+    if node.operator.as_deref() == Some("assert") {
+        return format!(
+            "Assertion at bytes {}..{} may panic; successful normal continuation is modeled, while exceptional transfer and unwinding/cleanup are omitted.",
+            node.span.start, node.span.end
+        );
+    }
+    format!(
+        "{} at bytes {}..{} may panic under captured {}-bit target and overflow-checks={:?}; exceptional transfer and unwinding/cleanup are omitted.",
+        node.operator.as_deref().unwrap_or("integer operation"),
+        node.span.start,
+        node.span.end,
+        facts.build.pointer_width.value.unwrap_or(0),
+        facts.build.overflow_checks.value
+    )
+}
+
 fn relevant(node: &Operation) -> bool {
     node.category == NodeCategory::Computation
         && node.ty != "bool"
         && matches!(
             node.operator.as_deref(),
-            Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>")
+            Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "assert")
         )
 }
 
@@ -181,6 +208,15 @@ fn proven_safe(
     let Some(op) = node.operator.as_deref() else {
         return false;
     };
+    if op == "assert" {
+        return graph
+            .nodes
+            .iter()
+            .find(|candidate| node.operands.first() == Some(&candidate.id))
+            .is_some_and(|condition| {
+                condition.literal.as_deref() == Some("true") && condition.ty == "bool"
+            });
+    }
     if matches!(op, "+" | "-" | "*") && facts.build.overflow_checks.value == Some(false) {
         return true;
     }

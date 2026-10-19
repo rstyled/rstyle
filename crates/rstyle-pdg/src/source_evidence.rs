@@ -71,6 +71,47 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
 }
 
 impl Inventory<'_> {
+    fn assertion(&mut self, mac: &syn::Macro) -> bool {
+        if !crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+            .is_ok_and(|profile| profile.supports("rust.scalar-assertions"))
+        {
+            return false;
+        }
+        let Ok(assertion) = crate::assertions::Assertion::from_macro(mac) else {
+            return false;
+        };
+
+        self.add("expr_assert", mac.span());
+        self.visit_expr(&assertion.condition);
+        true
+    }
+
+    fn expression(&mut self, expression: &syn::Expr) {
+        let kind = self.expression_kind(expression);
+        if let Some(kind) = kind {
+            self.add(kind, expression.span());
+        }
+
+        if matches!(
+            expression,
+            syn::Expr::Closure(_) | syn::Expr::Async(_) | syn::Expr::Const(_)
+        ) {
+            return;
+        }
+        if let syn::Expr::Call(call) = expression
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
+            && matches!(&*call.func, syn::Expr::Path(_))
+        {
+            for argument in &call.args {
+                self.visit_expr(argument);
+            }
+            return;
+        }
+
+        visit::visit_expr(self, expression);
+    }
+
     fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
         if matches!(expression, syn::Expr::Field(_) | syn::Expr::Reference(_))
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
@@ -108,29 +149,12 @@ impl Inventory<'_> {
 
 impl<'ast> Visit<'ast> for Inventory<'_> {
     fn visit_expr(&mut self, expression: &'ast syn::Expr) {
-        let kind = self.expression_kind(expression);
-        if let Some(kind) = kind {
-            self.add(kind, expression.span());
-        }
-
-        if matches!(
-            expression,
-            syn::Expr::Closure(_) | syn::Expr::Async(_) | syn::Expr::Const(_)
-        ) {
-            return;
-        }
-        if let syn::Expr::Call(call) = expression
-            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
-                .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
-            && matches!(&*call.func, syn::Expr::Path(_))
+        if let syn::Expr::Macro(expression) = expression
+            && self.assertion(&expression.mac)
         {
-            for argument in &call.args {
-                self.visit_expr(argument);
-            }
             return;
         }
-
-        visit::visit_expr(self, expression);
+        self.expression(expression);
     }
 
     fn visit_pat(&mut self, pattern: &'ast syn::Pat) {
@@ -168,6 +192,11 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
     }
 
     fn visit_stmt(&mut self, statement: &'ast syn::Stmt) {
+        if let syn::Stmt::Macro(statement) = statement
+            && self.assertion(&statement.mac)
+        {
+            return;
+        }
         if matches!(statement, syn::Stmt::Macro(_)) {
             self.add("source_macro", statement.span());
             return;

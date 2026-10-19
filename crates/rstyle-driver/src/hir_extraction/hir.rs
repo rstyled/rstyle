@@ -218,6 +218,9 @@ impl<'tcx> Context<'tcx> {
     }
 
     pub fn expression(&self, expr: &Expr<'tcx>) -> HirNode {
+        if let Some(assertion) = self.assertion(expr) {
+            return assertion;
+        }
         if let ExprKind::DropTemps(inner) = expr.kind {
             return self.expression(inner);
         }

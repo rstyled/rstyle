@@ -130,6 +130,7 @@ impl<'a> Visitor<'a> for Owned {
     fn visit_stmt(&mut self, statement: &'a ast::Stmt) {
         match &statement.kind {
             ast::StmtKind::Item(item) => self.reject(item.span, "rust.blocks", "nested_item"),
+            ast::StmtKind::MacCall(mac) if selected_assertion(&mac.mac, self.profile) => {}
             ast::StmtKind::MacCall(_) => {
                 self.reject(statement.span, "rust.macros", "macro_invocation")
             }
@@ -154,6 +155,7 @@ fn selected_expression(
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> bool {
     match kind {
+        ast::ExprKind::MacCall(mac) => selected_assertion(mac, profile),
         ast::ExprKind::Field(..) | ast::ExprKind::AddrOf(..) => {
             profile.supports("rust.concrete-read-only-data")
         }
@@ -167,6 +169,21 @@ fn selected_expression(
         ast::ExprKind::Match(..) => profile.supports("rust.scalar-match"),
         _ => false,
     }
+}
+
+fn selected_assertion(
+    mac: &ast::MacCall,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> bool {
+    let path = mac
+        .path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.name.to_string())
+        .collect::<Vec<_>>()
+        .join("::");
+    profile.supports("rust.scalar-assertions")
+        && rstyle_pdg::assertions::macro_name(&path).is_some()
 }
 
 fn deferred(kind: &ast::ExprKind) -> Option<(&'static str, &'static str)> {

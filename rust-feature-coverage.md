@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.5.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.6.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -85,7 +85,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F11 | Labelled and value-carrying exits | Missing | `'outer: loop { break 'outer; }`, `break x` | Exact target resolution and value/frontier dependencies; also labelled block expressions. |
 | F12 | Iterator `for` loops | Missing | `for x in xs { ... }` | Iterator protocol, yielded values, effects, drop, and source/desugaring correspondence; not covered by scalar `while`. |
 | F13 | `Option`/`Result` branching and `?` | Missing | `let x = parse()?;` | Concrete discriminants/payloads, early return, conversions, and cleanup; `?` is not merely a scalar branch. |
-| F14 | Assertion macros | Missing | `assert!(b);`, `debug_assert!(b);` | Planned read-only slice: original invocation/expansion, condition order, build settings, and disclosed panic behavior. Formatting arguments need additional work. |
+| F14 | Assertion macros | Partial | `assert!(b);`, `debug_assert!(b);` | Data-v3 3.6.0 supports unformatted standard assertions, original invocation/condition correspondence, one condition evaluation, debug settings and disclosed omitted panic flow; see [assertion contract](docs/extraction-profiles/scalar-assertions-v1.md). Formatting/comparison macros and general exceptional flow remain missing. |
 | F15 | General panic/unwind/cleanup flow | Missing | `panic!("bad")`, `catch_unwind(f)` | Current extraction is bounded normal flow; omitted applicable exceptional flow is disclosed, not represented as complete. |
 
 Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
@@ -502,3 +502,37 @@ Frozen refresh `target/hir-coverage/run-56rfkhh2/` completes all three packages:
 9 admitted, 44 excluded, 7 unknown, with all 60 selected identities/outcomes
 unchanged from 3.4.0. The [inventory report](eval/hir-coverage/REPORT-data-v3.md)
 records the measured result; syntax composition adds no frozen admission here.
+
+### F14 standard assertion slice
+
+Data-v3 extraction 3.6.0 adds `rust.scalar-assertions`: unformatted standard
+`assert!`/`debug_assert!`, including qualified invocations and trailing commas.
+Compiler macro resolution and the original condition/callsite are retained in
+existing frontend fields. Independent admission checks source, types and build
+settings. Enabled conditions evaluate once in order; disabled debug conditions
+emit no runtime operations while remaining in original-source evidence.
+The [assertion contract](docs/extraction-profiles/scalar-assertions-v1.md) records
+the expansion, verification, lowering and matching boundary.
+
+Successful normal continuation is modeled. Unproved assertion success retains
+Partial evidence with an explicit panic/unwind/cleanup limitation; directly known
+true bool operands discharge that limitation. The existing nonpanicking helper
+boundary still applies. F14 remains Partial for formatting/comparison assertions
+and general exceptional flow. This does not complete S03–S04: arbitrary cfg-removed
+source and inactive definitions still lack an independent resolver. Those source
+boundaries remain next in scalar composition before the connected data ladder.
+
+The workspace passes 727 tests (5 existing ignores), including debug/release,
+single condition mutation, method receivers, helper boundaries and source/build
+consistency checks. Clippy with warnings denied passes. Repository-built rstyle
+reports 0 violations across 2,182 functions; patterns reports 0 remaining
+candidates with all 15 existing ignores unchanged. No provenance table, snapshot
+or cache was added; natural coverage and performance claims require separate evidence.
+
+Frozen refresh `target/hir-coverage/run-i3z4hul6/` completes all three packages
+with 10 admitted, 42 excluded and 8 unknown across the same 60 source identities.
+`time-core::days_in_month_leap` is newly admitted with partial panic-flow evidence;
+no admission is lost. The cfg-selected `is_leap_year` context moves from excluded
+to unknown because source correspondence is still incomplete after assertion
+rejection is removed. Seven uncaptured contexts remain unknown; no inactivity is
+inferred. See the [inventory report](eval/hir-coverage/REPORT-data-v3.md).

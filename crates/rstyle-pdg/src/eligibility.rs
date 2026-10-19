@@ -552,6 +552,9 @@ fn binding_node(binding: &BindingFact) -> HirNode {
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if node.kind == "expr_assert" && ctx.profile.supports("rust.scalar-assertions") {
+        return check_assertion(node, ctx);
+    }
     if !in_expansion && let Some(site) = &node.expansion {
         return macro_diagnostic(node, site);
     }
@@ -584,6 +587,33 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     );
 
     own.merge(children)
+}
+
+fn check_assertion(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let verified = ctx
+        .facts
+        .source
+        .bytes
+        .get(node.span.start as usize..node.span.end as usize)
+        .ok_or_else(|| "Missing original assertion source".to_string())
+        .and_then(|source| {
+            crate::assertions::verify(node, source, ctx.facts.build.debug_assertions.value)
+        });
+    let own = match verified {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error(
+            "rust.scalar-assertions",
+            "assertion_evidence",
+            node,
+            &reason,
+        ),
+    };
+    own.merge(Outcome::combine(
+        node.children
+            .iter()
+            .map(|child| check_node(child, false, ctx))
+            .collect(),
+    ))
 }
 
 fn macro_diagnostic(node: &HirNode, site: &ExpansionSite) -> Outcome {

@@ -73,3 +73,4 @@ pub use model::{
 pub use validate::{
     Eligibility, Issue, ProducerConformance, ValidationContext, ValidationReport, validate,
 };
+pub mod assertions;

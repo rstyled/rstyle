@@ -2066,6 +2066,131 @@ fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaul
 }
 
 #[test]
+fn clones_data_assertions_preserve_condition_order_panic_scope_and_debug_settings() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn check(b: bool) { assert!((b)); }\npub fn once(mut x: u32) -> u32 { assert!({ x = x & 1; x == 0 }); x }\npub fn debug_once(mut x: u32) -> u32 { debug_assert!({ x = x & 1; x == 0 }); x }\npub fn qualified(b: bool) { core::assert!(b,); }\npub fn certain() { assert!(true); }\npub fn certain_wrapper() { certain() }\npub fn falsehood() { assert!(false); }\npub fn wrapper(b: bool) { check(b); }\npub fn formatted(b: bool) { assert!(b, \"bad\"); }\npub fn equal(x: u32) { assert_eq!(x, 0); }\nmod custom { macro_rules! assert { ($value:expr) => { () } } pub fn counterfeit(b: bool) { assert!(b); } }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    check_assertion_admissions(functions);
+    check_assertion_graph(functions, true);
+    check_assertion_mutations(functions);
+
+    let (output, release) = clones(
+        directory.path(),
+        &["--release", "--extraction-profile", "hir-data-v3"],
+    );
+    assert!(output.status.success(), "{release}");
+    check_assertion_graph(release["functions"].as_array().unwrap(), false);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] != "admitted")
+    );
+}
+
+fn check_assertion_admissions(functions: &[Value]) {
+    for name in [
+        "check",
+        "once",
+        "debug_once",
+        "qualified",
+        "certain",
+        "certain_wrapper",
+        "falsehood",
+    ] {
+        assert_eq!(
+            function_named(functions, name)["outcome"],
+            "admitted",
+            "{}",
+            function_named(functions, name)
+        );
+    }
+    for name in ["wrapper", "formatted", "equal", "custom::counterfeit"] {
+        assert_ne!(
+            function_named(functions, name)["outcome"],
+            "admitted",
+            "{name}"
+        );
+    }
+    assert_eq!(
+        function_named(functions, "check")["extraction_evidence"]["cfg"]["status"],
+        "partial"
+    );
+    assert_eq!(
+        function_named(functions, "certain")["extraction_evidence"]["cfg"]["status"],
+        "complete"
+    );
+}
+
+fn check_assertion_graph(functions: &[Value], debug: bool) {
+    for (name, active) in [("once", true), ("debug_once", debug)] {
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function_named(functions, name)["facts"].clone()).unwrap();
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        let assertions: Vec<_> = pair
+            .pdg
+            .nodes
+            .iter()
+            .filter(|node| {
+                node.attributes
+                    .operator
+                    .as_ref()
+                    .and_then(rstyle_pdg::StringFact::known_value)
+                    == Some("assert")
+            })
+            .collect();
+        let writes: Vec<_> = pair
+            .pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.write_form.as_deref() == Some("reassignment"))
+            .collect();
+        assert_eq!(assertions.len(), usize::from(active), "{name}");
+        assert_eq!(writes.len(), usize::from(active), "{name}");
+        assert_eq!(
+            pair.cfg.extraction_evidence.status == rstyle_pdg::ExtractionStatus::Complete,
+            !active
+        );
+        if active {
+            assert!(
+                pair.pdg.edges.iter().any(|edge| edge.target == assertions[0].id && edge.operand_position == Some(0))
+            );
+            assert!(
+                pair.cfg
+                    .extraction_evidence
+                    .limitations
+                    .iter()
+                    .any(|limitation| limitation.contains("Assertion")
+                        && limitation.contains("omitted"))
+            );
+        }
+    }
+}
+
+fn check_assertion_mutations(functions: &[Value]) {
+    let facts: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(function_named(functions, "debug_once")["facts"].clone()).unwrap();
+    let mut changed = facts.clone();
+    changed.build.debug_assertions.value = Some(false);
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    let mut changed = facts.clone();
+    changed.body.children[0].children[0]
+        .res
+        .as_mut()
+        .unwrap()
+        .description = "local::debug_assert".into();
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    let mut changed = facts;
+    changed.body.children[0].children[0].children[0].span.start += 1;
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+}
+
+#[test]
 fn clones_data_constant_range_bounds_preserve_values_and_dependency_edits() {
     let directory = clone_workspace();
     let source = "mod config { pub const LOW: i32 = -3; } use config::LOW as START; struct Limits; impl Limits { const HIGH: i32 = 5; } const MAX: u128 = u128::MAX;\npub fn both(x: i32) -> bool { match x { START..=Limits::HIGH => true, _ => false } }\npub fn lower(x: i32) -> bool { match x { START.. => true, _ => false } }\npub fn upper(x: i32) -> bool { match x { ..Limits::HIGH => true, _ => false } }\npub fn mixed(x: i32, b: bool) -> i32 { match x { START..0 | 1..=Limits::HIGH if b => 1, _ => 2 } }\npub fn wide(x: u128) -> bool { match x { 0..=MAX => true, _ => false } }\npub fn external(x: u128) -> bool { match x { 0..=u128::MAX => true, _ => false } }\n";
@@ -2402,7 +2527,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.5.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.6.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -3609,7 +3734,7 @@ fn clones_data_normalizes_concrete_array_method_results_before_verification() {
 }
 
 #[test]
-fn clones_data_macro_argument_receivers_are_excluded_without_failing_capture() {
+fn clones_data_assertion_argument_receivers_compose_with_partial_flow() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
@@ -3620,7 +3745,11 @@ fn clones_data_macro_argument_receivers_are_excluded_without_failing_capture() {
     assert!(output.status.success(), "{report}");
     assert_eq!(report["capture_complete"], true);
     assert_eq!(report["assessment_complete"], true);
-    assert_eq!(report["functions"][0]["outcome"], "excluded");
+    assert_eq!(report["functions"][0]["outcome"], "admitted");
+    assert_eq!(
+        report["functions"][0]["extraction_evidence"]["cfg"]["status"],
+        "partial"
+    );
     assert!(report["handoff_failures"].as_array().unwrap().is_empty());
 }
 
@@ -5956,7 +6085,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.5.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.6.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
