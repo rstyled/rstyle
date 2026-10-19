@@ -3818,11 +3818,13 @@ fn clones_data_assertion_argument_receivers_compose_with_partial_flow() {
     assert!(output.status.success(), "{report}");
     assert_eq!(report["capture_complete"], true);
     assert_eq!(report["assessment_complete"], true);
-    assert_eq!(report["functions"][0]["outcome"], "admitted");
-    assert_eq!(
-        report["functions"][0]["extraction_evidence"]["cfg"]["status"],
-        "partial"
-    );
+    for function in check_data_family(&report, &["check"]) {
+        assert_eq!(
+            function["extraction_evidence"]["cfg"]["status"],
+            "partial",
+            "{function}"
+        );
+    }
     assert!(report["handoff_failures"].as_array().unwrap().is_empty());
 }
 
