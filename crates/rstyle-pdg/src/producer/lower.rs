@@ -700,7 +700,8 @@ impl Builder<'_> {
         let operation = self.match_selector(input);
         let selected = self.emit(operation, remaining);
         let controller = controller.or_else(|| selected.value.clone());
-        let remaining = if pattern.kind != "pat_wild" && !input.exhaustive {
+        let remaining = if !input.exhaustive && !crate::scalar_exhaustiveness::irrefutable(pattern)
+        {
             arm(&selected, "false")
         } else {
             empty_flow()
@@ -964,27 +965,40 @@ fn match_predicate(pattern: &HirNode) -> (&'static str, Option<String>) {
 }
 
 fn match_alternatives(pattern: &HirNode) -> (&'static str, Option<String>) {
-    if pattern
-        .children
-        .iter()
-        .all(|child| child.kind == "pat_literal")
-    {
-        let values: Vec<_> = pattern.children.iter().map(|child| &child.lit).collect();
+    if !pattern.children.iter().any(|child| child.kind == "pat_or") {
+        return encode_alternatives(pattern.children.iter());
+    }
+    let mut children = Vec::new();
+    flatten_alternatives(pattern, &mut children);
+    encode_alternatives(children.iter().copied())
+}
+
+fn encode_alternatives<'a>(
+    children: impl Iterator<Item = &'a HirNode> + Clone,
+) -> (&'static str, Option<String>) {
+    if children.clone().all(|child| child.kind == "pat_literal") {
+        let values: Vec<_> = children.map(|child| &child.lit).collect();
         return (
             "match.or",
             Some(serde_json::to_string(&values).expect("literal alternatives")),
         );
     }
-    let values: Vec<_> = pattern
-        .children
-        .iter()
-        .map(|child| (&child.kind, &child.lit))
-        .collect();
+    let values: Vec<_> = children.map(|child| (&child.kind, &child.lit)).collect();
 
     (
         "match.or-patterns",
         Some(serde_json::to_string(&values).expect("pattern alternatives")),
     )
+}
+
+fn flatten_alternatives<'a>(pattern: &'a HirNode, leaves: &mut Vec<&'a HirNode>) {
+    if pattern.kind == "pat_or" {
+        for child in &pattern.children {
+            flatten_alternatives(child, leaves);
+        }
+    } else {
+        leaves.push(pattern);
+    }
 }
 
 fn template(node: &HirNode, category: NodeCategory) -> Operation {

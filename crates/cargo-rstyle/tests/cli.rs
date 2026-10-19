@@ -2600,17 +2600,17 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.9.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.10.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
             .iter()
             .filter(|function| function["outcome"] == "admitted")
             .count(),
-        4,
+        5,
         "{report}"
     );
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 6);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
     assert_eq!(report["pair_evaluation_complete"], true);
     let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
         functions
@@ -3820,8 +3820,7 @@ fn clones_data_assertion_argument_receivers_compose_with_partial_flow() {
     assert_eq!(report["assessment_complete"], true);
     for function in check_data_family(&report, &["check"]) {
         assert_eq!(
-            function["extraction_evidence"]["cfg"]["status"],
-            "partial",
+            function["extraction_evidence"]["cfg"]["status"], "partial",
             "{function}"
         );
     }
@@ -6160,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.9.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.10.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -7604,4 +7603,182 @@ fn check_exhaustive_literal_source(facts: &rstyle_pdg::HirFnFacts) {
             .iter()
             .any(|d| d.construct == "match_boundary")
     );
+}
+
+#[test]
+fn clones_data_nested_scalar_patterns_compose_with_ranges_constants_and_guards() {
+    let directory = nested_scalar_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    for name in [
+        "nested", "flat", "mixed", "boolean", "wildcard", "grouped", "constant", "range",
+        "leading", "repeated",
+    ] {
+        let function = functions
+            .iter()
+            .find(|f| f["facts"]["name"] == name)
+            .unwrap();
+        assert_eq!(function["outcome"], "admitted", "{name}: {function}");
+    }
+    for name in ["payload", "binding", "reference"] {
+        assert_ne!(
+            functions
+                .iter()
+                .find(|f| f["facts"]["name"] == name)
+                .unwrap()["outcome"],
+            "admitted"
+        );
+    }
+    check_nested_scalar_selector(functions);
+    check_nested_scalar_payloads(functions);
+    check_nested_matching(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+fn nested_scalar_workspace() -> tempfile::TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        const LOW: i32 = -4;
+        const HIGH: i32 = 4;
+        pub fn nested(x: i32, gate: bool) -> i32 { match x { (1 | (2 | 3)) if gate => 7, _ => 9 } }
+        pub fn flat(x: i32, gate: bool) -> i32 { match x { 1 | 2 | 3 if gate => 7, _ => 9 } }
+        pub fn mixed(x: i32) -> i32 { match x { ((LOW | (0..=HIGH))) | 9 => 1, _ => 2 } }
+        pub fn boolean(x: bool) -> i32 { match x { (/* outside */ true | (false)) => 1 } }
+        pub fn wildcard(x: i32, gate: bool) -> i32 { match x { ((1 | _)) if gate => 1, _ => 2 } }
+        pub fn grouped(x: i32) -> i32 { match x { (/* before */ (- /* minus */ 1) /* after */) => 1, _ => 2 } }
+        pub fn constant(x: i32) -> i32 { match x { ((LOW)) => 1, _ => 2 } }
+        pub fn range(x: i32) -> i32 { match x { (/* range */ (LOW..=HIGH)) => 1, _ => 2 } }
+        pub fn leading(x: bool) -> i32 { match x { | (true | false) => 1 } }
+        pub fn repeated(x: i32) -> i32 { match x { (1 | 1) | (2 | 2) => 1, _ => 2 } }
+        pub fn payload(x: Option<i32>) -> i32 { match x { (Some(1 | 2) | None) => 1, _ => 2 } }
+        pub fn binding(x: i32) -> i32 { match x { (value @ 1 | value @ 2) => value, _ => 0 } }
+        pub fn reference(x: &i32) -> i32 { match x { (&1 | &2) => 1, _ => 0 } }
+    "#).unwrap();
+    directory
+}
+
+fn check_nested_scalar_selector(functions: &[Value]) {
+    let facts = nested_scalar_facts(functions, "nested");
+    let pattern = &facts.body.children[0].children[1].children[0];
+    assert_eq!(pattern.kind, "pat_or");
+    assert!(pattern.children.iter().any(|child| child.kind == "pat_or"));
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let selectors: Vec<_> = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.attributes.construct.as_deref() == Some("match.or"))
+        .collect();
+    assert_eq!(selectors.len(), 1);
+    assert_eq!(
+        selectors[0]
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("[\"1\",\"2\",\"3\"]")
+    );
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("match.guard"))
+            .count(),
+        1
+    );
+    let selector = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("match.or"))
+        .unwrap();
+    selector.attributes.literal = Some(rstyle_pdg::StringFact::known("[\"1\",\"2\"]"));
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+}
+
+fn nested_scalar_facts(functions: &[Value], name: &str) -> rstyle_pdg::HirFnFacts {
+    serde_json::from_value(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == name)
+            .unwrap()["facts"]
+            .clone(),
+    )
+    .unwrap()
+}
+
+fn check_nested_scalar_payloads(functions: &[Value]) {
+    for (name, expected) in [
+        ("flat", "[\"1\",\"2\",\"3\"]"),
+        ("repeated", "[\"1\",\"1\",\"2\",\"2\"]"),
+        ("wildcard", "[[\"pat_literal\",\"1\"],[\"pat_wild\",null]]"),
+    ] {
+        let facts = nested_scalar_facts(functions, name);
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        let selector = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| {
+                node.attributes
+                    .construct
+                    .as_deref()
+                    .is_some_and(|construct| construct.starts_with("match.or"))
+            })
+            .unwrap();
+        assert_eq!(
+            selector.attributes.literal.as_ref().unwrap().known_value(),
+            Some(expected)
+        );
+        if name == "wildcard" {
+            let mapping = rstyle_pdg::read_operation_map(&pair.pdg.extensions).unwrap();
+            let mapped = mapping
+                .iter()
+                .find(|entry| entry.pdg_node_id == selector.id)
+                .unwrap();
+            assert!(
+                !pair
+                    .cfg
+                    .edges
+                    .iter()
+                    .any(|edge| edge.source == mapped.cfg_node_id
+                        && edge.kind == rstyle_pdg::CfgEdgeKind::False)
+            );
+        }
+    }
+}
+
+fn check_nested_matching(report: &Value) {
+    let functions = report["functions"].as_array().unwrap();
+    let keys: Vec<_> = ["nested", "flat"]
+        .iter()
+        .map(|name| {
+            &functions
+                .iter()
+                .find(|f| f["facts"]["name"] == *name)
+                .unwrap()["key"]
+        })
+        .collect();
+    let pair = report["matching"]["pairs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|pair| {
+            (pair["first"] == *keys[0] && pair["second"] == *keys[1])
+                || (pair["first"] == *keys[1] && pair["second"] == *keys[0])
+        })
+        .unwrap();
+    assert_eq!(pair["evaluation_status"], "evaluated");
+    assert_eq!(pair["decision"], "Accepted");
+    assert_eq!(pair["displayed_score"], "1");
 }

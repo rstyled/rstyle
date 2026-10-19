@@ -255,9 +255,18 @@ fn source_match_pattern(
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> bool {
     match kind {
-        ast::PatKind::Or(patterns) if profile.supports("rust.scalar-or-patterns") => patterns
-            .iter()
-            .all(|pattern| source_match_leaf(&pattern.kind, profile)),
+        ast::PatKind::Or(patterns) if profile.supports("rust.scalar-or-patterns") => {
+            patterns.iter().all(|pattern| {
+                if profile.supports("rust.nested-scalar-or-patterns") {
+                    source_match_pattern(&pattern.kind, profile)
+                } else {
+                    source_match_leaf(&pattern.kind, profile)
+                }
+            })
+        }
+        ast::PatKind::Paren(pattern) if profile.supports("rust.nested-scalar-or-patterns") => {
+            source_match_pattern(&pattern.kind, profile)
+        }
         _ => source_match_leaf(kind, profile),
     }
 }

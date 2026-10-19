@@ -32,7 +32,7 @@ pub(crate) fn closing_arm(node: &HirNode, width: Option<u64>) -> Option<usize> {
         if arm.kind != "match_arm" || arm.children.len() != 2 {
             continue;
         }
-        intervals.extend(domain.pattern(&arm.children[0])?);
+        domain.pattern(&arm.children[0], &mut intervals)?;
         if covers(&mut intervals, domain.limits) {
             return Some(index);
         }
@@ -81,7 +81,10 @@ impl Domain {
     }
 
     fn value(&self, source: &str) -> Option<u128> {
-        let expression: syn::Expr = syn::parse_str(source).ok()?;
+        let mut expression: syn::Expr = syn::parse_str(source).ok()?;
+        while let syn::Expr::Paren(paren) = expression {
+            expression = *paren.expr;
+        }
         if self.boolean {
             return match expression {
                 syn::Expr::Lit(literal) => match literal.lit {
@@ -109,24 +112,29 @@ impl Domain {
         (self.limits.0 <= value && value <= self.limits.1).then_some(value)
     }
 
-    fn pattern(&self, pattern: &HirNode) -> Option<Vec<Interval>> {
+    fn pattern(&self, pattern: &HirNode, intervals: &mut Vec<Interval>) -> Option<()> {
+        if pattern.kind == "pat_or" {
+            for child in &pattern.children {
+                self.pattern(child, intervals)?;
+            }
+        } else {
+            intervals.push(self.interval(pattern)?);
+        }
+
+        Some(())
+    }
+
+    fn interval(&self, pattern: &HirNode) -> Option<Interval> {
         match pattern.kind.as_str() {
-            "pat_wild" => Some(vec![self.limits]),
+            "pat_wild" => Some(self.limits),
             "pat_literal" | "pat_constant" => {
                 let value = self.value(pattern.lit.as_deref()?)?;
-                Some(vec![(value, value)])
+                Some((value, value))
             }
             "pat_range" if !self.boolean => {
                 let range: IntegerRange = serde_json::from_str(pattern.lit.as_deref()?).ok()?;
-                self.range(&range).map(|interval| vec![interval])
+                self.range(&range)
             }
-            "pat_or" => pattern
-                .children
-                .iter()
-                .try_fold(Vec::new(), |mut values, child| {
-                    values.extend(self.pattern(child)?);
-                    Some(values)
-                }),
             _ => None,
         }
     }
@@ -173,4 +181,9 @@ fn covers(intervals: &mut [Interval], (minimum, maximum): Interval) -> bool {
         next = next.max(end + 1);
     }
     false
+}
+
+pub(crate) fn irrefutable(pattern: &HirNode) -> bool {
+    pattern.kind == "pat_wild"
+        || (pattern.kind == "pat_or" && pattern.children.iter().any(irrefutable))
 }

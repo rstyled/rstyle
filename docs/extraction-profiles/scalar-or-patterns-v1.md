@@ -37,3 +37,7 @@ patterns do not gain child evidence merely because they share the syntax.
 Extraction 3.2.0 extends this slice with integer ranges and mixed literal/range
 alternatives; see the [range contract](scalar-range-patterns-v1.md). Literal-only
 OR selectors keep their existing representation.
+
+Extraction 3.10.0 extends the current Data-v3 selection with nested/grouped OR and
+wildcard alternatives; see the [nested contract](nested-scalar-or-patterns-v1.md).
+Earlier selections retain their original grammar.

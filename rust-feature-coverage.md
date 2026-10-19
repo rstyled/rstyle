@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.9.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.10.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -77,7 +77,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F03 | Short-circuit boolean evaluation | Covered | `a && b`, `a \|\| b` | Saved left values and conditional right evaluation; restricted in loop-containing functions. |
 | F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee and 1–16 arms; Data-v3 3.9.0 independently proves coverage of supported unguarded patterns without requiring a wildcard. See [exhaustive scalar contract](docs/extraction-profiles/exhaustive-scalar-matches-v1.md); broader pattern domains remain missing. |
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
-| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.5.0 supports integer/bool literal/constant arms, integer ranges with same-unit constant bounds, mixed OR arms and guards; see [bound contract](docs/extraction-profiles/scalar-constant-range-bounds-v1.md). Data-v3 3.9.0 adds independently exhaustive integer/bool matches without a wildcard. Character ranges, nonlocal/generic constants and nested alternatives remain missing. |
+| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.10.0 supports integer/bool literal/constant/range/wildcard leaves in nested grouped OR patterns, guards and independently exhaustive matches; see [nested contract](docs/extraction-profiles/nested-scalar-or-patterns-v1.md). Character ranges and nonlocal/generic/trait constants remain missing. |
 | F07 | Destructuring, reference, slice, and enum patterns | Missing | `Some(x) => x`, `[a, ..] => a` | Payload/field/element dependencies, binding modes, and ownership/borrow effects. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
@@ -637,3 +637,41 @@ match 3.8.0; this adds no measured frozen admission and loses none. Twenty-six
 admitted graph documents pass schema checks. Clippy with warnings denied passes.
 This is bounded feature support and coverage accounting, not a detector-quality
 or formal performance result. The broader roadmap remains unfinished.
+
+
+### F06 nested and grouped scalar-pattern composition
+
+Data-v3 extraction 3.10.0 adds `rust.nested-scalar-or-patterns`. The
+[contract](docs/extraction-profiles/nested-scalar-or-patterns-v1.md) connects
+recursive scalar OR capture, transparent grouping, source correspondence,
+eligibility, exhaustive coverage and ordered selector lowering. Literal,
+same-unit constant, integer-range and wildcard alternatives compose with guards;
+leading pipes and duplicate alternatives retain their compiler structure and
+ordered payloads. Payload/reference/`@` patterns and broader scalar domains remain
+outside this slice, so F06 remains Partial and F07 remains Missing.
+
+Nested and flat forms produce the same selector payload and an accepted matching
+pair with score 1. A wildcard alternative removes only the impossible selector
+failure continuation; guard failure still advances. Flat selectors keep their
+existing direct path. Nested lowering and interval coverage each use one shared
+vector rather than copying subtrees or expanding ranges. Source traversal stops
+at opaque unsupported OR parents without inventing child correspondence. No new
+frontend fields, provenance tables, source snapshots, caches or matching vocabulary
+are introduced.
+
+Validation passes 741 workspace tests (5 existing ignores), Clippy with warnings
+denied and 14 inventory tests. Repository-built rstyle reports 0 violations across
+2,225 functions; patterns reports 0 candidates with the same 15 existing ignores.
+The composed Cargo fixture verifies retained nested HIR, comments/grouped literals
+and bounds, exhaustive bool alternatives, mixed leaves, duplicate ordering,
+wildcard/guard flow, legacy exclusions, selector corruption rejection and actual
+nested/flat pair evaluation. Independent source-correspondence tests reject
+non-group wrappers. The full roadmap remains active.
+
+
+Fresh focused run `target/hir-coverage/run-bzeoyikc/` completes all three packages:
+11 admitted, 42 excluded and 7 independently inactive out of the unchanged 60
+selections, with no unknowns or failures. Every frozen identity/outcome and all
+reported denominators match 3.9.0. Twenty-six admitted graph documents pass schema
+checks (10 lz4, 0 regex, 16 time). This adds bounded synthetic feature coverage but
+no measured frozen admission; it makes no performance or detector-quality claim.

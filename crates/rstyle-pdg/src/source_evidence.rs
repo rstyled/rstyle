@@ -1,5 +1,8 @@
 //! Independent original-source inventory checks; graph extraction remains HIR-only.
 
+#[cfg(test)]
+mod tests;
+
 use crate::{ByteSpan, HirNode, HirRef};
 use serde::{Deserialize, Serialize};
 use syn::{
@@ -159,7 +162,7 @@ impl Inventory<'_> {
         expression_kind(expression)
     }
 
-    fn add(&mut self, kind: &str, span: proc_macro2::Span) {
+    fn add(&mut self, kind: &str, span: proc_macro2::Span) -> bool {
         let source = &self.facts.source.bytes;
         let span = ByteSpan {
             start: offset(source, span.start()),
@@ -172,11 +175,13 @@ impl Inventory<'_> {
         } else {
             None
         };
+        let matched = hir.is_some();
         self.entries.push(Entry {
             kind: kind.into(),
             span,
             hir,
         });
+        matched
     }
 }
 
@@ -197,8 +202,11 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
     }
 
     fn visit_pat(&mut self, pattern: &'ast syn::Pat) {
-        let constants = crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
-            .is_ok_and(|profile| profile.supports("rust.scalar-constant-patterns"));
+        let profile = crate::extraction_profile::ExtractionProfile::from_facts(self.facts).ok();
+        let constants =
+            profile.is_some_and(|profile| profile.supports("rust.scalar-constant-patterns"));
+        let nested =
+            profile.is_some_and(|profile| profile.supports("rust.nested-scalar-or-patterns"));
         let kind = match pattern {
             syn::Pat::Lit(_) => Some("pat_literal"),
             syn::Pat::Wild(_) => Some("pat_wild"),
@@ -214,19 +222,21 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
             syn::Pat::Range(range) if crate::scalar_patterns::scalar_range(range, constants) => {
                 Some("pat_range")
             }
-            syn::Pat::Or(pattern) if scalar_alternatives(pattern, constants) => Some("pat_or"),
+            syn::Pat::Or(pattern) if (nested || scalar_alternatives(pattern, constants)) => {
+                Some("pat_or")
+            }
             _ => None,
         };
-        if let Some(kind) = kind {
-            self.add(kind, pattern.span());
-        }
+        let matched = kind.is_some_and(|kind| self.add(kind, pattern.span()));
 
         if let syn::Pat::Or(pattern) = pattern
-            && scalar_alternatives(pattern, constants)
+            && ((nested && matched) || (!nested && scalar_alternatives(pattern, constants)))
         {
             for case in &pattern.cases {
                 self.visit_pat(case);
             }
+        } else if nested && let syn::Pat::Paren(pattern) = pattern {
+            self.visit_pat(&pattern.pat);
         }
     }
 
@@ -357,10 +367,29 @@ fn corresponding_span(source: &str, syntax: ByteSpan, hir: ByteSpan) -> bool {
         return false;
     };
 
-    before.chars().all(|ch| ch == '(' || ch.is_whitespace())
+    (before.chars().all(|ch| ch == '(' || ch.is_whitespace())
         && after.chars().all(|ch| ch == ')' || ch.is_whitespace())
         && before.chars().filter(|ch| *ch == '(').count()
-            == after.chars().filter(|ch| *ch == ')').count()
+            == after.chars().filter(|ch| *ch == ')').count())
+        || commented_parentheses(before, after)
+}
+
+fn commented_parentheses(before: &str, after: &str) -> bool {
+    if ![before, after]
+        .iter()
+        .any(|part| part.contains("//") || part.contains("/*"))
+    {
+        return false;
+    }
+
+    let Ok(mut expression) = syn::parse_str::<syn::Expr>(&format!("{before}__rstyle_group{after}"))
+    else {
+        return false;
+    };
+    while let syn::Expr::Paren(paren) = expression {
+        expression = *paren.expr;
+    }
+    matches!(expression, syn::Expr::Path(path) if path.path.is_ident("__rstyle_group"))
 }
 
 fn scalar_alternatives(pattern: &syn::PatOr, constants: bool) -> bool {

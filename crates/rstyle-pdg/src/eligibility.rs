@@ -1146,15 +1146,24 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
 }
 
 fn scalar_match_pattern(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) -> bool {
+    let minimum = if ctx.profile.supports("rust.nested-scalar-or-patterns") {
+        1
+    } else {
+        2
+    };
+
     scalar_pattern_leaf(pattern, scrutinee, ctx)
         || (ctx.profile.supports("rust.scalar-or-patterns")
             && pattern.kind == "pat_or"
-            && pattern.children.len() >= 2
+            && pattern.children.len() >= minimum
             && node_norm(pattern) == node_norm(scrutinee)
-            && pattern
-                .children
-                .iter()
-                .all(|child| scalar_pattern_leaf(child, scrutinee, ctx)))
+            && pattern.children.iter().all(|child| {
+                if ctx.profile.supports("rust.nested-scalar-or-patterns") {
+                    scalar_match_pattern(child, scrutinee, ctx)
+                } else {
+                    scalar_pattern_leaf(child, scrutinee, ctx)
+                }
+            }))
 }
 
 fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) -> bool {
@@ -1162,6 +1171,9 @@ fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) ->
         || node_norm(pattern) != node_norm(scrutinee)
     {
         return false;
+    }
+    if pattern.kind == "pat_wild" {
+        return ctx.profile.supports("rust.nested-scalar-or-patterns");
     }
     if pattern.kind == "pat_literal" {
         return pattern.lit.is_some()

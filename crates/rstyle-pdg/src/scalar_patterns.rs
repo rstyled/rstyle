@@ -42,10 +42,13 @@ impl IntegerRange {
         width: Option<u64>,
         constants: bool,
     ) -> Result<Self, String> {
-        let syn::Pat::Range(range) = syn::Pat::parse_single
+        let mut syntax = syn::Pat::parse_single
             .parse_str(source)
-            .map_err(|error| error.to_string())?
-        else {
+            .map_err(|error| error.to_string())?;
+        while let syn::Pat::Paren(pattern) = syntax {
+            syntax = *pattern.pat;
+        }
+        let syn::Pat::Range(range) = syntax else {
             return Err("Expected an integer range pattern".into());
         };
         if !scalar_range(&range, constants) {
