@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.20.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.21.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.20.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.21.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -8816,7 +8816,7 @@ fn clones_data_shared_reference_locals_preserve_initializer_and_formal_origins()
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "mutable" | "rebound" | "formal_rebound" | "local_field" | "aggregate"
+            "mutable" | "rebound" | "formal_rebound" | "aggregate"
         ) || (!has_length_authority(&report)
             && matches!(
                 function["facts"]["name"].as_str().unwrap(),
@@ -8910,4 +8910,130 @@ fn check_reference_local_corruption(report: &Value) {
     );
     assert!(rstyle_pdg::data_documents::verify(&origins, &facts).is_err());
     assert!(rstyle_pdg::producer::verify(&origins, &facts).is_err());
+}
+
+#[test]
+fn clones_data_shared_local_fields_retain_formal_locations_and_alias_value_flow() {
+    let directory = shared_local_field_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 18);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "multi" | "mutable" | "double" | "borrowlocal" | "aggregate"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_shared_local_field_corruption(&report);
+    check_shared_local_borrow_location(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn shared_local_field_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Record { pub left: i32, pub right: i32, pub stamp: () }
+        pub struct Outer { pub inner: Record }
+        pub struct Holder<'a> { pub record: &'a Record }
+        pub fn first(record: &Record) -> i32 { let local = record; local.right }
+        pub fn other(record: &Record) -> i32 { let local = record; local.right }
+        pub fn grouped(record: &Record) -> i32 { let local = record; ((local)).right }
+        pub fn chain(record: &Record) -> i32 { let a = record; let b = a; b.left }
+        pub fn shadow(record: &Record, other: &Record) -> i32 { let local = record; let saved = local; let local = other; saved.left + local.right }
+        pub fn nested(record: &Outer) -> i32 { let local = record; local.inner.right }
+        pub fn stored(holder: Holder<'_>) -> i32 { let local = holder.record; local.right }
+        pub fn borrowed(record: &Outer) -> i32 { let local = &record.inner; local.right }
+        pub fn same_branch(record: &Record, pick: bool) -> i32 { let local = if pick { record } else { record }; local.left }
+        pub fn block(record: &Record) -> i32 { let local = { let inner = record; inner }; local.right }
+        pub fn reference_result<'a>(record: &'a (i32, &'a i32)) -> &'a i32 { let local = record; local.1 }
+        pub fn alias_borrow(record: &Record) -> &i32 { let local = record; &local.right }
+        pub fn units(record: &Record) -> ((), i32) { let local = record; (local.stamp, local.right) }
+        pub fn multi(a: &Record, b: &Record, pick: bool) -> i32 { let local = if pick { a } else { b }; local.right }
+        pub fn mutable(record: &Record) -> i32 { let mut local = record; local.right }
+        pub fn double(record: &&Record) -> i32 { let local = record; local.right }
+        pub fn borrowlocal(record: Record) -> i32 { let local = &record; local.right }
+        pub fn aggregate(record: &Record) -> i32 { let local = (record,); local.0.right }
+    "#).unwrap();
+    directory
+}
+
+fn check_shared_local_field_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "shadow")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert_eq!(pair.pdg.memory_locations.len(), 2);
+    pair.pdg.memory_locations[0]
+        .extensions
+        .get_mut(rstyle_pdg::data_documents::LOCATION_KEY)
+        .unwrap()["parameter"] = serde_json::json!(1);
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts;
+    let mut fields = changed
+        .build
+        .frontend_options
+        .data::<rstyle_pdg::field_locations::FieldObservations>()
+        .unwrap()
+        .into_owned();
+    let rstyle_pdg::field_locations::Location::Captured { parameter, .. } =
+        &mut fields.operations[0].location
+    else {
+        panic!("captured alias field")
+    };
+    assert_eq!(*parameter, 0);
+    *parameter = 1;
+    changed.build.frontend_options.insert_data(fields);
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+fn check_shared_local_borrow_location(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "borrowed")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let location = pair
+        .pdg
+        .memory_locations
+        .iter()
+        .find(|location| {
+            location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+                .as_array()
+                .unwrap()
+                .last()
+                .is_some_and(|step| step["name"] == "right")
+        })
+        .unwrap();
+    let path = location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+        .as_array()
+        .unwrap();
+    assert_eq!(path.len(), 3);
+    assert_eq!(path[0]["kind"], "SharedReferent");
+    assert_eq!(path[1]["name"], "inner");
+    assert_eq!(path[2]["name"], "right");
 }

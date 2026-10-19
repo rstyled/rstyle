@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.20.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.21.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -107,7 +107,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; construction, non-scalar local reads, and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
 | D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.17.0 supports ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
-| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.20.0 supports [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Mutable reference rebindings, reference-bearing aggregates and projections through reference-local roots still need component/origin correspondence. |
+| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.21.0 supports [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Mutable reference rebindings, reference-bearing aggregates, multiple-origin local field reads and helper-result field bases still need component/origin correspondence. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
 | D15 | Array/slice element reads | Missing | `xs[i]` | Evaluate base/index once, preserve element location/index identity and bounds behavior. |
@@ -1040,4 +1040,48 @@ Frozen run `target/hir-coverage/run-yw0u7att/` completes all three packages with
 identities/outcomes and all denominators match 3.19.0 (`run-87eyhnsq`). Twenty-six
 admitted graph documents pass schema checks (10 lz4, 0 regex, 16 time). Immutable
 reference locals add no measured frozen admission gain; these checks do not
+establish general performance or detector quality.
+
+
+### D12 field reads through single-origin shared-reference locals
+
+Data-v3 extraction 3.21.0 adds `rust.shared-local-field-reads`; matching remains
+`rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/shared-local-fields-v1.md) resolves existing
+immutable aliases, stored reference fields, formal-field borrows, blocks and
+same-referent conditionals to one formal location. Original source members and
+concrete declarations independently establish the field path, result type and
+compiler field identity. A borrowed field already names its referent and gains no
+synthetic dereference. Ordinary formal capture and source checks keep their paths.
+
+Existing field operations and local binding reads retain one immediate base
+operand and original initializer/reaching-definition dependence. No local storage
+location, new frontend record, producer operation, provenance, source snapshot or
+retained cache is introduced. The real Cargo fixture covers alias chains, grouping,
+shadowing and saved aliases, nested fields, stored references, formal-field borrows,
+same-origin conditionals, block aliases, reference-valued results, borrows through
+aliases and unit fields. Every admitted pair passes independent document and strict
+producer checks; equivalent functions reach accepted matching with score 1. Altered
+same-typed formal roots fail captured and serialized verification. The borrowed
+alias retains exactly the original referent/inner/result path. Data-v2 keeps its
+local-field exclusions; the earlier reference-local fixture now admits its tuple
+field read.
+
+Multiple distinct origins need alternative read locations; mutable rebindings,
+reference-bearing aggregate locals, helper-result field bases, unavailable
+implicit/explicit dereferences and local/temporary storage borrows remain
+unfinished. D12 stays Partial; D13 and the full roadmap remain active.
+
+Validation: 754 workspace tests pass with the same 5 existing ignores, including
+the reported assertion-receiver regression and both reference-local fixtures.
+Clippy passes for all targets with warnings denied; formatting passes.
+Repository-built rstyle reports 2,290 functions and 0 violations; patterns reports
+0 candidates with the same 15 existing ignores. All 14 inventory bookkeeping
+tests pass.
+
+Frozen run `target/hir-coverage/run-ol5lc3xz/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60. All 60 frozen
+identities/outcomes and all denominators match 3.20.0 (`run-yw0u7att`). Twenty-six
+admitted graph documents pass schema checks (10 lz4, 0 regex, 16 time). Single-origin
+local field reads add no measured frozen admission gain; these checks do not
 establish general performance or detector quality.

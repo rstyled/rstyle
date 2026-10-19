@@ -1,5 +1,6 @@
 //! Formal field observations for excluded data interfaces. No admission policy.
 
+mod aliases;
 mod source;
 
 use crate::{ByteSpan, HirFnFacts, HirNode, HirRef, concrete_types::*};
@@ -195,7 +196,7 @@ fn base(
         .filter(|(_, parameter)| parameter.pat.hir == *target)
         .collect();
     let [(index, parameter)] = candidates.as_slice() else {
-        return Err("Field root has no unique formal parameter correspondence".into());
+        return aliases::base(base, facts, interface);
     };
     let Some(Observation::Captured { ty }) = interface.parameters.get(*index) else {
         return Err("Field root lacks supported concrete type evidence".into());
