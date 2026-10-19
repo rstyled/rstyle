@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.8.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.9.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6158,7 +6158,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.8.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.9.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -7442,4 +7442,164 @@ fn clones_cfg_inventory_retains_files_without_active_function_bodies() {
     assert_eq!(definitions.len(), 1);
     assert_eq!(definitions[0]["presence"], "inactive_by_cfg");
     assert_eq!(definitions[0]["active_functions"], serde_json::json!([]));
+}
+
+#[test]
+fn clones_data_exhaustive_scalar_matches_compose_without_wildcards() {
+    let directory = exhaustive_scalar_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        15,
+        "{report}"
+    );
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == "boolean")
+            .unwrap()["facts"]
+            .clone(),
+    )
+    .unwrap();
+    check_exhaustive_scalar_match(&facts);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+fn check_exhaustive_scalar_match(facts: &rstyle_pdg::HirFnFacts) {
+    let pair = rstyle_pdg::producer::produce(facts).unwrap();
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|n| n.attributes.construct.as_deref() == Some("match.literal"))
+            .count(),
+        2
+    );
+    check_exhaustive_match_edges(&pair, facts);
+    check_guarded_coverage_gap(facts);
+    check_exhaustive_literal_source(facts);
+    let mut changed = facts.clone();
+    let matched = &mut changed.body.children[0];
+    assert_eq!(matched.kind, "expr_match");
+    matched.children[2].children[0].lit = Some("true".into());
+    let classified = rstyle_pdg::classify(&changed);
+    assert!(
+        classified
+            .diagnostics
+            .iter()
+            .any(|d| d.construct == "match_boundary")
+    );
+    assert!(rstyle_pdg::producer::verify(&pair, &changed).is_err());
+}
+
+fn check_exhaustive_match_edges(pair: &rstyle_pdg::producer::Pair, facts: &rstyle_pdg::HirFnFacts) {
+    let selector = pair
+        .pdg
+        .nodes
+        .iter()
+        .rfind(|n| n.attributes.construct.as_deref() == Some("match.literal"))
+        .unwrap();
+    let mapping = rstyle_pdg::read_operation_map(&pair.pdg.extensions).unwrap();
+    let mapped = mapping
+        .iter()
+        .find(|entry| entry.pdg_node_id == selector.id)
+        .unwrap();
+    let edges: Vec<_> = pair
+        .cfg
+        .edges
+        .iter()
+        .filter(|edge| edge.source == mapped.cfg_node_id)
+        .collect();
+    assert_eq!(edges.len(), 1);
+    assert_eq!(edges[0].kind, rstyle_pdg::CfgEdgeKind::True);
+    let mut impossible = edges[0].clone();
+    impossible.kind = rstyle_pdg::CfgEdgeKind::False;
+    let mut corrupted = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    corrupted.cfg.edges.push(impossible);
+    assert!(rstyle_pdg::validate_value_sites(&corrupted.pdg, &corrupted.cfg).is_err());
+    assert!(rstyle_pdg::producer::verify(&corrupted, facts).is_err());
+}
+
+fn check_guarded_coverage_gap(facts: &rstyle_pdg::HirFnFacts) {
+    let mut changed = facts.clone();
+    let matched = &mut changed.body.children[0];
+    let guard = rstyle_pdg::HirNode {
+        kind: "match_guard".into(),
+        children: vec![matched.children[0].clone()],
+        ..matched.children[0].clone()
+    };
+    matched.children[1].children.insert(1, guard);
+    let classified = rstyle_pdg::classify(&changed);
+    assert!(
+        classified
+            .diagnostics
+            .iter()
+            .any(|d| d.construct == "match_boundary")
+    );
+}
+
+fn exhaustive_scalar_workspace() -> tempfile::TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        const ON: bool = true;
+        const OFF: bool = false;
+        const TOP: u128 = u128::MAX;
+        pub fn boolean(x: bool) -> i32 { match x { true => 1, false => 2 } }
+        pub fn caller(x: bool) -> i32 { boolean(x) }
+        pub fn constants(x: bool) -> i32 { match x { ON => 1, OFF => 2 } }
+        pub fn guarded(x: bool, gate: bool) -> i32 { match x { true if gate => 1, true => 2, false => 3 } }
+        pub fn signed(x: i8) -> i32 { match x { ..=-1 => 1, 0.. => 2 } }
+        pub fn unsigned(x: u8) -> i32 { match x { 0..128 => 1, 128.. => 2 } }
+        pub fn wide(x: u128) -> i32 { match x { 0..TOP => 1, TOP => 2 } }
+        pub fn minimum(x: i128) -> i32 { match x { -170141183460469231731687303715884105728..0 => 1, 0.. => 2 } }
+        pub fn single(x: u8) -> i32 { match x { 0..=255 => 1 } }
+        pub fn early(x: bool) -> i32 { match x { true | false => 1, _ if x => 2, _ => 3 } }
+        pub fn returning(x: bool, y: i32) -> i32 { match x { true => return y, false => 2 } }
+        pub fn conditional(x: bool) -> i32 { match x { #[cfg(any())] _ => missing(), true => 1, false => 2 } }
+        pub fn mixed(x: u8, gate: bool) -> i32 { match x { 0 | 1..=3 if gate => 1, 0..=127 => 2, 128..=255 => 3 } }
+        pub fn native(x: usize) -> i32 { match x { 0..=3 => 1, 4.. => 2 } }
+        pub fn unreachable(x: bool) -> i32 { match x { true | false => 1, _ if x => 2 } }
+        pub fn unsupported(x: char) -> i32 { match x { '\0'..='\u{10ffff}' => 1 } }
+    "#).unwrap();
+    directory
+}
+
+fn check_exhaustive_literal_source(facts: &rstyle_pdg::HirFnFacts) {
+    let mut changed = facts.clone();
+    let matched = &mut changed.body.children[0];
+    matched.children[1].children[0].lit = Some("false".into());
+    matched.children[2].children[0].lit = Some("true".into());
+    let classified = rstyle_pdg::classify(&changed);
+    assert_eq!(
+        classified.status,
+        rstyle_pdg::EligibilityVerdict::Ineligible
+    );
+    assert!(
+        classified
+            .diagnostics
+            .iter()
+            .any(|d| d.construct == "arm_shape")
+    );
+    assert!(
+        !classified
+            .diagnostics
+            .iter()
+            .any(|d| d.construct == "match_boundary")
+    );
 }

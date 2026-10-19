@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.8.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.9.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -75,9 +75,9 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F01 | Boolean `if`/`else` and explicit return | Covered | `if b { return x; } y` | Includes returning arms, control dependence, and unreachable supported suffixes. |
 | F02 | Acyclic conditional expression values | Covered | `let n = if b { x } else { y };` | Branch-value availability and merges; see F10 for the loop restriction. |
 | F03 | Short-circuit boolean evaluation | Covered | `a && b`, `a \|\| b` | Saved left values and conditional right evaluation; restricted in loop-containing functions. |
-| F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee, 1–16 arms, literal arms including negative integer literals, final unguarded wildcard; not general exhaustive pattern matching. |
+| F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee and 1–16 arms; Data-v3 3.9.0 independently proves coverage of supported unguarded patterns without requiring a wildcard. See [exhaustive scalar contract](docs/extraction-profiles/exhaustive-scalar-matches-v1.md); broader pattern domains remain missing. |
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
-| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.5.0 supports integer/bool literal/constant arms, integer ranges with same-unit constant bounds, mixed OR arms and guards; see [bound contract](docs/extraction-profiles/scalar-constant-range-bounds-v1.md). Character ranges, nonlocal/generic constants, nested alternatives and general exhaustive matches remain missing. |
+| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.5.0 supports integer/bool literal/constant arms, integer ranges with same-unit constant bounds, mixed OR arms and guards; see [bound contract](docs/extraction-profiles/scalar-constant-range-bounds-v1.md). Data-v3 3.9.0 adds independently exhaustive integer/bool matches without a wildcard. Character ranges, nonlocal/generic constants and nested alternatives remain missing. |
 | F07 | Destructuring, reference, slice, and enum patterns | Missing | `Some(x) => x`, `[a, ..] => a` | Payload/field/element dependencies, binding modes, and ownership/borrow effects. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
@@ -602,3 +602,38 @@ violations across 2,212 functions, and patterns with 0 remaining candidates and
 the same 15 existing ignores. Existing parsing/traversal is reused; empty attributes
 and inherited inactivity bypass predicate evaluation. No new serialized cfg copies,
 source snapshots, provenance tables or caches are added.
+
+### F04–F06 exhaustive scalar matches
+
+Data-v3 extraction 3.9.0 adds `rust.exhaustive-scalar-match`: supported integer/bool
+matches can omit the wildcard when their unguarded patterns cover the entire
+resolved domain. The [contract](docs/extraction-profiles/exhaustive-scalar-matches-v1.md)
+records compact interval coverage, actual pointer-width limits, full 128-bit signed
+and unsigned endpoints, source-bound literals and the existing constant/range
+checks. Guarded arms do not prove unconditional coverage. Existing final-wildcard
+matches bypass interval parsing and retain their prior operation/control structure.
+
+Lowering keeps one scrutinee evaluation, ordered pattern/guard/body operations and
+value alternatives. An independently closing selector has no impossible false
+continuation. Strict reconstruction and independent serialized value-site checks
+reject corrupted failure edges; all source arms remain assessed, including
+unreachable suffixes. Helpers, early returns and cfg-removed arms compose in real
+Cargo tests. No new frontend field, serialized witness, source snapshot, provenance
+table, cache or matching vocabulary is introduced. Earlier Cargo selections keep
+their wildcard boundary. F04/F06 remain Partial for broader pattern domains and
+nested forms; the full roadmap remains active.
+
+Validation passes 739 workspace tests (5 existing ignores), the final composed
+Cargo regression, 14 independent inventory tests, and repository-built rstyle with
+0 violations across 2,220 functions. Patterns reports 0 remaining candidates with
+the same 15 existing ignores. The independent small-domain oracle checks compact
+coverage against enumerated values; the production proof never enumerates interval
+members. Natural coverage is measured separately below.
+
+Focused run `target/hir-coverage/run-peldp9o8/` completes all three packages under
+assessment version 3: 11 admitted, 42 excluded and 7 independently inactive out of
+the unchanged 60 selections, with no unknowns or failures. All identities/outcomes
+match 3.8.0; this adds no measured frozen admission and loses none. Twenty-six
+admitted graph documents pass schema checks. Clippy with warnings denied passes.
+This is bounded feature support and coverage accounting, not a detector-quality
+or formal performance result. The broader roadmap remains unfinished.

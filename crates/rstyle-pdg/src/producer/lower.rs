@@ -649,6 +649,8 @@ impl Builder<'_> {
             completed: Vec::new(),
             controller: None,
         };
+        let closing =
+            crate::scalar_exhaustiveness::closing_arm(node, self.facts.build.pointer_width.value);
         for (index, arm_node) in node.children[1..].iter().enumerate() {
             state = self.match_arm(
                 MatchArm {
@@ -656,6 +658,7 @@ impl Builder<'_> {
                     arm: arm_node,
                     saved: &saved,
                     index,
+                    exhaustive: closing == Some(index),
                 },
                 state,
             );
@@ -697,7 +700,7 @@ impl Builder<'_> {
         let operation = self.match_selector(input);
         let selected = self.emit(operation, remaining);
         let controller = controller.or_else(|| selected.value.clone());
-        let remaining = if pattern.kind != "pat_wild" {
+        let remaining = if pattern.kind != "pat_wild" && !input.exhaustive {
             arm(&selected, "false")
         } else {
             empty_flow()
@@ -1035,6 +1038,7 @@ struct MatchArm<'a> {
     arm: &'a HirNode,
     saved: &'a str,
     index: usize,
+    exhaustive: bool,
 }
 
 struct ArmSelection {

@@ -1074,17 +1074,12 @@ fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
             "Match requires a resolved integer or bool scrutinee.",
         ));
     }
-    if arms.is_empty()
-        || arms.len() > 16
-        || !arms
-            .last()
-            .is_some_and(|arm| arm.children.len() == 2 && arm.children[0].kind == "pat_wild")
-    {
+    if arms.is_empty() || arms.len() > 16 || !match_exhaustive(node, arms, ctx) {
         checks.push(error(
             "rust.scalar-match",
             "match_boundary",
             node,
-            "Bounded match requires 1..=16 arms and a final unguarded wildcard.",
+            "Bounded match requires 1..=16 arms and independently exhaustive unguarded patterns under its registered policy.",
         ));
     }
     for (index, arm) in arms.iter().enumerate() {
@@ -1099,6 +1094,18 @@ fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     Outcome::combine(checks)
 }
 
+fn match_exhaustive(node: &HirNode, arms: &[HirNode], ctx: &Ctx<'_>) -> bool {
+    if ctx.profile.supports("rust.exhaustive-scalar-match") {
+        return crate::scalar_exhaustiveness::closing_arm(
+            node,
+            ctx.facts.build.pointer_width.value,
+        )
+        .is_some();
+    }
+    arms.last()
+        .is_some_and(|arm| arm.children.len() == 2 && arm.children[0].kind == "pat_wild")
+}
+
 fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>) -> Outcome {
     let Some((pattern, children)) = arm.children.split_first() else {
         return evidence_gap(arm, "match arm correspondence");
@@ -1107,7 +1114,9 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
     let shape = arm.kind == "match_arm" && (children.len() == 1 || guarded);
     let pattern_valid = scalar_match_pattern(pattern, scrutinee, ctx)
         || (pattern.kind == "pat_wild"
-            && (last || (guarded && ctx.profile.supports("rust.scalar-match-guards"))));
+            && (last
+                || ctx.profile.supports("rust.exhaustive-scalar-match")
+                || (guarded && ctx.profile.supports("rust.scalar-match-guards"))));
     let valid =
         shape && pattern_valid && (!guarded || ctx.profile.supports("rust.scalar-match-guards"));
     let own = if valid {
@@ -1117,7 +1126,7 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
             "rust.scalar-match",
             "arm_shape",
             arm,
-            "Only registered scalar literal/range/OR arms and a final unguarded wildcard are supported.",
+            "Only registered scalar literal/range/OR/wildcard arms with supported guards are admitted.",
         )
     };
     let body = Outcome::combine(
@@ -1155,7 +1164,14 @@ fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) ->
         return false;
     }
     if pattern.kind == "pat_literal" {
-        return pattern.lit.is_some();
+        return pattern.lit.is_some()
+            && (!ctx.profile.supports("rust.exhaustive-scalar-match")
+                || ctx
+                    .facts
+                    .source
+                    .bytes
+                    .get(pattern.span.start as usize..pattern.span.end as usize)
+                    == pattern.lit.as_deref());
     }
     if pattern.kind == "pat_constant" {
         return ctx.profile.supports("rust.scalar-constant-patterns")

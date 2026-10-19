@@ -213,3 +213,26 @@ with all 15 existing ignores unchanged. The implementation reuses the existing
 source parse/traversal and presence field; empty attributes and inherited inactivity
 bypass predicate evaluation. It adds no serialized cfg copies, source snapshots,
 provenance tables or caches. No formal performance benchmark is claimed.
+
+## Exhaustive scalar-match increment, extraction 3.9.0
+
+Focused fresh run `target/hir-coverage/run-peldp9o8/`, started at `2b5951a` with
+the exhaustive scalar-match implementation in the working tree, completes all
+three packages under assessment version 3. Data-v3 retains **11 admitted,
+42 excluded, 7 independently inactive, 0 unknown and 0 failed out of 60**,
+with 53 captured/assessed contexts. All 60 frozen source identities and every
+outcome match 3.8.0; no selected admission is gained or lost. Twenty-six admitted
+CFG/PDG documents, including functions outside the selection, pass the unchanged
+schema checks. The complete assessment retains exclusion combinations and
+inactive contexts. Pair evaluation remains incomplete; no detector-quality claim
+follows.
+
+The workspace passes 739 tests (5 existing ignores); the final composed Cargo
+regression and all 14 independent inventory tests pass. Clippy with warnings denied
+passes. Repository-built rstyle reports 0 violations across 2,220 functions;
+patterns reports 0 remaining candidates with all 15 existing ignores unchanged.
+The production coverage proof uses compact intervals, including the full i128/u128
+domains, rather than per-integer expansion. Existing final-wildcard matches bypass
+interval parsing/sorting and keep their previous operation/control structure.
+No new frontend fields, serialized coverage witnesses, source snapshots, provenance
+tables or caches are introduced. No formal performance benchmark is claimed.

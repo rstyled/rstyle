@@ -35,6 +35,7 @@ pub mod nominal_binding;
 pub mod nominal_boundary;
 pub mod producer;
 pub mod scalar_constants;
+mod scalar_exhaustiveness;
 pub mod scalar_patterns;
 pub mod source_evidence;
 mod source_table;
