@@ -12,7 +12,7 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<()
 
     let context = Context::new(pair);
     for source in constructors {
-        context.verify_constructor(source)?;
+        context.verify_constructor(source, facts)?;
     }
     Ok(())
 }
@@ -65,7 +65,11 @@ impl<'a> Context<'a> {
         }
     }
 
-    fn verify_constructor(&self, source: &HirNode) -> Result<(), String> {
+    fn verify_constructor(
+        &self,
+        source: &HirNode,
+        facts: &dyn EvidenceFacts,
+    ) -> Result<(), String> {
         let candidates = self
             .sources
             .get(&(
@@ -77,10 +81,7 @@ impl<'a> Context<'a> {
         let [node] = candidates.as_slice() else {
             return Err("Ambiguous serialized aggregate constructor".into());
         };
-        super::verify_value_effects(
-            node,
-            "Aggregate construction invents scalar semantics or memory effects",
-        )?;
+        verify_semantics(node, source, facts)?;
         let edges = self
             .operands
             .get(node.id.as_str())
@@ -175,4 +176,39 @@ fn source_span(value: &PdgNode) -> Result<crate::Span, String> {
             .clone(),
     )
     .map_err(|error| error.to_string())
+}
+
+fn verify_structure(
+    node: &PdgNode,
+    source: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let expected = crate::data_structs::descriptor(source, facts)?;
+    if node.attributes.construct.as_deref() != Some("data.struct")
+        || node
+            .attributes
+            .literal
+            .as_ref()
+            .and_then(|literal| literal.known_value())
+            != Some(expected.as_str())
+    {
+        return Err("Serialized struct loses exact nominal field slot mapping".into());
+    }
+    Ok(())
+}
+
+fn verify_semantics(
+    node: &PdgNode,
+    source: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    super::verify_value_effects(
+        node,
+        source.kind == "expr_struct",
+        "Aggregate construction invents scalar semantics or memory effects",
+    )?;
+    if source.kind == "expr_struct" {
+        verify_structure(node, source, facts)?;
+    }
+    Ok(())
 }

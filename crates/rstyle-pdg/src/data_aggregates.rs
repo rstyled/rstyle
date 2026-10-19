@@ -4,14 +4,20 @@ use crate::{ByteSpan, HirNode, data_types::TypeToken, unit_store::EvidenceFacts}
 use syn::spanned::Spanned;
 
 pub(crate) fn constructor(node: &HirNode) -> bool {
-    matches!(node.kind.as_str(), "expr_array" | "expr_repeat")
-        || node.kind == "expr_tup" && !node.children.is_empty()
+    matches!(
+        node.kind.as_str(),
+        "expr_array" | "expr_repeat" | "expr_struct"
+    ) || node.kind == "expr_tup" && !node.children.is_empty()
 }
 
 pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let ty = crate::data_types::parse(token(node)?)?;
     if !reference_free(&ty) {
         return Err("Aggregate construction requires reference-free component values".into());
+    }
+
+    if node.kind == "expr_struct" {
+        return crate::data_structs::slots(node, facts).map(|_| ());
     }
 
     let length = match &ty {
@@ -41,7 +47,7 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), St
     verify_source(node, facts)
 }
 
-fn token(node: &HirNode) -> Result<&str, String> {
+pub(crate) fn token(node: &HirNode) -> Result<&str, String> {
     node.ty
         .as_ref()
         .and_then(|ty| ty.normalized.as_deref())
@@ -58,7 +64,7 @@ fn reference_free(ty: &TypeToken) -> bool {
     }
 }
 
-fn ungroup(mut expression: &syn::Expr) -> &syn::Expr {
+pub(crate) fn ungroup(mut expression: &syn::Expr) -> &syn::Expr {
     while let syn::Expr::Paren(group) = expression {
         expression = &group.expr;
     }
@@ -167,27 +173,64 @@ pub(crate) fn unit_slot(pdg: &crate::PdgDocument, edge: &crate::PdgEdge) -> bool
         return false;
     };
 
-    match crate::data_types::parse(text) {
-        Ok(TypeToken::Tuple(elements)) if node.original_kind.known_value() == Some("expr_tup") => {
+    crate::data_types::parse(text).is_ok_and(|ty| unit_component(ty, node, position, &pdg.profile))
+}
+
+fn unit_component(
+    ty: TypeToken,
+    node: &crate::PdgNode,
+    position: u64,
+    profile: &crate::ProfileId,
+) -> bool {
+    match ty {
+        TypeToken::Tuple(elements) if node.original_kind.known_value() == Some("expr_tup") => {
             usize::try_from(position)
                 .ok()
                 .and_then(|index| elements.get(index))
                 == Some(&TypeToken::Scalar("unit".into()))
         }
-        Ok(TypeToken::Array { element, length }) => {
+        TypeToken::Array { element, length } => {
             *element == TypeToken::Scalar("unit".into())
                 && match node.original_kind.known_value() {
                     Some("expr_array") => position < length,
                     Some("expr_repeat") => {
                         position == 0
                             && crate::extraction_profile::policy_supports(
-                                &pdg.profile,
+                                profile,
                                 "rust.repeat-array-values",
                             )
                     }
                     _ => false,
                 }
         }
+        TypeToken::Struct { fields, .. }
+            if node.original_kind.known_value() == Some("expr_struct")
+                && crate::extraction_profile::policy_supports(
+                    profile,
+                    "rust.named-struct-values",
+                ) =>
+        {
+            struct_unit_slot(node, position, &fields)
+        }
         _ => false,
     }
+}
+
+fn struct_unit_slot(node: &crate::PdgNode, position: u64, fields: &[(String, TypeToken)]) -> bool {
+    let Some(text) = node
+        .attributes
+        .literal
+        .as_ref()
+        .and_then(|literal| literal.known_value())
+    else {
+        return false;
+    };
+    let Ok(slots) = serde_json::from_str::<Vec<usize>>(text) else {
+        return false;
+    };
+    usize::try_from(position)
+        .ok()
+        .and_then(|index| slots.get(index))
+        .and_then(|index| fields.get(*index))
+        .is_some_and(|(_, ty)| ty == &TypeToken::Scalar("unit".into()))
 }

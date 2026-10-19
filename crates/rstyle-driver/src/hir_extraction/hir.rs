@@ -354,16 +354,33 @@ impl<'tcx> Context<'tcx> {
             }
             ExprKind::Ret(value) => value.into_iter().map(|e| self.expression(e)).collect(),
             ExprKind::Tup(values) => values.iter().map(|e| self.expression(e)).collect(),
-            ExprKind::Array(values) if self.profile.supports("rust.aggregate-literal-values") => {
-                values.iter().map(|e| self.expression(e)).collect()
-            }
-            ExprKind::Repeat(value, _) if self.profile.supports("rust.repeat-array-values") => {
-                vec![self.expression(value)]
+            ExprKind::Struct(..) | ExprKind::Array(..) | ExprKind::Repeat(..) => {
+                self.aggregate_children(expr)
             }
             ExprKind::MethodCall(_, receiver, args, _) => self.call_children(Some(receiver), args),
             ExprKind::Call(_, args) => self.call_children(None, args),
             ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => {
                 vec![self.expression(base)]
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    fn aggregate_children(&self, expr: &Expr<'tcx>) -> Vec<HirNode> {
+        match expr.kind {
+            ExprKind::Struct(_, fields, hir::StructTailExpr::None)
+                if self.profile.supports("rust.named-struct-values") =>
+            {
+                fields
+                    .iter()
+                    .map(|field| self.expression(field.expr))
+                    .collect()
+            }
+            ExprKind::Array(values) if self.profile.supports("rust.aggregate-literal-values") => {
+                values.iter().map(|e| self.expression(e)).collect()
+            }
+            ExprKind::Repeat(value, _) if self.profile.supports("rust.repeat-array-values") => {
+                vec![self.expression(value)]
             }
             _ => Vec::new(),
         }
@@ -610,6 +627,7 @@ fn kind(kind: &ExprKind<'_>) -> &'static str {
         ExprKind::Yield(..) => "expr_yield",
         ExprKind::Array(..) => "expr_array",
         ExprKind::Repeat(..) => "expr_repeat",
+        ExprKind::Struct(..) => "expr_struct",
         _ => "expr_unsupported",
     }
 }

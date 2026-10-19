@@ -44,6 +44,7 @@ pub(super) fn verify_place(node: &PdgNode, location: &str) -> Result<(), String>
     }
     super::verify_value_effects(
         node,
+        false,
         "Address computation invents value reads, writes or definitions",
     )
 }
@@ -56,6 +57,7 @@ fn verify_address(node: &PdgNode) -> Result<(), String> {
     }
     super::verify_value_effects(
         node,
+        false,
         "Address computation invents value reads, writes or definitions",
     )
 }

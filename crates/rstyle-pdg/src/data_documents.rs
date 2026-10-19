@@ -492,9 +492,9 @@ fn verify_parameter_type(
     Ok(())
 }
 
-fn verify_value_effects(node: &crate::PdgNode, reason: &str) -> Result<(), String> {
+fn verify_value_effects(node: &crate::PdgNode, literal: bool, reason: &str) -> Result<(), String> {
     if node.attributes.operator.is_some()
-        || node.attributes.literal.is_some()
+        || !literal && node.attributes.literal.is_some()
         || node.attributes.callee.is_some()
         || node.attributes.call_form.is_some()
         || !node.attributes.reads.is_empty()

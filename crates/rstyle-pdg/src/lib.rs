@@ -19,6 +19,7 @@ pub mod data_library;
 pub mod data_origins;
 pub mod data_places;
 pub mod data_receivers;
+mod data_structs;
 pub mod data_types;
 pub mod declaration_origins;
 pub mod diagnostics;

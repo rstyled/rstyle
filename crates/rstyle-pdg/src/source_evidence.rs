@@ -161,6 +161,12 @@ impl Inventory<'_> {
     }
 
     fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
+        if matches!(expression, syn::Expr::Struct(_))
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.named-struct-values"))
+        {
+            return Some("expr_struct");
+        }
         if matches!(expression, syn::Expr::Repeat(_))
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.repeat-array-values"))
@@ -173,6 +179,7 @@ impl Inventory<'_> {
         {
             return Some("expr_array");
         }
+
         if matches!(expression, syn::Expr::Field(_) | syn::Expr::Reference(_))
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.concrete-read-only-data"))

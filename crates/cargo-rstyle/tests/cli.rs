@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.13.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.14.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.13.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.14.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -8106,4 +8106,99 @@ fn check_repeat_array_graphs(report: &Value) {
     ty.normalized = Some(serde_json::to_string(&token).unwrap());
     let error = rstyle_pdg::data_frontend::verify(&changed).unwrap_err();
     assert!(error.contains("Repeat count disagrees"), "{error}");
+}
+
+#[test]
+fn clones_data_named_struct_values_preserve_field_slots_and_evaluation_order() {
+    let directory = struct_value_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "update" | "local" | "borrowed"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_struct_slot_corruption(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn struct_value_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/model.rs"),
+        r#"
+        pub struct Data { pub left: i32, pub right: i32, pub stamp: () }
+        impl Data { pub fn new(left: i32, right: i32) -> Self { Self { right, left, stamp: () } } }
+        pub struct Outer { pub inner: Data, pub bytes: [i32; 2] }
+        pub struct Empty {}
+        pub struct Borrowed<'a> { pub value: &'a i32 }
+    "#,
+    )
+    .unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        mod model;
+        use model::Data as Record;
+        pub fn first(x: i32, y: i32) -> Record { Record { right: y, left: x, stamp: () } }
+        pub fn other(x: i32, y: i32) -> Record { Record { right: y, left: x, stamp: () } }
+        pub fn shorthand(left: i32, right: i32) -> Record { Record { left, right, stamp: () } }
+        pub fn effects(mut x: i32) -> Record { Record { left: x, right: { x = 7; x }, stamp: () } }
+        pub fn nested(x: i32) -> model::Outer { model::Outer { bytes: [x; 2], inner: Record { left: x, right: x, stamp: () } } }
+        pub fn units() -> Record { Record { stamp: {}, left: 1, right: 2 } }
+        pub fn empty() -> model::Empty { model::Empty {} }
+        pub fn update(old: Record) -> Record { Record { left: 1, ..old } }
+        pub fn local(x: i32) -> Record { let r = Record { left: x, right: x, stamp: () }; r }
+        pub fn borrowed<'a>(x: &'a i32) -> model::Borrowed<'a> { model::Borrowed { value: x } }
+    "#).unwrap();
+    directory
+}
+
+fn check_struct_slot_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        constructor
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("[1,0,2]")
+    );
+    constructor.attributes.literal = Some(rstyle_pdg::StringFact::known("[0,1,2]"));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts;
+    changed.body.children[0].children.swap(0, 1);
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
 }

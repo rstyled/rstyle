@@ -99,7 +99,7 @@ fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
         "expr_if" => (2..=3).contains(&count),
         "expr_ret" => count <= 1,
         "expr_path" | "expr_lit" | "pat_binding" | "ty_annotation" => count == 0,
-        "expr_tup" | "expr_array" | "expr_repeat" => true,
+        "expr_tup" | "expr_array" | "expr_repeat" | "expr_struct" => true,
         _ => true,
     };
     if !complete {
@@ -372,7 +372,7 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
-    fn computation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+    fn evaluate_operands(&mut self, node: &HirNode, flow: Flow) -> Operands {
         let mut evaluated = Operands {
             flow,
             values: Vec::new(),
@@ -399,6 +399,11 @@ impl Builder<'_> {
                     .cloned(),
             );
         }
+        evaluated
+    }
+
+    fn computation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let evaluated = self.evaluate_operands(node, flow);
         let category = if matches!(node.kind.as_str(), "expr_method_call" | "expr_call") {
             NodeCategory::Call
         } else {
@@ -408,6 +413,21 @@ impl Builder<'_> {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
             operands: evaluated.values,
             ..template(node, category)
+        };
+
+        self.emit(operation, evaluated.flow)
+    }
+
+    fn structure(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let evaluated = self.evaluate_operands(node, flow);
+        let operation = Operation {
+            construct: Some("data.struct".into()),
+            literal: Some(
+                crate::data_structs::descriptor(node, self.facts)
+                    .expect("verified nominal field slots"),
+            ),
+            operands: evaluated.values,
+            ..template(node, NodeCategory::Computation)
         };
 
         self.emit(operation, evaluated.flow)
@@ -949,6 +969,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_field" => Builder::field_read,
         "expr_addr_of" => Builder::borrow,
         "expr_tup" if !node.children.is_empty() => Builder::computation,
+        "expr_struct" => Builder::structure,
         "expr_array" | "expr_repeat" => Builder::computation,
         "expr_lit" | "expr_tup" => Builder::literal,
         "expr_binary"
