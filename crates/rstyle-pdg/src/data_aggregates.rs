@@ -225,12 +225,12 @@ fn struct_unit_slot(node: &crate::PdgNode, position: u64, fields: &[(String, Typ
     else {
         return false;
     };
-    let Ok(slots) = serde_json::from_str::<Vec<usize>>(text) else {
+    let Ok(slots) = serde_json::from_str::<Vec<Option<usize>>>(text) else {
         return false;
     };
     usize::try_from(position)
         .ok()
         .and_then(|index| slots.get(index))
-        .and_then(|index| fields.get(*index))
+        .and_then(|index| index.and_then(|index| fields.get(index)))
         .is_some_and(|(_, ty)| ty == &TypeToken::Scalar("unit".into()))
 }

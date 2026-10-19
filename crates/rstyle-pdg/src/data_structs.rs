@@ -5,7 +5,10 @@ use crate::{HirNode, data_types::TypeToken, unit_store::EvidenceFacts};
 use std::collections::{BTreeMap, BTreeSet};
 use syn::{ext::IdentExt, spanned::Spanned};
 
-pub(crate) fn slots(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Vec<usize>, String> {
+pub(crate) fn slots(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<Vec<Option<usize>>, String> {
     let source = facts
         .source
         .bytes
@@ -15,45 +18,22 @@ pub(crate) fn slots(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Vec<usi
     let syn::Expr::Struct(syntax) = crate::data_aggregates::ungroup(&expression) else {
         return Err("Expected original named struct constructor".into());
     };
-    if syntax.rest.is_some() || syntax.qself.is_some() {
-        return Err("Struct update and qualified construction remain unavailable".into());
+    if syntax.qself.is_some() {
+        return Err("Qualified struct construction remains unavailable".into());
     }
+
     let token = crate::data_types::parse(crate::data_aggregates::token(node)?)?;
     let TypeToken::Struct { fields, .. } = &token else {
         return Err("Constructor lacks nominal struct type".into());
     };
     verify_path(syntax, &token, facts)?;
-    if syntax.fields.len() != fields.len() || node.children.len() != fields.len() {
-        return Err("Struct constructor requires every declared field exactly once".into());
-    }
-
-    let declarations: BTreeMap<_, _> = fields
-        .iter()
-        .enumerate()
-        .map(|(index, (name, ty))| (name.as_str(), (index, ty)))
-        .collect();
     let context = ComponentContext {
         node,
         source,
         facts,
     };
-    let mut seen = BTreeSet::new();
-    let mut slots = Vec::new();
-    for (field, child) in syntax.fields.iter().zip(&node.children) {
-        let syn::Member::Named(name) = &field.member else {
-            return Err("Only named struct fields are supported".into());
-        };
-        let name = name.unraw().to_string();
-        let &(index, expected) = declarations
-            .get(name.as_str())
-            .ok_or("Unknown constructed field")?;
-        if !seen.insert(index) {
-            return Err("Duplicate constructed field".into());
-        }
-        context.verify(field, child, expected)?;
-        slots.push(index);
-    }
-    Ok(slots)
+
+    context.slots(syntax, fields, &token)
 }
 
 fn verify_path(
@@ -81,9 +61,60 @@ struct ComponentContext<'a> {
 }
 
 impl ComponentContext<'_> {
+    fn slots(
+        &self,
+        syntax: &syn::ExprStruct,
+        fields: &[(String, TypeToken)],
+        token: &TypeToken,
+    ) -> Result<Vec<Option<usize>>, String> {
+        let update = syntax.rest.is_some();
+        if update
+            && !crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?
+                .supports("rust.struct-update-values")
+        {
+            return Err("Struct update requires its registered capability".into());
+        }
+        if (!update && syntax.fields.len() != fields.len())
+            || self.node.children.len() != syntax.fields.len() + usize::from(update)
+        {
+            return Err("Struct constructor field/base arity disagrees".into());
+        }
+
+        let declarations: BTreeMap<_, _> = fields
+            .iter()
+            .enumerate()
+            .map(|(index, (name, ty))| (name.as_str(), (index, ty)))
+            .collect();
+        let mut seen = BTreeSet::new();
+        let mut slots = Vec::new();
+        for (field, child) in syntax.fields.iter().zip(&self.node.children) {
+            let syn::Member::Named(name) = &field.member else {
+                return Err("Only named struct fields are supported".into());
+            };
+            let name = name.unraw().to_string();
+            let &(index, expected) = declarations
+                .get(name.as_str())
+                .ok_or("Unknown constructed field")?;
+            if !seen.insert(index) {
+                return Err("Duplicate constructed field".into());
+            }
+            self.verify(&field.expr, child, expected)?;
+            slots.push(Some(index));
+        }
+        if let Some(base) = &syntax.rest {
+            self.verify(
+                base,
+                self.node.children.last().expect("checked base arity"),
+                token,
+            )?;
+            slots.push(None);
+        }
+        Ok(slots)
+    }
+
     fn verify(
         &self,
-        field: &syn::FieldValue,
+        expression: &syn::Expr,
         child: &HirNode,
         expected: &TypeToken,
     ) -> Result<(), String> {
@@ -93,7 +124,7 @@ impl ComponentContext<'_> {
             return Err("Constructed field type disagrees with its nominal slot".into());
         }
 
-        let span = crate::data_aggregates::ungroup(&field.expr).span();
+        let span = crate::data_aggregates::ungroup(expression).span();
         let syntax = crate::ByteSpan {
             start: self.node.span.start
                 + crate::source_evidence::byte_offset(self.source, span.start()) as u32,

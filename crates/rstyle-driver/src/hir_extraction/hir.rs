@@ -368,12 +368,23 @@ impl<'tcx> Context<'tcx> {
 
     fn aggregate_children(&self, expr: &Expr<'tcx>) -> Vec<HirNode> {
         match expr.kind {
-            ExprKind::Struct(_, fields, hir::StructTailExpr::None)
+            ExprKind::Struct(_, fields, tail)
                 if self.profile.supports("rust.named-struct-values") =>
             {
+                let base = match tail {
+                    hir::StructTailExpr::None => None,
+                    hir::StructTailExpr::Base(base)
+                        if self.profile.supports("rust.struct-update-values") =>
+                    {
+                        Some(base)
+                    }
+                    _ => return Vec::new(),
+                };
                 fields
                     .iter()
-                    .map(|field| self.expression(field.expr))
+                    .map(|field| field.expr)
+                    .chain(base)
+                    .map(|value| self.expression(value))
                     .collect()
             }
             ExprKind::Array(values) if self.profile.supports("rust.aggregate-literal-values") => {

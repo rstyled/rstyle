@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.14.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.15.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -106,7 +106,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D08 | Stored shared-reference fields | Covered | `s.bytes`, where the field is `&[u8]` | Distinguishes loading a reference from borrowing its storage and reading its referent. |
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; construction, non-scalar local reads, and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
-| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.14.0 supports ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, and fully enumerated named structs; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md) and [named structs](docs/extraction-profiles/named-struct-values-v1.md). Struct updates, broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
+| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.15.0 supports ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named structs and same-typed struct updates; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md) [named structs](docs/extraction-profiles/named-struct-values-v1.md) and [updates](docs/extraction-profiles/struct-update-values-v1.md). Tuple-struct constructors, broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
 | D12 | General non-scalar local values/reference rebindings | Missing | `let r = s.bytes; r.len()`, `let t = s; t.value` | Current data-path verifier rejects non-scalar local binding reads; formal origins and directly composed expressions do not provide general local correspondence. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
@@ -826,3 +826,33 @@ or failures. All 60 frozen identity/outcome tuples and all denominators match
 (10 lz4, 0 regex, 16 time). This adds connected named construction without a
 measured frozen admission gain; it does not establish a general performance or
 detector-quality result.
+
+
+### D11 struct updates with one ordered base value
+
+Data-v3 extraction 3.15.0 adds `rust.struct-update-values`; matching remains
+`rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/struct-update-values-v1.md) composes named
+reference-free construction with a same-typed base evaluated once after explicit
+field values. The existing slot vector adds a final null for the base supplying
+unoverridden fields; no frontend records, provenance or retained caches are added.
+Even fully overridden constructors retain base evaluation and its supported scalar
+effects. Formal, nested and conditional bases compose; general aggregate locals
+and reference-bearing values remain unfinished. D11 stays Partial.
+
+The connected Cargo fixture independently verifies every admitted serialized pair
+and strict reconstruction, checks equivalent updates reach accepted matching with
+score 1, and rejects an altered same-typed override slot or missing captured base.
+
+Validation: 748 workspace tests pass with 5 existing ignores, including exact
+assignment/operand counts for effectful and fully overridden updates. Clippy across
+all targets passes with warnings denied; formatting passes. Repository-built
+rstyle reports 2,256 functions and 0 violations; patterns reports 0 candidates with
+the same 15 existing ignores. All 14 inventory bookkeeping tests pass.
+
+Frozen run `target/hir-coverage/run-c7dkk68a/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60, with no unknowns
+or failures. All 60 frozen identities/outcomes and all denominators match 3.14.0
+(`run-806spmc0`). Twenty-six admitted graph documents pass schema checks (10 lz4,
+0 regex, 16 time). This adds composed update semantics without a measured frozen
+admission gain; it is not a general performance benchmark or detector-quality claim.
