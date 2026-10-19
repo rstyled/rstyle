@@ -1,5 +1,6 @@
 //! Data location transport and independent serialized semantic checks.
 
+mod aggregates;
 mod borrows;
 mod locations;
 mod origins;
@@ -177,6 +178,7 @@ pub fn verify<'a>(
     crate::data_receivers::verify_documents(pair, facts)?;
     crate::data_library::verify_documents(pair, facts)?;
     crate::data_frontend::verify(facts)?;
+    aggregates::verify(pair, facts)?;
     verify_interface(pair, facts)?;
     if pair.pdg.extensions.get(POLICY_KEY) != Some(&json!(matching_identity(facts)?))
         || pair.cfg.extensions.get(POLICY_KEY) != pair.pdg.extensions.get(POLICY_KEY)
@@ -486,6 +488,21 @@ fn verify_parameter_type(
         || parameter.type_fact.known_value() != Some(&ty.spelling)
     {
         return Err("Serialized data interface type disagrees with source".into());
+    }
+    Ok(())
+}
+
+fn verify_value_effects(node: &crate::PdgNode, reason: &str) -> Result<(), String> {
+    if node.attributes.operator.is_some()
+        || node.attributes.literal.is_some()
+        || node.attributes.callee.is_some()
+        || node.attributes.call_form.is_some()
+        || !node.attributes.reads.is_empty()
+        || !node.attributes.writes.is_empty()
+        || !node.attributes.defines.is_empty()
+        || !node.attributes.symbol_ids.is_empty()
+    {
+        return Err(reason.into());
     }
     Ok(())
 }

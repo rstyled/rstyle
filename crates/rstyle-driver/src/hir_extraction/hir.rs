@@ -354,6 +354,9 @@ impl<'tcx> Context<'tcx> {
             }
             ExprKind::Ret(value) => value.into_iter().map(|e| self.expression(e)).collect(),
             ExprKind::Tup(values) => values.iter().map(|e| self.expression(e)).collect(),
+            ExprKind::Array(values) if self.profile.supports("rust.aggregate-literal-values") => {
+                values.iter().map(|e| self.expression(e)).collect()
+            }
             ExprKind::MethodCall(_, receiver, args, _) => {
                 std::iter::once(self.expression(receiver))
                     .chain(args.iter().map(|e| self.expression(e)))

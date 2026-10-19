@@ -242,6 +242,12 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if crate::data_aggregates::constructor(node)
+        && crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.aggregate-literal-values")
+    {
+        crate::data_aggregates::verify(node, facts)?;
+    }
     if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
         data_types::parse(token)?;
         if node.kind == "expr_path" {

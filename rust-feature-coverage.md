@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.11.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.12.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -106,7 +106,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D08 | Stored shared-reference fields | Covered | `s.bytes`, where the field is `&[u8]` | Distinguishes loading a reference from borrowing its storage and reading its referent. |
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; construction, non-scalar local reads, and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
-| D11 | Aggregate construction and struct update | Missing | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Source-order components, aggregate value definitions, fields/elements, moves/copies and reference origins. Empty unit tuple `()` already works. |
+| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.12.0 supports ordered reference-free tuple and explicit array literal values; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md). Struct/update/repeat forms, reference-bearing construction and general local component/origin propagation remain unfinished. |
 | D12 | General non-scalar local values/reference rebindings | Missing | `let r = s.bytes; r.len()`, `let t = s; t.value` | Current data-path verifier rejects non-scalar local binding reads; formal origins and directly composed expressions do not provide general local correspondence. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
@@ -711,3 +711,43 @@ or failures. All frozen identities/outcomes and reported denominators match
 3.10.0. Twenty-six admitted graph documents pass schema checks (10 lz4, 0 regex,
 16 time). The composed family gains admission, but the unchanged natural sample
 still has other blockers; no frozen gain or performance improvement is claimed.
+
+
+### D11 tuple and explicit array literal values
+
+Data-v3 extraction 3.12.0 adds `rust.aggregate-literal-values`; matching remains
+`rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/aggregate-literal-values-v1.md) connects ordered
+compiler children, existing concrete type tokens, independent source/component
+checks, constructor computations, serialized operand verification and matching.
+Nested reference-free tuple/array literals, empty arrays, conditional component
+values and scalar effects compose. Empty unit tuples retain their earlier literal
+semantics. D11 advances to Partial; struct/update/repeat construction and reference
+origins remain unfinished, alongside D12–D13 local values and borrows.
+
+Each component evaluates once, with a saved value and its exact operand position.
+Unit-valued blocks without a value operation receive a unit computation after
+normal completion; a slot cannot disappear and shift later components. The
+shared operand collector now appends into one vector instead of repeatedly
+rebuilding it. Array type checks compare the recorded length without expanding a
+component-type vector. Independent serialized checks build temporary lookup maps
+once and compare source values, types and unique ordered slots. Their effect
+check is shared with address computations. No frontend records, provenance tables,
+source snapshots or retained caches are added.
+
+Validation passes 745 workspace tests (5 existing ignores), Clippy with warnings
+denied and 14 inventory tests. Repository-built rstyle reports 0 violations across
+2,241 functions; patterns reports 0 candidates with the same 15 existing ignores.
+The composed Cargo fixture includes nested values, units, an earlier component
+read followed by scalar reassignment, actual equivalent tuple matching with score
+1, unsupported local/reference/repeat forms and legacy exclusions. Same-typed
+source-child swaps and serialized operand-position swaps fail independent checks
+and strict reconstruction. The full roadmap remains active.
+
+
+Final focused run `target/hir-coverage/run-q590o4no/` uses the completed typed unit
+slot behavior and finishes all three packages: 11 admitted, 42 excluded and 7
+independently inactive out of 60, with no unknowns or failures. All frozen
+identities/outcomes and reported denominators match 3.11.0. Twenty-six admitted
+graph documents pass schema checks (10 lz4, 0 regex, 16 time). No natural admission
+gain, detector-quality result or measured performance improvement is claimed.

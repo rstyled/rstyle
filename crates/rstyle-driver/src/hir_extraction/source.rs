@@ -156,6 +156,9 @@ fn selected_expression(
 ) -> bool {
     match kind {
         ast::ExprKind::MacCall(mac) => selected_assertion(mac, profile),
+        ast::ExprKind::Tup(..) | ast::ExprKind::Array(..) => {
+            profile.supports("rust.aggregate-literal-values")
+        }
         ast::ExprKind::Field(..) | ast::ExprKind::AddrOf(..) => {
             profile.supports("rust.concrete-read-only-data")
         }

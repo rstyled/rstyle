@@ -12,6 +12,7 @@ pub mod cfg;
 pub mod collection;
 pub mod concrete_types;
 mod cyclic_values;
+mod data_aggregates;
 pub mod data_documents;
 pub mod data_frontend;
 pub mod data_library;

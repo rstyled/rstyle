@@ -285,7 +285,7 @@ pub(super) fn source_node<'a>(
     Ok(source)
 }
 
-fn wire_type(node: &PdgNode) -> Result<String, String> {
+pub(super) fn wire_type(node: &PdgNode) -> Result<String, String> {
     let value = node
         .annotations
         .get("compat.rust.hir-r0:type")

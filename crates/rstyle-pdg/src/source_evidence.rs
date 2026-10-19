@@ -149,6 +149,12 @@ impl Inventory<'_> {
     }
 
     fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
+        if matches!(expression, syn::Expr::Array(_))
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.aggregate-literal-values"))
+        {
+            return Some("expr_array");
+        }
         if matches!(expression, syn::Expr::Field(_) | syn::Expr::Reference(_))
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.concrete-read-only-data"))
@@ -353,7 +359,7 @@ impl Inventory<'_> {
     }
 }
 
-fn corresponding_span(source: &str, syntax: ByteSpan, hir: ByteSpan) -> bool {
+pub(crate) fn corresponding_span(source: &str, syntax: ByteSpan, hir: ByteSpan) -> bool {
     if syntax == hir {
         return true;
     }

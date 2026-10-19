@@ -318,6 +318,7 @@ fn check_value(edge: &PdgEdge, proof: &ValueProof<'_>) -> Result<(), Vec<String>
         .and_then(|value| value.get("value"))
         .and_then(serde_json::Value::as_str)
         == Some("unit")
+        && !crate::data_aggregates::unit_slot(pdg, edge)
     {
         return Err(vec!["Unit cyclic value operand".into()]);
     }

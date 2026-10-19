@@ -42,7 +42,10 @@ pub(super) fn verify_place(node: &PdgNode, location: &str) -> Result<(), String>
     {
         return Err("Serialized place role/location disagrees with source".into());
     }
-    verify_effects(node)
+    super::verify_value_effects(
+        node,
+        "Address computation invents value reads, writes or definitions",
+    )
 }
 
 fn verify_address(node: &PdgNode) -> Result<(), String> {
@@ -51,22 +54,10 @@ fn verify_address(node: &PdgNode) -> Result<(), String> {
     {
         return Err("Serialized borrow loses source-backed address computation".into());
     }
-    verify_effects(node)
-}
-
-fn verify_effects(node: &PdgNode) -> Result<(), String> {
-    if node.attributes.operator.is_some()
-        || node.attributes.literal.is_some()
-        || node.attributes.callee.is_some()
-        || node.attributes.call_form.is_some()
-        || !node.attributes.reads.is_empty()
-        || !node.attributes.writes.is_empty()
-        || !node.attributes.defines.is_empty()
-        || !node.attributes.symbol_ids.is_empty()
-    {
-        return Err("Address computation invents value reads, writes or definitions".into());
-    }
-    Ok(())
+    super::verify_value_effects(
+        node,
+        "Address computation invents value reads, writes or definitions",
+    )
 }
 
 pub(super) fn graph_origin(

@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.11.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.12.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.11.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.12.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -7632,7 +7632,7 @@ fn clones_data_nested_scalar_patterns_compose_with_ranges_constants_and_guards()
     }
     check_nested_scalar_selector(functions);
     check_nested_scalar_payloads(functions);
-    check_nested_matching(&report);
+    check_equivalent_matching(&report, ["nested", "flat"]);
     let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
     assert!(output.status.success(), "{legacy}");
     assert!(
@@ -7758,9 +7758,9 @@ fn check_nested_scalar_payloads(functions: &[Value]) {
     }
 }
 
-fn check_nested_matching(report: &Value) {
+fn check_equivalent_matching(report: &Value, names: [&str; 2]) {
     let functions = report["functions"].as_array().unwrap();
-    let keys: Vec<_> = ["nested", "flat"]
+    let keys: Vec<_> = names
         .iter()
         .map(|name| {
             &functions
@@ -7860,4 +7860,143 @@ fn clones_data_nominal_constant_initializers_cannot_hide_drop_implementations() 
         assert_eq!(function["outcome"], expected, "{function}");
     }
     assert!(report["handoff_failures"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn clones_data_aggregate_literals_preserve_nested_values_and_component_order() {
+    let directory = aggregate_literal_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["assessment_complete"], true);
+    check_aggregate_admission(&report);
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["tuple", "other"]);
+    check_aggregate_corruption(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn check_aggregate_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["facts"]["name"] == "array")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| {
+            node.original_kind.known_value() == Some("expr_array")
+                && node.category == rstyle_pdg::NodeCategory::Computation
+        })
+        .unwrap()
+        .id
+        .clone();
+    let edges: Vec<_> = pair
+        .pdg
+        .edges
+        .iter_mut()
+        .filter(|edge| edge.target == constructor && edge.subkind == "value_operand")
+        .collect();
+    assert_eq!(edges.len(), 3);
+    for edge in edges {
+        if edge.operand_position == Some(0) {
+            edge.operand_position = Some(1);
+        } else if edge.operand_position == Some(1) {
+            edge.operand_position = Some(0);
+        }
+    }
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts.clone();
+    changed.body.children[0].children.swap(0, 1);
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+fn check_aggregate_documents(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
+    for function in report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|f| f["outcome"] == "admitted")
+    {
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
+        rstyle_pdg::producer::verify(pair, &facts).unwrap();
+    }
+}
+
+fn aggregate_literal_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn tuple(x: i32, b: bool) -> (i32, bool) { (x + 1, !b) }
+        pub fn other(x: i32, b: bool) -> (i32, bool) { (x + 1, !b) }
+        pub fn array(x: i32) -> [i32; 3] { [x, x + 1, x + 2] }
+        pub fn nested(x: i32) -> ([i32; 2], (bool, i32)) { ([x, x + 1], (true, x)) }
+        pub fn empty() -> [i32; 0] { [] }
+        pub fn conditional(x: i32, b: bool) -> (i32, bool) { (if b { x } else { 0 }, b) }
+        pub fn units(x: i32) -> ((), i32, ()) { ({}, x, { let _value = 1; }) }
+        pub fn unit_array() -> [(); 2] { [{}, ()] }
+        pub fn snapshots(mut x: i32) -> (i32, i32) { (x, { x = 3; x }) }
+        pub fn local(x: i32) -> (i32, bool) { let y = (x, true); y }
+        pub fn borrowed(x: &i32) -> (&i32, bool) { (x, true) }
+        pub fn repeat(x: i32) -> [i32; 3] { [x; 3] }
+    "#,
+    )
+    .unwrap();
+    directory
+}
+
+fn check_aggregate_admission(report: &Value) {
+    let names: Vec<_> = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["facts"]["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names.len(), 12, "{names:?}");
+    for name in [
+        "tuple",
+        "other",
+        "array",
+        "nested",
+        "empty",
+        "conditional",
+        "units",
+        "unit_array",
+        "snapshots",
+        "local",
+        "borrowed",
+        "repeat",
+    ] {
+        assert!(names.contains(&name), "{name}: {names:?}");
+    }
+    for function in report["functions"].as_array().unwrap() {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "local" | "borrowed" | "repeat"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
 }

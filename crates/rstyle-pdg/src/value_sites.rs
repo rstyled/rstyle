@@ -525,7 +525,9 @@ impl Context<'_> {
 
     fn value_operand(&self, edge: &PdgEdge) -> Result<(), String> {
         let producer = self.node(&edge.source)?;
-        if producer.annotations.get(TYPE).and_then(known_type) == Some("unit") {
+        if producer.annotations.get(TYPE).and_then(known_type) == Some("unit")
+            && !crate::data_aggregates::unit_slot(self.pdg, edge)
+        {
             return Err("Unit value edges are forbidden".to_string());
         }
         if edge.subkind != "value_operand" {

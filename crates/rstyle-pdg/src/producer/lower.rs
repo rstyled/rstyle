@@ -98,7 +98,8 @@ fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
         "expr_binary" | "expr_assign" | "expr_assign_op" => count == 2,
         "expr_if" => (2..=3).contains(&count),
         "expr_ret" => count <= 1,
-        "expr_path" | "expr_lit" | "expr_tup" | "pat_binding" | "ty_annotation" => count == 0,
+        "expr_path" | "expr_lit" | "pat_binding" | "ty_annotation" => count == 0,
+        "expr_tup" | "expr_array" => true,
         _ => true,
     };
     if !complete {
@@ -372,21 +373,32 @@ impl Builder<'_> {
     }
 
     fn computation(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        let evaluated = node.children.iter().fold(
-            Operands {
-                flow,
-                values: Vec::new(),
-            },
-            |operands, child| {
-                let flow = self.expression(child, operands.flow);
-                let values = operands
-                    .values
-                    .into_iter()
-                    .chain(self.operand(&flow.value))
-                    .collect();
-                Operands { flow, values }
-            },
-        );
+        let mut evaluated = Operands {
+            flow,
+            values: Vec::new(),
+        };
+        for child in &node.children {
+            evaluated.flow = self.expression(child, evaluated.flow);
+            if crate::data_aggregates::constructor(node)
+                && evaluated.flow.normal
+                && evaluated.flow.value.is_none()
+            {
+                let unit = Operation {
+                    literal: Some("()".into()),
+                    construct: Some("unit.value".into()),
+                    ..template(child, NodeCategory::Computation)
+                };
+                evaluated.flow = self.emit(unit, evaluated.flow);
+            }
+            evaluated.values.extend(
+                evaluated
+                    .flow
+                    .value
+                    .iter()
+                    .filter(|id| crate::data_aggregates::constructor(node) || self.is_value(id))
+                    .cloned(),
+            );
+        }
         let category = if matches!(node.kind.as_str(), "expr_method_call" | "expr_call") {
             NodeCategory::Call
         } else {
@@ -474,9 +486,15 @@ impl Builder<'_> {
     fn operand(&self, value: &Option<String>) -> Vec<String> {
         value
             .iter()
-            .filter(|id| self.nodes.iter().any(|n| &n.id == *id && n.ty != "unit"))
+            .filter(|id| self.is_value(id))
             .cloned()
             .collect()
+    }
+
+    fn is_value(&self, id: &str) -> bool {
+        self.nodes
+            .iter()
+            .any(|node| node.id == id && node.ty != "unit")
     }
 
     fn predicate(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -930,6 +948,8 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_path" => Builder::read,
         "expr_field" => Builder::field_read,
         "expr_addr_of" => Builder::borrow,
+        "expr_tup" if !node.children.is_empty() => Builder::computation,
+        "expr_array" => Builder::computation,
         "expr_lit" | "expr_tup" => Builder::literal,
         "expr_binary"
             if node

@@ -36,6 +36,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.exhaustive-scalar-match",
     "rust.nested-scalar-or-patterns",
     "rust.nominal-constant-context",
+    "rust.aggregate-literal-values",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -144,7 +145,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.11.0", 23)),
+            Self::DataV3 => Some(("3.12.0", 24)),
         }
     }
 
