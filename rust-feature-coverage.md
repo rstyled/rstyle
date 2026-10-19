@@ -393,3 +393,11 @@ The Cargo fixture checks integer/bool alternatives, guard evaluation once,
 unsupported alternatives, legacy exclusion, strict selector verification and
 stable fresh/warm pair results. The workspace suite passes 714 tests across
 27 suites (5 existing ignored tests). See the [contract](docs/extraction-profiles/scalar-or-patterns-v1.md).
+
+Final focused inventory `target/hir-coverage/run-4v0dzgj6/` confirms identical
+outcomes for all 60 selected identities after narrowing unsupported-pattern
+capture. Repository-built style checks: 2,131 functions / 0 violations; patterns:
+0 remaining candidates, existing ignores unchanged. Feature commit: `1f0ef93`.
+Next scalar slices remain range patterns, resolved constants (V12), and assertions
+(F14), followed by the connected read-only data ladder. The full roadmap remains
+in progress; no broader Rust or detection-quality completion is claimed.

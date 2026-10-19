@@ -50,3 +50,13 @@ no selected admission is lost. Other earlier admissions remain the same.
 The complete generated assessment and summary retain exclusion combinations and
 unknowns. This is feature/coverage evidence, not completed detector pair evaluation
 or calibrated quality evidence. The contract remains bounded normal flow.
+
+Final focused rerun `target/hir-coverage/run-4v0dzgj6/` verifies the narrowed
+unsupported-pattern capture used by `1f0ef93`: all 60 selected source identities
+and outcomes match the full 3.1.0 run (9 admitted, 44 excluded, 7 unknown).
+The full final workspace suite passes 714 tests in 27 suites (5 existing ignored
+tests); repository-built `cargo rstyle` reports 0 violations across 2,131
+functions, and `cargo rstyle patterns --fail-on-candidates` reports 0 remaining
+candidates with the 15 existing ignore entries unchanged. No new performance
+benchmark is claimed; the implementation avoids per-element array expansion,
+duplicated OR arm/guard lowering, and new provenance fields.
