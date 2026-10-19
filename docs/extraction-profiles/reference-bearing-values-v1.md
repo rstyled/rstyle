@@ -56,3 +56,24 @@ component/origin correspondence. Mutable reference
 rebindings and local/temporary storage borrows remain separate work. D11 and D12
 stay Partial, D18 remains unfinished, and the full roadmap remains active. Frozen
 inventory and final validation are recorded in the roadmap continuation log.
+
+## Next component-projection boundary
+
+Selecting a field from an evaluated reference-bearing aggregate must recover only
+that component's origins. Filtering or copying the whole-value union is insufficient:
+two same-typed fields can refer to different parameters, and nested fields can share
+some origins while differing in others. The existing constructor operands and exact
+field slots are the starting evidence; immutable local reads must follow their
+verified initializer, and conditional aggregate values must select the same component
+in each alternative before combining its possible origins. Formal aggregate values
+must preserve their existing parameter and field paths.
+
+The composed fixture for this extension must distinguish selecting the first and
+second same-typed reference fields, nested selection, aliases, shadowing and
+conditional aggregates. Independent graph verification must reject an origin copied
+from an unselected sibling and a changed selected slot even when the whole-value
+union is unchanged. Reference-free projections and Data-v2 exclusions must retain
+their current behavior. Struct updates, mutable rebindings, helper results and local
+storage borrows require their own proofs; this projection contract does not establish
+them. Prefer reconstructing component correspondence from existing source and
+operand evidence over introducing retained component maps or caches.
