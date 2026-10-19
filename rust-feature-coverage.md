@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.10.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.11.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -195,7 +195,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Assertions are a proposed narrow first slice. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | Current unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Other items, associated constants, macros/derives and unsafe forms can block otherwise simple nominal APIs. Need finer resolved ownership/drop/effect proofs. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | Current unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Other items, macros/derives and unsafe forms can still block simple APIs; finer ownership/drop/effect proofs remain. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
@@ -675,3 +675,39 @@ selections, with no unknowns or failures. Every frozen identity/outcome and all
 reported denominators match 3.9.0. Twenty-six admitted graph documents pass schema
 checks (10 lz4, 0 regex, 16 time). This adds bounded synthetic feature coverage but
 no measured frozen admission; it makes no performance or detector-quality claim.
+
+
+### S09 constant declarations beside nominal APIs
+
+Data-v3 extraction 3.11.0 adds `rust.nominal-constant-context`; matching remains
+`rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/nominal-constant-context-v1.md) admits ordinary
+constant items and constants in supported inherent impls to the existing nominal
+unit census. Initializers are still traversed for unavailable nested items and
+macros, and attributes retain the existing presence/expansion boundary. Constant
+value uses keep their separate resolved primitive contract. This does not provide
+aggregate construction or general constant evaluation. S09 remains Partial.
+
+The existing shared source-environment lookup distinguishes the new capability
+from earlier selections while retaining owner/policy isolation and reuse. No new
+serialized records, provenance tables, snapshots or caches are added. Struct field,
+namespace, source ownership and drop proofs are unchanged. A real Cargo family
+composes module/import aliases, associated constants, constant range patterns,
+field reads and inherent helper calls through serialized unit verification and
+all six pairs. Data-v2 excludes the same family. A second Cargo fixture preserves
+nominal exclusion for a hidden Drop impl inside an otherwise unused initializer;
+its independent scalar function still admits. Census tests retain macro, unsafe
+and conditional-attribute exclusions, including associated constants.
+
+Validation passes 744 workspace tests (5 existing ignores), Clippy with warnings
+denied, and 14 inventory tests. Repository-built rstyle reports 0 violations across
+2,227 functions; patterns reports 0 candidates with the same 15 existing ignores.
+The full read-only and broader Rust roadmap remains active.
+
+
+Focused run `target/hir-coverage/run-3s_vx4i9/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60, with no unknowns
+or failures. All frozen identities/outcomes and reported denominators match
+3.10.0. Twenty-six admitted graph documents pass schema checks (10 lz4, 0 regex,
+16 time). The composed family gains admission, but the unchanged natural sample
+still has other blockers; no frozen gain or performance improvement is claimed.

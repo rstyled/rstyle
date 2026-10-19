@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.10.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.11.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.10.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.11.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -7781,4 +7781,83 @@ fn check_nested_matching(report: &Value) {
     assert_eq!(pair["evaluation_status"], "evaluated");
     assert_eq!(pair["decision"], "Accepted");
     assert_eq!(pair["displayed_score"], "1");
+}
+
+#[test]
+fn clones_data_nominal_constants_compose_with_fields_patterns_and_helpers() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        mod model {
+            pub const LIMIT: i32 = 4;
+            pub struct Data { pub x: i32 }
+            impl Data {
+                pub const LOW: i32 = -2;
+                pub fn get(&self) -> i32 { self.x }
+                pub fn classify(&self) -> i32 {
+                    match self.x { Self::LOW..=LIMIT => 1, _ => 0 }
+                }
+            }
+        }
+        use model::Data as Record;
+        pub fn classify(data: &Record) -> i32 {
+            match data.x { Record::LOW..=model::LIMIT => 1, _ => 0 }
+        }
+        pub fn forward(data: &Record) -> i32 { data.classify() }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = check_data_family(&report, &[]);
+    assert_eq!(functions.len(), 4);
+    let (unit, _) = data_unit(functions[0]);
+    let analysis = unit.analysis();
+    for function in functions {
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
+    }
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+#[test]
+fn clones_data_nominal_constant_initializers_cannot_hide_drop_implementations() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub struct Data { pub x: i32 }
+        const _: () = {
+            struct Hidden;
+            impl Drop for Hidden { fn drop(&mut self) {} }
+        };
+        pub fn get(data: &Data) -> i32 { data.x }
+        pub fn scalar(x: i32) -> i32 { x }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["assessment_complete"], true);
+    for function in report["functions"].as_array().unwrap() {
+        let expected = if function["facts"]["name"] == "scalar" {
+            "admitted"
+        } else {
+            "excluded"
+        };
+        assert_eq!(function["outcome"], expected, "{function}");
+    }
+    assert!(report["handoff_failures"].as_array().unwrap().is_empty());
 }

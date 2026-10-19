@@ -67,8 +67,16 @@ struct Declaration {
 
 pub fn verify(facts: &HirFnFacts, interface: &InterfaceObservations) -> Result<Resolution, String> {
     let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
-    let environment = Rc::new(Environment::new(Arc::clone(&census))?);
+    let constants = constant_context(facts)?;
+    let environment = Rc::new(Environment::with_constants(Arc::clone(&census), constants)?);
     verify_in(facts, interface, environment)
+}
+
+pub(crate) fn constant_context(facts: &HirFnFacts) -> Result<bool, String> {
+    Ok(
+        crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.nominal-constant-context"),
+    )
 }
 
 pub(crate) fn verify_in(

@@ -31,8 +31,16 @@ impl<'a> SnapshotView<'a> {
 }
 
 impl Environment {
+    #[cfg(test)]
     pub(crate) fn new(census: Arc<census::Census>) -> Result<Self, String> {
-        let modules = census::verify(&census)?;
+        Self::with_constants(census, false)
+    }
+
+    pub(crate) fn with_constants(
+        census: Arc<census::Census>,
+        constants: bool,
+    ) -> Result<Self, String> {
+        let modules = census::verify_with_constants(&census, constants)?;
         let index = build_index(&modules, &census)?;
         let sources = census
             .files

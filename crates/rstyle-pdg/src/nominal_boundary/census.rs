@@ -37,11 +37,19 @@ pub struct Module {
 }
 
 pub fn verify(census: &Census) -> Result<Vec<Module>, String> {
+    verify_with_constants(census, false)
+}
+
+pub(crate) fn verify_with_constants(
+    census: &Census,
+    constants: bool,
+) -> Result<Vec<Module>, String> {
     let files = checked_files(census)?;
     let mut closure = Closure {
         files,
         visited: BTreeSet::new(),
         modules: Vec::new(),
+        constants,
     };
     let root = &census.context.root_source;
     let directory = root.parent().ok_or("Missing root module directory")?;
@@ -107,6 +115,7 @@ struct Closure<'a> {
     files: BTreeMap<PathBuf, &'a str>,
     visited: BTreeSet<PathBuf>,
     modules: Vec<Module>,
+    constants: bool,
 }
 
 impl Closure<'_> {
@@ -139,7 +148,7 @@ impl Closure<'_> {
 
     fn items(&mut self, site: Site<'_>, items: Vec<syn::Item>) -> Result<(), String> {
         for item in &items {
-            verify_nested_items(item)?;
+            verify_nested_items(item, self.constants)?;
             if let syn::Item::Mod(module) = item {
                 self.child(&site, module)?;
             }
@@ -184,21 +193,25 @@ impl Closure<'_> {
     }
 }
 
-fn verify_nested_items(item: &syn::Item) -> Result<(), String> {
-    let mut visitor = Boundary { failure: None };
+fn verify_nested_items(item: &syn::Item, constants: bool) -> Result<(), String> {
+    let mut visitor = Boundary {
+        failure: None,
+        constants,
+    };
     syn::visit::Visit::visit_item(&mut visitor, item);
     visitor.failure.map_or(Ok(()), Err)
 }
 
 struct Boundary {
     failure: Option<String>,
+    constants: bool,
 }
 impl<'ast> syn::visit::Visit<'ast> for Boundary {
     fn visit_item(&mut self, item: &'ast syn::Item) {
         if self.failure.is_some() {
             return;
         }
-        if let Err(error) = boundary_item(item) {
+        if let Err(error) = boundary_item(item, self.constants) {
             self.failure = Some(error);
             return;
         }
@@ -222,21 +235,22 @@ fn boundary_attributes(attributes: &[syn::Attribute]) -> Result<(), String> {
     Ok(())
 }
 
-fn boundary_item(item: &syn::Item) -> Result<(), String> {
+fn boundary_item(item: &syn::Item, constants: bool) -> Result<(), String> {
     match item {
         syn::Item::Impl(item) if item.trait_.is_none() && item.unsafety.is_none() => {
-            boundary_impl(item)
+            boundary_impl(item, constants)
         }
         syn::Item::Fn(item) if item.sig.unsafety.is_none() => boundary_attributes(&item.attrs),
         syn::Item::Struct(item) => boundary_attributes(&item.attrs),
         syn::Item::Mod(item) if item.unsafety.is_none() => Ok(()),
         syn::Item::Use(item) => boundary_attributes(&item.attrs),
+        syn::Item::Const(item) if constants => boundary_attributes(&item.attrs),
         // No item macros/derive, external blocks, trait impls or custom lang items.
         _ => Err("Unit item lies outside independent nominal drop-free boundary".into()),
     }
 }
 
-fn boundary_impl(item: &syn::ItemImpl) -> Result<(), String> {
+fn boundary_impl(item: &syn::ItemImpl, constants: bool) -> Result<(), String> {
     boundary_attributes(&item.attrs)?;
     crate::concrete_types::lifetimes::parameter_count(&item.generics)?;
     for member in &item.items {
@@ -244,6 +258,7 @@ fn boundary_impl(item: &syn::ItemImpl) -> Result<(), String> {
             syn::ImplItem::Fn(function) if function.sig.unsafety.is_none() => {
                 boundary_attributes(&function.attrs)?
             }
+            syn::ImplItem::Const(item) if constants => boundary_attributes(&item.attrs)?,
             _ => return Err("Unsupported inherent impl item".into()),
         }
     }
@@ -324,6 +339,32 @@ mod tests {
             "struct Data { x: i32 } impl Data { fn x(&self) -> i32 { self.x } }",
         )]))
         .unwrap();
+    }
+
+    #[test]
+    fn constant_context_preserves_recursive_item_and_expansion_checks() {
+        for source in [
+            "const LIMIT: i32 = 4; struct Data { x: i32 }",
+            "struct Data; impl Data { const LIMIT: i32 = 4; }",
+            "const PAIR: (i32, bool) = (4, true); struct Data;",
+        ] {
+            let proof = sample(&[("/sample/src/lib.rs", source)]);
+            assert!(verify(&proof).is_err(), "{source}");
+            assert!(verify_with_constants(&proof, true).is_ok(), "{source}");
+        }
+        for source in [
+            "#[cfg(any())] const LIMIT: i32 = 4;",
+            "const LIMIT: i32 = make!();",
+            "const _: () = { struct Hidden; impl Drop for Hidden { fn drop(&mut self) {} } };",
+            "struct Data; impl Data { #[cfg(any())] const LIMIT: i32 = 4; }",
+            "struct Data; impl Data { const LIMIT: i32 = make!(); }",
+            "const _: () = { unsafe fn hidden() {} };",
+        ] {
+            assert!(
+                verify_with_constants(&sample(&[("/sample/src/lib.rs", source)]), true).is_err(),
+                "{source}"
+            );
+        }
     }
 
     #[test]
