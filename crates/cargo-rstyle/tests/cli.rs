@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.15.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.16.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.15.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.16.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -8311,4 +8311,113 @@ fn check_struct_update_effects(report: &Value) {
             if name == "complete" { 4 } else { 2 }
         );
     }
+}
+
+#[test]
+fn clones_data_tuple_struct_values_compose_with_nominal_slots_and_units() {
+    let directory = tuple_struct_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "local" | "borrowed"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_tuple_struct_corruption(&report);
+    let helper = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "helper")
+        .unwrap();
+    let mut facts: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(helper["facts"].clone()).unwrap();
+    assert_eq!(facts.body.children[0].kind, "expr_call");
+    facts.body.children[0].kind = "expr_struct".into();
+    assert!(rstyle_pdg::data_frontend::verify(&facts).is_err());
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn check_tuple_struct_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        constructor
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("[0,1,2]")
+    );
+    constructor.attributes.literal = Some(rstyle_pdg::StringFact::known("[1,0,2]"));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts;
+    changed.body.children[0].children.swap(0, 1);
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+fn tuple_struct_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/model.rs"),
+        r#"
+        pub struct Pair(pub i32, pub i32, pub ());
+        impl Pair { pub fn new(x: i32) -> Self { Self(x, x, ()) } }
+        pub struct Empty();
+        pub struct Nested(pub Pair, pub [i32; 2]);
+        pub struct Borrowed<'a>(pub &'a i32);
+        pub struct Named { pub value: i32 }
+        #[allow(non_snake_case)] pub fn Named(value: i32) -> Named { Named { value } }
+    "#,
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        mod model;
+        use model::Pair as Alias;
+        pub fn first(x: i32, y: i32) -> Alias { Alias(x, y, ()) }
+        pub fn other(x: i32, y: i32) -> Alias { Alias(x, y, ()) }
+        pub fn units(x: i32) -> Alias { Alias(x, x, {}) }
+        pub fn empty() -> model::Empty { model::Empty() }
+        pub fn nested(x: i32) -> model::Nested { model::Nested(Alias(x, x, ()), [x; 2]) }
+        pub fn effects(mut x: i32) -> Alias { Alias(x, { x = 7; x }, ()) }
+        pub fn borrowed<'a>(x: &'a i32) -> model::Borrowed<'a> { model::Borrowed(x) }
+        pub fn local(x: i32) -> Alias { let p = Alias(x, x, ()); p }
+        pub fn helper(x: i32) -> model::Named { model::Named(x) }
+    "#,
+    )
+    .unwrap();
+    directory
 }

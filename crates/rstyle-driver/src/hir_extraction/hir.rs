@@ -234,6 +234,7 @@ impl<'tcx> Context<'tcx> {
             ExprKind::Loop(_, Some(_), _, _) => "expr_labelled_loop",
             ExprKind::Loop(_, None, hir::LoopSource::While, _) => "expr_while",
             ExprKind::Loop(_, None, hir::LoopSource::ForLoop, _) => "expr_for",
+            ExprKind::Call(..) if self.tuple_constructor(expr) => "expr_struct",
             _ => kind(&expr.kind),
         };
         let base = self.node(expr.hir_id, expr.span, tag);
@@ -248,6 +249,29 @@ impl<'tcx> Context<'tcx> {
         };
 
         self.expression_fields(expr, node)
+    }
+
+    fn tuple_constructor(&self, expr: &Expr<'tcx>) -> bool {
+        if !self.profile.supports("rust.tuple-struct-values") {
+            return false;
+        }
+        let ExprKind::Call(callee, _) = expr.kind else {
+            return false;
+        };
+        let ExprKind::Path(ref path) = callee.kind else {
+            return false;
+        };
+
+        matches!(
+            self.typeck.qpath_res(path, callee.hir_id),
+            Res::Def(
+                rustc_hir::def::DefKind::Ctor(
+                    rustc_hir::def::CtorOf::Struct,
+                    rustc_hir::def::CtorKind::Fn
+                ),
+                _
+            ) | Res::SelfCtor(_)
+        )
     }
 
     fn expression_fields(&self, expr: &Expr<'tcx>, node: HirNode) -> HirNode {

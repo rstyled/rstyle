@@ -15,6 +15,14 @@ pub(crate) fn slots(
         .get(node.span.start as usize..node.span.end as usize)
         .ok_or("Missing original struct construction source")?;
     let expression: syn::Expr = syn::parse_str(source).map_err(|error| error.to_string())?;
+    if let syn::Expr::Call(call) = crate::data_aggregates::ungroup(&expression) {
+        return ComponentContext {
+            node,
+            source,
+            facts,
+        }
+        .tuple(call);
+    }
     let syn::Expr::Struct(syntax) = crate::data_aggregates::ungroup(&expression) else {
         return Err("Expected original named struct constructor".into());
     };
@@ -26,7 +34,7 @@ pub(crate) fn slots(
     let TypeToken::Struct { fields, .. } = &token else {
         return Err("Constructor lacks nominal struct type".into());
     };
-    verify_path(syntax, &token, facts)?;
+    verify_path(&syntax.path, &token, facts)?;
     let context = ComponentContext {
         node,
         source,
@@ -37,21 +45,21 @@ pub(crate) fn slots(
 }
 
 fn verify_path(
-    syntax: &syn::ExprStruct,
+    syntax: &syn::Path,
     expected: &TypeToken,
     facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
+) -> Result<crate::concrete_types::TypeTree, String> {
     let resolution = facts.nominal_resolution()?;
     let path = syn::TypePath {
         qself: None,
-        path: syntax.path.clone(),
+        path: syntax.clone(),
     };
     let tree = resolution.resolve(&path)?;
 
     if &TypeToken::from_tree(&tree) != expected {
         return Err("Struct constructor path disagrees with exact nominal declaration".into());
     }
-    Ok(())
+    Ok(tree)
 }
 
 struct ComponentContext<'a> {
@@ -61,6 +69,46 @@ struct ComponentContext<'a> {
 }
 
 impl ComponentContext<'_> {
+    fn tuple(&self, call: &syn::ExprCall) -> Result<Vec<Option<usize>>, String> {
+        if !crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?
+            .supports("rust.tuple-struct-values")
+        {
+            return Err("Tuple struct construction requires its registered capability".into());
+        }
+        let syn::Expr::Path(path) = crate::data_aggregates::ungroup(&call.func) else {
+            return Err("Tuple struct construction requires an exact nominal path".into());
+        };
+        if path.qself.is_some() {
+            return Err("Qualified tuple struct construction remains unavailable".into());
+        }
+        let token = crate::data_types::parse(crate::data_aggregates::token(self.node)?)?;
+        let tree = verify_path(&path.path, &token, self.facts)?;
+        let crate::concrete_types::TypeTree::Struct { source, fields, .. } = tree else {
+            return Err("Tuple constructor lacks an exact struct declaration".into());
+        };
+        let declaration: syn::ItemStruct =
+            syn::parse_str(&source).map_err(|error| error.to_string())?;
+        if !matches!(declaration.fields, syn::Fields::Unnamed(_))
+            || call.args.len() != fields.len()
+            || self.node.children.len() != fields.len()
+        {
+            return Err("Tuple struct declaration kind or argument arity disagrees".into());
+        }
+
+        let mut slots = Vec::new();
+        for (index, ((argument, child), field)) in call
+            .args
+            .iter()
+            .zip(&self.node.children)
+            .zip(&fields)
+            .enumerate()
+        {
+            self.verify(argument, child, &TypeToken::from_tree(&field.ty))?;
+            slots.push(Some(index));
+        }
+        Ok(slots)
+    }
+
     fn slots(
         &self,
         syntax: &syn::ExprStruct,

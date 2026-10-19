@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.15.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.16.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -106,7 +106,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D08 | Stored shared-reference fields | Covered | `s.bytes`, where the field is `&[u8]` | Distinguishes loading a reference from borrowing its storage and reading its referent. |
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; construction, non-scalar local reads, and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
-| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.15.0 supports ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named structs and same-typed struct updates; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md) [named structs](docs/extraction-profiles/named-struct-values-v1.md) and [updates](docs/extraction-profiles/struct-update-values-v1.md). Tuple-struct constructors, broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
+| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.16.0 supports ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple structs and same-typed struct updates; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md) and [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md). Unit-struct paths, broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
 | D12 | General non-scalar local values/reference rebindings | Missing | `let r = s.bytes; r.len()`, `let t = s; t.value` | Current data-path verifier rejects non-scalar local binding reads; formal origins and directly composed expressions do not provide general local correspondence. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
@@ -143,7 +143,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Four instantiations only: i32/i64 unsigned_abs and u32/u64 wrapping_mul. Not general primitive-method support. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
 | C10 | General core/std/third-party APIs | Missing | `u32::from_le_bytes(bytes)`, `hint::unlikely(b)` | Additional resolved summaries or captured verified bodies, effect/result dependencies and toolchain authority. Familiar names are not proof. |
-| C11 | By-value memory-reading helper arguments/results | Missing | `inspect_value(s)`, `make_value(x)` | Aggregate substitution/construction, memory effects, value components and ownership. Supported interface types do not establish this call boundary. |
+| C11 | By-value memory-reading helper arguments/results | Missing | `inspect_value(s)`, `make_value(x)` | Pure reference-free construction results compose in the D11 fixture; by-value memory-reading substitution, reference-bearing components and ownership remain unavailable. Supported interface types do not establish that call boundary. |
 | C12 | Borrowed results from memory-reading helpers | Missing | `get_field_ref(s)` | Exact callee read effects plus result origin/location substitution, not just whole-formal forwarding. |
 | C13 | Cross-unit/package helper linking | Missing | `library_crate::helper(x)` | Capture/resolve selected units before summary derivation, preserve build contexts/transitive dependencies; modules inside one unit already work. |
 | C14 | Looping, recursive, panicking or nonreturning callees | Missing | `recursive(x)`, `helper_with_loop(x)` | Existing caller scalar loops do not authorize these summaries; need interprocedural fixed points/flow/effect contracts. |
@@ -856,3 +856,35 @@ or failures. All 60 frozen identities/outcomes and all denominators match 3.14.0
 (`run-806spmc0`). Twenty-six admitted graph documents pass schema checks (10 lz4,
 0 regex, 16 time). This adds composed update semantics without a measured frozen
 admission gain; it is not a general performance benchmark or detector-quality claim.
+
+
+### D11 tuple struct constructors through exact nominal declarations
+
+Data-v3 extraction 3.16.0 adds `rust.tuple-struct-values`; matching remains
+`rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/tuple-struct-values-v1.md) normalizes resolved
+struct constructor calls to existing aggregate operations. Original path resolution
+and already-retained declaration source independently establish unnamed fields,
+argument arity/types and source order, including empty tuple structs. Existing
+operation slots carry semantics without new frontend records, witnesses, provenance
+or retained caches. Reference-free aliases, `Self`, unit components, nested
+aggregates and scalar effects compose. Ordinary helpers retain call semantics.
+
+Every admitted fixture pair passes independent document checks and strict producer
+reconstruction. Equivalent functions reach evaluated accepted matching with score 1.
+Changed same-typed slot order, captured argument order and a helper relabeled as a
+constructor fail verification. Legacy selections retain their construction boundary.
+D11 stays Partial for unit-struct paths, reference-bearing values and broader repeat
+counts; general local propagation remains D12 work and the full roadmap is active.
+
+Validation: 749 workspace tests pass with 5 existing ignores. Clippy across all
+targets passes with warnings denied; formatting passes. Repository-built rstyle
+reports 2,258 functions and 0 violations; patterns reports 0 candidates with the
+same 15 existing ignores. All 14 inventory bookkeeping tests pass.
+
+Frozen run `target/hir-coverage/run-_j2xrpg0/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60, with no unknowns
+or failures. All 60 frozen identities/outcomes and all denominators match 3.15.0
+(`run-c7dkk68a`). Twenty-six admitted graph documents pass schema checks (10 lz4,
+0 regex, 16 time). Tuple construction adds no measured frozen admission gain;
+these checks do not establish general performance or detector quality.
