@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.4.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.5.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -77,7 +77,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F03 | Short-circuit boolean evaluation | Covered | `a && b`, `a \|\| b` | Saved left values and conditional right evaluation; restricted in loop-containing functions. |
 | F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee, 1–16 arms, literal arms including negative integer literals, final unguarded wildcard; not general exhaustive pattern matching. |
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
-| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.4.0 supports integer/bool literals and same-unit scalar constants, integer literal ranges, mixed OR arms and guards; see [constant-pattern contract](docs/extraction-profiles/scalar-constant-patterns-v1.md). Constant range bounds and other pattern tiers remain missing. |
+| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.5.0 supports integer/bool literal/constant arms, integer ranges with same-unit constant bounds, mixed OR arms and guards; see [bound contract](docs/extraction-profiles/scalar-constant-range-bounds-v1.md). Character ranges, nonlocal/generic constants, nested alternatives and general exhaustive matches remain missing. |
 | F07 | Destructuring, reference, slice, and enum patterns | Missing | `Some(x) => x`, `[a, ..] => a` | Payload/field/element dependencies, binding modes, and ownership/borrow effects. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
@@ -476,3 +476,29 @@ Frozen refresh `target/hir-coverage/run-nhkwv78q/` completes all three packages
 with 9 admitted, 44 excluded and 7 unknown. All 60 selected identities/outcomes
 match 3.3.0: no frozen admission gain is inferred from syntax support. See the
 [inventory report](eval/hir-coverage/REPORT-data-v3.md) for evidence and limits.
+
+### F06 constant range-bound composition
+
+Data-v3 extraction 3.5.0 adds `rust.scalar-constant-range-bounds`. Same-unit
+integer constants and nongeneric inherent constants now supply either endpoint
+of inclusive/exclusive/open ranges, including imported names and guarded mixed
+OR arms. Each named endpoint reuses a scalar constant record; source checks bind
+it to the exact original endpoint span and verify the canonical descriptor.
+Lowering retains one compact selector over the saved scrutinee, without endpoint
+reads, per-integer expansion, copied guards/bodies, provenance fields or caches.
+See the [bound contract](docs/extraction-profiles/scalar-constant-range-bounds-v1.md).
+
+The workspace passes 724 tests (5 existing ignores), including real Cargo ranges
+and independent source-position/type/value checks. Clippy passes with warnings
+denied. Repository-built rstyle reports 0 violations across 2,166 functions;
+patterns reports 0 remaining candidates, with all 15 existing ignores unchanged.
+F06 remains Partial for character ranges, nonlocal/generic constants, nested
+alternatives and general exhaustive matches. The next scalar-composition step is
+F14 assertions with S03–S04 build/source correspondence, followed by the connected
+read-only data ladder; later roadmap stages remain unfinished. Frozen inventory
+results are recorded separately, without a performance or detector-quality claim.
+
+Frozen refresh `target/hir-coverage/run-56rfkhh2/` completes all three packages:
+9 admitted, 44 excluded, 7 unknown, with all 60 selected identities/outcomes
+unchanged from 3.4.0. The [inventory report](eval/hir-coverage/REPORT-data-v3.md)
+records the measured result; syntax composition adds no frozen admission here.

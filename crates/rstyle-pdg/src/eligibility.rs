@@ -1119,7 +1119,9 @@ fn scalar_match_pattern(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) -
 }
 
 fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) -> bool {
-    if !pattern.children.is_empty() || node_norm(pattern) != node_norm(scrutinee) {
+    if (pattern.kind != "pat_range" && !pattern.children.is_empty())
+        || node_norm(pattern) != node_norm(scrutinee)
+    {
         return false;
     }
     if pattern.kind == "pat_literal" {
@@ -1143,7 +1145,15 @@ fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) ->
             .source
             .bytes
             .get(pattern.span.start as usize..pattern.span.end as usize)
-            .and_then(|source| crate::scalar_patterns::IntegerRange::from_source(source).ok())
+            .and_then(|source| {
+                crate::scalar_patterns::IntegerRange::from_pattern(
+                    source,
+                    pattern,
+                    ctx.facts.build.pointer_width.value,
+                    ctx.profile.supports("rust.scalar-constant-range-bounds"),
+                )
+                .ok()
+            })
             .is_some_and(|range| pattern.lit.as_deref() == Some(range.text().as_str()))
 }
 

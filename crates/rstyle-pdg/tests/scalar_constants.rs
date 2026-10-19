@@ -109,3 +109,33 @@ fn constant_pattern_selectors_must_match_the_resolved_value() {
     pattern.ty.as_mut().unwrap().normalized = Some("u32".into());
     assert!(ScalarConstant::verify_pattern(&pattern, None).is_err());
 }
+
+#[test]
+fn constant_range_bounds_require_exact_source_positions_types_and_values() {
+    use rstyle_pdg::scalar_patterns::IntegerRange;
+    let constant = constant("i32", "15");
+    let mut bound = node(&constant);
+    bound.kind = "pat_constant".into();
+    bound.lit = Some("15".into());
+    bound.span = rstyle_pdg::span(13, 26);
+    let mut range = node(&constant);
+    range.kind = "pat_range".into();
+    range.span = rstyle_pdg::span(10, 26);
+    range.children = vec![bound];
+    let source = "0..Limits::VALUE";
+    let resolved = IntegerRange::from_pattern(source, &range, None, true).unwrap();
+    assert_eq!(resolved.start.as_deref(), Some("0"));
+    assert_eq!(resolved.end.as_deref(), Some("15"));
+    assert!(!resolved.inclusive);
+    assert!(IntegerRange::from_pattern(source, &range, None, false).is_err());
+    range.children[0].span.start += 1;
+    assert!(IntegerRange::from_pattern(source, &range, None, true).is_err());
+    range.children[0].span.start -= 1;
+    range.children[0].lit = Some("16".into());
+    assert!(IntegerRange::from_pattern(source, &range, None, true).is_err());
+    range.children[0].lit = Some("15".into());
+    range.ty.as_mut().unwrap().normalized = Some("u32".into());
+    assert!(IntegerRange::from_pattern(source, &range, None, true).is_err());
+    range.children.clear();
+    assert!(IntegerRange::from_pattern(source, &range, None, true).is_err());
+}

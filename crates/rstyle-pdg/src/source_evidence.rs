@@ -148,7 +148,7 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
             {
                 Some("pat_name")
             }
-            syn::Pat::Range(range) if crate::scalar_patterns::integer_range(range) => {
+            syn::Pat::Range(range) if crate::scalar_patterns::scalar_range(range, constants) => {
                 Some("pat_range")
             }
             syn::Pat::Or(pattern) if scalar_alternatives(pattern, constants) => Some("pat_or"),
@@ -249,7 +249,7 @@ fn corresponding_span(source: &str, syntax: ByteSpan, hir: ByteSpan) -> bool {
 fn scalar_alternatives(pattern: &syn::PatOr, constants: bool) -> bool {
     pattern.cases.iter().all(|case| match case {
         syn::Pat::Lit(literal) => matches!(literal.lit, syn::Lit::Int(_) | syn::Lit::Bool(_)),
-        syn::Pat::Range(range) => crate::scalar_patterns::integer_range(range),
+        syn::Pat::Range(range) => crate::scalar_patterns::scalar_range(range, constants),
         syn::Pat::Path(_) => constants,
         syn::Pat::Ident(ident) => {
             constants

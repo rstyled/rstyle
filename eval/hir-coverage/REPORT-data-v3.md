@@ -114,3 +114,21 @@ rstyle reports 0 violations across 2,158 functions; patterns reports 0 remaining
 candidates with the same 15 existing ignores. The implementation reuses constant
 records and existing selector/guard flow without new provenance fields, caches or
 alternative expansion. No formal performance benchmark is claimed.
+
+## Constant range-bound increment, extraction 3.5.0
+
+Focused fresh run `target/hir-coverage/run-56rfkhh2/`, started at `4f49f4a` with
+the range-bound implementation in the working tree, completes all three packages.
+Data-v3 retains **9 admitted, 44 excluded, 7 unknown out of 60**, with 53 assessed,
+0 failed and 0 proven inactive. All 60 selected identities and outcomes match
+3.4.0; this increment adds no measured frozen admission. Twenty-two admitted
+CFG/PDG documents, including functions outside the selection, pass the unchanged
+schema checks. The complete assessment retains exclusion combinations and unknowns;
+pair evaluation remains incomplete and no detector-quality claim follows.
+
+The workspace passes 724 tests (5 existing ignores); final independent bound
+consistency checks and Clippy with warnings denied pass. Repository-built rstyle
+reports 0 violations across 2,166 functions; patterns reports 0 remaining candidates
+with all 15 existing ignores unchanged. Range capture adds at most two constant
+records and reuses them for the descriptor, without per-integer expansion, runtime
+bound reads, new provenance fields or caches. No formal performance benchmark is claimed.

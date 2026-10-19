@@ -96,6 +96,7 @@ impl<'tcx> Context<'tcx> {
 
     pub fn pattern(&self, pat: &hir::Pat<'tcx>) -> HirNode {
         let constant = self.constant_pattern(pat);
+        let range_constants = self.range_constants(pat);
         let (kind, span) = match pat.kind {
             PatKind::Binding(hir::BindingMode(hir::ByRef::No, _), _, ident, None) => {
                 ("pat_binding", ident.span)
@@ -103,7 +104,9 @@ impl<'tcx> Context<'tcx> {
             PatKind::Binding(..) => ("pat_binding_pattern", pat.span),
             PatKind::Wild => ("pat_wild", pat.span),
             PatKind::Or(_) if self.scalar_or_pattern(pat) => ("pat_or", pat.span),
-            PatKind::Range(..) if self.scalar_range_pattern(pat) => ("pat_range", pat.span),
+            PatKind::Range(..) if range_constants.is_some() && self.scalar_range_pattern(pat) => {
+                ("pat_range", pat.span)
+            }
             PatKind::Expr(_) if constant.is_some() => ("pat_constant", pat.span),
             PatKind::Expr(expression)
                 if matches!(expression.kind, hir::PatExprKind::Lit { .. }) =>
@@ -131,16 +134,28 @@ impl<'tcx> Context<'tcx> {
                     rstyle_pdg::scalar_constants::ScalarConstant::decode(resolution).ok()
                 })
                 .map(|constant| constant.value)
-                .or_else(|| self.pattern_literal(pat, kind)),
+                .or_else(|| {
+                    self.pattern_literal(pat, kind, range_constants.as_deref().unwrap_or_default())
+                }),
             res: constant,
-            children: match pat.kind {
-                PatKind::Or(patterns) if kind == "pat_or" => patterns
-                    .iter()
-                    .map(|pattern| self.pattern(pattern))
-                    .collect(),
-                _ => Vec::new(),
-            },
+            children: self.pattern_children(pat, kind, range_constants),
             ..node
+        }
+    }
+
+    fn pattern_children(
+        &self,
+        pattern: &hir::Pat<'tcx>,
+        kind: &str,
+        constants: Option<Vec<HirNode>>,
+    ) -> Vec<HirNode> {
+        match pattern.kind {
+            PatKind::Range(..) if kind == "pat_range" => constants.unwrap_or_default(),
+            PatKind::Or(patterns) if kind == "pat_or" => patterns
+                .iter()
+                .map(|pattern| self.pattern(pattern))
+                .collect(),
+            _ => Vec::new(),
         }
     }
 
@@ -162,13 +177,20 @@ impl<'tcx> Context<'tcx> {
                 .typeck
                 .node_type_opt(pattern.hir_id)
                 .is_some_and(|ty| matches!(ty.kind(), ty::Int(_) | ty::Uint(_)))
-            && start
-                .into_iter()
-                .chain(end)
-                .all(|bound| matches!(bound.kind, hir::PatExprKind::Lit { .. }))
+            && start.into_iter().chain(end).all(|bound| {
+                matches!(
+                    bound.kind,
+                    hir::PatExprKind::Lit { .. } | hir::PatExprKind::Path(_)
+                )
+            })
     }
 
-    fn pattern_literal(&self, pattern: &hir::Pat<'tcx>, kind: &str) -> Option<String> {
+    fn pattern_literal(
+        &self,
+        pattern: &hir::Pat<'tcx>,
+        kind: &str,
+        constants: &[HirNode],
+    ) -> Option<String> {
         if kind == "pat_literal" {
             return Some(self.snippet(pattern.span));
         }
@@ -177,14 +199,22 @@ impl<'tcx> Context<'tcx> {
         {
             return Some(
                 rstyle_pdg::scalar_patterns::IntegerRange {
-                    start: start.map(|bound| self.snippet(bound.span)),
-                    end: end.map(|bound| self.snippet(bound.span)),
+                    start: start.map(|bound| self.range_bound_text(bound, constants)),
+                    end: end.map(|bound| self.range_bound_text(bound, constants)),
                     inclusive: end.is_some() && matches!(ending, hir::RangeEnd::Included),
                 }
                 .text(),
             );
         }
         None
+    }
+
+    fn range_bound_text(&self, bound: &hir::PatExpr<'tcx>, constants: &[HirNode]) -> String {
+        constants
+            .iter()
+            .find(|node| node.hir == reference(bound.hir_id))
+            .and_then(|node| node.lit.clone())
+            .unwrap_or_else(|| self.snippet(bound.span))
     }
 
     pub fn expression(&self, expr: &Expr<'tcx>) -> HirNode {

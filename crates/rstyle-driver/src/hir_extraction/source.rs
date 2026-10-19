@@ -253,10 +253,11 @@ fn source_match_leaf(
         ast::PatKind::Wild => true,
         ast::PatKind::Path(..) => profile.supports("rust.scalar-constant-patterns"),
         ast::PatKind::Range(start, end, _) if profile.supports("rust.scalar-range-patterns") => {
-            start
-                .iter()
-                .chain(end)
-                .all(|value| source_pattern_literal(value))
+            start.iter().chain(end).all(|value| {
+                source_pattern_literal(value)
+                    || (profile.supports("rust.scalar-constant-range-bounds")
+                        && matches!(value.kind, ast::ExprKind::Path(..)))
+            })
         }
         ast::PatKind::Expr(expression) => {
             source_pattern_literal(expression)

@@ -1,6 +1,7 @@
-//! Compact integer range tests; bounds are compile-time literals, not reads.
+//! Compact integer range tests over compile-time literal and constant bounds.
 
 use crate::source_evidence::byte_offset;
+use crate::{ByteSpan, HirNode, scalar_constants::ScalarConstant};
 use serde::{Deserialize, Serialize};
 use syn::{parse::Parser, spanned::Spanned};
 
@@ -34,16 +35,98 @@ impl IntegerRange {
             inclusive: matches!(range.limits, syn::RangeLimits::Closed(_)),
         })
     }
-}
 
-pub fn integer_range(range: &syn::PatRange) -> bool {
-    (range.start.is_some() || range.end.is_some())
-        && (!matches!(range.limits, syn::RangeLimits::Closed(_)) || range.end.is_some())
-        && range
+    pub fn from_pattern(
+        source: &str,
+        pattern: &HirNode,
+        width: Option<u64>,
+        constants: bool,
+    ) -> Result<Self, String> {
+        let syn::Pat::Range(range) = syn::Pat::parse_single
+            .parse_str(source)
+            .map_err(|error| error.to_string())?
+        else {
+            return Err("Expected an integer range pattern".into());
+        };
+        if !scalar_range(&range, constants) {
+            return Err("Unsupported integer range bounds".into());
+        }
+        let records = constant_bounds(pattern, width)?;
+        let paths = range
             .start
             .iter()
             .chain(&range.end)
-            .all(|value| integer_bound(value))
+            .filter(|value| matches!(&***value, syn::Expr::Path(_)))
+            .count();
+        if records.len() != paths {
+            return Err("Range bound correspondence disagrees".into());
+        }
+
+        Ok(Self {
+            start: range
+                .start
+                .as_deref()
+                .map(|value| resolved_bound(source, value, pattern.span.start, &records))
+                .transpose()?,
+            end: range
+                .end
+                .as_deref()
+                .map(|value| resolved_bound(source, value, pattern.span.start, &records))
+                .transpose()?,
+            inclusive: matches!(range.limits, syn::RangeLimits::Closed(_)),
+        })
+    }
+}
+
+pub fn integer_range(range: &syn::PatRange) -> bool {
+    scalar_range(range, false)
+}
+
+pub fn scalar_range(range: &syn::PatRange, constants: bool) -> bool {
+    (range.start.is_some() || range.end.is_some())
+        && (!matches!(range.limits, syn::RangeLimits::Closed(_)) || range.end.is_some())
+        && range.start.iter().chain(&range.end).all(|value| {
+            integer_bound(value) || (constants && matches!(&**value, syn::Expr::Path(_)))
+        })
+}
+
+fn constant_bounds(
+    pattern: &HirNode,
+    width: Option<u64>,
+) -> Result<Vec<(ByteSpan, String)>, String> {
+    pattern
+        .children
+        .iter()
+        .map(|bound| {
+            let constant = ScalarConstant::verify_pattern(bound, width)?;
+            if bound.ty != pattern.ty {
+                return Err("Constant range bound type disagrees".into());
+            }
+            Ok((bound.span, constant.value))
+        })
+        .collect()
+}
+
+fn resolved_bound(
+    source: &str,
+    value: &syn::Expr,
+    offset: u32,
+    records: &[(ByteSpan, String)],
+) -> Result<String, String> {
+    if integer_bound(value) {
+        return Ok(spelling(source, value));
+    }
+    let span = value.span();
+    let expected = ByteSpan {
+        start: offset + byte_offset(source, span.start()) as u32,
+        end: offset + byte_offset(source, span.end()) as u32,
+    };
+
+    records
+        .iter()
+        .find(|(span, _)| span == &expected)
+        .map(|(_, value)| value.clone())
+        .ok_or_else(|| "Missing original constant range bound correspondence".into())
 }
 
 fn integer_bound(value: &syn::Expr) -> bool {

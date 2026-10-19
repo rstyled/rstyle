@@ -2066,6 +2066,77 @@ fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaul
 }
 
 #[test]
+fn clones_data_constant_range_bounds_preserve_values_and_dependency_edits() {
+    let directory = clone_workspace();
+    let source = "mod config { pub const LOW: i32 = -3; } use config::LOW as START; struct Limits; impl Limits { const HIGH: i32 = 5; } const MAX: u128 = u128::MAX;\npub fn both(x: i32) -> bool { match x { START..=Limits::HIGH => true, _ => false } }\npub fn lower(x: i32) -> bool { match x { START.. => true, _ => false } }\npub fn upper(x: i32) -> bool { match x { ..Limits::HIGH => true, _ => false } }\npub fn mixed(x: i32, b: bool) -> i32 { match x { START..0 | 1..=Limits::HIGH if b => 1, _ => 2 } }\npub fn wide(x: u128) -> bool { match x { 0..=MAX => true, _ => false } }\npub fn external(x: u128) -> bool { match x { 0..=u128::MAX => true, _ => false } }\n";
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    for name in ["both", "lower", "upper", "mixed", "wide"] {
+        assert_eq!(
+            function_named(functions, name)["outcome"],
+            "admitted",
+            "{}",
+            function_named(functions, name)
+        );
+    }
+    assert_ne!(function_named(functions, "external")["outcome"], "admitted");
+    check_constant_bound_graph(functions);
+
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        source.replace("LOW: i32 = -3", "LOW: i32 = -4"),
+    )
+    .unwrap();
+    let (output, edited) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{edited}");
+    assert_ne!(
+        function_named(functions, "both")["facts"]["body"],
+        function_named(edited["functions"].as_array().unwrap(), "both")["facts"]["body"]
+    );
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] != "admitted")
+    );
+}
+
+fn check_constant_bound_graph(functions: &[Value]) {
+    let facts: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(function_named(functions, "both")["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let selector = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.attributes.construct.as_deref() == Some("match.range"))
+        .unwrap();
+    let range: rstyle_pdg::scalar_patterns::IntegerRange = serde_json::from_str(
+        selector
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(range.start.as_deref(), Some("-3"));
+    assert_eq!(range.end.as_deref(), Some("5"));
+    assert!(range.inclusive);
+    let mut changed = facts.clone();
+    changed.body.children[0].children[1].children[0].children[0]
+        .span
+        .start += 1;
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+}
+
+#[test]
 fn clones_data_constant_patterns_compose_with_guards_and_alternatives() {
     let directory = clone_workspace();
     let source = "mod config { pub const LOW: i32 = -3; } use config::LOW as FLOOR;\nstruct Limits; impl Limits { const TOP: i32 = 10; }\nconst FLAG: bool = true; const BIG: u128 = u128::MAX;\npub fn select(x: i32, b: bool) -> i32 { match x { FLOOR | 0 | 1..=2 if b => 1, Limits::TOP => 2, _ => 3 } }\npub fn flag(x: bool) -> i32 { match x { FLAG => 1, _ => 2 } }\npub fn big(x: u128) -> bool { match x { BIG => true, _ => false } }\npub fn external(x: u128) -> bool { match x { u128::MAX => true, _ => false } }\npub fn range(x: i32) -> bool { match x { FLOOR..=10 => true, _ => false } }\n";
@@ -2086,9 +2157,8 @@ fn clones_data_constant_patterns_compose_with_guards_and_alternatives() {
                 .any(|node| node.attributes.construct.as_deref() == Some("match.constant"))
         );
     }
-    for name in ["external", "range"] {
-        assert_ne!(function_named(functions, name)["outcome"], "admitted");
-    }
+    assert_eq!(function_named(functions, "range")["outcome"], "admitted");
+    assert_ne!(function_named(functions, "external")["outcome"], "admitted");
     let mut changed: rstyle_pdg::HirFnFacts =
         serde_json::from_value(function_named(functions, "flag")["facts"].clone()).unwrap();
     let pattern = &mut changed.body.children[0].children[1].children[0];
@@ -2222,14 +2292,14 @@ fn clones_data_integer_ranges_compose_with_alternatives_guards_and_open_bounds()
             .iter()
             .filter(|function| function["outcome"] == "admitted")
             .count(),
-        3,
+        4,
         "{:?}",
         functions
             .iter()
             .map(|function| (&function["facts"]["name"], &function["reasons"]))
             .collect::<Vec<_>>()
     );
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 6);
     let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
         functions
             .iter()
@@ -2332,7 +2402,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.4.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.5.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -5886,7 +5956,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.4.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.5.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"

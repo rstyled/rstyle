@@ -20,11 +20,45 @@ impl Context<'_> {
         let rustc_hir::PatKind::Expr(expression) = pattern.kind else {
             return None;
         };
+
+        self.pattern_constant_resolution(expression)
+    }
+
+    fn pattern_constant_resolution(&self, expression: &rustc_hir::PatExpr<'_>) -> Option<PathRes> {
         let rustc_hir::PatExprKind::Path(ref path) = expression.kind else {
             return None;
         };
 
         self.constant_resolution(self.typeck.qpath_res(path, expression.hir_id))
+    }
+
+    pub(super) fn range_constants(
+        &self,
+        pattern: &rustc_hir::Pat<'_>,
+    ) -> Option<Vec<rstyle_pdg::HirNode>> {
+        let rustc_hir::PatKind::Range(start, end, _) = pattern.kind else {
+            return None;
+        };
+        start
+            .into_iter()
+            .chain(end)
+            .filter(|bound| matches!(bound.kind, rustc_hir::PatExprKind::Path(_)))
+            .map(|bound| {
+                if !self.profile.supports("rust.scalar-constant-range-bounds") {
+                    return None;
+                }
+                let resolution = self.pattern_constant_resolution(bound)?;
+                let constant = ScalarConstant::decode(&resolution).ok()?;
+                let mut node = self.node(bound.hir_id, bound.span, "pat_constant");
+                node.ty = self
+                    .typeck
+                    .node_type_opt(pattern.hir_id)
+                    .map(|ty| resolved(ty, String::new()));
+                node.lit = Some(constant.value);
+                node.res = Some(resolution);
+                Some(node)
+            })
+            .collect()
     }
 
     pub(super) fn constant_resolution(&self, resolution: Res) -> Option<PathRes> {
