@@ -237,7 +237,7 @@ look complete while real functions still cannot be processed reliably.
 | X06 | Interprocedural dependencies and invalidation | Partial | Editing a getter invalidates its callers | Supported same-unit acyclic dependencies work; cross-unit linking, recursion and broader effects remain missing. |
 | X07 | Resource bounds and explicit incomplete execution | Covered | Evidence or pair-budget exhaustion is not success | Checked budgets, no silently truncated successful result; broader stress/resource coverage and practical scalability remain ongoing obligations. |
 | X08 | Pair projection and exhaustive pair decisions | Covered | 21 admitted functions yield 210 unordered decisions | Existing gates/compatibility can reject a pair. Graph admission is not a positive clone finding; budgets can leave execution explicitly incomplete. |
-| X09 | Current natural-crate coverage inventory | Covered | Rerun frozen samples with Data-v3 | Frozen Data-v3 3.1 inventory: 9 admitted, 44 excluded, 7 unknown out of 60; see [refresh report](eval/hir-coverage/REPORT-data-v3.md). |
+| X09 | Current natural-crate coverage inventory | Covered | Rerun frozen samples with Data-v3 | Frozen Data-v3 3.2 inventory: 9 admitted, 44 excluded, 7 unknown out of 60; see [refresh report](eval/hir-coverage/REPORT-data-v3.md). |
 | X10 | Independent broader applicability targets | Missing | Freeze in-scope tiers and expected admissions before running | Broader data draft calls for a source-only inventory and declared acceptance targets; no completion claim follows from constructed fixtures. |
 | X11 | Held-out detection quality/calibration | Missing | Untouched project/family holdouts after expansion | Historical studies are not post-Data-v3 quality evidence. Keep separate from feature correctness and coverage. |
 | X12 | General equivalence, purity or rewrite safety | Missing | “These functions can safely be replaced by one abstraction” | Not promised by graph extraction or a clone score; requires a separate contract and analysis, not just more syntax coverage. |
@@ -419,3 +419,9 @@ Cargo checks also pass after checking source-bound consistency. Clippy passes
 with warnings denied. Repository-built rstyle: 2,143 functions, 0 violations;
 patterns: 0 remaining candidates, existing ignore entries unchanged. The frozen
 natural refresh is recorded in the inventory report when it completes.
+
+The 3.2.0 frozen refresh `target/hir-coverage/run-6s9q_4up/` completes with the
+same 60 selected identities/outcomes as 3.1.0: 9 admitted, 44 excluded, 7 unknown.
+Range support adds no measured admission in this frozen selection. Feature
+commit: `849a910`; the [inventory report](eval/hir-coverage/REPORT-data-v3.md)
+retains the validation scope and the distinction from detector-quality evidence.

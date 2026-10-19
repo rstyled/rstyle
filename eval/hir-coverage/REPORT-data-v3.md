@@ -60,3 +60,21 @@ functions, and `cargo rstyle patterns --fail-on-candidates` reports 0 remaining
 candidates with the 15 existing ignore entries unchanged. No new performance
 benchmark is claimed; the implementation avoids per-element array expansion,
 duplicated OR arm/guard lowering, and new provenance fields.
+
+## Integer range-pattern increment, extraction 3.2.0
+
+Focused fresh run `target/hir-coverage/run-6s9q_4up/`, started at `5171938` with
+the implementation later committed as `849a910`, completes all three packages.
+Data-v3 retains **9 admitted, 44 excluded, 7 unknown out of 60**, with 53 assessed,
+0 failed and 0 proven inactive. All 60 selected source identities and outcomes
+match the 3.1.0 inventory: this slice adds no measured admission in the frozen
+selection. Twenty admitted CFG/PDG documents pass the unchanged schema checks.
+The full assessment retains exclusion reasons, source blocker combinations and
+unknowns. No detector-quality or completed pair-evaluation claim follows.
+
+The workspace suite passes 717 tests across 28 suites (5 existing ignored tests).
+The final source-bound consistency regression also passes; Clippy with warnings
+denied passes. Repository-built rstyle reports 0 violations across 2,143
+functions; patterns reports 0 remaining candidates with existing ignores unchanged.
+The range representation remains compact regardless of interval cardinality;
+no additional provenance fields or caches were introduced.

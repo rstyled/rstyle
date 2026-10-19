@@ -84,7 +84,7 @@ proof of cfg inactivity. Multiple contexts retain separate outcomes; missing or
 duplicate identity evidence fails closed.
 
 The 2026-10-19 refresh adds Data-v3 and current sealed unit-bundle verification.
-After capture repairs and scalar OR patterns, Data-v3 3.1 completes with
+After capture repairs and scalar OR patterns, Data-v3 3.2 completes with
 9 admitted, 44 excluded and
 7 unknown out of the unchanged 60 selected contexts. See the
 [refresh report](REPORT-data-v3.md) and [continuation log](../../rust-feature-coverage.md).
