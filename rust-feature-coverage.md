@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.18.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.19.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -107,7 +107,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; construction, non-scalar local reads, and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
 | D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.17.0 supports ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
-| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.18.0 supports [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing and existing branch/loop flow. Local field projections and reference-bearing values/rebindings still need component/origin correspondence. |
+| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.19.0 supports [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Reference-bearing values/rebindings still need component/origin correspondence. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
 | D15 | Array/slice element reads | Missing | `xs[i]` | Evaluate base/index once, preserve element location/index identity and bounds behavior. |
@@ -963,3 +963,42 @@ or failures. All 60 frozen identities/outcomes and all denominators match 3.17.0
 (`run-hmdcg04l`). Twenty-six admitted graph documents pass schema checks (10 lz4,
 0 regex, 16 time). Whole local propagation adds no measured frozen admission gain;
 these checks do not establish general performance or detector quality.
+
+
+### D12 projections from local and computed aggregate values
+
+Data-v3 extraction 3.19.0 adds `rust.aggregate-value-fields`; matching remains
+`rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/aggregate-value-fields-v1.md) selects components
+from reference-free tuple/struct values through locals, reassigned parameters,
+nested fields and directly computed/conditional bases. Exact source member/base
+correspondence, existing component types, nominal owner and compiler field index
+establish the projection. Existing computation/literal/operand attributes represent
+one current value and one declared component slot. No copied-value memory locations,
+new frontend records, witnesses, provenance or retained caches are added.
+
+Independent source and serialized checks cover every projection, including mixed
+formal-memory/value functions. Ordinary formal fields keep their existing memory
+proof; formal chains exit value classification before aggregate type parsing.
+The real Cargo fixture covers all admitted forms above plus unit fields and ordered
+snapshots. Every admitted pair passes independent document and strict producer
+checks; equivalent functions reach evaluated accepted matching with score 1.
+Altered same-typed serialized slots and compiler field positions fail verification.
+An effectful base retains one assignment and one projection operand. Pure value
+projections have no memory locations, while the mixed fixture retains one formal
+location. A merely mutable, never-reassigned formal retains its existing field
+read admission in both profiles. Legacy exclusions remain intact. D12 stays Partial for reference-valued
+locals/rebindings; D13 and the full roadmap remain active.
+
+Validation: 752 workspace tests pass with the same 5 existing ignores, including
+`clones_data_assertion_argument_receivers_compose_with_partial_flow`. Clippy passes
+for all targets with warnings denied; formatting passes. Repository-built rstyle
+reports 2,276 functions and 0 violations; patterns reports 0 candidates with the
+same 15 existing ignores. All 14 inventory bookkeeping tests pass.
+
+Frozen run `target/hir-coverage/run-87eyhnsq/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60. All 60 frozen
+identities/outcomes and all denominators match 3.18.0 (`run-utecfjp9`). Twenty-six
+admitted graph documents pass schema checks (10 lz4, 0 regex, 16 time). Value-field
+projection adds no measured frozen admission gain; these checks do not establish
+general performance or detector quality.

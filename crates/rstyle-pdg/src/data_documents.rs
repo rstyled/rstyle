@@ -5,6 +5,7 @@ mod borrows;
 mod locals;
 mod locations;
 mod origins;
+mod value_fields;
 pub(crate) use locations::{LocationContext, correspondence as location_correspondence};
 
 use crate::{NodeCategory, field_locations::*, producer::Pair};
@@ -32,6 +33,7 @@ fn install_locations(
     let locations = fields
         .operations
         .iter()
+        .filter(|field| matches!(field.location, Location::Captured { .. }))
         .map(|field| install_field(&mut pair.pdg, field, &mut context))
         .collect::<Result<BTreeMap<_, _>, _>>()?;
 
@@ -244,8 +246,11 @@ fn verify_field(
         return Err("Ambiguous or missing serialized field correspondence".into());
     };
 
-    let (id, location) = location(field, context)?;
     let facts = context.facts;
+    if matches!(field.location, Location::Unsupported { .. }) {
+        return value_fields::verify(node, origins::source_node(node, facts)?, pair, facts);
+    }
+    let (id, location) = location(field, context)?;
     let places = crate::data_places::Places::verify(facts)?;
     let source = origins::source_node(node, facts)?;
     if places.contains(source) {

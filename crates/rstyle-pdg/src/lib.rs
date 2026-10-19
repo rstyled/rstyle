@@ -22,6 +22,7 @@ pub mod data_places;
 pub mod data_receivers;
 mod data_structs;
 pub mod data_types;
+mod data_value_fields;
 pub mod declaration_origins;
 pub mod diagnostics;
 pub mod eligibility;

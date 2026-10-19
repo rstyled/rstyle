@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.18.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.19.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.18.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.19.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -8514,10 +8514,7 @@ fn clones_data_local_aggregate_values_follow_definitions_across_branches_and_loo
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 13);
     for function in functions {
-        let excluded = matches!(
-            function["facts"]["name"].as_str().unwrap(),
-            "reference" | "field"
-        );
+        let excluded = matches!(function["facts"]["name"].as_str().unwrap(), "reference");
         assert_eq!(
             function["outcome"],
             if excluded { "excluded" } else { "admitted" },
@@ -8671,5 +8668,145 @@ fn check_local_aggregate_reaching(report: &Value) {
             2,
             "{name}"
         );
+    }
+}
+
+#[test]
+fn clones_data_aggregate_value_fields_preserve_component_identity_and_value_flow() {
+    let directory = value_field_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 15);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "borrow" | "write" | "references"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_value_field_corruption(&report);
+    check_value_field_evaluation(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"]
+                == if function["facts"]["name"] == "formal_read" {
+                    "admitted"
+                } else {
+                    "excluded"
+                }),
+        "{legacy}"
+    );
+}
+
+fn value_field_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Record { pub left: i32, pub right: i32, pub stamp: () }
+        pub struct Outer { pub inner: Record }
+        pub struct Borrowed<'a> { pub value: &'a i32 }
+        pub fn first(old: Record) -> i32 { let value = old; value.right }
+        pub fn other(old: Record) -> i32 { let value = old; value.right }
+        pub fn tuple(old: (i32, i32)) -> i32 { let value = old; (value).0 }
+        pub fn nested(old: Outer) -> i32 { let value = old; value.inner.left }
+        pub fn computed(x: i32) -> i32 { (x, { 7 }).1 }
+        pub fn effects(mut x: i32) -> i32 { ({ x = 7; (x, x) }).1 }
+        pub fn conditional(a: Record, b: Record, pick: bool) -> i32 { (if pick { a } else { b }).left }
+        pub fn reassigned(mut old: Record) -> i32 { old = Record { left: 1, right: 2, stamp: () }; old.right }
+        pub fn snapshot(mut old: Record) -> (i32, i32) { let left = old.left; old = Record { left: 7, right: 9, stamp: () }; (left, old.right) }
+        pub fn units(old: Record) -> ((), i32) { let value = old; (value.stamp, value.left) }
+        pub fn mixed(old: Record, source: &Record) -> i32 { let value = old; value.right + source.left }
+        pub fn formal_read(mut old: Record) -> i32 { old.left + old.right }
+        pub fn borrow(old: Record) -> i32 { let value = old; let _r = &value.left; value.right }
+        pub fn write(old: Record) -> i32 { let mut value = old; value.left = 4; value.left }
+        pub fn references<'a>(old: Borrowed<'a>) -> &'a i32 { let value = old; value.value }
+    "#).unwrap();
+    directory
+}
+
+fn check_value_field_corruption(report: &Value) {
+    let first = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(first["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert!(pair.pdg.memory_locations.is_empty());
+    let projection = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.value-field"))
+        .unwrap();
+    assert_eq!(
+        projection
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("1")
+    );
+    projection.attributes.literal = Some(rstyle_pdg::StringFact::known("0"));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts;
+    let field = changed.body.children.last_mut().unwrap();
+    let resolution = field.res.as_mut().unwrap();
+    let mut value: Value = serde_json::from_str(&resolution.description).unwrap();
+    value["position"] = serde_json::json!(0);
+    resolution.description = value.to_string();
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+fn check_value_field_evaluation(report: &Value) {
+    for (name, locations) in [("effects", 0), ("mixed", 1)] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function["facts"].clone()).unwrap();
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        assert_eq!(pair.pdg.memory_locations.len(), locations, "{name}");
+        if name == "effects" {
+            assert_eq!(
+                pair.pdg
+                    .nodes
+                    .iter()
+                    .filter(|node| node.category == rstyle_pdg::NodeCategory::Assignment)
+                    .count(),
+                1
+            );
+            let projection = pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|node| node.attributes.construct.as_deref() == Some("data.value-field"))
+                .unwrap();
+            assert_eq!(
+                pair.pdg
+                    .edges
+                    .iter()
+                    .filter(|edge| edge.target == projection.id && edge.subkind == "value_operand")
+                    .count(),
+                1
+            );
+        }
     }
 }

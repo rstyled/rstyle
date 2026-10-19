@@ -275,6 +275,9 @@ impl Builder<'_> {
     }
 
     fn field_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_value_fields::candidate(node, self.facts) {
+            return self.value_field(node, flow);
+        }
         let flow = self.field_base(node, flow);
         let fields = self
             .facts
@@ -301,6 +304,22 @@ impl Builder<'_> {
             construct: Some("data.field".into()),
             ..template(node, NodeCategory::Read)
         };
+        self.emit(operation, flow)
+    }
+
+    fn value_field(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let flow = self.expression(&node.children[0], flow);
+        let operation = Operation {
+            construct: Some("data.value-field".into()),
+            literal: Some(
+                crate::data_value_fields::index(node, self.facts)
+                    .expect("verified aggregate component")
+                    .to_string(),
+            ),
+            operands: self.operand(&flow.value),
+            ..template(node, NodeCategory::Computation)
+        };
+
         self.emit(operation, flow)
     }
 

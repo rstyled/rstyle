@@ -165,6 +165,12 @@ struct Verification<'a> {
 impl Verification<'_> {
     fn field(&self, field: &syn::ExprField) -> Result<(), String> {
         let (operation, node) = self.correspondence(field)?;
+        if crate::data_value_fields::candidate(node, self.facts) {
+            if !matches!(operation.location, Location::Unsupported { .. }) {
+                return Err("Aggregate value projection invents a formal memory location".into());
+            }
+            return crate::data_value_fields::index(node, self.facts).map(|_| ());
+        }
         let (name, members) = source_path(field)?;
         if self.bindings.iter().any(|binding| binding == &name) {
             return Err("Local shadowing, rebindings or mutable borrows prevent the formal-only field proof".into());

@@ -112,9 +112,15 @@ fn operation(
     facts: &HirFnFacts,
     interface: &InterfaceObservations,
 ) -> FieldOperation {
-    let location = match resolve(node, facts, interface) {
-        Ok(location) => location,
-        Err(reason) => Location::Unsupported { reason },
+    let location = if crate::data_value_fields::candidate(node, facts) {
+        Location::Unsupported {
+            reason: "Aggregate value projection has no formal memory location".into(),
+        }
+    } else {
+        match resolve(node, facts, interface) {
+            Ok(location) => location,
+            Err(reason) => Location::Unsupported { reason },
+        }
     };
 
     FieldOperation {
