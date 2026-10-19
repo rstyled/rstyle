@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.6.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.7.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -189,8 +189,8 @@ inside an unsupported source/effect context can still be unavailable.
 | --- | --- | --- | --- | --- |
 | S01 | Exact original source and function identity | Covered | UTF-8 names, CRLF files, same-named functions | Source buffers/ranges, original byte offsets, distinct owners/build contexts and navigation; generated-owner identity is not general expansion support. |
 | S02 | Ordinary modules and named imports | Partial | `mod child;`, `use child::S as Local;` | Closed inline/external module census and supported lexical aliases; nominal census rejects module attributes and unresolved/glob/external paths. |
-| S03 | Active conditional-source correspondence | Partial | A cfg-controlled statement present in resolved HIR | Requires complete original-source/resolved-HIR correspondence in the actual build; not full cfg coverage. |
-| S04 | Cfg-removed source and inactive definitions | Missing | `#[cfg(feature = "x")] statement` absent from HIR | No independent removed-source resolver. Removed supported operations remain unknown; known unsupported source remains excluded. Missing capture does not prove inactivity. |
+| S03 | Active conditional-source correspondence | Partial | A cfg-controlled statement present in resolved HIR | Original-source/HIR correspondence in the actual build, with Data-v3 3.7.0 resolution of body-level cfg removal; general conditional signatures/attributes remain unfinished. |
+| S04 | Cfg-removed source and inactive definitions | Partial | `#[cfg(feature = "x")] statement` absent from HIR | Data-v3 3.7.0 independently evaluates standard cfg/cfg_attr predicates for removed function-body operations; see [removal contract](docs/extraction-profiles/cfg-source-removal-v1.md). Whole-function/enclosing-scope inactivity remains unknown; missing capture is not proof. |
 | S05 | Conditional/path-selected modules | Missing | `#[path = "other.rs"] mod m;` | Resolved module presence/path/ownership; the current nominal census rejects all module attributes. |
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Assertions are a proposed narrow first slice. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
@@ -536,3 +536,37 @@ no admission is lost. The cfg-selected `is_leap_year` context moves from exclude
 to unknown because source correspondence is still incomplete after assertion
 rejection is removed. Seven uncaptured contexts remain unknown; no inactivity is
 inferred. See the [inventory report](eval/hir-coverage/REPORT-data-v3.md).
+
+### S03–S04 body-level conditional source removal
+
+Data-v3 extraction 3.7.0 adds `rust.cfg-source-removal`: standard cfg flags,
+string settings, all/any/not and nested cfg_attr are evaluated against the
+captured compiler cfg set. Proven inactive roots reuse an entry in the existing
+source correspondence inventory. Missing HIR alone remains insufficient, and
+contradictory captured HIR is rejected even after regenerating the inventory.
+The [removal contract](docs/extraction-profiles/cfg-source-removal-v1.md) records
+representation, verification and the earlier-profile boundary.
+
+Removed blocks, locals, macro statements, nested items and match arms no longer
+need active-operation correspondence when an independent false guard is proved.
+This also removes diagnostics confined to those inactive roots. The independent
+field-origin inventory uses the same cfg semantics for active field reads,
+bindings and mutations. Graphs continue to come from active HIR exclusively.
+Whole-function and enclosing-scope inactivity remain unfinished; uncaptured
+selected contexts remain unknown. S03–S04 remain Partial, and the full connected
+data and broader Rust roadmap is still in scope.
+
+The workspace passes 730 tests (5 existing ignores), with feature-on/off and
+contradictory-source/HIR checks. Clippy with warnings denied passes. Repository-built
+rstyle reports 0 violations across 2,201 functions; patterns reports 0 remaining
+candidates with all 15 existing ignores unchanged. Capture now uses one inventory
+for correspondence and diagnostics, avoiding its earlier duplicate source parse.
+No new snapshot, provenance table or cache was added; no formal performance or
+detector-quality claim follows from this implementation.
+
+Final frozen refresh `target/hir-coverage/run-6iuv_l96/` completes all three
+packages with 11 admitted, 42 excluded and 7 unknown across the same 60 identities.
+The cfg-selected `time-core::is_leap_year` at `src/util.rs:728` moves from unknown
+to admitted, with its existing partial panic-flow boundary; no admission is lost.
+Seven uncaptured contexts remain unknown. The [inventory report](eval/hir-coverage/REPORT-data-v3.md)
+records the final run and its limits; whole-definition inactivity is not inferred.

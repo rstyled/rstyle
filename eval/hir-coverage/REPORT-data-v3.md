@@ -158,3 +158,29 @@ patterns reports 0 remaining candidates with all 15 existing ignores unchanged.
 Assertion capture reuses existing resolution/callsite fields and the ordinary
 exceptional-flow assessment. No new provenance tables, snapshots or caches are
 introduced, and no formal performance benchmark is claimed.
+
+## Body-level cfg-removal increment, extraction 3.7.0
+
+Final focused run `target/hir-coverage/run-6iuv_l96/`, started at `2f1579f` with
+the cfg-removal implementation in the working tree, completes all three packages.
+Data-v3 measures **11 admitted, 42 excluded, 7 unknown out of 60**, with the same
+53 captured/assessed contexts, 0 failed and 0 proven inactive definitions. All 60
+selected identities match 3.6.0. Twenty-six admitted CFG/PDG documents, including
+functions outside the selection, pass the unchanged schema checks.
+
+The cfg-selected `time-core::is_leap_year` in `src/util.rs` at byte 728 moves from
+unknown to admitted: its removed feature branch is independently resolved against
+the captured compiler cfg set. Its active debug assertions retain the documented
+partial exceptional-flow boundary. No selected admission is lost. The seven
+uncaptured contexts remain unknown; body-level removal does not prove whole
+definitions inactive. Initial run `target/hir-coverage/run-ho11n0xn/` has identical
+selected identities/outcomes; the final run includes raw-identifier normalization
+and the final explicit shared-field admission regression.
+
+The workspace passes 730 tests (5 existing ignores); final focused raw-cfg and
+field-composition checks and Clippy with warnings denied pass. Repository-built
+rstyle reports 0 violations across 2,201 functions; patterns reports 0 remaining
+candidates with all 15 existing ignores unchanged. Capture reuses the existing
+correspondence inventory for diagnostics, avoiding its earlier second source parse.
+No source snapshot, provenance table or cache is added. Pair evaluation remains
+incomplete, with no detector-quality or formal performance benchmark claim.

@@ -9,9 +9,36 @@ struct Inventory<'a> {
     fields: Vec<&'a syn::ExprField>,
     bindings: Vec<String>,
     has_macros: bool,
+    configuration: Option<crate::conditional_source::Configuration<'a>>,
 }
 
 impl<'a> Visit<'a> for Inventory<'a> {
+    fn visit_expr(&mut self, expression: &'a syn::Expr) {
+        if !self.inactive(crate::conditional_source::expression_attributes(expression)) {
+            syn::visit::visit_expr(self, expression);
+        }
+    }
+
+    fn visit_local(&mut self, local: &'a syn::Local) {
+        if !self.inactive(&local.attrs) {
+            syn::visit::visit_local(self, local);
+        }
+    }
+
+    fn visit_stmt(&mut self, statement: &'a syn::Stmt) {
+        if let syn::Stmt::Macro(statement) = statement
+            && self.inactive(&statement.attrs)
+        {
+            return;
+        }
+        syn::visit::visit_stmt(self, statement);
+    }
+
+    fn visit_arm(&mut self, arm: &'a syn::Arm) {
+        if !self.inactive(&arm.attrs) {
+            syn::visit::visit_arm(self, arm);
+        }
+    }
     fn visit_expr_field(&mut self, field: &'a syn::ExprField) {
         syn::visit::visit_expr_field(self, field);
         self.fields.push(field);
@@ -62,6 +89,16 @@ impl<'a> Visit<'a> for Inventory<'a> {
     }
 }
 
+impl Inventory<'_> {
+    fn inactive(&self, attributes: &[syn::Attribute]) -> bool {
+        !attributes.is_empty()
+            && self
+                .configuration
+                .as_ref()
+                .is_some_and(|configuration| configuration.active(attributes) == Ok(false))
+    }
+}
+
 fn written_roots(expression: &syn::Expr) -> Vec<String> {
     match expression {
         syn::Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
@@ -85,7 +122,12 @@ pub(super) fn verify(
 ) -> Result<(), String> {
     let function: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
-    let mut inventory = Inventory::default();
+    let mut inventory = Inventory {
+        configuration: crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.cfg-source-removal")
+            .then(|| crate::conditional_source::Configuration::new(&facts.build.cfgs)),
+        ..Inventory::default()
+    };
     inventory.visit_block(&function.block);
     if inventory.has_macros && !inventory.fields.is_empty() {
         return Err("Macro effects prevent the formal-only field origin proof".into());

@@ -163,15 +163,9 @@ fn find_source_scan<'a>(
 
 fn capture_correspondence(facts: &mut HirFnFacts, profile: ExtractionProfile) {
     if profile.supports("rust.conditional-source-correspondence") {
-        facts
-            .source_diagnostics
-            .extend(rstyle_pdg::source_evidence::diagnostics(facts));
         match rstyle_pdg::source_evidence::capture(facts) {
             Ok(evidence) => {
-                facts.build.frontend_options.insert(
-                    rstyle_pdg::source_evidence::KEY.into(),
-                    serde_json::json!(evidence),
-                );
+                record_correspondence(facts, evidence);
             }
             Err(error) => {
                 facts.build.frontend_options.insert(
@@ -181,6 +175,22 @@ fn capture_correspondence(facts: &mut HirFnFacts, profile: ExtractionProfile) {
             }
         }
     }
+}
+
+fn record_correspondence(
+    facts: &mut HirFnFacts,
+    evidence: rstyle_pdg::source_evidence::Correspondence,
+) {
+    let diagnostics = rstyle_pdg::source_evidence::diagnostics(facts, &evidence);
+    facts.source_diagnostics.extend(diagnostics);
+    facts
+        .source_diagnostics
+        .retain(|diagnostic| !evidence.inactive(diagnostic.span));
+
+    facts.build.frontend_options.insert(
+        rstyle_pdg::source_evidence::KEY.into(),
+        serde_json::json!(evidence),
+    );
 }
 
 fn function_build(

@@ -29,6 +29,7 @@ pub struct Correspondence {
 struct Inventory<'a> {
     facts: &'a dyn crate::unit_store::EvidenceFacts,
     entries: Vec<Entry>,
+    configuration: Option<crate::conditional_source::Configuration<'a>>,
 }
 
 pub fn capture(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Correspondence, String> {
@@ -37,6 +38,9 @@ pub fn capture(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Correspon
     let mut inventory = Inventory {
         facts,
         entries: Vec::new(),
+        configuration: crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.cfg-source-removal")
+            .then(|| crate::conditional_source::Configuration::new(&facts.build.cfgs)),
     };
     inventory.visit_block(&function.block);
 
@@ -63,7 +67,13 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
                 .into(),
         );
     }
-    if expected.entries.iter().any(|entry| entry.hir.is_none()) {
+    if expected.entries.iter().any(|entry| {
+        if entry.kind == "cfg_inactive" {
+            entry.hir.is_some()
+        } else {
+            entry.hir.is_none()
+        }
+    }) {
         return Err("Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown".into());
     }
 
@@ -71,6 +81,29 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
 }
 
 impl Inventory<'_> {
+    fn inactive(&mut self, attributes: &[syn::Attribute], syntax: proc_macro2::Span) -> bool {
+        if attributes.is_empty()
+            || !self
+                .configuration
+                .as_ref()
+                .is_some_and(|configuration| configuration.active(attributes) == Ok(false))
+        {
+            return false;
+        }
+
+        let span = ByteSpan {
+            start: offset(&self.facts.source.bytes, syntax.start()),
+            end: offset(&self.facts.source.bytes, syntax.end()),
+        };
+        let hir = contained_node(&self.facts.body, span);
+        self.entries.push(Entry {
+            kind: "cfg_inactive".into(),
+            span,
+            hir,
+        });
+        true
+    }
+
     fn assertion(&mut self, mac: &syn::Macro) -> bool {
         if !crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
             .is_ok_and(|profile| profile.supports("rust.scalar-assertions"))
@@ -149,6 +182,12 @@ impl Inventory<'_> {
 
 impl<'ast> Visit<'ast> for Inventory<'_> {
     fn visit_expr(&mut self, expression: &'ast syn::Expr) {
+        if self.inactive(
+            crate::conditional_source::expression_attributes(expression),
+            expression.span(),
+        ) {
+            return;
+        }
         if let syn::Expr::Macro(expression) = expression
             && self.assertion(&expression.mac)
         {
@@ -193,6 +232,39 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
 
     fn visit_stmt(&mut self, statement: &'ast syn::Stmt) {
         if let syn::Stmt::Macro(statement) = statement
+            && self.inactive(&statement.attrs, statement.span())
+        {
+            return;
+        }
+        self.statement(statement);
+    }
+
+    fn visit_arm(&mut self, arm: &'ast syn::Arm) {
+        if !self.inactive(&arm.attrs, arm.span()) {
+            visit::visit_arm(self, arm);
+        }
+    }
+
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        if self.inactive(&local.attrs, local.span()) {
+            return;
+        }
+        self.local(local);
+    }
+
+    fn visit_item(&mut self, item: &'ast syn::Item) {
+        if !self.inactive(
+            crate::conditional_source::item_attributes(item),
+            item.span(),
+        ) {
+            self.add("stmt_item", item.span());
+        }
+    }
+}
+
+impl Inventory<'_> {
+    fn statement(&mut self, statement: &syn::Stmt) {
+        if let syn::Stmt::Macro(statement) = statement
             && self.assertion(&statement.mac)
         {
             return;
@@ -204,7 +276,7 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
         visit::visit_stmt(self, statement);
     }
 
-    fn visit_local(&mut self, local: &'ast syn::Local) {
+    fn local(&mut self, local: &syn::Local) {
         let span = local
             .let_token
             .span
@@ -213,9 +285,25 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
         self.add("stmt_let", span);
         visit::visit_local(self, local);
     }
+}
 
-    fn visit_item(&mut self, item: &'ast syn::Item) {
-        self.add("stmt_item", item.span());
+fn contained_node(node: &HirNode, span: ByteSpan) -> Option<HirRef> {
+    if span.start <= node.span.start && node.span.end <= span.end {
+        return Some(node.hir.clone());
+    }
+    node.children
+        .iter()
+        .find_map(|node| contained_node(node, span))
+}
+
+impl Correspondence {
+    pub fn inactive(&self, span: ByteSpan) -> bool {
+        self.entries.iter().any(|entry| {
+            entry.kind == "cfg_inactive"
+                && entry.hir.is_none()
+                && entry.span.start <= span.start
+                && span.end <= entry.span.end
+        })
     }
 }
 
@@ -331,14 +419,17 @@ fn expression_kind(expression: &syn::Expr) -> Option<&'static str> {
     })
 }
 
-/// Deferred source constructs remain exclusions even when cfg removes their HIR.
-pub fn diagnostics(facts: &dyn crate::unit_store::EvidenceFacts) -> Vec<crate::HirDiagnostic> {
-    let Ok(inventory) = capture(facts) else {
-        return Vec::new();
-    };
-    inventory.entries.into_iter().filter_map(|entry| {
-        if entry.kind == "expr_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-helper-calls")) { return None; }
-        if entry.kind == "expr_method_call" && crate::extraction_profile::ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports("rust.verified-primitive-summaries"))
+/// Deferred constructs remain exclusions unless independent cfg evaluation removes them.
+pub fn diagnostics(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    inventory: &Correspondence,
+) -> Vec<crate::HirDiagnostic> {
+    let profile =
+        crate::extraction_profile::ExtractionProfile::from_facts(facts).unwrap_or_default();
+
+    inventory.entries.iter().filter_map(|entry| {
+        if entry.kind == "expr_call" && profile.supports("rust.verified-helper-calls") { return None; }
+        if entry.kind == "expr_method_call" && profile.supports("rust.verified-primitive-summaries")
             && entry.hir.as_ref().is_some_and(|hir| resolved_summary(&facts.body, hir, facts)) { return None; }
         let capability = match entry.kind.as_str() {
             "expr_call" | "expr_method_call" => "rust.call-summaries",
@@ -348,7 +439,7 @@ pub fn diagnostics(facts: &dyn crate::unit_store::EvidenceFacts) -> Vec<crate::H
             _ => return None,
         };
         Some(crate::HirDiagnostic {
-            capability: capability.into(), construct: entry.kind, span: entry.span,
+            capability: capability.into(), construct: entry.kind.clone(), span: entry.span,
             snippet: facts.source.bytes.get(entry.span.start as usize..entry.span.end as usize).unwrap_or_default().into(),
             severity: "error".into(), reason: format!("Original owned source contains deferred {capability}; cfg removal cannot certify a supported remainder."),
         })

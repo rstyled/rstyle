@@ -2066,6 +2066,79 @@ fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaul
 }
 
 #[test]
+fn clones_data_cfg_removal_resolves_blocks_locals_macros_items_and_match_arms() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("Cargo.toml"), "[package]\nname='cfg_fixture'\nversion='0.1.0'\nedition='2021'\n[features]\nextra=[]\n[workspace]\n").unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), "const fn identity(x: i32) -> i32 { x }\npub const fn choose(x: i32) -> i32 { #[cfg(feature=\"extra\")] { identity(x) } #[cfg(not(feature=\"extra\"))] { x } }\npub fn local(x: i32) -> i32 { #[cfg(any())] let removed = missing; x }\npub fn discarded() { #[cfg(any())] missing!(); }\npub fn block() { #[cfg_attr(all(), cfg(any()))] { unsafe { missing(); } } }\npub fn item() { #[cfg(any())] fn nested() { missing(); } }\npub fn arm(x: i32) -> i32 { match x { #[cfg(any())] 0 => missing(), 1 => 2, _ => 3 } }\npub fn attr(x: i32) -> i32 { #[cfg_attr(any(), cfg(any()))] let y = x; y }\npub fn field(x: &(i32, i32)) -> i32 { #[cfg(any())] { let y = x.0; } x.1 }\n").unwrap();
+    for options in [vec![], vec!["--features", "extra"]] {
+        let args: Vec<_> = ["--extraction-profile", "hir-data-v3"]
+            .into_iter()
+            .chain(options)
+            .collect();
+        let (output, report) = clones(directory.path(), &args);
+        assert!(output.status.success(), "{report}");
+        let functions = report["functions"].as_array().unwrap();
+        for name in [
+            "choose",
+            "local",
+            "discarded",
+            "block",
+            "item",
+            "arm",
+            "attr",
+            "field",
+        ] {
+            assert_eq!(
+                function_named(functions, name)["outcome"],
+                "admitted",
+                "{}",
+                function_named(functions, name)
+            );
+        }
+        check_cfg_removal_evidence(functions);
+    }
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert_ne!(
+        function_named(legacy["functions"].as_array().unwrap(), "choose")["outcome"],
+        "admitted"
+    );
+}
+
+fn check_cfg_removal_evidence(functions: &[Value]) {
+    let facts: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(function_named(functions, "choose")["facts"].clone()).unwrap();
+    let correspondence = rstyle_pdg::source_evidence::capture(&facts).unwrap();
+    let removed: Vec<_> = correspondence
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == "cfg_inactive")
+        .collect();
+    assert_eq!(removed.len(), 1);
+    assert!(removed[0].hir.is_none());
+    rstyle_pdg::source_evidence::verify(&facts).unwrap();
+    let mut changed = facts;
+    let feature = "feature=\"extra\"".to_string();
+    if changed.build.cfgs.contains(&feature) {
+        changed.build.cfgs.retain(|value| value != &feature);
+    } else {
+        changed.build.cfgs.push(feature);
+    }
+    let regenerated = rstyle_pdg::source_evidence::capture(&changed).unwrap();
+    assert!(
+        regenerated
+            .entries
+            .iter()
+            .any(|entry| entry.kind == "cfg_inactive" && entry.hir.is_some())
+    );
+    changed.build.frontend_options.insert(
+        rstyle_pdg::source_evidence::KEY.into(),
+        serde_json::to_value(regenerated).unwrap(),
+    );
+    assert!(rstyle_pdg::source_evidence::verify(&changed).is_err());
+}
+
+#[test]
 fn clones_data_assertions_preserve_condition_order_panic_scope_and_debug_settings() {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), "pub fn check(b: bool) { assert!((b)); }\npub fn once(mut x: u32) -> u32 { assert!({ x = x & 1; x == 0 }); x }\npub fn debug_once(mut x: u32) -> u32 { debug_assert!({ x = x & 1; x == 0 }); x }\npub fn qualified(b: bool) { core::assert!(b,); }\npub fn certain() { assert!(true); }\npub fn certain_wrapper() { certain() }\npub fn falsehood() { assert!(false); }\npub fn wrapper(b: bool) { check(b); }\npub fn formatted(b: bool) { assert!(b, \"bad\"); }\npub fn equal(x: u32) { assert_eq!(x, 0); }\nmod custom { macro_rules! assert { ($value:expr) => { () } } pub fn counterfeit(b: bool) { assert!(b); } }\n").unwrap();
@@ -2527,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.6.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.7.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6085,7 +6158,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.6.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.7.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
