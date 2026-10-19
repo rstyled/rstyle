@@ -134,6 +134,10 @@ impl Inventory<'_> {
         ) {
             return;
         }
+        self.expression_children(expression);
+    }
+
+    fn expression_children(&mut self, expression: &syn::Expr) {
         if let syn::Expr::Call(call) = expression
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
@@ -145,10 +149,24 @@ impl Inventory<'_> {
             return;
         }
 
+        if let syn::Expr::Repeat(repeat) = expression
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.repeat-array-values"))
+        {
+            self.visit_expr(&repeat.expr);
+            return;
+        }
+
         visit::visit_expr(self, expression);
     }
 
     fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
+        if matches!(expression, syn::Expr::Repeat(_))
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.repeat-array-values"))
+        {
+            return Some("expr_repeat");
+        }
         if matches!(expression, syn::Expr::Array(_))
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.aggregate-literal-values"))

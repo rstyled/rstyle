@@ -357,17 +357,28 @@ impl<'tcx> Context<'tcx> {
             ExprKind::Array(values) if self.profile.supports("rust.aggregate-literal-values") => {
                 values.iter().map(|e| self.expression(e)).collect()
             }
-            ExprKind::MethodCall(_, receiver, args, _) => {
-                std::iter::once(self.expression(receiver))
-                    .chain(args.iter().map(|e| self.expression(e)))
-                    .collect()
+            ExprKind::Repeat(value, _) if self.profile.supports("rust.repeat-array-values") => {
+                vec![self.expression(value)]
             }
-            ExprKind::Call(_, args) => args.iter().map(|e| self.expression(e)).collect(),
+            ExprKind::MethodCall(_, receiver, args, _) => self.call_children(Some(receiver), args),
+            ExprKind::Call(_, args) => self.call_children(None, args),
             ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => {
                 vec![self.expression(base)]
             }
             _ => Vec::new(),
         }
+    }
+
+    fn call_children(
+        &self,
+        receiver: Option<&Expr<'tcx>>,
+        arguments: &[Expr<'tcx>],
+    ) -> Vec<HirNode> {
+        receiver
+            .into_iter()
+            .chain(arguments)
+            .map(|value| self.expression(value))
+            .collect()
     }
 
     fn loop_block(&self, block: &hir::Block<'tcx>) -> HirNode {

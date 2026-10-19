@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.12.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.13.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -106,7 +106,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D08 | Stored shared-reference fields | Covered | `s.bytes`, where the field is `&[u8]` | Distinguishes loading a reference from borrowing its storage and reading its referent. |
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; construction, non-scalar local reads, and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
-| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.12.0 supports ordered reference-free tuple and explicit array literal values; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md). Struct/update/repeat forms, reference-bearing construction and general local component/origin propagation remain unfinished. |
+| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.13.0 supports ordered reference-free tuple/explicit array literals and repeat arrays with literal counts; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md) and [repeats](docs/extraction-profiles/repeat-array-values-v1.md). Struct/update forms, broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
 | D12 | General non-scalar local values/reference rebindings | Missing | `let r = s.bytes; r.len()`, `let t = s; t.value` | Current data-path verifier rejects non-scalar local binding reads; formal origins and directly composed expressions do not provide general local correspondence. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
@@ -751,3 +751,45 @@ independently inactive out of 60, with no unknowns or failures. All frozen
 identities/outcomes and reported denominators match 3.11.0. Twenty-six admitted
 graph documents pass schema checks (10 lz4, 0 regex, 16 time). No natural admission
 gain, detector-quality result or measured performance improvement is claimed.
+
+
+### D11 repeat array values without element expansion
+
+Data-v3 extraction 3.13.0 adds `rust.repeat-array-values`; matching remains
+`rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/repeat-array-values-v1.md) composes the existing
+reference-free constructor path with `[value; count]`. One captured child and one
+value operand represent the single runtime evaluation. The existing resolved array
+type retains the dimension; original literal counts are independently checked,
+including grouping, radix/underscore spelling and `usize` suffixes. Named/general
+constant counts remain unfinished V13 work. D11 stays Partial for the remaining
+struct/update and reference-bearing construction work; D12–D13 remain active.
+
+Zero-length repeats still evaluate the operand and its supported scalar effects.
+Unit repeats retain one typed slot even at length zero. Nested and conditional
+values compose without generating per-element copies or expanded type lists.
+Source inventory visits the runtime value rather than inventing a runtime operation
+for the compile-time count. Independent serialized checks reuse the constructor
+component/type/effect checks; unit-slot validation is bounded to the registered
+repeat operation. No frontend fields, serialized witnesses, provenance tables,
+source snapshots or retained caches are added.
+
+Validation passes 746 workspace tests (5 existing ignores), Clippy with warnings
+denied and 14 inventory tests. Repository-built rstyle reports 0 violations across
+2,244 functions; patterns reports 0 candidates with the same 15 existing ignores.
+Every admitted fixture pair passes independent serialized data-document and strict
+producer verification. Four-element and 65,536-element repeats have equal graph
+node/edge counts. A zero-length repeat retains exactly one assignment and one
+constructor operand. Equivalent radix/count spellings produce an evaluated accepted
+pair with score 1. A corrupted resolved length fails specifically at the original
+repeat-count check; named/complex count, reference-bearing and legacy cases retain
+their exclusions. The broader roadmap remains unfinished.
+
+
+Focused run `target/hir-coverage/run-k8i6upob/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60, with no unknowns
+or failures. Every frozen identity/outcome and all reported denominators match
+3.12.0. Twenty-six admitted graph documents pass schema checks (10 lz4, 0 regex,
+16 time). This adds bounded repeat construction without a measured frozen admission
+gain; the graph-size regression is not a general performance benchmark or detector
+quality result.

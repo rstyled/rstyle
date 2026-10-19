@@ -48,3 +48,9 @@ and repeat-array exclusions remain explicit. Tampering tests swap same-typed HIR
 children and serialized operand positions and require frontend, independent data
 document and strict producer checks to reject them. Natural frozen admissions are
 measured separately in the roadmap continuation log.
+
+
+Data-v3 3.13.0 adds the separate
+[repeat-array supplement](repeat-array-values-v1.md), preserving one evaluation
+and one typed operand without expanding copies. This document's repeat exclusion
+records the initial 3.12.0 boundary.

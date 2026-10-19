@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.12.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.13.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.12.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.13.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -7991,7 +7991,7 @@ fn check_aggregate_admission(report: &Value) {
     for function in report["functions"].as_array().unwrap() {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "local" | "borrowed" | "repeat"
+            "local" | "borrowed"
         );
         assert_eq!(
             function["outcome"],
@@ -7999,4 +7999,111 @@ fn check_aggregate_admission(report: &Value) {
             "{function}"
         );
     }
+}
+
+#[test]
+fn clones_data_repeat_arrays_evaluate_once_without_expanding_large_lengths() {
+    let directory = repeat_array_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["assessment_complete"], true);
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "references" | "named" | "complex"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["repeat", "other"]);
+    check_repeat_array_graphs(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn repeat_array_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        const N: usize = 4;
+        pub fn repeat(x: i32) -> [i32; 4] { [x; 4] }
+        pub fn other(x: i32) -> [i32; 4] { [x; 0x4usize] }
+        pub fn huge(x: i32) -> [i32; 65536] { [x; 65_536] }
+        pub fn zero_effect(mut x: i32) -> i32 { [{ x = 3; x }; 0]; x }
+        pub fn nested(x: i32) -> [[i32; 2]; 3] { [[x; 2]; 3] }
+        pub fn unit() -> [(); 0] { [{}; 0] }
+        pub fn unitmany() -> [(); 7] { [{}; 7] }
+        pub fn conditional(x: i32, b: bool) -> [i32; 3] { [if b { x } else { 0 }; 3] }
+        pub fn references(x: &i32) -> [&i32; 4] { [x; 4] }
+        pub fn named(x: i32) -> [i32; 4] { [x; N] }
+        pub fn complex(x: i32) -> [i32; 4] { [x; 2 + 2] }
+    "#,
+    )
+    .unwrap();
+    directory
+}
+
+fn check_repeat_array_graphs(report: &Value) {
+    let functions = report["functions"].as_array().unwrap();
+    let facts = |name| -> rstyle_pdg::HirFnFacts {
+        serde_json::from_value(
+            functions
+                .iter()
+                .find(|f| f["facts"]["name"] == name)
+                .unwrap()["facts"]
+                .clone(),
+        )
+        .unwrap()
+    };
+    let small = rstyle_pdg::producer::produce(&facts("repeat")).unwrap();
+    let huge = rstyle_pdg::producer::produce(&facts("huge")).unwrap();
+    assert_eq!(small.pdg.nodes.len(), huge.pdg.nodes.len());
+    assert_eq!(small.pdg.edges.len(), huge.pdg.edges.len());
+    let zero = facts("zero_effect");
+    let pair = rstyle_pdg::producer::produce(&zero).unwrap();
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|n| n.category == rstyle_pdg::NodeCategory::Assignment)
+            .count(),
+        1
+    );
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|n| n.original_kind.known_value() == Some("expr_repeat"))
+        .unwrap();
+    assert_eq!(
+        pair.pdg
+            .edges
+            .iter()
+            .filter(|e| e.target == constructor.id && e.subkind == "value_operand")
+            .count(),
+        1
+    );
+    let mut changed = facts("repeat");
+    let ty = changed.body.children[0].ty.as_mut().unwrap();
+    let mut token: serde_json::Value =
+        serde_json::from_str(ty.normalized.as_ref().unwrap()).unwrap();
+    token["value"]["length"] = serde_json::json!(5);
+    ty.normalized = Some(serde_json::to_string(&token).unwrap());
+    let error = rstyle_pdg::data_frontend::verify(&changed).unwrap_err();
+    assert!(error.contains("Repeat count disagrees"), "{error}");
 }

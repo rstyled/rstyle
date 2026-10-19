@@ -99,7 +99,7 @@ fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
         "expr_if" => (2..=3).contains(&count),
         "expr_ret" => count <= 1,
         "expr_path" | "expr_lit" | "pat_binding" | "ty_annotation" => count == 0,
-        "expr_tup" | "expr_array" => true,
+        "expr_tup" | "expr_array" | "expr_repeat" => true,
         _ => true,
     };
     if !complete {
@@ -949,7 +949,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_field" => Builder::field_read,
         "expr_addr_of" => Builder::borrow,
         "expr_tup" if !node.children.is_empty() => Builder::computation,
-        "expr_array" => Builder::computation,
+        "expr_array" | "expr_repeat" => Builder::computation,
         "expr_lit" | "expr_tup" => Builder::literal,
         "expr_binary"
             if node

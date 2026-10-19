@@ -4,7 +4,8 @@ use crate::{ByteSpan, HirNode, data_types::TypeToken, unit_store::EvidenceFacts}
 use syn::spanned::Spanned;
 
 pub(crate) fn constructor(node: &HirNode) -> bool {
-    node.kind == "expr_array" || node.kind == "expr_tup" && !node.children.is_empty()
+    matches!(node.kind.as_str(), "expr_array" | "expr_repeat")
+        || node.kind == "expr_tup" && !node.children.is_empty()
 }
 
 pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
@@ -15,6 +16,7 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), St
 
     let length = match &ty {
         TypeToken::Tuple(elements) if node.kind == "expr_tup" => Some(elements.len()),
+        TypeToken::Array { .. } if node.kind == "expr_repeat" => Some(1),
         TypeToken::Array { length, .. } if node.kind == "expr_array" => {
             usize::try_from(*length).ok()
         }
@@ -71,6 +73,9 @@ fn verify_source(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String
         .ok_or("Missing original aggregate source bytes")?;
     let syntax: syn::Expr = syn::parse_str(source).map_err(|error| error.to_string())?;
 
+    if let syn::Expr::Repeat(repeat) = ungroup(&syntax) {
+        return verify_repeat(node, repeat, source, facts);
+    }
     let elements = match ungroup(&syntax) {
         syn::Expr::Tuple(tuple) if node.kind == "expr_tup" => &tuple.elems,
         syn::Expr::Array(array) if node.kind == "expr_array" => &array.elems,
@@ -90,6 +95,46 @@ fn verify_source(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String
         if !crate::source_evidence::corresponding_span(&facts.source.bytes, syntax, child.span) {
             return Err("Aggregate component source order/correspondence disagrees".into());
         }
+    }
+    Ok(())
+}
+
+fn verify_repeat(
+    node: &HirNode,
+    syntax: &syn::ExprRepeat,
+    source: &str,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    if node.kind != "expr_repeat"
+        || !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.repeat-array-values")
+    {
+        return Err("Repeat array requires its registered capability".into());
+    }
+    let syn::Expr::Lit(count) = ungroup(&syntax.len) else {
+        return Err("Repeat count requires a literal integer".into());
+    };
+    let syn::Lit::Int(count) = &count.lit else {
+        return Err("Repeat count requires a literal integer".into());
+    };
+    let TypeToken::Array { length, .. } = crate::data_types::parse(token(node)?)? else {
+        return Err("Repeat result is not an array".into());
+    };
+    if !matches!(count.suffix(), "" | "usize") || count.base10_parse::<u64>().ok() != Some(length) {
+        return Err("Repeat count disagrees with resolved array length".into());
+    }
+
+    let span = ungroup(&syntax.expr).span();
+    let syntax = ByteSpan {
+        start: node.span.start + crate::source_evidence::byte_offset(source, span.start()) as u32,
+        end: node.span.start + crate::source_evidence::byte_offset(source, span.end()) as u32,
+    };
+    if !crate::source_evidence::corresponding_span(
+        &facts.source.bytes,
+        syntax,
+        node.children[0].span,
+    ) {
+        return Err("Repeat operand loses its original single evaluation".into());
     }
     Ok(())
 }
@@ -129,10 +174,19 @@ pub(crate) fn unit_slot(pdg: &crate::PdgDocument, edge: &crate::PdgEdge) -> bool
                 .and_then(|index| elements.get(index))
                 == Some(&TypeToken::Scalar("unit".into()))
         }
-        Ok(TypeToken::Array { element, length })
-            if node.original_kind.known_value() == Some("expr_array") =>
-        {
-            position < length && *element == TypeToken::Scalar("unit".into())
+        Ok(TypeToken::Array { element, length }) => {
+            *element == TypeToken::Scalar("unit".into())
+                && match node.original_kind.known_value() {
+                    Some("expr_array") => position < length,
+                    Some("expr_repeat") => {
+                        position == 0
+                            && crate::extraction_profile::policy_supports(
+                                &pdg.profile,
+                                "rust.repeat-array-values",
+                            )
+                    }
+                    _ => false,
+                }
         }
         _ => false,
     }

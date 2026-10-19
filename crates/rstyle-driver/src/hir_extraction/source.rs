@@ -156,6 +156,7 @@ fn selected_expression(
 ) -> bool {
     match kind {
         ast::ExprKind::MacCall(mac) => selected_assertion(mac, profile),
+        ast::ExprKind::Repeat(..) => profile.supports("rust.repeat-array-values"),
         ast::ExprKind::Tup(..) | ast::ExprKind::Array(..) => {
             profile.supports("rust.aggregate-literal-values")
         }
