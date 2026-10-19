@@ -20,9 +20,9 @@ Packages use temporary directories outside the repository to avoid Cargo's
 enclosing-workspace discovery. Lockfiles are checked after capture as well.
 
 Each invocation creates a fresh ignored `target/hir-coverage/run-*` directory.
-It builds the actual driver and Cargo command, runs R0 and the complete expanded profile
+It builds the actual driver and Cargo command, runs R0, the complete expanded profile, and Data-v3
 with default features/debug settings, verifies capture/assessment completeness,
-and checks actual admitted PDG/CFG documents against their exact manifests and
+and checks actual admitted PDG/CFG documents inside sealed unit bundles against their exact manifests and
 the unchanged pinned schemas. Inherited `RSTYLE_*` and build override variables
 are cleared. Do not run competing workspace builds that replace these executables.
 
@@ -42,7 +42,7 @@ recreatable from the checked archives. No old run directory is discovered or reu
 Generated navigation paths into temporary sources expire after the run; frozen
 package/path/span identities remain available in selection and assessments.
 
-For a focused rerun, use `--profiles hir-expanded-v1` (or `--profiles r0`).
+For a focused rerun, use `--profiles hir-data-v3`, `--profiles hir-expanded-v1`, or `--profiles r0`.
 Its summary describes that subset, not measured gains for omitted slices. Inventory
 commands use `--max-pairs 0`, never inspect predictions, and accept exit 2 only for
 the explicit pair budget with complete capture/assessment. Failed or unknown
@@ -53,7 +53,7 @@ Run the small bookkeeping/failure tests with:
 
 ```sh
 uv run --no-project --with tree-sitter==0.25.2 --with tree-sitter-rust==0.24.0 \
-  --with jsonschema==4.25.1 python -m unittest discover -s eval/hir-coverage -p 'test_*.py'
+  --with jsonschema==4.25.1 --with xxhash==3.6.0 python -m unittest discover -s eval/hir-coverage -p 'test_*.py'
 ```
 
 Independent extraction/dependence, adversarial verification and real Cargo tests
@@ -71,7 +71,7 @@ cd /tmp/rstyle-coverage-stages
 uv run eval/hir-coverage/reproduce.py
 ```
 
-Current reproduction compares R0 with the same complete 0.7.0 semantics. Historical
+Current reproduction compares R0, the complete 0.7.0 semantics, and Data-v3. Historical
 stage identities remain in verification and independent Rust fixtures, without
 requiring seven production extraction choices.
 # Assessment version 2
@@ -82,3 +82,8 @@ measurements; [REPORT.md](REPORT.md) retains historical conclusions. All frozen
 selected definitions remain in the denominator. Missing capture is unknown, never
 proof of cfg inactivity. Multiple contexts retain separate outcomes; missing or
 duplicate identity evidence fails closed.
+
+The 2026-10-19 refresh adds Data-v3 and current sealed unit-bundle verification.
+R0/expanded reproduce the v2 counts; Data-v3 currently stops on the `lz4_flex`
+concrete-array evidence budget. This incomplete attempt establishes no Data-v3
+admission count. See the [continuation log](../../rust-feature-coverage.md).

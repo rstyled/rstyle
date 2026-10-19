@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["tree-sitter==0.25.2", "tree-sitter-rust==0.24.0", "jsonschema==4.25.1"]
+# dependencies = ["tree-sitter==0.25.2", "tree-sitter-rust==0.24.0", "jsonschema==4.25.1", "xxhash==3.6.0"]
 # ///
 """Recreate the frozen eligibility inventory; generated evidence stays in target/."""
 import argparse
@@ -15,6 +15,7 @@ import tempfile
 import tomllib
 import urllib.request
 
+import xxhash
 import jsonschema
 from tree_sitter import Language, Parser
 import tree_sitter_rust
@@ -26,7 +27,7 @@ ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parents[1]
 HOST = "aarch64-unknown-linux-gnu"
 COMPILER = "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
-PROFILES = ("r0", "hir-expanded-v1")
+PROFILES = ("r0", "hir-expanded-v1", "hir-data-v3")
 
 
 def digest(data):
@@ -110,20 +111,29 @@ def check_capture(report, exit_code):
 
 def verify_documents(report, validators):
     checked = 0
+    bundles = {}
     for function in report["functions"]:
         if function["outcome"] != "admitted":
             continue
-        prefix = function["artifact_prefix"]
-        manifest = json.loads(Path(prefix + ".manifest.json").read_text())
-        documents = manifest["documents"]
-        kinds = [document["key"].rsplit(":", 1)[1] for document in documents]
-        if sorted(kinds) != ["cfg", "pdg"]:
-            raise ValueError("Paired-document manifest must contain exactly CFG and PDG")
-        for document, kind in zip(documents, kinds):
-            data = Path(prefix + f".{kind}.json").read_bytes()
-            if document["sha256"] != "sha256:" + digest(data):
-                raise ValueError("Serialized document does not match its exact manifest")
-            validators[kind].validate(json.loads(data))
+        evidence = function["unit_evidence"]
+        path = Path(evidence["bundle"])
+        if path not in bundles:
+            data = path.read_bytes()
+            manifest = json.loads(path.with_suffix(".manifest.json").read_text())
+            if (manifest["schema"] != "rstyle.shared-unit.manifest/2" or
+                    manifest["bytes"] != len(data) or
+                    manifest["checksum"] != "xxh3-64:" + xxhash.xxh3_64_hexdigest(data)):
+                raise ValueError("Serialized unit does not match its exact manifest")
+            bundles[path] = json.loads(data)
+        bundle = bundles[path]
+        if bundle["namespace"] != evidence["namespace"]:
+            raise ValueError("Unit evidence namespace mismatch")
+        root = bundle["roots"][evidence["function"]]
+        if root is None:
+            raise ValueError("Admitted function has no graph root")
+        graph = bundle["graphs"][root]
+        for kind in ("cfg", "pdg"):
+            validators[kind].validate(graph[kind])
             checked += 1
     return checked
 

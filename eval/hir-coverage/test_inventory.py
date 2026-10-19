@@ -2,6 +2,11 @@
 import copy
 import hashlib
 import unittest
+import json
+import tempfile
+from pathlib import Path
+import xxhash
+import jsonschema
 import reproduce
 import assess
 import summarize
@@ -15,6 +20,33 @@ class InventoryTests(unittest.TestCase):
         self.unit = dict(target=dict(package='p', name='p', manifest_dir='/p'), test=False)
         self.record = dict(outcome='excluded', reasons=['casts', 'conditional evidence'], key='f', compilation_unit=correspondence.context_key(self.unit), facts=dict(fn_span=dict(start=0, end=len(source)), source=dict(bytes=source, digest='sha256:'+self.selected['sha256']), source_diagnostics=[dict(capability='rust.integer-casts')], source_scan_complete=False, build=dict(frontend_options=dict(source_file='/p/src/lib.rs', source_identifier='f'))))
         self.report = dict(capture_complete=True, functions=[self.record], observed_units=[self.unit])
+
+    def test_sealed_bundle_verification_rejects_tampering_and_missing_roots(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'unit.evidence.json'
+            bundle = dict(namespace={'ordinal': 0}, roots=[0],
+                          graphs=[dict(cfg={}, pdg={})])
+            report = dict(functions=[dict(outcome='admitted', unit_evidence=dict(
+                bundle=str(path), namespace=bundle['namespace'], function=0))])
+            validators = {kind: jsonschema.Draft202012Validator({'type': 'object'})
+                          for kind in ('cfg', 'pdg')}
+
+            def seal():
+                data = json.dumps(bundle).encode()
+                path.write_bytes(data)
+                path.with_suffix('.manifest.json').write_text(json.dumps(dict(
+                    schema='rstyle.shared-unit.manifest/2', bytes=len(data),
+                    checksum='xxh3-64:' + xxhash.xxh3_64_hexdigest(data))))
+
+            seal()
+            self.assertEqual(reproduce.verify_documents(report, validators), 2)
+            path.write_bytes(path.read_bytes() + b' ')
+            with self.assertRaisesRegex(ValueError, 'exact manifest'):
+                reproduce.verify_documents(report, validators)
+            bundle['roots'] = [None]
+            seal()
+            with self.assertRaisesRegex(ValueError, 'no graph root'):
+                reproduce.verify_documents(report, validators)
 
     def test_all_reasons_and_source_blockers_survive(self):
         result = assess.assess([self.selected], {'p': self.report})
