@@ -43,6 +43,7 @@ pub fn origins(
     let origins = match node.kind.as_str() {
         "expr_path" => formal(node, facts, &ty)?,
         "expr_field" => field(node, facts, &ty)?,
+        "expr_tup" | "expr_struct" => constructed(node, facts)?,
         "expr_addr_of" => vec![crate::data_places::borrow_origin(node, facts)?],
         "expr_block" | "expr_ret" => {
             let value = node
@@ -65,6 +66,20 @@ pub fn origins(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect())
+}
+
+fn constructed(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
+    if !crate::data_aggregates::reference_literal(node, facts) {
+        return Err("Reference-bearing literals require their registered capability".into());
+    }
+    let mut roots = Vec::new();
+    for child in &node.children {
+        roots.extend(origins(child, facts)?);
+    }
+    Ok(roots)
 }
 
 fn same_type(expected: &str, node: &HirNode) -> Result<(), String> {

@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.21.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.22.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.21.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.22.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -7989,12 +7989,7 @@ fn check_aggregate_admission(report: &Value) {
         assert!(names.contains(&name), "{name}: {names:?}");
     }
     for function in report["functions"].as_array().unwrap() {
-        let excluded = matches!(function["facts"]["name"].as_str().unwrap(), "borrowed");
-        assert_eq!(
-            function["outcome"],
-            if excluded { "excluded" } else { "admitted" },
-            "{function}"
-        );
+        assert_eq!(function["outcome"], "admitted", "{function}");
     }
 }
 
@@ -8113,12 +8108,7 @@ fn clones_data_named_struct_values_preserve_field_slots_and_evaluation_order() {
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 11);
     for function in functions {
-        let excluded = matches!(function["facts"]["name"].as_str().unwrap(), "borrowed");
-        assert_eq!(
-            function["outcome"],
-            if excluded { "excluded" } else { "admitted" },
-            "{function}"
-        );
+        assert_eq!(function["outcome"], "admitted", "{function}");
     }
     check_aggregate_documents(&report);
     check_equivalent_matching(&report, ["first", "other"]);
@@ -8307,12 +8297,7 @@ fn clones_data_tuple_struct_values_compose_with_nominal_slots_and_units() {
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 11);
     for function in functions {
-        let excluded = matches!(function["facts"]["name"].as_str().unwrap(), "borrowed");
-        assert_eq!(
-            function["outcome"],
-            if excluded { "excluded" } else { "admitted" },
-            "{function}"
-        );
+        assert_eq!(function["outcome"], "admitted", "{function}");
     }
     check_aggregate_documents(&report);
     check_equivalent_matching(&report, ["first", "other"]);
@@ -8816,7 +8801,7 @@ fn clones_data_shared_reference_locals_preserve_initializer_and_formal_origins()
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "mutable" | "rebound" | "formal_rebound" | "aggregate"
+            "mutable" | "rebound" | "formal_rebound"
         ) || (!has_length_authority(&report)
             && matches!(
                 function["facts"]["name"].as_str().unwrap(),
@@ -9036,4 +9021,159 @@ fn check_shared_local_borrow_location(report: &Value) {
     assert_eq!(path[0]["kind"], "SharedReferent");
     assert_eq!(path[1]["name"], "inner");
     assert_eq!(path[2]["name"], "right");
+}
+
+#[test]
+fn clones_data_reference_bearing_values_preserve_origin_unions_and_exact_slots() {
+    let directory = reference_literal_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 24);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "mutable"
+                | "reassigned"
+                | "temporary_field"
+                | "update"
+                | "arrays"
+                | "zero"
+                | "helper_return"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_reference_literal_slot_corruption(&report);
+    check_reference_literal_effects(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"]
+                == if function["facts"]["name"] == "shared_identity" {
+                    "admitted"
+                } else {
+                    "excluded"
+                }),
+        "{legacy}"
+    );
+}
+
+fn reference_literal_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Pair<'a> { pub left: &'a i32, pub right: &'a i32, pub stamp: () }
+        pub struct Tuple<'a>(pub &'a i32, pub (), pub &'a i32);
+        pub struct Nested<'a> { pub inner: Pair<'a>, pub scalar: i32 }
+        pub struct Holder<'a> { pub value: &'a i32 }
+        pub fn first<'a>(a: &'a i32, b: &'a i32) -> (&'a i32, &'a i32) { (a, b) }
+        pub fn other<'a>(a: &'a i32, b: &'a i32) -> (&'a i32, &'a i32) { (a, b) }
+        pub fn named<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { Pair { right: b, stamp: (), left: a } }
+        pub fn tuple<'a>(a: &'a i32, b: &'a i32) -> Tuple<'a> { Tuple(a, (), b) }
+        pub fn nested<'a>(a: &'a i32, b: &'a i32) -> Nested<'a> { Nested { inner: Pair { left: a, right: b, stamp: () }, scalar: 7 } }
+        pub fn aliases<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { let local = a; Pair { left: local, right: b, stamp: () } }
+        pub fn borrowed(record: &(i32, i32)) -> (&i32, &i32) { (&record.0, &record.1) }
+        pub fn stored<'a>(record: Holder<'a>, other: &'a i32) -> Pair<'a> { Pair { left: record.value, right: other, stamp: () } }
+        pub fn conditional<'a>(a: &'a i32, b: &'a i32, pick: bool) -> (&'a i32, &'a i32) { (if pick { a } else { b }, a) }
+        pub fn block<'a>(a: &'a i32, b: &'a i32) -> (&'a i32, &'a i32) { { (a, b) } }
+        pub fn effects<'a>(a: &'a i32, b: &'a i32, mut n: i32) -> Pair<'a> { Pair { left: { n = 7; a }, right: { let check = n; b }, stamp: () } }
+        pub fn wrap<'a>(pair: (&'a i32, &'a i32)) -> ((&'a i32, &'a i32),) { let saved = pair; (saved,) }
+        pub fn mixed_unit<'a>(a: &'a i32, b: &'a i32) -> ((), &'a i32, (&'a i32, ())) { ((), a, (b, ())) }
+        pub fn local<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { let value = Pair { left: a, right: b, stamp: () }; value }
+        pub fn shadow<'a>(a: &'a i32, b: &'a i32) -> (Pair<'a>, Pair<'a>) { let pair = Pair { left: a, right: b, stamp: () }; let saved = pair; let pair = Pair { left: b, right: a, stamp: () }; (saved, pair) }
+        pub fn mutable<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { let mut value = Pair { left: a, right: b, stamp: () }; value }
+        pub fn reassigned<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { let mut value = Pair { left: a, right: b, stamp: () }; value = Pair { left: b, right: a, stamp: () }; value }
+        pub fn temporary_field<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { (a, b).0 }
+        pub fn update<'a>(old: Pair<'a>, value: &'a i32) -> Pair<'a> { Pair { left: value, ..old } }
+        pub fn arrays(value: &i32) -> [&i32; 2] { [value, value] }
+        pub fn zero(value: &i32) -> [&i32; 0] { [value; 0] }
+        pub fn shared_identity(value: &i32) -> &i32 { value }
+        pub fn helper_component<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { Pair { left: shared_identity(a), right: b, stamp: () } }
+        pub fn helper_return<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { named(a, b) }
+    "#).unwrap();
+    directory
+}
+
+fn check_reference_literal_slot_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert!(pair.pdg.memory_locations.is_empty());
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| {
+            node.original_kind.known_value() == Some("expr_tup")
+                && node.category == rstyle_pdg::NodeCategory::Computation
+        })
+        .unwrap();
+    assert_eq!(
+        constructor.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let operands: Vec<_> = pair
+        .pdg
+        .edges
+        .iter()
+        .enumerate()
+        .filter(|(_, edge)| edge.target == constructor.id && edge.subkind == "value_operand")
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(operands.len(), 2);
+    let first = pair.pdg.edges[operands[0]].source.clone();
+    pair.pdg.edges[operands[0]].source = pair.pdg.edges[operands[1]].source.clone();
+    pair.pdg.edges[operands[1]].source = first;
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+}
+
+fn check_reference_literal_effects(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "effects")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.category == rstyle_pdg::NodeCategory::Assignment)
+            .count(),
+        1
+    );
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        pair.pdg
+            .edges
+            .iter()
+            .filter(|edge| edge.target == constructor.id && edge.subkind == "value_operand")
+            .count(),
+        3
+    );
 }

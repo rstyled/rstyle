@@ -1,4 +1,4 @@
-//! Source-ordered tuple and array literal values without stored references.
+//! Source-ordered aggregate literal values with exact typed component slots.
 
 use crate::{ByteSpan, HirNode, data_types::TypeToken, unit_store::EvidenceFacts};
 use syn::spanned::Spanned;
@@ -12,12 +12,15 @@ pub(crate) fn constructor(node: &HirNode) -> bool {
 
 pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let ty = crate::data_types::parse(token(node)?)?;
-    if !reference_free(&ty) {
-        return Err("Aggregate construction requires reference-free component values".into());
+    let references = !reference_free(&ty);
+    if references && !reference_literal(node, facts) {
+        return Err(
+            "Reference-bearing construction requires its registered literal capability".into(),
+        );
     }
 
     if node.kind == "expr_struct" {
-        return crate::data_structs::slots(node, facts).map(|_| ());
+        return verify_struct(node, facts, references);
     }
 
     let length = match &ty {
@@ -45,6 +48,26 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), St
         }
     }
     verify_source(node, facts)
+}
+
+fn verify_struct(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+    references: bool,
+) -> Result<(), String> {
+    let slots = crate::data_structs::slots(node, facts)?;
+    if references && slots.contains(&None) {
+        return Err(
+            "Reference-bearing struct updates need component-specific origin substitution".into(),
+        );
+    }
+    Ok(())
+}
+
+pub(crate) fn reference_literal(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
+    matches!(node.kind.as_str(), "expr_tup" | "expr_struct")
+        && crate::extraction_profile::ExtractionProfile::from_facts(facts)
+            .is_ok_and(|profile| profile.supports("rust.reference-bearing-values"))
 }
 
 pub(crate) fn token(node: &HirNode) -> Result<&str, String> {

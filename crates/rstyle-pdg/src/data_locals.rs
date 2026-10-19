@@ -5,12 +5,12 @@ use crate::{HirNode, extraction_profile::ExtractionProfile, unit_store::Evidence
 pub(crate) fn supported(token: &str, profile: ExtractionProfile) -> bool {
     !crate::concrete_types::scalar(token)
         && (profile.supports("rust.local-aggregate-values")
-            || profile.supports("rust.shared-reference-locals"))
+            || profile.supports("rust.shared-reference-locals")
+            || profile.supports("rust.reference-bearing-values"))
         && crate::data_types::parse(token).is_ok_and(|ty| {
             (profile.supports("rust.local-aggregate-values")
                 && crate::data_aggregates::reference_free(&ty))
-                || (profile.supports("rust.shared-reference-locals")
-                    && matches!(ty, crate::data_types::TypeToken::Shared(_)))
+                || crate::data_reference_locals::supported(&ty, profile)
         })
 }
 
@@ -49,10 +49,9 @@ pub(crate) fn verify_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(
     }
 
     if (node.kind == "expr_assign" || target.binding_mut == Some(true))
-        && crate::data_types::parse(token)
-            .is_ok_and(|ty| matches!(ty, crate::data_types::TypeToken::Shared(_)))
+        && crate::data_types::parse(token).is_ok_and(|ty| crate::data_origins::shared(&ty))
     {
-        return Err("Shared reference locals require immutable initialized bindings".into());
+        return Err("Reference-bearing locals require immutable initialized bindings".into());
     }
 
     if value
