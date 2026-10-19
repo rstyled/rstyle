@@ -107,8 +107,12 @@ fn formal(
         .signature
         .params
         .iter()
-        .find(|parameter| parameter.pat.hir == *target)
-        .ok_or("Reference local origin proof is unavailable")?;
+        .find(|parameter| parameter.pat.hir == *target);
+    let Some(parameter) = parameter else {
+        let initializer = crate::data_reference_locals::initializer(node, facts, ty)?;
+        same_type(crate::data_aggregates::token(node)?, initializer)?;
+        return origins(initializer, facts);
+    };
     Ok(paths(ty, Vec::new())?
         .into_iter()
         .map(|path| Origin {

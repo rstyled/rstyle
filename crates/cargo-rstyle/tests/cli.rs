@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.19.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.20.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.19.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.20.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -8514,12 +8514,7 @@ fn clones_data_local_aggregate_values_follow_definitions_across_branches_and_loo
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 13);
     for function in functions {
-        let excluded = matches!(function["facts"]["name"].as_str().unwrap(), "reference");
-        assert_eq!(
-            function["outcome"],
-            if excluded { "excluded" } else { "admitted" },
-            "{function}"
-        );
+        assert_eq!(function["outcome"], "admitted", "{function}");
     }
     check_aggregate_documents(&report);
     check_equivalent_matching(&report, ["first", "other"]);
@@ -8809,4 +8804,110 @@ fn check_value_field_evaluation(report: &Value) {
             );
         }
     }
+}
+
+#[test]
+fn clones_data_shared_reference_locals_preserve_initializer_and_formal_origins() {
+    let directory = reference_local_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 14);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "mutable" | "rebound" | "formal_rebound" | "local_field" | "aggregate"
+        ) || (!has_length_authority(&report)
+            && matches!(
+                function["facts"]["name"].as_str().unwrap(),
+                "length" | "empty"
+            ));
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_reference_local_corruption(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn reference_local_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Record<'a> { pub value: &'a i32 }
+        pub fn first(value: &i32) -> &i32 { let local = value; local }
+        pub fn other(value: &i32) -> &i32 { let local = value; local }
+        pub fn alias(value: &i32) -> &i32 { let local = value; let copy = local; copy }
+        pub fn shadow<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let value = a; let saved = value; let value = b; if true { saved } else { value } }
+        pub fn conditional<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 { let value = if pick { a } else { b }; value }
+        pub fn stored<'a>(record: Record<'a>) -> &'a i32 { let value = record.value; value }
+        pub fn borrowed(record: &(i32, i32)) -> &i32 { let value = &record.1; value }
+        pub fn length(bytes: &[u8]) -> usize { let value = bytes; value.len() }
+        pub fn empty(text: &str) -> bool { let value = text; value.is_empty() }
+        pub fn mutable(value: &i32) -> &i32 { let mut local = value; local }
+        pub fn rebound<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut local = a; local = b; local }
+        pub fn formal_rebound<'a>(mut a: &'a i32, b: &'a i32) -> &'a i32 { a = b; a }
+        pub fn local_field(record: &(i32, i32)) -> i32 { let local = record; local.0 }
+        pub fn aggregate(value: &i32) -> (&i32,) { let local = (value,); local }
+    "#).unwrap();
+    directory
+}
+
+fn check_reference_local_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "conditional")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let read = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| {
+            node.category == rstyle_pdg::NodeCategory::Read
+                && node.attributes.reads.iter().any(|access| {
+                    access.symbol_id.as_ref().is_some_and(|symbol| {
+                        facts
+                            .bindings
+                            .iter()
+                            .any(|binding| !binding.is_param && binding.symbol == *symbol)
+                    })
+                })
+        })
+        .unwrap();
+    let mut missing = rstyle_pdg::producer::produce(&facts).unwrap();
+    missing
+        .pdg
+        .edges
+        .retain(|edge| !(edge.target == read.id && edge.subkind == "reaching_definition"));
+    assert!(rstyle_pdg::data_documents::verify(&missing, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&missing, &facts).is_err());
+    let mut origins = rstyle_pdg::producer::produce(&facts).unwrap();
+    let changed = origins
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.id == read.id)
+        .unwrap();
+    changed.annotations.insert(
+        rstyle_pdg::data_origins::KEY.into(),
+        serde_json::json!([{ "parameter": 0, "path": [{"kind":"SharedReferent"}] }]),
+    );
+    assert!(rstyle_pdg::data_documents::verify(&origins, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&origins, &facts).is_err());
 }

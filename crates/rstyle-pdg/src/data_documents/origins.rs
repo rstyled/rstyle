@@ -134,6 +134,17 @@ fn graph_origins(
     if !visiting.insert(node.id.clone()) {
         return Err("Cyclic reference value proof is unavailable".into());
     }
+    let roots = input_origins(node, pair, facts, visiting)?;
+    visiting.remove(&node.id);
+    Ok(roots.into_iter().collect())
+}
+
+fn input_origins(
+    node: &PdgNode,
+    pair: crate::producer::PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    visiting: &mut BTreeSet<String>,
+) -> Result<BTreeSet<Origin>, String> {
     let selected = returned_operands(node, facts)?;
     let mut roots = BTreeSet::new();
     for edge in pair.pdg.edges.iter().filter(|edge| {
@@ -156,12 +167,16 @@ fn graph_origins(
             .iter()
             .find(|candidate| candidate.id == edge.source)
             .ok_or("Missing reference value predecessor")?;
-        if reference(predecessor)? {
+        if reference(predecessor)?
+            || matches!(
+                predecessor.category,
+                NodeCategory::Declaration | NodeCategory::Assignment
+            )
+        {
             roots.extend(graph_origins(predecessor, pair, facts, visiting)?);
         }
     }
-    visiting.remove(&node.id);
-    Ok(roots.into_iter().collect())
+    Ok(roots)
 }
 
 fn returned_operands(

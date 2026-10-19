@@ -1,12 +1,17 @@
-//! Whole reference-free local values use existing binding definitions and reads.
+//! Whole local values use existing binding definitions and reads.
 
 use crate::{HirNode, extraction_profile::ExtractionProfile, unit_store::EvidenceFacts};
 
 pub(crate) fn supported(token: &str, profile: ExtractionProfile) -> bool {
     !crate::concrete_types::scalar(token)
-        && profile.supports("rust.local-aggregate-values")
-        && crate::data_types::parse(token)
-            .is_ok_and(|ty| crate::data_aggregates::reference_free(&ty))
+        && (profile.supports("rust.local-aggregate-values")
+            || profile.supports("rust.shared-reference-locals"))
+        && crate::data_types::parse(token).is_ok_and(|ty| {
+            (profile.supports("rust.local-aggregate-values")
+                && crate::data_aggregates::reference_free(&ty))
+                || (profile.supports("rust.shared-reference-locals")
+                    && matches!(ty, crate::data_types::TypeToken::Shared(_)))
+        })
 }
 
 pub(crate) fn verify_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
@@ -41,6 +46,13 @@ pub(crate) fn verify_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(
         || !supported(token, ExtractionProfile::from_facts(facts)?)
     {
         return Ok(());
+    }
+
+    if (node.kind == "expr_assign" || target.binding_mut == Some(true))
+        && crate::data_types::parse(token)
+            .is_ok_and(|ty| matches!(ty, crate::data_types::TypeToken::Shared(_)))
+    {
+        return Err("Shared reference locals require immutable initialized bindings".into());
     }
 
     if value
