@@ -20,6 +20,7 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<()
 type SourceKey<'a> = (u64, u64, Option<&'a str>);
 
 struct Context<'a> {
+    pair: PairView<'a>,
     nodes: BTreeMap<&'a str, &'a PdgNode>,
     sources: BTreeMap<SourceKey<'a>, Vec<&'a PdgNode>>,
     operands: BTreeMap<&'a str, Vec<&'a crate::PdgEdge>>,
@@ -59,6 +60,7 @@ impl<'a> Context<'a> {
             });
 
         Self {
+            pair,
             nodes,
             sources,
             operands,
@@ -88,6 +90,9 @@ impl<'a> Context<'a> {
             .map(Vec::as_slice)
             .unwrap_or_default();
         if edges.len() != source.children.len() {
+            if !super::live_operations(self.pair)?.contains(node.id.as_str()) {
+                return Ok(());
+            }
             return Err("Aggregate operand slot count disagrees".into());
         }
 
@@ -121,7 +126,7 @@ fn collect<'a>(node: &'a HirNode, constructors: &mut Vec<&'a HirNode>) {
     }
 }
 
-fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), String> {
+pub(super) fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), String> {
     let token = child
         .ty
         .as_ref()

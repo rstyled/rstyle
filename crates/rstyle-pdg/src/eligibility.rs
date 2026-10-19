@@ -964,7 +964,13 @@ fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
                 .bindings
                 .contains_key(&(target.krate, target.owner, target.local)) =>
         {
-            check_expr_ty(node, "read")
+            if node_norm(node)
+                .is_some_and(|token| crate::data_locals::supported(token, ctx.profile))
+            {
+                Outcome::ok()
+            } else {
+                check_expr_ty(node, "read")
+            }
         }
         _ => evidence_gap(node, "binding target"),
     }

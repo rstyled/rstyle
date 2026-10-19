@@ -54,7 +54,7 @@ pub(crate) fn token(node: &HirNode) -> Result<&str, String> {
         .ok_or_else(|| "Missing concrete aggregate value type".into())
 }
 
-fn reference_free(ty: &TypeToken) -> bool {
+pub(crate) fn reference_free(ty: &TypeToken) -> bool {
     match ty {
         TypeToken::Scalar(_) => true,
         TypeToken::Tuple(elements) => elements.iter().all(reference_free),

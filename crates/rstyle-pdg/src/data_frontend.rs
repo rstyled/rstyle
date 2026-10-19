@@ -248,6 +248,7 @@ fn verify_nodes(
     {
         crate::data_aggregates::verify(node, facts)?;
     }
+    crate::data_locals::verify_node(node, facts)?;
     if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
         data_types::parse(token)?;
         if node.kind == "expr_path" {
@@ -314,7 +315,13 @@ fn verify_path(
         return Err("Data read type disagrees with its binding".into());
     }
 
-    if !scalar(token) && !binding.is_param {
+    if !scalar(token)
+        && !binding.is_param
+        && !crate::data_locals::supported(
+            token,
+            crate::extraction_profile::ExtractionProfile::from_facts(facts)?,
+        )
+    {
         return Err("Data local origin/value correspondence is not yet available".into());
     }
     Ok(())

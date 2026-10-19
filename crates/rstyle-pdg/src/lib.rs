@@ -16,6 +16,7 @@ mod data_aggregates;
 pub mod data_documents;
 pub mod data_frontend;
 pub mod data_library;
+mod data_locals;
 pub mod data_origins;
 pub mod data_places;
 pub mod data_receivers;

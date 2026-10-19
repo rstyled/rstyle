@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.17.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.18.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -107,7 +107,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; construction, non-scalar local reads, and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
 | D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.17.0 supports ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
-| D12 | General non-scalar local values/reference rebindings | Missing | `let r = s.bytes; r.len()`, `let t = s; t.value` | Current data-path verifier rejects non-scalar local binding reads; formal origins and directly composed expressions do not provide general local correspondence. |
+| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.18.0 supports [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing and existing branch/loop flow. Local field projections and reference-bearing values/rebindings still need component/origin correspondence. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
 | D15 | Array/slice element reads | Missing | `xs[i]` | Evaluate base/index once, preserve element location/index identity and bounds behavior. |
@@ -919,4 +919,47 @@ Frozen run `target/hir-coverage/run-hmdcg04l/` completes all three packages with
 or failures. All 60 frozen identities/outcomes and all denominators match 3.16.0
 (`run-_j2xrpg0`). Twenty-six admitted graph documents pass schema checks (10 lz4,
 0 regex, 16 time). Unit construction adds no measured frozen admission gain;
+these checks do not establish general performance or detector quality.
+
+
+### D12 whole reference-free local values through binding definitions
+
+Data-v3 extraction 3.18.0 adds `rust.local-aggregate-values`; matching remains
+`rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/local-aggregate-values-v1.md) connects exact
+binding/type reads and initializer/reassignment type checks to the existing whole
+value operands and kill/gen definition analysis. Tuples, arrays and supported
+reference-free nominal values compose through aliases, shadowing, assignments,
+mutable parameters, conditional initializers, branch joins and existing loops.
+There are no new serialized records, witnesses, snapshots, provenance or retained
+caches. D12 advances to Partial; local field projection and reference-valued
+rebindings remain unfinished, as do D13 and the full roadmap.
+
+Independent document checks verify exact source binding identity, typed original
+initializer/reassignment operands and CFG fixed-point reaching definitions. This
+reuses the existing loop verifier's binding proof for acyclic flow too, keeping
+formal memory reads under their separate location checks. Unreachable definitions
+and constructors retain source checks without requiring runtime operands; extra
+reachability work is confined to the missing-operand path.
+
+The composed fixture covers all admitted forms above plus struct-update bases and
+unreachable source. Every admitted pair passes independent serialized checks and
+strict producer reconstruction; equivalent functions reach accepted matching with
+score 1. Removing a reaching-definition edge, removing an initializer operand or
+substituting a same-typed later read fails independent verification. Reference
+rebindings and local field reads retain their exclusions. Earlier construction
+fixtures now check their whole-local cases as admitted.
+
+Validation: 751 workspace tests pass with 5 existing ignores, including explicit
+two-definition expectations at aggregate branch/loop reads and a combined formal
+memory-read/local-value fixture. Clippy across all targets passes with warnings
+denied; formatting passes. Repository-built rstyle reports 2,270 functions and
+0 violations; patterns reports 0 candidates with the same 15 existing ignores.
+All 14 inventory bookkeeping tests pass.
+
+Frozen run `target/hir-coverage/run-utecfjp9/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60, with no unknowns
+or failures. All 60 frozen identities/outcomes and all denominators match 3.17.0
+(`run-hmdcg04l`). Twenty-six admitted graph documents pass schema checks (10 lz4,
+0 regex, 16 time). Whole local propagation adds no measured frozen admission gain;
 these checks do not establish general performance or detector quality.

@@ -2,6 +2,7 @@
 
 mod aggregates;
 mod borrows;
+mod locals;
 mod locations;
 mod origins;
 pub(crate) use locations::{LocationContext, correspondence as location_correspondence};
@@ -179,6 +180,7 @@ pub fn verify<'a>(
     crate::data_library::verify_documents(pair, facts)?;
     crate::data_frontend::verify(facts)?;
     aggregates::verify(pair, facts)?;
+    locals::verify(pair, facts)?;
     verify_interface(pair, facts)?;
     if pair.pdg.extensions.get(POLICY_KEY) != Some(&json!(matching_identity(facts)?))
         || pair.cfg.extensions.get(POLICY_KEY) != pair.pdg.extensions.get(POLICY_KEY)
@@ -505,4 +507,15 @@ fn verify_value_effects(node: &crate::PdgNode, literal: bool, reason: &str) -> R
         return Err(reason.into());
     }
     Ok(())
+}
+
+fn live_operations(pair: crate::producer::PairView<'_>) -> Result<BTreeSet<String>, String> {
+    let reached = crate::reachable_vertices(pair.cfg);
+    let mapping = crate::read_operation_map(&pair.pdg.extensions)?;
+
+    Ok(mapping
+        .into_iter()
+        .filter(|entry| reached.contains(&entry.cfg_node_id))
+        .map(|entry| entry.pdg_node_id)
+        .collect())
 }

@@ -33,6 +33,16 @@ pub fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<String>
     Ok(BTreeSet::new())
 }
 
+/// Check binding reads against serialized CFG kill/gen, with or without loops.
+pub(crate) fn verify_bindings(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<String>> {
+    let mapping = read_operation_map(&pdg.extensions).map_err(|error| vec![error])?;
+    let reached = reachable_vertices(cfg);
+    let predecessors = predecessors(cfg, &reached);
+    let incoming = definitions(pdg, cfg, &mapping, &predecessors);
+
+    check_reads(pdg, &mapping, &reached, &incoming)
+}
+
 fn predecessors(cfg: &CfgDocument, reached: &BTreeSet<String>) -> Sets {
     let mut sets: Sets = reached
         .iter()
@@ -187,11 +197,14 @@ fn check_reads(
     incoming: &Flow,
 ) -> Result<(), Vec<String>> {
     let mut expected = Vec::new();
-    for node in pdg
-        .nodes
-        .iter()
-        .filter(|node| node.category == NodeCategory::Read)
-    {
+    for node in pdg.nodes.iter().filter(|node| {
+        node.category == NodeCategory::Read
+            && node
+                .attributes
+                .reads
+                .iter()
+                .any(|access| access.symbol_id.is_some())
+    }) {
         let entry = mapping
             .iter()
             .find(|entry| entry.pdg_node_id == node.id)
