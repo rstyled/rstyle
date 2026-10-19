@@ -251,11 +251,6 @@ impl<'tcx> Capture<'_, 'tcx> {
         let length = length
             .try_to_target_usize(self.ctx.tcx)
             .ok_or_else(|| unsupported("Array length is not a resolved concrete value"))?;
-        if length > MAX_ARRAY {
-            return Err(Failure::Budget(
-                "Concrete array exceeds length budget".into(),
-            ));
-        }
 
         Ok(TypeTree::Array {
             element: Box::new(self.tree(element, depth + 1)?),

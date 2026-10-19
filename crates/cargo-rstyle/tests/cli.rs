@@ -3159,11 +3159,84 @@ fn check_nested_concrete_type(tree: &rstyle_pdg::concrete_types::TypeTree) {
 }
 
 #[test]
+fn clones_data_derived_methods_do_not_require_an_original_function_item() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "#[derive(Debug)] pub struct Record { pub value: u32 }\npub fn scalar(value: u32) -> u32 { value }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    assert!(report["handoff_failures"].as_array().unwrap().is_empty());
+    assert!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|function| {
+                function["facts"]["name"].as_str().unwrap().contains("fmt")
+                    && function["outcome"] == "excluded"
+            })
+    );
+}
+
+#[test]
+fn clones_data_normalizes_concrete_array_method_results_before_verification() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn bytes(value: u16) -> [u8; 2] { value.to_le_bytes() }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    assert_eq!(report["functions"][0]["outcome"], "excluded");
+    assert!(report["handoff_failures"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn clones_data_macro_argument_receivers_are_excluded_without_failing_capture() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn check(bytes: &[u8]) -> usize { assert!(bytes.len() > 0); bytes.len() }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    assert_eq!(report["functions"][0]["outcome"], "excluded");
+    assert!(report["handoff_failures"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn clones_data_large_array_lengths_do_not_expand_capture_work() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn length(_bytes: &[u8; 65536]) -> u32 { 1 }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    let function = &report["functions"][0];
+    assert_eq!(function["outcome"], "admitted", "{function}");
+}
+
+#[test]
 fn clones_helpers_concrete_capture_budget_is_not_an_exclusion() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        "pub fn large(_: &[u8; 4097]) {}\n",
+        &format!("pub fn deep(_: {}u8) {{}}\n", "&".repeat(17)),
     )
     .unwrap();
     let (output, report) = clones(

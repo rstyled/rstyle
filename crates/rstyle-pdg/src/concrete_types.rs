@@ -13,7 +13,6 @@ pub const IDENTITY: &str = "rstyle.rust.concrete-type-capture/1";
 pub const MAX_DEPTH: usize = 16;
 pub const MAX_ENTRIES: usize = 4096;
 pub const MAX_FIELDS: usize = 128;
-pub const MAX_ARRAY: u64 = 4096;
 pub const MAX_SOURCE_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,12 +131,6 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
         TypeTree::Scalar(token) if scalar(token) => Ok(()),
         TypeTree::Scalar(_) => Err("Unsupported scalar in concrete type observation".into()),
-        TypeTree::Array { length, .. } => {
-            if *length > MAX_ARRAY {
-                return Err("Concrete array exceeds length budget".into());
-            }
-            Ok(())
-        }
         TypeTree::Struct {
             nominal,
             source,

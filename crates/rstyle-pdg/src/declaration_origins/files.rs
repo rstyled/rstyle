@@ -91,8 +91,12 @@ impl<'ast> syn::visit::Visit<'ast> for StructSpans<'_> {
     fn visit_item_struct(&mut self, item: &'ast syn::ItemStruct) {
         use syn::spanned::Spanned;
         let span = item.span();
+        let start = match item.vis {
+            syn::Visibility::Inherited => item.struct_token.span,
+            _ => item.vis.span(),
+        };
         self.spans.push(ByteSpan {
-            start: crate::source_evidence::byte_offset(self.source, span.start()) as u32
+            start: crate::source_evidence::byte_offset(self.source, start.start()) as u32
                 + self.prefix,
             end: crate::source_evidence::byte_offset(self.source, span.end()) as u32 + self.prefix,
         });
@@ -105,7 +109,7 @@ mod tests {
 
     fn evidence() -> (InterfaceObservations, Origins) {
         let bytes: crate::SourceSnapshot =
-            "\u{feff}// π\r\npub struct A;\r\npub struct B;\r\n/* pub struct C; */\r\n".into();
+            "\u{feff}// π\r\n/// document A\r\n#[derive(Debug)]\r\npub struct A;\r\npub struct B;\r\n/* pub struct C; */\r\n".into();
         let declarations = ["A", "B"].map(|name| {
             let source = format!("pub struct {name};");
             let start = bytes.find(&source).unwrap() as u32;

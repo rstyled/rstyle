@@ -114,13 +114,7 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         }
         TypeToken::Array { element, .. }
         | TypeToken::Shared(element)
-        | TypeToken::Slice(element) => {
-            if matches!(token, TypeToken::Array { length, .. } if *length > crate::concrete_types::MAX_ARRAY)
-            {
-                return Err("Data array token exceeds length budget".into());
-            }
-            check(element, depth + 1, entries)
-        }
+        | TypeToken::Slice(element) => check(element, depth + 1, entries),
         TypeToken::Str => Ok(()),
         TypeToken::Struct { nominal, fields }
             if nominal

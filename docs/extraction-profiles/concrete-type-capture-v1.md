@@ -21,7 +21,7 @@ nonstruct ADTs, raw pointers and other types. Shared referents are checked
 recursively; shared syntax never proves an immutable referent. This structural
 capture boundary has no interior mutable leaf. It does not prove effects of a
 function or callees. Recursive type expansion is unsupported. Limits are depth
-16, 4096 visited type entries, 128 fields per struct, array length 4096 and 64 KiB
+16, 4096 visited type entries, 128 fields per struct and 64 KiB
 per declaration. Exceeding limits fails capture explicitly; unsupported types
 retain a reason. Neither case produces a truncated type certificate.
 
@@ -45,7 +45,7 @@ direct primitive-width contradictions, shared referent serialization, Unicode/CR
 offsets and finite budgets. Two real Cargo tests capture nested concrete structs,
 tuples, arrays, shared receivers, shared slices and str from BOM/CRLF source;
 destructor-bearing and interior-mutable inputs remain unsupported. Every data
-function remains excluded. An oversized array makes capture, assessment and pair
+function remains excluded. A type exceeding the recursive depth budget makes capture, assessment and pair
 evaluation incomplete with the explicit budget diagnostic preserved.
 
 `cargo test --workspace --locked` passed 511 tests in 25 suites, none ignored.
@@ -66,3 +66,16 @@ extension. Cross-package calls, assertions, broader patterns/constants, slice
 operations, loop/value composition and the preregistered broader applicability
 inventory also remain unfinished. These are implementation prerequisites, not a
 claim that external authority prevents their implementation.
+
+## Compact array lengths (2026-10-19)
+
+Array lengths are stored as one resolved u64 together with one element type tree.
+The previous 4096 length cutoff did not bound capture work and has been removed
+from capture, descriptor validation and data tokens. Recursive budgets continue
+to bound actual tree size. This does not admit construction, indexing, reference
+origins for array elements, or unresolved/source-unsupported array lengths.
+
+Receiver signature observations normalize resolved types before capture, including
+concrete array results of primitive methods. Macro argument methods and generated
+methods remain observational: unsupported enclosing macros/derives are still
+excluded. Declaration-origin ranges match rustc's attribute-free item spans.

@@ -344,3 +344,23 @@ including tampered sealed evidence and missing graph roots. `cargo rstyle --form
 json`: 2,127 functions, 0 violations. `cargo rstyle patterns --format json
 --fail-on-candidates`: 0 remaining candidates, with the existing 15 ignored
 entries unchanged. No extraction semantics changed in this increment.
+
+### X09 capture repairs
+
+The natural rerun exposed four ordinary capture failures. Array lengths now remain
+compact u64 values instead of failing above 4096; depth and actual tree-size
+budgets remain enforced. Method signatures are normalized before observing
+concrete array results. Macro-argument methods retain receiver records without
+claiming a standalone source method outside the macro; the enclosing unsupported
+macro still excludes the function. Fully expanded/generated methods do not force
+parsing their expansion anchor as an original function. Struct declaration ranges
+start at visibility/`struct`, matching rustc and excluding leading attributes.
+These repairs add no new provenance fields or per-element array expansion.
+
+Regression evidence: the complete `rstyle-pdg` test suites pass; 34 Data Cargo
+checks pass, including large-array admission, recursive-budget failure,
+macro-argument exclusion, normalized byte-array method exclusion, and derived
+method exclusion. Style checks report zero violations and zero remaining pattern
+candidates with the existing ignores unchanged. The natural rerun now captures
+`lz4_flex` under Data-v3; the full inventory result is recorded separately below
+when all packages finish. No new syntax row is claimed covered by these repairs.

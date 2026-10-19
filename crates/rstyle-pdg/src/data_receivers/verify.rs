@@ -25,15 +25,21 @@ pub fn verify(facts: &HirFnFacts) -> Result<Capture, String> {
         None => return Err("Missing Data method receiver inventory".into()),
     };
     check_inventory(&capture, &methods)?;
-    let source = crate::source_evidence::capture(facts)?;
+    let source = methods
+        .iter()
+        .any(|node| node.expansion.is_none())
+        .then(|| crate::source_evidence::capture(facts))
+        .transpose()?;
     for node in methods {
         let record = capture
             .methods
             .iter()
             .find(|record| record.call == node.hir)
             .ok_or("Missing exact method receiver record")?;
-        check_correspondence(record, node, &source)?;
-        check_types(record, node)?;
+        check_correspondence(record, node, source.as_ref())
+            .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
+        check_types(record, node)
+            .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
         check_adjustments(record)?;
     }
 
@@ -68,7 +74,7 @@ fn check_inventory(capture: &Capture, methods: &[&HirNode]) -> Result<(), String
 fn check_correspondence(
     record: &Method,
     node: &HirNode,
-    source: &crate::source_evidence::Correspondence,
+    source: Option<&crate::source_evidence::Correspondence>,
 ) -> Result<(), String> {
     let receiver = node
         .children
@@ -77,7 +83,17 @@ fn check_correspondence(
     if record.source_span != node.span || record.receiver != receiver.hir {
         return Err("Method receiver source/HIR identity or span disagrees".into());
     }
-    if node.expansion.is_none()
+
+    if node.expansion.is_some() {
+        return Ok(());
+    }
+    let source = source.ok_or("Missing original-source method inventory")?;
+    let macro_argument = source.entries.iter().any(|entry| {
+        entry.kind == "source_macro"
+            && entry.span.start <= node.span.start
+            && node.span.end <= entry.span.end
+    });
+    if !macro_argument
         && source
             .entries
             .iter()
@@ -143,7 +159,10 @@ fn check_value_type(observation: &Observation, node: &HirNode) -> Result<(), Str
         Observation::Unsupported { .. } => None,
     };
     if node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != expected.as_deref() {
-        return Err("Concrete method receiver/result disagrees with HIR value type".into());
+        return Err(format!(
+            "Concrete method receiver/result disagrees with HIR value type: observed {observation:?}, HIR {:?}",
+            node.ty
+        ));
     }
     Ok(())
 }

@@ -19,7 +19,7 @@ fn concrete_data_interface_vocabulary_is_exact_and_bounded() {
     for token in [
         r#"{"kind":"shared", "value":{"kind":"scalar","value":"i32"}}"#,
         r#"{"kind":"mutable","value":{"kind":"scalar","value":"i32"}}"#,
-        r#"{"kind":"array","value":{"element":{"kind":"scalar","value":"u8"},"length":4097}}"#,
+        r#"{"kind":"array","value":{"element":{"kind":"scalar","value":"u8"},"length":18446744073709551616}}"#,
         r#"{"kind":"scalar","value":"i32"}"#,
         "f32",
         "&i32",

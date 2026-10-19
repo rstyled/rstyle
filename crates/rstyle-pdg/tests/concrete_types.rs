@@ -89,9 +89,11 @@ fn concrete_type_budget_cannot_validate_a_truncated_tree() {
     assert!(validate(&tree).unwrap_err().contains("budget"));
     let array = TypeTree::Array {
         element: Box::new(TypeTree::Scalar("u8".into())),
-        length: MAX_ARRAY + 1,
+        length: u64::MAX,
     };
-    assert!(validate(&array).unwrap_err().contains("budget"));
+    validate(&array).unwrap();
+    let token = rstyle_pdg::data_types::token(&array).unwrap();
+    rstyle_pdg::data_types::parse(&token).unwrap();
     let tuple = TypeTree::Tuple(vec![TypeTree::Scalar("bool".into()); MAX_ENTRIES]);
     assert!(validate(&tuple).unwrap_err().contains("budget"));
 }

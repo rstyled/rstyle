@@ -84,10 +84,30 @@ impl<'tcx> Capture<'_, 'tcx> {
             signature_inputs: signature
                 .inputs()
                 .iter()
-                .map(|ty| self.observe(*ty))
+                .map(|ty| self.signature_type(*ty))
                 .collect::<Result<Vec<_>, _>>()?,
-            signature_result: self.observe(signature.output())?,
+            signature_result: self.signature_type(signature.output())?,
         })
+    }
+
+    fn signature_type(
+        &mut self,
+        ty: rustc_middle::ty::Ty<'tcx>,
+    ) -> Result<rstyle_pdg::concrete_types::Observation, String> {
+        let environment = rustc_middle::ty::TypingEnv::post_analysis(
+            self.ctx.tcx,
+            self.ctx.typeck.hir_owner.def_id,
+        );
+        match self
+            .ctx
+            .tcx
+            .try_normalize_erasing_regions(environment, rustc_middle::ty::Unnormalized::new_wip(ty))
+        {
+            Ok(ty) => self.observe(ty),
+            Err(_) => Ok(rstyle_pdg::concrete_types::Observation::Unsupported {
+                reason: "Method signature type cannot be normalized".into(),
+            }),
+        }
     }
 
     fn receiver_types(&mut self, receiver: &Expr<'tcx>) -> Result<ReceiverTypes, String> {
