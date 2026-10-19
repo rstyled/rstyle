@@ -370,7 +370,7 @@ pub(crate) fn byte_offset(source: &str, position: proc_macro2::LineColumn) -> us
 impl Inventory<'_> {
     fn find(&self, node: &HirNode, kind: &str, span: ByteSpan) -> Vec<HirRef> {
         let matches_kind = node.kind == kind
-            || (kind == "expr_call" && node.kind == "expr_struct")
+            || (matches!(kind, "expr_call" | "expr_path") && node.kind == "expr_struct")
             || (kind == "pat_name" && matches!(node.kind.as_str(), "pat_binding" | "pat_constant"));
         let own = (matches_kind && corresponding_span(&self.facts.source.bytes, span, node.span))
             .then(|| node.hir.clone());

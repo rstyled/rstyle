@@ -235,6 +235,7 @@ impl<'tcx> Context<'tcx> {
             ExprKind::Loop(_, None, hir::LoopSource::While, _) => "expr_while",
             ExprKind::Loop(_, None, hir::LoopSource::ForLoop, _) => "expr_for",
             ExprKind::Call(..) if self.tuple_constructor(expr) => "expr_struct",
+            ExprKind::Path(..) if self.unit_constructor(expr) => "expr_struct",
             _ => kind(&expr.kind),
         };
         let base = self.node(expr.hir_id, expr.span, tag);
@@ -274,6 +275,26 @@ impl<'tcx> Context<'tcx> {
         )
     }
 
+    fn unit_constructor(&self, expr: &Expr<'tcx>) -> bool {
+        let ExprKind::Path(ref path) = expr.kind else {
+            return false;
+        };
+        let constructor = matches!(
+            self.typeck.qpath_res(path, expr.hir_id),
+            Res::Def(
+                rustc_hir::def::DefKind::Ctor(
+                    rustc_hir::def::CtorOf::Struct,
+                    rustc_hir::def::CtorKind::Const
+                ),
+                _
+            ) | Res::SelfCtor(_)
+        );
+
+        constructor
+            && self.profile.supports("rust.unit-struct-values")
+            && matches!(self.typeck.expr_ty(expr).kind(), ty::Adt(..))
+    }
+
     fn expression_fields(&self, expr: &Expr<'tcx>, node: HirNode) -> HirNode {
         let children = self.children(expr);
         let res = match expr.kind {
@@ -281,25 +302,8 @@ impl<'tcx> Context<'tcx> {
             ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => {
                 self.field_resolution(expr, base)
             }
-            ExprKind::Path(ref path) => {
-                let res = self.typeck.qpath_res(path, expr.hir_id);
-                self.constant_resolution(res).or_else(|| {
-                    Some(PathRes {
-                        kind: if matches!(res, Res::Local(_)) {
-                            "local"
-                        } else {
-                            "other"
-                        }
-                        .into(),
-                        target: if let Res::Local(id) = res {
-                            Some(reference(id))
-                        } else {
-                            None
-                        },
-                        description: format!("{res:?}"),
-                    })
-                })
-            }
+            ExprKind::Path(_) if node.kind == "expr_struct" => None,
+            ExprKind::Path(ref path) => self.path_resolution(expr, path),
             ExprKind::MethodCall(..) => self.method_callee(expr),
             ExprKind::Break(destination, _) | ExprKind::Continue(destination) => Some(PathRes {
                 kind: if destination.label.is_none() {
@@ -324,6 +328,26 @@ impl<'tcx> Context<'tcx> {
             is_unsafe_block,
             ..node
         }
+    }
+
+    fn path_resolution(&self, expr: &Expr<'tcx>, path: &hir::QPath<'tcx>) -> Option<PathRes> {
+        let res = self.typeck.qpath_res(path, expr.hir_id);
+        self.constant_resolution(res).or_else(|| {
+            Some(PathRes {
+                kind: if matches!(res, Res::Local(_)) {
+                    "local"
+                } else {
+                    "other"
+                }
+                .into(),
+                target: if let Res::Local(id) = res {
+                    Some(reference(id))
+                } else {
+                    None
+                },
+                description: format!("{res:?}"),
+            })
+        })
     }
 
     fn field_resolution(&self, expr: &Expr<'tcx>, base: &Expr<'tcx>) -> Option<PathRes> {

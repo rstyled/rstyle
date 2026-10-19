@@ -15,33 +15,18 @@ pub(crate) fn slots(
         .get(node.span.start as usize..node.span.end as usize)
         .ok_or("Missing original struct construction source")?;
     let expression: syn::Expr = syn::parse_str(source).map_err(|error| error.to_string())?;
-    if let syn::Expr::Call(call) = crate::data_aggregates::ungroup(&expression) {
-        return ComponentContext {
-            node,
-            source,
-            facts,
-        }
-        .tuple(call);
-    }
-    let syn::Expr::Struct(syntax) = crate::data_aggregates::ungroup(&expression) else {
-        return Err("Expected original named struct constructor".into());
-    };
-    if syntax.qself.is_some() {
-        return Err("Qualified struct construction remains unavailable".into());
-    }
-
-    let token = crate::data_types::parse(crate::data_aggregates::token(node)?)?;
-    let TypeToken::Struct { fields, .. } = &token else {
-        return Err("Constructor lacks nominal struct type".into());
-    };
-    verify_path(&syntax.path, &token, facts)?;
     let context = ComponentContext {
         node,
         source,
         facts,
     };
 
-    context.slots(syntax, fields, &token)
+    match crate::data_aggregates::ungroup(&expression) {
+        syn::Expr::Call(call) => context.tuple(call),
+        syn::Expr::Path(path) => context.unit(path),
+        syn::Expr::Struct(syntax) => context.named(syntax),
+        _ => Err("Expected original struct constructor".into()),
+    }
 }
 
 fn verify_path(
@@ -69,6 +54,42 @@ struct ComponentContext<'a> {
 }
 
 impl ComponentContext<'_> {
+    fn named(&self, syntax: &syn::ExprStruct) -> Result<Vec<Option<usize>>, String> {
+        if syntax.qself.is_some() {
+            return Err("Qualified struct construction remains unavailable".into());
+        }
+        let token = crate::data_types::parse(crate::data_aggregates::token(self.node)?)?;
+        let TypeToken::Struct { fields, .. } = &token else {
+            return Err("Constructor lacks nominal struct type".into());
+        };
+        verify_path(&syntax.path, &token, self.facts)?;
+
+        self.slots(syntax, fields, &token)
+    }
+
+    fn unit(&self, path: &syn::ExprPath) -> Result<Vec<Option<usize>>, String> {
+        if !crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?
+            .supports("rust.unit-struct-values")
+        {
+            return Err("Unit struct construction requires its registered capability".into());
+        }
+        if path.qself.is_some() || !self.node.children.is_empty() {
+            return Err("Unit struct requires an unqualified nominal path and no operands".into());
+        }
+        let token = crate::data_types::parse(crate::data_aggregates::token(self.node)?)?;
+        let tree = verify_path(&path.path, &token, self.facts)?;
+        let crate::concrete_types::TypeTree::Struct { source, fields, .. } = tree else {
+            return Err("Unit constructor lacks an exact struct declaration".into());
+        };
+        let declaration: syn::ItemStruct =
+            syn::parse_str(&source).map_err(|error| error.to_string())?;
+
+        if !matches!(declaration.fields, syn::Fields::Unit) || !fields.is_empty() {
+            return Err("Unit constructor disagrees with original declaration kind".into());
+        }
+        Ok(Vec::new())
+    }
+
     fn tuple(&self, call: &syn::ExprCall) -> Result<Vec<Option<usize>>, String> {
         if !crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?
             .supports("rust.tuple-struct-values")

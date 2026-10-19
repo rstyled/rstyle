@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.16.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.17.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.16.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.17.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -8420,4 +8420,105 @@ fn tuple_struct_workspace() -> TempDir {
     )
     .unwrap();
     directory
+}
+
+#[test]
+fn clones_data_unit_struct_paths_preserve_nominal_constructor_identity() {
+    let directory = unit_struct_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "local" | "constant" | "named_constant"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_unit_struct_corruption(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn unit_struct_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/model.rs"),
+        r#"
+        pub struct Unit;
+        impl Unit { pub fn new() -> Self { Self } }
+        pub struct Wrap { pub tag: Unit, pub value: i32 }
+        pub struct Named {}
+        pub const UNIT: Unit = Unit;
+        #[allow(non_upper_case_globals)] pub const Named: Named = Named {};
+    "#,
+    )
+    .unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        mod model;
+        use model::Unit as Alias;
+        pub fn first() -> Alias { Alias }
+        pub fn other() -> Alias { Alias }
+        pub fn grouped() -> Alias { (Alias) }
+        pub fn nested(x: i32) -> model::Wrap { model::Wrap { tag: Alias, value: x } }
+        pub fn repeat() -> [Alias; 0] { [Alias; 0] }
+        pub fn conditional(pick: bool) -> Alias { if pick { Alias } else { Alias } }
+        pub fn effects(mut x: i32) -> model::Wrap { model::Wrap { tag: { x = 7; Alias }, value: x } }
+        pub fn local() -> Alias { let value = Alias; value }
+        pub fn constant() -> Alias { model::UNIT }
+        pub fn named_constant() -> model::Named { model::Named }
+    "#).unwrap();
+    directory
+}
+
+fn check_unit_struct_corruption(report: &Value) {
+    let functions = report["functions"].as_array().unwrap();
+    let first = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(first["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        constructor
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("[]")
+    );
+    constructor.attributes.literal = Some(rstyle_pdg::StringFact::known("[0]"));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let named = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "named_constant")
+        .unwrap();
+    let mut changed: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(named["facts"].clone()).unwrap();
+    assert_eq!(changed.body.children[0].kind, "expr_path");
+    changed.body.children[0].kind = "expr_struct".into();
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
 }

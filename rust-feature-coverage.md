@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.16.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.17.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -106,7 +106,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D08 | Stored shared-reference fields | Covered | `s.bytes`, where the field is `&[u8]` | Distinguishes loading a reference from borrowing its storage and reading its referent. |
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; construction, non-scalar local reads, and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
-| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.16.0 supports ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple structs and same-typed struct updates; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md) and [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md). Unit-struct paths, broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
+| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.17.0 supports ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Broader const counts, reference-bearing construction and general local component/origin propagation remain unfinished. |
 | D12 | General non-scalar local values/reference rebindings | Missing | `let r = s.bytes; r.len()`, `let t = s; t.value` | Current data-path verifier rejects non-scalar local binding reads; formal origins and directly composed expressions do not provide general local correspondence. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
@@ -887,4 +887,36 @@ Frozen run `target/hir-coverage/run-_j2xrpg0/` completes all three packages with
 or failures. All 60 frozen identities/outcomes and all denominators match 3.15.0
 (`run-c7dkk68a`). Twenty-six admitted graph documents pass schema checks (10 lz4,
 0 regex, 16 time). Tuple construction adds no measured frozen admission gain;
+these checks do not establish general performance or detector quality.
+
+
+### D11 unit struct paths through exact declaration kind
+
+Data-v3 extraction 3.17.0 adds `rust.unit-struct-values`; matching remains
+`rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/unit-struct-values-v1.md) normalizes resolved
+unit constructor paths to existing aggregate operations. Exact source path/type
+resolution and already-retained declaration source prove unit declaration kind and
+zero runtime children. Existing operation attributes carry the empty slot vector;
+no new frontend records, witnesses, provenance or retained caches are added.
+Aliases, `Self`, grouping, nested aggregates, zero-length repeats and conditional
+values compose. Ordinary local/constant paths retain their existing boundary.
+
+Every admitted fixture pair passes independent document verification and strict
+producer reconstruction; equivalent functions reach evaluated accepted matching
+with score 1. Inventing a serialized slot or relabeling a constant of an empty named
+struct type as a unit constructor fails verification. Legacy selections retain
+their exclusions. D11 stays Partial for reference-bearing construction and broader
+repeat counts; D12–D13 and the full roadmap remain active.
+
+Validation: 750 workspace tests pass with 5 existing ignores. Clippy across all
+targets passes with warnings denied; formatting passes. Repository-built rstyle
+reports 2,262 functions and 0 violations; patterns reports 0 candidates with the
+same 15 existing ignores. All 14 inventory bookkeeping tests pass.
+
+Frozen run `target/hir-coverage/run-hmdcg04l/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60, with no unknowns
+or failures. All 60 frozen identities/outcomes and all denominators match 3.16.0
+(`run-_j2xrpg0`). Twenty-six admitted graph documents pass schema checks (10 lz4,
+0 regex, 16 time). Unit construction adds no measured frozen admission gain;
 these checks do not establish general performance or detector quality.
