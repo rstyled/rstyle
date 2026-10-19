@@ -134,10 +134,22 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
     }
 
     fn visit_pat(&mut self, pattern: &'ast syn::Pat) {
-        match pattern {
-            syn::Pat::Lit(_) => self.add("pat_literal", pattern.span()),
-            syn::Pat::Wild(_) => self.add("pat_wild", pattern.span()),
-            _ => {}
+        let kind = match pattern {
+            syn::Pat::Lit(_) => Some("pat_literal"),
+            syn::Pat::Wild(_) => Some("pat_wild"),
+            syn::Pat::Or(pattern) if scalar_alternatives(pattern) => Some("pat_or"),
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            self.add(kind, pattern.span());
+        }
+
+        if let syn::Pat::Or(pattern) = pattern
+            && scalar_alternatives(pattern)
+        {
+            for case in &pattern.cases {
+                self.visit_pat(case);
+            }
         }
     }
 
@@ -217,6 +229,12 @@ fn corresponding_span(source: &str, syntax: ByteSpan, hir: ByteSpan) -> bool {
         && after.chars().all(|ch| ch == ')' || ch.is_whitespace())
         && before.chars().filter(|ch| *ch == '(').count()
             == after.chars().filter(|ch| *ch == ')').count()
+}
+
+fn scalar_alternatives(pattern: &syn::PatOr) -> bool {
+    pattern.cases.iter().all(|case| {
+        matches!(case, syn::Pat::Lit(literal) if matches!(literal.lit, syn::Lit::Int(_) | syn::Lit::Bool(_)))
+    })
 }
 
 fn expression_kind(expression: &syn::Expr) -> Option<&'static str> {

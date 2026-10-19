@@ -101,6 +101,7 @@ impl<'tcx> Context<'tcx> {
             }
             PatKind::Binding(..) => ("pat_binding_pattern", pat.span),
             PatKind::Wild => ("pat_wild", pat.span),
+            PatKind::Or(_) if self.scalar_or_pattern(pat) => ("pat_or", pat.span),
             PatKind::Expr(expression)
                 if matches!(expression.kind, hir::PatExprKind::Lit { .. }) =>
             {
@@ -122,8 +123,23 @@ impl<'tcx> Context<'tcx> {
             binding,
             binding_mut,
             lit: (kind == "pat_literal").then(|| self.snippet(pat.span)),
+            children: match pat.kind {
+                PatKind::Or(patterns) if kind == "pat_or" => patterns
+                    .iter()
+                    .map(|pattern| self.pattern(pattern))
+                    .collect(),
+                _ => Vec::new(),
+            },
             ..node
         }
+    }
+
+    fn scalar_or_pattern(&self, pattern: &hir::Pat<'tcx>) -> bool {
+        self.profile.supports("rust.scalar-or-patterns")
+            && self
+                .typeck
+                .node_type_opt(pattern.hir_id)
+                .is_some_and(|ty| matches!(ty.kind(), ty::Int(_) | ty::Uint(_) | ty::Bool))
     }
 
     pub fn expression(&self, expr: &Expr<'tcx>) -> HirNode {

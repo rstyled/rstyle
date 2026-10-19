@@ -117,7 +117,12 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_pat(&mut self, pattern: &'a ast::Pat) {
-        if self.match_pattern && source_match_pattern(&pattern.kind) {
+        if self.match_pattern
+            && source_match_pattern(
+                &pattern.kind,
+                self.profile.supports("rust.scalar-or-patterns"),
+            )
+        {
             return;
         }
         if !matches!(
@@ -233,9 +238,12 @@ pub fn scan(
     scan.functions
 }
 
-fn source_match_pattern(kind: &ast::PatKind) -> bool {
+fn source_match_pattern(kind: &ast::PatKind, alternatives: bool) -> bool {
     match kind {
         ast::PatKind::Wild => true,
+        ast::PatKind::Or(patterns) if alternatives => patterns
+            .iter()
+            .all(|pattern| source_match_pattern(&pattern.kind, false)),
         ast::PatKind::Expr(expression) => match &expression.kind {
             ast::ExprKind::Lit(literal) => supported_literal(literal),
             ast::ExprKind::Unary(ast::UnOp::Neg, value) => {

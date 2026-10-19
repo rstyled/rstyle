@@ -659,12 +659,12 @@ impl Builder<'_> {
         let operation = self.match_selector(input);
         let selected = self.emit(operation, remaining);
         let controller = controller.or_else(|| selected.value.clone());
-        let remaining = if pattern.kind == "pat_literal" {
+        let remaining = if pattern.kind != "pat_wild" {
             arm(&selected, "false")
         } else {
             empty_flow()
         };
-        let matched = if pattern.kind == "pat_literal" {
+        let matched = if pattern.kind != "pat_wild" {
             arm(&selected, "true")
         } else {
             selected
@@ -732,15 +732,28 @@ impl Builder<'_> {
             role: format!("match_pattern:{index}"),
             ty: "bool".into(),
             construct: Some(
-                if pattern.kind == "pat_literal" {
-                    "match.literal"
-                } else {
-                    "match.wildcard"
+                match pattern.kind.as_str() {
+                    "pat_literal" => "match.literal",
+                    "pat_or" => "match.or",
+                    _ => "match.wildcard",
                 }
                 .into(),
             ),
-            literal: pattern.lit.clone(),
-            operands: if pattern.kind == "pat_literal" {
+            literal: if pattern.kind == "pat_or" {
+                Some(
+                    serde_json::to_string(
+                        &pattern
+                            .children
+                            .iter()
+                            .map(|child| &child.lit)
+                            .collect::<Vec<_>>(),
+                    )
+                    .expect("literal alternatives"),
+                )
+            } else {
+                pattern.lit.clone()
+            },
+            operands: if pattern.kind != "pat_wild" {
                 vec![(*saved).into()]
             } else {
                 Vec::new()

@@ -37,3 +37,16 @@ execution, including array-budget, receiver/source, and declaration-range errors
 Reproduce with `uv run eval/hir-coverage/reproduce.py`; use `--profiles hir-data-v3`
 for a focused assessment. Future feature changes must rerun this selection and
 record gains from measured admissions, rather than source-only predictions.
+
+## Scalar OR-pattern increment, extraction 3.1.0
+
+Full fresh run `target/hir-coverage/run-wjnhsac7/`, based on `66bf87c` plus the
+OR-pattern implementation, reproduces R0 0/53/7 and expanded 5/48/7
+(admitted/excluded/unknown). Data-v3 measures **9 admitted, 44 excluded, 7 unknown**
+out of the same 60 contexts; 53 are assessed, none failed, none proven inactive.
+Twenty admitted CFG/PDG documents pass the unchanged schema checks.
+`time-core::weeks_in_year` is newly admitted relative to extraction 3.0.0, and
+no selected admission is lost. Other earlier admissions remain the same.
+The complete generated assessment and summary retain exclusion combinations and
+unknowns. This is feature/coverage evidence, not completed detector pair evaluation
+or calibrated quality evidence. The contract remains bounded normal flow.

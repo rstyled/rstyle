@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.0.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.1.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records inventory work without changing extraction semantics.
 
@@ -77,7 +77,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F03 | Short-circuit boolean evaluation | Covered | `a && b`, `a \|\| b` | Saved left values and conditional right evaluation; restricted in loop-containing functions. |
 | F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee, 1–16 arms, literal arms including negative integer literals, final unguarded wildcard; not general exhaustive pattern matching. |
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
-| F06 | OR/range/constant patterns | Missing | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Pattern alternatives and resolved constant evidence, without losing order/guard semantics. Negative integer literal patterns already work under F04. |
+| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.1.0 supports flat integer/bool literal OR alternatives, including negatives and guards; see [contract](docs/extraction-profiles/scalar-or-patterns-v1.md). Ranges and resolved constants remain missing. |
 | F07 | Destructuring, reference, slice, and enum patterns | Missing | `Some(x) => x`, `[a, ..] => a` | Payload/field/element dependencies, binding modes, and ownership/borrow effects. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
@@ -237,7 +237,7 @@ look complete while real functions still cannot be processed reliably.
 | X06 | Interprocedural dependencies and invalidation | Partial | Editing a getter invalidates its callers | Supported same-unit acyclic dependencies work; cross-unit linking, recursion and broader effects remain missing. |
 | X07 | Resource bounds and explicit incomplete execution | Covered | Evidence or pair-budget exhaustion is not success | Checked budgets, no silently truncated successful result; broader stress/resource coverage and practical scalability remain ongoing obligations. |
 | X08 | Pair projection and exhaustive pair decisions | Covered | 21 admitted functions yield 210 unordered decisions | Existing gates/compatibility can reject a pair. Graph admission is not a positive clone finding; budgets can leave execution explicitly incomplete. |
-| X09 | Current natural-crate coverage inventory | Covered | Rerun frozen samples with Data-v3 | Frozen Data-v3 inventory: 8 admitted, 45 excluded, 7 unknown out of 60; see [refresh report](eval/hir-coverage/REPORT-data-v3.md). |
+| X09 | Current natural-crate coverage inventory | Covered | Rerun frozen samples with Data-v3 | Frozen Data-v3 3.1 inventory: 9 admitted, 44 excluded, 7 unknown out of 60; see [refresh report](eval/hir-coverage/REPORT-data-v3.md). |
 | X10 | Independent broader applicability targets | Missing | Freeze in-scope tiers and expected admissions before running | Broader data draft calls for a source-only inventory and declared acceptance targets; no completion claim follows from constructed fixtures. |
 | X11 | Held-out detection quality/calibration | Missing | Untouched project/family holdouts after expansion | Historical studies are not post-Data-v3 quality evidence. Keep separate from feature correctness and coverage. |
 | X12 | General equivalence, purity or rewrite safety | Missing | “These functions can safely be replaced by one abstraction” | Not promised by graph extraction or a clone score; requires a separate contract and analysis, not just more syntax coverage. |
@@ -375,3 +375,21 @@ reasons, source blocker combinations and unknowns. Relative to expanded's five
 admissions, `time-core::{likely, unlikely, days_in_year}` are newly admitted.
 See [the refresh report](eval/hir-coverage/REPORT-data-v3.md). X09 is Covered;
 X10/X11 remain separate, uncompleted coverage-target/quality work.
+
+### F06 literal OR-pattern slice
+
+Data-v3 now selects extraction 3.1.0 and `rust.scalar-or-patterns`. Flat integer
+and boolean literal alternatives (including negative integers) compose with
+ordered pure guards, saved scrutinees, branch joins and the existing final
+wildcard. A compact `match.or` selector retains the ordered literals without
+copying the arm or re-evaluating its guard. No provenance fields were added.
+Unsupported character/payload patterns are not expanded into unnecessary capture
+detail. Ranges and named constants remain missing; F06 is Partial.
+
+Fresh full inventory `target/hir-coverage/run-wjnhsac7/` measures **9 admitted,
+44 excluded, 7 unknown out of 60**, with R0/expanded unchanged. The gain over the
+3.0 baseline is `time-core::weeks_in_year`; there are no lost selected admissions.
+The Cargo fixture checks integer/bool alternatives, guard evaluation once,
+unsupported alternatives, legacy exclusion, strict selector verification and
+stable fresh/warm pair results. The workspace suite passes 714 tests across
+27 suites (5 existing ignored tests). See the [contract](docs/extraction-profiles/scalar-or-patterns-v1.md).

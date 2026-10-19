@@ -1051,9 +1051,7 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
     };
     let guarded = children.len() == 2 && children[0].kind == "match_guard";
     let shape = arm.kind == "match_arm" && (children.len() == 1 || guarded);
-    let pattern_valid = (pattern.kind == "pat_literal"
-        && pattern.lit.is_some()
-        && node_norm(pattern) == node_norm(scrutinee))
+    let pattern_valid = scalar_match_pattern(pattern, scrutinee, ctx)
         || (pattern.kind == "pat_wild"
             && (last || (guarded && ctx.profile.supports("rust.scalar-match-guards"))));
     let valid =
@@ -1065,7 +1063,7 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
             "rust.scalar-match",
             "arm_shape",
             arm,
-            "Only literal arms and a final unguarded wildcard are supported; guards and other patterns require another registered slice.",
+            "Only registered scalar literal/OR arms and a final unguarded wildcard are supported.",
         )
     };
     let body = Outcome::combine(
@@ -1082,6 +1080,22 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
     );
 
     own.merge(body)
+}
+
+fn scalar_match_pattern(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) -> bool {
+    let literal = |pattern: &HirNode| {
+        pattern.kind == "pat_literal"
+            && pattern.lit.is_some()
+            && pattern.children.is_empty()
+            && node_norm(pattern) == node_norm(scrutinee)
+    };
+
+    literal(pattern)
+        || (ctx.profile.supports("rust.scalar-or-patterns")
+            && pattern.kind == "pat_or"
+            && pattern.children.len() >= 2
+            && node_norm(pattern) == node_norm(scrutinee)
+            && pattern.children.iter().all(literal))
 }
 
 fn check_match_guard(wrapper: &HirNode, ctx: &Ctx<'_>) -> Outcome {

@@ -2066,6 +2066,85 @@ fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaul
 }
 
 #[test]
+fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_boundaries() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["extraction_policy"]["version"], "3.1.0");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        3,
+        "{report}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
+        functions
+            .iter()
+            .find(|function| function["facts"]["name"] == "choose")
+            .unwrap()["facts"]
+            .clone(),
+    )
+    .unwrap();
+    check_or_pattern_graph(&facts);
+    let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{warm}");
+    assert_eq!(report["matching"], warm["matching"]);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded")
+    );
+}
+
+fn check_or_pattern_graph(facts: &rstyle_pdg::HirFnFacts) {
+    let mut pair = rstyle_pdg::producer::produce(facts).unwrap();
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("match.guard"))
+            .count(),
+        1
+    );
+    let selectors: Vec<_> = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.attributes.construct.as_deref() == Some("match.or"))
+        .collect();
+    assert_eq!(selectors.len(), 2);
+    assert_eq!(
+        selectors[0]
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value()
+            .unwrap(),
+        "[\"-1\",\"2\",\"3\"]"
+    );
+    let selector = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("match.or"))
+        .unwrap();
+    selector.attributes.literal = Some(rstyle_pdg::StringFact::known("[\"4\"]"));
+    assert!(rstyle_pdg::producer::verify(&pair, facts).is_err());
+}
+
+#[test]
 fn clones_scalar_match_is_versioned_and_evaluates_every_admitted_pair() {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\npub fn g(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\npub fn h(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\n").unwrap();
@@ -5547,7 +5626,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.0.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.1.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"

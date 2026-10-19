@@ -324,7 +324,9 @@ not completion of that work or a natural-coverage/quality result. Existing R0,
 expanded, helper, style and patterns selections retain their semantics.
 
 `--extraction-profile hir-data-v3` separately selects
-`rstyle.rust.hir-data/3.0.0` with the existing data-calls matching profile.
+`rstyle.rust.hir-data/3.1.0` with the existing data-calls matching profile.
+Version 3.1.0 adds [scalar literal OR patterns](extraction-profiles/scalar-or-patterns-v1.md)
+to the inherent-call selection without adding provenance fields.
 It adds verified same-unit concrete inherent methods with shared receivers,
 including method syntax and UFCS. Exact original declarations, containing impls,
 receiver adjustments and transitive callee documents must agree. The connected
