@@ -84,6 +84,6 @@ proof of cfg inactivity. Multiple contexts retain separate outcomes; missing or
 duplicate identity evidence fails closed.
 
 The 2026-10-19 refresh adds Data-v3 and current sealed unit-bundle verification.
-R0/expanded reproduce the v2 counts; Data-v3 currently stops on the `lz4_flex`
-concrete-array evidence budget. This incomplete attempt establishes no Data-v3
-admission count. See the [continuation log](../../rust-feature-coverage.md).
+After capture repairs, Data-v3 completes with 8 admitted, 45 excluded and
+7 unknown out of the unchanged 60 selected contexts. See the
+[refresh report](REPORT-data-v3.md) and [continuation log](../../rust-feature-coverage.md).

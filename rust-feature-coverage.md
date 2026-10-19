@@ -237,7 +237,7 @@ look complete while real functions still cannot be processed reliably.
 | X06 | Interprocedural dependencies and invalidation | Partial | Editing a getter invalidates its callers | Supported same-unit acyclic dependencies work; cross-unit linking, recursion and broader effects remain missing. |
 | X07 | Resource bounds and explicit incomplete execution | Covered | Evidence or pair-budget exhaustion is not success | Checked budgets, no silently truncated successful result; broader stress/resource coverage and practical scalability remain ongoing obligations. |
 | X08 | Pair projection and exhaustive pair decisions | Covered | 21 admitted functions yield 210 unordered decisions | Existing gates/compatibility can reject a pair. Graph admission is not a positive clone finding; budgets can leave execution explicitly incomplete. |
-| X09 | Current natural-crate coverage inventory | Missing | Rerun frozen samples with Data-v3 | Latest checked-in natural inventory measures only R0/expanded. Data fixtures do not establish current natural coverage or per-feature admission gains. |
+| X09 | Current natural-crate coverage inventory | Covered | Rerun frozen samples with Data-v3 | Frozen Data-v3 inventory: 8 admitted, 45 excluded, 7 unknown out of 60; see [refresh report](eval/hir-coverage/REPORT-data-v3.md). |
 | X10 | Independent broader applicability targets | Missing | Freeze in-scope tiers and expected admissions before running | Broader data draft calls for a source-only inventory and declared acceptance targets; no completion claim follows from constructed fixtures. |
 | X11 | Held-out detection quality/calibration | Missing | Untouched project/family holdouts after expansion | Historical studies are not post-Data-v3 quality evidence. Keep separate from feature correctness and coverage. |
 | X12 | General equivalence, purity or rewrite safety | Missing | “These functions can safely be replaced by one abstraction” | Not promised by graph extraction or a clone score; requires a separate contract and analysis, not just more syntax coverage. |
@@ -364,3 +364,14 @@ method exclusion. Style checks report zero violations and zero remaining pattern
 candidates with the existing ignores unchanged. The natural rerun now captures
 `lz4_flex` under Data-v3; the full inventory result is recorded separately below
 when all packages finish. No new syntax row is claimed covered by these repairs.
+
+### X09 completed baseline
+
+Fresh Data-v3 reproduction `target/hir-coverage/run-25mgywk_/` completes all three
+packages: **60 selected contexts, 53 assessed, 8 admitted, 45 excluded, 7 unknown,
+0 failed, 0 proven inactive**. Eighteen CFG/PDG documents pass verification.
+The full generated assessment retains every selected function, all reported
+reasons, source blocker combinations and unknowns. Relative to expanded's five
+admissions, `time-core::{likely, unlikely, days_in_year}` are newly admitted.
+See [the refresh report](eval/hir-coverage/REPORT-data-v3.md). X09 is Covered;
+X10/X11 remain separate, uncompleted coverage-target/quality work.
