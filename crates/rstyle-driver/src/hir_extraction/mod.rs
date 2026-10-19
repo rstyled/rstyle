@@ -8,6 +8,7 @@ mod inherent;
 mod library_resolution;
 mod nominal_census;
 pub mod output;
+mod scalar_constants;
 pub mod source;
 mod sources;
 

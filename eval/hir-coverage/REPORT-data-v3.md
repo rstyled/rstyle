@@ -78,3 +78,21 @@ denied passes. Repository-built rstyle reports 0 violations across 2,143
 functions; patterns reports 0 remaining candidates with existing ignores unchanged.
 The range representation remains compact regardless of interval cardinality;
 no additional provenance fields or caches were introduced.
+
+## Resolved scalar constant increment, extraction 3.3.0
+
+Focused fresh run `target/hir-coverage/run-qobq35og/`, started at `f393971` with
+the scalar constant implementation in the working tree, completes all three
+packages. Data-v3 retains **9 admitted, 44 excluded, 7 unknown out of 60**,
+with 53 assessed, 0 failed and 0 proven inactive. All 60 selected source
+identities and outcomes match the 3.2.0 inventory. This increment adds no measured
+admission in the frozen selection. Twenty-two admitted CFG/PDG documents pass
+the unchanged schema checks; that document count includes functions outside the
+frozen selection and does not change its denominator. The full assessment retains
+exclusions, blocker combinations and unknowns; pair evaluation remains incomplete.
+
+The workspace suite passes 720 tests (5 existing ignored tests); Clippy with
+warnings denied passes. Repository-built rstyle reports 0 violations across
+2,155 functions and patterns reports 0 remaining candidates with all 15 existing
+ignores unchanged. Constants reuse the existing resolution record and rustc's
+cached evaluator. No formal performance benchmark or detector-quality claim is made.

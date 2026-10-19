@@ -277,6 +277,22 @@ fn verify_path(
     facts: &dyn crate::unit_store::EvidenceFacts,
     token: &str,
 ) -> Result<(), String> {
+    if node
+        .res
+        .as_ref()
+        .is_some_and(|resolution| resolution.kind == crate::scalar_constants::RESOLUTION)
+    {
+        if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.resolved-scalar-constants")
+        {
+            return Err("Resolved scalar constants require their registered capability".into());
+        }
+        return crate::scalar_constants::ScalarConstant::verify(
+            node,
+            facts.build.pointer_width.value,
+        )
+        .map(|_| ());
+    }
     let target = node
         .res
         .as_ref()

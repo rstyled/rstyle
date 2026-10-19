@@ -287,9 +287,10 @@ fn assemble_function(
 fn imported_matching_profile(pdg: &PdgDocument) -> crate::graph::MatchingProfile {
     use crate::graph::MatchingProfile;
     match (pdg.profile.id.as_str(), pdg.profile.version.as_str()) {
-        (rstyle_pdg::extraction_profile::DATA_ID, "2.0.0" | "3.0.0" | "3.1.0" | "3.2.0") => {
-            MatchingProfile::DataCallsV1
-        }
+        (
+            rstyle_pdg::extraction_profile::DATA_ID,
+            "2.0.0" | "3.0.0" | "3.1.0" | "3.2.0" | "3.3.0",
+        ) => MatchingProfile::DataCallsV1,
         (rstyle_pdg::extraction_profile::DATA_ID, _) => MatchingProfile::DataV1,
         _ => MatchingProfile::ScalarV1,
     }

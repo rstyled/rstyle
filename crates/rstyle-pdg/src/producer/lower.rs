@@ -231,6 +231,20 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
+    fn constant(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let constant = crate::scalar_constants::ScalarConstant::decode(
+            node.res.as_ref().expect("constant resolution"),
+        )
+        .expect("verified scalar constant");
+        let operation = Operation {
+            literal: Some(constant.value),
+            construct: Some("constant.value".into()),
+            ..template(node, NodeCategory::Computation)
+        };
+
+        self.emit(operation, flow)
+    }
+
     fn read(&mut self, node: &HirNode, flow: Flow) -> Flow {
         self.emit(self.read_operation(node), flow)
     }
@@ -876,6 +890,14 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_block" => Builder::block,
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,
+        "expr_path"
+            if node
+                .res
+                .as_ref()
+                .is_some_and(|res| res.kind == crate::scalar_constants::RESOLUTION) =>
+        {
+            Builder::constant
+        }
         "expr_path" => Builder::read,
         "expr_field" => Builder::field_read,
         "expr_addr_of" => Builder::borrow,

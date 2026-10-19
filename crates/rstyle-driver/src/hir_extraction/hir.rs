@@ -217,19 +217,21 @@ impl<'tcx> Context<'tcx> {
             }
             ExprKind::Path(ref path) => {
                 let res = self.typeck.qpath_res(path, expr.hir_id);
-                Some(PathRes {
-                    kind: if matches!(res, Res::Local(_)) {
-                        "local"
-                    } else {
-                        "other"
-                    }
-                    .to_string(),
-                    target: if let Res::Local(id) = res {
-                        Some(reference(id))
-                    } else {
-                        None
-                    },
-                    description: format!("{res:?}"),
+                self.constant_resolution(res).or_else(|| {
+                    Some(PathRes {
+                        kind: if matches!(res, Res::Local(_)) {
+                            "local"
+                        } else {
+                            "other"
+                        }
+                        .into(),
+                        target: if let Res::Local(id) = res {
+                            Some(reference(id))
+                        } else {
+                            None
+                        },
+                        description: format!("{res:?}"),
+                    })
                 })
             }
             ExprKind::MethodCall(..) => self.method_callee(expr),

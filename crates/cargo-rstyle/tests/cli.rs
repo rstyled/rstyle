@@ -2066,6 +2066,97 @@ fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaul
 }
 
 #[test]
+fn clones_data_resolves_scalar_constants_and_updates_callers_after_edits() {
+    let directory = clone_workspace();
+    let source = "mod config { pub const DELTA: i32 = -3; }\nuse config::DELTA as CHANGE;\nstruct Limits; impl Limits { const MASK: u32 = (1 << 4) - 1; }\nconst LOW: i128 = i128::MIN; const TOP: u128 = u128::MAX; const EMPTY: () = (); const FLAG: bool = true;\npub fn above(x: i32) -> bool { x > CHANGE }\npub fn mask(x: u32) -> u32 { x & Limits::MASK }\npub fn low() -> i128 { LOW }\npub fn top() -> u128 { TOP }\npub fn unit() { EMPTY }\npub fn flag(b: bool) -> bool { b && FLAG }\npub fn wrapper(x: i32) -> bool { above(x) }\nstatic GLOBAL: u32 = 1; pub fn global() -> u32 { GLOBAL }\nstruct Generic<T>(T); impl<T> Generic<T> { const VALUE: u32 = 1; } pub fn generic() -> u32 { Generic::<u8>::VALUE }\n";
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        7,
+        "{:?}",
+        functions
+            .iter()
+            .map(|function| (&function["facts"]["name"], &function["reasons"]))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 21);
+    check_constant_graphs(functions, "-3");
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        source.replace("DELTA: i32 = -3", "DELTA: i32 = -4"),
+    )
+    .unwrap();
+    let (output, edited) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{edited}");
+    let actual = edited["functions"].as_array().unwrap();
+    assert_eq!(
+        function_named(functions, "wrapper")["facts"]["body"],
+        function_named(actual, "wrapper")["facts"]["body"]
+    );
+    assert_ne!(
+        function_named(functions, "above")["facts"]["body"],
+        function_named(actual, "above")["facts"]["body"]
+    );
+    check_constant_graphs(actual, "-4");
+    assert_eq!(function_named(actual, "wrapper")["outcome"], "admitted");
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] != "admitted")
+    );
+}
+
+fn function_named<'a>(functions: &'a [Value], name: &str) -> &'a Value {
+    functions
+        .iter()
+        .find(|function| function["facts"]["name"] == name)
+        .unwrap()
+}
+
+fn check_constant_graphs(functions: &[Value], threshold: &str) {
+    for (name, expected) in [
+        ("above", threshold),
+        ("mask", "15"),
+        ("low", "-170141183460469231731687303715884105728"),
+        ("top", "340282366920938463463374607431768211455"),
+        ("unit", "()"),
+        ("flag", "true"),
+    ] {
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function_named(functions, name)["facts"].clone()).unwrap();
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        let constants: Vec<_> = pair
+            .pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("constant.value"))
+            .collect();
+        assert_eq!(constants.len(), 1, "{name}");
+        assert_eq!(
+            constants[0]
+                .attributes
+                .literal
+                .as_ref()
+                .unwrap()
+                .known_value()
+                .unwrap(),
+            expected
+        );
+        assert_eq!(constants[0].category, rstyle_pdg::NodeCategory::Computation);
+    }
+}
+
+#[test]
 fn clones_data_integer_ranges_compose_with_alternatives_guards_and_open_bounds() {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"),
@@ -2188,7 +2279,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.2.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.3.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -5742,7 +5833,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.2.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.3.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"

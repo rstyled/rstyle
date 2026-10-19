@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.2.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.3.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records inventory work without changing extraction semantics.
 
@@ -57,7 +57,7 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | V09 | Floats and floating-point operations | Missing | `x: f64`, `x / 2.0` | Type, literal, operation, and comparison semantics; NaNs, signed zero, and casts must not be treated as integer semantics. |
 | V10 | Character values and operations | Missing | `c: char`, `'a'` | Unicode scalar types/literals and relevant calls/conversions. |
 | V11 | Additional built-in casts/coercions | Missing | `flag as u8`, `x as f32` | Bool/char/float conversions are outside the current integer-cast boundary; pointer casts belong to unsafe work. |
-| V12 | Named constants and associated constants | Missing | `x + LIMIT`, `S::LIMIT` | Definition/source/type/value evidence and use dependencies; arbitrary const execution is a further step. |
+| V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Nonlocal/generic/trait constants and aggregate values remain missing. |
 | V13 | General const expressions and const blocks | Missing | `[u8; N + 1]`, `const { 1 + 2 }` | Current array types require literal lengths; const fn support does not authorize this. |
 | V14 | Uninitialized locals / definite assignment | Missing | `let x; x = 1; x` | Declaration without initializer is currently rejected. |
 | V15 | Destructuring and wildcard bindings | Missing | `let (a, b) = pair;`, `let _ = x;` | Named single-binding patterns are the supported declaration/parameter grammar; unit value discard is not general wildcard-pattern support. |
@@ -425,3 +425,30 @@ same 60 selected identities/outcomes as 3.1.0: 9 admitted, 44 excluded, 7 unknow
 Range support adds no measured admission in this frozen selection. Feature
 commit: `849a910`; the [inventory report](eval/hir-coverage/REPORT-data-v3.md)
 retains the validation scope and the distinction from detector-quality evidence.
+
+### V12 resolved scalar constant-expression slice
+
+Data-v3 extraction 3.3.0 adds `rust.resolved-scalar-constants`: same-unit primitive
+integer/bool/unit constants, imported names and nongeneric inherent associated
+constants. Rustc evaluates referenced initializers; independent admission checks
+declaration/name/type/value consistency without reimplementing const execution.
+The existing resolution description carries the small record; lowering emits a
+typed computation without runtime memory reads. Edits update dependent function
+evidence and preserve existing helper validation. See the
+[constant contract](docs/extraction-profiles/scalar-constants-v1.md).
+
+V12 remains Partial for nonlocal, generic, trait and aggregate constants. F06
+still excludes named constant patterns and constant range bounds. Those are the
+next scalar-composition increment, followed by F14 assertions and S03–S04;
+the connected read-only data and later delivery stages remain in scope.
+
+The workspace suite passes 720 tests (5 existing ignored tests). Clippy passes
+with warnings denied. Repository-built rstyle reports 0 violations across 2,155
+functions; patterns reports 0 remaining candidates with the 15 existing ignores
+unchanged. The unchanged frozen inventory is assessed separately; no formal
+performance benchmark or detector-quality result is claimed.
+
+Frozen refresh `target/hir-coverage/run-qobq35og/` completes all three packages:
+9 admitted, 44 excluded, 7 unknown, with all 60 selected identities/outcomes
+unchanged from 3.2.0. The [inventory report](eval/hir-coverage/REPORT-data-v3.md)
+records the measured result and its limits; this slice adds no frozen admission.

@@ -27,6 +27,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.verified-inherent-helper-calls",
     "rust.scalar-or-patterns",
     "rust.scalar-range-patterns",
+    "rust.resolved-scalar-constants",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -135,7 +136,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.2.0", 14)),
+            Self::DataV3 => Some(("3.3.0", 15)),
         }
     }
 
