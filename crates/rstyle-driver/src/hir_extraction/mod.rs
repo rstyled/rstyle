@@ -368,6 +368,14 @@ pub fn source_inventory(
     options: &Options<'_>,
 ) -> Result<serde_json::Value, String> {
     let files = inventory_files(tcx, scanned)?;
+    let cfgs = options
+        .selected()
+        .supports("rust.cfg-inactive-definitions")
+        .then(|| evidence::cfgs(tcx));
+    let context = InventoryContext {
+        facts,
+        cfgs: cfgs.as_deref(),
+    };
     let records = files
         .into_iter()
         .map(|(path, span)| {
@@ -375,7 +383,7 @@ pub fn source_inventory(
                 .sources
                 .range(tcx, span)
                 .ok_or("Original compiler file buffer unavailable")?;
-            inventory_file(&path, source, span, facts)
+            inventory_file(&path, source, span, &context)
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -421,13 +429,19 @@ fn inventory_files(
     Ok(files)
 }
 
+struct InventoryContext<'a> {
+    facts: &'a [HirFnFacts],
+    cfgs: Option<&'a [String]>,
+}
+
 fn inventory_file(
     path: &std::path::Path,
     source: rstyle_pdg::SourceText,
     original_span: ByteSpan,
-    facts: &[HirFnFacts],
+    context: &InventoryContext<'_>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let definitions = match rstyle_pdg::source_evidence::functions(&source) {
+    let definitions = match rstyle_pdg::source_evidence::configured_functions(&source, context.cfgs)
+    {
         Ok(definitions) => definitions,
         Err(reason) => {
             return Ok(vec![
@@ -465,7 +479,7 @@ fn inventory_file(
                 .end
                 .checked_add(original_span.start)
                 .ok_or("Source inventory span overflow")?;
-            inventory_definition(path, definition, facts)
+            inventory_definition(path, definition, context.facts)
         })
         .collect::<Result<Vec<_>, String>>()
 }
@@ -496,15 +510,7 @@ fn inventory_definition(
         .map(|fact| &fact.name)
         .collect();
 
-    if active.len() > 1 {
-        return Err("Ambiguous exact owned-source function correspondence".into());
-    }
-
-    let presence = if active.is_empty() {
-        "absent_from_resolved_hir"
-    } else {
-        "active"
-    };
+    let presence = inventory_presence(definition.inactive_by_cfg, active.len())?;
     serde_json::to_value(DefinitionInventory {
         source_file: path,
         name: definition.name,
@@ -540,4 +546,23 @@ struct DefinitionInventory<'a> {
     active_functions: Vec<&'a String>,
     presence: &'static str,
     inventory_status: &'static str,
+}
+
+fn inventory_presence(inactive: bool, active_count: usize) -> Result<&'static str, String> {
+    if active_count > 1 {
+        return Err("Ambiguous exact owned-source function correspondence".into());
+    }
+
+    if inactive && active_count != 0 {
+        return Err("Cfg-inactive definition contradicts exact active HIR correspondence".into());
+    }
+
+    let presence = if inactive {
+        "inactive_by_cfg"
+    } else if active_count == 0 {
+        "absent_from_resolved_hir"
+    } else {
+        "active"
+    };
+    Ok(presence)
 }

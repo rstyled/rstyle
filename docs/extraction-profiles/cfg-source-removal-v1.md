@@ -1,4 +1,4 @@
-# Conditional source removal within captured functions
+# Conditional source removal and inactive definitions
 
 Data-v3 extraction 3.7.0 adds `rust.cfg-source-removal`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. Original function-body operations guarded by
@@ -31,11 +31,28 @@ lowered or reinterpreted. Source capture now derives diagnostics from the same
 correspondence inventory instead of parsing the function twice. Diagnostic profile
 selection is evaluated once per inventory rather than once per entry.
 
-This advances S03–S04 but does not establish whole-function inactivity, enclosing
-module/impl guard proofs, arbitrary attribute expansion or a general removed-source
-resolver. Uncaptured definitions in the frozen selection remain unknown. Runtime
-`cfg!` macros are separate from source-removing attributes. Existing interface,
-data-origin, helper and control-flow restrictions continue to apply.
+Data-v3 extraction 3.8.0 adds `rust.cfg-inactive-definitions`. The existing
+original-file inventory evaluates each function's attributes and traversed enclosing
+file, inline module, impl, trait, expression, local and match-arm scopes against the
+actual compiler session cfg set. Default methods and nested functions retain their
+exact source ownership. Inactivity propagates through removed ancestors and is
+restored for siblings. Unknown predicates alone never establish inactivity.
+
+An independently false guard changes the existing inventory `presence` value to
+`inactive_by_cfg`; it must have no exact active HIR correspondence. No guard stack,
+per-definition cfg copy or provenance table is serialized. The frozen assessment
+matches original path, byte span, name, source bytes/digests and observed compilation
+context. Invalid or contradictory claims fail. It reports an explicit `inactive`
+outcome and counts proven inactive contexts without shrinking the frozen selection.
+Mixed contexts require every active context to be admitted; all-inactive selections
+are inactive, never admissions. Missing proof still produces unknown.
+
+This advances S03–S04 but does not read external source files that the compiler never
+loaded, inspect definitions inside macro tokens, resolve arbitrary attribute
+expansion or implement a general removed-source resolver. Runtime `cfg!` macros
+remain separate from source-removing attributes. Existing interface, data-origin,
+helper and control-flow restrictions continue to apply. Earlier extraction
+selections preserve their previous absence treatment.
 
 Validation covers feature-on/off builds, nested predicates/attributes, removed
 blocks/locals/macros/items/arms, shared-tuple field composition, earlier-profile

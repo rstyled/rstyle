@@ -10,15 +10,7 @@ pub fn digest(bytes: &[u8]) -> String {
 
 pub fn build(tcx: TyCtxt<'_>, invocation: &[String]) -> BuildFacts {
     let session = tcx.sess;
-    let cfgs: Vec<String> = session
-        .config
-        .iter()
-        .map(|(name, value)| {
-            value.map_or_else(|| name.to_string(), |value| format!("{name}=\"{value}\""))
-        })
-        .collect();
-    let mut cfgs = cfgs;
-    cfgs.sort();
+    let cfgs = cfgs(tcx);
     let features = cfgs
         .iter()
         .filter_map(|cfg| {
@@ -55,4 +47,18 @@ pub fn build(tcx: TyCtxt<'_>, invocation: &[String]) -> BuildFacts {
         panic_strategy: known_str(session.panic_strategy().desc()),
         opt_level: known_str(&format!("{:?}", session.opts.optimize)),
     }
+}
+
+pub fn cfgs(tcx: TyCtxt<'_>) -> Vec<String> {
+    let cfgs: Vec<String> = tcx
+        .sess
+        .config
+        .iter()
+        .map(|(name, value)| {
+            value.map_or_else(|| name.to_string(), |value| format!("{name}=\"{value}\""))
+        })
+        .collect();
+    let mut cfgs = cfgs;
+    cfgs.sort();
+    cfgs
 }

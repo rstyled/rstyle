@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.7.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.8.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -190,7 +190,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S01 | Exact original source and function identity | Covered | UTF-8 names, CRLF files, same-named functions | Source buffers/ranges, original byte offsets, distinct owners/build contexts and navigation; generated-owner identity is not general expansion support. |
 | S02 | Ordinary modules and named imports | Partial | `mod child;`, `use child::S as Local;` | Closed inline/external module census and supported lexical aliases; nominal census rejects module attributes and unresolved/glob/external paths. |
 | S03 | Active conditional-source correspondence | Partial | A cfg-controlled statement present in resolved HIR | Original-source/HIR correspondence in the actual build, with Data-v3 3.7.0 resolution of body-level cfg removal; general conditional signatures/attributes remain unfinished. |
-| S04 | Cfg-removed source and inactive definitions | Partial | `#[cfg(feature = "x")] statement` absent from HIR | Data-v3 3.7.0 independently evaluates standard cfg/cfg_attr predicates for removed function-body operations; see [removal contract](docs/extraction-profiles/cfg-source-removal-v1.md). Whole-function/enclosing-scope inactivity remains unknown; missing capture is not proof. |
+| S04 | Cfg-removed source and inactive definitions | Partial | `#[cfg(feature = "x")] statement` absent from HIR | Data-v3 3.8.0 resolves standard cfg/cfg_attr guards for removed body operations and definitions in captured original files, including enclosing scopes; see [removal contract](docs/extraction-profiles/cfg-source-removal-v1.md). Unloaded external files and macro-token definitions remain unfinished; missing capture is not proof. |
 | S05 | Conditional/path-selected modules | Missing | `#[path = "other.rs"] mod m;` | Resolved module presence/path/ownership; the current nominal census rejects all module attributes. |
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Assertions are a proposed narrow first slice. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
@@ -570,3 +570,35 @@ The cfg-selected `time-core::is_leap_year` at `src/util.rs:728` moves from unkno
 to admitted, with its existing partial panic-flow boundary; no admission is lost.
 Seven uncaptured contexts remain unknown. The [inventory report](eval/hir-coverage/REPORT-data-v3.md)
 records the final run and its limits; whole-definition inactivity is not inferred.
+
+### S04 independently inactive definitions
+
+Data-v3 extraction 3.8.0 adds `rust.cfg-inactive-definitions`. The original-file
+inventory reuses standard cfg evaluation against actual compiler settings for
+function attributes and traversed enclosing scopes. It changes the existing
+presence value rather than adding cfg copies or serialized provenance. Contradictory
+active HIR fails capture; unsupported predicates without an independent false guard
+remain unknown. The [contract](docs/extraction-profiles/cfg-source-removal-v1.md)
+records loaded-file and macro-token limits.
+
+Frozen assessment version 3 consumes exact original-source/context correspondence
+and reports inactive contexts separately, retaining all selected identities. Every
+active context must be admitted for a source-level admission; an all-inactive
+selection is never an admission. The [protocol amendment](eval/hir-coverage/AMENDMENTS.md)
+records this extension without relabeling historical measurements.
+
+The initial run `target/hir-coverage/run-9ru8zhlb/` measures 11 admitted,
+42 excluded and 7 independently inactive out of 60, with no unknowns, failures,
+new admissions or lost admissions. These seven `lz4_flex` definitions were formerly
+unknown; resolving their inactivity is accounting evidence, not a coverage gain.
+Final focused run `target/hir-coverage/run-i7ya5m_4/` verifies assessment version 3
+and the final implementation with identical selected identities/outcomes; 26 graph
+documents pass schema checks. S04 remains Partial because unloaded external files
+and macro-token definitions are not covered. The broader roadmap remains unfinished.
+
+Validation passes 735 workspace tests (5 existing ignores), 14 independent
+inventory tests, Clippy with warnings denied, repository-built rstyle with 0
+violations across 2,212 functions, and patterns with 0 remaining candidates and
+the same 15 existing ignores. Existing parsing/traversal is reused; empty attributes
+and inherited inactivity bypass predicate evaluation. No new serialized cfg copies,
+source snapshots, provenance tables or caches are added.

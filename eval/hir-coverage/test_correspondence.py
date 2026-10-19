@@ -1,10 +1,11 @@
-"""Independent source/context mapping fixtures for assessment version 2."""
+"""Independent source/context mapping fixtures for assessment version 3."""
 import copy
 import hashlib
 import unittest
 
 import assess
 import correspondence
+import summarize
 
 
 def selected(source, start=0, name='f'):
@@ -91,6 +92,52 @@ class CorrespondenceTests(unittest.TestCase):
     def test_missing_context_roster_is_failed_evidence(self):
         definition = selected('fn f() {}')
         self.assertEqual(self.assess([definition], [record(definition)], [])['counts'], {'failed': 1})
+
+
+
+def inactive_inventory(definition, test=False):
+    source = '#[cfg(off)] ' + definition['source']
+    return dict(compilation_unit=unit(test)['target'], test=test, source_functions=[dict(
+        source_file='/p/src/lib.rs', name=definition['name'],
+        span=dict(start=definition['start'] - 12, end=definition['end']),
+        source=source, source_digest='sha256:' + hashlib.sha256(source.encode()).hexdigest(),
+        function_span=dict(start=definition['start'], end=definition['end']),
+        function_source_digest='sha256:' + definition['sha256'], active_functions=[],
+        presence='inactive_by_cfg', inventory_status='complete_for_source_definitions_outside_macro_tokens')])
+
+
+class InactiveCorrespondenceTests(unittest.TestCase):
+    def test_exact_inactive_and_mixed_contexts(self):
+        definition = selected('fn f() {}', start=12)
+        captured = report([], [unit(), unit(True)])
+        captured['owned_source_inventory'] = [inactive_inventory(definition), inactive_inventory(definition, True)]
+        result = assess.assess([definition], {'p': captured})
+        self.assertEqual(result['counts'], {'inactive': 1})
+        self.assertEqual(result['denominators']['proven_inactive_function_contexts'], 2)
+        result['stage'] = 'inactive'
+        summary = summarize.summarize([result])
+        self.assertEqual(summary['slices'][0]['newly_admitted'], [])
+        self.assertEqual(summary['remaining_reason_combinations'], [])
+        self.assertEqual(summary['remaining_source_syntax_combinations'], [])
+        captured['owned_source_inventory'].pop()
+        self.assertEqual(assess.assess([definition], {'p': captured})['counts'], {'unknown': 1})
+        captured['functions'] = [record(definition, True)]
+        self.assertEqual(assess.assess([definition], {'p': captured})['counts'], {'admitted': 1})
+
+    def test_corrupt_or_contradictory_inactivity_fails(self):
+        definition = selected('fn f() {}', start=12)
+        captured = report([record(definition)])
+        captured['owned_source_inventory'] = [inactive_inventory(definition)]
+        self.assertEqual(assess.assess([definition], {'p': captured})['counts'], {'failed': 1})
+        captured['functions'] = []
+        entry = captured['owned_source_inventory'][0]['source_functions'][0]
+        for field, value in [('source_digest', 'bad'), ('function_source_digest', 'bad'),
+                             ('source', 'fn wrong() {}'), ('name', 'wrong'), ('active_functions', ['f'])]:
+            corrupt = copy.deepcopy(captured)
+            corrupt['owned_source_inventory'][0]['source_functions'][0][field] = value
+            self.assertEqual(assess.assess([definition], {'p': corrupt})['counts'], {'failed': 1})
+        entry['function_span']['start'] = 0
+        self.assertEqual(assess.assess([definition], {'p': captured})['counts'], {'unknown': 1})
 
 
 if __name__ == '__main__':

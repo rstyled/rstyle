@@ -75,7 +75,7 @@ def assess(selection, reports):
         blocker["capability"] for blocker in item["source_blockers"]))) for item in outcomes)
     context_counts = collections.Counter(decision['outcome'] for item in outcomes
                                          for decision in item['compilation_contexts'])
-    return {"assessment_version": 2, "functions": outcomes, "counts": dict(counts),
+    return {"assessment_version": 3, "functions": outcomes, "counts": dict(counts),
             "denominators": dict(all_frozen_selected=len(selection),
                                  selected_function_contexts=sum(context_counts.values()),
                                  active_function_contexts=sum(decision['active'] for item in outcomes
@@ -85,7 +85,7 @@ def assess(selection, reports):
                                  assessed_function_contexts=sum(decision['captured_records'] > 0 for item in outcomes
                                                                for decision in item['compilation_contexts']),
                                  independently_expected_in_scope=None,
-                                 proven_inactive_function_contexts=0),
+                                 proven_inactive_function_contexts=context_counts['inactive']),
             "context_counts": dict(context_counts),
             "source_blocker_combinations": [{"capabilities": list(combo), "functions": n}
                                             for combo, n in sorted(combinations.items())],

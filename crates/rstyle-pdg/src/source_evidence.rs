@@ -454,29 +454,56 @@ pub struct SourceDefinition {
     /// Exact signature/body ownership, excluding documentation and attributes.
     pub function_span: ByteSpan,
     pub function_source: String,
+    /// Independently false cfg on this definition or a traversed enclosing scope.
+    #[serde(skip)]
+    pub inactive_by_cfg: bool,
 }
 
 struct Definitions<'a> {
     source: &'a str,
     entries: Vec<SourceDefinition>,
+    configuration: Option<crate::conditional_source::Configuration<'a>>,
+    inactive: bool,
 }
 
 pub fn functions(source: &str) -> Result<Vec<SourceDefinition>, String> {
+    configured_functions(source, None)
+}
+
+pub fn configured_functions<'a>(
+    source: &'a str,
+    cfgs: Option<&'a [String]>,
+) -> Result<Vec<SourceDefinition>, String> {
     let file = syn::parse_file(source).map_err(|error| error.to_string())?;
     let mut definitions = Definitions {
         source,
         entries: Vec::new(),
+        configuration: cfgs.map(crate::conditional_source::Configuration::new),
+        inactive: false,
     };
     definitions.visit_file(&file);
     Ok(definitions.entries)
 }
 
 impl Definitions<'_> {
+    fn scoped(&mut self, attributes: &[syn::Attribute], visit: impl FnOnce(&mut Self)) {
+        let enclosing = self.inactive;
+        self.inactive = enclosing
+            || (!attributes.is_empty()
+                && self
+                    .configuration
+                    .as_ref()
+                    .is_some_and(|configuration| configuration.active(attributes) == Ok(false)));
+        visit(self);
+        self.inactive = enclosing;
+    }
+
     fn add(&mut self, name: &syn::Ident, span: proc_macro2::Span, owned: proc_macro2::Span) {
         let start = offset(self.source, span.start());
         let end = offset(self.source, span.end());
         self.entries.push(SourceDefinition {
             name: name.to_string(),
+            inactive_by_cfg: self.inactive,
             span: ByteSpan { start, end },
             source: self
                 .source
@@ -500,6 +527,53 @@ impl Definitions<'_> {
 }
 
 impl<'ast> Visit<'ast> for Definitions<'_> {
+    fn visit_file(&mut self, node: &'ast syn::File) {
+        self.scoped(&node.attrs, |this| visit::visit_file(this, node));
+    }
+
+    fn visit_item(&mut self, node: &'ast syn::Item) {
+        self.scoped(crate::conditional_source::item_attributes(node), |this| {
+            visit::visit_item(this, node)
+        });
+    }
+
+    fn visit_expr(&mut self, node: &'ast syn::Expr) {
+        self.scoped(
+            crate::conditional_source::expression_attributes(node),
+            |this| visit::visit_expr(this, node),
+        );
+    }
+
+    fn visit_local(&mut self, node: &'ast syn::Local) {
+        self.scoped(&node.attrs, |this| visit::visit_local(this, node));
+    }
+
+    fn visit_arm(&mut self, node: &'ast syn::Arm) {
+        self.scoped(&node.attrs, |this| visit::visit_arm(this, node));
+    }
+
+    fn visit_impl_item(&mut self, node: &'ast syn::ImplItem) {
+        self.scoped(
+            match node {
+                syn::ImplItem::Fn(node) => &node.attrs,
+                syn::ImplItem::Const(node) => &node.attrs,
+                _ => &[],
+            },
+            |this| visit::visit_impl_item(this, node),
+        );
+    }
+
+    fn visit_trait_item(&mut self, node: &'ast syn::TraitItem) {
+        self.scoped(
+            match node {
+                syn::TraitItem::Fn(node) => &node.attrs,
+                syn::TraitItem::Const(node) => &node.attrs,
+                _ => &[],
+            },
+            |this| visit::visit_trait_item(this, node),
+        );
+    }
+
     fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
         let owned = owned_function_span(&function.vis, &function.sig, function.block.span());
         self.add(&function.sig.ident, function.span(), owned);

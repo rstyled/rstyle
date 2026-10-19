@@ -184,3 +184,32 @@ candidates with all 15 existing ignores unchanged. Capture reuses the existing
 correspondence inventory for diagnostics, avoiding its earlier second source parse.
 No source snapshot, provenance table or cache is added. Pair evaluation remains
 incomplete, with no detector-quality or formal performance benchmark claim.
+
+## Independently inactive definition increment, extraction 3.8.0
+
+Initial focused run `target/hir-coverage/run-9ru8zhlb/`, started at `bb7cac9` with
+the definition-inactivity implementation in the working tree, completes all three
+packages. It measures **11 admitted, 42 excluded, 7 inactive, 0 unknown and 0 failed
+out of 60**, with 53 captured/assessed contexts. All 60 selected source identities
+and all 11 admissions match 3.7.0. Twenty-six admitted CFG/PDG documents pass the
+unchanged schema checks, including functions outside the frozen selection.
+
+The seven previously unknown `lz4_flex` definitions in `src/block/compress.rs`
+are independently removed by the actual build cfg guards: `get_batch` (1145),
+`get_batch_arch` (1602), `count_same_bytes` (5279), `backtrack_match` (9232),
+`push_byte` (18289), `push_u16` (18640), and `copy_literals_wild` (19176).
+Offsets are original file bytes, not name-only identities. The denominator remains
+60; proven inactivity is not a new admission. No admission is gained or lost.
+The initial run precedes the assessment-version marker update. Final focused run
+`target/hir-coverage/run-i7ya5m_4/` verifies assessment version 3 and the completed
+implementation, with identical frozen identities/outcomes and 26 verified graph
+documents. Historical reports remain unchanged. Pair evaluation remains incomplete,
+and no detector-quality claim follows.
+
+The final workspace passes 735 tests (5 existing ignores); all 14 independent
+inventory tests and Clippy with warnings denied pass. Repository-built rstyle
+reports 0 violations across 2,212 functions; patterns reports 0 remaining candidates
+with all 15 existing ignores unchanged. The implementation reuses the existing
+source parse/traversal and presence field; empty attributes and inherited inactivity
+bypass predicate evaluation. It adds no serialized cfg copies, source snapshots,
+provenance tables or caches. No formal performance benchmark is claimed.

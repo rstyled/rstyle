@@ -18,8 +18,8 @@ def summarize(stages):
         slices.append(dict(stage=stage['stage'], counts=stage['counts'], newly_admitted=[dict(current[key], build=None) for key in sorted(admitted - previous)], lost_admissions=[list(key) for key in sorted(previous - admitted)]))
         previous = admitted
     final = stages[-1]['functions']
-    reasons = collections.Counter(tuple(sorted(set(f['reasons']))) for f in final if f['outcome'] != 'admitted')
-    syntax = collections.Counter(tuple(sorted(set(b['capability'] for b in f['source_blockers']))) for f in final if f['outcome'] != 'admitted')
+    reasons = collections.Counter(tuple(sorted(set(f['reasons']))) for f in final if f['outcome'] not in ('admitted', 'inactive'))
+    syntax = collections.Counter(tuple(sorted(set(b['capability'] for b in f['source_blockers']))) for f in final if f['outcome'] not in ('admitted', 'inactive'))
     source_only = collections.defaultdict(list)
     for f in stages[0]['functions']:
         blockers = sorted(set(b['capability'] for b in f['source_blockers']))

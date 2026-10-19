@@ -19,3 +19,14 @@ report records the tested implementation commit and measured outcomes. Frozen
 inputs and dependency lockfiles reproduce the selection/build context; generated
 assessments preserve every reason, unknown and failed outcome. No historical
 ccgraph-v1/v2 artifacts were removed or relabeled.
+
+Assessment version 3 adds independently proven cfg inactivity from the actual
+compiler-session source inventory (Data-v3 extraction 3.8.0). Missing capture still
+means unknown unless an exact source/context match has an independently false
+guard and no active definition. The new `inactive` outcome retains the selected
+identity in the denominator and counts inactive contexts separately. In mixed
+builds every active context must be admitted; all-inactive selections are never
+admissions. This extends the original absent-HIR rule with positive cfg evidence;
+it does not infer inactivity from absence or change frozen inputs or build choices.
+Historical assessments remain unchanged. Summary blocker combinations omit proven
+inactive selections, which remain visible in counts and complete assessments.

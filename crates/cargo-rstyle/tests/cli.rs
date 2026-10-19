@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.7.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.8.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6158,7 +6158,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.7.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.8.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -7382,4 +7382,64 @@ fn check_borrowed_pair_tampering(
         ))
         .is_err()
     );
+}
+
+#[test]
+fn clones_cfg_definition_inventory_uses_actual_build_guards() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("Cargo.toml"), "[package]\nname='cfg_definitions'\nversion='0.1.0'\nedition='2021'\n[features]\nextra=[]\n[workspace]\n").unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), "#[cfg(feature=\"extra\")] pub fn alternative() {}\n#[cfg(not(feature=\"extra\"))] pub fn alternative() {}\n#[cfg(any())] mod hidden { pub fn nested() { missing(); } }\nstruct S; #[cfg(any())] impl S { fn method() {} }\n#[cfg(any())] trait T { fn defaulted() {} }\npub fn active() {}\n").unwrap();
+    for options in [vec![], vec!["--features", "extra"]] {
+        let args: Vec<_> = ["--extraction-profile", "hir-data-v3"]
+            .into_iter()
+            .chain(options)
+            .collect();
+        let (output, report) = clones(directory.path(), &args);
+        assert!(output.status.success(), "{report}");
+        let definitions = report["owned_source_inventory"][0]["source_functions"]
+            .as_array()
+            .unwrap();
+        let alternatives: Vec<_> = definitions
+            .iter()
+            .filter(|f| f["name"] == "alternative")
+            .collect();
+        assert_eq!(alternatives.len(), 2);
+        assert_eq!(
+            alternatives
+                .iter()
+                .filter(|f| f["presence"] == "active")
+                .count(),
+            1
+        );
+        assert_eq!(
+            alternatives
+                .iter()
+                .filter(|f| f["presence"] == "inactive_by_cfg")
+                .count(),
+            1
+        );
+        for name in ["nested", "method", "defaulted"] {
+            let definition = definitions.iter().find(|f| f["name"] == name).unwrap();
+            assert_eq!(definition["presence"], "inactive_by_cfg");
+            assert_eq!(definition["active_functions"], serde_json::json!([]));
+        }
+    }
+}
+
+#[test]
+fn clones_cfg_inventory_retains_files_without_active_function_bodies() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "#[cfg(any())] pub fn inactive() { missing(); }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let definitions = report["owned_source_inventory"][0]["source_functions"]
+        .as_array()
+        .unwrap();
+    assert_eq!(definitions.len(), 1);
+    assert_eq!(definitions[0]["presence"], "inactive_by_cfg");
+    assert_eq!(definitions[0]["active_functions"], serde_json::json!([]));
 }
