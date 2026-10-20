@@ -5,6 +5,7 @@ mod boundaries;
 mod byte_comparisons;
 mod classifiers;
 mod corruption;
+mod end_of_input;
 
 fn descendants<'a>(node: &'a rstyle_pdg::HirNode, output: &mut Vec<&'a rstyle_pdg::HirNode>) {
     output.push(node);

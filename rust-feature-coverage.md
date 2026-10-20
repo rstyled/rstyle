@@ -3632,5 +3632,8 @@ The [bounded target](docs/extraction-profiles/end-of-input-v1.md) connects origi
 Unit::eoi and ByteClasses::eoi through formatted scalar assertions, narrowing
 integer Result and checked-sub/Option unwrap. Existing nominal, array-read and
 helper foundations already admit. Both methods remain excluded at 3.51; no new
-coverage is claimed. Specify the development corpus and original oracle before
-implementation, then validate the whole chain rather than separate syntax rows.
+coverage is claimed. The source-first thirteen-function corpus has **3 controls admitted /10
+excluded** across std/no_std contexts on three installed targets, with complete
+capture/matching and strict control checking. Both original-crate oracle tests
+pass, including panic messages and all last-byte values. Validate the whole
+chain rather than separate syntax rows; implementation remains pending.

@@ -42,9 +42,12 @@ SYNTAX_BITSET_IDENTITIES = ((106740, 106954, '8c28b6c9656796472b49e0ad77a5b8e44f
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("crate", type=Path)
-    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality"], default="tagged-units")
+    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality", "end-of-input"], default="tagged-units")
     args = parser.parse_args()
     families = {
+        "end-of-input": ("src/util/alphabet.rs", (IDENTITIES[1],
+            (12328, 12526, "acaf1984025154fcb1aba0cc52af823cda7b142ecfeb86404360e3329b1f62e8")),
+            Path(__file__).with_name("end-of-input-oracle.rs"), "rstyle_end_of_input_oracle"),
         "tagged-units": ("src/util/alphabet.rs", IDENTITIES,
                          Path(__file__).with_suffix(".rs"), "rstyle_tagged_units_oracle"),
         "borrowed-accel": ("src/dfa/accel.rs", ACCEL_IDENTITIES,

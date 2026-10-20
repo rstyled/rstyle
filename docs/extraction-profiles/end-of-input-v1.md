@@ -48,3 +48,38 @@ Cargo capture, independent checking, strict admission/matching, mutation and
 composition tests, existing regressions, measured unchanged natural/frozen
 selections, bounded performance controls, and zero rstyle violations/candidates.
 No general formatting, Result matching, `?`, iterator or rewrite-safety claim.
+
+
+## Fixed development expectations, before evaluation
+
+`eval/coverage-development/end-of-input.rs` declares nine future positives:
+Unit::eoi/as_usize, ByteClasses::empty/alphabet_len/eoi, direct, saved, mapped,
+and checked. Three generated Clone methods and saved_result remain excluded.
+Expected semantics include underflow panic for checked; do not assume arbitrary
+inputs satisfy the natural caller's bounds. The fourteen-function historical
+bitset corpus and all earlier selections remain unchanged.
+
+The original-crate oracle checks every valid constructor input, panic messages
+at invalid narrowing/domain boundaries, and all 256 last-byte values under five
+neighbor configurations. It appends tests to the complete original crate; it
+changes no selected function, declaration or build feature.
+
+
+Source review corrected the draft's omitted original ByteClasses Copy derive
+before the source-faithful baseline; the initial non-Copy diagnostic is retained
+separately and does not justify widening owned construction.
+
+## Baseline evidence
+
+At unchanged 3.51 the thirteen-function corpus has **three admitted controls /
+ten excluded**. Std/no_std Cargo capture on all three installed targets has
+complete assessment, enumeration and matching; admitted controls pass independent
+strict import/checking. The two original-crate runtime oracle tests pass.
+No production capability is activated and no natural/frozen admission gain is
+claimed. Existing frozen identities and all prior development corpora are intact.
+
+Audit checks: focused cross-target CLI baseline and original oracle tests pass;
+workspace Clippy, formatting and Python parsing pass; rstyle checks 2865 functions
+with zero violations and patterns finds zero candidates. The preceding production
+milestone's native CI is green on all three runners; no new full-suite run is
+claimed for this source/test-only audit.
