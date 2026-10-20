@@ -2935,3 +2935,21 @@ median per-run peak RSS **106304 /109124 KiB**; the current run additionally
 verifies/admits four functions and evaluates their six pairs, so it performs more
 work. These measurements are not a whole-library performance guarantee or a
 speedup claim. No cache or serialized provenance was added to change the result.
+
+### CI regression follow-up: pinned subslice targets
+
+The reported subslice failures used producer revision `4e18530`; the current
+branch already carries exact compiler/core-definition registries for ARM Linux,
+x86 Linux and ARM macOS (whose captured LLVM target is `arm64-apple-macosx`).
+A dedicated real-Cargo cross-target regression now checks exclusive subslicing,
+saved origins, base evaluation before endpoint rebinding, and assertion receiver
+composition on all three installed targets. It verifies generated documents and
+strict admission, matches equivalent windows, and rejects altered index/range
+authorities, missing bounds, changed operands and fabricated reads. Inclusive
+ranges and mutable subslices remain excluded. This adds regression coverage;
+it changes neither supported contracts nor the frozen selection/denominators.
+
+Validation: the three reported tests and the three-target regression pass;
+workspace all-target clippy denies warnings; fmt is clean; rstyle reports zero
+violations and patterns reports zero candidates. Cross-target checks compile and
+verify evidence on Linux; they do not execute native macOS binaries.
