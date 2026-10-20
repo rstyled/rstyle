@@ -351,34 +351,23 @@ fn installed_ci_targets_preserve_reader_admission() {
 
 fn check_target_readers(target: &str) {
     let directory = clone_workspace();
-    let source = format!(
-        "{}\n{}",
-        include_str!("../../../../eval/coverage-development/arch-readers.rs"),
-        r#"
-        pub fn window(a: &[u8], lo: usize, hi: usize) -> &[u8] { &a[lo..hi] }
-        pub fn snapshot<'a>(a: &'a [u8], b: &'a [u8]) -> &'a [u8] {
-            let mut selected = a; &selected[{ selected = b; 0 }..1]
-        }
-        pub fn copied(a: &[u8], n: usize) -> u32 {
-            u32::from_ne_bytes(a[n..n+4].try_into().unwrap())
-        }
-        pub fn slice_len(a: &[u8]) -> usize { a.len() }
-        pub fn slice_empty(a: &[u8]) -> bool { a.is_empty() }
-        pub fn str_len(a: &str) -> usize { a.len() }
-        pub fn str_empty(a: &str) -> bool { a.is_empty() }
-        "#
-    );
-    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), target_reader_source()).unwrap();
     let (output, report) = clones(
         directory.path(),
         &["--target", target, "--extraction-profile", "hir-data-v3"],
     );
     assert!(output.status.success(), "{target}: {report}");
     let functions = report["functions"].as_array().unwrap();
-    assert_eq!(functions.len(), 15, "{target}: {report}");
+    assert_eq!(functions.len(), 20, "{target}: {report}");
     for function in functions {
         let name = function["facts"]["name"].as_str().unwrap();
-        let excluded = ["endian_arch", "other_size_authority_arch", "caller_arch"].contains(&name);
+        let excluded = [
+            "endian_arch",
+            "other_size_authority_arch",
+            "caller_arch",
+            "inclusive",
+        ]
+        .contains(&name);
         assert_eq!(
             function["outcome"],
             if excluded { "excluded" } else { "admitted" },
@@ -414,4 +403,35 @@ fn reject_mismatched_authorities(function: &Value) {
     changed.build.rustc_commit = rstyle_pdg::StringFact::known("unsupported");
     assert!(rstyle_pdg::producer::produce(&changed).is_err());
     shared_evidence::reject_facts(function, &changed);
+}
+
+fn target_reader_source() -> String {
+    format!(
+        "{}\n{}",
+        include_str!("../../../../eval/coverage-development/arch-readers.rs"),
+        r#"
+        pub fn window(a: &[u8], lo: usize, hi: usize) -> &[u8] { &a[lo..hi] }
+        pub fn snapshot<'a>(a: &'a [u8], b: &'a [u8]) -> &'a [u8] {
+            let mut selected = a; &selected[{ selected = b; 0 }..1]
+        }
+        pub fn saved<'a>(a: &'a [u8], b: &'a [u8], lo: usize, hi: usize) -> &'a [u8] {
+            let mut selected = a; let view = &selected[lo..hi]; selected = b; view
+        }
+        pub fn nested(a: &[u8], lo: usize, hi: usize) -> u8 {
+            let view = &a[lo..hi]; (&view[0..1])[0]
+        }
+        pub fn scalar(a: &[u8], b: &[u8]) -> u8 {
+            let mut selected = a; selected[{ selected = b; 0 }]
+        }
+        pub fn check(bytes: &[u8]) -> usize { assert!(bytes.len() > 0); bytes.len() }
+        pub fn inclusive(a: &[u8], hi: usize) -> &[u8] { &a[0..=hi] }
+        pub fn copied(a: &[u8], n: usize) -> u32 {
+            u32::from_ne_bytes(a[n..n+4].try_into().unwrap())
+        }
+        pub fn slice_len(a: &[u8]) -> usize { a.len() }
+        pub fn slice_empty(a: &[u8]) -> bool { a.is_empty() }
+        pub fn str_len(a: &str) -> usize { a.len() }
+        pub fn str_empty(a: &str) -> bool { a.is_empty() }
+        "#
+    )
 }

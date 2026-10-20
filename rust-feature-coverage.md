@@ -2339,3 +2339,18 @@ formatting and diff checks pass. rstyle reports 2,606 functions and zero violati
 patterns reports zero candidates with 15 existing ignores unchanged. No source
 selection, historical artifact, suppression, ignore, score or threshold was changed.
 S09, D11/D12, D17 and F10 remain Partial and the overall roadmap remains active.
+
+### Reported cross-platform regressions: expanded revalidation
+
+The existing target-specific authority fix remains in place; no admission policy
+was relaxed. The installed-CI-target regression now also checks saved and nested
+subslice views, scalar endpoint rebinding, and the reported assertion/length
+composition on Linux ARM64, Linux x86_64 and macOS ARM64. Inclusive subslicing is
+explicitly expected to remain excluded. All 20 functions per target retain their
+independently specified outcomes (16 admitted, 4 excluded), with produced documents
+verified. The three originally reported tests also pass on the local host.
+These are cross-target Cargo capture checks, not native execution on each OS.
+The frozen selection and its historical counts are unchanged by this test-only
+increment. rstyle reports 2,606 functions and zero violations; patterns reports
+zero candidates, with existing ignores unchanged.
+CLI-test clippy with warnings denied, formatting and diff checks also pass.
