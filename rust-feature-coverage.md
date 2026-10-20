@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.34.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.35.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -81,7 +81,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F07 | Destructuring, reference, slice, and enum patterns | Missing | `Some(x) => x`, `[a, ..] => a` | Payload/field/element dependencies, binding modes, and ownership/borrow effects. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
-| F10 | Value merges in loop-containing functions | Missing | `while b { n = if c { x } else { y }; }` | Current blanket exclusion includes nonunit conditional and short-circuit merges anywhere in a function containing a loop. Separate safe outside-cycle merges from epoch-sensitive cyclic ones. |
+| F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Merges in loop bodies/conditions and iteration-specific cyclic snapshots remain excluded. |
 | F11 | Labelled and value-carrying exits | Missing | `'outer: loop { break 'outer; }`, `break x` | Exact target resolution and value/frontier dependencies; also labelled block expressions. |
 | F12 | Iterator `for` loops | Missing | `for x in xs { ... }` | Iterator protocol, yielded values, effects, drop, and source/desugaring correspondence; not covered by scalar `while`. |
 | F13 | `Option`/`Result` branching and `?` | Missing | `let x = parse()?;` | Concrete discriminants/payloads, early return, conversions, and cleanup; `?` is not merely a scalar branch. |
@@ -1819,3 +1819,54 @@ All 14 inventory tests passed. Final workspace validation passed 785 tests with
 reader regressions. All-targets clippy with warnings denied, formatting and diff
 checks passed. Repository-built rstyle checked 2498 functions with 0 violations;
 patterns reported 0 candidates. Thresholds, scoring and ignores are unchanged.
+
+### Complete selected gcd chain with outside-loop merges (Data-v3 3.35.0)
+
+Data-v3 3.35.0 adds `rust.outside-loop-value-merges`; see the
+[finite value-availability contract](docs/extraction-profiles/outside-loop-value-merges-v1.md).
+It replaces the function-wide exclusion with a bounded source restriction on
+merges inside loop bodies/conditions. Independent serialized proof uses finite
+relevant-controller states and a monotone must-evaluation worklist, with exact
+alternative frontiers, guard partitions, snapshot availability and consumer
+successor checks. Repeating merge controllers/snapshots remain excluded. No
+bounded loop unwinding, virtual exits or missing-data-as-zero assumptions appear.
+The existing no-merge cyclic path and historical policy registrations remain.
+
+The exact source-selected production `frac::gcd`, SHA
+cab1f7e45cca54d452ddb6c50ab82781229cf81bd320a413868fbb4f647c0648, now passes its
+complete original rstyle-ccgraph library Cargo capture. Its one-function natural
+development selection gains one admission with none lost. The whole context
+retains all 413 functions; only gcd admits. Independently importing the retained
+natural bundle, verifying its documents and strictly admitting it succeeds.
+Matching it to the preselected development gcd is evaluated and Accepted at
+score 1, with no diagnostics and unchanged thresholds/scoring.
+
+The unchanged seven-function development selection advances 2/5 to **5 admitted /
+2 excluded; 3 gained, 0 lost**. All predeclared positives now admit; cyclic_merge
+and memory_target remain excluded. Runtime divisor enumeration and wide-u128
+expectations continue to pass. Composition tests cover nested/short-circuit/match
+values, break exits, changing loop-guard outcomes, loop-containing alternatives
+and a value expression after divergence. Consistently corrupted paired guards,
+snapshots, frontiers, successors and cyclic controllers fail independent validation
+and strict admission. A separate exhaustive small-graph simple-path oracle checks
+the must-evaluation fixed point, including repeated CFG vertex labels.
+
+Frozen rerun `target/hir-coverage/run-h7tfyznr/` preserves every identity, outcome
+and denominator from `run-kb15su8j`: **13 admitted / 40 excluded / 7 inactive;
+0 gained, 0 lost** across the same 60 selections. There are 30 verified documents
+(14 lz4_flex, 0 regex-syntax, 16 time-core). All 14 inventory tests passed.
+Final workspace validation passed 787 tests, with 5 existing ignores, including
+previous assertion-receiver and three-target reader regressions. The additional
+stronger frontier/successor mutations passed their focused rerun. All-targets
+clippy with warnings denied, formatting and diff checks passed. Repository-built
+rstyle checked 2517 functions with 0 violations; patterns reported 0 candidates.
+The value checker now reuses its already parsed operation map for lookups instead
+of repeatedly scanning its JSON records. No new persisted provenance or caches
+were introduced; no broad performance or detector-quality claim follows.
+
+The selected scalar leaf family has no remaining blockers in its declared
+context. F10 is Partial: value merges inside iterations need iteration-specific
+proof. `Frac::new` still needs the separately audited closure/conversion/Option /
+Result / `?` chain; admitting its leaf does not certify that caller. Next target
+audits remain connected checked-access/Option families and S09 mixed-content
+ownership, preserving strict source completeness and nominal/drop evidence.

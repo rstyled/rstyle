@@ -584,3 +584,35 @@ for ordered writes. The LHS place list performs no reads. Tests check source
 operands and original parameter reaching definitions, reject swapped serialized
 write operands and corrupted target/RHS evidence, and exercise strict matching.
 The original runtime oracle and natural source expectations remain unchanged.
+
+### Complete selected scalar reduction chain (Data-v3 3.35.0)
+
+The [outside-loop merge contract](../../docs/extraction-profiles/outside-loop-value-merges-v1.md)
+now connects the preceding tuple-assignment foundation to the natural gcd's final
+conditional. The exact original-library `frac::gcd` source remains SHA
+cab1f7e45cca54d452ddb6c50ab82781229cf81bd320a413868fbb4f647c0648 and advances
+excluded to admitted. Its declared natural selection has one function/context:
+**1 admitted / 0 excluded; 1 gained, 0 lost**. The broader 413-function library
+capture supplies the complete context; it is not a new frozen denominator.
+
+The unchanged seven-function development selection advances **2/5 to 5/2
+admitted/excluded**: gcd, after_loop and before_loop gained; none lost. All intended
+classifications are now met. The natural bundle was independently imported,
+verified and strictly admitted, then matched against development gcd: Accepted,
+score 1, no diagnostics, under unchanged matching rules. This is a repository
+function/composition target, not an external holdout or detector-quality claim.
+
+The verifier uses finite relevant-guard states and independent must-evaluation
+intersections, preserving the existing no-merge path. Runtime divisor expectations
+and a separate small-graph fixed-point oracle pass. Additional real Cargo cases
+cover nested/short-circuit/match values, break exits, repeated loop-guard outcomes,
+loop-containing alternatives and complete unreachable source after divergence.
+Consistently corrupted paired guards/snapshots, frontiers and controllers fail
+independent validation and strict admission.
+
+There are no remaining blockers for this declared scalar leaf family. General F10
+remains Partial: conditional values inside iterations require iteration-specific
+proof. Concrete checked-access/Option families and S09 mixed-content nominal
+ownership remain next audits; `Frac::new` is still excluded and was never included
+in this target. No helper totality, alias independence or broad enum/drop support
+follows from admitting gcd.

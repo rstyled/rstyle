@@ -29,7 +29,7 @@ fn apply_profile(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Re
     configure_cfg(&mut cfg, &policy, profile);
     let evidence = selection_evidence(facts, profile)?;
     if profile.supports("rust.scalar-loops") {
-        let cyclic = cyclic_policy()?;
+        let cyclic = cyclic_policy(profile)?;
         pdg.extensions.insert(
             "rstyle.hir-coverage:cyclic-flow-policy".into(),
             cyclic.clone(),
@@ -57,8 +57,12 @@ fn configure_cfg(cfg: &mut crate::CfgDocument, policy: &ProfileId, profile: Extr
     }
 }
 
-fn cyclic_policy() -> Result<Value, String> {
-    serde_json::from_str(r#"{"reaching_definitions":"finite-monotone-kill-gen/1","postdominance":"all-maximal-paths-least-fixed-point/1","execution":"nearest-strict-entry-dominator/1","value_availability":"strict-dominance-without-conditional-value-merges/1","virtual_executable_exits":false}"#).map_err(|e| e.to_string())
+fn cyclic_policy(profile: ExtractionProfile) -> Result<Value, String> {
+    let mut policy: Value = serde_json::from_str(r#"{"reaching_definitions":"finite-monotone-kill-gen/1","postdominance":"all-maximal-paths-least-fixed-point/1","execution":"nearest-strict-entry-dominator/1","value_availability":"strict-dominance-without-conditional-value-merges/1","virtual_executable_exits":false}"#).map_err(|e| e.to_string())?;
+    if profile.supports("rust.outside-loop-value-merges") {
+        policy["value_availability"] = "outside-cycle-guard-states-and-must-evaluation/1".into();
+    }
+    Ok(policy)
 }
 
 fn selection_evidence(

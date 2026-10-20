@@ -9,19 +9,29 @@ type ReadEdge = (String, String, Option<String>, Option<String>, Option<u64>);
 type Sets = BTreeMap<String, BTreeSet<String>>;
 
 pub fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<String>, Vec<String>> {
-    if pdg
+    let has_merges = pdg
         .nodes
         .iter()
-        .any(|node| node.category == NodeCategory::Merge)
-        || pdg
-            .extensions
-            .get("compat.rust.hir-r0:value-sites")
-            .is_none_or(|sites| sites.as_array().is_none_or(|sites| !sites.is_empty()))
-    {
-        return Err(vec![
-            "Cyclic policy excludes expression value merges".into(),
-        ]);
-    }
+        .any(|node| node.category == NodeCategory::Merge);
+    let available = if has_merges
+        && crate::extraction_profile::policy_supports(
+            &pdg.profile,
+            "rust.outside-loop-value-merges",
+        ) {
+        crate::value_sites::validate_cyclic_sites(pdg, cfg).map_err(|error| vec![error])?
+    } else {
+        if has_merges
+            || pdg
+                .extensions
+                .get("compat.rust.hir-r0:value-sites")
+                .is_none_or(|sites| sites.as_array().is_none_or(|sites| !sites.is_empty()))
+        {
+            return Err(vec![
+                "Cyclic policy excludes expression value merges".into(),
+            ]);
+        }
+        BTreeSet::new()
+    };
     let mapping = read_operation_map(&pdg.extensions).map_err(|e| vec![e])?;
     let reached = reachable_vertices(cfg);
     let predecessors = predecessors(cfg, &reached);
@@ -30,7 +40,7 @@ pub fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<String>
     check_reads(pdg, &mapping, &reached, &incoming)?;
     check_values(pdg, &mapping, &reached, &dominance)?;
 
-    Ok(BTreeSet::new())
+    Ok(available)
 }
 
 /// Check binding reads against serialized CFG kill/gen, with or without loops.
@@ -337,6 +347,9 @@ fn check_value(edge: &PdgEdge, proof: &ValueProof<'_>) -> Result<(), Vec<String>
     }
     if node.category == NodeCategory::FormalInput {
         return Ok(());
+    }
+    if node.category == NodeCategory::Merge {
+        return Ok(()); // independently checked by the outside-cycle site proof
     }
     let producer = mapping
         .iter()

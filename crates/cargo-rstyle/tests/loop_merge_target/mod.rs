@@ -1,6 +1,7 @@
 //! Source-selected expectations precede loop/merge support.
 use super::*;
 
+mod outside;
 mod tuple_cases;
 
 fn natural_gcd() -> &'static str {
@@ -29,14 +30,7 @@ fn loop_merge_target_preserves_connected_classifications() {
         .iter()
         .find(|function| function["facts"]["name"] == "gcd")
         .unwrap();
-    assert!(
-        natural["reasons"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|reason| { reason.as_str().unwrap().contains("cyclic policy excludes") }),
-        "{natural}"
-    );
+    assert_eq!(natural["outcome"], "admitted");
     let step = functions
         .iter()
         .find(|function| function["facts"]["name"] == "tuple_step")
@@ -49,14 +43,17 @@ fn check_target_classifications(functions: &[Value]) {
         let name = function["facts"]["name"].as_str().unwrap();
         assert_eq!(
             function["outcome"],
-            if matches!(name, "sequential" | "tuple_step") {
+            if matches!(
+                name,
+                "sequential" | "tuple_step" | "gcd" | "after_loop" | "before_loop"
+            ) {
                 "admitted"
             } else {
                 "excluded"
             },
             "{function}"
         );
-        if matches!(name, "gcd" | "after_loop" | "before_loop" | "cyclic_merge") {
+        if name == "cyclic_merge" {
             assert!(
                 function["reasons"]
                     .as_array()

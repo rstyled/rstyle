@@ -1035,10 +1035,15 @@ fn check_loop_values(
     if !profile.supports("rust.scalar-loops") || !contains_loop(node) {
         return Outcome::ok();
     }
-    check_no_loop_merges(node)
+    check_no_loop_merges(
+        node,
+        false,
+        profile.supports("rust.outside-loop-value-merges"),
+    )
 }
 
-fn check_no_loop_merges(node: &HirNode) -> Outcome {
+fn check_no_loop_merges(node: &HirNode, inside_loop: bool, outside: bool) -> Outcome {
+    let inside_loop = inside_loop || matches!(node.kind.as_str(), "expr_loop" | "expr_while");
     let branching = matches!(node.kind.as_str(), "expr_if" | "expr_match")
         && !matches!(node_norm(node), Some("unit") | None)
         && node.ty.as_ref().is_none_or(|ty| ty.observed != "!");
@@ -1046,7 +1051,8 @@ fn check_no_loop_merges(node: &HirNode) -> Outcome {
         .dispatch
         .as_ref()
         .is_some_and(|dispatch| matches!(dispatch.op.as_str(), "&&" | "||"));
-    let own = if branching || short {
+
+    let own = if (branching || short) && (inside_loop || !outside) {
         error(
             "rust.scalar-loops",
             "loop_value_merges",
@@ -1057,7 +1063,10 @@ fn check_no_loop_merges(node: &HirNode) -> Outcome {
         Outcome::ok()
     };
     own.merge(Outcome::combine(
-        node.children.iter().map(check_no_loop_merges).collect(),
+        node.children
+            .iter()
+            .map(|child| check_no_loop_merges(child, inside_loop, outside))
+            .collect(),
     ))
 }
 
