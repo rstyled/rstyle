@@ -3404,3 +3404,21 @@ simultaneous blockers require source-first contracts before another activation.
 The initial three-method family is supported; the wider Unit/DFA caller chain is
 not certified. Abstraction mining, rewrite safety and held-out detector quality
 remain separate from extraction coverage. The full roadmap remains active.
+
+### Next connected target: tagged byte-unit classifiers
+
+The [classifier contract](docs/extraction-profiles/tagged-unit-classifiers-v1.md)
+selects original Unit::as_usize and Unit::is_eoi from the complete default-feature
+regex-automata library before enabling support. It records both exact identities,
+independent all-byte/all-u16 expectations, simultaneous conversion authority and
+Option tag-test/receiver/helper blockers, and deferred neighboring chains.
+Existing receiver observations suffice; no new provenance table is planned.
+
+A separate fixed extension preserves the old eleven-function corpus and adds six
+intended composed positives, four named negatives, the counterfeit method and
+its generated Clone. The real Cargo baseline regression passes: 23 functions,
+six admitted and seventeen excluded, complete assessment and matching, with
+independent verification of existing admissions. No production capability or
+natural admission gain is claimed by this source-first audit. The next increment
+must connect the complete classifier family and measure against the unchanged
+3.47 natural roster (69/2582) and frozen inventory.

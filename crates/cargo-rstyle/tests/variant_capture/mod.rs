@@ -1,5 +1,6 @@
 use super::*;
 mod boundaries;
+mod classifiers;
 mod corruption;
 
 fn descendants<'a>(node: &'a rstyle_pdg::HirNode, output: &mut Vec<&'a rstyle_pdg::HirNode>) {

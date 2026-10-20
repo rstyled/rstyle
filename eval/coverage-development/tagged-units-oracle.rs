@@ -35,4 +35,18 @@ mod rstyle_tagged_units_oracle {
             assert!(std::panic::catch_unwind(|| Unit::eoi(invalid)).is_err());
         }
     }
+    #[test]
+    fn classifiers_preserve_every_payload_and_distinguish_equal_numeric_tags() {
+        for byte in 0..=u8::MAX {
+            let unit = Unit::u8(byte);
+            assert_eq!(unit.as_usize(), byte as usize);
+            assert!(!unit.is_eoi());
+        }
+        for sentinel in 0..=u16::MAX {
+            let unit = Unit(UnitKind::EOI(sentinel));
+            assert_eq!(unit.as_usize(), sentinel as usize);
+            assert!(unit.is_eoi());
+        }
+    }
+
 }
