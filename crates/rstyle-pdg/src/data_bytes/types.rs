@@ -19,14 +19,16 @@ fn result(kind: Kind) -> TypeTree {
 
 pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let (input, output) = match kind {
-        Kind::Copy | Kind::Borrow => (
+        Kind::Copy(_) | Kind::Borrow => (
             TypeTree::Shared(Box::new(TypeTree::Slice(Box::new(TypeTree::Scalar(
                 "u8".into(),
             ))))),
             result(kind),
         ),
-        Kind::Unwrap => (result(kind), array(4)),
+        Kind::Unwrap(_) => (result(kind), array(kind.length())),
         Kind::Native => (array(4), TypeTree::Scalar("u32".into())),
+        Kind::NativeU16 => (array(2), TypeTree::Scalar("u16".into())),
+        Kind::NativeU128 => (array(16), TypeTree::Scalar("u128".into())),
         Kind::UnwrapBorrow => (result(kind), TypeTree::Shared(Box::new(array(8)))),
         Kind::NativeUsize => (array(8), TypeTree::Scalar("usize".into())),
     };
@@ -46,7 +48,10 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
     }
     if kind.native() {
         if crate::data_aggregates::token(operand)? != crate::data_types::token(&input)? {
-            return Err("Native byte conversion requires exactly [u8; 4]".into());
+            return Err(format!(
+                "Native byte conversion requires exactly [u8; {}]",
+                kind.length()
+            ));
         }
         return Ok(());
     }
@@ -79,15 +84,15 @@ fn verify_receiver(
         return Err("Byte-call instantiated signature disagrees".into());
     }
     let allowed = match kind {
-        Kind::Copy | Kind::Borrow => receiver.adjustments.iter().all(|step| {
+        Kind::Copy(_) | Kind::Borrow => receiver.adjustments.iter().all(|step| {
             matches!(
                 step.kind,
                 crate::data_receivers::Kind::SharedBorrow
                     | crate::data_receivers::Kind::BuiltinDereference
             )
         }),
-        Kind::Unwrap | Kind::UnwrapBorrow => receiver.adjustments.is_empty(),
-        Kind::Native | Kind::NativeUsize => unreachable!(),
+        Kind::Unwrap(_) | Kind::UnwrapBorrow => receiver.adjustments.is_empty(),
+        Kind::Native | Kind::NativeUsize | Kind::NativeU16 | Kind::NativeU128 => unreachable!(),
     };
     if !allowed {
         return Err("Byte call requires builtin shared receiver adjustments".into());

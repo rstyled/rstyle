@@ -1128,7 +1128,7 @@ retained as part of the source identity; measured support is recorded here and
 in the contract. The oracle is also run with adler2 default features disabled.
 
 
-## Native unsigned prefix readers (declared, not activated)
+## Native unsigned prefix readers (Data-v3 3.44.0)
 
 `native-prefix-readers.rs` fixes 11 functions before admission assessment. The
 eight intended positives connect RangeTo prefixes, concrete size_of calls,
@@ -1144,3 +1144,16 @@ harness with `native-prefix-readers-oracle.rs`, and runs four independent numeri
 short-input and saved-base tests. No original Cargo neighbors are omitted from
 pipeline coverage by this runtime-only harness. See the
 [full source-selected contract and blocker audit](../../docs/extraction-profiles/native-prefix-readers-v1.md).
+
+
+The unchanged std/no_std contexts each now admit **8/11**, gaining seven and
+losing none, with all 28 comparisons complete. The original complete
+regex-automata unit preserves all 2582 identities and moves **9 →14 admissions**:
+the three declared readers plus two scalar-size wrappers. All 14 original-unit
+admissions independently verify. The unchanged frozen selection remains
+**20 admitted /33 excluded /7 inactive**; the full regex-syntax roster additionally
+gains the strictly verified `LookSet::read_repr`. No original unit was reduced to
+make these functions pass. The contract records the complete blocker chain,
+independent expectations, negative boundaries, matching limitations, measured
+performance costs and remaining caller/Result work. Neither the oracle nor these
+similarity results authorize rewrites or detector-quality claims.

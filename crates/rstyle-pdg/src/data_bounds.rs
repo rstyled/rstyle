@@ -12,6 +12,13 @@ pub(crate) enum Bounds {
         array_length: Option<u64>,
         exceptional_flow: &'static str,
     },
+    Prefix {
+        rule: &'static str,
+        base_operand: u64,
+        implicit_start: u64,
+        end_operand: u64,
+        exceptional_flow: &'static str,
+    },
     Subslice {
         rule: &'static str,
         base_operand: u64,
@@ -38,6 +45,16 @@ impl Bounds {
             base_operand: 0,
             start_operand: 1,
             end_operand: 2,
+            exceptional_flow: "omitted",
+        }
+    }
+
+    pub fn prefix() -> Self {
+        Self::Prefix {
+            rule: "zero-to-end-less-or-equal-length",
+            base_operand: 0,
+            implicit_start: 0,
+            end_operand: 1,
             exceptional_flow: "omitted",
         }
     }

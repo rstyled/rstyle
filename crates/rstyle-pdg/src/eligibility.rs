@@ -556,8 +556,8 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     if crate::data_subslices::candidate(node, ctx.facts) {
         return match crate::data_subslices::verify(node, ctx.facts) {
             Ok(checked) => Outcome::combine(
-                [checked.base, checked.start, checked.end]
-                    .into_iter()
+                checked
+                    .operands()
                     .map(|operand| check_node(operand, in_expansion, ctx))
                     .collect(),
             ),

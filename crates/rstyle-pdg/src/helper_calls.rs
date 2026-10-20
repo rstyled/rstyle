@@ -480,26 +480,7 @@ fn verify_inventory(pair: producer::PairView<'_>, facts: &dyn EvidenceFacts) -> 
     for call in &calls {
         verify_document_call(pair, &mut locations, call, records)?;
     }
-    let nodes = pair
-        .pdg
-        .nodes
-        .iter()
-        .filter(|node| {
-            node.category == crate::NodeCategory::Call
-                && (node.original_kind.known_value() == Some("expr_call")
-                    && !matches!(
-                        node.attributes.construct.as_deref(),
-                        Some(
-                            "data.bytes.native-u32"
-                                | "data.bytes.native-usize"
-                                | "data.scalar-from"
-                        )
-                    )
-                    || records.iter().any(|record| {
-                        record["pdg_node_id"] == node.id && record.get("dependency").is_some()
-                    }))
-        })
-        .count();
+    let nodes = serialized_helper_count(pair, records);
     let dependencies = records
         .iter()
         .filter(|record| record.get("dependency").is_some())
@@ -511,6 +492,31 @@ fn verify_inventory(pair: producer::PairView<'_>, facts: &dyn EvidenceFacts) -> 
     }
 
     Ok(())
+}
+
+fn serialized_helper_count(pair: producer::PairView<'_>, records: &[Value]) -> usize {
+    pair.pdg
+        .nodes
+        .iter()
+        .filter(|node| {
+            node.category == crate::NodeCategory::Call
+                && (node.original_kind.known_value() == Some("expr_call")
+                    && !matches!(
+                        node.attributes.construct.as_deref(),
+                        Some(
+                            "data.bytes.native-u16"
+                                | "data.bytes.native-u128"
+                                | "data.bytes.native-u32"
+                                | "data.bytes.native-usize"
+                                | "data.scalar-from"
+                                | "data.scalar-size"
+                        )
+                    )
+                    || records.iter().any(|record| {
+                        record["pdg_node_id"] == node.id && record.get("dependency").is_some()
+                    }))
+        })
+        .count()
 }
 
 fn verify_document_call(

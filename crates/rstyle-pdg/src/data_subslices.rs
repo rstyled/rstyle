@@ -4,12 +4,31 @@
 use crate::{HirNode, data_types::TypeToken, unit_store::EvidenceFacts};
 use syn::spanned::Spanned;
 
+pub const PREFIX_CAPABILITY: &str = "rust.native-prefix-readers";
+
 pub(crate) const BOUNDS_KEY: &str = "rstyle.data:subslice-bounds";
 
 pub(crate) struct Checked<'a> {
     pub base: &'a HirNode,
-    pub start: &'a HirNode,
+    pub start: Option<&'a HirNode>,
     pub end: &'a HirNode,
+    pub requires_prefix_policy: bool,
+}
+
+impl<'a> Checked<'a> {
+    pub fn operands(&self) -> impl Iterator<Item = &'a HirNode> {
+        std::iter::once(self.base)
+            .chain(self.start)
+            .chain(std::iter::once(self.end))
+    }
+
+    pub fn bounds(&self) -> crate::data_bounds::Bounds {
+        if self.start.is_some() {
+            crate::data_bounds::Bounds::subslice()
+        } else {
+            crate::data_bounds::Bounds::prefix()
+        }
+    }
 }
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
@@ -43,8 +62,10 @@ pub(crate) fn verify<'a>(
     let [base, range] = node.children.as_slice() else {
         return Err("Subslice lacks exact base and range operands".into());
     };
-    let [start, end] = range.children.as_slice() else {
-        return Err("Subslice requires both exclusive range endpoints".into());
+    let (start, end) = match range.children.as_slice() {
+        [start, end] => (Some(start), end),
+        [end] if crate::extraction_profile::facts_support(facts, PREFIX_CAPABILITY) => (None, end),
+        _ => return Err("Subslice requires registered exclusive range endpoints".into()),
     };
     let base_ty = crate::data_types::parse(crate::data_aggregates::token(base)?)?;
     let TypeToken::Shared(referent) = base_ty else {
@@ -52,7 +73,7 @@ pub(crate) fn verify<'a>(
     };
     if !matches!(referent.as_ref(), TypeToken::Slice(element) if matches!(element.as_ref(), TypeToken::Scalar(_)))
         || crate::data_types::parse(crate::data_aggregates::token(node)?)? != *referent
-        || crate::data_aggregates::token(start)? != "usize"
+        || start.is_some_and(|start| crate::data_aggregates::token(start) != Ok("usize"))
         || crate::data_aggregates::token(end)? != "usize"
     {
         return Err("Subslice requires a scalar slice and exact usize endpoints".into());
@@ -60,10 +81,20 @@ pub(crate) fn verify<'a>(
 
     verify_dispatch(node, base, range)?;
 
-    authority(node, "resolved_callee", "std::ops::Index::index", facts)?;
-    authority(range, "resolved_range_type", "std::ops::Range", facts)?;
+    let core_index = authority(node, "resolved_callee", "std::ops::Index::index", facts)?;
+    let range_path = if start.is_some() {
+        "std::ops::Range"
+    } else {
+        "std::ops::RangeTo"
+    };
+    let core_range = authority(range, "resolved_range_type", range_path, facts)?;
     source(node, base, range, facts)?;
-    Ok(Checked { base, start, end })
+    Ok(Checked {
+        base,
+        start,
+        end,
+        requires_prefix_policy: start.is_none() || core_index || core_range,
+    })
 }
 
 fn verify_dispatch(node: &HirNode, base: &HirNode, range: &HirNode) -> Result<(), String> {
@@ -100,7 +131,7 @@ fn authority(
     kind: &str,
     path: &str,
     facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let registry =
         crate::data_library::registry_for(facts).ok_or("Unpinned subslice compiler/target")?;
     let resolution = node
@@ -111,15 +142,17 @@ fn authority(
     let callee: crate::data_library::Callee =
         serde_json::from_str(&resolution.description).map_err(|error| error.to_string())?;
 
+    let alternate = crate::extraction_profile::facts_support(facts, PREFIX_CAPABILITY)
+        && callee.path.strip_prefix("core::") == path.strip_prefix("std::");
     if callee.crate_name != "core"
         || callee.crate_hash != registry.core_hash
-        || callee.path != path
+        || (callee.path != path && !alternate)
         || registry.definitions.get(path) != Some(&callee.definition_hash)
         || callee.implementation.is_some()
     {
         return Err("Subslice disagrees with pinned core index/range authority".into());
     }
-    Ok(())
+    Ok(alternate)
 }
 
 fn source(
@@ -143,21 +176,22 @@ fn source(
     if !matches!(bounds.limits, syn::RangeLimits::HalfOpen(_)) {
         return Err("Only exclusive subslice endpoints are registered".into());
     }
-    let start = bounds
-        .start
-        .as_ref()
-        .ok_or("Missing subslice lower endpoint")?;
-    let end = bounds
-        .end
-        .as_ref()
-        .ok_or("Missing subslice upper endpoint")?;
+    if bounds.end.is_none()
+        || bounds.start.is_none()
+            && !crate::extraction_profile::facts_support(facts, PREFIX_CAPABILITY)
+        || range.children.len() != 1 + usize::from(bounds.start.is_some())
+    {
+        return Err("Subslice source lacks its registered exclusive endpoints".into());
+    }
+    let syntax_operands = std::iter::once(index.expr.as_ref())
+        .chain(std::iter::once(index.index.as_ref()))
+        .chain(bounds.start.as_deref())
+        .chain(bounds.end.as_deref());
+    let hir_operands = std::iter::once(base)
+        .chain(std::iter::once(range))
+        .chain(range.children.iter());
 
-    for (syntax, hir) in [
-        (&*index.expr, base),
-        (&*index.index, range),
-        (&**start, &range.children[0]),
-        (&**end, &range.children[1]),
-    ] {
+    for (syntax, hir) in syntax_operands.zip(hir_operands) {
         let span = crate::data_aggregates::ungroup(syntax).span();
         let span = crate::ByteSpan {
             start: node.span.start

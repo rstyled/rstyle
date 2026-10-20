@@ -147,7 +147,7 @@ fn collect_subslice<'a>(
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     let checked = crate::data_subslices::verify(node, facts)?;
-    for operand in [checked.base, checked.start, checked.end] {
+    for operand in checked.operands() {
         collect(operand, constructors, facts)?;
     }
     Ok(())

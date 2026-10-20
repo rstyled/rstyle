@@ -11,6 +11,7 @@ mod nominal_census;
 mod options;
 pub mod output;
 mod scalar_constants;
+mod size_calls;
 pub mod source;
 mod sources;
 mod tuple_assignment;

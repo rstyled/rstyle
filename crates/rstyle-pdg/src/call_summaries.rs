@@ -79,6 +79,9 @@ pub fn resolve_for(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<Summary>, String> {
+    if crate::size_calls::candidate(node, facts) {
+        return crate::size_calls::resolve(node, facts);
+    }
     if crate::scalar_from::candidate(node, facts) {
         return crate::scalar_from::resolve(node, facts);
     }
@@ -125,7 +128,8 @@ pub(crate) fn static_intrinsic(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> bool {
-    crate::scalar_from::candidate(node, facts)
+    crate::size_calls::candidate(node, facts)
+        || crate::scalar_from::candidate(node, facts)
         || crate::data_bytes::enabled(facts) && crate::data_bytes::kind(node).is_some()
 }
 

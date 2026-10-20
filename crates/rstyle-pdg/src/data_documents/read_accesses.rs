@@ -25,6 +25,8 @@ impl Kind {
                 Some(
                     "data.bytes.copy-result"
                         | "data.bytes.unwrap"
+                        | "data.bytes.native-u16"
+                        | "data.bytes.native-u128"
                         | "data.bytes.native-u32"
                         | "data.bytes.borrow-result"
                         | "data.bytes.unwrap-borrow"

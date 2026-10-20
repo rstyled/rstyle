@@ -13,30 +13,43 @@ pub(crate) const KEY: &str = "rstyle.data:byte-call";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
-    Copy,
-    Unwrap,
+    Copy(u64),
+    Unwrap(u64),
     Native,
     Borrow,
     UnwrapBorrow,
     NativeUsize,
+    NativeU16,
+    NativeU128,
 }
 
 pub(crate) fn kind(node: &HirNode) -> Option<Kind> {
     match node.dispatch.as_ref()?.op.as_str() {
-        "std::convert::TryInto::try_into" => Some(if borrowed_result(node) {
-            Kind::Borrow
-        } else {
-            Kind::Copy
-        }),
-        "std::result::Result::<T, E>::unwrap" => {
+        "std::convert::TryInto::try_into" | "core::convert::TryInto::try_into" => {
+            Some(if borrowed_result(node) {
+                Kind::Borrow
+            } else {
+                Kind::Copy(result_length(node)?)
+            })
+        }
+        "std::result::Result::<T, E>::unwrap" | "core::result::Result::<T, E>::unwrap" => {
             Some(if node.children.first().is_some_and(borrowed_result) {
                 Kind::UnwrapBorrow
             } else {
-                Kind::Unwrap
+                Kind::Unwrap(result_length(node.children.first()?)?)
             })
         }
+        "core::num::<impl u16>::from_ne_bytes" => Some(Kind::NativeU16),
+        "core::num::<impl u128>::from_ne_bytes" => Some(Kind::NativeU128),
         "core::num::<impl u32>::from_ne_bytes" => Some(Kind::Native),
         "core::num::<impl usize>::from_ne_bytes" => Some(Kind::NativeUsize),
+        _ => None,
+    }
+}
+
+fn result_length(node: &HirNode) -> Option<u64> {
+    match crate::data_aggregates::parsed_type(node).ok()? {
+        crate::data_types::TypeToken::SliceArrayResult { length, .. } => Some(length),
         _ => None,
     }
 }
@@ -51,33 +64,51 @@ fn borrowed_result(node: &HirNode) -> bool {
 impl Kind {
     pub fn construct(self) -> &'static str {
         match self {
-            Self::Copy => "data.bytes.copy-result",
-            Self::Unwrap => "data.bytes.unwrap",
+            Self::Copy(_) => "data.bytes.copy-result",
+            Self::Unwrap(_) => "data.bytes.unwrap",
             Self::Native => "data.bytes.native-u32",
             Self::Borrow => "data.bytes.borrow-result",
             Self::UnwrapBorrow => "data.bytes.unwrap-borrow",
             Self::NativeUsize => "data.bytes.native-usize",
+            Self::NativeU16 => "data.bytes.native-u16",
+            Self::NativeU128 => "data.bytes.native-u128",
         }
     }
 
     pub fn native(self) -> bool {
-        matches!(self, Self::Native | Self::NativeUsize)
+        matches!(
+            self,
+            Self::Native | Self::NativeUsize | Self::NativeU16 | Self::NativeU128
+        )
     }
 
     pub fn conversion(self) -> bool {
-        matches!(self, Self::Copy | Self::Borrow)
+        matches!(self, Self::Copy(_) | Self::Borrow)
     }
 
     pub fn unwrap(self) -> bool {
-        matches!(self, Self::Unwrap | Self::UnwrapBorrow)
+        matches!(self, Self::Unwrap(_) | Self::UnwrapBorrow)
     }
 
     pub fn length(self) -> u64 {
-        if matches!(self, Self::Copy | Self::Unwrap | Self::Native) {
-            4
-        } else {
-            8
+        match self {
+            Self::Copy(length) | Self::Unwrap(length) => length,
+            Self::Native => 4,
+            Self::NativeU16 => 2,
+            Self::NativeU128 => 16,
+            Self::Borrow | Self::UnwrapBorrow | Self::NativeUsize => 8,
         }
+    }
+
+    pub fn requires_prefix(self, node: &HirNode) -> bool {
+        matches!(self, Self::NativeU16 | Self::NativeU128)
+            || matches!(self, Self::Copy(length) | Self::Unwrap(length) if length != 4)
+            || node.dispatch.as_ref().is_some_and(|dispatch| {
+                matches!(
+                    dispatch.op.as_str(),
+                    "core::convert::TryInto::try_into" | "core::result::Result::<T, E>::unwrap"
+                )
+            })
     }
 
     pub fn semantics(self) -> Value {
@@ -105,7 +136,7 @@ pub(crate) fn resolve(
         callee_crate: "core".into(),
         argument_types: dispatch.operand_tys.clone(),
         result_type: dispatch.result_ty.clone(),
-        memory_effects: kind == Kind::Copy,
+        memory_effects: matches!(kind, Kind::Copy(_)),
         mutates_arguments: false,
         may_panic: kind.unwrap(),
         always_returns: !kind.unwrap(),
@@ -123,6 +154,15 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Kind, 
     {
         return Err("Borrowed byte readers require their registered capability".into());
     }
+    if kind.requires_prefix(node)
+        && !crate::extraction_profile::facts_support(
+            facts,
+            crate::data_subslices::PREFIX_CAPABILITY,
+        )
+        || matches!(kind, Kind::Copy(length) | Kind::Unwrap(length) if !matches!(length, 2 | 4 | 16))
+    {
+        return Err("Byte signature/display requires the registered prefix-reader contract".into());
+    }
     authority(node, kind, facts)?;
     source::verify(node, kind, facts)?;
     types::verify(node, kind, facts)?;
@@ -135,7 +175,10 @@ fn authority(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<()
     let callee = crate::data_library::callee(node)?;
     if callee.crate_name != "core"
         || callee.crate_hash != registry.core_hash
-        || registry.definitions.get(&callee.path) != Some(&callee.definition_hash)
+        || registry
+            .definitions
+            .get(definition_path(&callee.path, facts))
+            != Some(&callee.definition_hash)
         || node
             .dispatch
             .as_ref()
@@ -150,8 +193,11 @@ fn authority(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<()
             .ok_or("Missing selected slice conversion implementation")?;
         if selected.crate_name != "core"
             || selected.crate_hash != registry.core_hash
-            || registry.definitions.get(&selected.path) != Some(&selected.definition_hash)
-            || selected.path != "<T as std::convert::TryInto<U>>::try_into"
+            || registry
+                .definitions
+                .get(definition_path(&selected.path, facts))
+                != Some(&selected.definition_hash)
+            || definition_path(&selected.path, facts) != "<T as std::convert::TryInto<U>>::try_into"
             || selected.implementation.is_some()
         {
             return Err("Slice conversion lacks the pinned blanket TryInto implementation".into());
@@ -162,12 +208,24 @@ fn authority(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<()
     Ok(())
 }
 
+fn definition_path<'a>(path: &'a str, facts: &dyn EvidenceFacts) -> &'a str {
+    if !crate::extraction_profile::facts_support(facts, crate::data_subslices::PREFIX_CAPABILITY) {
+        return path;
+    }
+    match path {
+        "core::convert::TryInto::try_into" => "std::convert::TryInto::try_into",
+        "<T as core::convert::TryInto<U>>::try_into" => "<T as std::convert::TryInto<U>>::try_into",
+        "core::result::Result::<T, E>::unwrap" => "std::result::Result::<T, E>::unwrap",
+        _ => path,
+    }
+}
+
 pub(crate) fn locations(
     node: &HirNode,
     facts: &dyn EvidenceFacts,
     kind: Kind,
 ) -> Result<Vec<crate::field_locations::derived::Located>, String> {
-    if kind != Kind::Copy {
+    if !matches!(kind, Kind::Copy(_)) {
         return Ok(Vec::new());
     }
     let receiver = &node.children[0];
@@ -183,9 +241,9 @@ pub(crate) fn locations(
             .path
             .push(crate::field_locations::Projection::ByteWindow {
                 operand_position: 0,
-                length: 4,
+                length: kind.length(),
             });
-        location.value = types::array(4);
+        location.value = types::array(kind.length());
     }
 
     if locations.is_empty() {

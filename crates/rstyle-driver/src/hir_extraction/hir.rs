@@ -561,14 +561,17 @@ impl<'tcx> Context<'tcx> {
             ExprKind::Unary(op, value) => (op.as_str().to_string(), vec![value]),
             ExprKind::Index(base, index, _) => ("[]".into(), vec![base, index]),
             ExprKind::Cast(value, _) => ("as".to_string(), vec![value]),
-            ExprKind::Call(callee, args) => (
-                self.direct_callee(callee).and_then(|res| {
-                    serde_json::from_str::<serde_json::Value>(&res.description).ok()
-                })?["path"]
-                    .as_str()?
-                    .to_string(),
-                args.iter().collect(),
-            ),
+            ExprKind::Call(callee, args) => {
+                let resolution = self.direct_callee(callee)?;
+                let value: serde_json::Value =
+                    serde_json::from_str(&resolution.description).ok()?;
+                let path = if resolution.kind == rstyle_pdg::size_calls::RESOLUTION {
+                    &value["callee"]["path"]
+                } else {
+                    &value["path"]
+                };
+                (path.as_str()?.to_string(), args.iter().collect())
+            }
             ExprKind::MethodCall(_, receiver, args, _) => (
                 self.tcx
                     .def_path_str(self.typeck.type_dependent_def_id(expr.hir_id)?),
@@ -726,6 +729,11 @@ impl Context<'_> {
         {
             let capture = self.scalar_from_capture(expression, callee);
             return Some(self.instantiated_callee(expression, callee, capture));
+        }
+        if kind == rustc_hir::def::DefKind::Fn
+            && let Some(resolution) = self.size_callee(expression, callee)
+        {
+            return Some(resolution);
         }
         if self.tcx.generics_of(callee).count() != 0 {
             return None;

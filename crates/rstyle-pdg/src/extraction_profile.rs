@@ -68,6 +68,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.cyclic-value-merges",
     "rust.scalar-option-values",
     "rust.scalar-from-conversions",
+    "rust.native-prefix-readers",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -87,6 +88,9 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.data.bytes.unwrap-borrow/1",
     "rstyle.data.bytes.native-usize/1",
     "rstyle.data.slice.get-scalar/1",
+    "rstyle.data.bytes.native-u16/1",
+    "rstyle.data.bytes.native-u128/1",
+    "rstyle.data.scalar-size/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -195,7 +199,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.43.0", 55)),
+            Self::DataV3 => Some(("3.44.0", 56)),
         }
     }
 

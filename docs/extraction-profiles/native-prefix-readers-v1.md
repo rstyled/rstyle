@@ -1,8 +1,8 @@
-# Native prefix readers: source-selected target
+# Native prefix readers: source-selected contract
 
-This declaration precedes admission assessment. Current Data-v3 is 3.43.0;
-there is no new activation or admission claim. Keep the frozen 60-function
-inventory, identities, denominators and historical outcomes unchanged.
+This target was declared at Data-v3 3.43.0 before admission assessment and is
+activated by Data-v3 3.44.0 after the validation below. The frozen 60-function
+inventory, identities, denominators and historical outcomes remain unchanged.
 
 The selected natural family is regex-automata 0.4.18's three native unsigned
 prefix readers in `src/util/wire.rs`, in the original complete default-feature
@@ -143,3 +143,172 @@ and patterns **0 candidates**. The extraction engine, frozen selection, scoring,
 thresholds, suppressions and ignore ledger are unchanged. A workspace test rerun
 is not claimed for these evaluation-only additions; the preceding production
 milestone's 846-test result remains recorded separately.
+
+## Bounded implementation
+
+The Data-v3 3.44.0 contract connects the complete chain rather than
+certifying a supported prefix of an otherwise unsupported function:
+
+- `..end` on a shared scalar slice has an explicit language-defined zero start,
+  one actual endpoint operand and a retained `end <= length` normal-completion
+  requirement. Base evaluation precedes endpoint evaluation. No fake lower-bound
+  expression or literal is inserted, and suffix/inclusive/mutable/array views
+  are not added by this contract.
+- Original direct `size_of::<u16/u32/u128>()` calls require the pinned core callee,
+  actual instantiated primitive argument, zero-input usize signature and exact
+  original syntax. Unrenamed `size_of` imports and explicit core/std mem paths are supported;
+  aliases for the type argument, custom callees, aggregate/general size calls
+  and generic constant evaluation remain outside the contract. The call stays a
+  call with a checked size annotation; it is not replaced by fabricated source.
+- The existing concrete slice-array Result observation supplies lengths 2/4/16;
+  the existing selected blanket TryInto implementation, receiver adjustments,
+  type checks and conditional byte-window reads remain mandatory. Both the
+  location payload type and read-window length are the actual array length.
+  Unwrap still requires Ok for normal completion and still omits exceptional
+  flow; conversion and prefix syntax do not prove it infallible.
+- Native u16/u32/u128 conversion retains exact array dependencies and unsigned
+  positional-byte significance on the three pinned little-endian CI targets.
+  For byte conversions, only the three known core/std display alternatives are
+  mapped to their exact existing authority keys; compiler, target, crate and definition hashes and the
+  selected implementation must still agree. No general string normalization or
+  trait purity inference is introduced.
+
+The only new capture datum is the actual scalar size argument nested with the
+existing callee record. Existing source storage, type observations, return-origin
+transport, summaries and location keys are reused. There is no new provenance
+index, source snapshot copy or cache. Historical policies reject new prefix,
+size and extended native constructs independently of the generated documents'
+other constructs.
+
+Source review found an initially retained four-byte location payload label for
+new two/sixteen-byte copies despite correct window lengths. It is corrected, and
+independent fixed-length/type assertions for all three readers now cover this
+composition. Altering the location payload to four bytes is explicitly rejected
+by document verification, producer verification and strict admission.
+
+Both unchanged 11-function development contexts now have **8 admitted /3
+excluded /0 unknown**, versus **1 /10 /0** at baseline: seven new admissions and
+no losses in each separate context. All eight positives compose through actual
+Cargo capture and strict verification, with all **28 comparisons evaluated** in
+each context on each installed pinned target. The signed, suffix and panicking
+helper negatives remain excluded. Original-library, frozen-inventory and performance validation are recorded
+separately below.
+
+### Fresh complete baseline
+
+The static 68c300c /Data-v3 3.43.0 binaries have now captured the original
+regex-automata 0.4.18 default-feature library again, preserving all **2582
+functions**: **9 admitted /2573 excluded /0 unknown**. All three selected reader
+spans/hashes match the declaration and remain excluded. This supersedes the need
+to infer a baseline from the older selected-function audit, without changing or
+reinterpreting its historical results.
+
+The complete saved `run-373MDW/report.json` was streamed to a compact roster and
+validated through its closing record. Capture and assessment are complete;
+matching is intentionally incomplete under the explicit zero-pair budget (36
+possible pairs), not silently empty or successful. After that validation, the
+redundant JSON stdout rendering was interrupted to avoid retaining a second
+8 GB report string. The process's exit 130 is recorded as interrupted, not a
+normal successful CLI exit. Its wall time is not used as a performance comparison.
+
+### Complete natural-unit and selected-family evidence
+
+The fresh original-library current report `run-aE1dkq` completes capture and
+assessment of the same **2582 functions**, with identical names, source paths,
+spans, hashes, compilation context, selected features, cfgs, target and compiler:
+**14 admitted /2568 excluded /0 unknown /0 failed**, versus **9 /2573 /0 /0**.
+There are **five new admissions and no losses**. The three declared readers move
+from excluded to admitted with their original source hashes unchanged. The two
+incidental gains are `util::wire::write_endianness_check_len` and
+`util::wire::write_version_len`; each is a complete memory-free wrapper returning
+`size_of::<u32>()`. They were identified by the complete roster delta, not added
+to the declared target to improve its success rate.
+
+The current CLI uses text rendering and exits 2 solely for the explicit zero-pair
+inventory budget: its complete saved JSON report records 91 possible comparisons
+and incomplete matching. No whole-library detector run is claimed. A separate
+strict import of the three natural graphs and their three counterparts in each
+of the std/no_std development units independently verifies documents, producer
+semantics and admission. All nine graphs then complete all **36 comparisons**
+with unchanged defaults; the six same-width natural/development comparisons
+accept with score 1. All cross-width comparisons also accept under the existing
+structural similarity policy. This is extraction/composition evidence, not
+semantic equivalence, rewrite safety or a detector-quality improvement claim.
+
+The source census retains neighboring enums, derives, macros, unsafe code,
+imports and complete modules. The original crate remains internally no_std in
+its default-feature library context; neither the original source nor its build
+selection was rewritten to obtain these gains. Suffix/inclusive/array/mutable
+views, signed conversions and partial-flow helper transport remain excluded.
+The neighboring `try_read_*` family additionally requires concrete Result/tuple
+payloads, error values, generic length-check helpers and `?`; supporting these
+three low-level readers does not certify those callers.
+
+
+## Frozen replay and incidental composition
+
+Canonical replay **run-sd5dhs2u** reproduces all 60 frozen identities, outcomes,
+context activity, record counts, denominators and source-blocker inventory from
+run-dfcyj99b: **20 admitted /33 excluded /7 inactive**. There are no new or lost
+admissions in that selection. All **70 serialized documents** in the captured
+full units pass the canonical schema checks.
+
+The full unchanged rosters preserve lz4_flex's **150 functions /7 admitted** and
+time-core's **226 /8**. regex-syntax preserves all **956 identities** and moves
+**19 →20 admitted**, without losses: the incidental gain is
+`hir::LookSet::read_repr`, whose original complete body connects a four-byte
+prefix, native u32 conversion and `LookSet { bits }` construction. Its exact
+original-unit documents, producer semantics and strict admission independently
+verify. It was found by the whole-roster comparison, not selected retrospectively
+as part of the declared three-reader target.
+
+All **14** current regex-automata admissions also independently pass document,
+producer and admission verification after loading the complete original bundle,
+including the two incidental scalar-size wrappers and the nine old admissions.
+The total observed natural gain is five functions in regex-automata plus one in
+regex-syntax, with no losses in any of the four complete compared unit rosters.
+This does not change the frozen 60-function denominator or its historical count.
+
+## Performance validation
+
+Quiescent measurements compare static 68c300c /3.43.0 binaries with the current
+implementation, using one warmup and seven alternating baseline/current runs per
+workload. Every run checks unchanged source identities, complete assessment and
+matching, and expected admission counts. The unchanged copied-four-byte control
+is the exact existing `byte_windows::workspace` source (SHA256
+`6ee50adcc4ab557360e126371535383346bb9eebe39627c1a98c5fd85f995145`), not a newly
+simplified replacement. The other unchanged control is `cyclic-prefix-scans.rs`.
+
+| Workload | Baseline median (range), seconds | Current median (range), seconds | Median peak RSS, baseline/current KiB |
+| --- | --- | --- | --- |
+| Existing copied byte windows, 16 functions /11 admitted /55 comparisons | 0.86 (0.83–0.90) | 0.89 (0.87–0.92) | 121952 /121916 |
+| Existing cyclic scans, 6 functions /4 admitted /6 comparisons | 0.63 (0.59–0.66) | 0.63 (0.62–0.64) | 110960 /110516 |
+| Newly activated prefix corpus, 11 functions | 0.34 (0.31–0.37) | 0.67 (0.65–0.72) | 118280 /120728 |
+
+The copied control's measured median increases 0.03 seconds (3.5%); its ranges
+overlap and peak memory is unchanged. The cyclic median is unchanged. Both
+controls' complete matching reports are identical in every retained comparison.
+This bounded check finds no material control regression but does not rule out a
+smaller shift or establish whole-library performance. The activated workload
+performs more work: eight admissions and 28 evaluated comparisons, versus one
+admission and no pairs. Its additional runtime is recorded, not described as a
+speedup. No new cache or provenance/source buffer is used to change these results.
+
+## Validation and remaining boundary
+
+Workspace nextest passes **852 tests**, with five existing skips. The final
+prefix-reader and cross-target regression suite, workspace doctests, all-target
+clippy with warnings denied, formatting and diff checks pass. Rstyle reports
+**2703 functions /0 violations**, and patterns reports **0 candidates**. No
+threshold, scoring, suppression or ignore-ledger change is made. The four
+independent numeric/runtime oracle tests pass against exact original bodies.
+Cross-target Cargo verification covers the three installed pinned targets;
+native runtime execution is on ARM Linux, not native macOS/x86 execution.
+
+This completes the declared three-reader family and its eight positive
+compositions. It does not complete the whole Rust roadmap. Remaining connected
+work includes the retained partial-flow caller and the richer Result/error/tuple
+and `?` chain in `try_read_*`; general Option payload patterns, helper effects,
+reference-bearing results, mutable/array/range views and unsafe extraction must
+not be inferred from this activation. Keep further target selection based on
+source and full blocker combinations before admission assessment.

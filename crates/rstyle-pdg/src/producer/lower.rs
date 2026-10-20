@@ -374,7 +374,7 @@ impl Builder<'_> {
 
     fn subslice(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let checked = crate::data_subslices::verify(node, self.facts).expect("verified subslice");
-        let evaluated = self.evaluate_sequence([checked.base, checked.start, checked.end], flow);
+        let evaluated = self.evaluate_sequence(checked.operands(), flow);
         let operation = Operation {
             operands: evaluated.values,
             construct: Some("data.subslice-place".into()),
@@ -565,7 +565,9 @@ impl Builder<'_> {
         };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
-            construct: if crate::scalar_from::candidate(node, self.facts) {
+            construct: if crate::size_calls::candidate(node, self.facts) {
+                Some(crate::size_calls::CONSTRUCT.into())
+            } else if crate::scalar_from::candidate(node, self.facts) {
                 Some(crate::scalar_from::CONSTRUCT.into())
             } else if crate::checked_options::get_candidate(node, self.facts) {
                 Some("data.option-get".into())

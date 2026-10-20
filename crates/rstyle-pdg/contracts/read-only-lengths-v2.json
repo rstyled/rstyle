@@ -53,6 +53,9 @@
     "core::marker::Copy#trait": "DefPathHash(Fingerprint(5614226571623188065, 1471198259949423865))",
     "core::marker::Copy#derive": "DefPathHash(Fingerprint(5614226571623188065, 7507778768895532798))",
     "std::convert::From::from": "DefPathHash(Fingerprint(5614226571623188065, 5283227860215656468))",
-    "std::convert::num::<impl std::convert::From<u16> for u32>::from": "DefPathHash(Fingerprint(5614226571623188065, 16331295001614922104))"
+    "std::convert::num::<impl std::convert::From<u16> for u32>::from": "DefPathHash(Fingerprint(5614226571623188065, 16331295001614922104))",
+    "std::ops::RangeTo": "DefPathHash(Fingerprint(5614226571623188065, 16349589669230295380))",
+    "core::num::<impl u16>::from_ne_bytes": "DefPathHash(Fingerprint(5614226571623188065, 6193797866547500246))",
+    "core::num::<impl u128>::from_ne_bytes": "DefPathHash(Fingerprint(5614226571623188065, 15116585459962463829))"
   }
 }

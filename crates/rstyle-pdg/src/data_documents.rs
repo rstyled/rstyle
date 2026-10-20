@@ -11,6 +11,7 @@ mod locations;
 mod origins;
 mod read_accesses;
 mod scalar_from;
+mod size_calls;
 mod subslice_views;
 mod summary_records;
 mod value_fields;
@@ -33,7 +34,7 @@ pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result
     install_evidence(&mut pair.pdg, facts)?;
     origins::install(&mut pair, facts)?;
 
-    Ok(pair)
+    size_calls::install(pair, facts)
 }
 
 fn install_locations(
@@ -232,6 +233,7 @@ pub fn verify<'a>(
     crate::data_receivers::verify_documents(pair, facts)?;
     let calls = crate::field_locations::operations(&facts.body, &["expr_call", "expr_method_call"]);
     scalar_from::verify(pair, facts, &calls)?;
+    size_calls::verify(pair, facts)?;
     crate::data_library::verify_calls(pair, facts, &calls)?;
     crate::data_frontend::verify(facts)?;
     aggregates::verify(pair, facts)?;

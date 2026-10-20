@@ -14,12 +14,10 @@ pub(super) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<(), 
     }
 
     for source in operations(facts) {
-        data_subslices::verify(source, facts)?;
+        let checked = data_subslices::verify(source, facts)?;
         let node = super::serialized_operation_mut(pair, source)?;
-        node.annotations.insert(
-            data_subslices::BOUNDS_KEY.into(),
-            crate::data_bounds::Bounds::subslice().value()?,
-        );
+        node.annotations
+            .insert(data_subslices::BOUNDS_KEY.into(), checked.bounds().value()?);
     }
     Ok(())
 }
@@ -55,9 +53,16 @@ pub(super) fn verify(
         let node = super::serialized_operation(pair, &source.span, |node| {
             node.category == NodeCategory::Computation
         })?;
+        if checked.requires_prefix_policy
+            && !crate::extraction_profile::policy_supports(
+                &pair.pdg.profile,
+                data_subslices::PREFIX_CAPABILITY,
+            )
+        {
+            return Err("Prefix/core slice views require their registered document policy".into());
+        }
         if node.attributes.construct.as_deref() != Some("data.subslice-place")
-            || node.annotations.get(data_subslices::BOUNDS_KEY)
-                != Some(&crate::data_bounds::Bounds::subslice().value()?)
+            || node.annotations.get(data_subslices::BOUNDS_KEY) != Some(&checked.bounds().value()?)
             || node.annotations.contains_key(crate::data_places::KEY)
         {
             return Err("Subslice loses its view/bounds interpretation".into());
@@ -67,14 +72,18 @@ pub(super) fn verify(
             false,
             "Subslice view invents memory or scalar effects",
         )?;
-        verify_operands(pair, node, &[checked.base, checked.start, checked.end])?;
+        verify_operands(pair, node, checked.operands())?;
     }
     Ok(())
 }
 
-fn verify_operands(pair: PairView<'_>, node: &PdgNode, sources: &[&HirNode]) -> Result<(), String> {
+fn verify_operands<'a>(
+    pair: PairView<'_>,
+    node: &PdgNode,
+    sources: impl IntoIterator<Item = &'a HirNode>,
+) -> Result<(), String> {
     let values = sources
-        .iter()
+        .into_iter()
         .map(|source| super::value_operation(pair, source))
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -88,5 +97,5 @@ pub(super) fn verify_borrow(
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     data_subslices::verify_borrow(source, facts)?;
-    verify_operands(pair, node, &[&source.children[0]])
+    verify_operands(pair, node, [&source.children[0]])
 }

@@ -43,6 +43,16 @@ pub(super) fn verify(
     let mut locations = BTreeMap::new();
     for source in sources {
         let kind = data_bytes::verify(source, context.facts)?;
+        if kind.requires_prefix(source)
+            && !crate::extraction_profile::policy_supports(
+                &pair.pdg.profile,
+                crate::data_subslices::PREFIX_CAPABILITY,
+            )
+        {
+            return Err(
+                "Extended byte signatures/displays require their registered document policy".into(),
+            );
+        }
         let node = super::serialized_operation(pair, &source.span, |node| {
             node.category == NodeCategory::Call
         })?;

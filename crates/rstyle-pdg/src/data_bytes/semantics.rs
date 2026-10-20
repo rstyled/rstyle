@@ -40,25 +40,27 @@ pub(super) fn value(kind: Kind) -> serde_json::Value {
             content_read: false,
             error: "core::array::TryFromSliceError",
         },
-        Kind::Copy => Semantics::CopyExactLengthOrErr {
-            length: 4,
+        Kind::Copy(_) => Semantics::CopyExactLengthOrErr {
+            length: kind.length(),
             receiver_operand: 0,
             reads_on: "ok",
             error: "core::array::TryFromSliceError",
         },
-        Kind::Unwrap | Kind::UnwrapBorrow => Semantics::OkPayloadOrPanic {
+        Kind::Unwrap(_) | Kind::UnwrapBorrow => Semantics::OkPayloadOrPanic {
             result_operand: 0,
             normal_completion_requires: "ok",
             exceptional_flow: "omitted",
         },
-        Kind::Native | Kind::NativeUsize => Semantics::UnsignedByteSignificance {
-            array_operand: 0,
-            length: kind.length(),
-            endian: "little",
-            byte_significance_bits: (0..kind.length())
-                .map(|position| (position * 8) as u8)
-                .collect(),
-        },
+        Kind::Native | Kind::NativeUsize | Kind::NativeU16 | Kind::NativeU128 => {
+            Semantics::UnsignedByteSignificance {
+                array_operand: 0,
+                length: kind.length(),
+                endian: "little",
+                byte_significance_bits: (0..kind.length())
+                    .map(|position| (position * 8) as u8)
+                    .collect(),
+            }
+        }
     };
 
     serde_json::to_value(semantics).expect("registered byte-call semantics")

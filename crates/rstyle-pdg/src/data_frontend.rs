@@ -280,7 +280,7 @@ fn verify_nodes(
 ) -> Result<(), String> {
     if crate::data_subslices::candidate(node, facts) {
         let checked = crate::data_subslices::verify(node, facts)?;
-        for operand in [checked.base, checked.start, checked.end] {
+        for operand in checked.operands() {
             verify_nodes(operand, facts, places)?;
         }
         return Ok(());
