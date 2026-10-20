@@ -3130,3 +3130,15 @@ checks, concrete Result/tuple/error values and `?`. Suffix/inclusive/array/mutab
 views, signed conversion, richer Option/Result payload patterns and broader
 helper-result/effect transport remain unfinished. General async/concurrency,
 unsafe/FFI and macros remain deferred under the reprioritized goal.
+
+### Checked native reader dependency audit (2026-10-20)
+
+The [source-first dependency audit](docs/extraction-profiles/checked-native-readers-audit.md)
+selects original `try_read_u16/u32/u128` as the next candidate family, without
+claiming activation. The full chain includes instantiated generic length checks,
+nested nominal error/enum and drop dependencies, concrete Result tuples, residual
+early exits, and partial native-reader helper effects. Existing extracted leaf
+readers do not pass the nonpanicking helper boundary. General `?` alone cannot
+yield admission. Inspect the existing complete unit facts and error dependency
+closure before selecting the first implementation contract. No inventories,
+capabilities, thresholds, capture metadata or measured outcomes change here.
