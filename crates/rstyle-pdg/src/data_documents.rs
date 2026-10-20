@@ -236,6 +236,7 @@ pub fn verify<'a>(
     size_calls::verify(pair, facts)?;
     crate::data_library::verify_calls(pair, facts, &calls)?;
     crate::data_frontend::verify(facts)?;
+    crate::data_frontend::verify_document_policy(&pair.pdg.profile, facts)?;
     aggregates::verify(pair, facts)?;
     locals::verify(pair, facts)?;
     verify_interface(pair, facts)?;

@@ -51,8 +51,8 @@ fn check_source(source: &str, expected: bool) {
         .filter(|f| f["facts"]["name"] == "owner")
     {
         assert_eq!(
-            function["outcome"], "excluded",
-            "nominal boundary: {function}"
+            function["outcome"], "admitted",
+            "closed local macro imports now have a scoped nominal proof: {function}"
         );
     }
     let function = report["functions"]

@@ -36,6 +36,22 @@ pub struct Resolution {
 }
 
 impl Resolution {
+    pub(crate) fn requires_scoped_imports(&self) -> bool {
+        self.environment.copy_boundary
+            && self
+                .environment
+                .index
+                .unresolved_expansions
+                .iter()
+                .any(|namespace| {
+                    self.namespace.starts_with(namespace)
+                        || self
+                            .trees
+                            .keys()
+                            .any(|declaration| declaration.starts_with(namespace))
+                })
+    }
+
     pub(crate) fn checked_owned_copy(&self, tree: &TypeTree) -> bool {
         let TypeTree::Struct { nominal, .. } = tree else {
             return false;
@@ -513,7 +529,7 @@ fn function_scope(
     };
     resolution.namespace = namespace.clone();
     if resolution.environment.copy_boundary {
-        selected::check_namespace(&resolution.environment, namespace)?;
+        selected::check_namespace(facts, &resolution.environment, namespace)?;
     }
     if let Some(receiver) = receiver {
         resolve_receiver(resolution, receiver, facts)?;

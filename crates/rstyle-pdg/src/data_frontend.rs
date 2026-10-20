@@ -28,6 +28,22 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
     verify_nodes(&facts.body, facts, &places)
 }
 
+pub(crate) fn verify_document_policy(
+    profile: &crate::ProfileId,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    if crate::extraction_profile::policy_supports(profile, "rust.scoped-nominal-imports") {
+        return Ok(());
+    }
+    let interface = interface(facts)?;
+    if nominal_resolution(facts, &interface)?
+        .is_some_and(|resolution| resolution.requires_scoped_imports())
+    {
+        return Err("Scoped nominal import proof requires its registered document policy".into());
+    }
+    Ok(())
+}
+
 fn nominal_resolution<'a>(
     facts: &'a dyn crate::unit_store::EvidenceFacts,
     interface: &InterfaceObservations,

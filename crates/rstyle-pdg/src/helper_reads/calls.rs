@@ -56,20 +56,16 @@ fn visit_reads(
         return Err("Helper memory reads require the registered Data-calls profile".into());
     }
 
-    let receiver_type = call
-        .children
-        .first()
-        .and_then(|child| child.ty.as_ref())
-        .and_then(|ty| ty.normalized.as_ref());
-    let owned = receiver_type != summary.argument_types.first()
-        && crate::owned_receiver::checked(call, facts)?;
+    let owned = borrowed_snapshot(summary, call, facts)?;
     let mut count = 0;
     for read in reads {
         let actual = call
             .children
             .get(read.parameter as usize)
             .ok_or("Helper read lacks its actual argument")?;
-        if owned && read.parameter == 0 {
+        let copied = read.path.first() != Some(&Projection::SharedReferent)
+            && copied_input(summary, facts, read.parameter)?;
+        if owned && read.parameter == 0 || copied {
             if count == crate::concrete_types::MAX_ENTRIES {
                 return Err(BUDGET_ERROR.into());
             }
@@ -93,6 +89,36 @@ fn visit_reads(
     Ok(())
 }
 
+fn borrowed_snapshot(
+    summary: &Summary,
+    call: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    let receiver_type = call
+        .children
+        .first()
+        .and_then(|child| child.ty.as_ref())
+        .and_then(|ty| ty.normalized.as_ref());
+    Ok(receiver_type != summary.argument_types.first()
+        && crate::owned_receiver::checked(call, facts)?)
+}
+
+fn copied_input(
+    summary: &Summary,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    parameter: u32,
+) -> Result<bool, String> {
+    Ok(
+        crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.copy-value-helper-reads")
+            && summary
+                .argument_types
+                .get(parameter as usize)
+                .and_then(|ty| crate::data_types::parse(ty).ok())
+                .is_some_and(|ty| matches!(ty, TypeToken::Struct { .. })),
+    )
+}
+
 fn checked_read<'a>(
     read: &'a Read,
     origin: crate::data_origins::Origin,
@@ -113,7 +139,7 @@ fn snapshot_read<'a>(read: &'a Read, actual: &HirNode) -> Result<ReadOccurrence<
     let tail = read
         .path
         .strip_prefix(&[Projection::SharedReferent])
-        .ok_or("Owned receiver read lacks a shared callee root")?;
+        .unwrap_or(&read.path);
     let mut value = crate::data_types::parse(crate::data_aggregates::token(actual)?)?;
     for projection in tail {
         if !matches!(projection, Projection::StructField { .. }) {
@@ -245,6 +271,7 @@ pub(crate) fn verify_locations(
     for call in source_calls(context.facts) {
         let dependency = crate::helper_calls::verify_use(call, context.facts)?;
         let effects = expected(dependency.summary(), call, context)?;
+        verify_snapshot_policy(pair, &effects)?;
         check_effects(
             source_call(pair, call)?,
             call,
@@ -254,6 +281,24 @@ pub(crate) fn verify_locations(
         for (id, location) in effects.locations {
             insert_location(locations, id, location)?;
         }
+    }
+    Ok(())
+}
+
+fn verify_snapshot_policy(
+    pair: crate::producer::PairView<'_>,
+    effects: &Effects,
+) -> Result<(), String> {
+    if crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.copy-value-helper-reads")
+    {
+        return Ok(());
+    }
+    if effects
+        .snapshot_reads
+        .iter()
+        .any(|read| read.path.first() != Some(&Projection::SharedReferent))
+    {
+        return Err("Copy value helper reads require their registered document policy".into());
     }
     Ok(())
 }

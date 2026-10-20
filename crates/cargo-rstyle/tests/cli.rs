@@ -11,6 +11,7 @@ mod native_prefix_readers;
 mod nominal_copy;
 mod option_sources;
 mod platform_regressions;
+mod scoped_imports;
 mod shared_evidence;
 mod try_capture;
 use shared_evidence::{load as data_unit, reject_helper};
@@ -2610,7 +2611,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.44.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.45.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6169,7 +6170,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.44.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.45.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"

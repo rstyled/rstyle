@@ -48,8 +48,36 @@ pub(crate) fn supported(
                 formal_type(facts, location.parameter)
                     .is_ok_and(|ty| matches!(ty, TypeToken::Shared(_)))
                     && location.path.first() == Some(&Projection::SharedReferent)
+                    || copied_formal(facts, location.parameter).unwrap_or(false)
+                        && !location.path.is_empty()
+                        && location
+                            .path
+                            .iter()
+                            .all(|part| matches!(part, Projection::StructField { .. }))
             })
         })
+}
+
+fn copied_formal(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    parameter: u32,
+) -> Result<bool, String> {
+    if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.copy-value-helper-reads")
+    {
+        return Ok(false);
+    }
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
+    let Some(crate::concrete_types::Observation::Captured {
+        ty: tree @ crate::concrete_types::TypeTree::Struct { .. },
+    }) = interface.parameters.get(parameter as usize)
+    else {
+        return Ok(false);
+    };
+    Ok(facts.nominal_resolution()?.checked_owned_copy(tree))
 }
 
 pub(crate) fn derive(
@@ -61,7 +89,7 @@ pub(crate) fn derive(
     }
     if !supported(facts, pair) {
         return Err(
-            "Read-only helper requires shared formal locations and scalar/unit results".into(),
+            "Read-only helper requires shared or checked Copy formal fields and scalar/unit results".into(),
         );
     }
 

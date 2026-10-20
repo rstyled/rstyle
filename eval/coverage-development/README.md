@@ -1176,3 +1176,32 @@ The tests pass on the current ARM Linux host; they establish runtime expectation
 not extraction support, native cross-platform execution or detector quality.
 The [dependency audit](../../docs/extraction-profiles/checked-native-readers-audit.md)
 records the still-excluded complete original function family and remaining gates.
+
+## Scoped imports and scalar flag owners (development contract)
+
+`scoped-import-flag-owners.rs` fixes five intended positives: the Copy scalar
+constructor/getter, constructor helper, and two by-value helper compositions.
+The ordinary sidecar `macros.rs` contains only
+`macro_rules! harmless { () => { 42 }; }`; `exports.rs` contains only
+`pub struct Neighbor { pub value: u8 }`. These sidecars are installed verbatim
+by the CLI integration tests. The generated Clone method is a retained negative,
+so capture contains six functions. Baseline 745bb18 admits none.
+
+`scoped-import-flag-owners-oracle.py /path/to/regex-automata-0.4.18` verifies the
+two original method identities and appends only an independent test module to
+a disposable copy of the complete original crate. It runs locked default-feature
+Cargo tests on the original Epsilons declaration and methods. Zero is the only
+empty value; all 64 isolated bits, all u16 low words and all shifted high words
+are covered, and original constructor/getter composition must return true.
+This runtime check does not establish extraction, rewrite safety or detector
+quality. The [scope contract](../../docs/extraction-profiles/scoped-import-flag-owners-v1.md)
+records the exact natural selection, import restrictions and remaining boundaries.
+
+Data-v3 3.45 activates all five intended positives (0/6 to 5/6, no losses),
+with complete strict verification and all ten development comparisons. The
+unchanged complete natural library gains both selected Epsilons methods and
+43 incidental admissions (14/2582 to 59/2582, no losses). Final independent
+verification checks all 59 natural and five development admissions; the
+selected seven graphs complete 21 comparisons, two Accepted and 19 Rejected
+under unchanged scoring. See the contract for bounded performance evidence
+and remaining restrictions. Whole-library matching is not claimed.

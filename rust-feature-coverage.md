@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.44.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.45.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -195,7 +195,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Assertions are a proposed narrow first slice. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Data-v3 3.45.0 adds [closed local import scopes](docs/extraction-profiles/scoped-import-flag-owners-v1.md) and checked Copy value helper reads, connecting original Epsilons constructor/getter methods in the complete regex-automata library. Non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
@@ -3171,3 +3171,61 @@ cache, source-copy structure or summary format. Unsupported Try functions
 now deliberately retain more HIR; no broad performance claim follows from the
 test timings. Next work must connect type/error and helper semantics rather
 than accumulate more observational syntax increments without natural gains.
+
+### Reassessment: scope restrictions before broader error enums
+
+The complete DeserializeError closure includes macro-generated PatternIDError
+and StateIDError declarations. Reassessing after the foundational Try capture,
+select original Epsilons::empty/is_empty as a practical S09 constructor/getter
+family before expanding general error and generic semantics. The
+[source-first scope contract](docs/extraction-profiles/scoped-import-flag-owners-v1.md)
+records identities, baseline exclusions, bounded import proof and independent
+expectations. The checked readers remain deferred within the active roadmap.
+
+### Data-v3 3.45: connect scalar flag owners across closed imports
+
+The [scope contract](docs/extraction-profiles/scoped-import-flag-owners-v1.md)
+activates the original complete-crate Epsilons constructor/getter selection.
+Closed local glob and macro-definition-only imports are inspected using the
+existing selected census; unknown imports, relevant shadowing, active macros,
+unproved Copy and drop behavior remain exclusions. Checked Copy scalar field
+reads now compose through by-value helpers using existing value snapshots.
+Independent verification enforces both permissions at document policy and
+declaration scopes. No new provenance inventory, source-copy format or cache
+is added; thresholds and scoring are unchanged.
+
+On the unchanged 2582-function regex-automata library, admissions rise from
+14 to 59: **45 gained, zero lost**, including both preselected methods.
+The separate six-function development corpus rises from zero to five admissions;
+its generated Clone remains excluded. All 59 natural and five development
+admissions pass final independent verification and strict admission. All 21
+comparisons among the selected seven graphs complete (two Accepted, 19 Rejected).
+Whole-library matching is incomplete under the explicit capture pair budget.
+The original complete-crate runtime oracle passes independently specified
+zero/high/all-bit and constructor/getter expectations.
+
+Validation: 861 workspace tests pass with five existing skips, all-target
+Clippy with warnings denied, doctests, formatting and whitespace checks.
+Rstyle has zero violations across 2714 functions; patterns has zero candidates.
+Seven alternating benchmark pairs preserve every unchanged-control matching
+report. Median byte-window runtime .88→.87s; cyclic .60→.62s (+3.3%,
+overlapping ranges). Activated flags .26→.30s while adding five admissions
+and ten comparisons. See the contract for memory/range limits; this is no
+broad performance guarantee.
+
+Remaining combinations: checked native readers still need concrete Result
+payload/error closure, generic length checking, partial helper transport and
+residual semantics; two error declarations are macro-generated. General macro
+activation is not implied by inspecting unused local definitions. F10 loop/value
+merge and checked-access composition remain active roadmap work. Choose the next
+complete source-selected family by blocker-chain evidence before another syntax
+increment; preserve the fixed frozen inventory and separate rewrite/detector
+claims.
+
+Frozen replay `run-_i41wnhy` preserves all 60 selected identities and denominators:
+**20 admitted /33 excluded /7 inactive**, zero gains/losses. Context counts,
+source blocker combinations and outcomes are unchanged. Full rosters also retain
+150/7 admitted for lz4_flex, 956/20 for regex-syntax and 226/8 for time-core,
+with identical source identities and no outcome changes. Seventy documents
+verify. Build evidence differences are producer revision and invocation paths
+after normalization of temporary source roots; compiler/settings stay fixed.

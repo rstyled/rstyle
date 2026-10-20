@@ -2,6 +2,7 @@
 use super::*;
 use crate::declaration_origins::Origins;
 mod borrowed;
+mod imports;
 
 pub(super) fn verify(
     facts: &HirFnFacts,
@@ -47,7 +48,7 @@ pub(super) fn verify(
         } else {
             borrowed::verify(facts, tree)?;
         }
-        check_namespace(environment, &declaration.namespace)?;
+        check_namespace(facts, environment, &declaration.namespace)?;
         structure(facts, item)?;
     }
     Ok(copies)
@@ -195,6 +196,7 @@ pub(super) fn module_item_in(
 }
 
 pub(super) fn check_namespace(
+    facts: &HirFnFacts,
     environment: &Environment,
     namespace: &[String],
 ) -> Result<(), String> {
@@ -204,6 +206,11 @@ pub(super) fn check_namespace(
         .iter()
         .any(|candidate| namespace.starts_with(candidate))
     {
+        if supports(facts, "rust.scoped-nominal-imports")? {
+            return imports::verify(facts, environment, namespace).map_err(|error| {
+                format!("Selected source has unresolved lexical expansion/import effects: {error}")
+            });
+        }
         return Err("Selected source has unresolved lexical expansion/import effects".into());
     }
     Ok(())
