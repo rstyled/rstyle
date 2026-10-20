@@ -1,4 +1,4 @@
-//! Source-selected contracts stay closed to admission until graph composition.
+//! Source-selected contracts compose with bounded Option graphs.
 use super::*;
 use rstyle_pdg::{HirFnFacts, HirNode, checked_options};
 use serde_json::json;
@@ -15,7 +15,7 @@ fn find<'a>(node: &'a HirNode, kind: &str) -> Option<&'a HirNode> {
 }
 
 #[test]
-fn checked_access_contracts_verify_installed_ci_targets_without_admitting_option_graphs() {
+fn checked_access_contracts_verify_installed_ci_targets() {
     for target in [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
@@ -30,23 +30,38 @@ fn checked_access_contracts_verify_installed_ci_targets_without_admitting_option
             eprintln!("target std not installed: {target}");
             continue;
         }
-        target_contracts(target);
+        for no_std in [false, true] {
+            target_contracts(target, no_std);
+        }
     }
 }
 
-fn target_contracts(target: &str) {
+fn target_contracts(target: &str, no_std: bool) {
     let directory = workspace();
+    if no_std {
+        let path = directory.path().join("src/lib.rs");
+        let source = std::fs::read_to_string(&path).unwrap();
+        std::fs::write(path, format!("#![no_std]\n{source}")).unwrap();
+    }
     let (output, report) = clones(
         directory.path(),
         &["--target", target, "--extraction-profile", "hir-data-v3"],
     );
     assert!(output.status.success(), "{target}: {report}");
+    check_aggregate_documents(&report);
     assert_eq!(report["capture_complete"], true);
     assert_eq!(report["assessment_complete"], true);
     for function in report["functions"].as_array().unwrap() {
         let facts: HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
         if matches!(facts.name.as_str(), "byte" | "alias") {
-            assert_eq!(function["outcome"], "excluded");
+            assert_eq!(
+                function["outcome"],
+                if facts.name == "byte" {
+                    "admitted"
+                } else {
+                    "excluded"
+                }
+            );
             let matched = node(&facts, "expr_match");
             let checked = checked_options::verify_match(matched, &facts).unwrap();
             assert_eq!(checked.some_arm, 0);
@@ -124,8 +139,16 @@ fn checked_access_contracts_bound_source_shapes_and_preserve_saved_operands() {
     assert_eq!(report["assessment_complete"], true);
     assert_eq!(report["functions"].as_array().unwrap().len(), 7);
     for function in report["functions"].as_array().unwrap() {
-        assert_eq!(function["outcome"], "excluded");
         let facts: HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+        assert_eq!(
+            function["outcome"],
+            if matches!(facts.name.as_str(), "reversed" | "saved") {
+                "admitted"
+            } else {
+                "excluded"
+            },
+            "{function}"
+        );
         let matched = checked_options::verify_match(node(&facts, "expr_match"), &facts);
         let get = checked_options::verify_get(node(&facts, "expr_method_call"), &facts);
         assert_eq!(

@@ -98,7 +98,10 @@ pub(crate) fn derive(
 }
 
 fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String> {
-    if location.abstraction != "rstyle.formal-field/2" {
+    if !matches!(
+        location.abstraction.as_str(),
+        "rstyle.formal-field/2" | "rstyle.formal-checked-element/1"
+    ) {
         return Err("Helper read lacks registered formal location interpretation".into());
     }
     serde_json::from_value(
@@ -118,6 +121,7 @@ fn indirect_read(
     let capability = match node.attributes.construct.as_deref() {
         Some("data.indirect-field") => "rust.indirect-field-reads",
         Some("data.indirect-deref") => "rust.shared-dereference-reads",
+        Some("data.option-payload") => "rust.checked-slice-option",
         _ => return Ok(false),
     };
     Ok(crate::extraction_profile::ExtractionProfile::from_facts(facts)?.supports(capability))
@@ -174,6 +178,11 @@ pub(crate) fn type_at(
 fn project(value: TypeToken, projection: &Projection) -> Result<TypeToken, String> {
     match (value, projection) {
         (TypeToken::Shared(value), Projection::SharedReferent) => Ok(*value),
+        (TypeToken::Slice(value), Projection::CheckedElement)
+            if matches!(value.as_ref(), TypeToken::Scalar(_)) =>
+        {
+            Ok(*value)
+        }
         (TypeToken::Tuple(fields), Projection::TupleField { position }) => fields
             .get(*position)
             .cloned()

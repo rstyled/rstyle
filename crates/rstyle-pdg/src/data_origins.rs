@@ -20,6 +20,7 @@ pub struct Origin {
 pub fn shared(token: &TypeToken) -> bool {
     match token {
         TypeToken::Shared(_) => true,
+        TypeToken::Option(value) => shared(value),
         TypeToken::SliceArrayResult { borrowed: true, .. } => true,
         TypeToken::Tuple(elements) => elements.iter().any(shared),
         TypeToken::Struct { fields, .. } => fields.iter().any(|(_, field)| shared(field)),
@@ -48,6 +49,13 @@ pub fn origins(
         return crate::data_reference_locals::selected(node, &[], facts);
     }
 
+    if crate::checked_options::get_candidate(node, facts) {
+        let checked = crate::checked_options::verify_get(node, facts)?;
+        return Ok(crate::checked_options::project(origins(
+            checked.receiver,
+            facts,
+        )?));
+    }
     if let Some(origins) =
         crate::data_bytes::source_origins(node, facts, |operand| origins(operand, facts))
     {

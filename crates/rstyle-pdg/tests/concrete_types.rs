@@ -351,7 +351,7 @@ fn strict_source_type_proofs_enforce_resource_and_rust_unit_boundaries() {
 }
 
 #[test]
-fn option_observations_are_bounded_and_do_not_register_semantic_types() {
+fn option_observations_and_bounded_shared_scalar_semantic_types() {
     for payload in [
         TypeTree::Scalar("usize".into()),
         TypeTree::Shared(Box::new(TypeTree::Scalar("u8".into()))),
@@ -361,7 +361,10 @@ fn option_observations_are_bounded_and_do_not_register_semantic_types() {
         let encoded = serde_json::to_vec(&tree).unwrap();
         assert_eq!(tree, serde_json::from_slice(&encoded).unwrap());
         let token = rstyle_pdg::data_types::token(&tree).unwrap();
-        assert!(rstyle_pdg::data_types::parse(&token).is_err());
+        assert_eq!(
+            rstyle_pdg::data_types::parse(&token).is_ok(),
+            matches!(tree, TypeTree::Option(ref payload) if matches!(payload.as_ref(), TypeTree::Shared(_)))
+        );
     }
     for payload in [
         TypeTree::Scalar("unit".into()),

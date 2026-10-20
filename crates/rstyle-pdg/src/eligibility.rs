@@ -219,7 +219,10 @@ fn check_data_frontend(
 
 fn accepted_type(ty: &str, profile: crate::extraction_profile::ExtractionProfile) -> bool {
     PRIMITIVE_TYS.contains(&ty)
-        || profile.supports("rust.concrete-read-only-data") && crate::data_frontend::accepted(ty)
+        || profile.supports("rust.concrete-read-only-data")
+            && (!ty.contains("\"kind\":\"option\"")
+                || profile.supports("rust.checked-slice-option"))
+            && crate::data_frontend::accepted(ty)
 }
 
 fn context(
@@ -579,6 +582,9 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
         && matches!(node.kind.as_str(), "expr_break" | "expr_continue")
     {
         return check_loop_exit(node, ctx);
+    }
+    if crate::checked_options::match_candidate(node, ctx.facts) {
+        return check_option_match(node, ctx);
     }
     if node.kind == "expr_match" && ctx.profile.supports("rust.scalar-match") {
         return check_match(node, ctx);
@@ -1599,4 +1605,24 @@ fn shape_outcome(node: &HirNode) -> Outcome {
 /// Function-relative span constructor for tests and signature facts.
 pub fn span(start: u32, end: u32) -> ByteSpan {
     ByteSpan { start, end }
+}
+
+fn check_option_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::checked_options::verify_match(node, ctx.facts) {
+        Ok(checked) => {
+            let mut checks = vec![
+                check_expr_ty(node, "option_match_result"),
+                check_node(checked.scrutinee, false, ctx),
+            ];
+            for arm in &node.children[1..] {
+                checks.push(check_node(
+                    arm.children.last().expect("verified Option arm"),
+                    false,
+                    ctx,
+                ));
+            }
+            Outcome::combine(checks)
+        }
+        Err(reason) => error("rust.checked-slice-option", "option_match", node, &reason),
+    }
 }

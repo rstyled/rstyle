@@ -23,6 +23,8 @@ pub struct FieldResolution {
 #[serde(tag = "kind", deny_unknown_fields)]
 pub enum Projection {
     SharedReferent,
+    /// Element address retained by a checked Option value; usable only under Some.
+    CheckedElement,
     IndexedElement {
         operand_position: u64,
     },
@@ -335,6 +337,17 @@ fn aliases(interface: &InterfaceObservations) -> Vec<[u32; 2]> {
         .iter()
         .enumerate()
         .flat_map(|(index, left)| shared[index..].iter().map(move |right| [*left, *right]))
+        .collect()
+}
+
+pub(crate) fn selected_operations<'a>(
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+    kinds: &[&str],
+    predicate: impl Fn(&HirNode, &dyn crate::unit_store::EvidenceFacts) -> bool,
+) -> Vec<&'a HirNode> {
+    operations(&facts.body, kinds)
+        .into_iter()
+        .filter(|node| predicate(node, facts))
         .collect()
 }
 

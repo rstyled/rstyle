@@ -229,11 +229,20 @@ impl Resolver<'_> {
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
         let mut roots = Vec::new();
+        if crate::checked_options::get_candidate(node, self.facts) {
+            let checked = crate::checked_options::verify_get(node, self.facts)?;
+            return Ok(crate::checked_options::project(self.source(
+                checked.receiver,
+                &[],
+                visiting,
+            )?));
+        }
         if let Some(origins) = crate::data_bytes::source_origins(node, self.facts, |operand| {
             self.source(operand, &[], visiting)
         }) {
             return origins;
         }
+
         for position in crate::helper_references::parameters(node, self.facts)? {
             let actual = node
                 .children

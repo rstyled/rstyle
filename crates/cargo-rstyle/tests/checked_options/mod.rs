@@ -1,6 +1,7 @@
-//! Concrete Option observations advance the selected boundary chain, not admission.
+//! Bounded checked scalar reads and concrete Option pattern evidence.
 use super::*;
 
+mod composition;
 mod contracts;
 
 fn workspace() -> TempDir {
@@ -51,7 +52,7 @@ fn core_option_patterns_retain_payload_bindings_and_resolved_variant_identities(
             serde_json::from_value(function["facts"].clone()).unwrap();
         assert_eq!(
             function["outcome"],
-            if facts.name == "unrelated" {
+            if matches!(facts.name.as_str(), "byte" | "unrelated") {
                 "admitted"
             } else {
                 "excluded"

@@ -91,8 +91,7 @@ impl Kind {
 }
 
 pub(crate) fn enabled(facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::ExtractionProfile::from_facts(facts)
-        .is_ok_and(|profile| profile.supports("rust.slice-array-byte-calls"))
+    crate::extraction_profile::facts_support(facts, "rust.slice-array-byte-calls")
 }
 
 pub(crate) fn resolve(

@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.35.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.36.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -112,7 +112,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
 | D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Aggregate/reference elements and complete exceptional flow remain unfinished. |
 | D16 | Slice ranges and borrowed subslices | Partial | `&xs[start..end]` | Data-v3 3.31.0 supports [bounded shared subslice views](docs/extraction-profiles/shared-subslice-views-v1.md) with scalar elements, exact base/start/end snapshots and normal-completion bounds. Arrays, open/inclusive ranges, mutable views, str/UTF-8 rules and transport through helper summaries remain unfinished. |
-| D17 | Checked access and concrete Option | Missing | `xs.get(i)`, `Some(x)`, `None` | [Bounded source/type contract](docs/extraction-profiles/checked-option-source-contract-v1.md) verified; graph discriminators, conditional origins and guarded payload reads still missing. Part of the read-only goal, not general enum support. |
+| D17 | Checked access and concrete Option | Partial | `xs.get(i)`, `Some(x)`, `None` | Data-v3 3.36.0 connects immutable scalar-slice get, exhaustive Some(&scalar)/None, saved Option flow and scalar helper composition through [strict graph verification](docs/extraction-profiles/checked-slice-option-v1.md). General Option interfaces/construction, reference bindings, guards, mutable/array/range access, Result and `?` remain open. |
 | D18 | Reference-bearing array element origins | Missing | `refs: [&S; 2]` | Type observation alone lacks the per-element origin evidence needed for by-value reference-bearing arrays. |
 | D19 | General enums and variants | Missing | `enum E { A(u32), B }` | Variant identity, construction, discriminants, payloads, pattern bindings, moves and drop; includes Result and enum-based APIs beyond concrete Option. |
 | D20 | Mutable references and reborrowing | Missing | `x: &mut S`, `&mut *x` | Mutable locations, alias/reborrow relationships and read/write effects; beyond the current read-only milestone. |
@@ -2065,3 +2065,78 @@ remaining semantic validation and style cleanup. A style scan of that working
 tree reports 21 violations and four patterns candidates (15 existing ignores
 unchanged); this regression revalidation does not certify that
 uncommitted increment as complete or style-clean.
+
+### Connected checked scalar reads (Data-v3 3.36.0)
+
+The selected `regex-automata` 0.4.18 `util::utf8::is_boundary` now completes its
+whole declared chain: slice get, exhaustive None/Some(&scalar), conditional
+payload origins, guarded scalar load, scalar binding and short circuits. Saved
+Option values, receiver/index evaluation order and scalar-result helper calls
+compose through the [connected contract](docs/extraction-profiles/checked-slice-option-v1.md).
+D17 is Partial; general Option interfaces/construction, reference payload
+bindings, guards, arrays/ranges, mutation, Result and `?` remain open.
+
+Natural evidence uses all 2,582 raw functions from the unmodified default-feature
+library Cargo capture `run-O3vn08`, including neighboring/generated items. That
+run's historical report remains 6 admitted / 2,576 excluded: it exposed a final
+no_std prelude display-path blocker. The core Some/None hashes are identical to
+the std prelude hashes. Only those exact aliases now share the pinned compiler,
+core and definition checks; cross-target tests exercise both preludes.
+
+After that correction, the old bundle correctly fails strict import because its
+root inventory lacks the newly eligible function. All 2,582 raw frontend records
+were reassessed in a fresh UnitStore, its complete proof inventory serialized,
+and that bundle independently strictly imported. Current classification is
+**7 admitted / 2,575 excluded / 0 unknown**, with no failed or omitted functions.
+Every retained name, source digest and span matches the earlier natural baseline
+`run-8UPUKk`; the only changed outcome is `util::utf8::is_boundary` becoming
+admitted. All previous admissions and generated exclusions remain intact.
+The replay artifact is `/tmp/rstyle-option-natural-replayed.unit.json`; the old
+report was preserved rather than relabeled as a new successful capture.
+
+Each admitted natural pair passes independent data-document and producer
+verification and strict ccgraph admission. The exact natural `is_boundary`
+(source SHA256 `e676b73906d493177219bcc72dbbb29fce630d0c07570e1ec1b7c3378b10c826`)
+and development copy match with score 1, Accepted, without incomplete evaluation
+or diagnostics. Full-library matching was not run: its capture used max-pairs 0.
+This establishes extraction coverage for the selected family, not held-out
+quality, abstraction activation or rewrite safety.
+
+The unchanged five-function development selection improves from 0 admitted /
+5 excluded to **4 admitted / 1 excluded**, four gains and zero losses. All six
+admitted pairs evaluate completely. Mutable access remains excluded. Final frozen
+replay `run-579vcwmp` matches `run-efb6__3d` on all 60 identities, outcomes and
+denominators: **13 admitted / 40 excluded / 7 inactive**, 30 verified documents,
+zero gains/losses. No thresholds, scores, source selections or historical
+artifacts changed.
+
+The independent runtime oracle passes three tests covering standard Unicode
+boundaries, all 256 bytes, out-of-range indices, saved-reference pointer identity
+and receiver-before-index rebinding. Cargo tests strictly import composed graphs
+and check equivalent matching and exact saved/helper locations. Corruptions of
+get semantics, no-read claims, operands, variants, payload reads, bindings and
+Some guards are rejected. Both std and no_std contract tests pass for aarch64
+Linux, x86_64 Linux and Apple arm64 macOS; these cross-target captures do not
+claim native macOS runtime execution.
+
+The next caller is still excluded. Independent assessment of
+`util::search::Input::haystack` reports missing exact owning receiver impl and an
+unsupported receiver type. `Input::is_char_boundary` additionally needs the
+haystack method summary and returned-reference composition. Source inspection
+shows `Input<'h>` has a Clone derive, a borrowed slice, Span, Anchored and bool;
+Anchored contains a PatternID alternative. Precise owner/module evidence and
+those nominal dependencies must be resolved before admitting this caller.
+Admitting the scalar leaf does not certify it. S09 and cyclic F10 remain open;
+no general enum, macro, async, unsafe or FFI scope is added here.
+
+The implementation adds semantic operations and a conditional checked-element
+formal projection, using existing source, summary, location and proof tables.
+It adds no capture inventory, source copies, provenance cache or per-invocation
+identity. The source visitor checks once whether Option patterns exist, avoiding
+extra per-binding searches in ordinary functions. No broad performance claim is
+made from these functional checks.
+
+Final validation passes 796 workspace tests (five existing ignores), all-targets
+clippy with warnings denied, formatting and diff checks, rstyle (2,579 functions,
+zero violations) and patterns (zero candidates, 15 existing ignores unchanged).
+No suppression, ignore entry, threshold or scoring change was introduced.

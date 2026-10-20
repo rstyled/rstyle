@@ -3,9 +3,11 @@
 //! A verified shape is not a verified graph: conditional payload origins and
 //! guarded loads must still be independently established by document checking.
 
+mod operations;
 mod patterns;
 mod source;
 mod types;
+pub(crate) use operations::*;
 
 use crate::{HirNode, data_library::Callee, unit_store::EvidenceFacts};
 
@@ -87,7 +89,12 @@ fn data_v3(facts: &dyn EvidenceFacts) -> Result<(), String> {
 fn authority(callee: &Callee, expected: &str, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let registry =
         crate::data_library::registry_for(facts).ok_or("Unpinned checked Option build")?;
-    if callee.path != expected
+    // rustc displays the same pinned definitions through either prelude.
+    let variant_alias = matches!(
+        expected,
+        "std::prelude::v1::Some" | "std::prelude::v1::None"
+    ) && callee.path.strip_prefix("core::") == expected.strip_prefix("std::");
+    if (callee.path != expected && !variant_alias)
         || callee.crate_name != "core"
         || callee.crate_hash != registry.core_hash
         || registry.definitions.get(expected) != Some(&callee.definition_hash)

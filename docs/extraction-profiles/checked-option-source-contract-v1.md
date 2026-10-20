@@ -1,5 +1,9 @@
 # Checked Option source contract
 
+Introduced as a source-only increment before Data-v3 3.36.0. The resulting
+[connected graph contract](checked-slice-option-v1.md) now uses these APIs.
+The description below records the original source-only milestone.
+
 This contract is the source/type half of the selected checked UTF-8 boundary
 chain. It does not register Option semantic type parsing, a call summary, graph
 lowering, extraction capabilities or admission. `checked_options::verify_get`

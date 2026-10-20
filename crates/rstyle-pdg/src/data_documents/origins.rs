@@ -138,16 +138,8 @@ impl Graph<'_> {
         if let Some(origins) = self.address_origins(node, selectors, visiting) {
             return origins;
         }
-        if matches!(
-            node.attributes.construct.as_deref(),
-            Some("data.bytes.borrow-result" | "data.bytes.unwrap-borrow")
-        ) {
-            if !selectors.is_empty() {
-                return Err("Byte payload has no aggregate selector".into());
-            }
-            let kind = crate::data_bytes::verify(source_node(node, self.facts)?, self.facts)?;
-            let roots = self.origins(self.operand(node, 0)?, &[], visiting)?;
-            return Ok(crate::data_bytes::project(kind, roots));
+        if let Some(origins) = self.call_origins(node, selectors, visiting) {
+            return origins;
         }
         if node.category == NodeCategory::FormalInput {
             return self.formal(node, selectors);
@@ -161,6 +153,34 @@ impl Graph<'_> {
         }
 
         self.traversed_origins(node, selectors, visiting)
+    }
+
+    fn call_origins(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Option<Result<Vec<Origin>, String>> {
+        let construct = node.attributes.construct.as_deref()?;
+        if !matches!(
+            construct,
+            "data.bytes.borrow-result" | "data.bytes.unwrap-borrow" | "data.option-get"
+        ) {
+            return None;
+        }
+        Some((|| {
+            let source = source_node(node, self.facts)?;
+            let roots = self.origins(self.operand(node, 0)?, &[], visiting)?;
+            if construct == "data.option-get" {
+                crate::checked_options::verify_get(source, self.facts)?;
+                return Ok(crate::checked_options::project(roots));
+            }
+            if !selectors.is_empty() {
+                return Err("Byte payload has no aggregate selector".into());
+            }
+            let kind = crate::data_bytes::verify(source, self.facts)?;
+            Ok(crate::data_bytes::project(kind, roots))
+        })())
     }
 
     fn traversed_origins(

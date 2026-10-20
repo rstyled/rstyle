@@ -60,6 +60,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.native-borrowed-byte-readers",
     "rust.scalar-tuple-assignment",
     "rust.outside-loop-value-merges",
+    "rust.checked-slice-option",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -78,6 +79,7 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.data.bytes.borrow-result/1",
     "rstyle.data.bytes.unwrap-borrow/1",
     "rstyle.data.bytes.native-usize/1",
+    "rstyle.data.slice.get-scalar/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -186,7 +188,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.35.0", 47)),
+            Self::DataV3 => Some(("3.36.0", 48)),
         }
     }
 
@@ -225,7 +227,11 @@ impl ExtractionProfile {
 
     pub fn summaries(self) -> &'static [&'static str] {
         if matches!(self, Self::DataV2 | Self::DataV3) {
-            return &DATA_CALL_SUMMARIES[..if self == Self::DataV3 { 12 } else { 9 }];
+            return &DATA_CALL_SUMMARIES[..if self == Self::DataV3 {
+                DATA_CALL_SUMMARIES.len()
+            } else {
+                9
+            }];
         }
         if self == Self::DataV1 {
             return &[
@@ -301,4 +307,9 @@ impl std::str::FromStr for ExtractionProfile {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         Self::parse(value)
     }
+}
+
+/// A missing or unrecognized extraction profile never grants a capability.
+pub(crate) fn facts_support(facts: &crate::HirFnFacts, capability: &str) -> bool {
+    ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports(capability))
 }

@@ -149,6 +149,14 @@ pub(crate) fn referents(
     else {
         return Err("Indirect field requires a shared reference value".into());
     };
+    from_origins(*expected, facts, origins)
+}
+
+pub(crate) fn from_origins(
+    expected: TypeToken,
+    facts: &dyn EvidenceFacts,
+    origins: Vec<Origin>,
+) -> Result<Vec<Located>, String> {
     let interface = facts
         .build
         .frontend_options
@@ -162,7 +170,7 @@ pub(crate) fn referents(
                 return Err("Indirect field has no concrete formal root".into());
             };
             let value = source::origin_value(ty, &origin.path)?;
-            if TypeToken::from_tree(&value) != *expected {
+            if TypeToken::from_tree(&value) != expected {
                 return Err("Indirect field referent contradicts its source value type".into());
             }
             Ok(Located {

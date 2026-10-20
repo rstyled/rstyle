@@ -115,6 +115,10 @@ fn check(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), Str
 }
 
 fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {
+    if let Some(element) = recursive_element(token) {
+        return check(element, depth + 1, entries);
+    }
+
     match token {
         TypeToken::Scalar(value) if scalar(value) => Ok(()),
         TypeToken::Tuple(values) => {
@@ -123,9 +127,6 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
             }
             Ok(())
         }
-        TypeToken::Array { element, .. }
-        | TypeToken::Shared(element)
-        | TypeToken::Slice(element) => check(element, depth + 1, entries),
         TypeToken::Str => Ok(()),
         TypeToken::SliceArrayResult { length, .. }
             if *length <= crate::concrete_types::MAX_FIELDS as u64 =>
@@ -143,6 +144,18 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         }
         // Admission additionally requires independently verified nominal source/effects.
         _ => Err("Data type token lacks a registered concrete proof".into()),
+    }
+}
+
+fn recursive_element(token: &TypeToken) -> Option<&TypeToken> {
+    match token {
+        TypeToken::Array { element, .. }
+        | TypeToken::Shared(element)
+        | TypeToken::Slice(element) => Some(element),
+        TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::Shared(value) if matches!(value.as_ref(), TypeToken::Scalar(scalar) if scalar != "unit" && crate::concrete_types::scalar(scalar))) => {
+            Some(payload)
+        }
+        _ => None,
     }
 }
 

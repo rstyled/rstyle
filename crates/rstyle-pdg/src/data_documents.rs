@@ -3,6 +3,7 @@
 mod aggregates;
 mod borrows;
 mod byte_calls;
+mod checked_options;
 mod index_reads;
 mod indirect_reads;
 mod locals;
@@ -10,10 +11,15 @@ mod locations;
 mod origins;
 mod read_accesses;
 mod subslice_views;
+mod summary_records;
 mod value_fields;
 pub(crate) use locations::{LocationContext, correspondence as location_correspondence};
 
-use crate::{NodeCategory, field_locations::*, producer::Pair};
+use crate::{
+    NodeCategory, PdgNode,
+    field_locations::*,
+    producer::{Pair, PairView},
+};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -49,26 +55,28 @@ fn install_locations(
     )
 }
 
+type ReadInstaller = fn(
+    &mut Pair,
+    &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String>;
+
 fn install_derived_reads(
     pair: &mut Pair,
     context: &mut LocationContext<'_>,
 ) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
-    let projected = install_projection_reads(pair, context)?;
-    let helpers = crate::helper_reads::install(pair, context)?;
-    let bytes = byte_calls::install(pair, context)?;
+    let installers: [ReadInstaller; 5] = [
+        indirect_reads::install,
+        index_reads::install,
+        crate::helper_reads::install,
+        byte_calls::install,
+        checked_options::install,
+    ];
 
-    let locations = crate::helper_reads::merge_locations(projected, helpers)?;
-    crate::helper_reads::merge_locations(locations, bytes)
-}
-
-fn install_projection_reads(
-    pair: &mut Pair,
-    context: &mut LocationContext<'_>,
-) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
-    let indirect = indirect_reads::install(pair, context)?;
-    let indexed = index_reads::install(pair, context)?;
-
-    crate::helper_reads::merge_locations(indirect, indexed)
+    installers
+        .into_iter()
+        .try_fold(BTreeMap::new(), |locations, install| {
+            crate::helper_reads::merge_locations(locations, install(pair, context)?)
+        })
 }
 
 fn finish_locations(
@@ -269,10 +277,21 @@ fn verify_derived_reads(
     calls: &[&crate::HirNode],
 ) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
     let mut expected = verify_projection_reads(pair, context)?;
-    expected.extend(byte_calls::verify(pair, context, calls)?);
+    expected.extend(verify_call_reads(pair, context, calls)?);
     crate::helper_reads::verify_locations(pair, context, &mut expected)?;
 
     Ok(expected)
+}
+
+fn verify_call_reads(
+    pair: crate::producer::PairView<'_>,
+    context: &mut LocationContext<'_>,
+    calls: &[&crate::HirNode],
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    let bytes = byte_calls::verify(pair, context, calls)?;
+    let options = checked_options::verify(pair, context, calls)?;
+
+    crate::helper_reads::merge_locations(bytes, options)
 }
 
 fn verify_projection_reads(
@@ -422,11 +441,18 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<
             &pair.pdg.profile,
             "rust.verified-read-only-helper-calls",
         );
+    let payload = node.attributes.construct.as_deref() == Some("data.option-payload")
+        && crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            "rust.checked-slice-option",
+        );
+
     node.attributes
         .writes
         .iter()
         .any(|access| access.location_id.is_some())
         || !field
+            && !payload
             && !indexed
             && !call
             && node
@@ -652,4 +678,39 @@ fn live_operations(pair: crate::producer::PairView<'_>) -> Result<BTreeSet<Strin
         .filter(|entry| reached.contains(&entry.cfg_node_id))
         .map(|entry| entry.pdg_node_id)
         .collect())
+}
+
+pub(super) fn verify_saved_operands(
+    pair: PairView<'_>,
+    node: &PdgNode,
+    values: &[&PdgNode],
+) -> Result<(), String> {
+    let mut actual: Vec<_> = pair
+        .pdg
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.target == node.id
+                && edge.kind == crate::EdgeFamily::Data
+                && edge.subkind == "value_operand"
+        })
+        .map(|edge| (edge.operand_position, edge.source.as_str()))
+        .collect();
+
+    actual.sort();
+    let expected: Vec<_> = values
+        .iter()
+        .enumerate()
+        .map(|(position, value)| (Some(position as u64), value.id.as_str()))
+        .collect();
+    if actual != expected
+        || pair
+            .pdg
+            .edges
+            .iter()
+            .any(|edge| edge.target == node.id && edge.subkind == "reaching_definition")
+    {
+        return Err("Operation loses its exact ordered saved value operands".into());
+    }
+    Ok(())
 }

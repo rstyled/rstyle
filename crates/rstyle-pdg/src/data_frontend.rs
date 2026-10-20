@@ -264,6 +264,9 @@ fn verify_nodes(
         crate::field_locations::derived::locations(node, facts)?;
     }
     if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
+        if token.contains("\"kind\":\"option\"") && !crate::checked_options::enabled(facts) {
+            return Err("Checked Option types require their registered capability".into());
+        }
         data_types::parse(token)?;
         if node.kind == "expr_path" {
             verify_path(node, facts, token)?;
@@ -282,6 +285,14 @@ fn verify_reference_origins(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    // These are Option pattern containers, not evaluated reference values.
+    // Their exact shape and nested binding are checked by verify_match.
+    if matches!(
+        node.kind.as_str(),
+        "pat_option_some" | "pat_option_none" | "pat_shared"
+    ) {
+        return Ok(());
+    }
     let origins = if places.contains(node) {
         Vec::new()
     } else {

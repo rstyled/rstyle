@@ -7,13 +7,14 @@ use crate::{HirNode, HirRef, extraction_profile::ExtractionProfile, unit_store::
 
 pub(crate) fn supported(ty: &crate::data_types::TypeToken, profile: ExtractionProfile) -> bool {
     use crate::data_types::TypeToken;
-    (matches!(
-        ty,
-        TypeToken::SliceArrayResult {
-            length: 8,
-            borrowed: true
-        }
-    ) && profile.supports("rust.native-borrowed-byte-readers"))
+    (matches!(ty, TypeToken::Option(_)) && profile.supports("rust.checked-slice-option"))
+        || (matches!(
+            ty,
+            TypeToken::SliceArrayResult {
+                length: 8,
+                borrowed: true
+            }
+        ) && profile.supports("rust.native-borrowed-byte-readers"))
         || (matches!(ty, TypeToken::Shared(_)) && profile.supports("rust.shared-reference-locals"))
         || (matches!(ty, TypeToken::Tuple(_) | TypeToken::Struct { .. })
             && profile.supports("rust.reference-bearing-values")

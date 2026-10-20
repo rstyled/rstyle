@@ -490,6 +490,7 @@ fn base_value<'a>(mut value: &'a TypeTree, path: &[Projection]) -> Result<&'a Ty
     for step in path {
         value = match (value, step) {
             (TypeTree::Shared(referent), Projection::SharedReferent) => referent,
+            (TypeTree::Slice(element), Projection::CheckedElement) => element,
             (TypeTree::Tuple(elements), Projection::TupleField { position }) => elements
                 .get(*position)
                 .ok_or("Shared alias tuple origin is out of range")?,

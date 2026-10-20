@@ -1,6 +1,7 @@
 //! Operation lowering preserves source evaluation order and snapshot values.
 
 mod loops;
+mod options;
 
 use super::graph::*;
 use crate::{NodeCategory, frontend::*};
@@ -561,9 +562,13 @@ impl Builder<'_> {
         };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
-            construct: crate::data_bytes::kind(node)
-                .filter(|_| crate::data_bytes::enabled(self.facts))
-                .map(|kind| kind.construct().into()),
+            construct: if crate::checked_options::get_candidate(node, self.facts) {
+                Some("data.option-get".into())
+            } else {
+                crate::data_bytes::kind(node)
+                    .filter(|_| crate::data_bytes::enabled(self.facts))
+                    .map(|kind| kind.construct().into())
+            },
             operands: evaluated.values,
             ..template(node, category)
         };
@@ -860,6 +865,13 @@ impl Builder<'_> {
     }
 
     fn scalar_match(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::checked_options::match_candidate(node, self.facts) {
+            return self.option_match(node, flow);
+        }
+        self.scalar_match_body(node, flow)
+    }
+
+    fn scalar_match_body(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let scrutinee = self.expression(&node.children[0], flow);
         let saved = scrutinee.value.clone().expect("eligible scalar scrutinee");
         let mut state = MatchState {

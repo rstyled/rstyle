@@ -13,11 +13,13 @@ pub(super) enum Kind {
     Index,
     Indirect,
     Byte,
+    Option,
 }
 
 impl Kind {
     fn accepts(&self, node: &crate::PdgNode) -> bool {
         match self {
+            Self::Option => node.attributes.construct.as_deref() == Some("data.option-payload"),
             Self::Byte => matches!(
                 node.attributes.construct.as_deref(),
                 Some(
@@ -45,6 +47,12 @@ impl Kind {
         facts: &'a dyn crate::unit_store::EvidenceFacts,
     ) -> Result<Vec<&'a HirNode>, String> {
         match self {
+            Self::Option => crate::checked_options::matches(facts)
+                .into_iter()
+                .map(|node| {
+                    crate::checked_options::verify_match(node, facts).map(|checked| checked.binding)
+                })
+                .collect(),
             Self::Byte => Ok(super::byte_calls::sources(facts)),
             Self::Index => Ok(
                 crate::field_locations::operations(&facts.body, &["expr_index"])
@@ -73,6 +81,13 @@ impl Kind {
         context: &mut LocationContext<'_>,
     ) -> Result<Effects, String> {
         let (locations, annotations) = match self {
+            Self::Option => (
+                crate::checked_options::locations(source, context.facts)?,
+                BTreeMap::from([(
+                    crate::checked_options::KEY.into(),
+                    crate::checked_options::semantics("data.option-payload"),
+                )]),
+            ),
             Self::Byte => {
                 let kind = crate::data_bytes::verify(source, context.facts)?;
                 (

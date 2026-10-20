@@ -913,3 +913,46 @@ verifies both local contracts for the exact natural `is_boundary` excerpt,
 has no local get/match contract to check; its eventual support still depends on
 the connected callee summary. These local results do not alter their excluded
 admission outcomes.
+
+## Connected checked scalar Option integration (Data-v3 3.36.0)
+
+The unchanged checked-boundary selection now yields four admitted functions:
+`is_boundary`, `checked_byte`, `helper_boundary` and `saved_byte`.
+`mutable_byte` remains excluded. Relative to the source-contract baseline this
+is four gains and zero losses; all five names and source digests are unchanged.
+Capture and assessment are complete, and matching evaluates all six admitted
+pairs without diagnostics or incompleteness. This is a separate development
+selection; it does not alter the frozen 60-function denominator.
+
+The [connected contract](../../docs/extraction-profiles/checked-slice-option-v1.md)
+adds exact get operands and a no-content-read summary, Some/None selectors,
+guarded scalar payload reads, immutable binding declarations, saved Option
+origins and scalar helper read composition. The independent Unicode/byte/pointer
+oracle passes all three tests. Cargo composition tests strictly import bundles,
+verify serialized documents and equivalent-function matching, and reject altered
+interpretations, invented/missing reads, wrong operands, variants, bindings and
+guards. Saved receiver and helper locations independently remain on parameter 0.
+
+The frozen replay `run-goy11xai` matches `run-efb6__3d` on every selected identity,
+outcome and denominator: 13 admitted / 40 excluded / 7 inactive, with 30 verified
+documents. This bounded Option integration adds no frozen gains or losses.
+General Option interfaces/construction, reference payload bindings, guards,
+mutable/array/range access, Result and `?` still require connected support.
+
+Full natural capture `run-O3vn08` retained 2,582 functions and exposed the
+no_std Some/None display alias as the last blocker. After the exact alias fix,
+all raw records were reassessed, their complete proof inventory serialized and
+strictly imported. Current replay gives 7 admitted / 2,575 excluded / 0 unknown:
+only the exact selected `util::utf8::is_boundary` gains admission relative to
+`run-8UPUKk`. Every retained name/digest/span and all other outcomes are unchanged.
+The old capture report remains historical (6/2,576); it is not relabeled.
+The independently imported natural leaf and exact development copy match with
+score 1, Accepted, complete evaluation and no diagnostics. The natural library's
+all-pairs run remains intentionally unperformed. Final frozen replay
+`run-579vcwmp` also preserves all 60 selected identities/outcomes/denominators and
+30 verified documents. The nominal `Input::haystack`/`is_char_boundary` caller
+chain remains excluded for owner/type and method/reference-summary dependencies.
+
+Final gates: 796 workspace tests pass with five existing ignores; all-targets
+clippy, formatting/diff checks, rstyle (2,579 functions, zero violations) and
+patterns (zero candidates, 15 unchanged ignores) pass.

@@ -25,10 +25,7 @@ pub(super) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<(), 
 }
 
 fn operations(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
-    crate::field_locations::operations(&facts.body, &["expr_index"])
-        .into_iter()
-        .filter(|source| data_subslices::candidate(source, facts))
-        .collect()
+    crate::field_locations::selected_operations(facts, &["expr_index"], data_subslices::candidate)
 }
 
 pub(super) fn verify(
@@ -76,39 +73,12 @@ pub(super) fn verify(
 }
 
 fn verify_operands(pair: PairView<'_>, node: &PdgNode, sources: &[&HirNode]) -> Result<(), String> {
-    let expected = sources
+    let values = sources
         .iter()
-        .enumerate()
-        .map(|(position, source)| {
-            Ok((
-                Some(position as u64),
-                super::value_operation(pair, source)?.id.as_str(),
-            ))
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    let mut actual: Vec<_> = pair
-        .pdg
-        .edges
-        .iter()
-        .filter(|edge| {
-            edge.target == node.id
-                && edge.kind == crate::EdgeFamily::Data
-                && edge.subkind == "value_operand"
-        })
-        .map(|edge| (edge.operand_position, edge.source.as_str()))
-        .collect();
+        .map(|source| super::value_operation(pair, source))
+        .collect::<Result<Vec<_>, _>>()?;
 
-    actual.sort();
-    if actual != expected
-        || pair
-            .pdg
-            .edges
-            .iter()
-            .any(|edge| edge.target == node.id && edge.subkind == "reaching_definition")
-    {
-        return Err("Subslice loses ordered base/endpoint snapshots".into());
-    }
-    Ok(())
+    super::verify_saved_operands(pair, node, &values)
 }
 
 pub(super) fn verify_borrow(

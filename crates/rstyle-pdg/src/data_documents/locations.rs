@@ -11,6 +11,7 @@ fn abstraction(path: &[Projection]) -> &'static str {
         .find_map(|step| match step {
             Projection::ByteWindow { .. } => Some("rstyle.formal-byte-window/1"),
             Projection::IndexedElement { .. } => Some("rstyle.formal-indexed-element/1"),
+            Projection::CheckedElement => Some("rstyle.formal-checked-element/1"),
             _ => None,
         })
         .unwrap_or(ABSTRACTION)

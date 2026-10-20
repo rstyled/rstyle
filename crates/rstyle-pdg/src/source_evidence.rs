@@ -48,6 +48,7 @@ pub struct Correspondence {
 struct Inventory<'a> {
     facts: &'a dyn crate::unit_store::EvidenceFacts,
     entries: Vec<Entry>,
+    checked_options: bool,
     configuration: Option<crate::conditional_source::Configuration<'a>>,
 }
 
@@ -57,6 +58,7 @@ pub fn capture(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Correspon
     let mut inventory = Inventory {
         facts,
         entries: Vec::new(),
+        checked_options: crate::checked_options::enabled(facts) && has_option_patterns(&facts.body),
         configuration: crate::extraction_profile::ExtractionProfile::from_facts(facts)?
             .supports("rust.cfg-source-removal")
             .then(|| crate::conditional_source::Configuration::new(&facts.build.cfgs)),
@@ -69,6 +71,10 @@ pub fn capture(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Correspon
         features: facts.build.features.clone(),
         entries: inventory.entries,
     })
+}
+
+fn has_option_patterns(node: &HirNode) -> bool {
+    node.kind == "pat_option_some" || node.children.iter().any(has_option_patterns)
 }
 
 pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
@@ -262,41 +268,10 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
 
     fn visit_pat(&mut self, pattern: &'ast syn::Pat) {
         let profile = crate::extraction_profile::ExtractionProfile::from_facts(self.facts).ok();
-        let constants =
-            profile.is_some_and(|profile| profile.supports("rust.scalar-constant-patterns"));
-        let nested =
-            profile.is_some_and(|profile| profile.supports("rust.nested-scalar-or-patterns"));
-        let kind = match pattern {
-            syn::Pat::Lit(_) => Some("pat_literal"),
-            syn::Pat::Wild(_) => Some("pat_wild"),
-            syn::Pat::Path(_) if constants => Some("pat_constant"),
-            syn::Pat::Ident(ident)
-                if constants
-                    && ident.by_ref.is_none()
-                    && ident.mutability.is_none()
-                    && ident.subpat.is_none() =>
-            {
-                Some("pat_name")
-            }
-            syn::Pat::Range(range) if crate::scalar_patterns::scalar_range(range, constants) => {
-                Some("pat_range")
-            }
-            syn::Pat::Or(pattern) if (nested || scalar_alternatives(pattern, constants)) => {
-                Some("pat_or")
-            }
-            _ => None,
-        };
-        let matched = kind.is_some_and(|kind| self.add(kind, pattern.span()));
-
-        if let syn::Pat::Or(pattern) = pattern
-            && ((nested && matched) || (!nested && scalar_alternatives(pattern, constants)))
-        {
-            for case in &pattern.cases {
-                self.visit_pat(case);
-            }
-        } else if nested && let syn::Pat::Paren(pattern) = pattern {
-            self.visit_pat(&pattern.pat);
+        if self.checked_options && self.option_pattern(pattern) {
+            return;
         }
+        self.scalar_pattern(pattern, profile);
     }
 
     fn visit_stmt(&mut self, statement: &'ast syn::Stmt) {
@@ -727,4 +702,76 @@ fn resolved_summary(
             .children
             .iter()
             .any(|child| resolved_summary(child, hir, facts))
+}
+
+impl<'ast> Inventory<'_> {
+    fn scalar_pattern(
+        &mut self,
+        pattern: &'ast syn::Pat,
+        profile: Option<crate::extraction_profile::ExtractionProfile>,
+    ) {
+        let constants =
+            profile.is_some_and(|profile| profile.supports("rust.scalar-constant-patterns"));
+        let nested =
+            profile.is_some_and(|profile| profile.supports("rust.nested-scalar-or-patterns"));
+        let kind = match pattern {
+            syn::Pat::Lit(_) => Some("pat_literal"),
+            syn::Pat::Wild(_) => Some("pat_wild"),
+            syn::Pat::Path(_) if constants => Some("pat_constant"),
+            syn::Pat::Ident(ident)
+                if constants
+                    && ident.by_ref.is_none()
+                    && ident.mutability.is_none()
+                    && ident.subpat.is_none() =>
+            {
+                Some("pat_name")
+            }
+            syn::Pat::Range(range) if crate::scalar_patterns::scalar_range(range, constants) => {
+                Some("pat_range")
+            }
+            syn::Pat::Or(pattern) if (nested || scalar_alternatives(pattern, constants)) => {
+                Some("pat_or")
+            }
+            _ => None,
+        };
+        let matched = kind.is_some_and(|kind| self.add(kind, pattern.span()));
+
+        if let syn::Pat::Or(pattern) = pattern
+            && ((nested && matched) || (!nested && scalar_alternatives(pattern, constants)))
+        {
+            for case in &pattern.cases {
+                self.visit_pat(case);
+            }
+        } else if nested && let syn::Pat::Paren(pattern) = pattern {
+            self.visit_pat(&pattern.pat);
+        }
+    }
+
+    fn option_pattern(&mut self, pattern: &'ast syn::Pat) -> bool {
+        let span = ByteSpan {
+            start: offset(&self.facts.source.bytes, pattern.span().start()),
+            end: offset(&self.facts.source.bytes, pattern.span().end()),
+        };
+        let kind = match pattern {
+            syn::Pat::TupleStruct(_) => "pat_option_some",
+            syn::Pat::Reference(_) => "pat_shared",
+            syn::Pat::Ident(_) | syn::Pat::Path(_) => "pat_option_none",
+            _ => return false,
+        };
+        if self.find(&self.facts.body, kind, span).len() != 1 {
+            return false;
+        }
+        self.add(kind, pattern.span());
+
+        match pattern {
+            syn::Pat::TupleStruct(some) => {
+                for child in &some.elems {
+                    self.visit_pat(child);
+                }
+            }
+            syn::Pat::Reference(shared) => self.visit_pat(&shared.pat),
+            _ => {}
+        }
+        true
+    }
 }
