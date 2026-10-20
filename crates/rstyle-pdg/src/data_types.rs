@@ -106,6 +106,32 @@ pub fn parse(text: &str) -> Result<TypeToken, String> {
     Ok(token)
 }
 
+pub(crate) fn parse_for(
+    text: &str,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Result<TypeToken, String> {
+    let ty = parse(text)?;
+    if text.contains("\"kind\":\"option\"")
+        && (!profile.supports("rust.checked-slice-option")
+            || scalar_option(&ty) && !profile.supports("rust.scalar-option-values"))
+    {
+        return Err("Option type requires its registered payload capability".into());
+    }
+    Ok(ty)
+}
+
+pub(crate) fn scalar_option(ty: &TypeToken) -> bool {
+    match ty {
+        TypeToken::Option(payload) => matches!(payload.as_ref(), TypeToken::Scalar(_)),
+        TypeToken::Tuple(values) => values.iter().any(scalar_option),
+        TypeToken::Array { element, .. }
+        | TypeToken::Shared(element)
+        | TypeToken::Slice(element) => scalar_option(element),
+        TypeToken::Struct { fields, .. } => fields.iter().any(|(_, field)| scalar_option(field)),
+        _ => false,
+    }
+}
+
 fn check(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {
     *entries += 1;
     if depth > crate::concrete_types::MAX_DEPTH || *entries > crate::concrete_types::MAX_ENTRIES {
@@ -153,6 +179,9 @@ fn recursive_element(token: &TypeToken) -> Option<&TypeToken> {
         | TypeToken::Shared(element)
         | TypeToken::Slice(element) => Some(element),
         TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::Shared(value) if matches!(value.as_ref(), TypeToken::Scalar(scalar) if scalar != "unit" && crate::concrete_types::scalar(scalar))) => {
+            Some(payload)
+        }
+        TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::Scalar(scalar) if scalar != "unit" && crate::concrete_types::scalar(scalar)) => {
             Some(payload)
         }
         _ => None,

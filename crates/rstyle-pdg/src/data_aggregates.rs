@@ -103,6 +103,7 @@ pub(crate) fn reference_free(ty: &TypeToken) -> bool {
         } => true,
         TypeToken::Tuple(elements) => elements.iter().all(reference_free),
         TypeToken::Array { element, .. } => reference_free(element),
+        TypeToken::Option(payload) => matches!(payload.as_ref(), TypeToken::Scalar(_)),
         TypeToken::Struct { fields, .. } => fields.iter().all(|(_, ty)| reference_free(ty)),
         _ => false,
     }
@@ -277,4 +278,9 @@ fn struct_unit_slot(node: &crate::PdgNode, position: u64, fields: &[(String, Typ
         .and_then(|index| slots.get(index))
         .and_then(|index| index.and_then(|index| fields.get(index)))
         .is_some_and(|(_, ty)| ty == &TypeToken::Scalar("unit".into()))
+}
+
+/// Parse the canonical concrete type attached to a source value.
+pub(crate) fn parsed_type(node: &HirNode) -> Result<TypeToken, String> {
+    crate::data_types::parse(token(node)?)
 }

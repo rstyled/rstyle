@@ -7,7 +7,7 @@ pub(crate) fn supported(token: &str, profile: ExtractionProfile) -> bool {
         && (profile.supports("rust.local-aggregate-values")
             || profile.supports("rust.shared-reference-locals")
             || profile.supports("rust.reference-bearing-values"))
-        && crate::data_types::parse(token).is_ok_and(|ty| {
+        && crate::data_types::parse_for(token, profile).is_ok_and(|ty| {
             (profile.supports("rust.local-aggregate-values")
                 && crate::data_aggregates::reference_free(&ty))
                 || crate::data_reference_locals::supported(&ty, profile)

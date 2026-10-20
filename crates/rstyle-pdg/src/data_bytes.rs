@@ -42,15 +42,10 @@ pub(crate) fn kind(node: &HirNode) -> Option<Kind> {
 }
 
 fn borrowed_result(node: &HirNode) -> bool {
-    crate::data_aggregates::token(node)
-        .ok()
-        .and_then(|token| crate::data_types::parse(token).ok())
-        .is_some_and(|ty| {
-            matches!(
-                ty,
-                crate::data_types::TypeToken::SliceArrayResult { borrowed: true, .. }
-            )
-        })
+    matches!(
+        crate::data_aggregates::parsed_type(node),
+        Ok(crate::data_types::TypeToken::SliceArrayResult { borrowed: true, .. })
+    )
 }
 
 impl Kind {

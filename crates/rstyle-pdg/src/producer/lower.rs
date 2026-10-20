@@ -198,6 +198,9 @@ impl Builder<'_> {
     }
 
     fn expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::checked_options::constructor_candidate(node, self.facts) {
+            return self.option_constructor(node, flow);
+        }
         lowerer(node)(self, node, flow)
     }
 

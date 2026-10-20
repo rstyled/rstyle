@@ -226,6 +226,7 @@ pub fn verify<'a>(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     let pair = pair.into();
+    verify_scalar_option_policy(pair)?;
     crate::inherent_calls::definition(facts)?;
     crate::data_receivers::verify_documents(pair, facts)?;
     let calls = crate::field_locations::operations(&facts.body, &["expr_call", "expr_method_call"]);
@@ -269,6 +270,41 @@ pub fn verify<'a>(
     verify_reads(pair, fields.operations.len())?;
     borrows::verify(pair, facts)?;
     origins::verify(pair, facts)
+}
+
+fn verify_scalar_option_policy(pair: crate::producer::PairView<'_>) -> Result<(), String> {
+    if crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.scalar-option-values") {
+        return Ok(());
+    }
+
+    let nodes = pair.pdg.nodes.iter().filter_map(|node| {
+        node.annotations
+            .get("compat.rust.hir-r0:type")?
+            .get("value")?
+            .as_str()
+    });
+    let interface = pair
+        .pdg
+        .function
+        .inputs
+        .iter()
+        .chain(&pair.pdg.function.outputs)
+        .filter_map(|parameter| {
+            parameter
+                .extensions
+                .get("compat.rust.hir-r0:resolved-type")?
+                .get("value")?
+                .as_str()
+        });
+    for token in nodes
+        .chain(interface)
+        .filter(|token| token.contains("\"kind\":\"option\""))
+    {
+        if crate::data_types::scalar_option(&crate::data_types::parse(token)?) {
+            return Err("Scalar Option document requires its registered policy".into());
+        }
+    }
+    Ok(())
 }
 
 fn verify_derived_reads(

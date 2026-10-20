@@ -3,6 +3,31 @@
 use super::*;
 use syn::spanned::Spanned;
 
+pub(super) fn constructor(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    let syntax = crate::source_evidence::original_expression(node, facts)?;
+    let path = match crate::data_aggregates::ungroup(&syntax) {
+        syn::Expr::Call(call) if node.kind == "expr_call" && call.args.len() == 1 => {
+            corresponding(&call.args[0], &node.children[0], node, facts)?;
+            let syn::Expr::Path(path) = crate::data_aggregates::ungroup(&call.func) else {
+                return Err("Some requires an original resolved variant path".into());
+            };
+            path
+        }
+        syn::Expr::Path(path) if node.kind == "expr_path" => path,
+        _ => return Err("Option constructor loses original variant syntax".into()),
+    };
+    if path.qself.is_some()
+        || path
+            .path
+            .segments
+            .iter()
+            .any(|part| !matches!(part.arguments, syn::PathArguments::None))
+    {
+        return Err("Option constructors require direct paths without generic substitution".into());
+    }
+    Ok(())
+}
+
 fn corresponding(
     expression: &impl Spanned,
     child: &HirNode,
@@ -73,6 +98,9 @@ fn pattern_syntax(
             Ok(())
         }
         (syn::Pat::TupleStruct(some), "pat_option_some") if some.elems.len() == 1 => {
+            if let syn::Pat::Ident(binding) = &some.elems[0] {
+                return scalar_binding(binding, pattern, node, facts);
+            }
             let syn::Pat::Reference(reference) = &some.elems[0] else {
                 return Err("Checked Option Some requires an explicit shared scalar copy".into());
             };
@@ -97,4 +125,19 @@ fn pattern_syntax(
         }
         _ => Err("Checked Option source pattern contradicts its resolved shape".into()),
     }
+}
+
+fn scalar_binding(
+    binding: &syn::PatIdent,
+    pattern: &HirNode,
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let [child] = pattern.children.as_slice() else {
+        return Err("Missing scalar Option binding".into());
+    };
+    if binding.mutability.is_some() || binding.by_ref.is_some() || binding.subpat.is_some() {
+        return Err("Scalar Option requires an immutable value binding".into());
+    }
+    corresponding(binding, child, node, facts)
 }

@@ -37,7 +37,9 @@ impl SummaryCapture<'_> {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        if matches!(node.kind.as_str(), "expr_call" | "expr_method_call") {
+        if matches!(node.kind.as_str(), "expr_call" | "expr_method_call")
+            && !crate::checked_options::constructor_candidate(node, self.facts)
+        {
             records.push(self.record(node)?);
         }
 

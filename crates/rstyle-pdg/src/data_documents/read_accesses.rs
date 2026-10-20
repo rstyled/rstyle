@@ -49,6 +49,11 @@ impl Kind {
         match self {
             Self::Option => crate::checked_options::matches(facts)
                 .into_iter()
+                .filter(|node| {
+                    node.children
+                        .first()
+                        .is_some_and(|scrutinee| !crate::checked_options::owned(scrutinee))
+                })
                 .map(|node| {
                     crate::checked_options::verify_match(node, facts).map(|checked| checked.binding)
                 })

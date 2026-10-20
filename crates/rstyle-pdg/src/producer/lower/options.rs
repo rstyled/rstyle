@@ -2,6 +2,18 @@
 use super::*;
 
 impl Builder<'_> {
+    pub(super) fn option_constructor(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let construct = crate::checked_options::verify_constructor(node, self.facts)
+            .expect("verified scalar Option constructor");
+        let evaluated = self.evaluate_operands(node, flow);
+        let operation = Operation {
+            construct: Some(construct.into()),
+            operands: evaluated.values,
+            ..template(node, NodeCategory::Computation)
+        };
+        self.emit(operation, evaluated.flow)
+    }
+
     pub(super) fn option_match(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let checked =
             crate::checked_options::verify_match(node, self.facts).expect("verified Option match");
@@ -65,7 +77,7 @@ impl Builder<'_> {
         };
         let matched = arm(&selected, "true");
         let matched = if input.index == checked.some_arm {
-            self.option_payload(checked.binding, &input, matched)
+            self.option_payload(checked, &input, matched)
         } else {
             matched
         };
@@ -85,13 +97,34 @@ impl Builder<'_> {
         }
     }
 
-    fn option_payload(&mut self, binding: &HirNode, input: &MatchArm<'_>, flow: Flow) -> Flow {
+    fn option_payload(
+        &mut self,
+        checked: &crate::checked_options::Match<'_>,
+        input: &MatchArm<'_>,
+        flow: Flow,
+    ) -> Flow {
+        let binding = checked.binding;
+
         let read = Operation {
             construct_span: input.node.span,
-            construct: Some("data.option-payload".into()),
+            construct: Some(
+                if checked.scalar_value {
+                    "data.option-value-payload"
+                } else {
+                    "data.option-payload"
+                }
+                .into(),
+            ),
             operands: vec![input.saved.into()],
             role: "option_payload_read".into(),
-            ..template(binding, NodeCategory::Read)
+            ..template(
+                binding,
+                if checked.scalar_value {
+                    NodeCategory::Computation
+                } else {
+                    NodeCategory::Read
+                },
+            )
         };
         let flow = self.emit(read, flow);
         let declaration = Operation {

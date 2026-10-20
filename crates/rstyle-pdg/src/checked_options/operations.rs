@@ -64,6 +64,24 @@ pub(crate) fn project(mut roots: Vec<Origin>) -> Vec<Origin> {
 
 pub(crate) fn semantics(construct: &str) -> serde_json::Value {
     match construct {
+        "data.option-some" => interpretation([
+            ("rule", "scalar-option-some".into()),
+            ("payload_operand", 0.into()),
+            ("variant", "some".into()),
+            ("content_read", false.into()),
+        ]),
+        "data.option-none" => interpretation([
+            ("rule", "scalar-option-none".into()),
+            ("variant", "none".into()),
+            ("has_payload", false.into()),
+            ("content_read", false.into()),
+        ]),
+        "data.option-value-payload" => interpretation([
+            ("rule", "project-scalar-option-payload".into()),
+            ("option_operand", 0.into()),
+            ("requires", "some".into()),
+            ("content_read", false.into()),
+        ]),
         "data.option-get" => interpretation([
             ("rule", "index-less-than-length-option".into()),
             ("receiver_operand", 0.into()),

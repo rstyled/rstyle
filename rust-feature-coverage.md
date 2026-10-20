@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.41.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.42.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -78,13 +78,13 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee and 1–16 arms; Data-v3 3.9.0 independently proves coverage of supported unguarded patterns without requiring a wildcard. See [exhaustive scalar contract](docs/extraction-profiles/exhaustive-scalar-matches-v1.md); broader pattern domains remain missing. |
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
 | F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.10.0 supports integer/bool literal/constant/range/wildcard leaves in nested grouped OR patterns, guards and independently exhaustive matches; see [nested contract](docs/extraction-profiles/nested-scalar-or-patterns-v1.md). Character ranges and nonlocal/generic/trait constants remain missing. |
-| F07 | Destructuring, reference, slice, and enum patterns | Partial | `Some(x) => x`, `[a, ..] => a` | Data-v3 3.36.0 supports only exhaustive checked-access `Some(&scalar)`/`None` patterns with verified guarded loads and bindings. General payload/field/element patterns and ownership/borrow effects remain missing. |
+| F07 | Destructuring, reference, slice, and enum patterns | Partial | `Some(x) => x`, `[a, ..] => a` | Data-v3 3.36.0 supports exhaustive checked-access `Some(&scalar)`/`None` patterns with verified guarded loads and bindings. Data-v3 3.42.0 adds immutable owned scalar `Some(value)`/`None` bindings with guarded value projection. General payload/field/element patterns and ownership/borrow effects remain missing. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
 | F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Data-v3 3.41.0 additionally supports [bounded cyclic prefix scans](docs/extraction-profiles/cyclic-prefix-scans-v1.md): reducible loop-body/condition merges with finite iteration-local availability. General iterator/value-carrying exit and broader caller compositions remain open. |
 | F11 | Labelled and value-carrying exits | Missing | `'outer: loop { break 'outer; }`, `break x` | Exact target resolution and value/frontier dependencies; also labelled block expressions. |
 | F12 | Iterator `for` loops | Missing | `for x in xs { ... }` | Iterator protocol, yielded values, effects, drop, and source/desugaring correspondence; not covered by scalar `while`. |
-| F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. General Option/Result interfaces, construction, early return, conversions, cleanup and `?` remain missing. |
+| F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. Data-v3 3.42.0 adds [owned bool/integer Option values](docs/extraction-profiles/scalar-option-byte-widths-v1.md), exact Some/None construction, early returns, saved local values and supported helper transport. General payloads, Result, conversions, cleanup and `?` remain missing. |
 | F14 | Assertion macros | Partial | `assert!(b);`, `debug_assert!(b);` | Data-v3 3.6.0 supports unformatted standard assertions, original invocation/condition correspondence, one condition evaluation, debug settings and disclosed omitted panic flow; see [assertion contract](docs/extraction-profiles/scalar-assertions-v1.md). Formatting/comparison macros and general exceptional flow remain missing. |
 | F15 | General panic/unwind/cleanup flow | Missing | `panic!("bad")`, `catch_unwind(f)` | Current extraction is bounded normal flow; omitted applicable exceptional flow is disclosed, not represented as complete. |
 
@@ -112,7 +112,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
 | D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Aggregate/reference elements and complete exceptional flow remain unfinished. |
 | D16 | Slice ranges and borrowed subslices | Partial | `&xs[start..end]` | Data-v3 3.31.0 supports [bounded shared subslice views](docs/extraction-profiles/shared-subslice-views-v1.md) with scalar elements, exact base/start/end snapshots and normal-completion bounds. Arrays, open/inclusive ranges, mutable views, str/UTF-8 rules and transport through helper summaries remain unfinished. |
-| D17 | Checked access and concrete Option | Partial | `xs.get(i)`, `Some(x)`, `None` | Data-v3 3.36.0 connects immutable scalar-slice get, exhaustive Some(&scalar)/None, saved Option flow and scalar helper composition through [strict graph verification](docs/extraction-profiles/checked-slice-option-v1.md). General Option interfaces/construction, reference bindings, guards, mutable/array/range access, Result and `?` remain open. |
+| D17 | Checked access and concrete Option | Partial | `xs.get(i)`, `Some(x)`, `None` | Data-v3 3.36.0 connects immutable scalar-slice get, exhaustive Some(&scalar)/None, saved Option flow and scalar helper composition through [strict graph verification](docs/extraction-profiles/checked-slice-option-v1.md). Data-v3 3.42.0 adds [owned bool/integer Option construction and consumption](docs/extraction-profiles/scalar-option-byte-widths-v1.md). General payloads/construction, reference bindings, guards, mutable/array/range access, Result and `?` remain open. |
 | D18 | Reference-bearing array element origins | Missing | `refs: [&S; 2]` | Type observation alone lacks the per-element origin evidence needed for by-value reference-bearing arrays. |
 | D19 | General enums and variants | Missing | `enum E { A(u32), B }` | Variant identity, construction, discriminants, payloads, pattern bindings, moves and drop; includes Result and enum-based APIs beyond concrete Option. |
 | D20 | Mutable references and reborrowing | Missing | `x: &mut S`, `&mut *x` | Mutable locations, alias/reborrow relationships and read/write effects; beyond the current read-only milestone. |
@@ -2842,3 +2842,96 @@ After one warmup pair, seven retained pairs have median **0.300 s baseline
 same hashes, spans and outcomes; no material regression is observed in this
 bounded unsupported workload. This does not measure future activated source
 resolution or establish a whole-package performance guarantee.
+
+### Connected scalar Option byte-width family (Data-v3 3.42.0)
+
+Adds `rust.scalar-option-values` (54 capabilities), completing the selected
+[byte-width contract](docs/extraction-profiles/scalar-option-byte-widths-v1.md).
+Owned bool/integer Option interfaces, direct pinned Some/None construction,
+Option locals/parameters/results, exhaustive unguarded immutable payload binding,
+condition/range-match merges, early returns and existing supported helper
+transport now compose. Some retains the actual ordered operand and its effects;
+None has no payload. Scalar payload extraction is a Some-guarded value operation,
+without reference origins or content reads. Shared Option payloads retain the
+previous guarded-load contract. No new serialized proof inventory, source copy,
+persistent cache, threshold/scoring change, suppression or ignore was introduced.
+
+The unchanged six-function development selection advances from **0 admitted /6
+excluded** to **4 admitted /2 excluded**, four gains and zero losses. match_width,
+branch_width, width_or and saved_width complete capture, independent verification,
+strict admission and all six comparisons. nested/custom retain their exclusions.
+Additional connected tests cover bool/i128, saved Option rebinding, helper-result
+transport, operand effects and early return before construction. Unsupported
+wildcard/guarded/mutable patterns, reference construction and explicit constructor
+turbofish remain excluded. The potentially overflowing local helper named Some
+keeps its actual identity and its existing nonpanicking-summary caller exclusion.
+
+Both source-selected natural width classifiers pass strict bundle import,
+independent document verification, producer verification and strict admission in
+fresh original default-feature Cargo contexts. Each matches its corresponding
+development classifier at score **1**, with all six comparisons among those four
+functions complete. Independent original-body runtime checks cover all 256 bytes
+for both natural classifiers; the development oracle also covers fallback values,
+saved rebinding and deliberately non-validating byte classifications. These
+results do not certify the enclosing decoders, abstraction activation, rewrite
+safety or held-out detector quality.
+
+Constructor core/variant identities and arity are checked by strict import;
+independent graph checks reject changed kinds, semantics, types, operands and
+fabricated effects. Historical 3.41 document-policy downgrade and Data-v2
+construction remain closed. Constructor capture and independent document
+verification pass in std/no_std for installed ARM Linux, x86 Linux and Apple
+ARM64 targets; this is cross-target capture, not native macOS runtime execution.
+
+The workspace passes **836 tests**, with five existing skips, plus doctests.
+The final cross-target document-verification test also passes. All-targets
+clippy with warnings denied, fmt and diff checks pass. rstyle checks **2,676
+functions /zero violations**; patterns reports **zero candidates**.
+
+Canonical frozen replay **run-lqdkmx_1** matches **run-wm2_93wr** for all 60
+source identities, spans, hashes, outcomes and every denominator: **20 admitted
+/33 excluded /7 inactive**, zero selected gains/losses. It verifies **58 documents**
+across the complete captured package units; the additional natural classifier
+is outside the frozen selection. The earlier concurrent replay **run-90z5qze9**
+was terminated by the runner's memory limit and supplies no completion claim or
+counts. Large-package validation is run sequentially afterward.
+
+Fresh assessment against **6488a73 /3.41.0**, retaining every captured function
+identity and semantic build context, measures:
+
+| Original default-feature library | Captured functions | Baseline admitted/excluded | 3.42 admitted/excluded | Gains/losses |
+| --- | ---: | ---: | ---: | ---: |
+| regex-automata 0.4.18 | 2582 | 8 /2574 | 9 /2573 | 1 /0 |
+| regex-syntax 0.8.11 | 956 | 13 /943 | 14 /942 | 1 /0 |
+
+The only gains are the two declared classifiers. Their original hashes/spans
+match the contract; all other captured outcomes remain unchanged, including the
+outer decoders. Those callers still combine nested Option/Result and char values,
+guarded/literal payload patterns, conversions, UTF-8/iterator summaries and, for
+reverse decoding, additional slice/loop/helper compositions. Completing the
+classifier does not complete those chains. General enum/trait, alias,
+destructuring, mutable access and broader loop/call compositions remain roadmap
+work; none is silently activated by this increment.
+
+The large automata Cargo captures completed their exact unit bundles. Concurrent
+full JSON report expansion exceeded the 16 GiB runner budget, so report generation
+was stopped and the retained bundles were assessed sequentially with the matching
+baseline/current libraries. This compact audit classifies **every one of the 2582
+captured functions**, requires graph roots exactly for eligible functions, and
+runs independent document verification, producer verification and strict admission
+for each root. Unknown and excluded classifications remain distinct; missing
+eligible roots are failures. This is a complete unit-roster comparison, not a
+completed bulk CLI JSON report or a smaller replacement selection. The syntax
+comparison uses complete fresh CLI reports. The original Cargo source census,
+compiler invocation and all functions remain in the retained unit evidence.
+
+A quiescent real-Cargo diagnostic alternates the full baseline/current CLI-driver
+pairs, with one warmup pair and seven retained pairs per workload. The unchanged
+six-function cyclic-prefix control retains all hashes, spans and outcomes:
+median elapsed **0.61 /0.63 s** (ranges **0.60–0.62 /0.60–0.64 s**), median per-run
+peak RSS **111636 /111596 KiB**. No material regression is observed on this bounded
+unchanged workload. The unchanged Option selection takes **0.28 /0.40 s**, with
+median per-run peak RSS **106304 /109124 KiB**; the current run additionally
+verifies/admits four functions and evaluates their six pairs, so it performs more
+work. These measurements are not a whole-library performance guarantee or a
+speedup claim. No cache or serialized provenance was added to change the result.

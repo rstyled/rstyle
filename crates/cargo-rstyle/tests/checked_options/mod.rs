@@ -4,6 +4,8 @@ use super::*;
 mod capture_values;
 mod composition;
 mod contracts;
+mod scalar_composition;
+mod scalar_values;
 
 fn workspace() -> TempDir {
     let directory = clone_workspace();

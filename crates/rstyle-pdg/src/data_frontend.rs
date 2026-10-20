@@ -214,7 +214,10 @@ impl SourceProof<'_> {
             return Err("Unsupported concrete data type".into());
         };
         let token = data_types::token(ty)?;
-        data_types::parse(&token)?;
+        data_types::parse_for(
+            &token,
+            crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?,
+        )?;
         if normalized != Some(token.as_str()) {
             return Err("Resolved data interface token disagrees with captured tree".into());
         }
@@ -289,6 +292,9 @@ fn verify_nodes(
         crate::data_aggregates::verify(node, facts)?;
     }
     crate::data_locals::verify_node(node, facts)?;
+    if crate::checked_options::constructor_candidate(node, facts) {
+        crate::checked_options::verify_constructor(node, facts)?;
+    }
     if crate::data_index_reads::candidate(node, facts) {
         crate::data_index_reads::verify(node, facts)?.locations(facts)?;
     }
@@ -299,8 +305,11 @@ fn verify_nodes(
         if token.contains("\"kind\":\"option\"") && !crate::checked_options::enabled(facts) {
             return Err("Checked Option types require their registered capability".into());
         }
-        data_types::parse(token)?;
-        if node.kind == "expr_path" {
+        data_types::parse_for(
+            token,
+            crate::extraction_profile::ExtractionProfile::from_facts(facts)?,
+        )?;
+        if node.kind == "expr_path" && !crate::checked_options::constructor_candidate(node, facts) {
             verify_path(node, facts, token)?;
         }
     }

@@ -220,9 +220,7 @@ fn check_data_frontend(
 fn accepted_type(ty: &str, profile: crate::extraction_profile::ExtractionProfile) -> bool {
     PRIMITIVE_TYS.contains(&ty)
         || profile.supports("rust.concrete-read-only-data")
-            && (!ty.contains("\"kind\":\"option\"")
-                || profile.supports("rust.checked-slice-option"))
-            && crate::data_frontend::accepted(ty)
+            && crate::data_types::parse_for(ty, profile).is_ok()
 }
 
 fn context(
@@ -717,6 +715,9 @@ fn check_method(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 }
 
 fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if crate::checked_options::constructor_candidate(node, ctx.facts) {
+        return Some(check_option_constructor(node, ctx));
+    }
     let ty = || match node_norm(node) {
         Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
         _ => check_expr_ty(node, "data_value"),
@@ -747,23 +748,40 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         {
             Some(check_path(node, ctx))
         }
-        "expr_path" => Some(
-            match node.res.as_ref().and_then(|resolution| {
-                (resolution.kind == "local")
-                    .then_some(resolution.target.as_ref())
-                    .flatten()
-            }) {
-                Some(target)
-                    if ctx
-                        .bindings
-                        .contains_key(&(target.krate, target.owner, target.local)) =>
-                {
-                    ty()
-                }
-                _ => evidence_gap(node, "resolved data binding read"),
-            },
-        ),
+        "expr_path" => Some(check_data_path(node, ctx)),
         _ => None,
+    }
+}
+
+fn check_data_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match node.res.as_ref().and_then(|resolution| {
+        (resolution.kind == "local")
+            .then_some(resolution.target.as_ref())
+            .flatten()
+    }) {
+        Some(target)
+            if ctx
+                .bindings
+                .contains_key(&(target.krate, target.owner, target.local)) =>
+        {
+            match node_norm(node) {
+                Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
+                _ => check_expr_ty(node, "data_value"),
+            }
+        }
+        _ => evidence_gap(node, "resolved data binding read"),
+    }
+}
+
+fn check_option_constructor(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::checked_options::verify_constructor(node, ctx.facts) {
+        Ok(_) => Outcome::ok(),
+        Err(reason) => error(
+            "rust.scalar-option-values",
+            "option_constructor",
+            node,
+            &reason,
+        ),
     }
 }
 
@@ -1126,7 +1144,7 @@ fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         return evidence_gap(node, "match source/HIR correspondence");
     };
     let mut checks = vec![
-        check_expr_ty(node, "match_result"),
+        check_option_result(node, ctx, "match_result"),
         check_node(scrutinee, false, ctx),
     ];
     if !node_norm(scrutinee).is_some_and(|ty| is_int(ty) || ty == "bool") {
@@ -1614,7 +1632,7 @@ fn check_option_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     match crate::checked_options::verify_match(node, ctx.facts) {
         Ok(checked) => {
             let mut checks = vec![
-                check_expr_ty(node, "option_match_result"),
+                check_option_result(node, ctx, "option_match_result"),
                 check_node(checked.scrutinee, false, ctx),
             ];
             for arm in &node.children[1..] {
@@ -1627,5 +1645,16 @@ fn check_option_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
             Outcome::combine(checks)
         }
         Err(reason) => error("rust.checked-slice-option", "option_match", node, &reason),
+    }
+}
+
+fn check_option_result(node: &HirNode, ctx: &Ctx<'_>, construct: &str) -> Outcome {
+    if crate::checked_options::scalar_enabled(ctx.facts) && crate::checked_options::owned(node) {
+        match node_norm(node) {
+            Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
+            _ => check_expr_ty(node, construct),
+        }
+    } else {
+        check_expr_ty(node, construct)
     }
 }

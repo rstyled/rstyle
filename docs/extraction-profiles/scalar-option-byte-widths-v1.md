@@ -1,8 +1,8 @@
-# Scalar Option byte widths: declared development target
+# Scalar Option byte widths: bounded value contract
 
-This is a source-selected target, not active support. The current extraction
-policy remains Data-v3 3.41.0. Keep the frozen 60-function identities,
-denominators and historical outcomes unchanged.
+The connected implementation selects Data-v3 3.42.0, with 54 capabilities.
+The source-selected target and historical checkpoints below retain their original
+identities. The frozen 60-function selection and its denominators remain fixed.
 
 The selected natural family is two UTF-8 leading-byte width classifiers in
 unmodified default-feature library Cargo contexts on the pinned compiler:
@@ -43,7 +43,7 @@ payload, not an unknown result or a zero payload. Some retains the exact scalar
 and does not imply any memory load, allocation, alias independence or purity of
 its operand. Operand effects and early returns must retain their existing flow.
 
-The bounded intended extension is core Option with one bool/integer scalar:
+The bounded extension is core Option with one bool/integer scalar:
 resolved Some/None construction, parameters/results/locals, exhaustive unguarded
 Some(scalar)/None payload binding, scalar-result consumers and supported helper
 transport. Preserve saved values across subsequent scalar rebinding. Existing
@@ -55,7 +55,8 @@ epoch/provenance table, source copy or persistent cache is justified.
 
 Nested Option/Result, owning nominal or reference payload construction, arbitrary
 enums, wildcard/guarded variant patterns, if-let, question-mark desugaring,
-mutable access and general methods remain outside this first extension. Renamed
+mutable access, explicit constructor turbofish and general methods remain outside
+this first extension. Renamed
 core variant imports must retain their actual identities; a custom enum or
 function named Some/None/Option must not gain core authority through spelling.
 Unsupported, unknown and inactive capture outcomes remain distinct.
@@ -241,3 +242,68 @@ so the still-unsupported scalar Option interfaces do not invoke this route durin
 ordinary extraction. The next milestone must connect scalar types, constructors,
 payload projection, saved values and helper transport for all four intended
 positives, rather than adding another independent syntax or evidence checkpoint.
+
+## Connected scalar values (3.42.0)
+
+`rust.scalar-option-values` connects the source proof to owned bool/integer Option
+interfaces, Some/None value construction, local saves/rebinding, early returns,
+exhaustive unguarded immutable payload bindings and existing supported helper
+summaries. Constructors are computations, with their original ordered payload
+operands; they do not acquire call purity summaries. None has no payload. The
+Some-only payload projection is a guarded computation without content reads or
+reference origins; the older shared-payload projection keeps its guarded load.
+Existing source/graph annotations and compiler identities suffice: no additional
+serialized provenance, source buffer or cache was introduced.
+
+The unchanged development corpus now admits match_width, branch_width, width_or
+and saved_width, while nested/custom remain excluded: four new admissions and
+zero losses. All six positive pairs reach evaluation. Independent original-body
+runtime expectations cover all 256 bytes, the three fallback values and saved
+rebinding. Additional composition checks cover i128/bool, Option parameter/result
+transport, effects inside Some and early return before construction. Guarded,
+wildcard, mutable, generic-constructor and reference-construction cases remain
+excluded. A local helper named Some retains its actual helper identity; the
+potentially overflowing `Some(n + 1)` body admits directly, while its caller
+remains excluded by the existing nonpanicking-helper boundary.
+
+Independent document and producer verification reject altered constructor kinds,
+semantics, types, operands and fabricated effects. Strict bundle import rejects
+wrong core/variant identities and constructor arity. Downgrading a scalar-Option
+graph to the historical 3.41 policy fails, and Data-v2 construction remains closed.
+Pinned constructor capture and independent document verification pass for std and
+no_std in installed ARM Linux, x86 Linux and Apple ARM64 Cargo contexts. These are
+cross-target capture checks, not native macOS runtime execution.
+
+Canonical frozen replay `run-lqdkmx_1` retains all 60 selected identities,
+outcomes and denominators from `run-wm2_93wr`: 20 admitted, 33 excluded and seven
+inactive. Its 58 verified documents include complete captured units beyond the
+60-function selection. Workspace validation passes 836 tests with five existing
+skips, plus doctests; all-targets clippy with warnings denied, fmt, rstyle (2676
+functions, zero violations) and patterns (zero candidates) pass. A final focused
+cross-target document test also passes after the full suite.
+
+Fresh 6488a73/3.41 versus 3.42 assessments retain every identity, source span/hash
+and semantic build context. regex-automata has 2582 captured functions and advances
+from 8 admitted/2574 excluded to 9/2573. regex-syntax has 956 and advances from
+13/943 to 14/942. The only two gains are the declared classifiers; there are no
+losses. Both outer decoders remain excluded. Each natural classifier matches its
+development counterpart at score 1; all six comparisons among those four strict
+imports complete. This establishes extraction coverage, not detector quality or
+rewrite safety.
+
+The automata audit uses the completed original Cargo unit bundles and the
+corresponding baseline/current classifiers, independent document and producer
+verifiers, and strict admission on every graph root. Full JSON report generation
+was stopped after concurrent report expansion and a separate replay exhausted the
+16 GiB runner budget. No source or function is omitted from the compact 2582-row
+assessment; missing eligible roots fail and unknown/excluded remain distinct.
+The syntax comparison uses complete fresh CLI reports. The final frozen replay
+above ran canonically and sequentially; the incomplete earlier replay supplies
+no result counts.
+
+Seven retained alternating quiescent captures, following one warmup pair, measure
+the unchanged cyclic-prefix control at median 0.61 s baseline /0.63 s current,
+with overlapping 0.60–0.62 /0.60–0.64 s ranges and median per-run peak RSS
+111636 /111596 KiB. The Option workload takes 0.28 /0.40 s and 106304 /109124 KiB;
+current additionally verifies, admits and matches its four positives. These
+bounded measurements do not establish a whole-package performance guarantee.

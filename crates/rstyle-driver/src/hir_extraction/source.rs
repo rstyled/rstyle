@@ -270,6 +270,12 @@ fn source_match_pattern(
     if profile.supports("rust.checked-slice-option")
         && let ast::PatKind::TupleStruct(_, _, children) = kind
     {
+        if profile.supports("rust.scalar-option-values")
+            && matches!(children.as_slice(), [child] if matches!(child.kind,
+                ast::PatKind::Ident(ast::BindingMode(ast::ByRef::No, ast::Mutability::Not), _, None)))
+        {
+            return true;
+        }
         return matches!(children.as_slice(), [child] if matches!(&child.kind,
             ast::PatKind::Ref(binding, ast::Pinnedness::Not, ast::Mutability::Not)
                 if matches!(binding.kind, ast::PatKind::Ident(ast::BindingMode(ast::ByRef::No, ast::Mutability::Not), _, None))));

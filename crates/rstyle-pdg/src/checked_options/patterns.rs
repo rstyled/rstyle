@@ -30,9 +30,17 @@ fn variant<'a>(
     Ok(pattern)
 }
 
-pub(super) fn none(arm: &HirNode, scalar: &str, facts: &dyn EvidenceFacts) -> Result<(), String> {
+pub(super) fn none(
+    arm: &HirNode,
+    scalar: &str,
+    owned: bool,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
     let pattern = variant(arm, "None", facts)?;
-    if types::payload(pattern)? != scalar || !pattern.children.is_empty() {
+    if types::payload(pattern)? != scalar
+        || types::owned(pattern) != owned
+        || !pattern.children.is_empty()
+    {
         return Err("None cannot carry payload children".into());
     }
     Ok(())
@@ -41,15 +49,28 @@ pub(super) fn none(arm: &HirNode, scalar: &str, facts: &dyn EvidenceFacts) -> Re
 pub(super) fn some<'a>(
     arm: &'a HirNode,
     scalar: &str,
+    owned: bool,
     facts: &dyn EvidenceFacts,
 ) -> Result<&'a HirNode, String> {
     let pattern = variant(arm, "Some", facts)?;
-    if types::payload(pattern)? != scalar {
+    if types::payload(pattern)? != scalar || types::owned(pattern) != owned {
         return Err("Option variant type disagrees with scrutinee".into());
     }
     let [shared] = pattern.children.as_slice() else {
         return Err("Some requires one exact reference pattern".into());
     };
+    if owned {
+        if shared.kind != "pat_binding"
+            || crate::data_aggregates::token(shared)? != scalar
+            || shared.binding_mut != Some(false)
+            || !shared.children.is_empty()
+            || shared.expansion.is_some()
+        {
+            return Err("Scalar Some requires one immutable scalar binding".into());
+        }
+        binding_identity(shared, facts)?;
+        return Ok(shared);
+    }
     let [binding] = shared.children.as_slice() else {
         return Err("Some reference pattern requires one exact binding".into());
     };

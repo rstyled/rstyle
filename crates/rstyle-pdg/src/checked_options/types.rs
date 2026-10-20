@@ -13,19 +13,26 @@ pub(super) fn payload(node: &HirNode) -> Result<String, String> {
     let TypeToken::Option(payload) = &value else {
         return Err("Expected a concrete core Option observation".into());
     };
-    let TypeToken::Shared(scalar) = payload.as_ref() else {
-        return Err("Checked Option requires a shared scalar payload".into());
+    let scalar = if let TypeToken::Shared(scalar) = payload.as_ref() {
+        scalar.as_ref()
+    } else {
+        payload.as_ref()
     };
-    let TypeToken::Scalar(scalar) = scalar.as_ref() else {
+    let TypeToken::Scalar(scalar) = scalar else {
         return Err("Checked Option requires a scalar referent".into());
     };
 
-    let tree = result(scalar);
-    crate::concrete_types::validate(&tree)?;
-    if crate::data_types::token(&tree)? != token {
+    if scalar == "unit"
+        || !crate::concrete_types::scalar(scalar)
+        || crate::data_types::parse(token)? != value
+    {
         return Err("Checked Option type observation is not canonical".into());
     }
     Ok(scalar.clone())
+}
+
+pub(super) fn owned(node: &HirNode) -> bool {
+    matches!(crate::data_aggregates::parsed_type(node), Ok(TypeToken::Option(payload)) if matches!(payload.as_ref(), TypeToken::Scalar(_)))
 }
 
 fn result(scalar: &str) -> TypeTree {
@@ -35,6 +42,9 @@ fn result(scalar: &str) -> TypeTree {
 }
 
 pub(super) fn get(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<String, String> {
+    if owned(node) {
+        return Err("Checked get requires a shared scalar payload".into());
+    }
     let scalar = payload(node)?;
     let receiver = TypeTree::Shared(Box::new(TypeTree::Slice(Box::new(TypeTree::Scalar(
         scalar.clone(),

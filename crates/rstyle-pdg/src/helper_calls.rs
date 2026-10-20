@@ -189,7 +189,8 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
     let mut calls = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
     calls.retain(|node| {
-        !crate::data_bytes::enabled(facts) || crate::data_bytes::kind(node).is_none()
+        (!crate::data_bytes::enabled(facts) || crate::data_bytes::kind(node).is_none())
+            && !crate::checked_options::constructor_candidate(node, facts)
     });
 
     let mut methods = Vec::new();

@@ -1069,13 +1069,16 @@ the separate Cargo capture sources. The five tests (one oracle and four natural
 module tests) pass. See the [bounded contract](../../docs/extraction-profiles/borrowed-scalar-owner-v1.md).
 
 
-## Cyclic prefix scan target (not yet supported)
+## Cyclic prefix scan family
 
 `cyclic-prefix-scans.rs` fixes a separate six-function development selection:
 the two natural prefix-scan shapes, alternating loop-local values and a saved
 short-circuit result are the four intended positives; mutation and value-carrying
-break are retained negatives. Current Data-v3 3.40 captures and assesses all six,
-with zero admissions. All four positives currently fail the F10 source gate.
+break are retained negatives. The declared Data-v3 3.40 baseline captured all six with zero admissions.
+Data-v3 3.41 admits all four intended positives, retains both exclusions, and
+completes all six comparisons. The two source-selected natural scanners also
+pass capture, independent verification, strict admission and matching against
+their development counterparts (score 1).
 The ordinary arithmetic composition retains existing overflow/partial-flow rules;
 it does not require an unrelated wrapping-method summary.
 
@@ -1085,3 +1088,20 @@ explicit table changes, empty/out-of-range starts, and 1025 iteration-value/fina
 condition cases. The oracle specifies behavior independently of the extraction
 checker and does not establish pipeline support. See the
 [selected natural family and blocker audit](../../docs/extraction-profiles/cyclic-prefix-scans-v1.md).
+
+
+## Scalar Option byte-width family
+
+`option-byte-widths.rs` fixes a separate six-function selection before semantic
+activation. Data-v3 3.41 admits none. Data-v3 3.42 admits match_width, branch_width,
+width_or and saved_width, retaining nested/custom exclusions and all source
+identities; all six positive comparisons complete. The original top comment in
+the corpus is retained as part of that frozen development source.
+
+Append `option-byte-width-oracle.rs` to the unchanged corpus in a temporary rustc
+`--test -C overflow-checks=on` harness. Its two tests independently specify all
+256 byte widths, fallback values 0/5/usize::MAX, saved rebinding and the deliberate
+non-validating C0/C1/F5/F6/F7 cases. Pipeline coverage is separate from runtime
+behavior. The source-selected natural classifiers, build contexts and remaining
+decoder blockers are recorded in the
+[scalar Option contract](../../docs/extraction-profiles/scalar-option-byte-widths-v1.md).

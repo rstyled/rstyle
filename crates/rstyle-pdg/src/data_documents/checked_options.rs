@@ -6,11 +6,14 @@ use crate::{
     HirNode, PdgNode, checked_options as options, producer::PairView, unit_store::EvidenceFacts,
 };
 
-const CONSTRUCTS: [&str; 4] = [
+const CONSTRUCTS: [&str; 7] = [
     "data.option-get",
     "data.option-payload",
     "match.option-some",
     "match.option-none",
+    "data.option-some",
+    "data.option-none",
+    "data.option-value-payload",
 ];
 
 pub(super) fn install(
@@ -45,50 +48,114 @@ pub(super) fn verify(
         .collect();
     let matches = options::matches(facts);
 
-    inventory(pair, gets.len(), matches.len())?;
+    let constructors = options::constructors(facts);
+    verify_inventory(pair, &gets, &matches, &constructors)?;
+    for source in constructors {
+        verify_constructor(pair, source, facts)?;
+    }
     for source in gets {
         verify_get(pair, source, facts)?;
     }
     let mut locations = BTreeMap::new();
     for source in matches {
-        let checked = options::verify_match(source, facts)?;
-        let load = operation(pair, checked.binding, "data.option-payload")?;
-        let (reads, entries) =
-            context.read_accesses(options::locations(checked.binding, facts)?)?;
-        effects(load, "data.option-payload", &reads)?;
-        super::verify_saved_operands(
-            pair,
-            load,
-            &[super::value_operation(pair, checked.scrutinee)?],
-        )?;
-        verify_binding(pair, &checked, load)?;
-        for (index, arm) in source.children[1..].iter().enumerate() {
-            let construct = if index == checked.some_arm {
-                "match.option-some"
-            } else {
-                "match.option-none"
-            };
-            let selector = operation(pair, &arm.children[0], construct)?;
-            effects(selector, construct, &[])?;
-            super::verify_saved_operands(
-                pair,
-                selector,
-                &[super::value_operation(pair, checked.scrutinee)?],
-            )?;
-            if index == checked.some_arm {
-                guards::verify(pair, selector, load)?;
-            }
-        }
-        locations.extend(entries);
+        locations.extend(verify_match(pair, context, source)?);
     }
     Ok(locations)
 }
 
-fn inventory(pair: PairView<'_>, gets: usize, matches: usize) -> Result<(), String> {
-    for (construct, expected) in CONSTRUCTS
-        .into_iter()
-        .zip([gets, matches, matches, matches])
-    {
+fn verify_inventory(
+    pair: PairView<'_>,
+    gets: &[&HirNode],
+    matches: &[&HirNode],
+    constructors: &[&HirNode],
+) -> Result<(), String> {
+    let scalar = matches
+        .iter()
+        .filter(|source| options::owned(&source.children[0]))
+        .count();
+    let some = constructors
+        .iter()
+        .filter(|source| source.kind == "expr_call")
+        .count();
+    inventory(
+        pair,
+        [
+            gets.len(),
+            matches.len() - scalar,
+            matches.len(),
+            matches.len(),
+            some,
+            constructors.len() - some,
+            scalar,
+        ],
+    )
+}
+
+fn verify_constructor(
+    pair: PairView<'_>,
+    source: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let construct = options::verify_constructor(source, facts)?;
+    let node = operation(pair, source, construct)?;
+    effects(node, construct, &[])?;
+
+    let operands = source
+        .children
+        .iter()
+        .map(|child| super::value_operation(pair, child))
+        .collect::<Result<Vec<_>, _>>()?;
+    super::verify_saved_operands(pair, node, &operands)
+}
+
+fn verify_match(
+    pair: PairView<'_>,
+    context: &mut LocationContext<'_>,
+    source: &HirNode,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    let facts = context.facts;
+
+    let checked = options::verify_match(source, facts)?;
+    let construct = if checked.scalar_value {
+        "data.option-value-payload"
+    } else {
+        "data.option-payload"
+    };
+    let load = operation(pair, checked.binding, construct)?;
+    let (reads, entries) = if checked.scalar_value {
+        (Vec::new(), BTreeMap::new())
+    } else {
+        context.read_accesses(options::locations(checked.binding, facts)?)?
+    };
+    effects(load, construct, &reads)?;
+    super::verify_saved_operands(
+        pair,
+        load,
+        &[super::value_operation(pair, checked.scrutinee)?],
+    )?;
+    verify_binding(pair, &checked, load)?;
+    for (index, arm) in source.children[1..].iter().enumerate() {
+        let construct = if index == checked.some_arm {
+            "match.option-some"
+        } else {
+            "match.option-none"
+        };
+        let selector = operation(pair, &arm.children[0], construct)?;
+        effects(selector, construct, &[])?;
+        super::verify_saved_operands(
+            pair,
+            selector,
+            &[super::value_operation(pair, checked.scrutinee)?],
+        )?;
+        if index == checked.some_arm {
+            guards::verify(pair, selector, load)?;
+        }
+    }
+    Ok(entries)
+}
+
+fn inventory(pair: PairView<'_>, expected_counts: [usize; 7]) -> Result<(), String> {
+    for (construct, expected) in CONSTRUCTS.into_iter().zip(expected_counts) {
         if pair
             .pdg
             .nodes
@@ -118,9 +185,25 @@ fn operation<'a>(
     source: &HirNode,
     construct: &str,
 ) -> Result<&'a PdgNode, String> {
-    super::serialized_operation(pair, &source.span, |node| {
+    let node = super::serialized_operation(pair, &source.span, |node| {
         node.attributes.construct.as_deref() == Some(construct)
-    })
+    })?;
+    let expected = if matches!(construct, "match.option-some" | "match.option-none") {
+        "bool"
+    } else {
+        crate::data_aggregates::token(source)?
+    };
+    if node.original_kind.known_value() != Some(source.kind.as_str())
+        || node
+            .annotations
+            .get("compat.rust.hir-r0:type")
+            .and_then(|ty| ty.get("value"))
+            .and_then(serde_json::Value::as_str)
+            != Some(expected)
+    {
+        return Err("Option operation type/source correspondence disagrees".into());
+    }
+    Ok(node)
 }
 
 fn verify_get(
@@ -152,6 +235,9 @@ fn effects(node: &PdgNode, construct: &str, reads: &[crate::Access]) -> Result<(
     let expected = match construct {
         "data.option-get" => NodeCategory::Call,
         "data.option-payload" => NodeCategory::Read,
+        "data.option-some" | "data.option-none" | "data.option-value-payload" => {
+            NodeCategory::Computation
+        }
         _ => NodeCategory::Control,
     };
     if node.category != expected

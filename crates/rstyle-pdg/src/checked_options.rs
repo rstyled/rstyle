@@ -3,10 +3,12 @@
 //! A verified shape is not a verified graph: conditional payload origins and
 //! guarded loads must still be independently established by document checking.
 
+mod constructors;
 mod operations;
 mod patterns;
 mod source;
 mod types;
+pub(crate) use constructors::{constructor_candidate, constructors, verify_constructor};
 pub(crate) use operations::*;
 
 use crate::{HirNode, data_library::Callee, unit_store::EvidenceFacts};
@@ -27,6 +29,7 @@ pub struct Match<'a> {
     pub some_arm: usize,
     pub none_arm: usize,
     pub binding: &'a HirNode,
+    pub scalar_value: bool,
 }
 
 /// Check pinned authority, concrete instantiation and original operand spans.
@@ -61,12 +64,18 @@ pub fn verify_match<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Result<
         return Err("Checked Option match requires original match syntax".into());
     }
     let scalar = types::payload(scrutinee)?;
+    let scalar_value = owned(scrutinee);
+    if scalar_value && !scalar_enabled(facts) {
+        return Err("Scalar Option patterns require their registered capability".into());
+    }
     source::matched(node, facts)?;
-    let binding = patterns::some(first, &scalar, facts)
-        .and_then(|binding| patterns::none(second, &scalar, facts).map(|()| (0, 1, binding)))
+    let binding = patterns::some(first, &scalar, scalar_value, facts)
+        .and_then(|binding| {
+            patterns::none(second, &scalar, scalar_value, facts).map(|()| (0, 1, binding))
+        })
         .or_else(|_| {
-            patterns::none(first, &scalar, facts)?;
-            patterns::some(second, &scalar, facts).map(|binding| (1, 0, binding))
+            patterns::none(first, &scalar, scalar_value, facts)?;
+            patterns::some(second, &scalar, scalar_value, facts).map(|binding| (1, 0, binding))
         })?;
 
     Ok(Match {
@@ -74,7 +83,16 @@ pub fn verify_match<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Result<
         some_arm: binding.0,
         none_arm: binding.1,
         binding: binding.2,
+        scalar_value,
     })
+}
+
+pub(crate) fn owned(node: &HirNode) -> bool {
+    types::owned(node)
+}
+
+pub(crate) fn scalar_enabled(facts: &dyn EvidenceFacts) -> bool {
+    crate::extraction_profile::facts_support(facts, "rust.scalar-option-values")
 }
 
 fn data_v3(facts: &dyn EvidenceFacts) -> Result<(), String> {

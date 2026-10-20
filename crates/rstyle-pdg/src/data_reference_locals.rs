@@ -7,7 +7,8 @@ use crate::{HirNode, HirRef, extraction_profile::ExtractionProfile, unit_store::
 
 pub(crate) fn supported(ty: &crate::data_types::TypeToken, profile: ExtractionProfile) -> bool {
     use crate::data_types::TypeToken;
-    (matches!(ty, TypeToken::Option(_)) && profile.supports("rust.checked-slice-option"))
+    (matches!(ty, TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::Shared(_)))
+        && profile.supports("rust.checked-slice-option"))
         || (matches!(
             ty,
             TypeToken::SliceArrayResult {

@@ -54,7 +54,20 @@ fn check_target(target: &str, no_std: bool) {
     assert_eq!(report["capture_complete"], true);
     assert_eq!(report["assessment_complete"], true);
     for function in functions {
-        assert_eq!(function["outcome"], "excluded", "{function}");
+        assert_eq!(
+            function["outcome"],
+            if function["facts"]["name"]
+                .as_str()
+                .unwrap()
+                .starts_with("user::")
+                || function["facts"]["name"] == "functions::call"
+            {
+                "excluded"
+            } else {
+                "admitted"
+            },
+            "{function}"
+        );
         let facts: rstyle_pdg::HirFnFacts =
             serde_json::from_value(function["facts"].clone()).unwrap();
         let value = facts.body.children.last().unwrap();
@@ -71,6 +84,7 @@ fn check_target(target: &str, no_std: bool) {
             name => panic!("unexpected function: {name}"),
         }
     }
+    check_aggregate_documents(&report);
 }
 
 fn check_authority(node: &rstyle_pdg::HirNode, facts: &rstyle_pdg::HirFnFacts, variant: &str) {
