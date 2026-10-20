@@ -10,6 +10,7 @@ use crate::{
     declaration_origins,
 };
 use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
+mod array_lengths;
 mod builtin_options;
 pub(crate) mod environment;
 mod selected;
@@ -33,9 +34,21 @@ pub struct Resolution {
     trees: BTreeMap<Namespace, TypeTree>,
     environment: Rc<Environment>,
     copy_trees: std::collections::BTreeSet<Namespace>,
+    array_views: bool,
 }
 
 impl Resolution {
+    pub(crate) fn requires_borrowed_array_views(&self) -> bool {
+        self.trees.iter().any(|(key, tree)| {
+            tree.nominal_fields().any(|field| {
+                matches!(field.ty, TypeTree::Array { .. })
+                    && (self.environment.copy_boundary && !self.copy_trees.contains(key)
+                        || !matches!(syn::parse_str::<syn::Type>(&field.declaration),
+                            Ok(syn::Type::Array(array)) if matches!(array.len, syn::Expr::Lit(_))))
+            })
+        })
+    }
+
     pub(crate) fn requires_scalar_enums(&self) -> bool {
         self.trees
             .values()
@@ -157,6 +170,7 @@ pub(crate) fn verify_in(
         owner_path: None,
         trees: BTreeMap::new(),
         copy_trees: Default::default(),
+        array_views: supports(facts, "rust.borrowed-array-views")?,
         environment: Rc::clone(&environment),
     };
 
@@ -784,6 +798,10 @@ impl PathResolution for Resolution {
 }
 
 impl PathResolution for Scoped<'_> {
+    fn array_length(&self, source: &syn::Expr, expected: u64) -> Result<(), String> {
+        array_lengths::verify(self, source, expected)
+    }
+
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
         if path.qself.is_some() || path.path.leading_colon.is_some() {
             return Err("Unsupported nominal type path".into());

@@ -142,3 +142,66 @@ CLI integration-test Clippy with warnings denied, formatting, Python compilation
 and whitespace checks. Rstyle reports 2827 functions /zero violations; patterns
 reports zero candidates. The preceding 884-test workspace run remains the last
 full implementation validation; this source-first audit does not replace it.
+
+## Connected implementation: 3.50
+
+The `rust.borrowed-array-views` capability connects the fixed eighteen
+functions with the predeclared ten admitted /eight excluded outcomes. Focused
+Cargo capture, independent document verification, strict owning-unit import and
+matching pass on the three installed targets. Negative graph mutations reject
+changed array bounds, invented place reads, erased helper reads, erased field
+origins and an older policy. Caller checks reject erased panic limitations,
+Unknown status and erased projected origins. Lexical constant tests cover separate
+modules, active cfg declarations, zero-length arrays, imports and nonliteral
+initializers.
+
+Implementation exposed a further C12 restriction: old shared-result summaries
+required memory-free whole-formal returns and complete normal flow. The implementation
+reuses existing reference outputs, memory reads and panic fields for verified
+array-field projections. It retains the array as backing storage, without granting
+a view the full array length. Creating its address reads no array contents; the
+len helper's byte-zero read remains observable. Potential bounds panics propagate
+to callers as explicit Partial evidence. Unknown callee evidence stays rejected.
+No new capture fields, source census, provenance inventory or cache is added.
+
+The full workspace CI run passes 887 tests with five skipped. Clippy with
+warnings denied, doctests, formatting and whitespace checks pass. Fresh rstyle
+checks 2848 functions with zero violations; patterns reports zero candidates.
+### Natural measurement and performance
+
+The unchanged complete default library retains 2582 source identities and build
+contexts. Admissions increase 73 to 76: exactly Accel::len, Accel::is_empty and
+Accel::needles, with zero losses and zero unknown/failed outcomes. Capture and
+assessment complete; full-crate pair enumeration is intentionally disabled and
+is not reported as completed matching. All 76 natural admissions and ten
+development positives pass independent document and producer verification and
+strict owning-unit import. All 78 comparisons among the three original getters
+and ten development positives complete with unchanged defaults and no diagnostics.
+
+Against exact 7ebf718, one warmup and seven alternating quiescent samples yield
+median seconds baseline/current: Copy 0.88/0.90 (ranges 0.86–0.91/0.87–0.92),
+cyclic 0.64/0.63 (0.60–0.66/0.60–0.66), and the eighteen-function corpus
+0.46/0.77 (0.43–0.48/0.72–0.79). Median peak RSS in KiB is respectively
+123332/123276, 111888/111832 and 117692/120264. Control matching is identical;
+the development corpus performs unequal work, increasing one to ten admissions.
+An initial timing pass overlapped the streaming report audit and was discarded;
+these results come from the fresh run after both processes ended. Overlapping
+control ranges show no clear regression in these measurements, not broad
+performance invariance. No new capture/provenance inventory or cache is added.
+
+### Frozen replay and remaining boundaries
+
+Replay preserves the sixty frozen identities/denominators and 20 admitted /
+33 excluded /seven inactive outcomes; seventy documents verify across the
+complete package captures. Full package identities, build contexts and outcomes
+also remain unchanged: lz4_flex 150 functions /seven admitted, regex-syntax 956 /
+twenty, time-core 226 /eight. Historical reports and selection files are unchanged.
+
+Remaining boundaries include non-Copy owned constructors/consumption and drop
+semantics, mutable views, RangeFrom/RangeInclusive, general const evaluation,
+and derived-local array field bases. Partial bounds/panic evidence is preserved;
+this milestone does not model exceptional cleanup or establish rewrite safety.
+Unit::eoi, Unit::is_word_byte and ByteClasses::eoi retain their separately
+recorded conversion/Option/Result, formatted assertion, callback/table and helper
+blocker chains. This increment adds no general closure or macro support and
+makes no abstraction-activation or held-out detector-quality claim.

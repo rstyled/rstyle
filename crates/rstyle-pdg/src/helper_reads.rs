@@ -44,6 +44,8 @@ pub(crate) fn supported(
             .and_then(|ty| crate::data_types::parse(ty).ok())
             .is_some_and(|ty| {
                 matches!(ty, TypeToken::Scalar(_))
+                    || crate::extraction_profile::facts_support(facts, crate::data_subslices::ARRAY_CAPABILITY)
+                        && matches!(&ty, TypeToken::Shared(referent) if matches!(referent.as_ref(), TypeToken::Slice(element) if matches!(element.as_ref(), TypeToken::Scalar(_))))
                     || crate::extraction_profile::facts_support(facts, "rust.scalar-enum-values")
                         && matches!(ty, TypeToken::Option(payload) if matches!(*payload, TypeToken::Scalar(_)))
             })

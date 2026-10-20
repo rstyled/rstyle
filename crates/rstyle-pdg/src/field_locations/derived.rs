@@ -170,7 +170,17 @@ pub(crate) fn from_origins(
                 return Err("Indirect field has no concrete formal root".into());
             };
             let value = source::origin_value(ty, &origin.path)?;
-            if TypeToken::from_tree(&value) != expected {
+            let actual = TypeToken::from_tree(&value);
+            // A verified subslice value retains its array field as backing
+            // storage. Preserve that location/type rather than invent a slice
+            // allocation or give it the array's full length as its view length.
+            let array_view = crate::extraction_profile::facts_support(
+                facts,
+                crate::data_subslices::ARRAY_CAPABILITY,
+            ) && matches!((&actual, &expected),
+                (TypeToken::Array { element, .. }, TypeToken::Slice(view))
+                    if element == view && matches!(element.as_ref(), TypeToken::Scalar(_)));
+            if actual != expected && !array_view {
                 return Err("Indirect field referent contradicts its source value type".into());
             }
             Ok(Located {

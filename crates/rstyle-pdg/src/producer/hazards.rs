@@ -5,6 +5,7 @@
 use super::{Analysis, Graph, Operation};
 use crate::NodeCategory;
 use std::collections::BTreeMap;
+mod views;
 
 #[derive(serde::Serialize)]
 pub struct Assessment {
@@ -25,7 +26,8 @@ pub fn assess(
     facts: &dyn crate::unit_store::EvidenceFacts,
     graph: &Graph,
     analysis: &Analysis,
-) -> Assessment {
+) -> Result<Assessment, String> {
+    let views = views::Views::new(facts)?;
     let mut values = Values::new(facts, graph, analysis);
     let mut assessment = Assessment {
         limitations: Vec::new(),
@@ -43,13 +45,15 @@ pub fn assess(
             .collect();
         let value = constant(node, graph, analysis, &values.constants)
             .filter(|value| fits(facts, &node.ty, *value));
-        let ordinary = proven_safe(facts, graph, node, &operands);
+        let ordinary =
+            proven_safe(facts, graph, node, &operands) || views.safe(node, graph, &operands);
         let bounded = values
             .ranges
             .as_ref()
             .is_some_and(|ranges| ranges.safe(node));
         let safe = ordinary || bounded;
         let relevant = relevant(node)
+            || views.relevant(node, graph)
             || values.ranges.is_some() && node.construct.as_deref() == Some("data.value-index");
         if relevant && !safe {
             assessment.limitations.push(limitation(facts, node));
@@ -62,7 +66,7 @@ pub fn assess(
         values.observe(node, value);
     }
 
-    assessment
+    Ok(assessment)
 }
 
 struct Values<'a> {
@@ -109,11 +113,17 @@ fn proof(node: &Operation, operands: &[Option<i128>], ordinary: bool, bounded: b
 }
 
 fn proof_method(node: &Operation) -> &'static str {
+    if node.construct.as_deref() == Some("data.subslice-place") {
+        return "checked array place and saved endpoints; normal completion requires ordered bounds within the resolved array length";
+    }
     if matches!(
         node.construct.as_deref(),
         Some("data.bytes.unwrap" | "data.bytes.unwrap-borrow")
     ) {
         return "concrete Result unwrap requires Ok; exceptional transfer and cleanup omitted";
+    }
+    if node.category == NodeCategory::Call {
+        return "independently verified callee may panic; exceptional transfer and cleanup omitted";
     }
     if node.operator.as_deref() == Some("assert") {
         "resolved standard assertion; only a directly known true boolean discharges omitted panic flow"
@@ -123,6 +133,21 @@ fn proof_method(node: &Operation) -> &'static str {
 }
 
 fn limitation(facts: &dyn crate::unit_store::EvidenceFacts, node: &Operation) -> String {
+    if node.construct.as_deref() == Some("data.subslice-place") {
+        return format!(
+            "Array view at bytes {}..{} requires in-bounds ordered endpoints; exceptional transfer and cleanup omitted.",
+            node.span.start, node.span.end
+        );
+    }
+    if node.category == NodeCategory::Call
+        && node.construct.as_deref() != Some("data.bytes.unwrap")
+        && node.construct.as_deref() != Some("data.bytes.unwrap-borrow")
+    {
+        return format!(
+            "Verified helper call at bytes {}..{} may panic; exceptional transfer and cleanup omitted.",
+            node.span.start, node.span.end
+        );
+    }
     if node.construct.as_deref() == Some("data.value-index") {
         return format!(
             "Array index at bytes {}..{} lacks a proved in-bounds unsigned range; exceptional transfer and unwinding/cleanup are omitted.",

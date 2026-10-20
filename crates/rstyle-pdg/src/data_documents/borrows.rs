@@ -93,6 +93,13 @@ pub(super) fn graph_origin(
         .iter()
         .find(|candidate| candidate.id == edge.source)
         .ok_or("Missing borrow operand")?;
+    place_origin(place, pair)
+}
+
+pub(super) fn place_origin(
+    place: &PdgNode,
+    pair: crate::producer::PairView<'_>,
+) -> Result<Origin, String> {
     let id = place
         .annotations
         .get(crate::data_places::KEY)

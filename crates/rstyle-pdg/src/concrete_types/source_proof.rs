@@ -7,6 +7,10 @@ use super::TypeTree;
 pub trait PathResolution {
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String>;
 
+    fn array_length(&self, source: &syn::Expr, expected: u64) -> Result<(), String> {
+        literal_length(source, expected)
+    }
+
     fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
         if self.resolve(path)? != TypeTree::Option(Box::new(payload.clone())) {
             return Err("Source path resolution disagrees with concrete Option".into());
@@ -91,7 +95,7 @@ fn correspondence(
             correspondence(&source.elem, element, resolution)
         }
         (syn::Type::Array(source), TypeTree::Array { element, length }) => {
-            literal_length(&source.len, *length)?;
+            resolution.array_length(&source.len, *length)?;
             correspondence(&source.elem, element, resolution)
         }
         (syn::Type::Tuple(source), TypeTree::Scalar(token))
@@ -136,7 +140,7 @@ fn path_proof(
     Ok(())
 }
 
-fn literal_length(source: &syn::Expr, expected: u64) -> Result<(), String> {
+pub(crate) fn literal_length(source: &syn::Expr, expected: u64) -> Result<(), String> {
     if let syn::Expr::Lit(source) = source
         && let syn::Lit::Int(integer) = &source.lit
         && integer.base10_parse::<u64>().ok() == Some(expected)

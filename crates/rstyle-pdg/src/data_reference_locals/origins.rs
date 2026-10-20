@@ -101,9 +101,15 @@ impl Resolver<'_> {
             "expr_addr_of"
                 if selectors.is_empty() && crate::data_subslices::borrowed(node, self.facts) =>
             {
-                crate::data_subslices::verify_borrow(node, self.facts)?;
-                let checked = crate::data_subslices::verify(&node.children[0], self.facts)?;
-                self.source(checked.base, selectors, visiting)
+                let checked = crate::data_subslices::verify_borrow(node, self.facts)?;
+                if checked.array_length.is_some() {
+                    Ok(vec![crate::data_places::field_origin(
+                        checked.base,
+                        self.facts,
+                    )?])
+                } else {
+                    self.source(checked.base, selectors, visiting)
+                }
             }
             "expr_addr_of" if selectors.is_empty() => {
                 Ok(vec![crate::data_places::borrow_origin(node, self.facts)?])
@@ -228,7 +234,6 @@ impl Resolver<'_> {
         _: &[usize],
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
-        let mut roots = Vec::new();
         if crate::checked_options::get_candidate(node, self.facts) {
             let checked = crate::checked_options::verify_get(node, self.facts)?;
             return Ok(crate::checked_options::project(self.source(
@@ -243,14 +248,13 @@ impl Resolver<'_> {
             return origins;
         }
 
-        for position in crate::helper_references::parameters(node, self.facts)? {
+        crate::helper_references::map_outputs(node, self.facts, |position| {
             let actual = node
                 .children
                 .get(position as usize)
                 .ok_or("Missing returned reference argument")?;
-            roots.extend(self.source(actual, &[], visiting)?);
-        }
-        Ok(roots)
+            self.source(actual, &[], visiting)
+        })
     }
 }
 

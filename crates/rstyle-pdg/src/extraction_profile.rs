@@ -77,6 +77,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.scalar-enum-values",
     "rust.tagged-unit-classifiers",
     "rust.immediate-option-callbacks",
+    "rust.borrowed-array-views",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -100,6 +101,7 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.data.bytes.native-u128/1",
     "rstyle.data.scalar-size/1",
     "rstyle.data.option.is-some/1",
+    "rstyle.helper.borrowed-array-view/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -208,7 +210,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.49.0", 64)),
+            Self::DataV3 => Some(("3.50.0", 65)),
         }
     }
 

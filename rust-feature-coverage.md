@@ -3569,3 +3569,22 @@ still need implementation evidence. This audit activates no new capability,
 changes no frozen selection and claims no additional natural gain. Reuse the
 existing checked source/module environment, observations and field-location
 machinery; no additional global provenance registry or cache is justified.
+
+
+### Data-v3 3.50: borrowed accelerator views
+
+Implementation follows the
+[bounded contract](docs/extraction-profiles/borrowed-accel-views-v1.md#connected-implementation-350).
+The fixed eighteen-function corpus now meets ten admitted /eight excluded
+expectations, including helper-returned views, saved reads and selected owners.
+Focused strict verification/matching and corruption/constant-boundary checks pass.
+The connected chain also required checked projected helper outputs with retained
+memory reads and explicit panic propagation; no new capture/provenance inventory
+or cache was introduced. Full CI passes 887 tests /five skipped, with zero rstyle violations and zero
+pattern candidates. The unchanged 2582-function natural roster improves 73 to
+76 admissions: precisely the three selected getters, zero losses. Alternating
+control timings show overlapping ranges; the corpus now performs additional
+proof/matching work for ten admissions instead of one. All 76 natural and ten development admissions pass independent verification and
+strict import; all 78 selected comparisons complete without diagnostics. Frozen replay retains sixty identities/denominators and 20 admitted /33 excluded /
+seven inactive outcomes; seventy documents verify.
+Historical results above remain unchanged.

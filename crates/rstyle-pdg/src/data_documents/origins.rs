@@ -161,6 +161,21 @@ impl Graph<'_> {
         selectors: &[usize],
         visiting: &mut BTreeSet<String>,
     ) -> Option<Result<Vec<Origin>, String>> {
+        if node.category == NodeCategory::Call {
+            let source = match source_node(node, self.facts) {
+                Ok(source) => source,
+                Err(error) => return Some(Err(error)),
+            };
+            if crate::helper_calls::direct_resolution(source).is_some() {
+                return Some(crate::helper_references::map_outputs(
+                    source,
+                    self.facts,
+                    |position| {
+                        self.origins(self.operand(node, u64::from(position))?, &[], visiting)
+                    },
+                ));
+            }
+        }
         let construct = node.attributes.construct.as_deref()?;
         if !matches!(
             construct,
@@ -232,6 +247,17 @@ impl Graph<'_> {
             return Some(super::borrows::graph_origin(node, self.pair).map(|origin| vec![origin]));
         }
         if node.attributes.construct.as_deref() == Some("data.subslice-place") {
+            let checked = match source_node(node, self.facts)
+                .and_then(|source| crate::data_subslices::verify(source, self.facts))
+            {
+                Ok(checked) => checked,
+                Err(error) => return Some(Err(error)),
+            };
+            if checked.array_length.is_some() {
+                return Some(self.operand(node, 0).and_then(|place| {
+                    super::borrows::place_origin(place, self.pair).map(|origin| vec![origin])
+                }));
+            }
             return Some(
                 self.operand(node, 0)
                     .and_then(|base| self.origins(base, selectors, visiting)),

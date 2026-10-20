@@ -107,11 +107,12 @@ fn borrowed(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
     if crate::data_subslices::borrowed(node, facts) {
-        crate::data_subslices::verify_borrow(node, facts)?;
-        return origins(
-            crate::data_subslices::verify(&node.children[0], facts)?.base,
-            facts,
-        );
+        let checked = crate::data_subslices::verify_borrow(node, facts)?;
+        return if checked.array_length.is_some() {
+            Ok(vec![crate::data_places::field_origin(checked.base, facts)?])
+        } else {
+            origins(checked.base, facts)
+        };
     }
     Ok(vec![crate::data_places::borrow_origin(node, facts)?])
 }

@@ -47,7 +47,7 @@ fn returned_view(
     if !data_origins::shared(&result) {
         return Ok(None);
     }
-    if !matches!(result, TypeToken::Shared(_)) || !pair.pdg.memory_locations.is_empty() {
+    if !matches!(result, TypeToken::Shared(_)) {
         return Err("Shared helper result requires a whole-formal memory-free proof".into());
     }
 
@@ -76,7 +76,11 @@ fn returned_view(
     if origins.is_empty() {
         return Err("Shared helper result has no returning evidence".into());
     }
-    Ok(Some(origins.into_iter().collect()))
+    let outputs = Some(origins.into_iter().collect());
+    if !pair.pdg.memory_locations.is_empty() && !crate::helper_views::projected(facts, &outputs) {
+        return Err("Memory-reading shared result requires a checked array-field view".into());
+    }
+    Ok(outputs)
 }
 
 fn verify_formal(
@@ -98,9 +102,7 @@ fn verify_formal(
             .ok_or("Missing returned helper formal type")?,
     )?;
     if token != *result || origin.path != [Projection::SharedReferent] {
-        return Err(
-            "Returned helper origin is not an exact same-type shared formal referent".into(),
-        );
+        return crate::helper_views::verify_origin(origin, facts, result);
     }
     Ok(())
 }
@@ -125,19 +127,52 @@ pub fn origins(
     call: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
-    let mut origins = BTreeSet::new();
-    for position in parameters(call, facts)? {
+    map_outputs(call, facts, |position| {
         let argument = call
             .children
             .get(position as usize)
             .ok_or("Missing returned helper argument")?;
-        let actual = data_origins::origins(argument, facts)?;
-        if actual.is_empty() {
-            return Err("Returned helper argument lacks verified reference origins".into());
-        }
-        origins.extend(actual);
+        data_origins::origins(argument, facts)
+    })
+}
+
+pub(crate) fn map_outputs(
+    call: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    mut resolve: impl FnMut(u32) -> Result<Vec<Origin>, String>,
+) -> Result<Vec<Origin>, String> {
+    let dependency = crate::helper_calls::verify_use(call, facts)?;
+    let outputs = dependency
+        .summary()
+        .reference_outputs
+        .as_ref()
+        .ok_or("Missing verified shared helper output summary")?;
+    let mut origins = BTreeSet::new();
+
+    for output in outputs {
+        origins.extend(project_output(output, resolve(output.parameter)?)?);
     }
     Ok(origins.into_iter().collect())
+}
+
+fn project_output(output: &Origin, actual: Vec<Origin>) -> Result<Vec<Origin>, String> {
+    if actual.is_empty() {
+        return Err("Returned helper argument lacks verified reference origins".into());
+    }
+    let Some((Projection::SharedReferent, tail)) = output.path.split_first() else {
+        return Err("Helper output lacks a shared formal referent".into());
+    };
+    Ok(actual
+        .into_iter()
+        .map(|origin| Origin {
+            parameter: origin.parameter,
+            path: origin
+                .path
+                .into_iter()
+                .chain(tail.iter().cloned())
+                .collect(),
+        })
+        .collect())
 }
 
 pub fn same_unit(

@@ -31,12 +31,7 @@ impl Places {
 
     fn visit(&mut self, node: &HirNode, facts: &HirFnFacts) -> Result<(), String> {
         if node.kind == "expr_addr_of" {
-            if crate::data_subslices::borrowed(node, facts) {
-                crate::data_subslices::verify_borrow(node, facts)?;
-            } else {
-                borrow_origin(node, facts)?;
-                self.insert_fields(&node.children[0])?;
-            }
+            self.borrowed_place(node, facts)?;
         } else if node.kind == "expr_field" && !crate::data_value_fields::candidate(node, facts) {
             let [base] = node.children.as_slice() else {
                 return Err("Field projection lacks one exact base".into());
@@ -47,6 +42,19 @@ impl Places {
         }
         for child in &node.children {
             self.visit(child, facts)?;
+        }
+        Ok(())
+    }
+
+    fn borrowed_place(&mut self, node: &HirNode, facts: &HirFnFacts) -> Result<(), String> {
+        if crate::data_subslices::borrowed(node, facts) {
+            let checked = crate::data_subslices::verify_borrow(node, facts)?;
+            if checked.array_length.is_some() {
+                self.insert_fields(checked.base)?;
+            }
+        } else {
+            borrow_origin(node, facts)?;
+            self.insert_fields(&node.children[0])?;
         }
         Ok(())
     }
@@ -129,6 +137,21 @@ pub fn borrow_origin(node: &HirNode, facts: &HirFnFacts) -> Result<Origin, Strin
     if place.kind != "expr_field" {
         return Err("Unsupported borrow place".into());
     }
+    let origin = field_origin(place, facts)?;
+    let expected = TypeToken::Shared(Box::new(data_types::parse(crate::data_aggregates::token(
+        place,
+    )?)?))
+    .text()?;
+    if node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some(&expected) {
+        return Err("Borrow result/referent type correspondence disagrees".into());
+    }
+    Ok(origin)
+}
+
+pub(crate) fn field_origin(place: &HirNode, facts: &HirFnFacts) -> Result<Origin, String> {
+    if place.kind != "expr_field" || crate::field_locations::derived::candidate(place, facts) {
+        return Err("Borrow requires a direct shared formal-field place".into());
+    }
     let fields = facts.build.frontend_options.data::<FieldObservations>()?;
     let location = fields
         .operations
@@ -148,11 +171,8 @@ pub fn borrow_origin(node: &HirNode, facts: &HirFnFacts) -> Result<Origin, Strin
         return Err("Borrow target requires a non-reference-bearing shared formal referent".into());
     }
 
-    let expected = TypeToken::Shared(Box::new(referent)).text()?;
-    if node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some(&expected)
-        || data_types::parse(&expected).is_err()
-    {
-        return Err("Borrow result/referent type correspondence disagrees".into());
+    if crate::data_aggregates::token(place)? != referent.text()? {
+        return Err("Borrow place type disagrees with its formal location".into());
     }
     Ok(Origin {
         parameter: *parameter,

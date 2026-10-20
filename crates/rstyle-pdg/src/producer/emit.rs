@@ -188,7 +188,7 @@ pub fn emit(
     analysis: &Analysis,
     revision: &str,
 ) -> Result<Pair, String> {
-    let assessment = super::hazards::assess(facts, graph, analysis);
+    let assessment = super::hazards::assess(facts, graph, analysis)?;
     let producer = producer(facts, revision)?;
     let mut extensions = extensions(facts, graph, analysis)?;
     if crate::extraction_profile::ExtractionProfile::from_facts(facts)?

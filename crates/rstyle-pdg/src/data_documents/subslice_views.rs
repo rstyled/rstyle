@@ -50,17 +50,10 @@ pub(super) fn verify(
 
     for source in sources {
         let checked = data_subslices::verify(source, facts)?;
+        verify_policy(pair, &checked)?;
         let node = super::serialized_operation(pair, &source.span, |node| {
             node.category == NodeCategory::Computation
         })?;
-        if checked.requires_prefix_policy
-            && !crate::extraction_profile::policy_supports(
-                &pair.pdg.profile,
-                data_subslices::PREFIX_CAPABILITY,
-            )
-        {
-            return Err("Prefix/core slice views require their registered document policy".into());
-        }
         if node.attributes.construct.as_deref() != Some("data.subslice-place")
             || node.annotations.get(data_subslices::BOUNDS_KEY) != Some(&checked.bounds().value()?)
             || node.annotations.contains_key(crate::data_places::KEY)
@@ -98,4 +91,24 @@ pub(super) fn verify_borrow(
 ) -> Result<(), String> {
     data_subslices::verify_borrow(source, facts)?;
     verify_operands(pair, node, [&source.children[0]])
+}
+
+fn verify_policy(pair: PairView<'_>, checked: &data_subslices::Checked<'_>) -> Result<(), String> {
+    for (required, capability) in [
+        (
+            checked.array_length.is_some(),
+            data_subslices::ARRAY_CAPABILITY,
+        ),
+        (
+            checked.requires_prefix_policy,
+            data_subslices::PREFIX_CAPABILITY,
+        ),
+    ] {
+        if required && !crate::extraction_profile::policy_supports(&pair.pdg.profile, capability) {
+            return Err(format!(
+                "Subslice requires registered document capability {capability}"
+            ));
+        }
+    }
+    Ok(())
 }

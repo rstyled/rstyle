@@ -379,7 +379,11 @@ impl Builder<'_> {
 
     fn subslice(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let checked = crate::data_subslices::verify(node, self.facts).expect("verified subslice");
-        let evaluated = self.evaluate_sequence(checked.operands(), flow);
+        let evaluated = if checked.array_length.is_some() {
+            self.array_subslice_operands(&checked, flow)
+        } else {
+            self.evaluate_sequence(checked.operands(), flow)
+        };
         let operation = Operation {
             operands: evaluated.values,
             construct: Some("data.subslice-place".into()),
@@ -387,6 +391,26 @@ impl Builder<'_> {
         };
 
         self.emit(operation, evaluated.flow)
+    }
+
+    fn array_subslice_operands(
+        &mut self,
+        checked: &crate::data_subslices::Checked<'_>,
+        flow: Flow,
+    ) -> Operands {
+        let base = self.field_place(checked.base, flow);
+        let saved = self.operand(&base.value);
+        let endpoints = self.evaluate_sequence(
+            checked
+                .start
+                .into_iter()
+                .chain(std::iter::once(checked.end)),
+            base,
+        );
+        Operands {
+            flow: endpoints.flow,
+            values: saved.into_iter().chain(endpoints.values).collect(),
+        }
     }
 
     fn unary(&mut self, node: &HirNode, flow: Flow) -> Flow {

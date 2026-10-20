@@ -43,6 +43,7 @@ pub mod frontend;
 pub mod helper_calls;
 pub mod helper_reads;
 mod helper_references;
+mod helper_views;
 pub mod inherent_calls;
 pub mod model;
 pub mod nominal_binding;

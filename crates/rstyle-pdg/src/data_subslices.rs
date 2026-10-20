@@ -5,6 +5,7 @@ use crate::{HirNode, data_types::TypeToken, unit_store::EvidenceFacts};
 use syn::spanned::Spanned;
 
 pub const PREFIX_CAPABILITY: &str = "rust.native-prefix-readers";
+pub const ARRAY_CAPABILITY: &str = "rust.borrowed-array-views";
 
 pub(crate) const BOUNDS_KEY: &str = "rstyle.data:subslice-bounds";
 
@@ -13,6 +14,7 @@ pub(crate) struct Checked<'a> {
     pub start: Option<&'a HirNode>,
     pub end: &'a HirNode,
     pub requires_prefix_policy: bool,
+    pub array_length: Option<u64>,
 }
 
 impl<'a> Checked<'a> {
@@ -24,9 +26,9 @@ impl<'a> Checked<'a> {
 
     pub fn bounds(&self) -> crate::data_bounds::Bounds {
         if self.start.is_some() {
-            crate::data_bounds::Bounds::subslice()
+            crate::data_bounds::Bounds::subslice(self.array_length)
         } else {
-            crate::data_bounds::Bounds::prefix()
+            crate::data_bounds::Bounds::prefix(self.array_length)
         }
     }
 }
@@ -68,11 +70,9 @@ pub(crate) fn verify<'a>(
         _ => return Err("Subslice requires registered exclusive range endpoints".into()),
     };
     let base_ty = crate::data_types::parse(crate::data_aggregates::token(base)?)?;
-    let TypeToken::Shared(referent) = base_ty else {
-        return Err("Subslice base requires a shared slice reference".into());
-    };
-    if !matches!(referent.as_ref(), TypeToken::Slice(element) if matches!(element.as_ref(), TypeToken::Scalar(_)))
-        || crate::data_types::parse(crate::data_aggregates::token(node)?)? != *referent
+    let (referent, array_length) = base_type(base, base_ty, facts)?;
+    if !matches!(&referent, TypeToken::Slice(element) if matches!(element.as_ref(), TypeToken::Scalar(_)))
+        || crate::data_types::parse(crate::data_aggregates::token(node)?)? != referent
         || start.is_some_and(|start| crate::data_aggregates::token(start) != Ok("usize"))
         || crate::data_aggregates::token(end)? != "usize"
     {
@@ -94,7 +94,25 @@ pub(crate) fn verify<'a>(
         start,
         end,
         requires_prefix_policy: start.is_none() || core_index || core_range,
+        array_length,
     })
+}
+
+fn base_type(
+    base: &HirNode,
+    ty: TypeToken,
+    facts: &dyn EvidenceFacts,
+) -> Result<(TypeToken, Option<u64>), String> {
+    match ty {
+        TypeToken::Shared(referent) => Ok((*referent, None)),
+        TypeToken::Array { element, length }
+            if crate::extraction_profile::facts_support(facts, ARRAY_CAPABILITY) =>
+        {
+            crate::data_places::field_origin(base, facts)?;
+            Ok((TypeToken::Slice(element), Some(length)))
+        }
+        _ => Err("Subslice base requires a shared slice or checked formal array place".into()),
+    }
 }
 
 fn verify_dispatch(node: &HirNode, base: &HirNode, range: &HirNode) -> Result<(), String> {
@@ -205,12 +223,15 @@ fn source(
     Ok(())
 }
 
-pub(crate) fn verify_borrow(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
+pub(crate) fn verify_borrow<'a>(
+    node: &'a HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<Checked<'a>, String> {
     let [place] = node.children.as_slice() else {
         return Err("Subslice borrow lacks one place".into());
     };
 
-    verify(place, facts)?;
+    let checked = verify(place, facts)?;
     let bytes = facts
         .source
         .bytes
@@ -239,5 +260,5 @@ pub(crate) fn verify_borrow(node: &HirNode, facts: &dyn EvidenceFacts) -> Result
     {
         return Err("Subslice borrow loses immutable result type".into());
     }
-    Ok(())
+    Ok(checked)
 }

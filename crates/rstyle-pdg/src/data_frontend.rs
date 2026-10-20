@@ -36,12 +36,16 @@ pub(crate) fn verify_document_policy(
         crate::extraction_profile::policy_supports(profile, "rust.scoped-nominal-imports");
     let arrays = crate::extraction_profile::policy_supports(profile, "rust.copy-array-fields");
     let enums = crate::extraction_profile::policy_supports(profile, "rust.scalar-enum-values");
-    if imports && arrays && enums {
+    let views = crate::extraction_profile::policy_supports(profile, "rust.borrowed-array-views");
+    if imports && arrays && enums && views {
         return Ok(());
     }
 
     let interface = interface(facts)?;
     if let Some(resolution) = nominal_resolution(facts, &interface)? {
+        if !views && resolution.requires_borrowed_array_views() {
+            return Err("Borrowed array views require their registered document policy".into());
+        }
         if !enums && resolution.requires_scalar_enums() {
             return Err("Scalar enum values require their registered document policy".into());
         }

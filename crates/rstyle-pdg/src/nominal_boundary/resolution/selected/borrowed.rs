@@ -10,9 +10,7 @@ pub(super) fn verify(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> 
         return Err("Borrowed owner requires a concrete struct".into());
     };
     if !supports(facts, "rust.borrowed-scalar-owners")?
-        || fields
-            .iter()
-            .any(|field| !matches!(field.ty, TypeTree::Scalar(_)))
+        || fields.iter().any(|field| !field_type(facts, &field.ty))
     {
         return Err("Mixed-unit declaration lacks builtin Copy evidence".into());
     }
@@ -26,6 +24,17 @@ pub(super) fn verify(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> 
         check_type(ty, nominal)?;
     }
     check_body(&facts.body, nominal)
+}
+
+fn field_type(facts: &HirFnFacts, tree: &TypeTree) -> bool {
+    match tree {
+        TypeTree::Scalar(_) => true,
+        TypeTree::Array { element, .. } => {
+            supports(facts, "rust.borrowed-array-views").unwrap_or(false)
+                && matches!(element.as_ref(), TypeTree::Scalar(_))
+        }
+        _ => false,
+    }
 }
 
 fn check_type(

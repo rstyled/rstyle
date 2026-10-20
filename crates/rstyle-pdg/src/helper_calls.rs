@@ -58,8 +58,12 @@ fn summary(
     let references = reference_outputs.is_some();
     let memory_reads = crate::helper_reads::derive(facts, pair.as_view())?;
     let reads = memory_reads.is_some();
+    let view = crate::helper_views::projected(facts, &reference_outputs);
+    let may_panic = view && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial;
     Ok(Summary {
-        identity: if reads {
+        identity: if view {
+            crate::helper_views::SUMMARY
+        } else if reads {
             "rstyle.helper.read-only-body/1"
         } else if references {
             "rstyle.helper.shared-return/1"
@@ -71,8 +75,8 @@ fn summary(
         result_type,
         mutates_arguments: false,
         memory_effects: reads,
-        may_panic: false,
-        always_returns: true,
+        may_panic,
+        always_returns: !may_panic,
         argument_evaluation: "source-order-once/1".into(),
         result_dependence: if references {
             "verified-formal-referent-substitution/1"
@@ -289,7 +293,10 @@ fn check_boundary(
     pair: &producer::Pair,
     facts: &dyn EvidenceFacts,
 ) -> Result<ReferenceOutputs, Vec<String>> {
+    let outputs = crate::helper_references::returned(facts, pair).map_err(|error| vec![error])?;
+    let view = crate::helper_views::projected(facts, &outputs);
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
+        && !(view && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial)
         || !pair.pdg.memory_locations.is_empty()
             && !crate::helper_reads::supported(facts, pair.as_view())
         || pair.pdg.nodes.iter().any(|node| {
@@ -299,14 +306,15 @@ fn check_boundary(
                     "loop"
                         | "while"
                         | "data.index"
-                        | "data.subslice-place"
                         | "data.bytes.copy-result"
                         | "data.bytes.unwrap"
                         | "data.bytes.borrow-result"
                         | "data.bytes.unwrap-borrow"
                 )
-            ) || node.attributes.construct.as_deref() == Some("data.value-index")
-                && !crate::producer::bounded_value_index(pair.as_view(), node, facts)
+            ) || node.attributes.construct.as_deref() == Some("data.subslice-place")
+                && !(view && crate::helper_views::array_operation(node))
+                || node.attributes.construct.as_deref() == Some("data.value-index")
+                    && !crate::producer::bounded_value_index(pair.as_view(), node, facts)
         })
     {
         return Err(vec![
@@ -315,7 +323,7 @@ fn check_boundary(
         ]);
     }
 
-    crate::helper_references::returned(facts, pair).map_err(|error| vec![error])
+    Ok(outputs)
 }
 
 pub fn verify(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String> {

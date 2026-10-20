@@ -17,6 +17,8 @@ pub(crate) enum Bounds {
         base_operand: u64,
         implicit_start: u64,
         end_operand: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        array_length: Option<u64>,
         exceptional_flow: &'static str,
     },
     Subslice {
@@ -24,6 +26,8 @@ pub(crate) enum Bounds {
         base_operand: u64,
         start_operand: u64,
         end_operand: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        array_length: Option<u64>,
         exceptional_flow: &'static str,
     },
 }
@@ -39,22 +43,24 @@ impl Bounds {
         }
     }
 
-    pub fn subslice() -> Self {
+    pub fn subslice(array_length: Option<u64>) -> Self {
         Self::Subslice {
             rule: "start-less-or-equal-end-less-or-equal-length",
             base_operand: 0,
             start_operand: 1,
             end_operand: 2,
+            array_length,
             exceptional_flow: "omitted",
         }
     }
 
-    pub fn prefix() -> Self {
+    pub fn prefix(array_length: Option<u64>) -> Self {
         Self::Prefix {
             rule: "zero-to-end-less-or-equal-length",
             base_operand: 0,
             implicit_start: 0,
             end_operand: 1,
+            array_length,
             exceptional_flow: "omitted",
         }
     }
