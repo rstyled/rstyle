@@ -112,7 +112,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
 | D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Aggregate/reference elements and complete exceptional flow remain unfinished. |
 | D16 | Slice ranges and borrowed subslices | Partial | `&xs[start..end]` | Data-v3 3.31.0 supports [bounded shared subslice views](docs/extraction-profiles/shared-subslice-views-v1.md) with scalar elements, exact base/start/end snapshots and normal-completion bounds. Arrays, open/inclusive ranges, mutable views, str/UTF-8 rules and transport through helper summaries remain unfinished. |
-| D17 | Checked access and concrete Option | Missing | `xs.get(i)`, `Some(x)`, `None` | Registered access semantics plus construction/discriminants/bounded payload extraction; part of the read-only goal, not general enum support. |
+| D17 | Checked access and concrete Option | Missing | `xs.get(i)`, `Some(x)`, `None` | [Bounded source/type contract](docs/extraction-profiles/checked-option-source-contract-v1.md) verified; graph discriminators, conditional origins and guarded payload reads still missing. Part of the read-only goal, not general enum support. |
 | D18 | Reference-bearing array element origins | Missing | `refs: [&S; 2]` | Type observation alone lacks the per-element origin evidence needed for by-value reference-bearing arrays. |
 | D19 | General enums and variants | Missing | `enum E { A(u32), B }` | Variant identity, construction, discriminants, payloads, pattern bindings, moves and drop; includes Result and enum-based APIs beyond concrete Option. |
 | D20 | Mutable references and reborrowing | Missing | `x: &mut S`, `&mut *x` | Mutable locations, alias/reborrow relationships and read/write effects; beyond the current read-only milestone. |
@@ -1992,3 +1992,53 @@ identity and its payload binding were inspected in the bundle. Admissions are
 unchanged from `run-HCmpVF`; the selected leaf remains excluded. Exit 2 reflects
 intentional max-pairs=0 incompleteness (enumeration/evaluation=false), not a
 capture failure; no end-to-end matching gain is claimed.
+
+
+### Checked Option source and type contract
+
+The selected boundary chain now has independently checked get/Some/None
+compiler authority, exact shared-slice/usize/Option instantiation, original
+operand spans, exhaustive unguarded variant shapes and scalar-copy binding
+identity. Real Cargo captures and contract checks pass on aarch64 Linux,
+x86_64 Linux and Apple Silicon macOS, including renamed imports, reversed arms
+and saved operands. See the
+[bounded contract](docs/extraction-profiles/checked-option-source-contract-v1.md).
+
+Review of pinned core slice indexing establishes `i < len` as Some of the
+reference at i, otherwise normal None; forming the Option does not load the
+byte. The independent host oracle now additionally verifies receiver-before-index
+evaluation and saved-reference identity during index-side rebinding. All three
+oracle tests pass, alongside guard/reference-pattern/array/range negatives and
+corrupted authority, operand, type and binding checks.
+
+No complete function family becomes supported in this source-contract increment.
+Semantic Option parsing, summaries and admission remain closed; the extraction
+policy/capabilities and matching profile are unchanged. The concrete remaining
+chain is explicit discriminators and conditional payload origins, guarded scalar
+loads, saved Option flow, and helper composition through independent serialized
+verification and strict matching. D17 stays Missing. Further observation or
+source-context infrastructure is deferred: the next integration must exercise
+that complete graph chain rather than count these local checks as admissions.
+
+The contract reuses the existing target definition map and borrowed source nodes;
+there are no new serialized records, provenance tables, caches or per-function
+capture passes. Patterns identified duplicate original-expression parsing with
+tuple assignments; both now use one parser, preserving expansion rejection.
+The workspace passes 795 tests with five existing ignores; all-targets clippy,
+formatting/diff checks, rstyle (2,545 functions, zero violations) and patterns
+(zero candidates, unchanged existing ignores) pass.
+
+
+Frozen run `run-efb6__3d` was compared with `run-uhc11x7c`: all 60 source
+identities, outcomes, counts and denominators are identical. Results remain
+13 admitted / 40 excluded / 7 inactive, 30 verified documents, zero gains/losses.
+The unchanged five-function development selection retains identical source
+hashes and outcomes, with complete capture/assessment and zero admitted / five
+excluded. No new full-library natural run or matching gain is claimed here.
+
+Direct inspection of the retained development facts through the new APIs also
+verifies both local contracts for the exact natural `is_boundary` excerpt,
+`checked_byte` and `saved_byte`, and rejects `mutable_byte`. The helper caller
+has no local get/match contract to check; its eventual support still depends on
+the connected callee summary. These local results do not alter their excluded
+admission outcomes.

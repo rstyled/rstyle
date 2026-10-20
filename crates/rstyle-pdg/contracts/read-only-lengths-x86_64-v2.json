@@ -46,6 +46,9 @@
     "std::result::Result::<T, E>::unwrap": "DefPathHash(Fingerprint(2625310331494506890, 1010359204628238798))",
     "core::num::<impl u32>::from_ne_bytes": "DefPathHash(Fingerprint(2625310331494506890, 11041351313244537044))",
     "core::num::<impl usize>::from_ne_bytes": "DefPathHash(Fingerprint(2625310331494506890, 10991894210353714315))",
-    "std::mem::size_of": "DefPathHash(Fingerprint(2625310331494506890, 17918239707128286424))"
+    "std::mem::size_of": "DefPathHash(Fingerprint(2625310331494506890, 17918239707128286424))",
+    "core::slice::<impl [T]>::get": "DefPathHash(Fingerprint(2625310331494506890, 3357333013439626706))",
+    "std::prelude::v1::None": "DefPathHash(Fingerprint(2625310331494506890, 7501731091549932355))",
+    "std::prelude::v1::Some": "DefPathHash(Fingerprint(2625310331494506890, 3384282420474325723))"
   }
 }

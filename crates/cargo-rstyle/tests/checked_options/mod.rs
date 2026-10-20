@@ -1,6 +1,8 @@
 //! Concrete Option observations advance the selected boundary chain, not admission.
 use super::*;
 
+mod contracts;
+
 fn workspace() -> TempDir {
     let directory = clone_workspace();
     std::fs::write(

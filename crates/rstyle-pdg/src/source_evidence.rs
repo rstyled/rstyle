@@ -12,6 +12,22 @@ use syn::{
 
 pub const KEY: &str = "source_correspondence";
 
+/// Parse an original expression slice without manufacturing syntax for expansions.
+pub(crate) fn original_expression(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<syn::Expr, String> {
+    if node.expansion.is_some() {
+        return Err("Expression requires original source outside expansions".into());
+    }
+    let source = facts
+        .source
+        .bytes
+        .get(node.span.start as usize..node.span.end as usize)
+        .ok_or("Missing original expression source")?;
+    syn::parse_str(source).map_err(|error| error.to_string())
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {

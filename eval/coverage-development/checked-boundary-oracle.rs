@@ -33,3 +33,28 @@ fn checked_payloads_keep_saved_origins_and_no_access_on_none() {
     assert_eq!(bytes, [42]);
     assert_eq!(mutable_byte(&mut bytes, usize::MAX), 0);
 }
+
+#[test]
+fn checked_get_saves_receiver_before_evaluating_its_index() {
+    let first = [7u8];
+    let second = [41u8, 43];
+    for index in [0, 1, 2, usize::MAX] {
+        let mut selected = first.as_slice();
+        let mut order = Vec::new();
+        let saved = {
+            order.push("receiver");
+            selected
+        }
+        .get({
+            order.push("index");
+            selected = second.as_slice();
+            index
+        });
+        assert_eq!(order, ["receiver", "index"]);
+        assert_eq!(selected, second);
+        assert_eq!(saved.copied(), if index == 0 { Some(7) } else { None });
+        if let Some(byte) = saved {
+            assert!(std::ptr::eq(byte, &first[0]));
+        }
+    }
+}

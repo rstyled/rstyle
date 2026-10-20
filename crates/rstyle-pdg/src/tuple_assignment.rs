@@ -18,7 +18,10 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), St
     {
         return Err("Tuple assignment requires equally sized flat literal tuples".into());
     }
-    let syntax = original(node, facts)?;
+    let syn::Expr::Assign(syntax) = crate::source_evidence::original_expression(node, facts)?
+    else {
+        return Err("Missing original assignment syntax".into());
+    };
     let (syn::Expr::Tuple(targets), syn::Expr::Tuple(values)) = (&*syntax.left, &*syntax.right)
     else {
         return Err("Original assignment is not a pair of literal tuples".into());
@@ -40,18 +43,6 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), St
         }
     }
     Ok(())
-}
-
-fn original(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<syn::ExprAssign, String> {
-    let source = facts
-        .source
-        .bytes
-        .get(node.span.start as usize..node.span.end as usize)
-        .ok_or("Missing original tuple assignment")?;
-    match syn::parse_str(source).map_err(|error| error.to_string())? {
-        syn::Expr::Assign(syntax) => Ok(syntax),
-        _ => Err("Missing original assignment syntax".into()),
-    }
 }
 
 fn verify_target<'a>(

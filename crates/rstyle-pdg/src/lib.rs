@@ -9,6 +9,7 @@
 
 pub mod call_summaries;
 pub mod cfg;
+pub mod checked_options;
 pub mod collection;
 pub mod concrete_types;
 mod cyclic_values;
