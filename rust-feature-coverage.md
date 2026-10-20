@@ -2042,3 +2042,26 @@ verifies both local contracts for the exact natural `is_boundary` excerpt,
 has no local get/match contract to check; its eventual support still depends on
 the connected callee summary. These local results do not alter their excluded
 admission outcomes.
+
+
+### CI regression revalidation (2026-10-20)
+
+The reported assertion-receiver and shared-subslice failures are covered by
+`1f867f1`, already on `feature/rust-feature-coverage`. Subslice authority uses
+the registry selected by exact compiler commit, target and pointer width,
+then verifies the core crate and definition hashes; it does not bypass
+authority checks for another architecture.
+
+Revalidation passes the three originally reported CLI tests: assertion argument
+receivers, shared subslice endpoints/saved origins, and base snapshots before
+endpoint rebinding. The installed-target regression also passes real Cargo
+capture and independent document verification on aarch64 Linux, x86_64 Linux
+and Apple arm64 macOS. These are cross-target captures, not native macOS runtime
+execution. No selection, denominator, threshold or admission rule changed for
+this revalidation.
+
+The separate Option graph integration remains uncommitted and requires its
+remaining semantic validation and style cleanup. A style scan of that working
+tree reports 21 violations and four patterns candidates (15 existing ignores
+unchanged); this regression revalidation does not certify that
+uncommitted increment as complete or style-clean.
