@@ -616,21 +616,47 @@ impl Context<'_> {
         if let Some(owner) = super::inherent::implementation(self.tcx, callee, self.profile) {
             return Some(self.helper_callee(callee, "resolved_inherent_callee", Some(owner)));
         }
-        let mut resolution = self.library_callee(callee);
-        if self.profile.supports("rust.slice-array-byte-calls")
+        let capture = self.profile.supports("rust.slice-array-byte-calls")
             && self
                 .tcx
                 .def_path_str(callee)
-                .ends_with("::convert::TryInto::try_into")
-        {
+                .ends_with("::convert::TryInto::try_into");
+        Some(self.instantiated_callee(expression, callee, capture))
+    }
+
+    fn instantiated_callee(
+        &self,
+        expression: &Expr<'_>,
+        callee: rustc_hir::def_id::DefId,
+        capture: bool,
+    ) -> PathRes {
+        let mut resolution = self.library_callee(callee);
+        if capture {
             let mut record: rstyle_pdg::data_library::Callee =
                 serde_json::from_str(&resolution.description).expect("captured library callee");
             record.implementation = self.selected_implementation(expression, callee);
             resolution.description =
                 serde_json::to_string(&record).expect("captured library callee");
         }
+        resolution
+    }
 
-        Some(resolution)
+    fn scalar_from_capture(&self, expression: &Expr<'_>, callee: rustc_hir::def_id::DefId) -> bool {
+        if !self.profile.supports("rust.scalar-from-conversions")
+            || !self
+                .tcx
+                .def_path_str(callee)
+                .ends_with("::convert::From::from")
+        {
+            return false;
+        }
+        let signature = self
+            .tcx
+            .fn_sig(callee)
+            .instantiate(self.tcx, self.typeck.node_args(expression.hir_id))
+            .skip_binder();
+
+        signature.inputs() == [self.tcx.types.u16] && signature.output() == self.tcx.types.u32
     }
 
     fn selected_implementation(
@@ -698,7 +724,8 @@ impl Context<'_> {
         };
         if !callee.is_local() && kind == rustc_hir::def::DefKind::AssocFn && self.profile.is_data()
         {
-            return Some(self.library_callee(callee));
+            let capture = self.scalar_from_capture(expression, callee);
+            return Some(self.instantiated_callee(expression, callee, capture));
         }
         if self.tcx.generics_of(callee).count() != 0 {
             return None;

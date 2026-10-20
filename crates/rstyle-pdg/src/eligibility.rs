@@ -669,7 +669,7 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
             ),
         },
         "expr_call" if ctx.profile.supports("rust.verified-helper-calls") => {
-            if crate::data_bytes::kind(node).is_some() && crate::data_bytes::enabled(ctx.facts) {
+            if crate::call_summaries::static_intrinsic(node, ctx.facts) {
                 return check_method(node, ctx);
             }
             match crate::helper_calls::verify_use(node, ctx.facts) {

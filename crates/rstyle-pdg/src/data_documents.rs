@@ -10,6 +10,7 @@ mod locals;
 mod locations;
 mod origins;
 mod read_accesses;
+mod scalar_from;
 mod subslice_views;
 mod summary_records;
 mod value_fields;
@@ -230,6 +231,7 @@ pub fn verify<'a>(
     crate::inherent_calls::definition(facts)?;
     crate::data_receivers::verify_documents(pair, facts)?;
     let calls = crate::field_locations::operations(&facts.body, &["expr_call", "expr_method_call"]);
+    scalar_from::verify(pair, facts, &calls)?;
     crate::data_library::verify_calls(pair, facts, &calls)?;
     crate::data_frontend::verify(facts)?;
     aggregates::verify(pair, facts)?;

@@ -51,6 +51,8 @@
     "std::prelude::v1::None": "DefPathHash(Fingerprint(9963928104983068931, 17916264760779052543))",
     "std::prelude::v1::Some": "DefPathHash(Fingerprint(9963928104983068931, 16951551904516411071))",
     "core::marker::Copy#trait": "DefPathHash(Fingerprint(9963928104983068931, 8391691879041372682))",
-    "core::marker::Copy#derive": "DefPathHash(Fingerprint(9963928104983068931, 2007380064492294347))"
+    "core::marker::Copy#derive": "DefPathHash(Fingerprint(9963928104983068931, 2007380064492294347))",
+    "std::convert::From::from": "DefPathHash(Fingerprint(9963928104983068931, 13583065962744827038))",
+    "std::convert::num::<impl std::convert::From<u16> for u32>::from": "DefPathHash(Fingerprint(9963928104983068931, 1299989174033625958))"
   }
 }

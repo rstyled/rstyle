@@ -565,7 +565,9 @@ impl Builder<'_> {
         };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
-            construct: if crate::checked_options::get_candidate(node, self.facts) {
+            construct: if crate::scalar_from::candidate(node, self.facts) {
+                Some(crate::scalar_from::CONSTRUCT.into())
+            } else if crate::checked_options::get_candidate(node, self.facts) {
                 Some("data.option-get".into())
             } else {
                 crate::data_bytes::kind(node)

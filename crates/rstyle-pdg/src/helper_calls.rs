@@ -189,7 +189,7 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
     let mut calls = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
     calls.retain(|node| {
-        (!crate::data_bytes::enabled(facts) || crate::data_bytes::kind(node).is_none())
+        !crate::call_summaries::static_intrinsic(node, facts)
             && !crate::checked_options::constructor_candidate(node, facts)
     });
 
@@ -489,7 +489,11 @@ fn verify_inventory(pair: producer::PairView<'_>, facts: &dyn EvidenceFacts) -> 
                 && (node.original_kind.known_value() == Some("expr_call")
                     && !matches!(
                         node.attributes.construct.as_deref(),
-                        Some("data.bytes.native-u32" | "data.bytes.native-usize")
+                        Some(
+                            "data.bytes.native-u32"
+                                | "data.bytes.native-usize"
+                                | "data.scalar-from"
+                        )
                     )
                     || records.iter().any(|record| {
                         record["pdg_node_id"] == node.id && record.get("dependency").is_some()

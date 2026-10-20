@@ -1105,3 +1105,24 @@ non-validating C0/C1/F5/F6/F7 cases. Pipeline coverage is separate from runtime
 behavior. The source-selected natural classifiers, build contexts and remaining
 decoder blockers are recorded in the
 [scalar Option contract](../../docs/extraction-profiles/scalar-option-byte-widths-v1.md).
+
+
+## Checksum-state roundtrip family
+
+`checksum-state.rs` declares five intended positives before admission assessment:
+the state constructor, borrowed checksum getter, constructor-result roundtrip,
+saved input composition and scalar widening. Custom trait implementation/caller
+and floating conversion are retained negatives. See the
+[source-selected adler2 contract](../../docs/extraction-profiles/checksum-state-roundtrips-v1.md).
+
+Append `checksum-state-oracle.rs` in a temporary Cargo test harness depending on
+`adler2 = "=2.0.1"` with default features. It specifies whole-input identity for
+262144 u32 words against the original methods and development compositions,
+including distinct high/low halves, and checks all 65536 u16 widening inputs.
+This is a runtime expectation; it does not establish pipeline support.
+
+Data-v3 3.43 admits all five declared positives (baseline 3.42 admitted only the
+constructor), preserving all 11 captured identities and six exclusions including
+derived methods. All ten comparisons complete. The original corpus comment is
+retained as part of the source identity; measured support is recorded here and
+in the contract. The oracle is also run with adler2 default features disabled.

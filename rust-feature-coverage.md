@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.42.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.43.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -142,7 +142,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. Data-v3 3.38.0 also supports exactly one shared borrow of a checked scalar-struct Copy value for a scalar-returning read-only helper. Data-v3 3.39.0 accepts an empty adjustment chain for checked Copy immutable untyped value-self receivers. General autoref, repeated/overloaded deref, unsizing and mutable inherent receivers remain unavailable. |
 | C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Four instantiations only: i32/i64 unsigned_abs and u32/u64 wrapping_mul. Not general primitive-method support. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
-| C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
+| C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.43.0 connects [u16-to-u32 From and checksum-state roundtrips](docs/extraction-profiles/checksum-state-roundtrips-v1.md) with pinned trait/implementation identities. Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
 | C11 | By-value memory-reading helper arguments/results | Missing | `inspect_value(s)`, `make_value(x)` | Pure reference-free construction results compose in the D11 fixture; by-value memory-reading substitution, reference-bearing helper results and ownership remain unavailable. Supported interface types do not establish that call boundary. |
 | C12 | Borrowed results from memory-reading helpers | Missing | `get_field_ref(s)` | Exact callee read effects plus result origin/location substitution, not just whole-formal forwarding. |
 | C13 | Cross-unit/package helper linking | Missing | `library_crate::helper(x)` | Capture/resolve selected units before summary derivation, preserve build contexts/transitive dependencies; modules inside one unit already work. |
@@ -195,7 +195,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Assertions are a proposed narrow first slice. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
@@ -2935,6 +2935,65 @@ median per-run peak RSS **106304 /109124 KiB**; the current run additionally
 verifies/admits four functions and evaluates their six pairs, so it performs more
 work. These measurements are not a whole-library performance guarantee or a
 speedup claim. No cache or serialized provenance was added to change the result.
+
+### Connected checksum-state roundtrips (Data-v3 3.43.0)
+
+The [source-selected contract](docs/extraction-profiles/checksum-state-roundtrips-v1.md)
+fixes adler2 2.0.1's original constructor/getter source identities, std/no_std
+contexts and independent expectations before assessment. The complete blocker
+chain was exact builtin inline ownership → instantiated u16-to-u32 core From
+identity/summary → existing field reads → owned helper-result receiver snapshots.
+Existing precise mixed-unit Copy/module/import/derive proof composes without a
+coarse-unit redesign. New selected-implementation capture is bounded to this
+numeric signature and reuses the existing optional record; no additional
+provenance table, source copy, cache or production dependency is added.
+
+The unchanged development census has **11 functions, 1→5 admitted**, six retained
+exclusions and ten complete comparisons. Original adler2 std has **17 functions,
+0→2 admitted**; no_std has **16 functions, 0→2 admitted**. All names, spans,
+source digests and build contexts match the baseline. Both selected original
+methods gain admission in each context, with zero losses or missing functions.
+Strict bundle import, independent documents, producer verification and admission
+succeed. Each natural constructor/getter matches its development counterpart at
+score 1; all six comparisons complete separately per context.
+
+The numeric oracle checks the original public methods and complete development
+compositions on 262144 whole-word inputs and every u16 widening, in both std and
+no_std dependency builds. CI-target tests cover ARM Linux, x86 Linux and ARM
+macOS capture in both modes, exact inline forms, qualified primitive calls,
+partial operand returns and saved inputs. Custom, float, bool and alias
+conversions remain excluded; identity/signature/operand/document-policy
+corruptions fail closed. The full source census retains neighboring Default,
+Hasher, mutable/SIMD helpers and generated derives.
+
+Remaining combinations: Default/new require trait-call/definition support;
+Hasher::finish additionally needs u32-to-u64 From; mutable checksum APIs add
+mutation and loop/SIMD contracts. No checksum-update, general trait, abstraction
+activation, rewrite-safety or detector-quality claim follows.
+
+Canonical replay **`run-dfcyj99b`** preserves all 60 frozen identities, outcomes,
+context counts and denominators versus `run-lqdkmx_1`: **20 admitted /33 excluded
+/7 inactive**. Complete captured rosters also retain all identities/build
+contexts: lz4_flex **150, 7→7 admitted**; time-core **226, 8→8**; regex-syntax
+**956, 14→19**, with zero losses. The five incidental regex-syntax gains are
+`hir::LookSet::{empty,full,subtract,union,intersect}`, formerly blocked by builtin
+inline ownership. These were not source-selected for this milestone and do not
+establish a complete LookSet-family claim. The canonical replay verifies **68
+documents** across full units; that count does not replace the frozen denominator.
+
+Quiescent alternating baseline/current measurements (one warmup pair plus seven
+retained pairs) show no material regression on the unchanged cyclic-prefix
+control: **0.66 /0.63 s**, ranges **0.61–0.66 /0.61–0.65 s**, median peak RSS
+**111548 /111796 KiB**. The newly activated unchanged checksum corpus takes
+**0.36 /0.41 s**, **118552 /119964 KiB**, while additionally verifying/admitting
+four functions and evaluating ten pairs. This is additional supported work;
+it is not an equal-work speedup/regression claim. See the contract for details.
+
+Final validation: **846 workspace tests pass**, five existing skips; doctests,
+all-target clippy with warnings denied, fmt and diff checks pass. rstyle reports
+**2686 functions /0 violations** and patterns **0 candidates**. Fresh final
+captures repeat the complete selections and strict matching results. No new
+suppression, ignore entry or scoring/threshold change is used.
 
 ### CI regression follow-up: pinned subslice targets
 

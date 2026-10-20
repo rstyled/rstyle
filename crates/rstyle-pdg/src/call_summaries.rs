@@ -79,6 +79,10 @@ pub fn resolve_for(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<Summary>, String> {
+    if crate::scalar_from::candidate(node, facts) {
+        return crate::scalar_from::resolve(node, facts);
+    }
+
     if let Some(summary) = resolve(node) {
         return Ok(Some(summary.clone()));
     }
@@ -115,6 +119,14 @@ pub(crate) fn verify_build(
     }
 
     Ok(())
+}
+
+pub(crate) fn static_intrinsic(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> bool {
+    crate::scalar_from::candidate(node, facts)
+        || crate::data_bytes::enabled(facts) && crate::data_bytes::kind(node).is_some()
 }
 
 #[cfg(test)]

@@ -81,9 +81,28 @@ pub(super) fn function_attributes(
         return Err("Selected source item is inactive".into());
     }
     for attribute in configuration.effective_attributes(attributes)? {
+        if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.scalar-from-conversions")
+            && inline_attribute(&attribute)
+        {
+            continue;
+        }
         ordinary(&attribute)?;
     }
     Ok(())
+}
+
+fn inline_attribute(attribute: &syn::Meta) -> bool {
+    if !attribute.path().is_ident("inline") {
+        return false;
+    }
+    match attribute {
+        syn::Meta::Path(_) => true,
+        syn::Meta::List(list) => syn::parse2::<syn::Ident>(list.tokens.clone())
+            .ok()
+            .is_some_and(|name| name == "always" || name == "never"),
+        _ => false,
+    }
 }
 
 fn ordinary(attribute: &syn::Meta) -> Result<(), String> {
@@ -196,4 +215,26 @@ pub(super) fn implementation(facts: &HirFnFacts, item: &syn::ItemImpl) -> bool {
         && item.generics.params.is_empty()
         && item.generics.where_clause.is_none()
         && function_attributes(facts, &item.attrs).is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn inline_owner_attributes_require_the_exact_builtin_grammar() {
+        for tokens in ["#[inline]", "#[inline(always)]", "#[inline(never)]"] {
+            let item: syn::ItemFn = syn::parse_str(&format!("{tokens} fn f() {{}} ")).unwrap();
+            assert!(super::inline_attribute(&item.attrs[0].meta), "{tokens}");
+        }
+        for tokens in [
+            "#[inline()]",
+            "#[inline(sometimes)]",
+            "#[inline(always, never)]",
+            "#[inline = \"always\"]",
+            "#[custom::inline]",
+            "#[cold]",
+        ] {
+            let item: syn::ItemFn = syn::parse_str(&format!("{tokens} fn f() {{}} ")).unwrap();
+            assert!(!super::inline_attribute(&item.attrs[0].meta), "{tokens}");
+        }
+    }
 }
