@@ -78,13 +78,13 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee and 1–16 arms; Data-v3 3.9.0 independently proves coverage of supported unguarded patterns without requiring a wildcard. See [exhaustive scalar contract](docs/extraction-profiles/exhaustive-scalar-matches-v1.md); broader pattern domains remain missing. |
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
 | F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.10.0 supports integer/bool literal/constant/range/wildcard leaves in nested grouped OR patterns, guards and independently exhaustive matches; see [nested contract](docs/extraction-profiles/nested-scalar-or-patterns-v1.md). Character ranges and nonlocal/generic/trait constants remain missing. |
-| F07 | Destructuring, reference, slice, and enum patterns | Missing | `Some(x) => x`, `[a, ..] => a` | Payload/field/element dependencies, binding modes, and ownership/borrow effects. |
+| F07 | Destructuring, reference, slice, and enum patterns | Partial | `Some(x) => x`, `[a, ..] => a` | Data-v3 3.36.0 supports only exhaustive checked-access `Some(&scalar)`/`None` patterns with verified guarded loads and bindings. General payload/field/element patterns and ownership/borrow effects remain missing. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
 | F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Merges in loop bodies/conditions and iteration-specific cyclic snapshots remain excluded. |
 | F11 | Labelled and value-carrying exits | Missing | `'outer: loop { break 'outer; }`, `break x` | Exact target resolution and value/frontier dependencies; also labelled block expressions. |
 | F12 | Iterator `for` loops | Missing | `for x in xs { ... }` | Iterator protocol, yielded values, effects, drop, and source/desugaring correspondence; not covered by scalar `while`. |
-| F13 | `Option`/`Result` branching and `?` | Missing | `let x = parse()?;` | Concrete discriminants/payloads, early return, conversions, and cleanup; `?` is not merely a scalar branch. |
+| F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. General Option/Result interfaces, construction, early return, conversions, cleanup and `?` remain missing. |
 | F14 | Assertion macros | Partial | `assert!(b);`, `debug_assert!(b);` | Data-v3 3.6.0 supports unformatted standard assertions, original invocation/condition correspondence, one condition evaluation, debug settings and disclosed omitted panic flow; see [assertion contract](docs/extraction-profiles/scalar-assertions-v1.md). Formatting/comparison macros and general exceptional flow remain missing. |
 | F15 | General panic/unwind/cleanup flow | Missing | `panic!("bad")`, `catch_unwind(f)` | Current extraction is bounded normal flow; omitted applicable exceptional flow is disclosed, not represented as complete. |
 
@@ -2476,3 +2476,23 @@ performance guarantee. No production cache or instrumentation is added.
 The final corrected workspace run passes 811 tests with 5 existing ignores.
 The signature-binding regression proves an internally consistent borrowed-receiver
 observation cannot substitute for the verified by-value callee signature.
+
+
+### Next natural family: borrowed scalar owners
+
+Source inspection selected `utf8::ScalarRange::is_valid` and `is_ascii` from
+regex-syntax 0.8.11 before assessing their admission. The unchanged complete
+natural replay contains both exact source identities: **0 admitted /2 excluded**.
+The leaf fails the mixed-unit Copy requirement; its caller also lacks the leaf
+summary. The [development contract](docs/extraction-profiles/borrowed-scalar-owner-v1.md)
+records their contexts, full known blocker chain, remaining unknowns and positive
+and negative expectations. No support or admission gain is claimed yet.
+
+This family targets the shared S09 bottleneck without requiring general enums or
+iterators from its neighboring module. A shared scalar getter does not consume
+its owner or invoke Drop; that is not a proof that the owner is drop-free. The
+implementation must distinguish borrowed-only permission from checked Copy
+ownership before relaxing admission. Reusing existing source/nominal evidence is
+preferred over another inventory, source copy or drop certificate. The frozen
+selection stays fixed. F07/F13 table statuses now reflect the already implemented
+3.36 checked-access subset; this documentation correction adds no capability.
