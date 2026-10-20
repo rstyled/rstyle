@@ -388,7 +388,12 @@ fn check_signature(
         .map(|param| param.ty.normalized.clone())
         .collect();
     let result = callee.signature.return_ty.normalized.as_ref();
-    let signature = arguments.as_ref() == Some(&dispatch.operand_tys)
+    let actual = if arguments.as_deref() == Some(dispatch.operand_tys.as_slice()) {
+        std::borrow::Cow::Borrowed(dispatch.operand_tys.as_slice())
+    } else {
+        crate::owned_receiver::signature_arguments(node, caller, &dispatch.operand_tys)?
+    };
+    let signature = arguments.as_deref() == Some(actual.as_ref())
         && !dispatch.operand_tys.iter().any(|ty| ty == "unit")
         && result == Some(&dispatch.result_ty)
         && node.ty.as_ref().and_then(|ty| ty.normalized.as_ref()) == result

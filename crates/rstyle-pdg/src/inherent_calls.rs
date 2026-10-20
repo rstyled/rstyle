@@ -171,7 +171,10 @@ fn ufcs_owner_matches(
 
 /// Checks original invocation/receiver evidence before dependency linking;
 /// admission still requires independently verified captured callee documents.
-pub(crate) fn source_resolved(node: &HirNode, facts: &HirFnFacts) -> Result<bool, String> {
+pub(crate) fn source_resolved(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
     if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         .supports("rust.verified-inherent-helper-calls")
         || node.expansion.is_some()
@@ -215,7 +218,10 @@ pub(crate) fn source_resolved(node: &HirNode, facts: &HirFnFacts) -> Result<bool
     }
 }
 
-fn shared_receiver(node: &HirNode, facts: &HirFnFacts) -> Result<bool, String> {
+fn shared_receiver(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
     use crate::{concrete_types::Observation, data_receivers::Kind};
     let capture = crate::data_receivers::verify(facts)?;
     let record = capture
@@ -233,6 +239,18 @@ fn shared_receiver(node: &HirNode, facts: &HirFnFacts) -> Result<bool, String> {
             _ => Err("Unsupported instantiated inherent signature".into()),
         })
         .collect::<Result<Vec<_>, String>>()?;
+
+    if crate::owned_receiver::from_record(record, facts)? {
+        let mut actual = signature;
+        actual[0] = match &record.receiver_type {
+            Observation::Captured { ty } => crate::data_types::token(ty)?,
+            _ => return Ok(false),
+        };
+        return Ok(node
+            .dispatch
+            .as_ref()
+            .is_some_and(|dispatch| dispatch.operand_tys == actual));
+    }
 
     Ok(matches!(
         &record.receiver_type,

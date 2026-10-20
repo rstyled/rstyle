@@ -91,3 +91,5 @@ pub mod assertions;
 pub mod conditional_source;
 
 mod tuple_assignment;
+
+mod owned_receiver;

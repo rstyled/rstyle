@@ -1012,20 +1012,21 @@ source span, with nine gains and zero losses; extra gains are not a newly select
 family or detector-quality evaluation.
 
 `position-span.rs` is a separate ten-function development corpus, evaluated inside
-ordinary external modules beside generic/enum/Drop/macro contents. Its nine
-admitted cases cover the four endpoints, splat, constructor-result field
-consumption, an existing shared-reference getter caller and alternate getters.
-The composed case constructing a local then calling its shared method remains
-excluded. All 36 admitted pairs evaluate, but this does not complete the bridge:
-implicit owned-local borrowing and concrete helper read substitution still need
-connected support. Keep this failed expectation/case in the selection; do not
-remove it or certify the family from its individual endpoints.
+ordinary external modules beside generic/enum/Drop/macro contents. Data-v3 3.38.0
+admits all ten cases, including the complete constructor → owned local → shared
+getter chain. This advances the unchanged selection from nine admissions to ten,
+with no losses and all 45 comparisons complete. See the
+[owned Copy receiver contract](../../docs/extraction-profiles/owned-copy-receiver-v1.md).
+Explicit local-storage borrowing, non-Copy owned receivers and by-value self
+updates remain outside this contract.
 
 `position-span-oracle.rs` specifies independent runtime expectations against the
-published regex-syntax crate, not reimplemented test getters: distinct scalar
-components and full nested values, splat preservation, and all 64 binary
-combinations of the relevant getter inputs. Both tests pass in a temporary Cargo
-harness depending on `regex-syntax = "=0.8.11"` with default features.
+published regex-syntax crate: distinct scalar components and full nested values,
+splat preservation, all 64 binary combinations of getter inputs, and the complete
+constructor-to-owned-getter result against independent offset equality. The three
+tests also exercise the selected development composition, including `usize::MAX`,
+in a temporary Cargo harness depending on `regex-syntax = "=0.8.11"` with default
+features. Runtime behavior does not replace capture/verification/admission checks.
 
 The originally requested matching distinction for altered field paths is not
 achieved: the offset and column getters retain distinct extraction paths but the

@@ -9,12 +9,16 @@ use std::collections::BTreeMap;
 struct Effects {
     reads: Vec<Access>,
     locations: BTreeMap<String, MemoryLocation>,
+    snapshot_reads: Vec<Read>,
 }
 
-struct ReadOccurrence<'a> {
-    read: &'a Read,
-    parameter: u32,
-    path: Vec<Projection>,
+enum ReadOccurrence<'a> {
+    Formal {
+        read: &'a Read,
+        parameter: u32,
+        path: Vec<Projection>,
+    },
+    Snapshot(&'a Read),
 }
 
 pub(crate) fn verify_arguments(
@@ -52,12 +56,27 @@ fn visit_reads(
         return Err("Helper memory reads require the registered Data-calls profile".into());
     }
 
+    let receiver_type = call
+        .children
+        .first()
+        .and_then(|child| child.ty.as_ref())
+        .and_then(|ty| ty.normalized.as_ref());
+    let owned = receiver_type != summary.argument_types.first()
+        && crate::owned_receiver::checked(call, facts)?;
     let mut count = 0;
     for read in reads {
         let actual = call
             .children
             .get(read.parameter as usize)
             .ok_or("Helper read lacks its actual argument")?;
+        if owned && read.parameter == 0 {
+            if count == crate::concrete_types::MAX_ENTRIES {
+                return Err(BUDGET_ERROR.into());
+            }
+            visit(snapshot_read(read, actual)?)?;
+            count += 1;
+            continue;
+        }
         let origins = crate::data_origins::origins(actual, facts)?;
         if origins.is_empty() {
             return Err("Helper read actual has no verified shared referent origin".into());
@@ -83,11 +102,30 @@ fn checked_read<'a>(
     if type_at(facts, origin.parameter, &path)? != read.value {
         return Err("Substituted helper location disagrees with actual referent type".into());
     }
-    Ok(ReadOccurrence {
+    Ok(ReadOccurrence::Formal {
         read,
         parameter: origin.parameter,
         path,
     })
+}
+
+fn snapshot_read<'a>(read: &'a Read, actual: &HirNode) -> Result<ReadOccurrence<'a>, String> {
+    let tail = read
+        .path
+        .strip_prefix(&[Projection::SharedReferent])
+        .ok_or("Owned receiver read lacks a shared callee root")?;
+    let mut value = crate::data_types::parse(crate::data_aggregates::token(actual)?)?;
+    for projection in tail {
+        if !matches!(projection, Projection::StructField { .. }) {
+            return Err("Owned receiver read requires exact Copy struct fields".into());
+        }
+        value = project(value, projection)?;
+    }
+
+    if value != read.value {
+        return Err("Owned receiver snapshot read contradicts its input type".into());
+    }
+    Ok(ReadOccurrence::Snapshot(read))
 }
 
 fn install_read(
@@ -95,23 +133,30 @@ fn install_read(
     occurrence: ReadOccurrence<'_>,
     context: &mut LocationContext<'_>,
 ) -> Result<(), String> {
+    let (read, parameter, path) = match occurrence {
+        ReadOccurrence::Snapshot(read) => {
+            effects.snapshot_reads.push(read.clone());
+            return Ok(());
+        }
+        ReadOccurrence::Formal {
+            read,
+            parameter,
+            path,
+        } => (read, parameter, path),
+    };
     let facts = context.facts;
-    let (id, location) = context.formal_location(
-        occurrence.parameter,
-        &occurrence.path,
-        occurrence.read.value.clone(),
-    )?;
+    let (id, location) = context.formal_location(parameter, &path, read.value.clone())?;
     let root = facts
         .signature
         .params
-        .get(occurrence.parameter as usize)
+        .get(parameter as usize)
         .ok_or("Missing actual formal root")?;
 
     effects.reads.push(Access {
         symbol_id: Some(root.symbol.clone()),
         location_id: Some(id.clone()),
         unresolved_reason: None,
-        operand_position: Some(u64::from(occurrence.read.parameter)),
+        operand_position: Some(u64::from(read.parameter)),
     });
     insert_location(&mut effects.locations, id, location)
 }
@@ -182,6 +227,12 @@ fn install_call(
         .find(|node| node.id == id)
         .ok_or("Missing source CALL during access installation")?;
     node.attributes.reads = effects.reads;
+    if !effects.snapshot_reads.is_empty() {
+        node.annotations.insert(
+            SNAPSHOT_KEY.into(),
+            serde_json::to_value(&effects.snapshot_reads).map_err(|error| error.to_string())?,
+        );
+    }
 
     Ok(effects.locations)
 }
@@ -217,6 +268,17 @@ pub(crate) fn verify_effects(
     check_effects(node, call, summary, &effects)
 }
 
+const SNAPSHOT_KEY: &str = "rstyle.data:owned-receiver-reads";
+
+fn snapshot_annotation(effects: &Effects) -> Result<Option<serde_json::Value>, String> {
+    if effects.snapshot_reads.is_empty() {
+        return Ok(None);
+    }
+    serde_json::to_value(&effects.snapshot_reads)
+        .map(Some)
+        .map_err(|error| error.to_string())
+}
+
 fn check_effects(
     node: &PdgNode,
     call: &HirNode,
@@ -227,6 +289,7 @@ fn check_effects(
         || node.provenance.origin != crate::ProvenanceOrigin::Source
         || node.original_kind.known_value() != Some(call.kind.as_str())
         || node.attributes.reads != effects.reads
+        || node.annotations.get(SNAPSHOT_KEY) != snapshot_annotation(effects)?.as_ref()
         || !node.attributes.writes.is_empty()
         || !node.attributes.defines.is_empty()
         || !node.attributes.symbol_ids.is_empty()

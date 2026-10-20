@@ -1,7 +1,22 @@
 //! Independent runtime expectations for the unchanged published natural family.
 #[cfg(test)]
+#[path = "position-span.rs"]
+mod development;
+
+#[cfg(test)]
 mod tests {
     use regex_syntax::ast::{Position, Span};
+
+    #[test]
+    fn constructor_to_owned_getter_matches_independent_offsets() {
+        for x in [0, 1, 7, usize::MAX] {
+            for y in [0, 1, 11, usize::MAX] {
+                let natural = Span::new(Position::new(x, 1, 2), Position::new(y, 1, 3));
+                assert_eq!(natural.is_empty(), x == y);
+                assert_eq!(super::development::composed(x, y), x == y);
+            }
+        }
+    }
 
     #[test]
     fn constructors_preserve_distinct_components_and_complete_positions() {

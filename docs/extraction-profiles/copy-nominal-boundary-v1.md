@@ -46,11 +46,12 @@ construction failures too, preventing repeated full-file parsing for each reject
 function. It does not cache a successful function proof after a failure, add a
 serialized certificate flag, or copy additional source buffers.
 
-This boundary admits the natural Position/Span endpoints, but does not complete
-the constructor-to-shared-method bridge. Implicit borrowing of an owned local
-aggregate still fails exact helper receiver/signature and read-location checks.
-By-value construction/helper results, direct field consumption and existing shared
-reference getter calls are tested separately; none certifies that missing bridge.
+This 3.37.0 boundary admits the natural Position/Span endpoints; it alone does
+not establish implicit receiver borrowing or read substitution. Data-v3 3.38.0
+connects those pieces under the separate
+[owned Copy receiver contract](owned-copy-receiver-v1.md), completing the selected
+constructor → owned local → shared scalar getter composition. General local
+storage borrowing and by-value self updates remain unsupported.
 
 Matching remains similarity detection. The offset and column getter variants
 retain distinct verified source/field paths but currently receive score 1 from

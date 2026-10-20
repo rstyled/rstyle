@@ -25,6 +25,20 @@ pub struct Resolution {
     environment: Rc<Environment>,
 }
 
+impl Resolution {
+    pub(crate) fn checked_owned_copy(&self, tree: &TypeTree) -> bool {
+        let TypeTree::Struct { nominal, .. } = tree else {
+            return false;
+        };
+        let key: Vec<_> = nominal
+            .definition_path
+            .split("::")
+            .map(str::to_string)
+            .collect();
+        self.environment.copy_boundary && self.trees.get(&key) == Some(tree)
+    }
+}
+
 /// Borrow a checked immutable lexical environment, or own the standalone result.
 /// This view carries no helper proof or serialized verification capability.
 pub struct ResolutionView<'a>(ResolutionStorage<'a>);

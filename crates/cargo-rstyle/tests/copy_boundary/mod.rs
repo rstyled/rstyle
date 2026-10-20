@@ -1,4 +1,4 @@
-//! Mixed-unit endpoints, supported chains and the excluded local-autoref bridge.
+//! Mixed-unit endpoints, supported chains and the owned Copy receiver bridge.
 use super::*;
 
 #[test]
@@ -7,6 +7,7 @@ fn selected_copy_family_composes_in_complete_mixed_cargo_units() {
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
     let positive = [
+        "data::composed",
         "data::Position::new",
         "data::Span::new",
         "data::Span::is_empty",
@@ -26,6 +27,8 @@ fn selected_copy_family_composes_in_complete_mixed_cargo_units() {
             .unwrap();
         assert_eq!(function["outcome"], "admitted", "{function}");
     }
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 45);
+    assert_eq!(report["pair_evaluation_complete"], true);
     check_kept_exclusions(&report);
     check_getter_paths(&report, "data::Span::is_empty", "offset");
     check_getter_paths(&report, "data::Span::is_one_line", "line");
@@ -168,23 +171,6 @@ fn builtin_copy_does_not_authorize_an_additional_custom_derive() {
 }
 
 fn check_kept_exclusions(report: &Value) {
-    let composed = report["functions"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|function| function["facts"]["name"] == "data::composed")
-        .unwrap();
-    assert_eq!(composed["outcome"], "excluded");
-    assert!(
-        composed["reasons"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|reason| reason
-                .as_str()
-                .unwrap()
-                .contains("helper identity, signature"))
-    );
     let generated = report["functions"]
         .as_array()
         .unwrap()
@@ -215,4 +201,173 @@ fn check_field_matching_evaluates_completely(report: &Value) {
     assert_eq!(pair["evaluation_status"], "evaluated");
     // Similarity is not field-path equivalence. Exact source paths are checked
     // independently above; the detector's score is a separate quality claim.
+}
+
+#[test]
+fn owned_copy_receivers_preserve_snapshot_reads_and_mixed_shared_arguments() {
+    let directory = workspace();
+    let source = format!(
+        "{}\n{}",
+        include_str!("../../../../eval/coverage-development/position-span.rs"),
+        r#"
+        impl Span {
+            pub fn compare(&self, other: &Span) -> bool { self.start.offset == other.end.offset }
+            pub fn escape(&self) -> &Position { &self.start }
+        }
+        pub fn owned(span: Span) -> bool { span.is_empty() }
+        pub fn result_receiver(x: usize, y: usize) -> bool {
+            Span::new(Position::new(x, 1, 2), Position::new(y, 1, 3)).is_empty()
+        }
+        pub fn repeated(mut span: Span, other: Span) -> bool {
+            let first = span.is_empty(); span = other; first == span.is_empty()
+        }
+        pub fn mixed(span: Span, other: &Span) -> bool { span.compare(other) }
+        pub fn escaped(span: Span) -> usize { span.escape().offset }
+        "#
+    );
+    std::fs::write(directory.path().join("src/data.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    for name in ["owned", "result_receiver", "repeated", "mixed"] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == format!("data::{name}"))
+            .unwrap();
+        assert_eq!(function["outcome"], "admitted", "{function}");
+        check_snapshot_reads(function, name == "mixed");
+        if name == "owned" {
+            check_owned_adjustments(function);
+        }
+    }
+    let escaped = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "data::escaped")
+        .unwrap();
+    assert_eq!(escaped["outcome"], "excluded", "{escaped}");
+    check_aggregate_documents(&report);
+}
+
+fn check_snapshot_reads(function: &Value, mixed: bool) {
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let original = shared_evidence::pair(&unit, function);
+    let calls: Vec<_> = original
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| {
+            node.annotations
+                .contains_key("rstyle.data:owned-receiver-reads")
+        })
+        .collect();
+    assert!(!calls.is_empty());
+    for call in calls {
+        let reads: Vec<rstyle_pdg::helper_reads::Read> =
+            serde_json::from_value(call.annotations["rstyle.data:owned-receiver-reads"].clone())
+                .unwrap();
+        check_snapshot_paths(&reads, mixed);
+        assert_eq!(reads.len(), if mixed { 1 } else { 2 });
+        assert_eq!(call.attributes.reads.len(), if mixed { 1 } else { 0 });
+        for mutation in ["missing", "path", "duplicate", "type"] {
+            let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+            corrupt_snapshot(&mut pair, &call.id, mutation);
+            assert!(
+                rstyle_pdg::data_documents::verify(&pair, &facts).is_err(),
+                "{mutation}"
+            );
+            assert!(
+                rstyle_ccgraph::admit_produced(&pair, &facts).is_err(),
+                "{mutation}"
+            );
+        }
+    }
+}
+
+fn corrupt_snapshot(pair: &mut rstyle_pdg::producer::Pair, id: &str, mutation: &str) {
+    let changed = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.id == id)
+        .unwrap();
+    let annotation = changed
+        .annotations
+        .get_mut("rstyle.data:owned-receiver-reads")
+        .unwrap();
+    match mutation {
+        "missing" => {
+            changed
+                .annotations
+                .remove("rstyle.data:owned-receiver-reads");
+        }
+        "path" => annotation[0]["path"] = serde_json::json!([]),
+        "duplicate" => {
+            let extra = annotation[0].clone();
+            annotation.as_array_mut().unwrap().push(extra);
+        }
+        "type" => annotation[0]["value"] = serde_json::json!({"kind":"scalar", "value":"bool"}),
+        _ => unreachable!(),
+    }
+}
+
+fn check_owned_adjustments(function: &Value) {
+    use rstyle_pdg::data_receivers::{self, Kind};
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let original = data_receivers::verify(&facts).unwrap();
+    for mutation in ["missing", "extra", "mutable", "target"] {
+        let mut capture = original.clone();
+        let record = &mut capture.methods[0];
+        match mutation {
+            "missing" => record.adjustments.clear(),
+            "extra" => record.adjustments.push(record.adjustments[0].clone()),
+            "mutable" => record.adjustments[0].kind = Kind::MutableBorrow,
+            "target" => record.adjustments[0].target = record.receiver_type.clone(),
+            _ => unreachable!(),
+        }
+        let mut changed = facts.clone();
+        changed.build.frontend_options.insert(
+            data_receivers::KEY.into(),
+            serde_json::to_value(capture).unwrap(),
+        );
+        assert!(
+            rstyle_pdg::producer::produce(&changed).is_err(),
+            "{mutation}"
+        );
+        shared_evidence::reject_facts(function, &changed);
+    }
+}
+
+fn check_snapshot_paths(reads: &[rstyle_pdg::helper_reads::Read], mixed: bool) {
+    use rstyle_pdg::{data_types::TypeToken, field_locations::Projection};
+    let mut paths = Vec::new();
+    for read in reads {
+        assert_eq!(read.parameter, 0);
+        assert_eq!(read.value, TypeToken::Scalar("usize".into()));
+        assert_eq!(read.path.first(), Some(&Projection::SharedReferent));
+        assert_eq!(read.path.len(), 3);
+        let names: Vec<_> = read
+            .path
+            .iter()
+            .filter_map(|part| match part {
+                Projection::StructField { name, .. } => Some(name.as_str()),
+                _ => None,
+            })
+            .collect();
+        paths.push(names.join("."));
+    }
+    assert_eq!(
+        paths,
+        if mixed {
+            vec!["start.offset"]
+        } else {
+            vec!["start.offset", "end.offset"]
+        }
+    );
 }

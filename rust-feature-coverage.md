@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.37.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.38.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -138,8 +138,8 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C03 | Memory-free helpers with shared inputs | Covered | `choose(left, right, flag)` | Supported canonical shared types and actual arguments; shared input alone does not authorize memory reads. |
 | C04 | Whole shared-formal helper results | Covered | `identity_ref(xs).len()` | Verified selected-formal return origins and actual substitution; not a field-reading borrowed-result summary. |
 | C05 | Direct memory-reading shared-input helpers | Covered | `read_field(s)` | Data-v2/v3: scalar/unit results, exact per-occurrence reads and actual-origin substitution, preserving alias uncertainty. |
-| C06 | Concrete inherent method calls and UFCS | Partial | `s.value()`, `S::value(s)` | Data-v3: same-unit nongeneric inherent impl/method, shared receiver or [static associated calls](docs/extraction-profiles/static-inherent-helper-calls-v1.md), exact owner/source proof and supported summary. Shared receivers require adjustment proof. No trait dispatch. |
-| C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. General autoref, repeated/overloaded deref, unsizing and mutable/by-value inherent receivers remain unavailable. |
+| C06 | Concrete inherent method calls and UFCS | Partial | `s.value()`, `S::value(s)` | Data-v3: same-unit nongeneric inherent impl/method, shared receiver or [static associated calls](docs/extraction-profiles/static-inherent-helper-calls-v1.md), exact owner/source proof and supported summary. Shared receivers require adjustment proof. Data-v3 3.38.0 adds [owned Copy receiver snapshots](docs/extraction-profiles/owned-copy-receiver-v1.md) for scalar-returning read-only helpers. No trait dispatch. |
+| C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. Data-v3 3.38.0 also supports exactly one shared borrow of a checked scalar-struct Copy value for a scalar-returning read-only helper. General autoref, repeated/overloaded deref, unsizing and mutable/by-value inherent receivers remain unavailable. |
 | C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Four instantiations only: i32/i64 unsigned_abs and u32/u64 wrapping_mul. Not general primitive-method support. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
 | C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
@@ -195,7 +195,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Assertions are a proposed narrow first slice. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Non-Copy declarations, unresolved/custom expansions, rewritten module paths and local aggregate autoref/helper-read composition remain open. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Non-Copy declarations, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
@@ -2354,3 +2354,72 @@ The frozen selection and its historical counts are unchanged by this test-only
 increment. rstyle reports 2,606 functions and zero violations; patterns reports
 zero candidates, with existing ignores unchanged.
 CLI-test clippy with warnings denied, formatting and diff checks also pass.
+
+
+### Complete constructor-to-owned-getter composition (2026-10-20)
+
+Data-v3 3.38.0 / 50 capabilities connects the existing Position/Span constructors
+to a shared getter invoked on the constructed owned value. The
+[bounded contract](docs/extraction-profiles/owned-copy-receiver-v1.md) was specified
+before enabling the call. Existing receiver capture supplies the exact single
+shared-borrow adjustment; the independent nominal environment supplies the Copy
+and source proof. Callee reads are typed projections of the CALL's existing owned
+input snapshot. Every occurrence is checked against the verified helper summary;
+shared arguments retain formal-origin reads. No local memory origin, alias
+independence, new capture inventory, source buffer or cache is invented. The
+ordinary equal-signature path borrows its operand types without copying them.
+
+The unchanged ten-function mixed-module development selection advances from
+9 admitted / 1 excluded to 10 admitted / 0 excluded: `data::composed` is the gain,
+with zero losses. All 45 admitted comparisons complete. Additional complete Cargo
+cases admit owned parameters, constructor-result receivers, repeated getters
+separated by rebinding, and calls mixing an owned receiver with a shared argument.
+The independent runtime oracle compares the actual published natural constructor
+and getter chain and the development composition against `x == y`, including
+`usize::MAX`. The existing constructor and 64-combination getter oracles remain.
+Missing/changed receiver adjustments and missing, altered or duplicated snapshot
+reads are rejected. Owned escaping-reference calls and the existing non-Copy
+implicit-receiver regression remain excluded.
+
+Initial frozen Cargo replay `run-s9hi3ne7` retains all 60 source identities and
+18 admitted / 35 excluded / 7 inactive; there are zero gains and zero losses.
+The complete natural regex-syntax unit retains all 956 names, source digests and
+spans, with nine admissions and no changes. This bridge completes the declared
+development composition; it does not create a new natural-library admission.
+Frozen capture/assessment is complete; `--max-pairs 0` deliberately does not
+complete full-library matching. No detector-quality or rewrite claim follows.
+
+Next connected natural targets remain `ast::Span::with_start` and `with_end`,
+selected from source before admission: both consume a Copy Span and replace one
+Position while preserving every component of the other endpoint. Their source
+digests are respectively `2e112b065c7220cb98d037f3a3bda22061438f8f492a3de753391027118c645c`
+and `fdf6e2c413bf3d5543398a97c79b9e86cd65379e3c86b043dd53984f5cad1c60`.
+Current source and replay identify the connected blockers: signature receiver
+validation assumes shared self, inherent definition ownership assumes shared self,
+and method-call correspondence lacks the exact empty adjustment for owned self.
+Struct-update value lowering exists, but its complete by-value receiver composition
+has not passed independent verification. These remain excluded, not inferred
+supported from the constructor fixtures. Mixed non-Copy nominal boundaries,
+cyclic F10 merges and general Option/payload control flow remain open; broad
+async/unsafe/FFI/macro work remains deferred.
+
+Final frozen Cargo replay `run-th89oo5m` confirms the same complete capture and
+assessment, all 60 identities/denominators/outcomes unchanged, and all 956 natural
+function identities/outcomes unchanged. The final workspace run passes 808 tests
+with five existing ignores. The added exact snapshot-path and adjustment
+corruption test also passes separately. All-targets workspace clippy with warnings
+denied, formatting and diff checks pass. rstyle reports 2,612 functions with zero
+violations; patterns reports zero candidates with existing ignores unchanged.
+No thresholds, scoring, suppressions, source selections or historical artifacts
+were changed. The roadmap remains active.
+
+A scoped performance diagnostic compares `a1d6c5d` with this implementation using
+identical compiler, dependency lockfiles, raw 956-function input and four selected
+natural constructor/getter records. Each run decodes the same raw input and
+freshly captures those four functions under its own policy; both produce four
+graphs. Across six alternating pairs, median elapsed time is 3.22 s baseline /
+3.26 s current, and median peak RSS is 505,572 / 505,640 KiB. This finds no material
+increase for that workload; it is not a whole-capture performance guarantee.
+Earlier attempts importing retained policy-specific graph inventories were not
+comparable and are discarded, without relaxing strict inventory verification or
+changing the retained artifacts. No production benchmark cache was introduced.
