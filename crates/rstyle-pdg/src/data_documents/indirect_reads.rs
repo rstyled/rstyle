@@ -1,4 +1,4 @@
-//! Existing memory-read accesses for fields selected through reference values.
+//! Physical memory accesses selected through evaluated shared references.
 
 use super::*;
 use crate::{
@@ -9,16 +9,17 @@ pub(super) fn install(
     pair: &mut Pair,
     context: &mut LocationContext<'_>,
 ) -> Result<BTreeMap<String, MemoryLocation>, String> {
-    if !pair
-        .pdg
-        .nodes
-        .iter()
-        .any(|node| node.attributes.construct.as_deref() == Some("data.indirect-field"))
-    {
+    if !pair.pdg.nodes.iter().any(|node| {
+        matches!(
+            node.attributes.construct.as_deref(),
+            Some("data.indirect-field" | "data.indirect-deref")
+        )
+    }) {
         return Ok(BTreeMap::new());
     }
 
-    let sources = crate::field_locations::fields(&context.facts.body);
+    let sources =
+        crate::field_locations::operations(&context.facts.body, &["expr_field", "expr_unary"]);
     let places = crate::data_places::Places::verify(context.facts)?;
     let facts = context.facts;
     let entries = sources
@@ -40,7 +41,7 @@ fn install_read(pair: &mut Pair, source: &HirNode, reads: Vec<Access>) -> Result
         .nodes
         .iter_mut()
         .find(|node| {
-            node.original_kind.known_value() == Some("expr_field")
+            node.original_kind.known_value() == Some(source.kind.as_str())
                 && node.source_span.as_ref().is_some_and(|span| {
                     span.start == u64::from(source.span.start)
                         && span.end == u64::from(source.span.end)
@@ -107,7 +108,7 @@ pub(super) fn verify(
     } else {
         let (reads, locations) = effects(source, context)?;
         if node.category != NodeCategory::Read
-            || node.attributes.construct.as_deref() != Some("data.indirect-field")
+            || node.attributes.construct.as_deref() != Some(construct(source))
             || node.attributes.reads != reads
         {
             return Err("Indirect field read loses its exact possible locations".into());
@@ -125,4 +126,41 @@ pub(super) fn verify(
     let base = super::field_base(pair, context.facts, node)?;
     super::verify_field_value_edge(pair, node, base)?;
     Ok(expected)
+}
+
+fn construct(source: &HirNode) -> &'static str {
+    if source.kind == "expr_unary" {
+        "data.indirect-deref"
+    } else {
+        "data.indirect-field"
+    }
+}
+
+pub(super) fn verify_dereferences(
+    pair: PairView<'_>,
+    context: &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, MemoryLocation>, String> {
+    let facts = context.facts;
+    let mut locations = BTreeMap::new();
+    for source in crate::field_locations::operations(&facts.body, &["expr_unary"])
+        .into_iter()
+        .filter(|source| crate::data_dereferences::candidate(source, facts))
+    {
+        let node = super::serialized_operation(pair, &source.span, |node| {
+            node.original_kind.known_value() == Some("expr_unary")
+                && matches!(
+                    node.category,
+                    NodeCategory::Read | NodeCategory::Computation
+                )
+        })?;
+        locations.extend(verify(node, source, pair, context)?);
+    }
+
+    for node in &pair.pdg.nodes {
+        if node.attributes.construct.as_deref() == Some("data.indirect-deref") {
+            let source = super::origins::source_node(node, facts)?;
+            crate::data_dereferences::verify(source, facts)?;
+        }
+    }
+    Ok(locations)
 }

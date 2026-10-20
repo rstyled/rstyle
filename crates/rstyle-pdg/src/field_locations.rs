@@ -295,9 +295,17 @@ pub fn verify(
 }
 
 pub(crate) fn fields(node: &HirNode) -> Vec<&HirNode> {
-    let own = (node.kind == "expr_field").then_some(node);
+    operations(node, &["expr_field"])
+}
 
-    node.children.iter().flat_map(fields).chain(own).collect()
+pub(crate) fn operations<'a>(node: &'a HirNode, kinds: &[&str]) -> Vec<&'a HirNode> {
+    let own = kinds.contains(&node.kind.as_str()).then_some(node);
+
+    node.children
+        .iter()
+        .flat_map(|child| operations(child, kinds))
+        .chain(own)
+        .collect()
 }
 
 fn aliases(interface: &InterfaceObservations) -> Vec<[u32; 2]> {

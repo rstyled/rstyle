@@ -111,6 +111,18 @@ fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String
     .map_err(|error| error.to_string())
 }
 
+fn indirect_read(
+    node: &crate::PdgNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    let capability = match node.attributes.construct.as_deref() {
+        Some("data.indirect-field") => "rust.indirect-field-reads",
+        Some("data.indirect-deref") => "rust.shared-dereference-reads",
+        _ => return Ok(false),
+    };
+    Ok(crate::extraction_profile::ExtractionProfile::from_facts(facts)?.supports(capability))
+}
+
 fn verify_location(
     facts: &dyn crate::unit_store::EvidenceFacts,
     location: &CapturedLocation,
@@ -124,10 +136,7 @@ fn verify_location(
         .ok_or("Unknown helper read formal")?;
     if location.root_symbol != formal.symbol
         || (access.symbol_id.as_ref() != Some(&formal.symbol)
-            && !(access.symbol_id.is_none()
-                && node.attributes.construct.as_deref() == Some("data.indirect-field")
-                && crate::extraction_profile::ExtractionProfile::from_facts(facts)?
-                    .supports("rust.indirect-field-reads")))
+            && !(access.symbol_id.is_none() && indirect_read(node, facts)?))
         || access.unresolved_reason.is_some()
         || type_at(facts, location.parameter, &location.path)? != location.value
     {

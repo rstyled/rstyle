@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.28.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.29.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.28.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.29.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -10210,5 +10210,171 @@ fn check_indirect_field_edge_corruption(facts: &dyn rstyle_pdg::unit_store::Evid
             rstyle_pdg::producer::verify(&pair, facts).is_err(),
             "{mutation}"
         );
+    }
+}
+
+const SHARED_DEREFERENCE_FAMILY: &str = r#"
+    pub struct Record<'a> { pub n: u8, pub pointer: &'a u8 }
+    pub fn first(a: &u8) -> u8 { *a }
+    pub fn other(a: &u8) -> u8 { *a }
+    pub fn nested(a: &&u8) -> u8 { **a }
+    pub fn aggregate(a: &(u8, u8)) -> (u8, u8) { *a }
+    pub fn field(a: &Record<'_>) -> u8 { (*a).n }
+    pub fn nested_field(a: &&Record<'_>) -> u8 { (**a).n }
+    pub fn stored(a: &Record<'_>) -> u8 { *a.pointer }
+    pub fn reference<'a>(a: &&'a u8) -> &'a u8 { *a }
+    pub fn conditional(a: &u8, b: &u8, pick: bool) -> u8 { *(if pick { a } else { b }) }
+    pub fn mutable(a: &u8, b: &u8) -> u8 { let mut selected = a; selected = b; *selected }
+    pub fn snapshot(a: &u8, b: &u8) -> u8 { let mut selected = a; let saved = selected; selected = b; *saved }
+    pub fn looped(a: &u8, b: &u8, mut count: u32) -> u8 { let mut selected = a; while count > 0 { selected = b; count -= 1; } *selected }
+    pub fn composed(a: &u8) -> u8 { first(a) }
+    pub fn loop_read(a: &u8, mut count: u32) -> u8 { let mut value = 0; while count > 0 { value = *a; count -= 1; } value }
+    pub fn choose<'a>(a: &'a u8, b: &'a u8, pick: bool) -> &'a u8 { if pick { a } else { b } }
+    pub fn helper(a: &u8, b: &u8, pick: bool) -> u8 { *choose(a, b, pick) }
+    pub fn local(value: u8) -> u8 { let r = &value; *r }
+    pub fn write(a: &mut u8) -> u8 { *a = 1; *a }
+"#;
+
+#[test]
+fn clones_data_shared_dereferences_compose_physical_reads_and_reference_flow() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        SHARED_DEREFERENCE_FAMILY,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["functions"].as_array().unwrap().len(), 18);
+    for function in report["functions"].as_array().unwrap() {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "local" | "write"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_shared_dereference_locations(&report);
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    for function in legacy["functions"].as_array().unwrap() {
+        if function["facts"]["name"] != "choose" {
+            assert_eq!(function["outcome"], "excluded", "{function}");
+        }
+    }
+}
+
+fn check_shared_dereference_locations(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
+    for (name, roots) in [
+        ("first", vec![0]),
+        ("mutable", vec![1]),
+        ("snapshot", vec![0]),
+        ("conditional", vec![0, 1]),
+        ("looped", vec![0, 1]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        let actual: Vec<_> = pair
+            .pdg
+            .memory_locations
+            .iter()
+            .map(|location| {
+                let record = &location.extensions[rstyle_pdg::data_documents::LOCATION_KEY];
+                assert_eq!(
+                    record["path"],
+                    serde_json::json!([{"kind":"SharedReferent"}])
+                );
+                record["parameter"].as_u64().unwrap()
+            })
+            .collect();
+        assert_eq!(actual, roots, "{name}");
+        check_shared_dereference_corruption(&facts);
+    }
+    check_shared_dereference_paths(report);
+}
+
+fn check_shared_dereference_corruption(facts: &dyn rstyle_pdg::unit_store::EvidenceFacts) {
+    for mutation in ["missing", "symbol", "operand", "dispatch"] {
+        let mut pair = rstyle_pdg::producer::produce(facts).unwrap();
+        let node = pair
+            .pdg
+            .nodes
+            .iter_mut()
+            .find(|node| node.attributes.construct.as_deref() == Some("data.indirect-deref"))
+            .unwrap();
+        match mutation {
+            "missing" => node.attributes.reads.clear(),
+            "symbol" => node.attributes.reads[0].symbol_id = Some("invented".into()),
+            "operand" => node.attributes.reads[0].operand_position = Some(1),
+            _ => node.attributes.operator = Some(rstyle_pdg::StringFact::known("*")),
+        }
+        assert!(
+            rstyle_pdg::data_documents::verify(&pair, facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&pair, facts).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+fn check_shared_dereference_paths(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for (name, steps) in [("nested", 2), ("nested_field", 3), ("reference", 1)] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let longest = pair
+            .pdg
+            .memory_locations
+            .iter()
+            .map(|location| {
+                location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+                    .as_array()
+                    .unwrap()
+                    .len()
+            })
+            .max()
+            .unwrap();
+        assert_eq!(longest, steps, "{name}");
+        if name == "nested_field" {
+            assert_eq!(pair.pdg.memory_locations.len(), 2);
+            assert!(pair.pdg.memory_locations.iter().any(|location| {
+                location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"][2]["name"]
+                    == "n"
+            }));
+        }
+        if name == "reference" {
+            let returned = pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+                .unwrap();
+            assert_eq!(
+                returned.annotations[rstyle_pdg::data_origins::KEY],
+                serde_json::json!([
+                    {"parameter":0,"path":[{"kind":"SharedReferent"},{"kind":"SharedReferent"}]}
+                ])
+            );
+        }
     }
 }

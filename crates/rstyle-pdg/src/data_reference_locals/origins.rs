@@ -85,7 +85,9 @@ impl Resolver<'_> {
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
         match node.kind.as_str() {
-            "expr_field" if crate::field_locations::derived::candidate(node, self.facts) => {
+            "expr_field" | "expr_unary"
+                if crate::field_locations::derived::candidate(node, self.facts) =>
+            {
                 crate::field_locations::derived::selected_with(
                     node,
                     selectors,

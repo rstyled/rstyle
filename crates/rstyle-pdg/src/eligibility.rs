@@ -699,6 +699,7 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         "expr_repeat" if ctx.profile.supports("rust.repeat-array-values") => Some(ty()),
         "expr_struct" if ctx.profile.supports("rust.named-struct-values") => Some(ty()),
         "expr_field" | "expr_addr_of" => Some(ty()),
+        "expr_unary" if crate::data_dereferences::candidate(node, ctx.facts) => Some(ty()),
         "expr_block" if !node.is_unsafe_block => Some(ty()),
         "expr_ret" | "ty_annotation" => Some(ty()),
         "expr_if"

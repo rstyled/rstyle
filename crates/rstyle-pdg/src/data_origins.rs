@@ -47,6 +47,9 @@ pub fn origins(
     let origins = match node.kind.as_str() {
         "expr_path" => formal(node, facts, &ty)?,
         "expr_field" => field(node, facts, &ty)?,
+        "expr_unary" if crate::data_dereferences::candidate(node, facts) => {
+            field_locations::derived::selected(node, &[], facts)?
+        }
         "expr_tup" | "expr_struct" => constructed(node, facts)?,
         "expr_addr_of" => vec![crate::data_places::borrow_origin(node, facts)?],
         "expr_block" | "expr_ret" => {

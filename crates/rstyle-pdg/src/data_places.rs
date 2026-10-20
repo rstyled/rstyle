@@ -49,7 +49,7 @@ impl Places {
 
     fn insert_fields(&mut self, node: &HirNode) -> Result<(), String> {
         match node.kind.as_str() {
-            "expr_field" => {
+            "expr_field" | "expr_unary" => {
                 self.fields.insert(key(node));
                 let [base] = node.children.as_slice() else {
                     return Err("Place lacks one exact base".into());
@@ -67,7 +67,13 @@ impl Places {
 }
 
 pub fn is_place_base(node: &HirNode) -> Result<bool, String> {
-    if node.kind != "expr_field" {
+    if node.kind != "expr_field"
+        && !(node.kind == "expr_unary"
+            && node
+                .dispatch
+                .as_ref()
+                .is_some_and(|dispatch| dispatch.op == "*"))
+    {
         return Ok(false);
     }
     let token = node

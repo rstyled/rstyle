@@ -2,7 +2,7 @@
 
 mod aggregates;
 mod borrows;
-mod indirect_fields;
+mod indirect_reads;
 mod locals;
 mod locations;
 mod origins;
@@ -38,7 +38,7 @@ fn install_locations(
         .map(|field| install_field(&mut pair.pdg, field, &mut context))
         .collect::<Result<BTreeMap<_, _>, _>>()?;
 
-    let indirect = indirect_fields::install(&mut pair, &mut context)?;
+    let indirect = indirect_reads::install(&mut pair, &mut context)?;
     let locations = crate::helper_reads::merge_locations(locations, indirect)?;
     let helpers = crate::helper_reads::install(&mut pair, &mut context)?;
     finish_locations(
@@ -199,6 +199,7 @@ pub fn verify<'a>(
     for field in &fields.operations {
         verify_field(pair, &mut context, field, &mut expected)?;
     }
+    expected.extend(indirect_reads::verify_dereferences(pair, &mut context)?);
     crate::helper_reads::verify_locations(pair, &mut context, &mut expected)?;
 
     let actual: BTreeMap<_, _> = pair
@@ -236,7 +237,7 @@ fn verify_field(
     if matches!(field.location, Location::Unsupported { .. }) {
         let source = origins::source_node(node, facts)?;
         if crate::field_locations::derived::candidate(source, facts) {
-            expected.extend(indirect_fields::verify(node, source, pair, context)?);
+            expected.extend(indirect_reads::verify(node, source, pair, context)?);
             return Ok(());
         }
         return value_fields::verify(node, source, pair, facts);
@@ -322,7 +323,12 @@ fn verify_reads(pair: crate::producer::PairView<'_>, fields: usize) -> Result<()
 
 fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<'_>) -> bool {
     let field = node.category == NodeCategory::Read
-        && node.original_kind.known_value() == Some("expr_field");
+        && (node.original_kind.known_value() == Some("expr_field")
+            || node.attributes.construct.as_deref() == Some("data.indirect-deref")
+                && crate::extraction_profile::policy_supports(
+                    &pair.pdg.profile,
+                    "rust.shared-dereference-reads",
+                ));
     let call = node.category == NodeCategory::Call
         && (node.original_kind.known_value() == Some("expr_call")
             || node.original_kind.known_value() == Some("expr_method_call")

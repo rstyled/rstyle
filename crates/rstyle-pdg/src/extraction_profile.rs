@@ -53,6 +53,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.static-inherent-helper-calls",
     "rust.reference-rebindings",
     "rust.indirect-field-reads",
+    "rust.shared-dereference-reads",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -161,7 +162,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.28.0", 40)),
+            Self::DataV3 => Some(("3.29.0", 41)),
         }
     }
 

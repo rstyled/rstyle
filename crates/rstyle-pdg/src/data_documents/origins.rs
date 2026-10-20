@@ -141,22 +141,11 @@ impl Graph<'_> {
             return super::borrows::graph_origin(node, self.pair).map(|origin| vec![origin]);
         }
         if node.category == NodeCategory::FormalInput {
-            if selectors.is_empty() {
-                return source_origins(node, self.facts);
-            }
-            return crate::data_component_origins::selected(
-                &crate::data_types::parse(&wire_type(node)?)?,
-                selectors,
-                u32::try_from(
-                    node.attributes
-                        .position
-                        .ok_or("Missing selected formal position")?,
-                )
-                .map_err(|_| "Selected formal position is out of range")?,
-                Vec::new(),
-            );
+            return self.formal(node, selectors);
         }
-        if node.original_kind.known_value() == Some("expr_field")
+
+        if (node.original_kind.known_value() == Some("expr_field")
+            || node.attributes.construct.as_deref() == Some("data.indirect-deref"))
             && node.category == NodeCategory::Read
         {
             return loaded_origins(node, selectors, self.pair);
@@ -179,6 +168,23 @@ impl Graph<'_> {
             visiting.remove(&key);
         }
         Ok(roots)
+    }
+
+    fn formal(&self, node: &PdgNode, selectors: &[usize]) -> Result<Vec<Origin>, String> {
+        if selectors.is_empty() {
+            return source_origins(node, self.facts);
+        }
+        crate::data_component_origins::selected(
+            &crate::data_types::parse(&wire_type(node)?)?,
+            selectors,
+            u32::try_from(
+                node.attributes
+                    .position
+                    .ok_or("Missing selected formal position")?,
+            )
+            .map_err(|_| "Selected formal position is out of range")?,
+            Vec::new(),
+        )
     }
 
     fn selected_inputs(

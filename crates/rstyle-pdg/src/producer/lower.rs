@@ -314,11 +314,30 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
+    fn unary(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if node
+            .dispatch
+            .as_ref()
+            .is_some_and(|dispatch| dispatch.op == "*")
+        {
+            self.indirect_field(node, flow)
+        } else {
+            self.computation(node, flow)
+        }
+    }
+
     fn indirect_field(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.field_base(node, flow);
         let operation = Operation {
             operands: self.operand(&flow.value),
-            construct: Some("data.indirect-field".into()),
+            construct: Some(
+                if node.kind == "expr_unary" {
+                    "data.indirect-deref"
+                } else {
+                    "data.indirect-field"
+                }
+                .into(),
+            ),
             ..template(node, NodeCategory::Read)
         };
         self.emit(operation, flow)
@@ -1008,6 +1027,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         }
         "expr_path" => Builder::read,
         "expr_field" => Builder::field_read,
+        "expr_unary" => Builder::unary,
         "expr_addr_of" => Builder::borrow,
         "expr_tup" if !node.children.is_empty() => Builder::computation,
         "expr_struct" => Builder::structure,
@@ -1021,9 +1041,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         {
             Builder::short_circuit
         }
-        "expr_binary" | "expr_unary" | "expr_cast" | "expr_method_call" | "expr_call" => {
-            Builder::computation
-        }
+        "expr_binary" | "expr_cast" | "expr_method_call" | "expr_call" => Builder::computation,
         "expr_assign" => Builder::assignment,
         "expr_assign_op" => Builder::compound,
         "expr_if" => Builder::branch,

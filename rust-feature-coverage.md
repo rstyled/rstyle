@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.28.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.29.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -109,7 +109,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.22.0 additionally supports [reference-bearing tuple/named/tuple-struct values](docs/extraction-profiles/reference-bearing-values-v1.md). Ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates remain supported; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Data-v3 3.24.0 also supports [reference-bearing struct updates](docs/extraction-profiles/reference-struct-updates-v1.md) with component-specific origin replacement. Broader const counts and reference-bearing arrays remain unfinished. Data-v3 3.27.0 supports [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md) with snapshot and component origins. |
 | D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](docs/extraction-profiles/reference-value-fields-v1.md). Data-v3 3.27.0 adds [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md), snapshot copies and branch/loop origin flow. Data-v3 3.28.0 adds [indirect shared-reference field reads](docs/extraction-profiles/indirect-field-reads-v1.md) through multiple origins, mutable bindings, snapshots and shared helper results. Aggregate helper-result field bases remain unfinished. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
-| D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
+| D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
 | D15 | Array/slice element reads | Missing | `xs[i]` | Evaluate base/index once, preserve element location/index identity and bounds behavior. |
 | D16 | Slice ranges and borrowed subslices | Missing | `&xs[start..end]` | Bound evaluation, range representation, source origins, checks and panic limitations; str has separate UTF-8 constraints. |
 | D17 | Checked access and concrete Option | Missing | `xs.get(i)`, `Some(x)`, `None` | Registered access semantics plus construction/discriminants/bounded payload extraction; part of the read-only goal, not general enum support. |
@@ -1454,3 +1454,55 @@ Frozen run `target/hir-coverage/run-fyvdv1kb/` completes all three packages with
 and outcomes, all denominators and context counts match 3.27.0 (`run-myi5gqyy`).
 Twenty-six admitted graph documents pass schema checks (10 lz4, 0 regex, 16 time).
 Indirect field reads add no measured frozen admission gain.
+
+
+### D14 explicit built-in shared dereference reads
+
+Data-v3 extraction 3.29.0 adds `rust.shared-dereference-reads` (41 capabilities);
+matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/shared-dereference-reads-v1.md) connects original
+unary syntax, built-in dispatch, sized referent/result type checks, formal physical
+locations and evaluated pointer dependencies. Nested explicit dereferences retain
+each stored-pointer load. A dereference used as a field place preserves the final
+physical field path instead of inventing a whole-aggregate read.
+
+The existing indirect-read installer and independent verifier now handle field and
+dereference reads. Both use existing access/location records with no lexical read
+symbol; evaluated pointer operations carry snapshot dependencies. Stored-reference
+loads derive component origins from every possible physical location. Helper read
+summaries accept each construct only under its own registered capability. The
+shared source-operation traversal replaces parallel field/unary traversals. No
+capture records, source snapshots or retained caches are added, and source checks
+already performed by location derivation are not repeated at the frontend call site.
+
+The 18-function composed Cargo fixture admits 16 functions, excluding a local
+storage borrow and a pointee write. It includes scalar and tuple loads, nested
+pointer reads, direct/nested physical field places, stored references, returned
+shared references, conditional and mutable bases, snapshots, reads in loops,
+reference flow across loops, a memory-reading helper caller and a dereference of a
+verified memory-free shared helper result. Assertions compare exact formal roots,
+physical path lengths, the final nested member, and returned-reference origin
+paths. Missing reads, invented lexical symbols, wrong operand positions and
+invented scalar operators are rejected by independent and strict verification.
+Data-v2 still excludes the dereference functions; its existing memory-free shared
+helper remains supported.
+
+Local/temporary storage borrows, address-taking through dereference places,
+mutable/raw pointer access, overloaded dereference, unsized whole-value loads,
+general repeated implicit dereferences and reference-
+bearing arrays remain unfinished. D14 stays Partial. D13 and the full roadmap
+remain active; these checks do not establish general performance or detector quality.
+
+Validation: 763 workspace tests pass with the same 5 existing ignores, including
+the original assertion-argument receiver regression. Clippy passes for all targets
+with warnings denied; formatting and diff checks pass. Repository-built
+`cargo rstyle --format json` reports 2,390 functions and 0 violations;
+`cargo rstyle patterns --format json --fail-on-candidates` reports 0 candidates with
+the same 15 existing ignores. All 14 inventory bookkeeping tests pass. Executable
+builds and workspace tests finish before inventory capture.
+
+Frozen run `target/hir-coverage/run-p_9a7q3l/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60. All 60 identities
+and outcomes, all denominators and context counts match 3.28.0 (`run-fyvdv1kb`).
+Twenty-six admitted graph documents pass schema checks (10 lz4, 0 regex, 16 time).
+Explicit shared dereference adds no measured frozen admission gain.

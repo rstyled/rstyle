@@ -12,6 +12,9 @@ pub(crate) struct Located {
 }
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
+    if crate::data_dereferences::candidate(node, facts) {
+        return true;
+    }
     if node.kind != "expr_field"
         || !crate::extraction_profile::ExtractionProfile::from_facts(facts)
             .is_ok_and(|profile| profile.supports("rust.indirect-field-reads"))
@@ -22,7 +25,7 @@ pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
     let [base] = node.children.as_slice() else {
         return false;
     };
-    if base.kind == "expr_field" && candidate(base, facts) {
+    if matches!(base.kind.as_str(), "expr_field" | "expr_unary") && candidate(base, facts) {
         return true;
     }
     if !crate::data_aggregates::token(base)
@@ -80,6 +83,10 @@ pub(crate) fn locations_with(
     let [base] = node.children.as_slice() else {
         return Err("Indirect field lacks one evaluated base".into());
     };
+    if crate::data_dereferences::candidate(node, facts) {
+        crate::data_dereferences::verify(node, facts)?;
+        return referents(base, facts, origins(base)?);
+    }
     let bases = if crate::data_places::is_place_base(base)? {
         if candidate(base, facts) {
             locations_with(base, facts, origins)?

@@ -14,6 +14,10 @@ pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
         return false;
     };
 
+    if crate::data_dereferences::candidate(base, facts) {
+        return false;
+    }
+
     let evaluated = match base.kind.as_str() {
         "expr_path" => base
             .res

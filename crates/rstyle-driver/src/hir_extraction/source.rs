@@ -164,6 +164,9 @@ fn selected_expression(
         ast::ExprKind::Field(..) | ast::ExprKind::AddrOf(..) => {
             profile.supports("rust.concrete-read-only-data")
         }
+        ast::ExprKind::Unary(ast::UnOp::Deref, _) => {
+            profile.supports("rust.shared-dereference-reads")
+        }
         ast::ExprKind::Call(..) => profile.supports("rust.verified-helper-calls"),
         ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
         ast::ExprKind::While(..)
