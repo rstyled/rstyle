@@ -26,7 +26,7 @@ pub fn assess(
     graph: &Graph,
     analysis: &Analysis,
 ) -> Assessment {
-    let mut values = BTreeMap::new();
+    let mut values = Values::new(facts, graph, analysis);
     let mut assessment = Assessment {
         limitations: Vec::new(),
         checked_operations: Vec::new(),
@@ -39,30 +39,73 @@ pub fn assess(
         let operands: Vec<_> = node
             .operands
             .iter()
-            .map(|id| values.get(id).copied().flatten())
+            .map(|id| values.constants.get(id).copied().flatten())
             .collect();
-        let value =
-            constant(node, graph, analysis, &values).filter(|value| fits(facts, &node.ty, *value));
-        let safe = proven_safe(facts, graph, node, &operands);
-        if relevant(node) && !safe {
+        let value = constant(node, graph, analysis, &values.constants)
+            .filter(|value| fits(facts, &node.ty, *value));
+        let ordinary = proven_safe(facts, graph, node, &operands);
+        let bounded = values
+            .ranges
+            .as_ref()
+            .is_some_and(|ranges| ranges.safe(node));
+        let safe = ordinary || bounded;
+        let relevant = relevant(node)
+            || values.ranges.is_some() && node.construct.as_deref() == Some("data.value-index");
+        if relevant && !safe {
             assessment.limitations.push(limitation(facts, node));
         }
-        if relevant(node) {
-            assessment.checked_operations.push(Proof {
-                operation_id: node.id.clone(),
-                resolved_type: node.ty.clone(),
-                operand_constants: operands
-                    .iter()
-                    .map(|value| value.map(|v| v.to_string()))
-                    .collect(),
-                omitted_panic_impossible: safe,
-                method: proof_method(node),
-            });
+        if relevant {
+            assessment
+                .checked_operations
+                .push(proof(node, &operands, ordinary, bounded));
         }
-        values.insert(node.id.clone(), value);
+        values.observe(node, value);
     }
 
     assessment
+}
+
+struct Values<'a> {
+    constants: BTreeMap<String, Option<i128>>,
+    ranges: Option<super::unsigned_ranges::Ranges<'a>>,
+}
+
+impl<'a> Values<'a> {
+    fn new(
+        facts: &dyn crate::unit_store::EvidenceFacts,
+        graph: &'a Graph,
+        analysis: &'a Analysis,
+    ) -> Self {
+        Self {
+            constants: BTreeMap::new(),
+            ranges: super::unsigned_ranges::needed(facts, graph)
+                .then(|| super::unsigned_ranges::Ranges::new(facts, graph, analysis)),
+        }
+    }
+
+    fn observe(&mut self, node: &Operation, value: Option<i128>) {
+        self.constants.insert(node.id.clone(), value);
+        if let Some(ranges) = &mut self.ranges {
+            ranges.observe(node, &self.constants);
+        }
+    }
+}
+
+fn proof(node: &Operation, operands: &[Option<i128>], ordinary: bool, bounded: bool) -> Proof {
+    Proof {
+        operation_id: node.id.clone(),
+        resolved_type: node.ty.clone(),
+        operand_constants: operands
+            .iter()
+            .map(|value| value.map(|v| v.to_string()))
+            .collect(),
+        omitted_panic_impossible: ordinary || bounded,
+        method: if bounded && !ordinary {
+            super::unsigned_ranges::METHOD
+        } else {
+            proof_method(node)
+        },
+    }
 }
 
 fn proof_method(node: &Operation) -> &'static str {
@@ -80,6 +123,13 @@ fn proof_method(node: &Operation) -> &'static str {
 }
 
 fn limitation(facts: &dyn crate::unit_store::EvidenceFacts, node: &Operation) -> String {
+    if node.construct.as_deref() == Some("data.value-index") {
+        return format!(
+            "Array index at bytes {}..{} lacks a proved in-bounds unsigned range; exceptional transfer and unwinding/cleanup are omitted.",
+            node.span.start, node.span.end
+        );
+    }
+
     if node.operator.as_deref() == Some("assert") {
         return format!(
             "Assertion at bytes {}..{} may panic; successful normal continuation is modeled, while exceptional transfer and unwinding/cleanup are omitted.",

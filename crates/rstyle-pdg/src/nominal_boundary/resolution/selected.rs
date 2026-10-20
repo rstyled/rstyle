@@ -23,7 +23,7 @@ pub(super) fn verify(
         };
         if fields
             .iter()
-            .any(|field| !matches!(field.ty, TypeTree::Scalar(_) | TypeTree::Struct { .. }))
+            .any(|field| !supported_field(facts, &field.ty))
         {
             return Err("Mixed-unit Copy fields require scalars or checked nested structs".into());
         }
@@ -52,6 +52,17 @@ pub(super) fn verify(
         structure(facts, item)?;
     }
     Ok(copies)
+}
+
+fn supported_field(facts: &HirFnFacts, tree: &TypeTree) -> bool {
+    match tree {
+        TypeTree::Scalar(_) | TypeTree::Struct { .. } => true,
+        TypeTree::Array { element, .. } => {
+            supports(facts, "rust.copy-array-fields").unwrap_or(false)
+                && matches!(element.as_ref(), TypeTree::Scalar(_))
+        }
+        _ => false,
+    }
 }
 
 fn structure(facts: &HirFnFacts, item: &syn::ItemStruct) -> Result<(), String> {

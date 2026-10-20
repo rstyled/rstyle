@@ -1206,11 +1206,20 @@ selected seven graphs complete 21 comparisons, two Accepted and 19 Rejected
 under unchanged scoring. See the contract for bounded performance evidence
 and remaining restrictions. Whole-library matching is not claimed.
 
-## Nested-array byte membership (not activated)
+## Nested-array byte membership
 
 `byte-membership-oracle.py /path/to/regex-automata-0.4.18` verifies both selected
 ByteSet source identities and tests their original complete-crate implementation
 with default features and locked dependencies. Expectations include all empty-set
 queries, every singleton/query pair, dense patterns and all-bits-set queries.
 The [contract](../../docs/extraction-profiles/byte-membership-v1.md) records the
-full known chain and remaining composition unknowns; no admission gain is claimed.
+source-selected chain and bounded proof. The immutable `byte-membership.rs` corpus
+fixes five complete positives, five partial leaves and five exclusions. Data-v3
+3.46 connects all five intended complete functions through Cargo capture, strict
+verification/admission and matching; overall admissions move 4/15 to 10/15, with
+no losses. The sixth gain is explicitly partial, and partial helper callers
+remain excluded. The unchanged complete original library gains seven admissions (59/2582 to
+66/2582), zero losses, including both selected methods. All 66 natural and five
+development admissions pass independent strict import/verification. The selected
+seven graphs complete 21 comparisons, two Accepted and 19 Rejected under unchanged
+scoring. Whole-library matching remains budget-incomplete.

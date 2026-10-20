@@ -298,14 +298,14 @@ fn check_boundary(
                     "loop"
                         | "while"
                         | "data.index"
-                        | "data.value-index"
                         | "data.subslice-place"
                         | "data.bytes.copy-result"
                         | "data.bytes.unwrap"
                         | "data.bytes.borrow-result"
                         | "data.bytes.unwrap-borrow"
                 )
-            )
+            ) || node.attributes.construct.as_deref() == Some("data.value-index")
+                && !crate::producer::bounded_value_index(pair.as_view(), node, facts)
         })
     {
         return Err(vec![

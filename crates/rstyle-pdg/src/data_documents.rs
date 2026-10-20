@@ -236,15 +236,10 @@ pub fn verify<'a>(
     size_calls::verify(pair, facts)?;
     crate::data_library::verify_calls(pair, facts, &calls)?;
     crate::data_frontend::verify(facts)?;
-    crate::data_frontend::verify_document_policy(&pair.pdg.profile, facts)?;
+    verify_registration(pair, facts)?;
     aggregates::verify(pair, facts)?;
     locals::verify(pair, facts)?;
     verify_interface(pair, facts)?;
-    if pair.pdg.extensions.get(POLICY_KEY) != Some(&json!(matching_identity(facts)?))
-        || pair.cfg.extensions.get(POLICY_KEY) != pair.pdg.extensions.get(POLICY_KEY)
-    {
-        return Err("Data matching registration disagrees".into());
-    }
 
     let fields = observations(facts)?;
     let mut expected = BTreeMap::new();
@@ -275,6 +270,20 @@ pub fn verify<'a>(
     verify_reads(pair, fields.operations.len())?;
     borrows::verify(pair, facts)?;
     origins::verify(pair, facts)
+}
+
+fn verify_registration(
+    pair: PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    crate::producer::verify_range_policy(pair)?;
+    crate::data_frontend::verify_document_policy(&pair.pdg.profile, facts)?;
+    if pair.pdg.extensions.get(POLICY_KEY) != Some(&json!(matching_identity(facts)?))
+        || pair.cfg.extensions.get(POLICY_KEY) != pair.pdg.extensions.get(POLICY_KEY)
+    {
+        return Err("Data matching registration disagrees".into());
+    }
+    Ok(())
 }
 
 fn verify_scalar_option_policy(pair: crate::producer::PairView<'_>) -> Result<(), String> {

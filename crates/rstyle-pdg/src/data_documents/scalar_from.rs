@@ -39,6 +39,12 @@ fn verify_call(
     source: &HirNode,
 ) -> Result<(), String> {
     let summary = scalar_from::resolve(source, facts)?.ok_or("Unverified scalar From")?;
+    if summary.result_type == "usize"
+        && !crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.usize-from-u8")
+    {
+        return Err("u8-to-usize From requires its registered document policy".into());
+    }
+
     let node = super::serialized_operation(pair, &source.span, |node| {
         node.category == NodeCategory::Call
     })?;
@@ -49,7 +55,7 @@ fn verify_call(
             .get("compat.rust.hir-r0:type")
             .and_then(|value| value.get("value"))
             .and_then(serde_json::Value::as_str)
-            != Some("u32")
+            != Some(summary.result_type.as_str())
         || node.attributes.call_form != Some(crate::CallForm::Direct)
         || !node.attributes.reads.is_empty()
         || !node.attributes.writes.is_empty()

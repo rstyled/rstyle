@@ -11,6 +11,8 @@ mod lower;
 pub mod matching_build;
 mod profile;
 mod summaries;
+mod unsigned_ranges;
+pub(crate) use unsigned_ranges::{bounded_value_index, verify_range_policy};
 mod verify;
 pub use verify::{verify, verify_view};
 

@@ -52,6 +52,12 @@ impl Resolution {
                 })
     }
 
+    pub(crate) fn requires_copy_array_fields(&self) -> bool {
+        self.environment.copy_boundary && self.trees.values().any(|tree| {
+            matches!(tree, TypeTree::Struct { fields, .. } if fields.iter().any(|field| matches!(field.ty, TypeTree::Array { .. })))
+        })
+    }
+
     pub(crate) fn checked_owned_copy(&self, tree: &TypeTree) -> bool {
         let TypeTree::Struct { nominal, .. } = tree else {
             return false;

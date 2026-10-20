@@ -670,6 +670,9 @@ impl Context<'_> {
             .skip_binder();
 
         signature.inputs() == [self.tcx.types.u16] && signature.output() == self.tcx.types.u32
+            || self.profile.supports("rust.usize-from-u8")
+                && signature.inputs() == [self.tcx.types.u8]
+                && signature.output() == self.tcx.types.usize
     }
 
     fn selected_implementation(

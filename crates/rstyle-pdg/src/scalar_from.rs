@@ -1,4 +1,4 @@
-//! One concrete, lossless core From instantiation; custom traits stay opaque.
+//! Bounded lossless core From instantiations; custom traits stay opaque.
 use crate::{HirNode, call_summaries::Summary, unit_store::EvidenceFacts};
 use syn::spanned::Spanned;
 
@@ -9,6 +9,43 @@ const CORE_TRAIT: &str = "core::convert::From::from";
 const CORE_IMPLEMENTATION: &str =
     "core::convert::num::<impl core::convert::From<u16> for u32>::from";
 const IMPLEMENTATION: &str = "std::convert::num::<impl std::convert::From<u16> for u32>::from";
+
+struct Conversion {
+    input: &'static str,
+    output: &'static str,
+    implementation: &'static str,
+    core_implementation: &'static str,
+    id: &'static str,
+}
+
+fn conversion(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Conversion, String> {
+    let dispatch = node
+        .dispatch
+        .as_ref()
+        .ok_or("Missing scalar From dispatch")?;
+    if dispatch.operand_tys == ["u16"] && dispatch.result_ty == "u32" {
+        return Ok(Conversion {
+            input: "u16",
+            output: "u32",
+            implementation: IMPLEMENTATION,
+            core_implementation: CORE_IMPLEMENTATION,
+            id: "rstyle.data.scalar.from-u16-u32",
+        });
+    }
+    if crate::extraction_profile::facts_support(facts, "rust.usize-from-u8")
+        && dispatch.operand_tys == ["u8"]
+        && dispatch.result_ty == "usize"
+    {
+        return Ok(Conversion {
+            input: "u8",
+            output: "usize",
+            implementation: "std::convert::num::<impl std::convert::From<u8> for usize>::from",
+            core_implementation: "core::convert::num::<impl core::convert::From<u8> for usize>::from",
+            id: "rstyle.data.scalar.from-u8-usize",
+        });
+    }
+    Err("Concrete scalar From instantiation is not registered".into())
+}
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
     crate::extraction_profile::facts_support(facts, CAPABILITY)
@@ -34,24 +71,23 @@ pub(crate) fn resolve(
         .dispatch
         .as_ref()
         .ok_or("Missing scalar From dispatch")?;
+    let conversion = conversion(node, facts)?;
     if node.expansion.is_some()
         || dispatch.kind != "resolved_direct"
-        || dispatch.operand_tys != ["u16"]
-        || dispatch.result_ty != "u32"
-        || crate::data_aggregates::token(node)? != "u32"
-        || crate::data_aggregates::token(operand)? != "u16"
+        || crate::data_aggregates::token(node)? != conversion.output
+        || crate::data_aggregates::token(operand)? != conversion.input
     {
-        return Err("Only concrete u16-to-u32 From is registered".into());
+        return Err("Scalar From types disagree with the registered conversion".into());
     }
-    authority(node, facts)?;
-    source(node, operand, facts)?;
+    authority(node, facts, &conversion)?;
+    source(node, operand, facts, &conversion)?;
     Ok(Some(Summary {
-        id: "rstyle.data.scalar.from-u16-u32".into(),
+        id: conversion.id.into(),
         version: "1.0.0".into(),
         callee_path: dispatch.op.clone(),
         callee_crate: "core".into(),
-        argument_types: vec!["u16".into()],
-        result_type: "u32".into(),
+        argument_types: vec![conversion.input.into()],
+        result_type: conversion.output.into(),
         memory_effects: false,
         mutates_arguments: false,
         may_panic: false,
@@ -60,7 +96,11 @@ pub(crate) fn resolve(
     }))
 }
 
-fn authority(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
+fn authority(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+    conversion: &Conversion,
+) -> Result<(), String> {
     let registry = crate::data_library::registry_for(facts).ok_or("Unpinned scalar From build")?;
     let callee = crate::data_library::callee(node)?;
     let implementation = callee
@@ -72,14 +112,18 @@ fn authority(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
         .as_ref()
         .is_some_and(|dispatch| dispatch.op == CORE_TRAIT)
     {
-        (CORE_TRAIT, CORE_IMPLEMENTATION)
+        (CORE_TRAIT, conversion.core_implementation)
     } else {
-        (TRAIT, IMPLEMENTATION)
+        (TRAIT, conversion.implementation)
     };
 
     for (definition, path, pin) in [
         (&callee, display.0, TRAIT),
-        (implementation.as_ref(), display.1, IMPLEMENTATION),
+        (
+            implementation.as_ref(),
+            display.1,
+            conversion.implementation,
+        ),
     ] {
         if definition.crate_name != "core"
             || definition.crate_hash != registry.core_hash
@@ -95,7 +139,12 @@ fn authority(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     Ok(())
 }
 
-fn source(node: &HirNode, operand: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
+fn source(
+    node: &HirNode,
+    operand: &HirNode,
+    facts: &dyn EvidenceFacts,
+    conversion: &Conversion,
+) -> Result<(), String> {
     let syntax = crate::source_evidence::original_expression(node, facts)?;
     let syn::Expr::Call(call) = crate::data_aggregates::ungroup(&syntax) else {
         return Err("Scalar From requires original direct call syntax".into());
@@ -116,9 +165,9 @@ fn source(node: &HirNode, operand: &HirNode, facts: &dyn EvidenceFacts) -> Resul
             .segments
             .iter()
             .any(|part| !part.arguments.is_empty())
-        || !(names == ["u32", "from"]
-            || names == ["core", "primitive", "u32", "from"]
-            || names == ["std", "primitive", "u32", "from"])
+        || !(names == [conversion.output, "from"]
+            || names == ["core", "primitive", conversion.output, "from"]
+            || names == ["std", "primitive", conversion.output, "from"])
     {
         return Err("Scalar From source is outside the bounded primitive invocation".into());
     }

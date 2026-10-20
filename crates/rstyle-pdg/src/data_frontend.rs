@@ -32,14 +32,23 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
-    if crate::extraction_profile::policy_supports(profile, "rust.scoped-nominal-imports") {
+    let imports =
+        crate::extraction_profile::policy_supports(profile, "rust.scoped-nominal-imports");
+    let arrays = crate::extraction_profile::policy_supports(profile, "rust.copy-array-fields");
+    if imports && arrays {
         return Ok(());
     }
+
     let interface = interface(facts)?;
-    if nominal_resolution(facts, &interface)?
-        .is_some_and(|resolution| resolution.requires_scoped_imports())
-    {
-        return Err("Scoped nominal import proof requires its registered document policy".into());
+    if let Some(resolution) = nominal_resolution(facts, &interface)? {
+        if !imports && resolution.requires_scoped_imports() {
+            return Err(
+                "Scoped nominal import proof requires its registered document policy".into(),
+            );
+        }
+        if !arrays && resolution.requires_copy_array_fields() {
+            return Err("Copy array fields require their registered document policy".into());
+        }
     }
     Ok(())
 }
