@@ -144,6 +144,14 @@ impl Documents<'_> {
             facts,
             records,
         } = self;
+        if summary.id == "rstyle.data.option.is-some"
+            && !crate::extraction_profile::policy_supports(
+                &pair.pdg.profile,
+                "rust.tagged-unit-classifiers",
+            )
+        {
+            return Err("Option tag test requires its registered document policy".into());
+        }
         let nodes: Vec<_> = pair
             .pdg
             .nodes

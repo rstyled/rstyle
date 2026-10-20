@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.47.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.48.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -112,7 +112,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
 | D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Data-v3 3.46.0 connects [nested fixed-array byte membership](docs/extraction-profiles/byte-membership-v1.md): unsigned bounds, Copy array owners and nonpanicking value-index helpers. Shared dynamic index helpers, aggregate/reference elements and general exceptional flow remain unfinished. |
 | D16 | Slice ranges and borrowed subslices | Partial | `&xs[start..end]` | Data-v3 3.31.0 supports [bounded shared subslice views](docs/extraction-profiles/shared-subslice-views-v1.md) with scalar elements, exact base/start/end snapshots and normal-completion bounds. Data-v3 3.44.0 adds leading `..end` views through the complete [native prefix-reader family](docs/extraction-profiles/native-prefix-readers-v1.md). Arrays, suffix/inclusive ranges, mutable views, str/UTF-8 rules and transport of subslice origins through helper summaries remain unfinished. |
-| D17 | Checked access and concrete Option | Partial | `xs.get(i)`, `Some(x)`, `None` | Data-v3 3.36.0 connects immutable scalar-slice get, exhaustive Some(&scalar)/None, saved Option flow and scalar helper composition through [strict graph verification](docs/extraction-profiles/checked-slice-option-v1.md). Data-v3 3.42.0 adds [owned bool/integer Option construction and consumption](docs/extraction-profiles/scalar-option-byte-widths-v1.md). General payloads/construction, reference bindings, guards, mutable/array/range access, Result and `?` remain open. |
+| D17 | Checked access and concrete Option | Partial | `xs.get(i)`, `Some(x)`, `None` | Data-v3 3.36.0 connects immutable scalar-slice get, exhaustive Some(&scalar)/None, saved Option flow and scalar helper composition through [strict graph verification](docs/extraction-profiles/checked-slice-option-v1.md). Data-v3 3.42.0 adds [owned bool/integer Option construction and consumption](docs/extraction-profiles/scalar-option-byte-widths-v1.md). Data-v3 3.48.0 adds exact core is_some on owned bool/integer Options with checked shared-autoref evidence, composing through tagged-unit helpers. General payloads/construction, reference bindings, guards, mutable/array/range access, Result and `?` remain open. |
 | D18 | Reference-bearing array element origins | Missing | `refs: [&S; 2]` | Type observation alone lacks the per-element origin evidence needed for by-value reference-bearing arrays. |
 | D19 | General enums and variants | Partial | `enum E { A(u32), B }` | Data-v3 3.47.0 connects checked-Copy local enums with 1–16 single bool/integer tuple payloads, exact constructor tags, complete disjoint unguarded matches, conditional payload bindings and helper composition; see [tagged-unit contract](docs/extraction-profiles/tagged-units-v1.md). Named/unit/reference/generic payloads, explicit discriminants, moves/drop and general Result remain missing. |
 | D20 | Mutable references and reborrowing | Missing | `x: &mut S`, `&mut *x` | Mutable locations, alias/reborrow relationships and read/write effects; beyond the current read-only milestone. |
@@ -142,7 +142,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. Data-v3 3.38.0 also supports exactly one shared borrow of a checked scalar-struct Copy value for a scalar-returning read-only helper. Data-v3 3.39.0 accepts an empty adjustment chain for checked Copy immutable untyped value-self receivers. General autoref, repeated/overloaded deref, unsizing and mutable inherent receivers remain unavailable. |
 | C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Four instantiations only: i32/i64 unsigned_abs and u32/u64 wrapping_mul. Not general primitive-method support. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
-| C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.43.0 connects [u16-to-u32 From and checksum-state roundtrips](docs/extraction-profiles/checksum-state-roundtrips-v1.md) with pinned trait/implementation identities. Data-v3 3.44.0 connects [native prefix readers](docs/extraction-profiles/native-prefix-readers-v1.md): shared prefixes, exact scalar size calls, copied 2/4/16-byte Results/unwrap and native u16/u32/u128 conversion. Data-v3 3.46.0 additionally registers exact lossless u8-to-usize From on the three pinned 64-bit CI targets for the [byte-membership family](docs/extraction-profiles/byte-membership-v1.md). Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
+| C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.43.0 connects [u16-to-u32 From and checksum-state roundtrips](docs/extraction-profiles/checksum-state-roundtrips-v1.md) with pinned trait/implementation identities. Data-v3 3.44.0 connects [native prefix readers](docs/extraction-profiles/native-prefix-readers-v1.md): shared prefixes, exact scalar size calls, copied 2/4/16-byte Results/unwrap and native u16/u32/u128 conversion. Data-v3 3.46.0 additionally registers exact lossless u8-to-usize From on the three pinned 64-bit CI targets for the [byte-membership family](docs/extraction-profiles/byte-membership-v1.md). Data-v3 3.48.0 connects exact u16-to-usize From and owned scalar Option::is_some through the [tagged-unit classifiers](docs/extraction-profiles/tagged-unit-classifiers-v1.md), including the original byte-class lookup composition. Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
 | C11 | By-value memory-reading helper arguments/results | Missing | `inspect_value(s)`, `make_value(x)` | Pure reference-free construction results compose in the D11 fixture; by-value memory-reading substitution, reference-bearing helper results and ownership remain unavailable. Supported interface types do not establish that call boundary. |
 | C12 | Borrowed results from memory-reading helpers | Missing | `get_field_ref(s)` | Exact callee read effects plus result origin/location substitution, not just whole-formal forwarding. |
 | C13 | Cross-unit/package helper linking | Missing | `library_crate::helper(x)` | Capture/resolve selected units before summary derivation, preserve build contexts/transitive dependencies; modules inside one unit already work. |
@@ -3422,3 +3422,52 @@ independent verification of existing admissions. No production capability or
 natural admission gain is claimed by this source-first audit. The next increment
 must connect the complete classifier family and measure against the unchanged
 3.47 natural roster (69/2582) and frozen inventory.
+
+
+### Data-v3 3.48: connect tagged-unit classifiers and byte-class lookup
+
+The [classifier contract](docs/extraction-profiles/tagged-unit-classifiers-v1.md)
+connects the predeclared original Unit::as_usize and Unit::is_eoi through exact
+u16-to-usize selected-implementation authority and the concrete scalar Option tag
+test. Existing library summaries, receiver adjustments, source proof and independent
+document checking carry both operations. No new provenance table, source census or
+cache is introduced. Positive Copy and complete nominal/module proof remain required.
+
+All six new development positives compose through constructors, enum projections
+and helper results: twelve admissions among the unchanged 23-function combined development corpus,
+with all eleven expected exclusions retained. Three Cargo regressions include
+all three installed pinned targets and six summary/operand/policy mutations.
+The five complete-original-source oracle tests pass, including every byte and
+all 65536 sentinel payloads. The original eleven-function development corpus remains unchanged.
+
+The unchanged complete-library selection retains all 2582 identities and build
+context. Admissions increase **69 to 72**, with **three gains, zero losses**:
+Unit::as_usize, Unit::is_eoi and ByteClasses::get_by_unit. The additional lookup
+was discovered by the full delta, then inspected and independently tested: it
+composes enum payload matching, the existing getter/array read and the new scalar
+conversion. It was not retroactively added to the predeclared selection. Capture
+and assessment complete with no unknown/failed outcomes. Independent verification
+passes for all 72 natural and twelve development admissions. All 153 comparisons
+among six original and twelve development functions complete with unchanged
+matching defaults and no diagnostics. Full natural enumeration is explicitly
+budgeted out; historical reports are preserved.
+
+All 880 workspace nextest tests pass with five existing skips; Clippy with warnings
+denied, doctests, formatting and whitespace pass. Rstyle reports 2786 functions
+and zero violations; patterns reports zero candidates. Against exact a236541,
+seven alternating quiescent pairs after warmup retain identical unchanged-control
+matching: byte-window median .87/.87s and cyclic .64/.64s. The extension rises
+.73 to .84s while gaining six admissions and completed comparisons. The contract
+records ranges/RSS and the limits of these bounded measurements.
+
+Remaining connected chains are Unit::eoi (source/HIR observations, formatted
+assertion and TryFrom/Result/unwrap), is_byte/is_word_byte (Option map_or and
+closure/callback identity/body/captures), and ByteClasses::eoi (checked_sub/Option
+unwrap plus Unit::eoi). Their exclusions remain intact. The wider roadmap,
+abstraction activation, rewrite safety and held-out detector quality remain open.
+
+Frozen replay preserves all 60 identities/denominators and **20 admitted /33
+excluded /7 inactive**, with 70 verified documents. Complete package source
+identities, build contexts and outcomes match 3.47: lz4_flex 150 functions /7
+admitted, regex-syntax 956 /20 and time-core 226 /8. Historical reports and the
+frozen selection remain unchanged.

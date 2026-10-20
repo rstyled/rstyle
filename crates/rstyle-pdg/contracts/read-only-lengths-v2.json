@@ -36,6 +36,20 @@
       "definition_hash": "DefPathHash(Fingerprint(5614226571623188065, 7884780508868330188))",
       "referent": "str",
       "result": "bool"
+    },
+    {
+      "id": "rstyle.data.option.is-some",
+      "path": "core::option::Option::<T>::is_some",
+      "definition_hash": "DefPathHash(Fingerprint(5614226571623188065, 34192917656465651))",
+      "referent": "scalar-option",
+      "result": "bool"
+    },
+    {
+      "id": "rstyle.data.option.is-some",
+      "path": "std::option::Option::<T>::is_some",
+      "definition_hash": "DefPathHash(Fingerprint(5614226571623188065, 34192917656465651))",
+      "referent": "scalar-option",
+      "result": "bool"
     }
   ],
   "definitions": {
@@ -57,6 +71,7 @@
     "std::ops::RangeTo": "DefPathHash(Fingerprint(5614226571623188065, 16349589669230295380))",
     "core::num::<impl u16>::from_ne_bytes": "DefPathHash(Fingerprint(5614226571623188065, 6193797866547500246))",
     "core::num::<impl u128>::from_ne_bytes": "DefPathHash(Fingerprint(5614226571623188065, 15116585459962463829))",
-    "std::convert::num::<impl std::convert::From<u8> for usize>::from": "DefPathHash(Fingerprint(5614226571623188065, 2428535403949200870))"
+    "std::convert::num::<impl std::convert::From<u8> for usize>::from": "DefPathHash(Fingerprint(5614226571623188065, 2428535403949200870))",
+    "std::convert::num::<impl std::convert::From<u16> for usize>::from": "DefPathHash(Fingerprint(5614226571623188065, 14139487642035305947))"
   }
 }

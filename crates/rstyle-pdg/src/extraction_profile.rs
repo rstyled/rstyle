@@ -75,6 +75,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.usize-from-u8",
     "rust.bounded-unsigned-reads",
     "rust.scalar-enum-values",
+    "rust.tagged-unit-classifiers",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -97,6 +98,7 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.data.bytes.native-u16/1",
     "rstyle.data.bytes.native-u128/1",
     "rstyle.data.scalar-size/1",
+    "rstyle.data.option.is-some/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -205,7 +207,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.47.0", 62)),
+            Self::DataV3 => Some(("3.48.0", 63)),
         }
     }
 

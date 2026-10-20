@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod rstyle_tagged_units_oracle {
-    use super::{Unit, UnitKind};
+    use super::{ByteClasses, Unit, UnitKind};
 
     #[test]
     fn every_byte_roundtrips_and_has_no_sentinel_payload() {
@@ -49,4 +49,22 @@ mod rstyle_tagged_units_oracle {
         }
     }
 
+    #[test]
+    fn byte_class_lookup_preserves_mapping_and_full_sentinel_payloads() {
+        for mapping in [[0u8; 256], core::array::from_fn(|index| 255 - index as u8)] {
+            let classes = ByteClasses(mapping);
+            for byte in 0..=u8::MAX {
+                assert_eq!(
+                    classes.get_by_unit(Unit::u8(byte)),
+                    mapping[byte as usize] as usize
+                );
+            }
+            for sentinel in 0..=u16::MAX {
+                assert_eq!(
+                    classes.get_by_unit(Unit(UnitKind::EOI(sentinel))),
+                    sentinel as usize
+                );
+            }
+        }
+    }
 }

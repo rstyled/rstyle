@@ -39,7 +39,15 @@ fn verify_call(
     source: &HirNode,
 ) -> Result<(), String> {
     let summary = scalar_from::resolve(source, facts)?.ok_or("Unverified scalar From")?;
-    if summary.result_type == "usize"
+    if summary.id == "rstyle.data.scalar.from-u16-usize"
+        && !crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            "rust.tagged-unit-classifiers",
+        )
+    {
+        return Err("u16-to-usize From requires its registered document policy".into());
+    }
+    if summary.id == "rstyle.data.scalar.from-u8-usize"
         && !crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.usize-from-u8")
     {
         return Err("u8-to-usize From requires its registered document policy".into());

@@ -673,6 +673,9 @@ impl Context<'_> {
             || self.profile.supports("rust.usize-from-u8")
                 && signature.inputs() == [self.tcx.types.u8]
                 && signature.output() == self.tcx.types.usize
+            || self.profile.supports("rust.tagged-unit-classifiers")
+                && signature.inputs() == [self.tcx.types.u16]
+                && signature.output() == self.tcx.types.usize
     }
 
     fn selected_implementation(

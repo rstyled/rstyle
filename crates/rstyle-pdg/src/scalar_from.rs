@@ -44,6 +44,19 @@ fn conversion(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Conversion, S
             id: "rstyle.data.scalar.from-u8-usize",
         });
     }
+
+    if crate::extraction_profile::facts_support(facts, "rust.tagged-unit-classifiers")
+        && dispatch.operand_tys == ["u16"]
+        && dispatch.result_ty == "usize"
+    {
+        return Ok(Conversion {
+            input: "u16",
+            output: "usize",
+            implementation: "std::convert::num::<impl std::convert::From<u16> for usize>::from",
+            core_implementation: "core::convert::num::<impl core::convert::From<u16> for usize>::from",
+            id: "rstyle.data.scalar.from-u16-usize",
+        });
+    }
     Err("Concrete scalar From instantiation is not registered".into())
 }
 
