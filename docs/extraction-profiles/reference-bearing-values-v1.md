@@ -57,7 +57,11 @@ rebindings and local/temporary storage borrows remain separate work. D11 and D12
 stay Partial, D18 remains unfinished, and the full roadmap remains active. Frozen
 inventory and final validation are recorded in the roadmap continuation log.
 
-## Next component-projection boundary
+## Component-projection requirements
+
+The following extension is implemented in Data-v3 3.23.0 under the
+[reference value fields contract](reference-value-fields-v1.md). The exclusions
+above describe the original 3.22.0 boundary.
 
 Selecting a field from an evaluated reference-bearing aggregate must recover only
 that component's origins. Filtering or copying the whole-value union is insufficient:

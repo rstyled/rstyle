@@ -40,19 +40,14 @@ pub struct Summary {
     pub memory_reads: Option<Vec<crate::helper_reads::Read>>,
 }
 
-fn summary(facts: &dyn EvidenceFacts, pair: &producer::Pair) -> Result<Summary, String> {
-    let argument_types = facts
-        .signature
-        .params
-        .iter()
-        .map(|parameter| {
-            parameter
-                .ty
-                .normalized
-                .clone()
-                .ok_or_else(|| "Missing verified helper argument type".to_owned())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+type ReferenceOutputs = Option<Vec<crate::data_origins::Origin>>;
+
+fn summary(
+    facts: &dyn EvidenceFacts,
+    pair: &producer::Pair,
+    reference_outputs: ReferenceOutputs,
+) -> Result<Summary, String> {
+    let argument_types = argument_types(facts)?;
     let result_type = facts
         .signature
         .return_ty
@@ -60,7 +55,6 @@ fn summary(facts: &dyn EvidenceFacts, pair: &producer::Pair) -> Result<Summary, 
         .clone()
         .ok_or("Missing verified helper result type")?;
 
-    let reference_outputs = crate::helper_references::returned(facts, pair)?;
     let references = reference_outputs.is_some();
     let memory_reads = crate::helper_reads::derive(facts, pair.as_view())?;
     let reads = memory_reads.is_some();
@@ -89,6 +83,21 @@ fn summary(facts: &dyn EvidenceFacts, pair: &producer::Pair) -> Result<Summary, 
         reference_outputs,
         memory_reads,
     })
+}
+
+fn argument_types(facts: &dyn EvidenceFacts) -> Result<Vec<String>, String> {
+    facts
+        .signature
+        .params
+        .iter()
+        .map(|parameter| {
+            parameter
+                .ty
+                .normalized
+                .clone()
+                .ok_or_else(|| "Missing verified helper argument type".to_owned())
+        })
+        .collect()
 }
 
 fn identity(facts: &HirFnFacts) -> Option<&str> {
@@ -198,10 +207,10 @@ pub(crate) fn certify_view(
         return Ok(None);
     }
     let pair = producer::produce(facts).map_err(|errors| errors.join("; "))?;
-    if check_boundary(&pair, facts).is_err() {
+    let Ok(outputs) = check_boundary(&pair, facts) else {
         return Ok(None);
-    }
-    Ok(Some((summary(facts, &pair)?, pair)))
+    };
+    Ok(Some((summary(facts, &pair, outputs)?, pair)))
 }
 
 pub(crate) enum VerifiedDependency<'a> {
@@ -262,16 +271,19 @@ pub(crate) fn verify_shared_callee(
     callee: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     producer::verify(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
-    check_boundary(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
+    let outputs = check_boundary(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
     if !crate::verification_policy::is_generated()
-        && helper.summary() != &summary(callee, helper.pair())?
+        && helper.summary() != &summary(callee, helper.pair(), outputs)?
     {
         return Err("Helper summary disagrees with verified callee evidence".into());
     }
     Ok(())
 }
 
-fn check_boundary(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<(), Vec<String>> {
+fn check_boundary(
+    pair: &producer::Pair,
+    facts: &dyn EvidenceFacts,
+) -> Result<ReferenceOutputs, Vec<String>> {
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
         || !pair.pdg.memory_locations.is_empty()
             && !crate::helper_reads::supported(facts, pair.as_view())
@@ -287,7 +299,7 @@ fn check_boundary(pair: &producer::Pair, facts: &dyn EvidenceFacts) -> Result<()
         ]);
     }
 
-    Ok(())
+    crate::helper_references::returned(facts, pair).map_err(|error| vec![error])
 }
 
 pub fn verify(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String> {
@@ -334,9 +346,10 @@ fn verify_callee(dependency: &Dependency) -> Result<(), String> {
     };
     let pair = producer::verify_serialized_view(serialized, &dependency.frontend)
         .map_err(|errors| errors.join("; "))?;
-    check_boundary(&pair, &dependency.frontend).map_err(|errors| errors.join("; "))?;
+    let outputs =
+        check_boundary(&pair, &dependency.frontend).map_err(|errors| errors.join("; "))?;
     if !crate::verification_policy::is_generated()
-        && dependency.summary != summary(&dependency.frontend, &pair)?
+        && dependency.summary != summary(&dependency.frontend, &pair, outputs)?
     {
         return Err("Helper summary signature, effects or returning behavior contradict verified callee evidence".into());
     }

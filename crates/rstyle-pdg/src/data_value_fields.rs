@@ -36,7 +36,9 @@ pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
             .and_then(|token| crate::data_types::parse(token).ok())
             .is_some_and(|ty| {
                 matches!(ty, TypeToken::Tuple(_) | TypeToken::Struct { .. })
-                    && crate::data_aggregates::reference_free(&ty)
+                    && (crate::data_aggregates::reference_free(&ty)
+                        || crate::extraction_profile::ExtractionProfile::from_facts(facts)
+                            .is_ok_and(|profile| profile.supports("rust.reference-value-fields")))
             })
 }
 

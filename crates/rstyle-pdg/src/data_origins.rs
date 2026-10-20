@@ -142,6 +142,13 @@ fn field(
     facts: &dyn crate::unit_store::EvidenceFacts,
     ty: &TypeToken,
 ) -> Result<Vec<Origin>, String> {
+    if crate::data_value_fields::candidate(node, facts) {
+        return crate::data_component_origins::source(
+            &node.children[0],
+            &[crate::data_value_fields::index(node, facts)?],
+            facts,
+        );
+    }
     let fields = facts
         .build
         .frontend_options

@@ -118,65 +118,160 @@ fn graph_origins(
     facts: &dyn crate::unit_store::EvidenceFacts,
     visiting: &mut BTreeSet<String>,
 ) -> Result<Vec<Origin>, String> {
-    if node.category == NodeCategory::Computation
-        && node.original_kind.known_value() == Some("expr_addr_of")
-    {
-        return super::borrows::graph_origin(node, pair).map(|origin| vec![origin]);
-    }
-    if node.category == NodeCategory::FormalInput {
-        return source_origins(node, facts);
-    }
-    if node.original_kind.known_value() == Some("expr_field") && node.category == NodeCategory::Read
-    {
-        return loaded_origins(node, pair);
-    }
-
-    if !visiting.insert(node.id.clone()) {
-        return Err("Cyclic reference value proof is unavailable".into());
-    }
-    let roots = input_origins(node, pair, facts, visiting)?;
-    visiting.remove(&node.id);
-    Ok(roots.into_iter().collect())
+    Graph { pair, facts }.origins(node, &[], visiting)
 }
 
-fn input_origins(
-    node: &PdgNode,
-    pair: crate::producer::PairView<'_>,
-    facts: &dyn crate::unit_store::EvidenceFacts,
-    visiting: &mut BTreeSet<String>,
-) -> Result<BTreeSet<Origin>, String> {
-    let selected = returned_operands(node, facts)?;
-    let mut roots = BTreeSet::new();
-    for edge in pair.pdg.edges.iter().filter(|edge| {
-        edge.target == node.id
-            && edge.kind == crate::EdgeFamily::Data
+struct Graph<'a> {
+    pair: crate::producer::PairView<'a>,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+}
+
+impl Graph<'_> {
+    fn origins(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
+        if node.category == NodeCategory::Computation
+            && node.original_kind.known_value() == Some("expr_addr_of")
+        {
+            return super::borrows::graph_origin(node, self.pair).map(|origin| vec![origin]);
+        }
+        if node.category == NodeCategory::FormalInput {
+            if selectors.is_empty() {
+                return source_origins(node, self.facts);
+            }
+            return crate::data_component_origins::selected(
+                &crate::data_types::parse(&wire_type(node)?)?,
+                selectors,
+                u32::try_from(
+                    node.attributes
+                        .position
+                        .ok_or("Missing selected formal position")?,
+                )
+                .map_err(|_| "Selected formal position is out of range")?,
+                Vec::new(),
+            );
+        }
+        if node.original_kind.known_value() == Some("expr_field")
+            && node.category == NodeCategory::Read
+        {
+            return loaded_origins(node, selectors, self.pair);
+        }
+
+        if !visiting.insert(node.id.clone()) {
+            return Err("Cyclic reference value proof is unavailable".into());
+        }
+        let roots = self.selected_inputs(node, selectors, visiting)?;
+        visiting.remove(&node.id);
+        Ok(roots)
+    }
+
+    fn selected_inputs(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
+        if node.attributes.construct.as_deref() == Some("data.value-field") {
+            let position = node
+                .attributes
+                .literal
+                .as_ref()
+                .and_then(|value| value.known_value())
+                .ok_or("Missing selected graph component")?
+                .parse::<usize>()
+                .map_err(|error| error.to_string())?;
+            let path: Vec<_> = [position]
+                .into_iter()
+                .chain(selectors.iter().copied())
+                .collect();
+            return self.origins(self.operand(node, 0)?, &path, visiting);
+        }
+        if let Some((&position, rest)) = selectors.split_first()
             && matches!(
-                edge.subkind.as_str(),
-                "value_operand" | "value_alternative" | "reaching_definition"
+                node.original_kind.known_value(),
+                Some("expr_tup" | "expr_struct")
             )
-            && selected.as_ref().is_none_or(|positions| {
-                edge.subkind == "value_operand"
-                    && edge
-                        .operand_position
-                        .is_some_and(|position| positions.contains(&position))
+        {
+            let operand = crate::data_component_origins::operand(
+                source_node(node, self.facts)?,
+                position,
+                self.facts,
+            )?;
+            return self.origins(self.operand(node, operand as u64)?, rest, visiting);
+        }
+        if !selectors.is_empty() && node.category == NodeCategory::Call {
+            return Err("Selected helper aggregate result is unsupported".into());
+        }
+        self.input_origins(node, selectors, visiting)
+    }
+
+    fn operand(&self, node: &PdgNode, position: u64) -> Result<&PdgNode, String> {
+        let edges: Vec<_> = self
+            .pair
+            .pdg
+            .edges
+            .iter()
+            .filter(|edge| {
+                edge.target == node.id
+                    && edge.kind == crate::EdgeFamily::Data
+                    && edge.subkind == "value_operand"
+                    && edge.operand_position == Some(position)
             })
-    }) {
-        let predecessor = pair
+            .collect();
+        let [edge] = edges.as_slice() else {
+            return Err("Selected component requires one exact operand".into());
+        };
+        self.pair
             .pdg
             .nodes
             .iter()
-            .find(|candidate| candidate.id == edge.source)
-            .ok_or("Missing reference value predecessor")?;
-        if reference(predecessor)?
-            || matches!(
-                predecessor.category,
-                NodeCategory::Declaration | NodeCategory::Assignment
-            )
-        {
-            roots.extend(graph_origins(predecessor, pair, facts, visiting)?);
-        }
+            .find(|value| value.id == edge.source)
+            .ok_or("Missing selected component predecessor".into())
     }
-    Ok(roots)
+
+    fn input_origins(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
+        let selected = returned_operands(node, self.facts)?;
+        let mut roots = BTreeSet::new();
+        for edge in self.pair.pdg.edges.iter().filter(|edge| {
+            edge.target == node.id
+                && edge.kind == crate::EdgeFamily::Data
+                && matches!(
+                    edge.subkind.as_str(),
+                    "value_operand" | "value_alternative" | "reaching_definition"
+                )
+                && selected.as_ref().is_none_or(|positions| {
+                    edge.subkind == "value_operand"
+                        && edge
+                            .operand_position
+                            .is_some_and(|position| positions.contains(&position))
+                })
+        }) {
+            let predecessor = self
+                .pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|candidate| candidate.id == edge.source)
+                .ok_or("Missing reference value predecessor")?;
+            if reference(predecessor)?
+                || matches!(
+                    predecessor.category,
+                    NodeCategory::Declaration | NodeCategory::Assignment
+                )
+            {
+                roots.extend(self.origins(predecessor, selectors, visiting)?);
+            }
+        }
+        Ok(roots.into_iter().collect())
+    }
 }
 
 fn returned_operands(
@@ -197,6 +292,7 @@ fn returned_operands(
 
 fn loaded_origins(
     node: &PdgNode,
+    selectors: &[usize],
     pair: crate::producer::PairView<'_>,
 ) -> Result<Vec<Origin>, String> {
     let [access] = node.attributes.reads.as_slice() else {
@@ -226,13 +322,7 @@ fn loaded_origins(
     if ty != crate::data_types::parse(&wire_type(node)?)? {
         return Err("Stored reference read/location value types disagree".into());
     }
-    Ok(data_origins::paths(&ty, origin.path)?
-        .into_iter()
-        .map(|path| Origin {
-            parameter: origin.parameter,
-            path,
-        })
-        .collect())
+    crate::data_component_origins::selected(&ty, selectors, origin.parameter, origin.path)
 }
 
 fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {

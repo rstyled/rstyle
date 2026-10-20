@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.22.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.23.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.22.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.23.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -8661,7 +8661,7 @@ fn clones_data_aggregate_value_fields_preserve_component_identity_and_value_flow
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "borrow" | "write" | "references"
+            "borrow" | "write"
         );
         assert_eq!(
             function["outcome"],
@@ -9033,13 +9033,7 @@ fn clones_data_reference_bearing_values_preserve_origin_unions_and_exact_slots()
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "mutable"
-                | "reassigned"
-                | "temporary_field"
-                | "update"
-                | "arrays"
-                | "zero"
-                | "helper_return"
+            "mutable" | "reassigned" | "update" | "arrays" | "zero" | "helper_return"
         );
         assert_eq!(
             function["outcome"],
@@ -9176,4 +9170,220 @@ fn check_reference_literal_effects(report: &Value) {
             .count(),
         3
     );
+}
+
+#[test]
+fn clones_data_reference_value_fields_select_exact_component_origins() {
+    let directory = reference_value_field_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 22);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "mutable"
+                | "rebound"
+                | "borrow"
+                | "update"
+                | "helper_result"
+                | "helper_field"
+                | "body_nominal"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_reference_value_field_origins(&report);
+    check_reference_value_field_paths(&report);
+    check_reference_value_field_corruption(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"]
+                == if function["facts"]["name"] == "identity" {
+                    "admitted"
+                } else {
+                    "excluded"
+                }),
+        "{legacy}"
+    );
+}
+
+fn reference_value_field_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Pair<'a> { pub left: &'a i32, pub right: &'a i32, pub stamp: i32 }
+        pub struct Outer<'a> { pub inner: Pair<'a> }
+        pub struct Tuple<'a>(pub &'a i32, pub &'a i32);
+        pub fn first<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = (a, b); pair.0 }
+        pub fn other<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = (a, b); pair.0 }
+        pub fn second<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { (a, b).1 }
+        pub fn named<'a>(a: &'a i32, b: &'a i32, old: Pair<'a>) -> &'a i32 { let pair = Pair { right: b, stamp: old.stamp, left: a }; pair.left }
+        pub fn tuple<'a>(a: &'a i32, b: &'a i32, old: Tuple<'a>) -> &'a i32 { Tuple(a, b).1 }
+        pub fn nested<'a>(a: &'a i32, b: &'a i32, old: Outer<'a>) -> &'a i32 { let pair = Outer { inner: Pair { left: a, right: b, stamp: old.inner.stamp } }; pair.inner.right }
+        pub fn formal<'a>(pair: Pair<'a>) -> &'a i32 { let saved = pair; saved.right }
+        pub fn loaded<'a>(pair: &((&'a i32, &'a i32),)) -> &'a i32 { let saved = pair.0; saved.0 }
+        pub fn shadow<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = (a, b); let saved = pair; let pair = (b, a); saved.0 }
+        pub fn conditional<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 { let pair = if pick { (a, b) } else { (b, a) }; pair.0 }
+        pub fn stable<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 { (if pick { (a, b) } else { (a, a) }).0 }
+        pub fn scalar(a: &i32, b: &i32, old: Pair) -> i32 { Pair { left: a, right: b, stamp: 7 }.stamp }
+        pub fn identity(value: &i32) -> &i32 { value }
+        pub fn helper_component<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { (identity(a), b).0 }
+        pub fn mutable<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut pair = (a, b); pair.0 }
+        pub fn rebound<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut pair = (a, b); pair = (b, a); pair.0 }
+        pub fn borrow(a: &i32, b: &i32, old: Pair) -> i32 { let pair = Pair { left: a, right: b, stamp: 7 }; let saved = &pair.stamp; pair.stamp }
+        pub fn update<'a>(old: Pair<'a>, a: &'a i32) -> &'a i32 { Pair { left: a, ..old }.right }
+        pub fn helper_result<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { identity_pair(a, b).0 }
+        pub fn helper_field<'a>(pair: Pair<'a>) -> &'a i32 { formal(pair) }
+        pub fn body_nominal<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { Pair { left: a, right: b, stamp: 7 }.left }
+        fn identity_pair<'a>(a: &'a i32, b: &'a i32) -> (&'a i32, &'a i32) { (a, b) }
+    "#).unwrap();
+    directory
+}
+
+fn check_reference_value_field_origins(report: &Value) {
+    for (name, parameters) in [
+        ("first", vec![0]),
+        ("second", vec![1]),
+        ("named", vec![0]),
+        ("nested", vec![1]),
+        ("shadow", vec![0]),
+        ("conditional", vec![0, 1]),
+        ("stable", vec![0]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let (unit, index) = data_unit(function);
+        let pair = unit.pair(index).unwrap();
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let actual: Vec<_> = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|origin| origin["parameter"].as_u64().unwrap())
+            .collect();
+        assert_eq!(actual, parameters, "{name}");
+    }
+}
+
+fn check_reference_value_field_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert!(pair.pdg.memory_locations.is_empty());
+    for corruption in ["origin", "slot", "base"] {
+        let mut changed = rstyle_pdg::producer::Pair {
+            pdg: pair.pdg.clone(),
+            cfg: pair.cfg.clone(),
+        };
+        corrupt_reference_value_field(&mut changed, corruption);
+        assert!(
+            rstyle_pdg::data_documents::verify(&changed, &facts).is_err(),
+            "{corruption}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&changed, &facts).is_err(),
+            "{corruption}"
+        );
+    }
+}
+
+fn check_reference_value_field_paths(report: &Value) {
+    for name in ["formal", "loaded"] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let (unit, index) = data_unit(function);
+        let pair = unit.pair(index).unwrap();
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let origins = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap();
+        assert_eq!(origins.len(), 1, "{name}");
+        assert_eq!(origins[0]["parameter"], 0);
+        let path = origins[0]["path"].as_array().unwrap();
+        if name == "formal" {
+            assert_eq!(path.len(), 2);
+            assert_eq!(path[0]["kind"], "StructField");
+            assert_eq!(path[0]["name"], "right");
+            assert_eq!(path[0]["position"], 1);
+        } else {
+            assert_eq!(path.len(), 4);
+            assert_eq!(path[0]["kind"], "SharedReferent");
+            for component in &path[1..3] {
+                assert_eq!(component["kind"], "TupleField");
+                assert_eq!(component["position"], 0);
+            }
+        }
+        assert_eq!(path.last().unwrap()["kind"], "SharedReferent");
+    }
+}
+
+fn corrupt_reference_value_field(pair: &mut rstyle_pdg::producer::Pair, corruption: &str) {
+    let projection = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.value-field"))
+        .unwrap();
+    let id = projection.id.clone();
+    match corruption {
+        "origin" => {
+            projection
+                .annotations
+                .get_mut(rstyle_pdg::data_origins::KEY)
+                .unwrap()[0]["parameter"] = 1.into()
+        }
+        "slot" => projection.attributes.literal = Some(rstyle_pdg::StringFact::known("1")),
+        _ => {
+            let sibling = pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|node| {
+                    node.category == rstyle_pdg::NodeCategory::FormalInput
+                        && node.attributes.position == Some(1)
+                })
+                .unwrap()
+                .id
+                .clone();
+            pair.pdg
+                .edges
+                .iter_mut()
+                .find(|edge| edge.target == id && edge.subkind == "value_operand")
+                .unwrap()
+                .source = sibling;
+        }
+    }
 }

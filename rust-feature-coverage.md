@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.22.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.23.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -104,10 +104,10 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D06 | Shared borrows of formal field places | Covered | `&s.inner.value` | Address projections do not invent value loads; grouping is supported in the registered receiver forms. |
 | D07 | Borrowed outputs and branching formal origins | Covered | `if b { left } else { right }` | Shared outputs retain every supported formal-origin alternative, including verified field origins. |
 | D08 | Stored shared-reference fields | Covered | `s.bytes`, where the field is `&[u8]` | Distinguishes loading a reference from borrowing its storage and reading its referent. |
-| D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; Data-v3 3.22.0 also supports [construction and whole immutable tuple/struct locals](docs/extraction-profiles/reference-bearing-values-v1.md). Component projections from constructed/local values, mutable rebindings and general by-value memory-reading helper substitution remain missing. |
+| D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; Data-v3 3.22.0 also supports [construction and whole immutable tuple/struct locals](docs/extraction-profiles/reference-bearing-values-v1.md). [Component projections from constructed/local values](docs/extraction-profiles/reference-value-fields-v1.md) compose in Data-v3 3.23.0; mutable rebindings and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
-| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.22.0 additionally supports [reference-bearing tuple/named/tuple-struct values](docs/extraction-profiles/reference-bearing-values-v1.md). Ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates remain supported; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Broader const counts, reference-bearing arrays/updates and general local component/origin propagation remain unfinished. |
-| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Mutable reference rebindings, component projections from reference-bearing aggregate locals, multiple-origin local field reads and helper-result field bases still need component/origin correspondence. |
+| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.22.0 additionally supports [reference-bearing tuple/named/tuple-struct values](docs/extraction-profiles/reference-bearing-values-v1.md). Ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates remain supported; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Broader const counts, reference-bearing arrays/updates and mutable local origin propagation remain unfinished. |
+| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](docs/extraction-profiles/reference-value-fields-v1.md). Mutable reference rebindings, multiple-origin shared-local field reads and helper-result field bases still need component/origin correspondence. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
 | D15 | Array/slice element reads | Missing | `xs[i]` | Evaluate base/index once, preserve element location/index identity and bounds behavior. |
@@ -1136,3 +1136,58 @@ identities/outcomes and all denominators match 3.21.0 (`run-ol5lc3xz`). Twenty-s
 admitted graph documents pass schema checks (10 lz4, 0 regex, 16 time).
 Reference-bearing tuple/struct values add no measured frozen admission gain;
 these checks do not establish general performance or detector quality.
+
+### D09–D12 fields of reference-bearing aggregate values
+
+Data-v3 extraction 3.23.0 adds `rust.reference-value-fields` (35 capabilities);
+matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/reference-value-fields-v1.md) extends existing
+value projections to reference-bearing tuple, named-struct and tuple-struct bases.
+Constructed temporaries, whole immutable locals, aliases, shadowing, saved values,
+nested selectors and conditional aggregates compose. Scalar components also use
+ordinary evaluated-value projections. Existing formal aggregate loads retain their
+original locations; constructed/local value projections add none.
+
+Source origin reconstruction follows the selected constructor slot or same-typed
+immutable initializer. Conditional aggregates select the same component in each
+alternative before joining its origins. Independent graph verification carries the
+selection through existing operand, reaching-definition and alternative edges;
+constructor slots preserve source evaluation order and nominal declaration order.
+Formal and loaded aggregates retain their exact parameter/field paths. Only the
+selected subtree's reference paths are enumerated. Whole-value annotations remain
+unions; no frontend record, origin format, graph operation, provenance, snapshot,
+retained component map or cache is added.
+
+The 22-function composed fixture admits 15 functions and retains 7 negative cases.
+It verifies distinct same-typed siblings, reordered named fields, tuple structs,
+nested selection, aliases, shadowing, conditional origin unions, invariant selected
+components, scalar components and shared helper components. Exact formal and
+loaded-aggregate origin paths are checked. Every admitted graph passes independent
+document and strict producer verification; equivalent functions reach accepted
+matching. Changed origin annotations, selected slots and base operands are rejected.
+Earlier value-field and literal fixtures now admit their reference projection cases;
+Data-v2 keeps its exclusions and ordinary shared identity admission.
+
+A root returning an aggregate's stored reference can now be valid without fitting
+the existing whole-shared-formal helper summary. Helper eligibility checks that
+result boundary before certification and passes the computed origins to summary
+construction once. Unsupported helper results leave the root available and their
+callers excluded, instead of aborting capture. Body-only nominal types without an
+interface-registry declaration, mutable reference-bearing bindings/rebindings,
+reference-bearing updates/arrays, local storage borrows, aggregate helper results
+and broader memory-reading substitution remain unfinished. D09–D12 stay Partial;
+S09 and the full roadmap remain active.
+
+Validation: 756 workspace tests pass with the same 5 existing ignores, including
+the original assertion-argument receiver regression. The additional exact-path
+fixture assertions pass separately. Clippy passes for all targets with warnings
+denied; formatting and diff checks pass. Repository-built rstyle reports 2,304
+functions and 0 violations; patterns reports 0 candidates with the same 15 existing
+ignores. All 14 inventory bookkeeping tests pass.
+
+Frozen run `target/hir-coverage/run-gon1id2y/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60. All 60 identities
+and outcomes, all denominators and context counts match 3.22.0 (`run-_2h3cxde`).
+Twenty-six admitted graph documents pass schema checks (10 lz4, 0 regex, 16 time).
+The new component projections add no measured frozen admission gain; these checks
+do not establish general performance or detector quality.

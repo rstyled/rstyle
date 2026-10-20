@@ -47,6 +47,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.shared-reference-locals",
     "rust.shared-local-field-reads",
     "rust.reference-bearing-values",
+    "rust.reference-value-fields",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -155,7 +156,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.22.0", 34)),
+            Self::DataV3 => Some(("3.23.0", 35)),
         }
     }
 
