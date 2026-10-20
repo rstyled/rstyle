@@ -29,18 +29,29 @@ ACCEL_IDENTITIES = (
 )
 
 
+BITSET_IDENTITIES = (
+    (13114, 13328, "8c28b6c9656796472b49e0ad77a5b8e44ffd919bad31c4ecc41db4b55339890c"),
+    (13403, 13464, "6cb522a32ff9b04eeaa82bcd249d5d6af393bbb8707c26236ca1c3ee317554f3"),
+)
+
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("crate", type=Path)
-    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel"], default="tagged-units")
+    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality"], default="tagged-units")
     args = parser.parse_args()
-    relative, identities, oracle_path, test_filter = (
-        ("src/dfa/accel.rs", ACCEL_IDENTITIES,
-         Path(__file__).with_name("borrowed-accel-views-oracle.rs"), "rstyle_borrowed_accel_oracle")
-        if args.family == "borrowed-accel" else
-        ("src/util/alphabet.rs", IDENTITIES, Path(__file__).with_suffix(".rs"), "rstyle_tagged_units_oracle")
-    )
+    families = {
+        "tagged-units": ("src/util/alphabet.rs", IDENTITIES,
+                         Path(__file__).with_suffix(".rs"), "rstyle_tagged_units_oracle"),
+        "borrowed-accel": ("src/dfa/accel.rs", ACCEL_IDENTITIES,
+                           Path(__file__).with_name("borrowed-accel-views-oracle.rs"),
+                           "rstyle_borrowed_accel_oracle"),
+        "bitset-cardinality": ("src/util/look.rs", BITSET_IDENTITIES,
+                               Path(__file__).with_name("bitset-cardinality-oracle.rs"),
+                               "rstyle_bitset_cardinality_oracle"),
+    }
+    relative, identities, oracle_path, test_filter = families[args.family]
     source = (args.crate / relative).read_bytes()
     for start, end, digest in identities:
         if hashlib.sha256(source[start:end]).hexdigest() != digest:

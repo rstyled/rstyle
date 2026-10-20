@@ -1,4 +1,5 @@
 use super::*;
+mod bitset_cardinality;
 mod borrowed_accel;
 mod boundaries;
 mod byte_comparisons;

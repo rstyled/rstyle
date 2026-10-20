@@ -3588,3 +3588,22 @@ proof/matching work for ten admissions instead of one. All 76 natural and ten de
 strict import; all 78 selected comparisons complete without diagnostics. Frozen replay retains sixty identities/denominators and 20 admitted /33 excluded /
 seven inactive outcomes; seventy documents verify.
 Historical results above remain unchanged.
+
+### Next connected target: bitset cardinality and emptiness
+
+The [source-first contract](docs/extraction-profiles/bitset-cardinality-v1.md)
+selects original util::look::LookSet::len/is_empty in the complete default library.
+Its constructors and set operations already admit; the remaining getter chain
+needs exact u32 count_ones, u32-to-usize TryFrom, concrete integer Result/unwrap,
+and helper/value composition. The public u32 representation requires all high
+bits, not only assigned assertion flags. Original derives/neighbors remain.
+
+A fixed fourteen-function corpus declares eight future positives /six negatives
+before admission evaluation. Unchanged 3.50 admits two constructor controls /
+excludes twelve, with complete capture and matching and strict control checking.
+Both independent original-crate runtime oracle tests pass. Pinned core confirms
+this 64-bit conversion always produces Ok, but TryFromIntError contains an
+IntErrorKind and must not be treated as a unit error. Current HIR leaves that
+Result unnormalized. Inspect existing concrete-type and summary dependencies
+before extending them; no additional provenance inventory or cache is justified.
+This audit activates no capability and changes no frozen/historical result.
