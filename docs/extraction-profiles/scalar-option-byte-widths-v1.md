@@ -177,3 +177,31 @@ construction, payload value projection, merges/early returns/local snapshots and
 helper-result composition still need connected implementation and independent
 verification before any natural admission gain can be claimed. The declaration's
 four intended positives and two negatives remain unchanged.
+
+## Structural source-type checkpoint (no admission activation)
+
+Concrete source correspondence now distinguishes a scalar Option type argument
+from a nominal lifetime argument. It checks exactly one explicit bool/integer
+type argument, recursively checks that spelling against the observed payload,
+and still requires independent resolution of the entire enclosing path. Neither
+`Option` nor a qualified core/std spelling supplies authority on its own. The
+primitive fast path cannot certify an Option tree. Nominal lifetime rules and
+the existing shared-payload Option route retain their previous boundaries.
+
+This advances the source-type portion of the declared blocker chain only. The
+production resolver still lacks the precise core/prelude/import and nested-owner
+route; the two classifiers now stop at that unresolved-path check. Semantic
+tokens, constructors, payload projections and helper composition remain closed.
+The unchanged six-function Cargo selection retains every hash/span/outcome:
+0 admitted /6 excluded, complete capture and assessment, no unknowns. No natural
+admission gain or new end-to-end support is claimed. This checkpoint adds no
+serialized record, source copy, cache, capability or policy version.
+
+Independent source-proof tests cover all 13 bool/integer payload spellings,
+qualified/unqualified enclosing paths with an explicitly supplied resolver,
+absent or disagreeing resolution, incorrect payloads, aliases lacking resolution,
+arity, lifetime/const/associated arguments, nested types and qualified self.
+This test resolver is a structural oracle, not production core authority. The
+next implementation must connect the already checked source environment and
+exact function ownership to actual core resolution before enabling semantics;
+additional syntax rows alone will not complete this family.

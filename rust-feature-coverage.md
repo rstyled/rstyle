@@ -2764,3 +2764,32 @@ retained pairs have median elapsed **0.299 s baseline /0.274 s current**, peak R
 **103748 /104076 KiB**. All source identities/outcomes match in every sample.
 No material regression is observed here; this small corpus is not a whole-package
 performance guarantee or a speedup claim.
+
+### Scalar Option source structure (unactivated checkpoint)
+
+The source checker now checks an explicit bool/integer Option argument separately
+from nominal lifetime arguments. It requires the exact payload spelling and an
+independently resolved enclosing type; familiar names and qualified core/std paths
+alone cannot certify it. Existing nominal lifetime and shared-payload rules remain
+closed. This uses borrowed syntax nodes and the existing resolution interface,
+with no source copies, serialized provenance or additional cache.
+
+The unchanged six-function development selection retains all hashes, spans and
+outcomes: **0 admitted /6 excluded**, complete capture/assessment, zero unknowns
+and zero gains/losses. The classifiers now reach the missing scoped-path proof.
+No end-to-end family support or new natural admission is claimed, and Data-v3
+remains **3.41.0 /53 capabilities**. The contract in
+`docs/extraction-profiles/scalar-option-byte-widths-v1.md` records the precise
+boundary. The next dependency is exact core/prelude/import resolution in the
+existing checked source environment, including the natural nested helper owner;
+construction, owned payload projection and complete helper flow must then connect
+before activation. Broadening unrelated syntax would not complete this chain.
+
+Independent structural checks cover all 13 bool/integer payload spellings and
+reject absent/wrong resolution, malformed arguments and unsupported payloads.
+Workspace validation passes **829 tests**, with five existing skips, plus
+doctests. All-targets clippy with warnings denied, fmt and diff checks pass.
+rstyle checks **2,634 functions /zero violations**; patterns reports **zero
+candidates**, with no new suppressions/ignores. No full natural recapture, frozen
+replay or new performance measurement is claimed for this unactivated source
+check; those remain required at connected semantic activation.

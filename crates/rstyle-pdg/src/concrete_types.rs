@@ -2,6 +2,7 @@
 
 mod declarations;
 pub mod lifetimes;
+mod option_spelling;
 pub mod source_proof;
 
 use crate::source_evidence::byte_offset;

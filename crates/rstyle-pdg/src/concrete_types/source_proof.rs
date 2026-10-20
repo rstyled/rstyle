@@ -103,8 +103,21 @@ fn path_proof(
     tree: &TypeTree,
     resolution: &impl PathResolution,
 ) -> Result<(), String> {
-    super::lifetimes::verify_path(path, tree)?;
-    if path.path.leading_colon.is_none() && path.path.segments.len() == 1 {
+    if let TypeTree::Option(payload) = tree
+        && matches!(payload.as_ref(), TypeTree::Scalar(_))
+    {
+        correspondence(
+            super::option_spelling::payload(path, payload)?,
+            payload,
+            resolution,
+        )?;
+    } else {
+        super::lifetimes::verify_path(path, tree)?;
+    }
+    if !matches!(tree, TypeTree::Option(_))
+        && path.path.leading_colon.is_none()
+        && path.path.segments.len() == 1
+    {
         let token = path.path.segments[0].ident.to_string();
         if (super::scalar(&token) && token != "unit") || token == "str" {
             return Ok(());
