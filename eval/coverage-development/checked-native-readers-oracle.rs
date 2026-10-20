@@ -2,6 +2,18 @@
 mod rstyle_checked_native_oracle {
     use super::*;
 
+    #[test]
+    fn complete_error_payload_closure_needs_no_drop() {
+        use core::mem::needs_drop;
+
+        assert!(!needs_drop::<DeserializeError>());
+        assert!(!needs_drop::<DeserializeErrorKind>());
+        assert!(!needs_drop::<PatternIDError>());
+        assert!(!needs_drop::<StateIDError>());
+        assert!(!needs_drop::<crate::util::primitives::SmallIndexError>());
+        assert!(!needs_drop::<Result<(u128, usize), DeserializeError>>());
+    }
+
     fn expected(bytes: &[u8]) -> u128 {
         bytes.iter().enumerate().fold(0, |value, (index, &byte)| {
             let position = if cfg!(target_endian = "little") {

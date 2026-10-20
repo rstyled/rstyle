@@ -3284,3 +3284,21 @@ Byte-window median .89/.89s; cyclic .63/.65s (+.02s, overlapping ranges).
 Activated membership .51/.68s while adding six admissions and 39 comparisons.
 The contract records RSS/ranges and limits; no broad performance guarantee or
 rewrite/detector-quality claim follows.
+
+### Checked-reader reassessment after 3.46
+
+The [dependency audit](docs/extraction-profiles/checked-native-readers-audit.md#post-346-error-dependency-closure)
+now checks the fresh original 3.46 roster: all three checked native readers,
+their generic checker and error constructor preserve their source identities and
+remain excluded. Error ownership closes through a ten-variant enum to two local
+macro-generated ID errors and `SmallIndexError { attempted: u64 }`. These types
+are not covered by the existing positive builtin-Copy ownership contract.
+
+The complete-original-crate oracle adds an independent drop expectation for all
+five error declarations and the wide reader Result. All four runtime tests pass
+in ARM Linux default features; `needs_drop` is false. This is semantic evidence,
+not a new source/declaration certificate or permission to ignore sibling variants.
+Result/`?` alone would leave owned non-Copy and macro declaration proof, generic
+instantiation and partial-helper transport unresolved. Reassess smaller natural
+Option/read compositions before choosing the next production increment. No new
+capability or admission is claimed; frozen selections remain unchanged.
