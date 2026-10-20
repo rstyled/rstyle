@@ -9,6 +9,16 @@ use crate::{
 use std::collections::BTreeSet;
 
 pub fn verify(facts: &HirFnFacts) -> Result<Capture, String> {
+    check(facts, true)
+}
+
+/// Validate observations without claiming original-source correspondence.
+/// Expanded functions remain subject to the full verifier before admission.
+pub fn verify_capture(facts: &HirFnFacts) -> Result<Capture, String> {
+    check(facts, false)
+}
+
+fn check(facts: &HirFnFacts, original_source: bool) -> Result<Capture, String> {
     let value = facts.build.frontend_options.get(KEY);
     if !ExtractionProfile::from_facts(facts)?.is_data() {
         return if value.is_none() {
@@ -25,9 +35,7 @@ pub fn verify(facts: &HirFnFacts) -> Result<Capture, String> {
         None => return Err("Missing Data method receiver inventory".into()),
     };
     check_inventory(&capture, &methods)?;
-    let source = methods
-        .iter()
-        .any(|node| node.expansion.is_none())
+    let source = (original_source && methods.iter().any(|node| node.expansion.is_none()))
         .then(|| crate::source_evidence::capture(facts))
         .transpose()?;
     for node in methods {
@@ -36,8 +44,11 @@ pub fn verify(facts: &HirFnFacts) -> Result<Capture, String> {
             .iter()
             .find(|record| record.call == node.hir)
             .ok_or("Missing exact method receiver record")?;
-        check_correspondence(record, node, source.as_ref())
-            .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
+        check_receiver_identity(record, node)?;
+        if original_source {
+            check_correspondence(node, source.as_ref())
+                .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
+        }
         check_types(record, node)
             .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
         check_adjustments(record)?;
@@ -71,11 +82,7 @@ fn check_inventory(capture: &Capture, methods: &[&HirNode]) -> Result<(), String
     Ok(())
 }
 
-fn check_correspondence(
-    record: &Method,
-    node: &HirNode,
-    source: Option<&crate::source_evidence::Correspondence>,
-) -> Result<(), String> {
+fn check_receiver_identity(record: &Method, node: &HirNode) -> Result<(), String> {
     let receiver = node
         .children
         .first()
@@ -84,9 +91,17 @@ fn check_correspondence(
         return Err("Method receiver source/HIR identity or span disagrees".into());
     }
 
+    Ok(())
+}
+
+fn check_correspondence(
+    node: &HirNode,
+    source: Option<&crate::source_evidence::Correspondence>,
+) -> Result<(), String> {
     if node.expansion.is_some() {
         return Ok(());
     }
+
     let source = source.ok_or("Missing original-source method inventory")?;
     let macro_argument = source.entries.iter().any(|entry| {
         entry.kind == "source_macro"

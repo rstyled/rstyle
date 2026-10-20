@@ -391,7 +391,7 @@ fn verify_receiver_inventory(
     {
         return Err("Missing required Data receiver capture inventory".into());
     }
-    rstyle_pdg::data_receivers::verify(facts).map(|_| ())
+    rstyle_pdg::data_receivers::verify_capture(facts).map(|_| ())
 }
 
 fn nominal_bindings(

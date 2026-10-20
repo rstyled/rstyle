@@ -746,3 +746,74 @@ preserves all 60 exact source identities and outcomes, and every denominator:
 excluded / 7 inactive (zero gains/losses), with 30 verified documents. Workspace
 validation passes 788 tests with five existing ignores; all-targets clippy,
 formatting, diff checks, rstyle and patterns are clean.
+
+### Receiver observations do not require function-source certification
+
+The next handoff failure came from the generated
+`util::pool::inner::THREAD_ID::__rust_std_internal_init_fn`. Its retained source
+is the `thread_local!` invocation, while initializer methods contributed from the
+macro argument have unexpanded expression spans. Independent receiver validation
+attempted to parse the whole invocation as an ItemFn and aborted the unit before
+per-function exclusions could be reported.
+
+Receiver verification now exposes observational `verify_capture` separately from
+full `verify`. Both check exact method inventory, receiver and span identities,
+concrete receiver/result consistency, registered scalar signature observations,
+closed schemas, bounds and adjustment transitions. Handoff and library authority
+inventory validation use the observational check. Semantic receiver resolution,
+registered call source checking and paired document verification keep the full
+original-function correspondence check. This does not authorize generated calls
+or invent a source function around a macro invocation.
+
+A real Cargo thread-local initializer regression reaches complete assessment,
+retains the generated function as excluded, and admits an unrelated scalar leaf.
+Independent strict bundle import retains no graph for the generated initializer.
+Its raw receiver observations validate; the full receiver check still fails on
+unavailable source correspondence. Changing a receiver identity is rejected by
+the observational verifier itself. Existing graph/source mutation regressions
+remain mandatory. The contract is documented in
+[receiver verification](../../docs/extraction-profiles/receiver-verification-v1.md).
+
+No serialized fields, provenance records, caches, thresholds or matching changes
+were introduced. The same method/type/adjustment traversal remains; the raw
+handoff no longer reparses function source solely to retain unsupported method
+observations. This removes source-parsing work from inventory validation rather
+than adding a new whole-unit pass.
+
+Frozen validation `run-wxw_9e2e` against `run-p_h_oqof` preserves every one of the
+60 source identities/outcomes and all denominators: 53 active/captured/assessed,
+seven inactive; 13 admitted / 40 excluded / 7 inactive, zero gains/losses, 30
+verified documents. The full workspace passes 789 tests with five existing
+ignores; clippy, formatting/diff checks, rstyle (2,521 functions, zero violations)
+and patterns (zero candidates) pass.
+
+The full unmodified natural library now has **complete capture and assessment**:
+all 2,582 functions are retained, with six admitted / 2,576 excluded; all 550
+macro-generated functions remain excluded. `is_boundary` is function u0:f2580
+and remains excluded for checked get, non-scalar Option matching and missing
+payload binding. The previous whole-library baseline was incomplete, so its
+six currently admitted functions are not reported as six measured gains. The
+selected natural one-function denominator remains zero admitted / one excluded;
+the unchanged five-function development selection still needs its connected
+contract. Pair enumeration intentionally remains incomplete under max-pairs=0:
+six imports require 15 pairs. Assessment completeness does not imply matching
+completion.
+
+The persisted natural report is 7.9 GB because the existing readable report
+expands shared unit/source observations per function. JSON stdout then formats a
+second full copy; source compilation and assessment had already finished during
+that rendering. Future full-library exploration should use text stdout and
+stream the retained report for selected fields. This finding is not a benchmark
+or a performance guarantee, and does not justify new provenance tables/caches or
+changing the selected build context.
+
+Reassessment after the two source-boundary foundations: both confirmed context
+blockers are now resolved without weakening source-to-pair requirements. The
+next delivery must advance the selected get/Option/payload composition rather
+than add more broad capture infrastructure. Source inspection confirms why the
+payload is missing: the HIR pattern frontend retains unsupported tuple-struct /
+reference patterns without their nested bindings, and concrete type observation
+has no Option grammar. Both must connect to registered get bounds/conditional
+load behavior, variant guards, saved payload origins and strict serialized proof.
+No nominal S09 redesign or general macro support is required for this scalar
+leaf; the separate Position/Span ownership investigation stays open.

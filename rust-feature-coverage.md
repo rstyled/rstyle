@@ -1910,3 +1910,44 @@ and workspace suite pass (788 tests, five existing ignores); clippy, rstyle
 The unchanged frozen selection was rerun in `run-p_h_oqof` and compared with
 `run-h7tfyznr`: all 60 identities, outcomes and denominators agree. Results remain
 13 admitted / 40 excluded / 7 inactive, 30 verified documents, zero gains/losses.
+
+### Receiver handoff validates observations before source semantics
+
+The checked-boundary context's next failure was a `thread_local!` initializer:
+its generated function retains the macro invocation as source, while initializer
+methods contributed from the argument have unexpanded spans. Handoff and library
+resolution inventory checks now use observational receiver validation. Full
+receiver source correspondence remains mandatory for semantic call resolution
+and paired document verification; no generated-function support is claimed.
+See the [receiver contract](docs/extraction-profiles/receiver-verification-v1.md)
+and [development evidence](eval/coverage-development/README.md#receiver-observations-do-not-require-function-source-certification).
+
+The real Cargo regression retains the generated initializer as excluded and
+admits an unrelated scalar leaf. Independent strict bundle import gives the
+initializer no graph; full receiver validation still rejects its unavailable
+function-source correspondence, and observational validation rejects a forged
+receiver identity. No serialized fields, provenance records, caches, matching
+changes or extra whole-unit passes were added. Validation: 789 workspace tests
+pass with five existing ignores; all-targets clippy, formatting, diff checks,
+rstyle (2,521 functions, zero violations) and patterns (zero candidates) pass.
+
+Frozen run `run-wxw_9e2e` agrees with `run-p_h_oqof` on all 60 source identities,
+outcomes and denominators: 13 admitted / 40 excluded / 7 inactive, 30 verified
+documents, zero gains/losses. The independently selected natural boundary leaf
+still requires the connected get/Option/payload contract; fixture scalar gains
+are not counted as natural coverage gains.
+
+Natural regex-automata validation now completes capture and assessment of all
+2,582 functions: six admitted / 2,576 excluded, including all 550 generated
+functions excluded. The selected `is_boundary` is still excluded for the declared
+get/Option/payload chain. Its earlier natural baseline was incomplete, so the
+six current imports are not claimed as measured new admissions. Matching was
+intentionally resource-incomplete at max-pairs=0 (15 pairs required).
+
+Reassessment: the two source-context foundations have resolved the observed
+context blockers but produced no selected-leaf gain. Next deliver the connected
+Option type, checked-access operation, resolved variant/reference payload binding
+and guarded/saved-origin composition; defer additional capture infrastructure.
+S09 nominal Position/Span proof remains open. Full readable reports expand unit
+sources per function (7.9 GB here); use text stdout and stream retained reports
+for further exploration, without introducing new provenance or caches.

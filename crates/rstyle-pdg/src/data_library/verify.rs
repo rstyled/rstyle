@@ -24,7 +24,7 @@ pub fn verify_evidence(facts: &HirFnFacts) -> Result<Libraries, String> {
 
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
-    let capture = crate::data_receivers::verify(facts)?;
+    let capture = crate::data_receivers::verify_capture(facts)?;
     for node in methods.into_iter().filter(|node| operation(node).is_some()) {
         let callee = callee(node)?;
         if callee.crate_name != "core" || callee.path != operation(node).expect("filtered").path {
