@@ -1,16 +1,18 @@
 //! Demand-specific nominal proof in a complete, cfg-selected mixed-content unit.
 use super::*;
 use crate::declaration_origins::Origins;
+mod borrowed;
 
 pub(super) fn verify(
     facts: &HirFnFacts,
     origins: &Origins,
     trees: &BTreeMap<Namespace, TypeTree>,
     environment: &Environment,
-) -> Result<(), String> {
+) -> Result<std::collections::BTreeSet<Namespace>, String> {
     if trees.is_empty() {
         return Err("Mixed-unit boundary requires selected Copy declarations".into());
     }
+    let mut copies = std::collections::BTreeSet::new();
     for (key, tree) in trees {
         let TypeTree::Struct {
             nominal, fields, ..
@@ -39,15 +41,16 @@ pub(super) fn verify(
             .iter()
             .find(|origin| &origin.nominal == nominal)
             .ok_or("Missing selected declaration origin")?;
-        let copy = origin
-            .builtin_copy
-            .as_ref()
-            .ok_or("Mixed-unit declaration lacks builtin Copy evidence")?;
-        crate::declaration_origins::copy::verify(facts, origin, copy, &item.attrs)?;
+        if let Some(copy) = &origin.builtin_copy {
+            crate::declaration_origins::copy::verify(facts, origin, copy, &item.attrs)?;
+            copies.insert(key.clone());
+        } else {
+            borrowed::verify(facts, tree)?;
+        }
         check_namespace(environment, &declaration.namespace)?;
         structure(facts, item)?;
     }
-    Ok(())
+    Ok(copies)
 }
 
 fn structure(facts: &HirFnFacts, item: &syn::ItemStruct) -> Result<(), String> {

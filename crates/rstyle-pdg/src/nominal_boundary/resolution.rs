@@ -23,6 +23,7 @@ pub struct Resolution {
     owner_path: Option<Namespace>,
     trees: BTreeMap<Namespace, TypeTree>,
     environment: Rc<Environment>,
+    copy_trees: std::collections::BTreeSet<Namespace>,
 }
 
 impl Resolution {
@@ -35,7 +36,7 @@ impl Resolution {
             .split("::")
             .map(str::to_string)
             .collect();
-        self.environment.copy_boundary && self.trees.get(&key) == Some(tree)
+        self.copy_trees.contains(&key) && self.trees.get(&key) == Some(tree)
     }
 }
 
@@ -115,6 +116,7 @@ pub(crate) fn verify_in(
         receiver: None,
         owner_path: None,
         trees: BTreeMap::new(),
+        copy_trees: Default::default(),
         environment: Rc::clone(&environment),
     };
 
@@ -130,7 +132,7 @@ pub(crate) fn verify_in(
         environment.census(),
     )?;
     if environment.copy_boundary {
-        selected::verify(facts, &origins, &resolution.trees, &environment)?;
+        resolution.copy_trees = selected::verify(facts, &origins, &resolution.trees, &environment)?;
     }
     function_scope(
         facts,

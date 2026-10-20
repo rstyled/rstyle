@@ -1050,3 +1050,20 @@ against published regex-syntax 0.8.11. See the
 [value-self contract](../../docs/extraction-profiles/owned-copy-self-v1.md).
 Direct owned-formal field getter calls still encounter the shared-only helper-read
 boundary; this result does not certify arbitrary by-value methods.
+
+
+## Borrowed scalar owner family
+
+`borrowed-scalar-owners.rs` is a separate ten-function selection for the natural
+regex-syntax `utf8::ScalarRange` getter family. Baseline f2d0152 admits zero;
+Data-v3 3.40 admits four (the two getters and two borrowed wrappers), with six
+unchanged exclusions and no losses. All six pairs complete. Non-Copy owned and
+destructor-bearing cases do not acquire Copy or drop-free permission.
+
+`borrowed-scalar-oracle.rs` contains independent boundary expectations. For runtime
+checking, append it to an otherwise unchanged published regex-syntax 0.8.11
+`src/utf8.rs` in a temporary directory; use a rustc test harness with
+`extern crate alloc`, that `utf8` module, and this development source as module
+`development`. It exercises the actual private natural methods without changing
+the separate Cargo capture sources. The five tests (one oracle and four natural
+module tests) pass. See the [bounded contract](../../docs/extraction-profiles/borrowed-scalar-owner-v1.md).

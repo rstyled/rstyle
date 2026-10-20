@@ -1,0 +1,65 @@
+//! Borrowed scalar owners do not acquire owned Copy permission.
+use super::*;
+use crate::{HirNode, data_types::TypeToken};
+
+pub(super) fn verify(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> {
+    let TypeTree::Struct {
+        nominal, fields, ..
+    } = tree
+    else {
+        return Err("Borrowed owner requires a concrete struct".into());
+    };
+    if !supports(facts, "rust.borrowed-scalar-owners")?
+        || fields
+            .iter()
+            .any(|field| !matches!(field.ty, TypeTree::Scalar(_)))
+    {
+        return Err("Mixed-unit declaration lacks builtin Copy evidence".into());
+    }
+    for ty in facts
+        .signature
+        .params
+        .iter()
+        .map(|parameter| &parameter.ty)
+        .chain([&facts.signature.return_ty])
+    {
+        check_type(ty, nominal)?;
+    }
+    check_body(&facts.body, nominal)
+}
+
+fn check_type(
+    ty: &crate::ResolvedTy,
+    nominal: &crate::concrete_types::Nominal,
+) -> Result<(), String> {
+    if let Some(token) = &ty.normalized
+        && owns(&crate::data_types::parse(token)?, nominal)
+    {
+        return Err("Borrowed scalar owner cannot be consumed, constructed or dropped".into());
+    }
+    Ok(())
+}
+
+fn owns(token: &TypeToken, owner: &crate::concrete_types::Nominal) -> bool {
+    match token {
+        TypeToken::Shared(_) => false,
+        TypeToken::Struct { nominal, fields } => {
+            nominal == owner || fields.iter().any(|(_, ty)| owns(ty, owner))
+        }
+        TypeToken::Tuple(values) => values.iter().any(|ty| owns(ty, owner)),
+        TypeToken::Array { element, .. }
+        | TypeToken::Slice(element)
+        | TypeToken::Option(element) => owns(element, owner),
+        _ => false,
+    }
+}
+
+fn check_body(node: &HirNode, nominal: &crate::concrete_types::Nominal) -> Result<(), String> {
+    if let Some(ty) = &node.ty {
+        check_type(ty, nominal)?;
+    }
+    for child in &node.children {
+        check_body(child, nominal)?;
+    }
+    Ok(())
+}

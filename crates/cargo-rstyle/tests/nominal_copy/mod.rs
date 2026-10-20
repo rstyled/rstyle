@@ -21,7 +21,7 @@ fn check_observations(functions: &[Value]) {
     for function in functions {
         let positive = matches!(
             function["facts"]["name"].as_str(),
-            Some("copied" | "Copied::copied_method")
+            Some("copied" | "Copied::copied_method" | "plain" | "manual")
         );
         assert_eq!(
             function["outcome"],
@@ -246,14 +246,7 @@ fn conditional_copy_derives_follow_actual_compiler_presence() {
             .iter()
             .find(|f| f["facts"]["name"] == name)
             .unwrap();
-        assert_eq!(
-            function["outcome"],
-            if name == "active" {
-                "admitted"
-            } else {
-                "excluded"
-            }
-        );
+        assert_eq!(function["outcome"], "admitted");
         let origins: rstyle_pdg::declaration_origins::Origins = serde_json::from_value(
             function["facts"]["build"]["frontend_options"]["concrete_declaration_origins"].clone(),
         )

@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.39.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.40.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -97,7 +97,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | ID | Feature | Status | Small example | Current boundary / remaining work |
 | --- | --- | --- | --- | --- |
 | D01 | Tuple and literal-length array interfaces | Covered | `p: (u32, bool)`, `a: [u8; 4]` | Interface support is distinct from construction, indexing, and reference-bearing element origins. |
-| D02 | Concrete local struct interfaces | Partial | `s: S`, `s: &S` | Finite supported field trees and independent closed-unit/drop-free proof; real crates often fail that unit-wide boundary. |
+| D02 | Concrete local struct interfaces | Partial | `s: S`, `s: &S` | Finite supported field trees with independent source/ownership proof. Data-v3 3.40.0 permits borrowed-only scalar-field owners in mixed units without certifying Copy or drop-free ownership; see S09. |
 | D03 | Shared scalar/tuple/array/slice/str interfaces | Covered | `xs: &[u8]`, `text: &str` | Supported concrete immutable referents; shared syntax alone does not establish effects. |
 | D04 | Shared inherent receivers / getter bodies | Partial | `fn value(&self) -> u32 { self.value }` | Exact source impl ownership, supported concrete fields, and nominal-unit proof; not general receiver forms or callable methods on every impl. |
 | D05 | Formal tuple/struct field reads | Covered | `p.0`, `s.inner.value` | Exact formal roots and ordered projections, including actual stored-reference loads where required. |
@@ -195,7 +195,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Assertions are a proposed narrow first slice. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Non-Copy declarations, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
@@ -2496,3 +2496,68 @@ ownership before relaxing admission. Reusing existing source/nominal evidence is
 preferred over another inventory, source copy or drop certificate. The frozen
 selection stays fixed. F07/F13 table statuses now reflect the already implemented
 3.36 checked-access subset; this documentation correction adds no capability.
+
+
+### Connected borrowed scalar owners (Data-v3 3.40.0)
+
+The selected `utf8::ScalarRange::is_valid` and `is_ascii` family now composes
+through shared-field reads, the verified leaf summary and short-circuit caller.
+A verification-local set distinguishes trees with independently verified Copy
+origins from borrowed-only scalar owners; checked_owned_copy no longer infers
+ownership permission from mere membership in the selected environment. There are
+no new serialized observations, source copies, cache layers or drop certificates.
+Existing source/module/import/attribute and helper evidence remains mandatory.
+Owned occurrences of a borrowed-only owner anywhere in interface/body type tokens
+are rejected. Destructor-bearing owners retain the existing frontend rejection.
+
+Fresh unmodified default-feature natural capture preserves all 956 names, source
+digests and spans: **11 to 13 admissions**, exactly the two selected getters and
+zero losses. Capture/assessment complete; max-pairs zero intentionally leaves
+full-library matching incomplete. The separate ten-function development corpus
+has **0 to 4 admissions**, six retained exclusions and zero losses versus f2d0152
+on identical source. All six development comparisons complete. Strict import of
+the two natural and two development methods completes all six comparisons without
+diagnostics; both corresponding pairs are Accepted at score 1. No detector quality,
+equivalence, abstraction activation or rewrite-safety claim follows.
+
+Independent runtime checks use a manually specified boundary table against the
+actual published private methods and the development caller; this oracle plus
+four existing natural UTF-8 tests pass. Regression checks retain repeated helper
+reads and reject an omitted read. Focused Cargo tests pass, including
+installed Linux ARM64, Linux x86_64 and macOS ARM64 capture contexts. These are
+cross-target captures, not native macOS runtime execution.
+
+
+Four existing regression expectations required the new borrowed-only distinction:
+plain/manual-Copy shared getters, an inactive-Copy shared getter and a shared
+getter beside a constant-local hidden Drop implementation now admit. Their
+Copy-observation/forgery checks remain unchanged. An added owned construction in
+the hidden-Drop fixture stays excluded, and a separate historical-profile test
+requires all ten development functions to remain excluded under Data-v2. No
+historical artifacts are relabeled or discarded.
+
+Final frozen replay `run-yf3i09jl` preserves all 60 identities, denominators and
+outcomes: **20 admitted /33 excluded /7 inactive**, zero gains/losses. Its 56
+verified documents include all thirteen admitted natural regex-syntax functions.
+The two new natural methods belong to the separate development selection and do
+not alter the frozen denominator.
+
+
+The final workspace run passes **815 tests with five existing ignores**. All-targets
+clippy with warnings denied, formatting and diff checks pass. rstyle reports
+2,622 functions and **zero violations**; patterns reports **zero candidates**.
+No thresholds, scores, suppressions or existing ignore entries changed.
+
+A final six-pair alternating diagnostic against f2d0152 uses identical dependency
+lock entries/compiler, the same raw 956-function input and four unchanged natural
+constructor/getter records. Each version freshly captures four graphs. After
+capture and test workloads finished, median elapsed time is **3.135 s baseline /
+3.125 s current** and median peak RSS **494672 /494270 KiB**. No material regression
+is observed on this bounded workload; this is not a whole-capture guarantee.
+The earlier concurrent-workload timing is superseded by this quiescent comparison.
+
+Remaining combinations include cyclic F10 merge snapshots; Input's reference/enum
+owner plus returned-reference helper chain; and ScalarRange's owned Option/tuple
+construction, checked conversion and Result unwrapping. Borrowed scalar access
+does not certify these combinations. Prioritize a tractable natural F10 family
+in the next audit rather than broadening async/unsafe/FFI or general macros.
