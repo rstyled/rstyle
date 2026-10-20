@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.25.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.26.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.25.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.26.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -9631,7 +9631,7 @@ fn clones_data_body_nominal_types_compose_without_signature_witnesses() {
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "borrow" | "mutable" | "self_call"
+            "borrow" | "mutable"
         );
         assert_eq!(
             function["outcome"],
@@ -9653,6 +9653,88 @@ fn clones_data_body_nominal_types_compose_without_signature_witnesses() {
             .all(|function| function["outcome"] == "excluded"),
         "{legacy}"
     );
+}
+
+#[test]
+fn clones_data_static_inherent_helpers_compose_without_owner_values() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        mod model {
+            pub struct Owner { pub unrelated: String }
+            impl Owner {
+                pub fn identity(value: i32) -> i32 { value }
+                pub fn chained(value: i32) -> i32 { Self::identity(value) }
+                pub fn zero() -> i32 { 0 }
+                pub fn nothing() {}
+                pub fn unsupported(value: i32) -> i32 { let reference = &value; *reference }
+            }
+        }
+        use model::Owner as Alias;
+        pub fn first(value: i32) -> i32 { Alias::chained(value) }
+        pub fn other(value: i32) -> i32 { Alias::chained(value) }
+        pub fn qualified(value: i32) -> i32 { crate::model::Owner::identity(value) }
+        pub fn zero_call() -> i32 { Alias::zero() }
+        pub fn unit_call() { Alias::nothing() }
+        pub fn rejected(value: i32) -> i32 { Alias::unsupported(value) }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "model::Owner::unsupported" | "rejected"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_static_inherent_tampering(read_call_function(&report, "model::Owner::chained"));
+}
+
+fn check_static_inherent_tampering(function: &Value) {
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    for change in ["owner", "implementation", "span", "identity"] {
+        let mut changed = facts.clone();
+        tamper_inherent_evidence(&mut changed, change);
+        shared_evidence::reject_facts(function, &changed);
+    }
+    for field in ["owner_nominal", "implementation_span"] {
+        let mut changed = facts.clone();
+        let key = rstyle_pdg::inherent_calls::KEY;
+        if field == "owner_nominal" {
+            changed.build.frontend_options.get_mut(key).unwrap()[field]["declaration_digest"] =
+                serde_json::json!("forged");
+        } else {
+            changed.build.frontend_options.get_mut(key).unwrap()[field]["start"] =
+                serde_json::json!(0);
+        }
+        let own = changed.build.frontend_options.get(key).unwrap().clone();
+        let associations = changed
+            .build
+            .frontend_options
+            .get_mut(rstyle_pdg::inherent_calls::UNIT_KEY)
+            .unwrap()["definitions"]
+            .as_array_mut()
+            .unwrap();
+        let association = associations
+            .iter_mut()
+            .find(|record| record["definition_identity"] == own["definition_identity"])
+            .unwrap();
+        association[field] = own[field].clone();
+        shared_evidence::reject_facts(function, &changed);
+    }
 }
 
 fn body_nominal_workspace() -> TempDir {

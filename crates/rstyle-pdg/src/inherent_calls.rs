@@ -15,7 +15,7 @@ pub struct Definition {
     pub definition_identity: String,
     pub implementation_identity: String,
     pub implementation_span: ByteSpan,
-    /// Exact nominal association; parameter zero carries the full concrete type.
+    /// Exact nominal association; shared methods also carry the type in parameter zero.
     pub owner_nominal: crate::concrete_types::Nominal,
     pub source_file: String,
     pub function_span: ByteSpan,
@@ -57,6 +57,14 @@ pub(crate) fn check_definition(
         return Err("Inherent definition identity contradicts captured callee ownership".into());
     }
 
+    if !facts.signature.has_self {
+        crate::nominal_boundary::resolution::static_owner(
+            facts,
+            &record.implementation_span,
+            &record.owner_nominal,
+        )?;
+        return Ok(Some(record));
+    }
     let owner =
         crate::nominal_boundary::resolution::inherent_owner(facts, &record.implementation_span)?;
     let owner = TypeToken::from_tree(&owner);
@@ -124,7 +132,6 @@ fn ufcs_owner_matches(
     caller: &dyn crate::unit_store::EvidenceFacts,
     nominal: &crate::concrete_types::Nominal,
 ) -> Result<bool, String> {
-    use crate::concrete_types::source_proof::PathResolution;
     if node.kind != "expr_call" {
         return Ok(true);
     }
@@ -152,14 +159,14 @@ fn ufcs_owner_matches(
     }
 
     let resolution = caller.nominal_resolution()?;
-    let owner = resolution.resolve(&syn::TypePath {
-        qself: None,
-        path: path.path,
-    })?;
-    Ok(
-        matches!(owner, crate::concrete_types::TypeTree::Struct { nominal: ref owner, .. }
-        if owner == nominal),
-    )
+    resolution.matches_nominal(
+        &syn::TypePath {
+            qself: None,
+            path: path.path,
+        },
+        nominal,
+    )?;
+    Ok(true)
 }
 
 /// Checks original invocation/receiver evidence before dependency linking;

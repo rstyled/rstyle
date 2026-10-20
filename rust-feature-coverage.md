@@ -138,7 +138,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C03 | Memory-free helpers with shared inputs | Covered | `choose(left, right, flag)` | Supported canonical shared types and actual arguments; shared input alone does not authorize memory reads. |
 | C04 | Whole shared-formal helper results | Covered | `identity_ref(xs).len()` | Verified selected-formal return origins and actual substitution; not a field-reading borrowed-result summary. |
 | C05 | Direct memory-reading shared-input helpers | Covered | `read_field(s)` | Data-v2/v3: scalar/unit results, exact per-occurrence reads and actual-origin substitution, preserving alias uncertainty. |
-| C06 | Concrete inherent method calls and UFCS | Partial | `s.value()`, `S::value(s)` | Data-v3: same-unit nongeneric inherent impl/method, shared receiver, exact owner/source/adjustment proof, supported summary. No trait dispatch. |
+| C06 | Concrete inherent method calls and UFCS | Partial | `s.value()`, `S::value(s)` | Data-v3: same-unit nongeneric inherent impl/method, shared receiver or [static associated calls](docs/extraction-profiles/static-inherent-helper-calls-v1.md), exact owner/source proof and supported summary. Shared receivers require adjustment proof. No trait dispatch. |
 | C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. General autoref, repeated/overloaded deref, unsizing and mutable/by-value inherent receivers remain unavailable. |
 | C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Four instantiations only: i32/i64 unsigned_abs and u32/u64 wrapping_mul. Not general primitive-method support. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
@@ -1308,4 +1308,44 @@ Frozen run `target/hir-coverage/run-2sony2uw/` completes all three packages with
 identities/outcomes, all denominators and context counts match 3.24.0
 (`run-fdc85x8c`). Twenty-six admitted graph documents pass schema checks
 (10 lz4, 0 regex, 16 time). Body-only nominal types add no measured frozen admission
+gain; these checks do not establish general performance or detector quality.
+
+
+### C06 static associated helper calls
+
+Data-v3 extraction 3.26.0 adds `rust.static-inherent-helper-calls` (38
+capabilities); matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/static-inherent-helper-calls-v1.md) admits
+receiver-free same-unit nongeneric inherent helpers through qualified paths,
+import aliases and transitive `Self` calls. Owner values and field layouts are
+unnecessary when the static function never receives or constructs them.
+
+Capture and independent verification reuse existing inherent definitions, unit
+associations, nominal identities and the closed lexical source index. Exact
+implementation/function ranges, package identity and original declaration digest
+remain checked. Shared receiver checks are unchanged. No new serialized records,
+source snapshots or retained caches are introduced.
+
+The composed Cargo fixture covers an owner with an unused `String` field, aliases,
+qualified paths, zero arguments, unit results and transitive calls. Unsupported
+local storage borrows remain excluded through callers. Owner/implementation/span
+and identity corruption are rejected; admitted graphs pass independent and strict
+verification and equivalent callers reach accepted matching. The earlier body-only
+nominal fixture now admits its static helper call (11 admitted, 2 excluded).
+C06 remains Partial; trait/generic dispatch, broader receivers, callee contracts,
+cross-unit linking and the full roadmap remain active.
+
+Validation: 759 workspace tests pass with the same 5 existing ignores, including
+the original assertion-argument receiver regression and the strengthened static
+ownership corruption checks. Clippy passes for all targets with warnings denied;
+formatting and diff checks pass. Repository-built rstyle reports 2,325 functions
+and 0 violations; patterns reports 0 candidates with the same 15 existing ignores.
+All 14 inventory bookkeeping tests pass. Inventory capture ran after the workspace
+test process finished, avoiding executable replacement during test launches.
+
+Frozen run `target/hir-coverage/run-ftluk_j2/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60. All 60 frozen
+identities/outcomes, all denominators and context counts match 3.25.0
+(`run-2sony2uw`). Twenty-six admitted graph documents pass schema checks
+(10 lz4, 0 regex, 16 time). Static associated calls add no measured frozen admission
 gain; these checks do not establish general performance or detector quality.

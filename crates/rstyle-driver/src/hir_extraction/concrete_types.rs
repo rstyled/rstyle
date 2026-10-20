@@ -522,6 +522,42 @@ fn nominal(
     })
 }
 
+pub(super) fn static_owner(
+    ctx: &Context<'_>,
+    implementation: DefId,
+) -> Result<Option<Nominal>, String> {
+    let ty = ctx
+        .tcx
+        .type_of(implementation)
+        .instantiate_identity()
+        .skip_norm_wip();
+
+    let ty::Adt(definition, _) = ty.kind() else {
+        return Ok(None);
+    };
+    if !definition.is_struct() || !definition.did().is_local() {
+        return Ok(None);
+    }
+    let Node::Item(item) = ctx.tcx.hir_node_by_def_id(definition.did().expect_local()) else {
+        return Ok(None);
+    };
+    if item.span.from_expansion() {
+        return Ok(None);
+    }
+
+    let Some((source, _)) = ctx.sources.range(ctx.tcx, item.span) else {
+        return Ok(None);
+    };
+    if source.len() > MAX_SOURCE_BYTES {
+        return Err("Static owner declaration exceeds source budget".into());
+    }
+    match nominal(ctx, ctx.tcx.def_path_str(definition.did()), &source) {
+        Ok(owner) => Ok(Some(owner)),
+        Err(Failure::Unsupported(_)) => Ok(None),
+        Err(Failure::Budget(reason)) => Err(reason),
+    }
+}
+
 fn interface_tokens(
     signature: &mut rstyle_pdg::SignatureFacts,
     interface: &InterfaceObservations,

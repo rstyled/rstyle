@@ -37,10 +37,15 @@ pub fn capture(ctx: &Context<'_>, id: LocalDefId, facts: &mut HirFnFacts) -> Res
     let Some(implementation) = implementation(tcx, id.to_def_id(), ctx.profile) else {
         return Ok(());
     };
-    if !facts.signature.has_self {
+    if !facts.signature.has_self && !ctx.profile.supports("rust.static-inherent-helper-calls") {
         return Ok(());
     }
-    let Some(nominal) = owner_nominal(facts) else {
+    let nominal = if facts.signature.has_self {
+        owner_nominal(facts)
+    } else {
+        super::concrete_types::static_owner(ctx, implementation)?
+    };
+    let Some(nominal) = nominal else {
         return Ok(());
     };
 

@@ -45,7 +45,8 @@ its construction/projection exclusions.
 This does not admit arbitrary mixed-content crates. Existing restrictions on enums,
 traits, type/const generics, derives/macros, conditional modules and ownership/drop
 remain. Local storage borrows and mutable reference-bearing locals remain excluded.
-Static associated helper calls still lack the shared-receiver ownership contract
-used by existing inherent helper certification; admitting an associated function as
-a root does not establish that call boundary. S09 remains Partial. Validation and
+At extraction 3.25.0, static associated helper calls still lacked an ownership
+contract; admitting an associated function as a root did not establish that call
+boundary. Extraction 3.26.0 adds a separate [static helper-call
+contract](static-inherent-helper-calls-v1.md). S09 remains Partial. Validation and
 frozen natural inventory measurements are recorded in the roadmap continuation log.

@@ -19,6 +19,7 @@ type Namespace = Vec<String>;
 pub struct Resolution {
     pub namespace: Namespace,
     pub receiver: Option<TypeTree>,
+    owner_path: Option<Namespace>,
     trees: BTreeMap<Namespace, TypeTree>,
     environment: Rc<Environment>,
 }
@@ -73,10 +74,7 @@ pub fn verify(facts: &HirFnFacts, interface: &InterfaceObservations) -> Result<R
 }
 
 pub(crate) fn constant_context(facts: &HirFnFacts) -> Result<bool, String> {
-    Ok(
-        crate::extraction_profile::ExtractionProfile::from_facts(facts)?
-            .supports("rust.nominal-constant-context"),
-    )
+    supports(facts, "rust.nominal-constant-context")
 }
 
 pub(crate) fn verify_in(
@@ -94,6 +92,7 @@ pub(crate) fn verify_in(
     let mut resolution = Resolution {
         namespace: Vec::new(),
         receiver: None,
+        owner_path: None,
         trees: BTreeMap::new(),
         environment: Rc::clone(&environment),
     };
@@ -386,7 +385,23 @@ fn function_scope(
         let syn::Type::Path(path) = receiver.as_ref() else {
             return Err("Unsupported inherent receiver type".into());
         };
-        resolution.receiver = Some(resolution.resolve(path)?);
+        resolution.owner_path = Some(
+            Scoped {
+                resolution,
+                namespace: &resolution.namespace,
+            }
+            .name(path)?,
+        );
+        match resolution.resolve(path) {
+            Ok(owner) => resolution.receiver = Some(owner),
+            Err(error)
+                if facts.signature.has_self
+                    || !supports(facts, "rust.static-inherent-helper-calls")? =>
+            {
+                return Err(error);
+            }
+            Err(_) => {}
+        }
     }
     Ok(())
 }
@@ -409,6 +424,18 @@ pub fn inherent_owner<'a>(
     implementation: &ByteSpan,
 ) -> Result<OwnerView<'a>, String> {
     let resolution = facts.nominal_resolution()?;
+    check_implementation(&resolution, facts, implementation)?;
+    if resolution.receiver.is_none() {
+        return Err("Missing independently resolved inherent owner".into());
+    }
+    Ok(OwnerView(resolution))
+}
+
+fn check_implementation(
+    resolution: &Resolution,
+    facts: &HirFnFacts,
+    implementation: &ByteSpan,
+) -> Result<(), String> {
     let file = facts
         .build
         .frontend_options
@@ -438,10 +465,31 @@ pub fn inherent_owner<'a>(
         return Err("Missing or ambiguous exact nongeneric inherent implementation".into());
     }
 
-    if resolution.receiver.is_none() {
-        return Err("Missing independently resolved inherent owner".into());
+    Ok(())
+}
+
+fn supports(facts: &HirFnFacts, capability: &str) -> Result<bool, String> {
+    Ok(crate::extraction_profile::ExtractionProfile::from_facts(facts)?.supports(capability))
+}
+
+pub fn static_owner(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    implementation: &ByteSpan,
+    nominal: &crate::concrete_types::Nominal,
+) -> Result<(), String> {
+    if facts.signature.has_self || !supports(facts, "rust.static-inherent-helper-calls")? {
+        return Err(
+            "Static inherent ownership requires its registered receiver-free boundary".into(),
+        );
     }
-    Ok(OwnerView(resolution))
+    let resolution = facts.nominal_resolution()?;
+    check_implementation(&resolution, facts, implementation)?;
+
+    let owner = resolution
+        .owner_path
+        .as_ref()
+        .ok_or("Missing exact static implementation owner")?;
+    resolution.check_nominal(owner, nominal)
 }
 
 fn supported_inherent_member(item: &syn::ItemImpl, bytes: &str, facts: &HirFnFacts) -> bool {
@@ -453,12 +501,32 @@ fn supported_inherent_member(item: &syn::ItemImpl, bytes: &str, facts: &HirFnFac
         return false;
     }
     item.items.iter().any(|member| {
-        let syn::ImplItem::Fn(method) = member else { return false; };
-        (FunctionSource { vis: &method.vis, sig: &method.sig, body: &method.block }).exact(bytes, facts)
+        let syn::ImplItem::Fn(method) = member else {
+            return false;
+        };
+        (FunctionSource {
+            vis: &method.vis,
+            sig: &method.sig,
+            body: &method.block,
+        })
+        .exact(bytes, facts)
             && crate::concrete_types::lifetimes::parameter_count(&method.sig.generics).is_ok()
-            && matches!(method.sig.inputs.first(), Some(syn::FnArg::Receiver(receiver))
-                if receiver.reference.is_some() && receiver.mutability.is_none() && receiver.colon_token.is_none())
+            && supported_receiver(&method.sig, facts)
     })
+}
+
+fn supported_receiver(signature: &syn::Signature, facts: &HirFnFacts) -> bool {
+    match signature.inputs.first() {
+        Some(syn::FnArg::Receiver(receiver)) => {
+            receiver.reference.is_some()
+                && receiver.mutability.is_none()
+                && receiver.colon_token.is_none()
+        }
+        _ => {
+            !facts.signature.has_self
+                && supports(facts, "rust.static-inherent-helper-calls").unwrap_or(false)
+        }
+    }
 }
 
 fn module_functions(
@@ -543,6 +611,32 @@ impl PathResolution for Scoped<'_> {
         }
         concrete_types::lifetimes::arguments(path)?;
 
+        if path.path.is_ident("Self") {
+            return self
+                .resolution
+                .receiver
+                .clone()
+                .ok_or_else(|| "Self lacks exact owning impl proof".into());
+        }
+        let names = self.name(path)?;
+        let tree = self
+            .resolution
+            .trees
+            .get(&names)
+            .cloned()
+            .ok_or_else(|| "Named type lacks exact captured lexical declaration".to_string())?;
+        concrete_types::lifetimes::verify_path(path, &tree)?;
+        Ok(tree)
+    }
+}
+
+impl Scoped<'_> {
+    fn name(&self, path: &syn::TypePath) -> Result<Namespace, String> {
+        if path.qself.is_some() || path.path.leading_colon.is_some() {
+            return Err("Unsupported nominal type path".into());
+        }
+        concrete_types::lifetimes::arguments(path)?;
+
         let mut names: Namespace = path
             .path
             .segments
@@ -555,7 +649,7 @@ impl PathResolution for Scoped<'_> {
             }
             return self
                 .resolution
-                .receiver
+                .owner_path
                 .clone()
                 .ok_or_else(|| "Self lacks exact owning impl proof".into());
         }
@@ -574,13 +668,57 @@ impl PathResolution for Scoped<'_> {
         } else {
             names = anchored(names, self.namespace, false)?;
         }
-        let tree = self
+        if !self
             .resolution
-            .trees
-            .get(&names)
-            .cloned()
-            .ok_or_else(|| "Named type lacks exact captured lexical declaration".to_string())?;
-        concrete_types::lifetimes::verify_path(path, &tree)?;
-        Ok(tree)
+            .environment
+            .index
+            .declarations
+            .contains_key(&names)
+        {
+            return Err("Named type lacks exact captured lexical declaration".into());
+        }
+        Ok(names)
+    }
+}
+
+impl Resolution {
+    pub fn matches_nominal(
+        &self,
+        path: &syn::TypePath,
+        nominal: &crate::concrete_types::Nominal,
+    ) -> Result<(), String> {
+        let names = Scoped {
+            resolution: self,
+            namespace: &self.namespace,
+        }
+        .name(path)?;
+        self.check_nominal(&names, nominal)
+    }
+
+    fn check_nominal(
+        &self,
+        names: &Namespace,
+        nominal: &crate::concrete_types::Nominal,
+    ) -> Result<(), String> {
+        let declaration = self
+            .environment
+            .index
+            .declarations
+            .get(names)
+            .ok_or("Missing lexical nominal owner declaration")?;
+        let source = self.environment.source(&declaration.path)?;
+        let package = &self.environment.census().context.package;
+
+        if nominal.definition_path != names.join("::")
+            || nominal.source_identity.as_deref() != Some(package.package_id.as_str())
+            || nominal.package_name != package.name
+            || nominal.package_version != package.version
+            || nominal.manifest_digest != package.manifest_digest
+            || nominal.declaration_digest
+                != concrete_types::digest(source.range(declaration.span)?.as_bytes())
+        {
+            return Err("Nominal owner contradicts the exact lexical declaration/package".into());
+        }
+        Ok(())
     }
 }
