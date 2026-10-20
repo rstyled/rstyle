@@ -1,6 +1,7 @@
 //! End-to-end tests: real `cargo check` through the real rustc driver.
 
 mod byte_windows;
+mod checked_options;
 #[path = "../src/diagnostic_process.rs"]
 mod diagnostic_process;
 mod inherent_expansions;

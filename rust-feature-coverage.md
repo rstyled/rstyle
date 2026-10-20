@@ -1957,3 +1957,29 @@ and streamed successfully, but its redundant JSON stdout renderer was terminated
 at the memory boundary (exit 143). Capture/assessment results above are validated
 artifact results, not a successful CLI-exit claim. Frozen and regression/style
 runs completed normally. Use text stdout for subsequent full-library runs.
+
+
+### Bounded core Option observations retain payload bindings
+
+Data-v3 now observes core Option with scalar or shared-scalar payloads and retains
+resolved Some/None patterns, immutable reference patterns and their nested
+bindings. Renamed imports retain compiler identities; lookalike enums, mutable
+and nested Option payloads remain unsupported. Historical Data-v1/v2 records
+remain unchanged. Owning nominal structs containing Option remain unsupported
+as a whole; no fields are omitted. See the
+[observation contract](docs/extraction-profiles/checked-option-observations-v1.md).
+
+This is a foundation for the selected checked UTF-8 boundary, not semantic
+Option support: semantic type parsing and admission remain closed. The unchanged
+five-function development selection remains zero admitted / five excluded, now
+retaining the natural leaf's `b` binding and Some/None relationship. Remaining
+blockers are registered checked-get bounds and conditional reference origins,
+variant guards and guarded payload loads, then saved Option/helper composition
+through independent verification, strict admission and matching. D17 stays open.
+
+Frozen run `run-uhc11x7c` matches `run-wxw_9e2e` on all 60 identities, outcomes
+and denominators: 13 admitted / 40 excluded / 7 inactive, 30 verified documents,
+zero gains/losses. Validation: 792 workspace tests pass with five existing
+ignores, including the three reported assertion/subslice regressions; focused
+Option tests and all-targets clippy pass. Formatting/diff checks, rstyle (2,529
+functions, zero violations) and patterns (zero candidates) pass.

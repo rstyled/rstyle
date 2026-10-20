@@ -349,3 +349,26 @@ fn strict_source_type_proofs_enforce_resource_and_rust_unit_boundaries() {
             .is_err()
     );
 }
+
+#[test]
+fn option_observations_are_bounded_and_do_not_register_semantic_types() {
+    for payload in [
+        TypeTree::Scalar("usize".into()),
+        TypeTree::Shared(Box::new(TypeTree::Scalar("u8".into()))),
+    ] {
+        let tree = TypeTree::Option(Box::new(payload));
+        validate(&tree).unwrap();
+        let encoded = serde_json::to_vec(&tree).unwrap();
+        assert_eq!(tree, serde_json::from_slice(&encoded).unwrap());
+        let token = rstyle_pdg::data_types::token(&tree).unwrap();
+        assert!(rstyle_pdg::data_types::parse(&token).is_err());
+    }
+    for payload in [
+        TypeTree::Scalar("unit".into()),
+        TypeTree::Scalar("f32".into()),
+        TypeTree::Slice(Box::new(TypeTree::Scalar("u8".into()))),
+        TypeTree::Option(Box::new(TypeTree::Scalar("u8".into()))),
+    ] {
+        assert!(validate(&TypeTree::Option(Box::new(payload))).is_err());
+    }
+}

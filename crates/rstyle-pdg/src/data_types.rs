@@ -20,6 +20,7 @@ pub enum TypeToken {
     Shared(Box<TypeToken>),
     Slice(Box<TypeToken>),
     Str,
+    Option(Box<TypeToken>),
     SliceArrayResult {
         length: u64,
         borrowed: bool,
@@ -42,6 +43,7 @@ impl TypeToken {
             TypeTree::Shared(value) => Self::Shared(Box::new(Self::from_tree(value))),
             TypeTree::Slice(value) => Self::Slice(Box::new(Self::from_tree(value))),
             TypeTree::Str => Self::Str,
+            TypeTree::Option(value) => Self::Option(Box::new(Self::from_tree(value))),
             TypeTree::SliceArrayResult { length, borrowed } => Self::SliceArrayResult {
                 length: *length,
                 borrowed: *borrowed,
@@ -69,9 +71,10 @@ impl TypeToken {
         match self {
             Self::Scalar(value) => matches!(value.as_str(), "isize" | "usize"),
             Self::Tuple(values) => values.iter().any(Self::native_width),
-            Self::Array { element, .. } | Self::Shared(element) | Self::Slice(element) => {
-                element.native_width()
-            }
+            Self::Array { element, .. }
+            | Self::Shared(element)
+            | Self::Slice(element)
+            | Self::Option(element) => element.native_width(),
             Self::Struct { fields, .. } => fields.iter().any(|(_, field)| field.native_width()),
             _ => false,
         }

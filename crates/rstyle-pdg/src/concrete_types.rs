@@ -27,6 +27,7 @@ pub enum TypeTree {
     Shared(Box<TypeTree>),
     Slice(Box<TypeTree>),
     Str,
+    Option(Box<TypeTree>),
     SliceArrayResult {
         length: u64,
         borrowed: bool,
@@ -133,6 +134,9 @@ fn check(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), Strin
 
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
+        TypeTree::Option(payload) if !option_payload(payload) => {
+            Err("Option observation requires a scalar or shared scalar payload".into())
+        }
         TypeTree::SliceArrayResult { length, .. } if *length > MAX_FIELDS as u64 => {
             Err("Slice conversion result exceeds supported array length".into())
         }
@@ -147,15 +151,26 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
     }
 }
 
+fn option_payload(tree: &TypeTree) -> bool {
+    match tree {
+        TypeTree::Scalar(value) => scalar(value) && value != "unit",
+        TypeTree::Shared(value) => {
+            matches!(value.as_ref(), TypeTree::Scalar(value) if scalar(value) && value != "unit")
+        }
+        _ => false,
+    }
+}
+
 fn check_children(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), String> {
     match tree {
         TypeTree::Tuple(elements) => check_many(elements.iter(), depth, entries),
         TypeTree::Struct { fields, .. } => {
             check_many(fields.iter().map(|field| &field.ty), depth, entries)
         }
-        TypeTree::Array { element, .. } | TypeTree::Shared(element) | TypeTree::Slice(element) => {
-            check(element, depth, entries)
-        }
+        TypeTree::Array { element, .. }
+        | TypeTree::Shared(element)
+        | TypeTree::Slice(element)
+        | TypeTree::Option(element) => check(element, depth, entries),
         _ => Ok(()),
     }
 }

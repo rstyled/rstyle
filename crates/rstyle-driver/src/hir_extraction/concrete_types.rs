@@ -236,6 +236,14 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 
     fn storage(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
+        if self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3
+            && self.visiting.is_empty()
+            && let Some(payload) = super::options::payload(self.ctx.tcx, ty)
+        {
+            return self
+                .tree(payload, depth + 1)
+                .map(|payload| TypeTree::Option(Box::new(payload)));
+        }
         if let Some(result) = self.slice_array_result(ty) {
             return Ok(result);
         }

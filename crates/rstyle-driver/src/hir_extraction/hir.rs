@@ -95,6 +95,9 @@ impl<'tcx> Context<'tcx> {
     }
 
     pub fn pattern(&self, pat: &hir::Pat<'tcx>) -> HirNode {
+        if let Some(pattern) = self.option_pattern(pat) {
+            return pattern;
+        }
         let constant = self.constant_pattern(pat);
         let range_constants = self.range_constants(pat);
         let (kind, span) = match pat.kind {

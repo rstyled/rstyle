@@ -97,6 +97,7 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
     Ok(match token {
         TypeToken::Scalar(value) => TypeTree::Scalar(value.clone()),
         TypeToken::Str => TypeTree::Str,
+        TypeToken::Option(_) => return Err("Concrete Option source proof is not registered".into()),
         TypeToken::SliceArrayResult { length, borrowed } => TypeTree::SliceArrayResult {
             length: *length,
             borrowed: *borrowed,
