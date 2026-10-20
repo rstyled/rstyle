@@ -1983,3 +1983,12 @@ zero gains/losses. Validation: 792 workspace tests pass with five existing
 ignores, including the three reported assertion/subslice regressions; focused
 Option tests and all-targets clippy pass. Formatting/diff checks, rstyle (2,529
 functions, zero violations) and patterns (zero candidates) pass.
+
+
+The unmodified default-feature natural library run `run-8UPUKk` completed with
+text stdout: capture=true and assessment=true, 2,582 assessed, six admitted /
+2,576 excluded, zero unknown/failed. The retained exact `is_boundary` source
+identity and its payload binding were inspected in the bundle. Admissions are
+unchanged from `run-HCmpVF`; the selected leaf remains excluded. Exit 2 reflects
+intentional max-pairs=0 incompleteness (enumeration/evaluation=false), not a
+capture failure; no end-to-end matching gain is claimed.
