@@ -265,3 +265,35 @@ clippy and formatting passed, repository-built rstyle checked 2441 functions wit
 0 violations, patterns had 0 candidates, and all 14 inventory tests passed.
 The shared-inventory scan refactor was followed by a second complete workspace
 run. No broad runtime performance claim is made.
+
+## Independent byte-window oracle (preparation, no admission milestone)
+
+`byte-window-oracle.rs` reproduces the two selected expressions and checks their
+results against arithmetic byte-position expectations, without using a byte
+conversion API in the expected-value calculation. Run from the repository root:
+
+```sh
+rustc --edition=2021 --test -C overflow-checks=yes \
+  eval/coverage-development/byte-window-oracle.rs -o /tmp/rstyle-byte-window-oracle
+/tmp/rstyle-byte-window-oracle
+```
+
+The four tests cover both widths, every selected byte at multiple offsets,
+outside-window independence, distinguishable endian/window mistakes, copied and
+borrowed conversion failures, borrowed pointer identity, invalid windows and
+endpoint overflow. All four pass on the pinned native compiler. These are runtime
+semantic expectations, not Cargo capture/verification/admission tests. The file
+does not replace the whole published library or change the frozen inventory.
+
+Pinned core source inspection confirms the blanket `TryInto` implementation in
+`convert/mod.rs` delegates to `U::try_from(self)`. The array implementations in
+`array/mod.rs` distinguish copied `[T; N]` from borrowed `&[T; N]` results;
+`Result::unwrap` in `result.rs` returns the Ok payload or calls `unwrap_failed`
+on Err. Consequently the existing nonpanicking metadata-call summary cannot be
+reused unchanged. The connected increment still needs concrete selected-conversion
+authority, a real typed Result intermediate, copy/read versus borrowed-origin
+semantics, failure requirements and endian-sensitive native-byte interpretation.
+Current method capture records the trait definition, not a selected implementation;
+rustc `Instance::try_resolve` is available, but has not been added to capture or
+treated as sufficient proof. No extraction behavior or admission count changed in
+this preparation. The next delivery milestone remains the complete get_batch chain.
