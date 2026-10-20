@@ -2688,3 +2688,46 @@ capture three existing no-merge/outside-loop functions twenty times: median
 observed on these bounded workloads; this is not a whole-capture or general
 state-space performance guarantee. The new repeated-merge path performs the
 additional finite proof required for the selected scanner admissions.
+
+
+### Next connected target: scalar Option byte widths
+
+After the two practical F10 scanner gains, source inspection selects
+regex-automata 0.4.18 util::utf8::len and the nested regex-syntax 0.8.11
+debug::utf8_decode::len. The
+[development contract](docs/extraction-profiles/scalar-option-byte-widths-v1.md)
+fixes source hashes/spans, ordinary default-feature contexts, independent all-byte
+expectations, the complete known blocker chain and explicit unknowns before
+admission assessment. These classify byte widths as Option<usize>; they do not
+validate complete Unicode scalars. Their surrounding char/Result decoder chains
+remain separate unsupported functions, with no supported-prefix certification.
+
+Both original Cargo-captured identities exactly match the declaration and are
+excluded: regex-automata in the current complete 3.41.0 capture; regex-syntax in
+the retained complete 3.40.0 capture. A current-policy natural comparison is still
+required before gains can be claimed. The fixed six-function development corpus
+completes current capture/assessment at **0 admitted /6 excluded /0 unknown**.
+Four intended positives connect range/conditional Option construction, explicit
+early returns, saved values, scalar payload binding and helper consumption;
+two negatives keep nested Option and a custom similarly named enum outside scope.
+
+Source/code audit identifies semantic Option-scalar type rejection, precise
+source generic-type correspondence, absent None path authority and Some
+constructor semantics, shared-only payload binding with inappropriate memory-read
+semantics for scalar values, then merge/early-return/local/helper transport and
+historical policy gating. The first source rejection comes from nominal
+lifetime-only type parsing; a precise core Option route is needed without
+weakening general nominal ownership/source rules. Existing scalar range support
+should be reused. Nested-owner and all-target constructor identity details remain
+explicit validation unknowns. No extra inventory, provenance table, source cache
+or broader nominal-unit relaxation is justified by this family.
+
+Two runtime oracle tests pass for the independently specified 256-byte partition,
+fallback values 0/5/usize::MAX, saved-value rebinding and explicit C0/C1/F5/F6/F7
+non-validation cases. These are semantic expectations, not support activation.
+The frozen inventory/denominator, historical records, production policy,
+thresholds/scoring and suppressions remain unchanged by this declaration.
+
+The declaration's style audit checks 2,632 functions with zero violations;
+patterns has zero candidates. This increment changes only the target contract,
+corpus and independent oracle; it does not change extraction or admission.
