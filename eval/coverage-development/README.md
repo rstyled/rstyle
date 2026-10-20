@@ -1223,3 +1223,16 @@ remain excluded. The unchanged complete original library gains seven admissions 
 development admissions pass independent strict import/verification. The selected
 seven graphs complete 21 comparisons, two Accepted and 19 Rejected under unchanged
 scoring. Whole-library matching remains budget-incomplete.
+
+## Tagged byte units (not activated)
+
+`tagged-units.rs` fixes six intended constructor/projection/composition positives,
+three named negatives and two excluded generated Clone methods. Its Data-v3
+3.46 Cargo baseline is 0 admitted /11 excluded, with complete capture and
+assessment. The [contract](../../docs/extraction-profiles/tagged-units-v1.md)
+selects original Unit::u8, as_u8 and as_eoi, enumerates the complete known blocker
+chain and separates unsupported neighbors. `tagged-units-oracle.py
+/path/to/regex-automata-0.4.18` checks original source identities and runs three
+tests in a disposable complete original crate: all bytes, all u16 sentinel
+payloads and the public sentinel constructor's checked domain. These runtime
+expectations do not activate enum extraction or modify the frozen inventory.

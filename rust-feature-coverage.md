@@ -3302,3 +3302,24 @@ Result/`?` alone would leave owned non-Copy and macro declaration proof, generic
 instantiation and partial-helper transport unresolved. Reassess smaller natural
 Option/read compositions before choosing the next production increment. No new
 capability or admission is claimed; frozen selections remain unchanged.
+
+### Next connected target: tagged byte-unit construction and projections
+
+The [tagged-unit contract](docs/extraction-profiles/tagged-units-v1.md) selects
+original regex-automata Unit::u8/as_u8/as_eoi before activation. Its two-variant
+scalar payload enum has positive builtin-Copy derives, avoiding the checked
+readers' non-Copy/macro error chain. The full dependency chain still includes
+complete nominal variant capture/proof, resolved variant construction, currently
+missing tuple-pattern children and binding declarations, conditional payload
+matching, by-value helper snapshots and scalar Option composition. Existing
+construct support does not certify this family. No ABI layout is inferred.
+
+The independent complete-original-crate oracle passes three tests: all 256 byte
+values, all 65536 u16 sentinel payloads, and valid/invalid public eoi arguments.
+The fixed development corpus declares six complete intended positives, three
+named negatives and two excluded generated Clone methods. Real Cargo baseline
+assesses all eleven at 0 admitted /11 excluded, with complete capture/assessment
+and empty matching. The original three selected methods remain excluded in the
+fresh 3.46 roster. This is a source/semantic target boundary, not a new capability
+or admission gain. General Result/Try, iterator/closure and macro activation
+remain separate remaining work.
