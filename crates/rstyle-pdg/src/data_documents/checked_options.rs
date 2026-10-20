@@ -48,7 +48,15 @@ pub(super) fn verify(
     let matches = options::matches(facts);
 
     let constructors = options::constructors(facts);
-    verify_inventory(pair, &gets, &matches, &constructors)?;
+    inventory(
+        pair,
+        expected_counts(
+            &gets,
+            &matches,
+            &constructors,
+            crate::option_callbacks::invocations(facts).len(),
+        ),
+    )?;
     for source in constructors {
         verify_constructor(pair, source, facts)?;
     }
@@ -62,12 +70,12 @@ pub(super) fn verify(
     Ok(locations)
 }
 
-fn verify_inventory(
-    pair: PairView<'_>,
+fn expected_counts(
     gets: &[&HirNode],
     matches: &[&HirNode],
     constructors: &[&HirNode],
-) -> Result<(), String> {
+    callbacks: usize,
+) -> [usize; 7] {
     let scalar = matches
         .iter()
         .filter(|source| options::owned(&source.children[0]))
@@ -76,18 +84,15 @@ fn verify_inventory(
         .iter()
         .filter(|source| source.kind == "expr_call")
         .count();
-    inventory(
-        pair,
-        [
-            gets.len(),
-            matches.len() - scalar,
-            matches.len(),
-            matches.len(),
-            some,
-            constructors.len() - some,
-            scalar,
-        ],
-    )
+    [
+        gets.len(),
+        matches.len() - scalar,
+        matches.len(),
+        matches.len(),
+        some,
+        constructors.len() - some,
+        scalar + callbacks,
+    ]
 }
 
 fn verify_constructor(
@@ -173,25 +178,12 @@ fn operation<'a>(
     source: &HirNode,
     construct: &str,
 ) -> Result<&'a PdgNode, String> {
-    let node = super::serialized_operation(pair, &source.span, |node| {
-        node.attributes.construct.as_deref() == Some(construct)
-    })?;
     let expected = if matches!(construct, "match.option-some" | "match.option-none") {
         "bool"
     } else {
         crate::data_aggregates::token(source)?
     };
-    if node.original_kind.known_value() != Some(source.kind.as_str())
-        || node
-            .annotations
-            .get("compat.rust.hir-r0:type")
-            .and_then(|ty| ty.get("value"))
-            .and_then(serde_json::Value::as_str)
-            != Some(expected)
-    {
-        return Err("Option operation type/source correspondence disagrees".into());
-    }
-    Ok(node)
+    super::typed_operation(pair, source, construct, expected)
 }
 
 fn verify_get(
@@ -219,7 +211,11 @@ fn verify_get(
     .verify(pair, facts)
 }
 
-fn effects(node: &PdgNode, construct: &str, reads: &[crate::Access]) -> Result<(), String> {
+pub(super) fn effects(
+    node: &PdgNode,
+    construct: &str,
+    reads: &[crate::Access],
+) -> Result<(), String> {
     let expected = match construct {
         "data.option-get" => NodeCategory::Call,
         "data.option-payload" => NodeCategory::Read,

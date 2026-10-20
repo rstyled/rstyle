@@ -52,6 +52,42 @@ pub struct Registry {
     #[serde(default)]
     pub definitions: BTreeMap<String, String>,
 }
+
+impl Registry {
+    /// Check the reviewed core identity. Callers separately constrain allowed
+    /// source paths, including any explicitly supported core/std aliases.
+    pub(crate) fn exact_core_definition(&self, callee: &Callee, key: &str) -> bool {
+        callee.crate_name == "core"
+            && callee.crate_hash == self.core_hash
+            && self.definitions.get(key) == Some(&callee.definition_hash)
+            && callee.implementation.is_none()
+    }
+}
+
+pub(crate) struct CoreDefinition {
+    /// The first path is the registry key; other paths are reviewed aliases.
+    pub paths: &'static [&'static str],
+    pub unavailable: &'static str,
+    pub mismatch: &'static str,
+}
+
+pub(crate) fn verify_core_definition(
+    callee: &Callee,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    expected: CoreDefinition,
+) -> Result<(), String> {
+    let registry = registry_for(facts).ok_or(expected.unavailable)?;
+    let key = expected
+        .paths
+        .first()
+        .ok_or("Missing core definition path contract")?;
+    if !expected.paths.contains(&callee.path.as_str())
+        || !registry.exact_core_definition(callee, key)
+    {
+        return Err(expected.mismatch.into());
+    }
+    Ok(())
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Operation {
@@ -142,7 +178,7 @@ mod tests {
             assert_eq!(arm.rustc_commit, other.rustc_commit);
             assert_eq!(arm.source_digests, other.source_digests);
             assert_eq!(arm.operations.len(), other.operations.len());
-            assert_eq!(arm.definitions.len(), 20);
+            assert_eq!(arm.definitions.len(), 21);
             assert_eq!(
                 arm.definitions.keys().collect::<Vec<_>>(),
                 other.definitions.keys().collect::<Vec<_>>()

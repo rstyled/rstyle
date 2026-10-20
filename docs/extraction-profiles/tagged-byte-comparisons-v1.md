@@ -1,8 +1,9 @@
 # Tagged byte comparisons: source-first target
 
-This is the next connected target after Data-v3 3.48. It activates no new
-capability and does not change the current admission policy. Preserve the frozen
-60 identities/denominators and both existing tagged-unit development selections.
+This source-first target was specified before implementation in Data-v3 3.48.
+Its historical baseline below activates no new capability. Data-v3 3.49 connects
+the bounded family; measured results appear below. The frozen 60 identities and
+denominators and both existing tagged-unit development selections are preserved.
 
 ## Original selection and independent expectations
 
@@ -152,3 +153,95 @@ not evidence of mutation or purity. Admission must inspect complete captures,
 the body, ownership/drop and the registered immediate invocation, rather than
 infer those properties from the closure-kind label. No production observation or
 capability is activated by this probe.
+
+## Connected implementation (3.49)
+
+The working implementation now collects complete callback parameter/body
+subtrees and actual capture environments behind the
+`rust.immediate-option-callbacks` gate. Callback parameter bindings do not become
+outer-function parameters. Capture roots, modes and projection counts stay on
+the closure node; actual stored environment types reuse the existing bounded
+concrete-type observer. Unsupported storage stays explicitly unsupported. No
+global provenance registry, source copy, cache or ordinary closure data type is
+introduced.
+Collection is scoped to the immediate callback argument of a compiler-resolved
+core Option::map_or. Other escaping or unrelated closure bodies keep their
+existing unsupported boundary, avoiding a general traversal of neighboring
+closures merely to implement this family.
+
+The predicate verifier checks original closure/equality syntax, exact
+payload and capture binding identities, a distinct callback lexical scope, and
+one complete (&u8,) environment. Other stored environments remain explicitly
+unsupported without traversing and duplicating arbitrary captured nominal
+declarations. The invocation verifier checks the existing receiver/signature
+records and exact pinned map_or definitions, captured separately on all three
+installed CI targets. Observed closure type strings remain consistency checks;
+they do not supply callable semantics or an ordinary supported data type.
+
+A disposable capture experiment exercises all four selected callback bodies on
+ARM Linux, x86-64 Linux and ARM macOS, including missing body/environment,
+by-value/projected capture, outer-parameter misclassification, missing dispatch,
+incorrect default types and counterfeit callee mutations. All selected source
+contracts pass; mutations fail. This is cross-target compiler evidence, not
+native runtime execution on the other targets or strict graph admission.
+
+The gated lowering evaluates receiver and default once, records shared
+environment creation without a scalar content read, selects Some, binds/reads
+the payload and evaluates the real equality body only on that branch, and merges
+with the saved default on None. Independent serialized checks validate the full
+operation inventory, argument order, branch guards and saved result. Strict
+bundle re-import exercises the same connected family through matching.
+
+The fixed 26-function development selection now has thirteen admissions and
+thirteen exclusions: seven gains and no losses against its source-first baseline.
+The complete family passes Cargo capture, independent verification, strict
+admission and matching on all three configured compiler targets. Eight serialized
+graph mutations and six captured-fact mutations are rejected. Independent runtime
+oracles cover exhaustive byte comparisons, all u16 sentinel payloads, eager
+default effects and the None/default path. All six original-crate oracle tests pass.
+Cross-target capture does not claim native runtime execution on those targets.
+
+## Measured results and remaining boundaries
+
+The complete original default-feature library retains all 2582 exact function
+identities and build contexts against 3.48. Admissions increase **72 to 73**:
+Unit::is_byte is the sole gain, with **zero losses**, unknown or failed outcomes.
+Complete capture and assessment are distinct from the intentionally budgeted-out
+full pair enumeration (2628 possible pairs). Independent serialized verification
+checks all 73 admitted natural documents and all thirteen development documents.
+All 190 comparisons among seven selected original and thirteen development
+functions complete with unchanged defaults, no incomplete evaluations and no
+diagnostics. The full original-source oracle passes all six tests.
+
+The unchanged frozen selection remains **20 admitted /33 excluded /7 inactive**
+with all sixty identities and denominators preserved. Complete package rosters
+also retain their identities, contexts and outcomes: lz4_flex 150 functions /seven
+admitted, regex-syntax 956 /twenty, and time-core 226 /eight. Frozen replay verifies
+seventy documents. Historical reports are not rewritten.
+
+Performance uses the exact c875a72 source baseline, the pinned compiler, one warmup
+and seven alternating quiescent pairs per workload. Median elapsed seconds
+(baseline/current) are Copy control **0.89 /0.87**, cyclic control **0.62 /0.62**,
+and callback development **0.78 /0.94**. Observed ranges are respectively
+0.86–0.91 /0.86–0.90, 0.60–0.67 /0.60–0.65 and 0.75–0.82 /0.91–0.96 seconds.
+Median peak RSS (KiB) is **123064 /123204**, **111760 /111572**, and
+**121700 /124208**. Control matching results are identical. The callback corpus
+performs additional capture, proof and matching as its admissions rise from six
+to thirteen; this is not an equal-work performance comparison. These bounded
+measurements show no control regression and make no broad performance claim.
+No cache or additional global provenance registry is introduced.
+
+Unit::eoi remains blocked by formatted assertions, concrete checked conversion/
+Result/unwrap, helper links and owned-source/HIR correspondence. Unit::is_word_byte
+passes a function item to map_or; it needs complete callable/helper identity and
+its constant-table body proof, beyond this immediate closure contract.
+ByteClasses::eoi still combines checked_sub/Option unwrap with the unsupported
+Unit::eoi helper. Broader payloads, captures, move/escaping/nested closures,
+iterators, async, unsafe and FFI remain unsupported. This increment claims no
+abstraction activation, rewrite safety or held-out detector quality.
+
+Validation: workspace Clippy with warnings denied, doctests, formatting and
+whitespace checks pass. Fresh rstyle reports **2827 functions /zero violations**;
+patterns reports **zero candidates**. The final full workspace CI run passes
+**884 tests /five skipped**, including the reported assertion/subslice regressions
+and the corrected definition-count assertion.

@@ -3,6 +3,7 @@
 mod aggregates;
 mod borrows;
 mod byte_calls;
+mod callbacks;
 mod checked_options;
 mod conditional_payloads;
 mod index_reads;
@@ -341,6 +342,7 @@ fn verify_call_reads(
     context: &mut LocationContext<'_>,
     calls: &[&crate::HirNode],
 ) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    callbacks::verify(pair, context.facts)?;
     let bytes = byte_calls::verify(pair, context, calls)?;
     let options = checked_options::verify(pair, context, calls)?;
 
@@ -441,6 +443,28 @@ pub(crate) fn serialized_operation<'a>(
         .ok_or("Missing serialized source operation")?;
     if candidates.next().is_some() {
         return Err("Ambiguous serialized source operation".into());
+    }
+    Ok(node)
+}
+
+fn typed_operation<'a>(
+    pair: PairView<'a>,
+    source: &crate::HirNode,
+    construct: &str,
+    ty: &str,
+) -> Result<&'a PdgNode, String> {
+    let node = serialized_operation(pair, &source.span, |node| {
+        node.attributes.construct.as_deref() == Some(construct)
+    })?;
+    if node.original_kind.known_value() != Some(source.kind.as_str())
+        || node
+            .annotations
+            .get("compat.rust.hir-r0:type")
+            .and_then(|value| value.get("value"))
+            .and_then(serde_json::Value::as_str)
+            != Some(ty)
+    {
+        return Err("Serialized operation type/source correspondence disagrees".into());
     }
     Ok(node)
 }

@@ -150,10 +150,12 @@ impl Inventory<'_> {
             self.add(kind, expression.span());
         }
 
-        if matches!(
-            expression,
-            syn::Expr::Closure(_) | syn::Expr::Async(_) | syn::Expr::Const(_)
-        ) {
+        let callback = matches!(expression, syn::Expr::Closure(_))
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.immediate-option-callbacks"));
+        if matches!(expression, syn::Expr::Async(_) | syn::Expr::Const(_))
+            || matches!(expression, syn::Expr::Closure(_)) && !callback
+        {
             return;
         }
         self.expression_children(expression);
@@ -183,6 +185,12 @@ impl Inventory<'_> {
     }
 
     fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
+        if matches!(expression, syn::Expr::Closure(_))
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.immediate-option-callbacks"))
+        {
+            return Some("expr_closure");
+        }
         if matches!(expression, syn::Expr::Range(_))
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.shared-subslice-views"))
@@ -695,6 +703,8 @@ fn resolved_summary(
 ) -> bool {
     (node.hir == *hir
         && (crate::inherent_calls::source_resolved(node, facts).unwrap_or(false)
+            || crate::option_callbacks::candidate(node, facts)
+                && crate::option_callbacks::verify_map_or(node, facts).is_ok()
             || crate::data_library::source_resolved(node, facts).unwrap_or(false)
             || crate::call_summaries::resolve_for(node, facts)
                 .is_ok_and(|summary| summary.is_some())))

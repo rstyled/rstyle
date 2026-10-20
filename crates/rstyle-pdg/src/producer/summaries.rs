@@ -40,6 +40,7 @@ impl SummaryCapture<'_> {
         if matches!(node.kind.as_str(), "expr_call" | "expr_method_call")
             && !crate::checked_options::constructor_candidate(node, self.facts)
             && !crate::data_enums::constructor_candidate(node, self.facts)
+            && !crate::option_callbacks::candidate(node, self.facts)
         {
             records.push(self.record(node)?);
         }

@@ -129,24 +129,15 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), St
     {
         return Err("Native size value, owner or target disagrees".into());
     }
-    authority(&record.initializer, facts)
-}
-
-fn authority(
-    callee: &crate::data_library::Callee,
-    facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
-    let registry =
-        crate::data_library::registry_for(facts).ok_or("Unpinned native size authority")?;
-    if callee.crate_name != "core"
-        || callee.crate_hash != registry.core_hash
-        || callee.path != "std::mem::size_of"
-        || registry.definitions.get(&callee.path) != Some(&callee.definition_hash)
-        || callee.implementation.is_some()
-    {
-        return Err("Native size initializer lacks pinned core authority".into());
-    }
-    Ok(())
+    crate::data_library::verify_core_definition(
+        &record.initializer,
+        facts,
+        crate::data_library::CoreDefinition {
+            paths: &["std::mem::size_of"],
+            unavailable: "Unpinned native size authority",
+            mismatch: "Native size initializer lacks pinned core authority",
+        },
+    )
 }
 
 pub(crate) fn verify_use(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {

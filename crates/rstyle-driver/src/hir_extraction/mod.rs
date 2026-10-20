@@ -1,6 +1,7 @@
 //! Opt-in R0 frontend; the legacy extraction path stays independent.
 
 mod assertions;
+mod callbacks;
 mod concrete_types;
 pub mod diagnostics;
 mod evidence;

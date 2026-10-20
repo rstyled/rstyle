@@ -183,6 +183,7 @@ fn selected_expression(
         ast::ExprKind::Index(..) => profile.supports("rust.scalar-index-reads"),
         ast::ExprKind::Call(..) => profile.supports("rust.verified-helper-calls"),
         ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
+        ast::ExprKind::Closure(_) => profile.supports("rust.immediate-option-callbacks"),
         ast::ExprKind::While(..)
         | ast::ExprKind::Loop(..)
         | ast::ExprKind::Break(..)

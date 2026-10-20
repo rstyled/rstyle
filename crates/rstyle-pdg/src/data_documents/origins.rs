@@ -500,7 +500,23 @@ fn access_origins(
 }
 
 fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
-    let expected = match node.category {
+    let expected = source_type(node, facts)?;
+    if expected.is_none() || wire_type(node)?.as_str() != expected.unwrap_or_default() {
+        return Err(format!(
+            "Serialized value type disagrees with independently checked source role in {} at {}: expected {expected:?}, actual {}",
+            facts.name,
+            node.id,
+            wire_type(node)?
+        ));
+    }
+    Ok(())
+}
+
+fn source_type<'a>(
+    node: &PdgNode,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<&'a str>, String> {
+    Ok(match node.category {
         NodeCategory::FormalInput => {
             let position = node.attributes.position.ok_or("Missing input position")? as usize;
             facts
@@ -526,6 +542,12 @@ fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> 
             crate::data_discards::verify(source_node(node, facts)?, facts)?;
             Some("unit")
         }
+        NodeCategory::Computation
+            if node.attributes.construct.as_deref() == Some("callback.shared-byte-environment") =>
+        {
+            crate::option_callbacks::verify_environment_event(source_node(node, facts)?, facts)?;
+            Some("unit")
+        }
         NodeCategory::Computation if node.original_kind.known_value() == Some("expr_assign_op") => {
             source_node(node, facts)?
                 .dispatch
@@ -536,16 +558,7 @@ fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> 
             .ty
             .as_ref()
             .and_then(|ty| ty.normalized.as_deref()),
-    };
-    if expected.is_none() || wire_type(node)?.as_str() != expected.unwrap_or_default() {
-        return Err(format!(
-            "Serialized value type disagrees with independently checked source role in {} at {}: expected {expected:?}, actual {}",
-            facts.name,
-            node.id,
-            wire_type(node)?
-        ));
-    }
-    Ok(())
+    })
 }
 
 pub(super) fn source_node<'a>(
@@ -553,7 +566,11 @@ pub(super) fn source_node<'a>(
     facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<&'a HirNode, String> {
     let kind = if node.category == NodeCategory::Merge {
-        ""
+        if node.attributes.construct.as_deref() == Some("callback.option-result") {
+            "expr_method_call"
+        } else {
+            ""
+        }
     } else {
         node.original_kind
             .known_value()

@@ -47,6 +47,7 @@ pub mod inherent_calls;
 pub mod model;
 pub mod nominal_binding;
 pub mod nominal_boundary;
+pub mod option_callbacks;
 pub mod producer;
 pub mod scalar_constants;
 mod scalar_exhaustiveness;

@@ -7,7 +7,9 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.48.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.49.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+Data-v3 3.49 connects the bounded tagged byte comparison family; the continuation
+log records its natural/frozen/performance measurements.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -148,7 +150,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C13 | Cross-unit/package helper linking | Missing | `library_crate::helper(x)` | Capture/resolve selected units before summary derivation, preserve build contexts/transitive dependencies; modules inside one unit already work. |
 | C14 | Looping, recursive, panicking or nonreturning callees | Missing | `recursive(x)`, `helper_with_loop(x)` | Existing caller scalar loops do not authorize these summaries; need interprocedural fixed points/flow/effect contracts. |
 | C15 | Function items as values, pointers and indirect calls | Missing | `let f: fn(u32) -> u32 = helper; f(x)` | Callable identity/possible targets, concrete signatures, effects and indirect-call dependencies. |
-| C16 | Closures and captured environments | Missing | `move \|x\| x + offset` | Separate body/environment owners, capture modes, invocation, effects, escape/lifetime and drop. Legacy patterns behavior is not strict-pipeline support. |
+| C16 | Closures and captured environments | Partial | `move \|x\| x + offset` | Data-v3 3.49 supports [immediate Option<u8>::map_or equality callbacks](docs/extraction-profiles/tagged-byte-comparisons-v1.md): one by-value u8 payload and one shared u8 capture, eager default, Some-only body and independently checked result merge. General bodies, captures, escape/lifetime and drop remain open. Legacy patterns behavior is not strict-pipeline support. |
 | C17 | Iterator adapters and higher-order functions | Missing | `xs.iter().map(f).collect()` | Protocol/call composition, closures, state, short-circuiting, yielded values and cleanup; separate from plain scalar loops. |
 | C18 | Side-effecting calls | Missing | `std::fs::write(path, bytes)`, `println!("x")` | IO/global effects, ordering and failure behavior; distinguish macro provenance from the underlying call effects. |
 
@@ -3498,3 +3500,51 @@ Audit validation passes the Cargo baseline, six original-source oracle tests,
 CLI integration-test Clippy with warnings denied, formatting, Python compilation
 and whitespace. Rstyle remains 2786 functions /zero violations and patterns zero
 candidates. Production Rust and the 3.48 policy remain unchanged.
+
+### Data-v3 3.49: connect tagged byte comparisons
+
+The [bounded callback contract](docs/extraction-profiles/tagged-byte-comparisons-v1.md#connected-implementation-349)
+connects exact core Option<u8>::map_or with original immediate u8 equality
+predicates. Receiver and default evaluate once and eagerly; shared capture
+creation performs no content read, and payload/body reads occur only for Some.
+Complete source/body/environment capture and independent serialized checks
+compose through strict import and matching on all three configured targets.
+No ordinary closure data type, global provenance registry or cache is introduced.
+
+The unchanged 26-function development corpus improves **six to thirteen
+admissions**, seven gains /zero losses. Eight graph and six captured-fact
+mutations fail closed. Exhaustive independent byte/sentinel/eager-default/None
+oracles and all six complete-original-crate oracle tests pass.
+
+The complete original regex-automata default library retains **2582 identities
+and build contexts**, with **72 to 73 admissions**: Unit::is_byte is the sole gain,
+with zero losses or unknown/failed outcomes. All 73 natural and thirteen development
+admitted documents pass independent strict verification. All **190 comparisons**
+among seven selected original and thirteen development functions complete with
+unchanged matching defaults and no diagnostics. Full-crate enumeration is
+explicitly budgeted out, distinct from completed capture/assessment and matching
+of the selected family.
+
+Frozen replay preserves sixty identities/denominators and **20 admitted /33
+excluded /seven inactive**; seventy documents verify. Full frozen package rosters
+also have zero outcome changes: lz4_flex 150 functions /seven admitted,
+regex-syntax 956 /twenty and time-core 226 /eight. Historical results stay intact.
+
+Against exact c875a72, one warmup plus seven alternating quiescent samples gives
+median seconds baseline/current: Copy **0.89 /0.87**, cyclic **0.62 /0.62**,
+callback corpus **0.78 /0.94**. Median peak RSS (KiB): **123064 /123204**,
+**111760 /111572**, **121700 /124208**. Control matching is identical; added
+callback proof and seven additional admissions explain unequal work in that
+corpus. These controls establish no observed regression within this measurement,
+not broad performance invariance.
+
+Remaining complete-family blockers are Unit::eoi (assertion formatting,
+TryFrom/Result/unwrap and source/helper evidence), Unit::is_word_byte (function
+callback and constant-table body), and ByteClasses::eoi (checked_sub/Option unwrap
+plus Unit::eoi). General closures/iterators remain open. No rewrite safety,
+abstraction activation or detector-quality claim follows.
+
+Workspace Clippy with warnings denied, doctests, formatting and whitespace pass.
+Fresh rstyle: **2827 functions /zero violations**; patterns: **zero candidates**.
+Final full workspace CI run: **884 passed /five skipped**, including the reported
+assertion/subslice regressions and the corrected definition-count assertion.

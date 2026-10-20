@@ -394,6 +394,7 @@ impl<'tcx> Context<'tcx> {
 
     fn children(&self, expr: &Expr<'tcx>) -> Vec<HirNode> {
         match expr.kind {
+            ExprKind::Closure(_) => self.callback_children(expr).unwrap_or_default(),
             ExprKind::Loop(block, None, hir::LoopSource::Loop, _) => vec![self.loop_block(block)],
             ExprKind::Loop(block, None, hir::LoopSource::While, _) => {
                 match block.expr.map(|e| &e.kind) {
@@ -837,8 +838,12 @@ fn kind(kind: &ExprKind<'_>) -> &'static str {
 }
 
 pub fn bindings(node: &HirNode, scope: &str) -> Vec<BindingFact> {
-    let local_scope = (node.kind == "expr_block")
-        .then(|| format!("scope:source:block:{}:{}", node.span.start, node.span.end));
+    let local_scope = match node.kind.as_str() {
+        "expr_block" => Some("block"),
+        "expr_closure" if !node.children.is_empty() => Some("callback"),
+        _ => None,
+    }
+    .map(|kind| format!("scope:source:{kind}:{}:{}", node.span.start, node.span.end));
     let scope = local_scope.as_deref().unwrap_or(scope);
     let binding = node
         .binding

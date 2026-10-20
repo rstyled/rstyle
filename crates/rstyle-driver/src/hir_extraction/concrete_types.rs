@@ -1,5 +1,6 @@
 //! Observational type capture for the unavailable data tier. No eligibility flag.
 
+mod callbacks;
 mod copy;
 mod receivers;
 mod scalar_enums;
@@ -99,6 +100,9 @@ impl<'tcx> Capture<'_, 'tcx> {
         if self.ctx.profile.supports("rust.concrete-read-only-data") {
             self.install_tokens(facts, interface)?;
             self.install_receivers(facts)?;
+            if self.ctx.profile.supports("rust.immediate-option-callbacks") {
+                self.callback_environments(&mut facts.body)?;
+            }
         }
         Ok(())
     }

@@ -553,11 +553,8 @@ fn binding_node(binding: &BindingFact) -> HirNode {
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
-    if crate::data_discards::candidate(node, ctx.facts) {
-        return match crate::data_discards::verify(node, ctx.facts) {
-            Ok(()) => Outcome::ok(),
-            Err(reason) => error("rust.scalar-enum-values", "copy_discard", node, &reason),
-        };
+    if let Some(outcome) = check_data_contract(node, ctx) {
+        return outcome;
     }
     if crate::data_subslices::candidate(node, ctx.facts) {
         return check_subslice(node, in_expansion, ctx);
@@ -603,6 +600,36 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     );
 
     own.merge(children)
+}
+
+fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if crate::option_callbacks::candidate(node, ctx.facts) {
+        return Some(check_callback(node, ctx));
+    }
+    if crate::data_discards::candidate(node, ctx.facts) {
+        return Some(match crate::data_discards::verify(node, ctx.facts) {
+            Ok(()) => Outcome::ok(),
+            Err(reason) => error("rust.scalar-enum-values", "copy_discard", node, &reason),
+        });
+    }
+    None
+}
+
+fn check_callback(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::option_callbacks::verify_map_or(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(vec![
+            check_node(checked.receiver, false, ctx),
+            check_node(checked.default, false, ctx),
+            check_node(checked.predicate.binding, false, ctx),
+            check_node(checked.predicate.body, false, ctx),
+        ]),
+        Err(reason) => error(
+            "rust.immediate-option-callbacks",
+            "immediate_callback",
+            node,
+            &reason,
+        ),
+    }
 }
 
 fn check_subslice(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {

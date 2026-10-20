@@ -185,7 +185,9 @@ pub(super) fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), St
     if span.start != u64::from(child.span.start)
         || span.end != u64::from(child.span.end)
         || (value.category == NodeCategory::Merge
-            && !matches!(child.kind.as_str(), "expr_if" | "expr_match"))
+            && !matches!(child.kind.as_str(), "expr_if" | "expr_match")
+            && !(child.kind == "expr_method_call"
+                && value.attributes.construct.as_deref() == Some("callback.option-result")))
         || (value.category != NodeCategory::Merge
             && value.original_kind.known_value() != Some(child.kind.as_str()))
     {

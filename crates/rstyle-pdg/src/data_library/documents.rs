@@ -75,13 +75,7 @@ pub(crate) fn verify_calls(
     {
         return Err("Paired library call inventories disagree".into());
     }
-    check_method_inventory(
-        pair,
-        calls
-            .iter()
-            .filter(|node| node.kind == "expr_method_call")
-            .count(),
-    )?;
+    check_method_inventory(pair, facts, calls)?;
 
     let context = Documents {
         pair,
@@ -109,7 +103,20 @@ pub(crate) fn verify_calls(
     Ok(())
 }
 
-fn check_method_inventory(pair: PairView<'_>, expected: usize) -> Result<(), String> {
+fn check_method_inventory(
+    pair: PairView<'_>,
+    facts: &dyn EvidenceFacts,
+    calls: &[&HirNode],
+) -> Result<(), String> {
+    let mut expected = 0;
+    for method in calls.iter().filter(|node| node.kind == "expr_method_call") {
+        if crate::option_callbacks::candidate(method, facts) {
+            crate::option_callbacks::verify_map_or(method, facts)?;
+        } else {
+            expected += 1;
+        }
+    }
+
     if pair
         .pdg
         .nodes

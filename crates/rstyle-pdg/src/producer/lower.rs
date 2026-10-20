@@ -1,5 +1,6 @@
 //! Operation lowering preserves source evaluation order and snapshot values.
 
+mod callbacks;
 mod enums;
 mod loops;
 mod options;
@@ -572,6 +573,15 @@ impl Builder<'_> {
     }
 
     fn computation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if node.kind == "expr_method_call"
+            && crate::extraction_profile::facts_support(
+                self.facts,
+                "rust.immediate-option-callbacks",
+            )
+            && let Ok(checked) = crate::option_callbacks::verify_map_or(node, self.facts)
+        {
+            return self.option_callback(node, checked, flow);
+        }
         let evaluated = self.evaluate_operands(node, flow);
         let category = if matches!(node.kind.as_str(), "expr_method_call" | "expr_call") {
             NodeCategory::Call
@@ -891,6 +901,9 @@ impl Builder<'_> {
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
         let mut merge = template(node, NodeCategory::Merge);
         merge.id = id.clone();
+        if crate::option_callbacks::candidate(node, self.facts) {
+            merge.construct = Some("callback.option-result".into());
+        }
         merge.original_kind = if selection_kind.is_some() {
             "rstyle.hir-coverage.match_merge"
         } else {
