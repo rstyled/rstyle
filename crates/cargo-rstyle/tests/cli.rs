@@ -3,6 +3,7 @@
 mod byte_windows;
 #[path = "../src/diagnostic_process.rs"]
 mod diagnostic_process;
+mod loop_merge_target;
 mod shared_evidence;
 use shared_evidence::{load as data_unit, reject_helper};
 

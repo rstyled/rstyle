@@ -1753,3 +1753,32 @@ safe lz4_flex `get_batch_arch`, bytes 1784..2020, excluded to admitted:
 the earlier architecture run `run-12i29cvg`; the portability fix loses no selected
 admissions. There are 30 validated documents: 14 lz4_flex, 0 regex-syntax and
 16 time-core. Historical results and frozen identities remain untouched.
+
+### Next connected target: scalar Euclidean reduction / F10
+
+The [source-selected gcd target audit](eval/coverage-development/README.md#scalar-euclidean-reduction-target-specified-before-support)
+now records the complete natural context, both blocker chains and independent
+positive/negative expectations. Actual full-library Cargo capture confirms that
+`frac::gcd` is blocked by tuple-assignment desugaring/binding/source correspondence
+and by its post-loop value merge. S09 does not block this primitive leaf in its
+mixed-content crate. Cyclic-value verification independently rejects merges, so
+removing eligibility rejection alone cannot deliver support.
+
+The separate seven-function development selection retains all definitions:
+1 admitted / 6 excluded. The admitted sequential loop is independently verified;
+the natural routine and outside-cycle merges remain excluded. Runtime divisor
+enumeration checks all 1024 small pairs, boundary u128 inputs and simultaneous
+assignment using the exact production function source. This checkpoint establishes
+a concrete blocker chain without changing extraction or the frozen selection.
+The bounded next delivery is simultaneous scalar-local tuple assignment plus
+finite proof for pre/post-loop merges; merges inside cycles and memory-backed
+assignments remain explicit negatives. F10 remains Missing until delivery and
+will remain Partial until epoch-sensitive composition is covered.
+
+Validation for this preparation: all 168 CLI tests passed, including the portable
+reader regressions and both new baseline/runtime tests. Workspace all-targets
+clippy with warnings denied, formatting and diff checks passed. Repository-built
+rstyle checked 2489 functions with 0 violations; patterns found 0 candidates.
+The frozen result remains 13 admitted / 40 excluded / 7 inactive; this
+source/test/documentation-only checkpoint changes no extractor behavior and did
+not rerun the frozen inventory. No thresholds, ignores or scoring changed.

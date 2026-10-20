@@ -489,3 +489,76 @@ derive/impl/drop ownership proof; no unit-wide whitelist was relaxed here. The
 next target selection should prioritize F10 and concrete checked-access/Option
 compositions with tractable full blocker chains, rather than enter iterator or
 mutable-memory tiers just because they neighbor these readers.
+
+## Scalar Euclidean reduction target (specified before support)
+
+The next bounded F10 target is the production `frac::gcd` in
+`crates/rstyle-ccgraph/src/frac.rs`, bytes 5143..5272 at revision 1f867f1,
+source SHA-256 cab1f7e45cca54d452ddb6c50ab82781229cf81bd320a413868fbb4f647c0648.
+It normalizes gcd(0,0) to one for exact-score rational reduction. This is an
+additional development selection, not a replacement or expansion of the frozen
+60-function inventory. It was selected from its source before capture, because
+its final conditional is outside the loop and its remaining scalar operation
+chain is bounded. It is a repository function, not an external holdout.
+
+Natural build context: the complete unmodified rstyle-ccgraph Cargo library,
+default features, test=false, pinned compiler, aarch64-unknown-linux-gnu,
+development overflow checks enabled. Capture command:
+
+```sh
+cargo rstyle clones -p rstyle-ccgraph --extraction-profile hir-data-v3 --max-pairs 0 --format json
+```
+
+The complete capture retains 413 functions, all excluded at this baseline.
+For the selected gcd, every observed rejection reduces to two connected causes:
+
+1. Tuple reassignment `(a,b)=(b,a%b)` becomes a rustc block containing a generated
+   tuple-pattern let, temporary reads and two writes. Capture currently marks the
+   tuple pattern unsupported and omits its generated bindings. Source/HIR
+   correspondence then rejects unmatched source operations; downstream reads lack
+   bindings. Accepting the generated prefix or sequentially evaluating the RHS
+   after writing a would be wrong. Both RHS values must be saved before either
+   write; division failure must precede all writes.
+2. The final value-producing `if` follows the loop but is rejected by the
+   function-wide F10 eligibility rule. The independent serialized cyclic-value
+   verifier also rejects every merge, and existing acyclic value-site validation
+   enumerates paths. Eligibility alone cannot solve this. The next implementation
+   needs finite CFG proof for merges outside cycles, preserving strict operand
+   availability and alternative-completion checks without enumerating loop paths.
+
+No nominal owner, import or S09 unit whitelist blocks this primitive function;
+neighboring derives and impls were present in its complete natural capture.
+The routine has no calls, macros, unsafe, memory-backed targets or destructors.
+Its u128 parameters/result, builtin remainder/comparison and scalar loop already
+have contracts. Unknowns remain: exact independent correspondence for rustc's
+assignment temporaries, outside-cycle value availability through divergent paths,
+and final end-to-end graph/matching behavior. No supported classification follows
+until those are resolved and the original whole-library capture succeeds.
+`Frac::new` is explicitly not part of this bounded target: its closure, checked
+conversions, Result/Option and `?` chain needs a separate connected contract.
+
+The separate [development corpus](loop-merges.rs) was specified before its first
+capture. Real Cargo baseline: **1 admitted / 6 excluded**, including the exact
+natural gcd source (read from its production file, not a maintained copy).
+
+| Function | Independent intended bounded classification |
+| --- | --- |
+| natural gcd | Admit complete loop, simultaneous scalar tuple assignment and final merge; return max(greatest common divisor,1). |
+| sequential | Preserve admission; return the unnormalized greatest common divisor, including zero for (0,0). |
+| after_loop | Admit final merge after a sequential loop; same normalized result as natural gcd. |
+| before_loop | Admit a saved pre-loop conditional value used after the loop; same normalized result, with no stale branch outcome. |
+| tuple_step | Admit distinct scalar-local tuple targets with RHS snapshots; (17,5) becomes (5,2), not (5,0). A zero divisor remains a partial computation. |
+| cyclic_merge | Remain excluded in the initial outside-cycle contract; a controller revisited per iteration requires epoch-aware proof. This does not close all of F10. |
+| memory_target | Remain excluded; destructuring assignment cannot introduce indirect writes or alias-independence assumptions. |
+
+The [runtime oracle](loop-merge-oracle.rs) enumerates divisors independently for
+all 1024 input pairs below 32 and supplies wide-u128 boundary expectations.
+The actual production gcd source is compiled with the corpus and this oracle,
+with overflow checks enabled. Checks include the zero pair, zero/nonzero inputs,
+large common powers of two, consecutive maxima, simultaneous old-value reads and
+zero-divisor failure. Runtime success specifies semantics, not extraction support.
+The baseline CLI test retains every function and independently verifies the one
+admitted sequential-loop pair. Next delivery must exercise the complete natural
+chain, negative cases, serialized-evidence mutations, strict admission and matching.
+No extractor behavior, authority records or persistent provenance are added by
+this target-preparation checkpoint.
