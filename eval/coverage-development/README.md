@@ -112,3 +112,73 @@ Next connect a selected-unit boundary proof to the existing cfg/ownership eviden
 and determine the smallest justified generated-impl proof. Preserve the full unit
 and relevant neighboring Drop/macro effects. Do not stack further isolated syntax
 increments without progressing this four-function target.
+
+## Reassessment: active read-only target
+
+After the planning and conditional-attribute checkpoints produced no natural
+admission gain, inspection established that Position/Span needs a unit-wide
+resolved expansion/impl proof absent from the current capture. It remains the S09
+investigation target, but is no longer the next delivery target. Implementing a
+large general expansion inventory before demonstrating a read-only family gain
+would not satisfy the current priorities.
+
+The active target is the safe `lz4_flex` 0.14.0 `get_batch` / `get_batch_arch`
+family in src/block/compress.rs. Use the whole published library with default
+features (including safe-encode), development profile, test=false, the pinned
+workspace compiler and native target. Retain existing source and archive identities
+from the frozen inventory. This changes no frozen selection or denominator.
+The unsafe cfg alternatives must remain inactive in this context and unsupported
+when selected without safe-encode. Implement get_batch end to end first, then its
+native-width companion; the family is not complete until both work together.
+
+Independent source expectations established before new admission evaluation:
+get_batch returns the native-endian interpretation of exactly input[n..n+4];
+get_batch_arch uses pointer-width bytes from input starting at n. Bytes before n
+and after the window must not contribute. Every selected byte must contribute in
+native-endian order. Wrong lengths, failed conversion/unwrap, n+width overflow and
+out-of-bounds access must preserve the declared normal-completion requirements,
+not become certified total/nonpanicking calls. Target endianness and pointer width
+must be known. Wrong endian conversions must be distinguishable. Evaluate input,
+range endpoints and calls in Rust order, preserving earlier snapshots.
+
+Full known blocker chain, from source and the existing 3.30 capture:
+
+- Subslice index dispatch is **overloaded**, not the builtin scalar index contract;
+  its exact core range indexing authority and shared origin/offset/length are needed.
+- Rust range syntax lowers to expr_struct with expansion callsite n..n+4; the
+  current generic macro rejection is not evidence that a user macro exists.
+  Prove original range syntax and both endpoints, rather than dropping expansion.
+- TryInto resolves to a trait method with a concrete Result<[u8;4],TryFromSliceError>
+  or Result<&[u8;N],TryFromSliceError> result. Exact selected implementation and
+  conversion semantics are needed; the method name alone is insufficient.
+- Result::unwrap needs connected discriminant/payload and failure behavior,
+  not an invented pure/nonpanicking summary.
+- u32/usize::from_ne_bytes currently lacks a direct callee record because the
+  helper-callee capture excludes external associated functions. Reuse existing
+  library Callee path/crate/hash/definition identity and typed Dispatch; this is
+  observation, not admission authority.
+- get_batch_arch also has a local const initialized by size_of::<usize>(), a
+  named array length, a reference-valued conversion result and explicit array load.
+  Each requires exact source, target and value/origin correspondence.
+- Initial arithmetic n+width must compose with existing partial-flow treatment;
+  cannot assume it never overflows simply because the intended window is small.
+
+No nominal interface is involved in these two functions; S09 is not on their
+critical path. Unknowns remaining: selected TryInto impl evidence availability,
+precise pinned core source authority for bounds/conversion failure, and any
+further source-correspondence failures after the range/call chain is connected.
+Development tests must exercise the entire expressions through Cargo capture,
+independent verification, strict admission and matching, plus corrupt evidence,
+wrong windows/endian/length, side-effecting endpoint snapshots and helper results.
+Do not infer family support from separately admitted components.
+
+
+External associated-callee capture validation: 767 workspace tests pass (5 existing
+ignores), clippy/fmt pass, rstyle checks 2415 functions with 0 violations and
+patterns reports 0 candidates. Frozen rerun `target/hir-coverage/run-h5cz2c75/`
+preserves all 60 identities/outcomes, denominators and context counts relative to
+`run-1sbtdgtr/`: 11 admitted, 42 excluded, 7 inactive; 0 gained and 0 lost.
+The 14 inventory tests pass. Both safe readers remain excluded, with no claim of
+new end-to-end support. No new capture record type, snapshot or retained cache is
+introduced. This resolves the missing external associated-callee identity on the
+active reader chain; admission still requires the remaining connected semantics.

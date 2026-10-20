@@ -1594,3 +1594,16 @@ semantic expectations, build context, negative cases and explicit unknowns.
 This is separate from the unchanged frozen inventory. S09/module/import proof
 comes first; splat and by-value updates are connected follow-ons. No new admission
 or complete source-boundary contract is claimed by this planning checkpoint.
+
+### Reassessment after the conditional-attribute foundation
+
+The [development plan](eval/coverage-development/README.md#reassessment-active-read-only-target)
+now prioritizes the complete safe lz4_flex get_batch/get_batch_arch family. Existing
+capture demonstrates a connected range/subslice, TryInto/Result/unwrap and native
+byte conversion chain, plus local size constants and array-reference loads for
+the architecture variant. Position/Span remains the S09 investigation target;
+its missing unit-wide expansion/impl ownership proof makes it a larger prerequisite
+than the initial four bodies suggest. This reassessment follows foundational work
+without natural gains; it does not change the frozen sample or claim admission.
+External associated-function capture now reuses existing library Callee and typed
+Dispatch records. Identity observation alone does not authorize a call summary.

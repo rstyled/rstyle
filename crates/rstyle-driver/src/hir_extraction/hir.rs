@@ -591,6 +591,10 @@ impl Context<'_> {
         if let Some(owner) = super::inherent::implementation(self.tcx, callee, self.profile) {
             return Some(self.helper_callee(callee, "resolved_inherent_callee", Some(owner)));
         }
+        Some(self.library_callee(callee))
+    }
+
+    fn library_callee(&self, callee: rustc_hir::def_id::DefId) -> PathRes {
         let callee = rstyle_pdg::data_library::Callee {
             path: self.tcx.def_path_str(callee),
             crate_name: self.tcx.crate_name(callee.krate).to_string(),
@@ -602,13 +606,13 @@ impl Context<'_> {
             definition_hash: format!("{:?}", self.tcx.def_path_hash(callee)),
         };
 
-        Some(PathRes {
+        PathRes {
             kind: "resolved_callee".into(),
             target: None,
             description: serde_json::to_value(callee)
                 .expect("serialize resolved callee")
                 .to_string(),
-        })
+        }
     }
 
     fn direct_callee(&self, expression: &Expr<'_>) -> Option<PathRes> {
@@ -621,6 +625,10 @@ impl Context<'_> {
         let Res::Def(kind, callee) = self.typeck.qpath_res(path, expression.hir_id) else {
             return None;
         };
+        if !callee.is_local() && kind == rustc_hir::def::DefKind::AssocFn && self.profile.is_data()
+        {
+            return Some(self.library_callee(callee));
+        }
         if self.tcx.generics_of(callee).count() != 0 {
             return None;
         }

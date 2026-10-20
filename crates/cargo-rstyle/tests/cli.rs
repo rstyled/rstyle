@@ -10673,3 +10673,58 @@ fn corrupt_index(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
         }
     }
 }
+
+#[test]
+fn clones_data_external_associated_calls_retain_identity_without_admission() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn native(bytes: [u8; 4]) -> u32 { u32::from_ne_bytes(bytes) }
+        pub fn endian(bytes: [u8; 4]) -> u32 { u32::from_be_bytes(bytes) }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let mut identities = std::collections::BTreeSet::new();
+    for function in report["functions"].as_array().unwrap() {
+        assert_eq!(function["outcome"], "excluded");
+        let (unit, index) = data_unit(function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        let call = find_external_call(&facts.body).unwrap();
+        let callee: rstyle_pdg::data_library::Callee =
+            serde_json::from_str(&call.res.as_ref().unwrap().description).unwrap();
+        assert_eq!(callee.crate_name, "core");
+        assert_ne!(callee.crate_hash, "local-unencoded");
+        let dispatch = call.dispatch.as_ref().unwrap();
+        assert_eq!(dispatch.kind, "resolved_direct");
+        assert_eq!(dispatch.op, callee.path);
+        assert_eq!(dispatch.operand_tys.len(), 1);
+        let operand: Value = serde_json::from_str(&dispatch.operand_tys[0]).unwrap();
+        assert_eq!(
+            operand,
+            serde_json::json!({
+                "kind": "array", "value": {
+                    "element": {"kind": "scalar", "value": "u8"}, "length": 4
+                }
+            })
+        );
+        assert_eq!(dispatch.result_ty, "u32");
+        assert!(identities.insert(callee.definition_hash));
+    }
+    assert_eq!(identities.len(), 2);
+}
+
+fn find_external_call(node: &rstyle_pdg::HirNode) -> Option<&rstyle_pdg::HirNode> {
+    if node.kind == "expr_call"
+        && node
+            .res
+            .as_ref()
+            .is_some_and(|res| res.kind == "resolved_callee")
+    {
+        return Some(node);
+    }
+    node.children.iter().find_map(find_external_call)
+}
