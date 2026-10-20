@@ -3,7 +3,7 @@ use super::*;
 use crate::{
     ByteSpan,
     concrete_types::Nominal,
-    declaration_origins::{Origin, Origins},
+    declaration_origins::{BuiltinCopy, Origin, Origins},
     nominal_boundary::{
         UnitContext,
         census::{Census, UnitFile},
@@ -101,6 +101,8 @@ struct OriginExport<'a> {
     snapshot: SourceId,
     file_digest: &'a str,
     declaration_span: ByteSpan,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    builtin_copy: Option<&'a BuiltinCopy>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -117,6 +119,8 @@ struct OriginImport {
     snapshot: SourceId,
     file_digest: String,
     declaration_span: ByteSpan,
+    #[serde(default)]
+    builtin_copy: Option<BuiltinCopy>,
 }
 impl<'a> OriginsExport<'a> {
     pub fn new(record: &'a Record<Origins>, sources: &mut Owners<'a>) -> Result<Self, String> {
@@ -131,6 +135,7 @@ impl<'a> OriginsExport<'a> {
                     snapshot: sources.snapshot(&origin.file_bytes)?,
                     file_digest: &origin.file_digest,
                     declaration_span: origin.declaration_span,
+                    builtin_copy: origin.builtin_copy.as_ref(),
                 })
             })
             .collect::<Result<_, String>>()?;
@@ -153,6 +158,7 @@ impl SourceRecord for OriginsImport {
                     file_bytes: sources.snapshot(origin.snapshot)?,
                     file_digest: origin.file_digest,
                     declaration_span: origin.declaration_span,
+                    builtin_copy: origin.builtin_copy,
                 })
             })
             .collect::<Result<_, String>>()?;

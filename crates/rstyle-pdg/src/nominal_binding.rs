@@ -265,6 +265,7 @@ mod tests {
     fn origin(context: &PackageContext) -> declaration_origins::Origin {
         let source = "pub struct Counter;";
         declaration_origins::Origin {
+            builtin_copy: None,
             nominal: Nominal {
                 source_identity: None,
                 package_name: context.name.clone(),

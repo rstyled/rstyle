@@ -27,6 +27,19 @@ pub struct Origin {
     pub file_bytes: crate::SourceSnapshot,
     pub file_digest: String,
     pub declaration_span: ByteSpan,
+    /// Positive resolved observation only; absence does not prove any effect.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub builtin_copy: Option<BuiltinCopy>,
+}
+
+/// Existing declaration ownership binds this observation to its exact struct.
+/// It is not an admission capability or a general derive/Drop inventory.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BuiltinCopy {
+    pub trait_definition: crate::data_library::Callee,
+    pub derive_definition: crate::data_library::Callee,
+    pub derive_span: ByteSpan,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

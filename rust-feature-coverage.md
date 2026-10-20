@@ -2140,3 +2140,47 @@ Final validation passes 796 workspace tests (five existing ignores), all-targets
 clippy with warnings denied, formatting and diff checks, rstyle (2,579 functions,
 zero violations) and patterns (zero candidates, 15 existing ignores unchanged).
 No suppression, ignore entry, threshold or scoring change was introduced.
+
+
+### S09 prerequisite: builtin Copy declaration observations (2026-10-20)
+
+The existing declaration-origin record now optionally carries the compiler-resolved
+core Copy trait, builtin derive macro, and original derive-token span for Data-v3.
+The observer uses rustc's type-indexed nonblanket implementation lookup and
+requires a unique local automatically derived implementation whose expansion is
+the external core Copy derive. Manual implementations and custom derives named
+Copy do not receive this observation. Absence means unavailable evidence, never
+non-Copy or drop-free. Earlier extraction profiles remain unchanged.
+
+This is capture evidence only: no admission rule, capability, policy version or
+matching behavior consumes it yet. Copy's prohibition on Drop provides a concrete
+route to a precise selected-type drop proof, but the independent checker must
+first pin both definition identities and bind the active derive attribute to the
+exact original declaration. It must then establish selected module/name/source
+closure without ignoring neighboring items or expansions. General derive purity
+and general macro support are outside this contract.
+
+Actual full-Cargo replay `run-o52m9whk` observes builtin Copy for both ast::Position
+and ast::Span in published regex-syntax 0.8.11, default-feature library context.
+The original Copy tokens are at bytes 13835..13839 and 12999..13003 respectively.
+All four source-selected constructors/getters remain excluded: zero gains and
+zero losses. These observations advance their shared derive/drop blocker; root
+attributes, selected module/import ownership and mixed-content boundary proof
+remain unresolved. Input's lifetime/enum/receiver dependencies remain separate.
+
+The same replay preserves all 60 frozen identities, outcomes and denominators
+relative to `run-579vcwmp`: 13 admitted, 40 excluded, seven inactive, with 30
+verified documents. No historical report or selection changed. The optional
+fields reuse existing declaration/source sharing; no separate capture inventory,
+source snapshot, cache or global trait scan was added. No performance improvement
+or absence of regression is claimed without comparative measurement.
+
+Validation passes 801 workspace tests (five existing ignores), five focused Copy
+capture tests, all-targets clippy with warnings denied, formatting and diff checks.
+Tests cover strict bundle round trips, std/no_std on the three installed CI
+targets, active/inactive cfg_attr, manual Copy, Drop owners, custom proc-macro
+Copy derives and earlier profiles. Revalidation also passes the three reported
+CI regressions and all three architecture tests, including real cross-target
+capture and independent document verification. rstyle reports 2,581 functions
+and zero violations; patterns reports zero candidates with 15 existing ignores.
+S09 and D17 remain partial; this milestone does not support the natural family.

@@ -243,6 +243,7 @@ fn declaration_origins_require_exact_owned_struct_ranges() {
     let file = format!("\u{feff}{source}\r\nmod nested {{ pub struct Other; }}\r\n");
     let start = file.find(source).unwrap() as u32;
     let origin = Origin {
+        builtin_copy: None,
         nominal: nominal.clone(),
         source_file: "src/types.rs".into(),
         file_digest: digest(file.as_bytes()),

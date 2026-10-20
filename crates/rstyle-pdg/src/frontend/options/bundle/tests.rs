@@ -21,6 +21,7 @@ fn options() -> FrontendOptions {
         }],
     };
     let origin = Origin {
+        builtin_copy: None,
         nominal: Nominal {
             source_identity: None,
             package_name: "sample".into(),

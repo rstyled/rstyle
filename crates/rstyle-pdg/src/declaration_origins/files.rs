@@ -114,6 +114,7 @@ mod tests {
             let source = format!("pub struct {name};");
             let start = bytes.find(&source).unwrap() as u32;
             Origin {
+                builtin_copy: None,
                 nominal: Nominal {
                     source_identity: None,
                     package_name: "sample".into(),

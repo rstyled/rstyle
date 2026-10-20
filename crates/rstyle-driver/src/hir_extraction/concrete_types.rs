@@ -1,5 +1,6 @@
 //! Observational type capture for the unavailable data tier. No eligibility flag.
 
+mod copy;
 mod receivers;
 
 use super::hir::Context;
@@ -460,6 +461,7 @@ impl<'tcx> Capture<'_, 'tcx> {
                 file_digest: snapshot.identity().to_owned(),
                 file_bytes: snapshot.bytes.clone(),
                 declaration_span,
+                builtin_copy: copy::observe(self.ctx, id),
             },
         );
 

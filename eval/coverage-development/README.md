@@ -956,3 +956,23 @@ chain remains excluded for owner/type and method/reference-summary dependencies.
 Final gates: 796 workspace tests pass with five existing ignores; all-targets
 clippy, formatting/diff checks, rstyle (2,579 functions, zero violations) and
 patterns (zero candidates, 15 unchanged ignores) pass.
+
+
+## Position/Span Copy observation milestone (2026-10-20)
+
+Full unmodified-package replay `run-o52m9whk` confirms the optional declaration
+observation reaches all four initial target functions. Position's builtin Copy
+derive token is at src/ast/mod.rs bytes 13835..13839; Span's is at 12999..13003.
+Both resolve the core trait and builtin derive with distinct definition hashes.
+The original function selections and build context above are unchanged.
+
+All four remain excluded (zero new/lost admissions); frozen outcomes remain
+13/40/7 across the same 60 definitions. Capture now supplies the previously
+missing positive observation needed to investigate Copy's no-Drop law. It does
+not independently authorize that law or unrelated derives. The next connected
+work must pin/check trait and macro identities, prove active attribute ownership
+from the existing file snapshot, and resolve selected module/name/declaration
+closure in this mixed crate before exercising constructor/getter composition.
+A lifetime-only impl relaxation cannot solve this chain by itself. Manual Copy,
+custom derives, unresolved expansions and missing observations remain outside
+the observation contract; none is treated as a negative or purity proof.

@@ -257,6 +257,7 @@ fn declaration_origins_borrow_owned_bytes_and_preserve_wire_mutations() {
     let origins = Origins {
         identity: IDENTITY.into(),
         declarations: vec![Origin {
+            builtin_copy: None,
             nominal: serde_json::from_value(nominal).unwrap(),
             source_file: "original.rs".into(),
             file_bytes: "\u{feff}struct Data { value: i32 }\r\n".into(),
@@ -306,6 +307,7 @@ fn origins_share_only_exact_census_snapshots_and_edits_detach() {
     let file = &census.files[0];
     let nominal = nominal_interface()["result"]["ty"]["evidence"]["nominal"].clone();
     let origin = Origin {
+        builtin_copy: None,
         nominal: serde_json::from_value(nominal).unwrap(),
         source_file: file.path.to_string_lossy().into_owned(),
         file_bytes: file.bytes.to_string().into(),

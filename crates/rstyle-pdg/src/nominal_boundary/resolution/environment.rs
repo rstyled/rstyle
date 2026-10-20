@@ -166,6 +166,7 @@ pub(crate) mod tests {
         let bytes = &census.files[0].bytes;
         let start = bytes.find(declaration).unwrap() as u32;
         let mut origin = declaration_origins::Origin {
+            builtin_copy: None,
             nominal: crate::concrete_types::Nominal {
                 source_identity: Some(census.context.package.package_id.clone()),
                 package_name: "sample".into(),
