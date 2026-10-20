@@ -1889,3 +1889,24 @@ Existing get callee/library identities are captured, while normalized Option
 results and payload bindings are absent. This bounds the next investigation
 without adding persisted provenance or changing frozen selections. D17 remains
 Missing, S09 remains Partial, and no extraction gain is claimed by this baseline.
+
+### Expanded inherent associations no longer abort natural capture
+
+Resolved the first checked-boundary source-context blocker: the two index-type
+macro invocations in regex-automata each produce twelve inherent methods at a
+shared callsite. Expanded signatures now retain facts and macro exclusions
+without claiming original inherent-definition associations. Ordinary method
+associations and the ambiguity validator remain intact. No persisted provenance
+or caches were added.
+
+The whole default-feature library now compiles and captures completely; strict
+assessment remains incomplete at independent source inventory (`expected fn`).
+No natural admission gain is claimed. This advances the declared checked-access
+chain to its next confirmed boundary; Option get/discriminants/payload matching
+still require the connected contract. The focused retained-function regression
+and workspace suite pass (788 tests, five existing ignores); clippy, rstyle
+(2,518 functions, zero violations) and patterns (zero candidates) pass.
+
+The unchanged frozen selection was rerun in `run-p_h_oqof` and compared with
+`run-h7tfyznr`: all 60 identities, outcomes and denominators agree. Results remain
+13 admitted / 40 excluded / 7 inactive, 30 verified documents, zero gains/losses.

@@ -702,3 +702,47 @@ The Some payload binding is absent from captured bindings. Thus additional
 provenance records are not the first step: investigate existing resolved pattern
 and type capture, then connect bounded type/operation/guard semantics. Existing
 core authority and source correspondence must remain mandatory.
+
+### Expanded inherent ownership boundary
+
+The full natural capture identified both colliding sources precisely:
+`util/primitives.rs` bytes 26841..26919 invokes
+`index_type_impls!(PatternID, PatternIDError, PatternIDIter, WithPatternIDIter)`;
+bytes 26921..26991 invokes the corresponding StateID macro. Each call produces
+12 inherent methods at one source-callsite range. These are expanded signatures,
+already excluded with `macro_generated_function`; their method bodies must not
+claim unique original-source inherent ownership at that shared callsite.
+
+The producer now withholds original inherent-definition associations for expanded
+signatures. It retains all function facts and macro diagnostics, and keeps the
+selected-unit association uniqueness validator unchanged. This is not macro
+support, source omission or nominal certification. The regression retains two
+expanded methods and an ordinary method beside an unrelated admitted scalar
+leaf; only the ordinary method has a definition association in every function's
+unit inventory. No new serialized field, evidence record, cache or source copy is
+introduced; the added check is one signature-expansion query per otherwise eligible concrete
+inherent definition. Profiles without inherent-call support and free functions
+return through the existing eligibility check first.
+
+The unmodified natural default-feature library now finishes Cargo compilation
+and reports `capture_complete: true` with no capture failures. Assessment remains
+**incomplete**: handoff rejects `Original owned source inventory unavailable:
+expected fn`. The retained unit is therefore evidence for resolving the capture
+abort, not an admission gain. The next investigation is independent receiver/
+source inventory validation for generated functions. It must retain unknown
+source correspondence and per-function macro exclusions, without accepting
+forged receiver evidence or bypassing whole-unit transport validation.
+
+Streaming inspection of the retained natural bundle confirms all 2,582 function
+records remain, including 550 macro-generated functions. None of those expanded
+functions claims an original inherent-definition association. The selected
+`util::utf8::is_boundary` remains present with its two parameter bindings and
+captured source correspondence. The stream inspection does not certify its
+Option payload or override the handoff failure.
+
+Frozen validation: `target/hir-coverage/run-p_h_oqof` against `run-h7tfyznr`
+preserves all 60 exact source identities and outcomes, and every denominator:
+53 active/captured/assessed, seven inactive. Counts remain 13 admitted / 40
+excluded / 7 inactive (zero gains/losses), with 30 verified documents. Workspace
+validation passes 788 tests with five existing ignores; all-targets clippy,
+formatting, diff checks, rstyle and patterns are clean.
