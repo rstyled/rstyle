@@ -1,4 +1,4 @@
-//! Observational concrete core Option patterns; no variant admission contract.
+//! Observational core Option identities and patterns; no construction admission.
 use super::hir::Context;
 use rstyle_pdg::frontend::{HirNode, PathRes};
 use rustc_hir::{
@@ -36,6 +36,26 @@ fn candidate(pattern: &hir::Pat<'_>) -> bool {
 }
 
 impl<'tcx> Context<'tcx> {
+    pub(super) fn option_expression(&self, expression: &hir::Expr<'tcx>) -> Option<PathRes> {
+        if self.profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV3 {
+            return None;
+        }
+        let (path, id, expected) = match expression.kind {
+            hir::ExprKind::Call(callee, arguments) if arguments.len() == 1 => {
+                let hir::ExprKind::Path(ref path) = callee.kind else {
+                    return None;
+                };
+                (path, callee.hir_id, "Some")
+            }
+            hir::ExprKind::Path(ref path) => (path, expression.hir_id, "None"),
+            _ => return None,
+        };
+        let resolution = self.option_variant(path, id, expected)?;
+        payload(self.tcx, self.typeck.expr_ty(expression))?;
+
+        Some(resolution)
+    }
+
     pub(super) fn option_pattern(&self, pattern: &hir::Pat<'tcx>) -> Option<HirNode> {
         if self.profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV3
             || !candidate(pattern)

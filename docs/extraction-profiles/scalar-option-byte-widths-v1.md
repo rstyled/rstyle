@@ -153,3 +153,27 @@ and the non-Unicode-validation cases C0/C1/F5/F6/F7. This establishes expectatio
 for a bounded family; it does not establish source-to-pair support or decoder
 coverage. No serialized provenance, production code, scoring, thresholds,
 suppressions or historical artifacts changed in this audit.
+
+## Constructor authority capture checkpoint (no admission activation)
+
+The existing expression walk now retains `resolved_option_variant` for actual
+core Some calls and None paths with an already supported observational payload.
+It reuses the same Callee identity record and diagnostic-item check as Option
+patterns. Some retains its original argument child; None has no fabricated
+payload. Local functions and user enums with similar names do not acquire this
+marker. No dispatch/purity summary, semantic type, constructor operation,
+extraction capability, policy version or admission permission is added.
+
+Real Cargo tests verify exact core crate/definition hashes from the existing
+three target registries, including renamed imports, std/no_std contexts, custom
+enum variants and a local function named Some returning the real Option type.
+All six installed CI-target/std combinations pass. These are cross-target
+captures, not native execution on macOS. Historical Data-v2 expression capture
+remains unchanged, and all eight identity-test functions remain excluded.
+
+This removes the missing constructor-authority evidence in the declared chain.
+Precise source-type correspondence, scalar Option semantic types, source-checked
+construction, payload value projection, merges/early returns/local snapshots and
+helper-result composition still need connected implementation and independent
+verification before any natural admission gain can be claimed. The declaration's
+four intended positives and two negatives remain unchanged.

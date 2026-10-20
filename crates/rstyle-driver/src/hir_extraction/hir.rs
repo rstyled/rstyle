@@ -303,7 +303,7 @@ impl<'tcx> Context<'tcx> {
 
     fn expression_fields(&self, expr: &Expr<'tcx>, node: HirNode) -> HirNode {
         let children = self.children(expr);
-        let res = match expr.kind {
+        let res = self.option_expression(expr).or_else(|| match expr.kind {
             ExprKind::Call(callee, _) => self.direct_callee(callee),
             ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => {
                 self.field_resolution(expr, base)
@@ -333,7 +333,7 @@ impl<'tcx> Context<'tcx> {
                 description: "Compiler-resolved loop exit destination".into(),
             }),
             _ => None,
-        };
+        });
         let lit = matches!(expr.kind, ExprKind::Lit(_)).then(|| self.snippet(expr.span));
         let is_unsafe_block = matches!(expr.kind, ExprKind::Block(block, _) if matches!(block.rules, hir::BlockCheckMode::UnsafeBlock(_)));
 

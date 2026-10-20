@@ -1,6 +1,7 @@
 //! Bounded checked scalar reads and concrete Option pattern evidence.
 use super::*;
 
+mod capture_values;
 mod composition;
 mod contracts;
 

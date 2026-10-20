@@ -2731,3 +2731,36 @@ thresholds/scoring and suppressions remain unchanged by this declaration.
 The declaration's style audit checks 2,632 functions with zero violations;
 patterns has zero candidates. This increment changes only the target contract,
 corpus and independent oracle; it does not change extraction or admission.
+
+
+### Scalar Option constructor authority capture checkpoint
+
+The existing driver expression walk now retains core Some/None constructor
+identity using the existing resolved Option-variant record; no new inventory,
+source copy, provenance table, cache or traversal is introduced. Some calls and
+None paths were missing this resolved evidence in the declared width-classifier
+chain. This observational increment supplies it without registering construction
+semantics, scalar Option admission, a capability or a policy-version change.
+
+Exact pinned hashes pass Cargo capture tests for all installed ARM Linux,
+x86_64 Linux and Apple ARM64 targets in both std and no_std contexts, including
+renamed variants. User enums and a local function named Some returning actual
+core Option do not acquire constructor authority. These are cross-target capture
+tests, not native macOS runtime tests. Data-v2 capture remains unchanged; all
+eight authority-test functions remain excluded.
+
+The unchanged six-function development selection retains **0 admitted /6
+excluded**, zero gains/losses. The source/type, semantic construction, owned
+payload binding, flow and helper gates remain required; no support claim follows
+from capture alone. Full workspace validation passes **826 tests with five
+existing ignores**. All-targets clippy with warnings denied, formatting and diff
+checks pass. rstyle checks **2,633 functions /zero violations**; patterns reports
+**zero candidates**, with no new suppressions or ignore entries.
+
+A bounded quiescent diagnostic alternates the previous 576660d driver and the
+current driver through identical real Cargo captures of the unchanged six-function
+corpus, using the same compiler and current CLI. After one warmup pair, seven
+retained pairs have median elapsed **0.299 s baseline /0.274 s current**, peak RSS
+**103748 /104076 KiB**. All source identities/outcomes match in every sample.
+No material regression is observed here; this small corpus is not a whole-package
+performance guarantee or a speedup claim.
