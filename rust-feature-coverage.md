@@ -1870,3 +1870,22 @@ proof. `Frac::new` still needs the separately audited closure/conversion/Option 
 Result / `?` chain; admitting its leaf does not certify that caller. Next target
 audits remain connected checked-access/Option families and S09 mixed-content
 ownership, preserving strict source completeness and nominal/drop evidence.
+
+### Next connected target: checked UTF-8 boundary predicate
+
+Selected from source before admission: `regex-automata` 0.4.18
+`util::utf8::is_boundary`, in its complete default-feature Cargo library context.
+The [development target and independent expectations](eval/coverage-development/README.md#checked-utf-8-boundary-target-specified-before-capture)
+connect slice get, concrete Option discrimination, reference payload binding,
+scalar short circuits and helper/saved-origin composition. The five-function
+separate corpus starts at 0 admitted / 5 excluded; its runtime oracle passes
+against standard string boundaries and all 256 saved byte payloads.
+
+Full natural capture is currently **incomplete**, not excluded: selected-unit
+inherent association validation aborts with ambiguous source-definition spans.
+Resolve the concrete collision before claiming any natural admission gain;
+removing uniqueness checks or omitting neighboring definitions is not a fix.
+Existing get callee/library identities are captured, while normalized Option
+results and payload bindings are absent. This bounds the next investigation
+without adding persisted provenance or changing frozen selections. D17 remains
+Missing, S09 remains Partial, and no extraction gain is claimed by this baseline.

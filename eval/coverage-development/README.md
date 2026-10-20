@@ -616,3 +616,89 @@ proof. Concrete checked-access/Option families and S09 mixed-content nominal
 ownership remain next audits; `Frac::new` is still excluded and was never included
 in this target. No helper totality, alias independence or broad enum/drop support
 follows from admitting gcd.
+
+## Checked UTF-8 boundary target (specified before capture)
+
+The next selected natural leaf is `regex-automata` 0.4.18
+`src/util/utf8.rs::is_boundary`, bytes 3947..4747, source SHA-256
+`e676b73906d493177219bcc72dbbb29fce630d0c07570e1ec1b7c3378b10c826`.
+The build context is the complete unmodified Cargo library with default features,
+test=false, pinned nightly, aarch64-unknown-linux-gnu, development overflow checks.
+This separate one-function development selection does not change the frozen 60.
+Selection is based on source, before inspecting admission: checked access,
+concrete `Option<&u8>`, exhaustive None/Some matching, reference-pattern payload
+binding, and scalar short-circuit evaluation form one complete bounded chain.
+
+Independent intended classification: admit the entire function, including both
+arms and the out-of-bounds path. On valid UTF-8, its result must equal
+`str::is_char_boundary(i)` for every offset, including the end, past the end and
+usize::MAX. Empty input at zero is true; empty input at one is false. Continuation
+bytes inside valid multibyte sequences are false. No out-of-bounds input may
+panic. Invalid UTF-8 has unspecified API behavior; observations on such bytes
+must not be promoted to a stronger Unicode correctness claim.
+
+Known missing contracts before capture: resolved slice `get(usize)` authority
+and its conditional load/bounds semantics; concrete Option representation and
+variant discrimination; branch-dominated extraction of a shared byte payload;
+reference-pattern binding; composition with existing scalar match/short-circuit
+value merges. Unlike unchecked indexing, failed checked access returns None.
+Payload reads on None must remain impossible. No purity or alias independence
+may be inferred from the method spelling. Negative expectations include custom
+`get` methods, wrong core/compiler authority, mutable payloads, unmatched or
+forged variant evidence, and payload use without the Some guard.
+
+The leaf has no nominal interface, derives, macros, helper calls, drop-bearing
+locals or mutation in its body. Whether the full library introduces a source
+boundary blocker, whether current HIR retains the Option constructor/pattern
+identities, and whether serialized verification can express conditional payload
+availability are unknown until capture and verifier inspection. S09 remains an
+open shared dependency for nominal families; scalar interface alone does not
+justify ignoring neighboring items for nominal proof.
+
+`decode` and `decode_last` are follow-on callers, not part of this bounded leaf
+claim: nested Option/Result, char conversion, UTF-8 validation and iterator
+semantics add separate blockers. The commented-out `next` routine in the same
+file is inactive source, not a second natural selection.
+
+### Checked-boundary baseline evidence
+
+The real default-feature library capture on 2026-10-20 is **incomplete**: the
+driver aborts during `inherent::capture_unit` with
+`Ambiguous inherent source-definition association`. Cargo dependency resolution
+first required fetching a missing dev dependency; retrying online reached the
+actual compiler capture failure. No natural admission denominator or gain can
+be reported from this failed run. Do not silently switch to a reduced feature
+context or a source-only copy to claim success.
+
+The unit association validator currently requires globally unique
+`(source_file, function_span)` across all concrete inherent definitions. The
+producer collects those records before helper linking and validates the entire
+inventory. The next investigation must identify the colliding definitions and
+whether they originate in macro expansion, source rebasing or duplicated owners;
+merely removing the uniqueness check or dropping a record is not justified.
+This is a newly confirmed source-boundary dependency ahead of Option semantics.
+
+The separate [composition corpus](checked-boundaries.rs), combined with the
+exact natural leaf extracted from its original source, captures all five
+functions: **0 admitted / 5 excluded** under Data-v3 3.35.0. Intended positives
+are the natural leaf, `checked_byte` (zero on failed access), `helper_boundary`
+(same boundary predicate through a helper), and `saved_byte` (a successful saved
+payload still reads the first input after rebinding; None returns the second
+input length as u8). `mutable_byte` is the negative admission expectation: its
+successful access writes 42 and requires a mutable-memory contract outside this
+read-only target. Runtime validity does not imply extraction support.
+
+The [independent runtime oracle](checked-boundary-oracle.rs), appended to that
+combined source and compiled with `rustc --edition 2021 --test`, passes both
+tests. Valid string cases include ASCII, NUL/newlines, two-, three- and four-byte
+Unicode and mixed strings; every offset through len+2 and usize::MAX is compared
+to `str::is_char_boundary`. Saved payload and failure cases cover all 256 byte
+values, distinct input lengths, and maximum indices. The mutation negative is
+also executed to establish that its effect must never be modeled as a read.
+
+Captured get calls already carry a resolved core path/hash/definition identity
+and library-resolution evidence, but their Option result has no normalized type.
+The Some payload binding is absent from captured bindings. Thus additional
+provenance records are not the first step: investigate existing resolved pattern
+and type capture, then connect bounded type/operation/guard semantics. Existing
+core authority and source correspondence must remain mandatory.
