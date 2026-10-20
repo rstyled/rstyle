@@ -817,3 +817,14 @@ has no Option grammar. Both must connect to registered get bounds/conditional
 load behavior, variant guards, saved payload origins and strict serialized proof.
 No nominal S09 redesign or general macro support is required for this scalar
 leaf; the separate Position/Span ownership investigation stays open.
+
+Execution note for the natural run: after complete persisted-report publication
+and a successful full streaming parse of its function inventory, redundant JSON
+stdout rendering approached the 16 GiB cgroup memory limit. The owned renderer
+was deliberately terminated (exit 143); its handle is terminal. This is not a
+successful CLI-exit claim. Capture/assessment completeness and the reported
+function outcomes above come from the complete validated `run-HCmpVF/report.json`
+and retained bundle, not the empty stdout redirect. No capture or assessment was
+restarted. The frozen runs and test/style gates all reached their normal terminal
+results. This existing readable-report cost remains a reporting limitation;
+future full natural runs should use text stdout.

@@ -1951,3 +1951,9 @@ and guarded/saved-origin composition; defer additional capture infrastructure.
 S09 nominal Position/Span proof remains open. Full readable reports expand unit
 sources per function (7.9 GB here); use text stdout and stream retained reports
 for further exploration, without introducing new provenance or caches.
+
+Natural-run execution limit: the persisted `run-HCmpVF/report.json` was complete
+and streamed successfully, but its redundant JSON stdout renderer was terminated
+at the memory boundary (exit 143). Capture/assessment results above are validated
+artifact results, not a successful CLI-exit claim. Frozen and regression/style
+runs completed normally. Use text stdout for subsequent full-library runs.
