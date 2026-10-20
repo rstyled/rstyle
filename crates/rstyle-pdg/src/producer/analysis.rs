@@ -362,6 +362,9 @@ fn read_edges(
     node: &Operation,
     incoming: &DefinitionSet,
 ) -> Result<Vec<Dependence>, String> {
+    if node.construct.as_deref() == Some("data.indirect-field") && node.symbol.is_none() {
+        return Ok(Vec::new());
+    }
     let symbol = node
         .symbol
         .as_ref()

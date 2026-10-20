@@ -278,6 +278,13 @@ impl Builder<'_> {
         if crate::data_value_fields::candidate(node, self.facts) {
             return self.value_field(node, flow);
         }
+        if crate::field_locations::derived::candidate(node, self.facts) {
+            return self.indirect_field(node, flow);
+        }
+        self.captured_field(node, flow)
+    }
+
+    fn captured_field(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.field_base(node, flow);
         let fields = self
             .facts
@@ -307,6 +314,16 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
+    fn indirect_field(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let flow = self.field_base(node, flow);
+        let operation = Operation {
+            operands: self.operand(&flow.value),
+            construct: Some("data.indirect-field".into()),
+            ..template(node, NodeCategory::Read)
+        };
+        self.emit(operation, flow)
+    }
+
     fn value_field(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.expression(&node.children[0], flow);
         let operation = Operation {
@@ -330,7 +347,12 @@ impl Builder<'_> {
 
     fn field_place(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.field_base(node, flow);
-        self.address_operation(node, flow, "data.place")
+        let construct = if crate::field_locations::derived::candidate(node, self.facts) {
+            "data.indirect-place"
+        } else {
+            "data.place"
+        };
+        self.address_operation(node, flow, construct)
     }
 
     fn address_operation(&mut self, node: &HirNode, flow: Flow, construct: &str) -> Flow {

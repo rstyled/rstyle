@@ -1,6 +1,7 @@
 //! Formal field observations for excluded data interfaces. No admission policy.
 
 mod aliases;
+pub(crate) mod derived;
 mod source;
 
 use crate::{ByteSpan, HirFnFacts, HirNode, HirRef, concrete_types::*};
@@ -116,6 +117,10 @@ fn operation(
     let location = if crate::data_value_fields::candidate(node, facts) {
         Location::Unsupported {
             reason: "Aggregate value projection has no formal memory location".into(),
+        }
+    } else if derived::candidate(node, facts) {
+        Location::Unsupported {
+            reason: "Indirect locations are reconstructed from reference value flow".into(),
         }
     } else {
         match resolve(node, facts, interface) {
@@ -242,7 +247,10 @@ fn project(
     }
 }
 
-pub fn verify(facts: &HirFnFacts, observations: &FieldObservations) -> Result<(), String> {
+pub fn verify(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    observations: &FieldObservations,
+) -> Result<(), String> {
     if observations.identity != IDENTITY || observations.operations.len() > MAX_OPERATIONS {
         return Err("Unregistered or over-budget field observations".into());
     }
@@ -286,7 +294,7 @@ pub fn verify(facts: &HirFnFacts, observations: &FieldObservations) -> Result<()
     source::verify(facts, observations, &interface)
 }
 
-pub(super) fn fields(node: &HirNode) -> Vec<&HirNode> {
+pub(crate) fn fields(node: &HirNode) -> Vec<&HirNode> {
     let own = (node.kind == "expr_field").then_some(node);
 
     node.children.iter().flat_map(fields).chain(own).collect()

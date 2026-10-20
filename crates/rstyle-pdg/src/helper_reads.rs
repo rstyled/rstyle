@@ -81,7 +81,7 @@ pub(crate) fn derive(
                 .find(|location| &location.id == id)
                 .ok_or("Helper read has no declared location")?;
             let location = captured(location)?;
-            verify_location(facts, &location, target)?;
+            verify_location(facts, &location, target, node)?;
             if reads.len() == crate::concrete_types::MAX_ENTRIES {
                 return Err(BUDGET_ERROR.into());
             }
@@ -115,6 +115,7 @@ fn verify_location(
     facts: &dyn crate::unit_store::EvidenceFacts,
     location: &CapturedLocation,
     access: &crate::Access,
+    node: &crate::PdgNode,
 ) -> Result<(), String> {
     let formal = facts
         .signature
@@ -122,7 +123,11 @@ fn verify_location(
         .get(location.parameter as usize)
         .ok_or("Unknown helper read formal")?;
     if location.root_symbol != formal.symbol
-        || access.symbol_id.as_ref() != Some(&formal.symbol)
+        || (access.symbol_id.as_ref() != Some(&formal.symbol)
+            && !(access.symbol_id.is_none()
+                && node.attributes.construct.as_deref() == Some("data.indirect-field")
+                && crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+                    .supports("rust.indirect-field-reads")))
         || access.unresolved_reason.is_some()
         || type_at(facts, location.parameter, &location.path)? != location.value
     {

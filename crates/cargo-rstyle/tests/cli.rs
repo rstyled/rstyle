@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.27.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.28.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.27.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.28.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -8898,7 +8898,7 @@ fn clones_data_shared_local_fields_retain_formal_locations_and_alias_value_flow(
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "multi" | "mutable" | "double" | "borrowlocal" | "aggregate"
+            "double" | "borrowlocal"
         );
         assert_eq!(
             function["outcome"],
@@ -10017,4 +10017,198 @@ fn check_body_nominal_interface(report: &Value) {
             .len(),
         1
     );
+}
+
+const INDIRECT_FIELD_FAMILY: &str = r#"
+    pub struct Inner { pub n: u8 }
+    pub struct Record<'a> { pub inner: Inner, pub pointer: &'a Inner }
+    pub fn first(a: &Inner, b: &Inner, pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.n }
+    pub fn composed(a: &Inner, b: &Inner, pick: bool) -> u8 { first(a, b, pick) }
+    pub fn other(a: &Inner, b: &Inner, pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.n }
+    pub fn mutable(a: &Inner, b: &Inner) -> u8 { let mut selected = a; selected = b; selected.n }
+    pub fn snapshot(a: &Inner, b: &Inner) -> u8 { let mut selected = a; let saved = selected; selected = b; saved.n }
+    pub fn formal_snapshot<'a>(mut a: &'a Inner, b: &'a Inner) -> u8 { let saved = a; a = b; saved.n }
+    pub fn looped(a: &Inner, b: &Inner, mut count: u32) -> u8 { let mut selected = a; while count > 0 { selected = b; count -= 1; } selected.n }
+    pub fn nested(a: &Record<'_>, b: &Record<'_>, pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.inner.n }
+    pub fn stored(a: &Record<'_>, b: &Record<'_>, pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.pointer.n }
+    pub fn reference<'a>(a: &Record<'a>, b: &Record<'a>, pick: bool) -> &'a Inner { let selected = if pick { a } else { b }; selected.pointer }
+    pub fn choose<'a>(a: &'a Inner, b: &'a Inner, pick: bool) -> &'a Inner { if pick { a } else { b } }
+    pub fn helper(a: &Inner, b: &Inner, pick: bool) -> u8 { choose(a, b, pick).n }
+    pub fn conditional(a: &Inner, b: &Inner, pick: bool) -> u8 { (if pick { a } else { b }).n }
+    pub fn tuple(a: &(u8, u8), b: &(u8, u8), pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.1 }
+    pub fn same(a: &Inner, pick: bool) -> u8 { let selected = if pick { a } else { a }; selected.n }
+    pub fn borrow_local(value: u8) -> u8 { let local = Inner { n: value }; let selected = &local; selected.n }
+    pub fn pointee(a: &mut Inner) -> u8 { a.n = 1; a.n }
+"#;
+
+#[test]
+fn clones_data_indirect_fields_compose_with_reference_flow_and_helpers() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), INDIRECT_FIELD_FAMILY).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["functions"].as_array().unwrap().len(), 17);
+    for function in report["functions"].as_array().unwrap() {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "borrow_local" | "pointee"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_indirect_field_locations(&report);
+    check_indirect_field_paths(&report);
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    for function in legacy["functions"].as_array().unwrap() {
+        if function["facts"]["name"] != "choose" {
+            assert_eq!(function["outcome"], "excluded", "{function}");
+        }
+    }
+}
+
+fn check_indirect_field_locations(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
+    for (name, roots) in [
+        ("first", vec![0, 1]),
+        ("mutable", vec![1]),
+        ("snapshot", vec![0]),
+        ("formal_snapshot", vec![0]),
+        ("looped", vec![0, 1]),
+        ("nested", vec![0, 1]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        let actual: Vec<_> = pair
+            .pdg
+            .memory_locations
+            .iter()
+            .map(|location| {
+                location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["parameter"]
+                    .as_u64()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(actual, roots, "{name}");
+        check_indirect_field_corruption(&facts);
+    }
+}
+
+fn check_indirect_field_corruption(facts: &dyn rstyle_pdg::unit_store::EvidenceFacts) {
+    check_indirect_field_edge_corruption(facts);
+    for mutation in ["missing", "symbol", "position"] {
+        let mut changed = rstyle_pdg::producer::produce(facts).unwrap();
+        let node = changed
+            .pdg
+            .nodes
+            .iter_mut()
+            .find(|node| node.attributes.construct.as_deref() == Some("data.indirect-field"))
+            .unwrap();
+        match mutation {
+            "missing" => node.attributes.reads.clear(),
+            "symbol" => node.attributes.reads[0].symbol_id = Some("invented".into()),
+            _ => node.attributes.reads[0].operand_position = Some(1),
+        }
+        assert!(
+            rstyle_pdg::data_documents::verify(&changed, facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&changed, facts).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+fn check_indirect_field_paths(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for name in ["nested", "reference"] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        if name == "nested" {
+            for location in &pair.pdg.memory_locations {
+                let path = &location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"];
+                assert_eq!(path.as_array().unwrap().len(), 3);
+                assert_eq!(path[0]["kind"], "SharedReferent");
+                assert_eq!(path[1]["name"], "inner");
+                assert_eq!(path[2]["name"], "n");
+            }
+        } else {
+            let returned = pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+                .unwrap();
+            let origins = returned.annotations[rstyle_pdg::data_origins::KEY]
+                .as_array()
+                .unwrap();
+            assert_eq!(origins.len(), 2);
+            for (parameter, origin) in origins.iter().enumerate() {
+                assert_eq!(origin["parameter"], parameter);
+                assert_eq!(origin["path"][0]["kind"], "SharedReferent");
+                assert_eq!(origin["path"][1]["name"], "pointer");
+                assert_eq!(origin["path"][2]["kind"], "SharedReferent");
+            }
+        }
+    }
+}
+
+fn check_indirect_field_edge_corruption(facts: &dyn rstyle_pdg::unit_store::EvidenceFacts) {
+    for mutation in ["base", "lexical", "path"] {
+        let mut pair = rstyle_pdg::producer::produce(facts).unwrap();
+        let id = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.attributes.construct.as_deref() == Some("data.indirect-field"))
+            .unwrap()
+            .id
+            .clone();
+        if mutation == "path" {
+            pair.pdg.memory_locations[0]
+                .extensions
+                .get_mut(rstyle_pdg::data_documents::LOCATION_KEY)
+                .unwrap()["path"] = serde_json::json!([]);
+        } else {
+            let edge = pair
+                .pdg
+                .edges
+                .iter_mut()
+                .find(|edge| edge.target == id && edge.subkind == "value_operand")
+                .unwrap();
+            if mutation == "base" {
+                edge.source = id;
+            } else {
+                let mut extra = edge.clone();
+                extra.subkind = "reaching_definition".into();
+                pair.pdg.edges.push(extra);
+            }
+        }
+        assert!(
+            rstyle_pdg::data_documents::verify(&pair, facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&pair, facts).is_err(),
+            "{mutation}"
+        );
+    }
 }

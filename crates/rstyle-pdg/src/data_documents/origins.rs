@@ -55,7 +55,9 @@ pub(super) fn verify(
 }
 
 fn reference(node: &PdgNode) -> Result<bool, String> {
-    if node.annotations.contains_key(crate::data_places::KEY) {
+    if node.annotations.contains_key(crate::data_places::KEY)
+        || node.attributes.construct.as_deref() == Some("data.indirect-place")
+    {
         return Ok(false);
     }
     let token = wire_type(node)?;
@@ -381,9 +383,19 @@ fn loaded_origins(
     selectors: &[usize],
     pair: crate::producer::PairView<'_>,
 ) -> Result<Vec<Origin>, String> {
-    let [access] = node.attributes.reads.as_slice() else {
-        return Err("Stored reference field requires one exact read".into());
-    };
+    let mut roots = BTreeSet::new();
+    for access in &node.attributes.reads {
+        roots.extend(access_origins(access, node, selectors, pair)?);
+    }
+    Ok(roots.into_iter().collect())
+}
+
+fn access_origins(
+    access: &crate::Access,
+    node: &PdgNode,
+    selectors: &[usize],
+    pair: crate::producer::PairView<'_>,
+) -> Result<Vec<Origin>, String> {
     let id = access
         .location_id
         .as_ref()

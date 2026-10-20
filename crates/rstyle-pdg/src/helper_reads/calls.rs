@@ -250,22 +250,10 @@ fn source_call<'a>(
     pair: crate::producer::PairView<'a>,
     call: &HirNode,
 ) -> Result<&'a PdgNode, String> {
-    let nodes = pair
-        .pdg
-        .nodes
-        .iter()
-        .filter(|node| {
-            node.category == NodeCategory::Call
-                && node.original_kind.known_value() == Some(call.kind.as_str())
-                && node.source_span.as_ref().is_some_and(|span| {
-                    span.start == u64::from(call.span.start) && span.end == u64::from(call.span.end)
-                })
-        })
-        .collect::<Vec<_>>();
-    let [node] = nodes.as_slice() else {
-        return Err("Missing or ambiguous source-backed helper CALL".into());
-    };
-    Ok(node)
+    crate::data_documents::serialized_operation(pair, &call.span, |node| {
+        node.category == NodeCategory::Call
+            && node.original_kind.known_value() == Some(call.kind.as_str())
+    })
 }
 
 /// An unsupported call remains excluded; a read-evidence budget is incomplete capture.

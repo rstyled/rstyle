@@ -2,6 +2,7 @@
 
 mod aggregates;
 mod borrows;
+mod indirect_fields;
 mod locals;
 mod locations;
 mod origins;
@@ -37,6 +38,8 @@ fn install_locations(
         .map(|field| install_field(&mut pair.pdg, field, &mut context))
         .collect::<Result<BTreeMap<_, _>, _>>()?;
 
+    let indirect = indirect_fields::install(&mut pair, &mut context)?;
+    let locations = crate::helper_reads::merge_locations(locations, indirect)?;
     let helpers = crate::helper_reads::install(&mut pair, &mut context)?;
     finish_locations(
         pair,
@@ -227,28 +230,16 @@ fn verify_field(
     field: &FieldOperation,
     expected: &mut BTreeMap<String, crate::MemoryLocation>,
 ) -> Result<(), String> {
-    let candidates: Vec<_> = pair
-        .pdg
-        .nodes
-        .iter()
-        .filter(|node| {
-            matches!(
-                node.category,
-                NodeCategory::Read | NodeCategory::Computation
-            ) && node.original_kind.known_value() == Some("expr_field")
-                && node.source_span.as_ref().is_some_and(|span| {
-                    span.start == u64::from(field.span.start)
-                        && span.end == u64::from(field.span.end)
-                })
-        })
-        .collect();
-    let [node] = candidates.as_slice() else {
-        return Err("Ambiguous or missing serialized field correspondence".into());
-    };
+    let node = serialized_field(pair, field)?;
 
     let facts = context.facts;
     if matches!(field.location, Location::Unsupported { .. }) {
-        return value_fields::verify(node, origins::source_node(node, facts)?, pair, facts);
+        let source = origins::source_node(node, facts)?;
+        if crate::field_locations::derived::candidate(source, facts) {
+            expected.extend(indirect_fields::verify(node, source, pair, context)?);
+            return Ok(());
+        }
+        return value_fields::verify(node, source, pair, facts);
     }
     let (id, location) = location(field, context)?;
     let places = crate::data_places::Places::verify(facts)?;
@@ -268,6 +259,38 @@ fn verify_field(
     verify_field_operands(pair, facts, field, node)?;
     expected.insert(id, location);
     Ok(())
+}
+
+fn serialized_field<'a>(
+    pair: crate::producer::PairView<'a>,
+    field: &FieldOperation,
+) -> Result<&'a crate::PdgNode, String> {
+    serialized_operation(pair, &field.span, |node| {
+        matches!(
+            node.category,
+            NodeCategory::Read | NodeCategory::Computation
+        ) && node.original_kind.known_value() == Some("expr_field")
+    })
+}
+
+pub(crate) fn serialized_operation<'a>(
+    pair: crate::producer::PairView<'a>,
+    span: &crate::ByteSpan,
+    accepts: impl Fn(&crate::PdgNode) -> bool,
+) -> Result<&'a crate::PdgNode, String> {
+    let mut candidates = pair.pdg.nodes.iter().filter(|node| {
+        accepts(node)
+            && node.source_span.as_ref().is_some_and(|source| {
+                source.start == u64::from(span.start) && source.end == u64::from(span.end)
+            })
+    });
+    let node = candidates
+        .next()
+        .ok_or("Missing serialized source operation")?;
+    if candidates.next().is_some() {
+        return Err("Ambiguous serialized source operation".into());
+    }
+    Ok(node)
 }
 
 fn verify_reads(pair: crate::producer::PairView<'_>, fields: usize) -> Result<(), String> {
@@ -401,6 +424,14 @@ fn field_base<'a>(
         return Err("Field source lacks exact base".into());
     };
 
+    let mut base = base;
+    while base.kind == "expr_block"
+        && let Some(tail) = base.children.last()
+        && tail.kind.starts_with("expr_")
+    {
+        base = tail;
+    }
+
     let candidates: Vec<_> = pair
         .pdg
         .nodes
@@ -408,11 +439,13 @@ fn field_base<'a>(
         .filter(|candidate| {
             matches!(
                 candidate.category,
-                NodeCategory::Read | NodeCategory::Computation
-            ) && candidate.original_kind.known_value() == Some(base.kind.as_str())
-                && candidate.source_span.as_ref().is_some_and(|span| {
-                    span.start == u64::from(base.span.start) && span.end == u64::from(base.span.end)
-                })
+                NodeCategory::Read
+                    | NodeCategory::Computation
+                    | NodeCategory::Call
+                    | NodeCategory::Merge
+            ) && aggregates::source_span(candidate).is_ok_and(|span| {
+                span.start == u64::from(base.span.start) && span.end == u64::from(base.span.end)
+            }) && aggregates::check_value(candidate, base).is_ok()
         })
         .collect();
     let [base] = candidates.as_slice() else {

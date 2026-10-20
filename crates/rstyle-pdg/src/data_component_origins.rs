@@ -13,9 +13,20 @@ pub(crate) fn source(
     if crate::data_reference_locals::flow_enabled(facts) {
         return crate::data_reference_locals::selected(node, selectors, facts);
     }
+    if crate::field_locations::derived::candidate(node, facts) {
+        return crate::field_locations::derived::selected(node, selectors, facts);
+    }
     if selectors.is_empty() {
         return crate::data_origins::origins(node, facts);
     }
+    source_operation(node, selectors, facts)
+}
+
+fn source_operation(
+    node: &HirNode,
+    selectors: &[usize],
+    facts: &dyn EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
     match node.kind.as_str() {
         "expr_tup" | "expr_struct" => {
             let (operand, rest) = operand(node, selectors, facts)?;

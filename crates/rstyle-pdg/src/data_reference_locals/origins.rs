@@ -82,9 +82,17 @@ impl Resolver<'_> {
         &self,
         node: &HirNode,
         selectors: &[usize],
-        _: &mut Visiting,
+        visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
         match node.kind.as_str() {
+            "expr_field" if crate::field_locations::derived::candidate(node, self.facts) => {
+                crate::field_locations::derived::selected_with(
+                    node,
+                    selectors,
+                    self.facts,
+                    &mut |base| self.source(base, &[], visiting),
+                )
+            }
             "expr_field" => {
                 crate::data_component_origins::select_origins(node, selectors, self.facts)
             }

@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.25.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.28.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -107,7 +107,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; Data-v3 3.22.0 also supports [construction and whole immutable tuple/struct locals](docs/extraction-profiles/reference-bearing-values-v1.md). [Component projections from constructed/local values](docs/extraction-profiles/reference-value-fields-v1.md) compose in Data-v3 3.23.0; mutable rebindings and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
 | D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.22.0 additionally supports [reference-bearing tuple/named/tuple-struct values](docs/extraction-profiles/reference-bearing-values-v1.md). Ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates remain supported; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Data-v3 3.24.0 also supports [reference-bearing struct updates](docs/extraction-profiles/reference-struct-updates-v1.md) with component-specific origin replacement. Broader const counts and reference-bearing arrays remain unfinished. Data-v3 3.27.0 supports [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md) with snapshot and component origins. |
-| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](docs/extraction-profiles/reference-value-fields-v1.md). Data-v3 3.27.0 adds [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md), snapshot copies and branch/loop origin flow. Multiple-origin or mutable shared-local field-memory reads and aggregate helper-result field bases remain unfinished. |
+| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](docs/extraction-profiles/reference-value-fields-v1.md). Data-v3 3.27.0 adds [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md), snapshot copies and branch/loop origin flow. Data-v3 3.28.0 adds [indirect shared-reference field reads](docs/extraction-profiles/indirect-field-reads-v1.md) through multiple origins, mutable bindings, snapshots and shared helper results. Aggregate helper-result field bases remain unfinished. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
 | D15 | Array/slice element reads | Missing | `xs[i]` | Evaluate base/index once, preserve element location/index identity and bounds behavior. |
@@ -1405,3 +1405,52 @@ identities/outcomes, all denominators and context counts match 3.26.0
 (`run-ftluk_j2`). Twenty-six admitted graph documents pass schema checks
 (10 lz4, 0 regex, 16 time). Reference rebindings add no measured frozen admission
 gain; these checks do not establish general performance or detector quality.
+
+
+### D12 field memory reads through reference-value flow
+
+Data-v3 extraction 3.28.0 adds `rust.indirect-field-reads` (40 capabilities);
+matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/indirect-field-reads-v1.md) supports field reads
+through mutable and multiple-origin shared-reference bindings, snapshots,
+conditional bases, stored references and verified shared helper results. Nested
+physical projections retain their complete paths. A caller may compose a verified
+memory-reading helper using these reads under the existing helper-call contract.
+
+Temporary location derivation reuses formal reference origins, resolved fields and
+existing memory access records. It adds no capture records, source snapshots or
+retained cache. Functions without indirect reads skip the new location installation.
+The evaluated pointer retains lexical snapshot dependencies; the memory read has
+no lexical symbol or reaching-definition edge. Intermediate nested places do not
+invent an aggregate load. Source and graph origin traversal union the possible
+loaded origins, while independent document and strict producer verification check
+the exact physical accesses and evaluated base, including conditional merges.
+
+The 17-function composed fixture admits 15 functions and excludes the local
+storage borrow and pointee write. It checks reassignment kills, saved local/formal
+snapshots, loop origin unions, nested physical paths, stored-reference return
+origins, shared helper results and a memory-reading helper caller. Missing reads,
+invented symbols, incorrect operand positions, altered physical paths, pointer
+operands and phantom lexical edges are rejected. Data-v2 field-read exclusions
+remain intact; its pre-existing memory-free shared helper remains supported.
+The earlier shared-local fixture now admits mutable, multiple-origin and local
+aggregate reference bases.
+
+Local/temporary storage borrows, general dereference/indexing, reference-bearing
+arrays and aggregate helper results remain unfinished. D12 stays Partial, and the
+full roadmap remains active. These checks do not establish general performance
+or detector quality.
+
+Validation: 762 workspace tests pass with the same 5 existing ignores, including
+the original assertion-argument receiver regression and the expanded corruption
+checks. Clippy passes for all targets with warnings denied; formatting and diff
+checks pass. Repository-built rstyle reports 2,381 functions and 0 violations;
+patterns reports 0 candidates with the same 15 existing ignores. All 14 inventory
+bookkeeping tests pass. Inventory capture ran after the preceding workspace tests
+finished; the final workspace run also passes after the verifier span prefilter.
+
+Frozen run `target/hir-coverage/run-fyvdv1kb/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60. All 60 identities
+and outcomes, all denominators and context counts match 3.27.0 (`run-myi5gqyy`).
+Twenty-six admitted graph documents pass schema checks (10 lz4, 0 regex, 16 time).
+Indirect field reads add no measured frozen admission gain.

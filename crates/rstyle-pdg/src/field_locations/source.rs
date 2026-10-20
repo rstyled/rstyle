@@ -116,7 +116,7 @@ fn written_roots(expression: &syn::Expr) -> Vec<String> {
 }
 
 pub(super) fn verify(
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     observations: &FieldObservations,
     interface: &InterfaceObservations,
 ) -> Result<(), String> {
@@ -156,7 +156,7 @@ pub(super) fn verify(
 }
 
 struct Verification<'a> {
-    facts: &'a HirFnFacts,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
     observations: &'a FieldObservations,
     interface: &'a InterfaceObservations,
     bindings: &'a [String],
@@ -170,6 +170,12 @@ impl Verification<'_> {
                 return Err("Aggregate value projection invents a formal memory location".into());
             }
             return crate::data_value_fields::index(node, self.facts).map(|_| ());
+        }
+        if derived::candidate(node, self.facts) {
+            if !matches!(operation.location, Location::Unsupported { .. }) {
+                return Err("Indirect field invents one captured origin".into());
+            }
+            return derived::locations(node, self.facts).map(|_| ());
         }
         let source = source_path(field)?;
         if self.bindings.iter().any(|binding| binding == &source.root) {
@@ -456,7 +462,10 @@ fn check_field_resolution(node: &HirNode, location: &Location) -> Result<(), Str
     Ok(())
 }
 
-fn origin_value<'a>(mut value: &'a TypeTree, path: &[Projection]) -> Result<&'a TypeTree, String> {
+pub(super) fn origin_value<'a>(
+    mut value: &'a TypeTree,
+    path: &[Projection],
+) -> Result<&'a TypeTree, String> {
     for step in path {
         value = match (value, step) {
             (TypeTree::Shared(referent), Projection::SharedReferent) => referent,

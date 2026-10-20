@@ -167,7 +167,7 @@ pub(super) fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), St
     Ok(())
 }
 
-fn source_span(value: &PdgNode) -> Result<crate::Span, String> {
+pub(super) fn source_span(value: &PdgNode) -> Result<crate::Span, String> {
     if let Some(span) = &value.source_span {
         return Ok(span.clone());
     }

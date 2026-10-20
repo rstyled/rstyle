@@ -150,6 +150,9 @@ fn field(
     facts: &dyn crate::unit_store::EvidenceFacts,
     ty: &TypeToken,
 ) -> Result<Vec<Origin>, String> {
+    if crate::field_locations::derived::candidate(node, facts) {
+        return crate::field_locations::derived::selected(node, &[], facts);
+    }
     if crate::data_value_fields::candidate(node, facts) {
         return crate::data_component_origins::source(
             &node.children[0],
