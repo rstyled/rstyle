@@ -3150,3 +3150,24 @@ The complete-original-crate checked-reader runtime oracle now passes three tests
 (all u16 words, wide bits, short/tail inputs and exact error-description payloads).
 This establishes independent expectations while admissions remain 0/3; no
 production capture, memory or runtime behavior changes in this increment.
+
+### Retain Try operands and compiler continuations (2026-10-20)
+
+Data-v3 now observes `MatchSource::TryDesugar` as a distinct unsupported
+`expr_try_desugar`, retaining its scrutinee and both arms in the existing HIR
+tree. This closes the missing-operand capture link identified by the checked
+native-reader audit. It does not enable `?`, concrete Result, enum errors,
+generic helpers or partial-helper admission. Historical profiles retain the
+previous capture shape; no new source exception or capability is registered.
+
+Two real-Cargo tests verify Result and nested Option captures, exact operand
+occurrence and both continuations, continued exclusion, producer rejection,
+and the Data-v2 historical boundary. The two selected test functions remain
+excluded (zero gains/losses); no new natural or frozen inventory replay is
+claimed. The original checked family remains unactivated. All 854 workspace
+tests pass, with five existing skips; rstyle has zero violations and patterns
+zero candidates. Capture uses existing nodes with no new provenance table,
+cache, source-copy structure or summary format. Unsupported Try functions
+now deliberately retain more HIR; no broad performance claim follows from the
+test timings. Next work must connect type/error and helper semantics rather
+than accumulate more observational syntax increments without natural gains.

@@ -158,3 +158,25 @@ as well as the helper/error chain. Keep general enums and arbitrary generic
 specialization out of a scalar-helper increment; such an increment must preserve
 partial behavior and cannot claim the checked family complete. No admission
 change is expected from the runtime oracle or this audit.
+
+## Observational Try capture increment
+
+Data-v3 now tags compiler `MatchSource::TryDesugar` as `expr_try_desugar`
+and retains its scrutinee and both arms through the existing HirNode tree.
+The scrutinee preserves the original operand under the generated branch call;
+the arms retain patterns, payloads and residual return expressions. The distinct
+node kind prevents compiler-generated continuations from being interpreted as
+an ordinary source match. No synthetic arm is certified as original syntax.
+Historical profiles retain their previous empty-match observation shape.
+
+This is observational only: no new capability, type grammar, summary identity,
+admission rule, source exception or purity assumption is introduced. The new
+node remains unsupported. Result and nested Option examples remain excluded,
+and producer construction rejects the nested Option example. Tests additionally
+check that each nested Try has both arms and its original operand exactly once.
+Existing saved reports above remain historical evidence and are not overwritten.
+
+This advances the missing-operand link in the declared reader chain. It does
+not solve generic helper instantiation, nominal enums/drop, Result interfaces,
+residual verification or partial-helper summaries. There is no natural admission
+gain claimed for this foundational increment.

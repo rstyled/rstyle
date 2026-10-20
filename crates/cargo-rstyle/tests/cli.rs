@@ -12,6 +12,7 @@ mod nominal_copy;
 mod option_sources;
 mod platform_regressions;
 mod shared_evidence;
+mod try_capture;
 use shared_evidence::{load as data_unit, reject_helper};
 
 use assert_cmd::cargo::cargo_bin;

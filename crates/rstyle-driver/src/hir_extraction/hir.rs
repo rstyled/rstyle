@@ -1,6 +1,6 @@
 //! Resolved source-facing HIR records. No graph derivation lives here.
 
-use rstyle_pdg::frontend::*;
+use rstyle_pdg::{extraction_profile::ExtractionProfile, frontend::*};
 use rustc_hir::{self as hir, Expr, ExprKind, HirId, PatKind, StmtKind, def::Res};
 use rustc_middle::ty::{self, Ty, TyCtxt, TypeckResults};
 use rustc_span::Span;
@@ -240,6 +240,12 @@ impl<'tcx> Context<'tcx> {
             ExprKind::Loop(_, Some(_), _, _) => "expr_labelled_loop",
             ExprKind::Loop(_, None, hir::LoopSource::While, _) => "expr_while",
             ExprKind::Loop(_, None, hir::LoopSource::ForLoop, _) => "expr_for",
+            // Retain compiler continuations for observation, without treating them as source match arms.
+            ExprKind::Match(_, _, hir::MatchSource::TryDesugar(_))
+                if self.profile == ExtractionProfile::DataV3 =>
+            {
+                "expr_try_desugar"
+            }
             ExprKind::Call(..) if self.tuple_constructor(expr) => "expr_struct",
             ExprKind::Path(..) if self.unit_constructor(expr) => "expr_struct",
             _ => kind(&expr.kind),
@@ -413,7 +419,11 @@ impl<'tcx> Context<'tcx> {
                 .flatten()
                 .map(|e| self.expression(e))
                 .collect(),
-            ExprKind::Match(value, arms, hir::MatchSource::Normal) => {
+            ExprKind::Match(value, arms, source)
+                if source == hir::MatchSource::Normal
+                    || matches!(source, hir::MatchSource::TryDesugar(_))
+                        && self.profile == ExtractionProfile::DataV3 =>
+            {
                 std::iter::once(self.expression(value))
                     .chain(arms.iter().map(|arm| self.match_arm(arm)))
                     .collect()
