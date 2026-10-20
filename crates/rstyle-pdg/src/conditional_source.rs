@@ -27,6 +27,40 @@ impl<'a> Configuration<'a> {
         unknown.map_or(Ok(true), Err)
     }
 
+    /// Return active attribute metadata without hiding non-cfg attributes.
+    /// Item presence must still be checked with `active`; this is not a proof
+    /// that an attribute's expansion or effects are supported.
+    pub fn effective_attributes(&self, attributes: &[syn::Attribute]) -> Result<Vec<Meta>, String> {
+        let mut effective = Vec::new();
+        for attribute in attributes {
+            self.expand_attribute(&attribute.meta, &mut effective)?;
+        }
+
+        Ok(effective)
+    }
+
+    fn expand_attribute(&self, meta: &Meta, effective: &mut Vec<Meta>) -> Result<(), String> {
+        if !meta.path().is_ident("cfg_attr") {
+            effective.push(meta.clone());
+            return Ok(());
+        }
+        let Meta::List(list) = meta else {
+            return Err("Malformed cfg_attr attribute".into());
+        };
+        let arguments = list
+            .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+            .map_err(|error| error.to_string())?;
+        let mut arguments = arguments.iter();
+        let condition = arguments.next().ok_or("Missing cfg_attr condition")?;
+        if self.predicate(condition)? {
+            for attribute in arguments {
+                self.expand_attribute(attribute, effective)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn attribute(&self, meta: &Meta) -> Result<bool, String> {
         if meta.path().is_ident("cfg") {
             let Meta::List(list) = meta else {
@@ -170,5 +204,65 @@ pub fn item_attributes(item: &syn::Item) -> &[syn::Attribute] {
         syn::Item::Union(value) => &value.attrs,
         syn::Item::Use(value) => &value.attrs,
         _ => &[],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn conditional_metadata_preserves_active_derive_and_other_effects() {
+        let item: syn::ItemStruct = syn::parse_quote! {
+            #[derive(Copy)]
+            #[cfg_attr(feature = "custom", derive(custom::Dangerous), path = "other.rs")]
+            #[cfg_attr(not(feature = "custom"), cfg_attr(unix, derive(Clone)))]
+            struct Data;
+        };
+        let values = vec!["unix".into()];
+        let configuration = Configuration::new(&values);
+        let effective = configuration.effective_attributes(&item.attrs).unwrap();
+        assert_eq!(effective.len(), 2);
+        assert!(effective.iter().all(|meta| meta.path().is_ident("derive")));
+        let Meta::List(last) = &effective[1] else {
+            panic!("derive list")
+        };
+        assert_eq!(last.tokens.to_string(), "Clone");
+
+        let values = vec!["unix".into(), "feature=\"custom\"".into()];
+        let effective = Configuration::new(&values)
+            .effective_attributes(&item.attrs)
+            .unwrap();
+        assert_eq!(effective.len(), 3);
+        let Meta::List(custom) = &effective[1] else {
+            panic!("derive list")
+        };
+        assert_eq!(custom.tokens.to_string(), "custom :: Dangerous");
+        assert!(effective[2].path().is_ident("path"));
+    }
+
+    #[test]
+    fn effective_metadata_does_not_certify_presence_or_unknown_predicates() {
+        let item: syn::ItemStruct = syn::parse_quote! {
+            #[cfg(any())]
+            #[cfg_attr(all(), derive(custom::Dangerous))]
+            struct Data;
+        };
+        let configuration = Configuration::new(&[]);
+        assert!(!configuration.active(&item.attrs).unwrap());
+        let effective = configuration.effective_attributes(&item.attrs).unwrap();
+        assert_eq!(effective.len(), 2);
+        assert!(effective[0].path().is_ident("cfg"));
+        assert!(effective[1].path().is_ident("derive"));
+
+        let malformed: syn::ItemStruct = syn::parse_quote! {
+            #[cfg_attr(unknown_operator(), derive(Copy))]
+            struct Data;
+        };
+        assert!(
+            configuration
+                .effective_attributes(&malformed.attrs)
+                .is_err()
+        );
     }
 }

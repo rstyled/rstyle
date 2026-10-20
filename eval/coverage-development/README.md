@@ -83,3 +83,32 @@ Report new/lost admissions for this unchanged four-function target and the froze
 60-definition inventory separately. Reassess if successive foundational milestones
 produce no natural admission gains. Keep abstraction activation, rewrite safety
 and detector-quality claims separate.
+
+
+## Captured-evidence findings and first implementation step
+
+Inspection of the completed 3.30 capture (`run-1sbtdgtr`) for Span::is_empty
+confirms aarch64-unknown-linux-gnu, default/std/unicode features, debug assertions,
+overflow checks and panic=unwind. The existing build cfg list and source
+correspondence cfg list contain the actual selected compiler configuration; the
+nominal census contains 31 original files. No new cfg record or source buffer is
+needed. Function-local ExpansionSite only stores an outer callsite and snippet;
+it is not a unit-wide resolved derive/impl ownership inventory. A derive spelling
+allowlist cannot supply that missing proof.
+
+`Configuration::effective_attributes` now expands nested active cfg_attr metadata
+using the existing cfg set, preserves ordinary attributes (including derives,
+path, and cfg), and rejects unsupported predicate operators. Its output is not
+item-presence, expansion-support or drop certification. Tests independently check
+inactive versus active custom derives, nested conditions, path effects, retained
+cfg presence and unknown predicate rejection. Admission is deliberately unchanged:
+this API has no production caller yet. It advances the conditional-attribute
+part of the declared boundary chain; it does not solve the missing generated-impl
+ownership evidence. Two focused tests, workspace clippy, formatting, and repository
+rstyle/pattern gates pass with zero violations/candidates. No natural admission
+experiment was rerun for this helper-only increment; no gain is claimed.
+
+Next connect a selected-unit boundary proof to the existing cfg/ownership evidence
+and determine the smallest justified generated-impl proof. Preserve the full unit
+and relevant neighboring Drop/macro effects. Do not stack further isolated syntax
+increments without progressing this four-function target.
