@@ -3625,3 +3625,12 @@ positives and two counterparts pass independent strict checking; all **66
 selected comparisons** complete without diagnostics. Fresh doctests/formatting pass; refreshed alternating control timing ranges
 overlap (Copy 0.90/0.89s, cyclic 0.64/0.65s); the development corpus measures
 0.39/0.50s for two/eight admissions. Historical selections/results remain unchanged.
+
+### Next shared blocker chain: end-of-input helpers
+
+The [bounded target](docs/extraction-profiles/end-of-input-v1.md) connects original
+Unit::eoi and ByteClasses::eoi through formatted scalar assertions, narrowing
+integer Result and checked-sub/Option unwrap. Existing nominal, array-read and
+helper foundations already admit. Both methods remain excluded at 3.51; no new
+coverage is claimed. Specify the development corpus and original oracle before
+implementation, then validate the whole chain rather than separate syntax rows.
