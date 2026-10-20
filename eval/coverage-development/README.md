@@ -562,3 +562,25 @@ admitted sequential-loop pair. Next delivery must exercise the complete natural
 chain, negative cases, serialized-evidence mutations, strict admission and matching.
 No extractor behavior, authority records or persistent provenance are added by
 this target-preparation checkpoint.
+
+### Tuple-assignment foundation (Data-v3 3.34.0)
+
+The [scalar tuple-assignment contract](../../docs/extraction-profiles/scalar-tuple-assignment-v1.md)
+resolves the natural target's tuple-pattern temporary/binding/source chain. A
+complete original-library recapture retains `frac::gcd` as excluded, now solely
+for F10. Its source identity and context are unchanged. The original seven-function
+development selection advances **1/6 to 2/5 admitted/excluded**, with tuple_step
+gained and none lost. Natural admission gains are still zero for this target.
+This foundation is useful only as part of the declared chain: next is finite
+outside-cycle merge proof in both eligibility and independent serialized-value
+verification. Merely widening the syntax gate remains insufficient.
+
+A separate composition fixture admits exact duplicate steps, an update with RHS
+assignment effects, a scalar tuple loop and a single bool target. It excludes
+repeated targets, nested tuples, indirect writes and nonliteral tuple RHS values.
+Independent bundle import exposed a missing RHS constructor during development;
+final lowering retains that constructor once, then uses saved scalar operands
+for ordered writes. The LHS place list performs no reads. Tests check source
+operands and original parameter reaching definitions, reject swapped serialized
+write operands and corrupted target/RHS evidence, and exercise strict matching.
+The original runtime oracle and natural source expectations remain unchanged.

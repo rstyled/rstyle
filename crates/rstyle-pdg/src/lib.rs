@@ -88,3 +88,5 @@ pub use validate::{
 };
 pub mod assertions;
 pub mod conditional_source;
+
+mod tuple_assignment;

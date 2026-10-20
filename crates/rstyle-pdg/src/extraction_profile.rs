@@ -58,6 +58,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.shared-subslice-views",
     "rust.slice-array-byte-calls",
     "rust.native-borrowed-byte-readers",
+    "rust.scalar-tuple-assignment",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -184,7 +185,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.33.0", 45)),
+            Self::DataV3 => Some(("3.34.0", 46)),
         }
     }
 

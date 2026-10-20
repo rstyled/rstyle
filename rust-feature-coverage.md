@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.33.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.34.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -50,7 +50,7 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | V02 | Fixed-width and native-width integers | Covered | `u128`, `isize`, `usize` | Native-width compatibility requires known equal pointer widths where relevant; exhaustive operator/type/target testing remains outstanding. |
 | V03 | Scalar literals and built-in operators | Covered | `x + 1`, `x < y`, `!flag` | Admitted integer/bool dispatch only; not overloaded operators. Arithmetic hazards can retain partial-flow evidence. |
 | V04 | Initialized scalar locals, shadowing, and reads | Covered | `let x = n; let x = x + 1;` | Exact binding identity, saved values, and reaching definitions. |
-| V05 | Local scalar assignment and compound update | Covered | `x = y; x += 1;` | Lexical scalar bindings, not field/index/dereference memory writes. |
+| V05 | Local scalar assignment and compound update | Covered | `x = y; x += 1;` | Lexical scalar bindings; Data-v3 3.34.0 adds [flat simultaneous scalar tuple assignment](docs/extraction-profiles/scalar-tuple-assignment-v1.md) to distinct mutable locals. Field/index/dereference memory writes remain excluded. |
 | V06 | Scalar blocks and expression tails | Covered | `{ let y = x; y }` | Normal-flow evaluation and saved operands are retained. |
 | V07 | Integer-to-integer casts | Covered | `x as u64` | Resolved built-in integer casts only. |
 | V08 | Ordinary const-function bodies | Covered | `const fn f(x: u32) -> u32 { x }` | Function qualification is supported; this is not general compile-time evaluation. |
@@ -1782,3 +1782,40 @@ rstyle checked 2489 functions with 0 violations; patterns found 0 candidates.
 The frozen result remains 13 admitted / 40 excluded / 7 inactive; this
 source/test/documentation-only checkpoint changes no extractor behavior and did
 not rerun the frozen inventory. No thresholds, ignores or scoring changed.
+
+### Scalar tuple assignment advances the selected gcd chain (Data-v3 3.34.0)
+
+Data-v3 3.34.0 adds `rust.scalar-tuple-assignment`, under the
+[bounded contract](docs/extraction-profiles/scalar-tuple-assignment-v1.md).
+Capture checks the compiler's complete flat destructuring assignment, then
+retains original targets and RHS source with existing identities/types. Lowering
+constructs the RHS tuple once and snapshots all operands before ordered writes to
+distinct scalar locals. Independent aggregate verification treats the LHS as
+places and verifies the RHS constructor. No persisted provenance/caches, subtree
+copies per target or whole-function scans are introduced.
+
+Real Cargo composition covers tuple updates inside a scalar loop, RHS mutation
+order, one-element bool assignment, and repeated/nested/memory/nonliteral
+negatives. Independent imported graph checks prove original formal definitions
+feed RHS reads; swapped write operands and corrupted capture evidence are
+rejected. Duplicate step functions are strictly admitted and matched without
+changing scoring. The source-selected runtime divisor oracle still passes.
+
+The unchanged seven-function development selection gains tuple_step only:
+**2 admitted / 5 excluded; 1 gained, 0 lost**. The complete production-library gcd
+recapture still excludes the natural routine, now solely for F10; missing generated
+bindings and source-correspondence gaps are gone. This is one connected foundation,
+not completed family support. The next delivery remains finite proof for pre/post
+loop merges in eligibility and the independent serialized verifier, preserving
+rejections for epoch-sensitive merges inside loops. No natural admission gain is
+claimed for this foundation.
+
+Frozen rerun `target/hir-coverage/run-kb15su8j/` exactly preserves the prior
+`run-akr9djbd` selection: all 60 identities and outcomes, every denominator,
+13 admitted / 40 excluded / 7 inactive, and 30 verified graph documents
+(14 lz4_flex, 0 regex-syntax, 16 time-core). Frozen new/lost admissions: 0/0.
+All 14 inventory tests passed. Final workspace validation passed 785 tests with
+5 existing ignores, including the assertion-receiver and three-target portable
+reader regressions. All-targets clippy with warnings denied, formatting and diff
+checks passed. Repository-built rstyle checked 2498 functions with 0 violations;
+patterns reported 0 candidates. Thresholds, scoring and ignores are unchanged.

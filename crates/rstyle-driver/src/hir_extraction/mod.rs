@@ -12,6 +12,7 @@ pub mod output;
 mod scalar_constants;
 pub mod source;
 mod sources;
+mod tuple_assignment;
 
 use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rstyle_pdg::frontend::*;

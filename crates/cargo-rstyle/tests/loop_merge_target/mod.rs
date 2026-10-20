@@ -1,6 +1,8 @@
 //! Source-selected expectations precede loop/merge support.
 use super::*;
 
+mod tuple_cases;
+
 fn natural_gcd() -> &'static str {
     let source = include_str!("../../../rstyle-ccgraph/src/frac.rs");
     let start = source.find("fn gcd(").unwrap();
@@ -9,7 +11,7 @@ fn natural_gcd() -> &'static str {
 }
 
 #[test]
-fn loop_merge_target_retains_complete_baseline() {
+fn loop_merge_target_preserves_connected_classifications() {
     let directory = clone_workspace();
     let source = format!(
         "{}\n{}",
@@ -21,11 +23,33 @@ fn loop_merge_target_retains_complete_baseline() {
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 7, "{report}");
+    check_target_classifications(functions);
+    check_aggregate_documents(&report);
+    let natural = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "gcd")
+        .unwrap();
+    assert!(
+        natural["reasons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|reason| { reason.as_str().unwrap().contains("cyclic policy excludes") }),
+        "{natural}"
+    );
+    let step = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "tuple_step")
+        .unwrap();
+    check_tuple_snapshots(step);
+}
+
+fn check_target_classifications(functions: &[Value]) {
     for function in functions {
         let name = function["facts"]["name"].as_str().unwrap();
         assert_eq!(
             function["outcome"],
-            if name == "sequential" {
+            if matches!(name, "sequential" | "tuple_step") {
                 "admitted"
             } else {
                 "excluded"
@@ -43,7 +67,6 @@ fn loop_merge_target_retains_complete_baseline() {
             );
         }
     }
-    check_aggregate_documents(&report);
 }
 
 #[test]
@@ -80,4 +103,103 @@ fn loop_merge_target_has_independent_runtime_expectations() {
         "{}",
         String::from_utf8_lossy(&output.stdout)
     );
+}
+
+fn check_tuple_snapshots(function: &Value) {
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = shared_evidence::pair(&unit, function);
+    let rhs = &facts.body.children[0].children[0].children[1];
+    check_tuple_writes(pair, rhs);
+    check_original_reads(pair, rhs);
+    reject_swapped_writes(function);
+}
+
+fn check_tuple_writes(pair: &rstyle_pdg::producer::Pair, rhs: &rstyle_pdg::HirNode) {
+    let writes: Vec<_> = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.category == rstyle_pdg::NodeCategory::Assignment)
+        .collect();
+    assert_eq!(writes.len(), 2);
+    for (write, value) in writes.iter().zip(&rhs.children) {
+        let edge = pair
+            .pdg
+            .edges
+            .iter()
+            .find(|edge| edge.target == write.id && edge.subkind == "value_operand")
+            .unwrap();
+        let producer = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.id == edge.source)
+            .unwrap();
+        let span = producer.source_span.as_ref().unwrap();
+        assert_eq!(
+            (span.start, span.end),
+            (u64::from(value.span.start), u64::from(value.span.end))
+        );
+    }
+}
+
+fn check_original_reads(pair: &rstyle_pdg::producer::Pair, rhs: &rstyle_pdg::HirNode) {
+    let original_reads: Vec<_> = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| {
+            node.category == rstyle_pdg::NodeCategory::Read
+                && node.source_span.as_ref().is_some_and(|span| {
+                    span.start >= u64::from(rhs.span.start) && span.end <= u64::from(rhs.span.end)
+                })
+        })
+        .collect();
+    assert_eq!(original_reads.len(), 3);
+    for read in original_reads {
+        let edges: Vec<_> = pair
+            .pdg
+            .edges
+            .iter()
+            .filter(|edge| edge.target == read.id && edge.subkind == "reaching_definition")
+            .collect();
+        assert_eq!(edges.len(), 1);
+        assert!(pair.pdg.nodes.iter().any(|node| node.id == edges[0].source
+            && node.category == rstyle_pdg::NodeCategory::FormalInput));
+    }
+}
+
+fn reject_swapped_writes(function: &Value) {
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = shared_evidence::pair(&unit, function);
+    let writes: Vec<_> = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.category == rstyle_pdg::NodeCategory::Assignment)
+        .collect();
+    let mut changed = rstyle_pdg::producer::produce(&facts).unwrap();
+    let operands: Vec<_> = changed
+        .pdg
+        .edges
+        .iter_mut()
+        .filter(|edge| {
+            edge.subkind == "value_operand" && writes.iter().any(|write| write.id == edge.target)
+        })
+        .collect();
+    assert_eq!(operands.len(), 2);
+    let sources: Vec<_> = operands
+        .iter()
+        .map(|edge| edge.source.clone())
+        .rev()
+        .collect();
+    for (edge, source) in operands.into_iter().zip(sources) {
+        edge.source = source;
+    }
+    assert!(rstyle_pdg::producer::verify(&changed, &facts).is_err());
+    assert!(rstyle_ccgraph::admit_produced(&changed, &facts).is_err());
 }

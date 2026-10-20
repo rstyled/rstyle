@@ -218,6 +218,9 @@ impl<'tcx> Context<'tcx> {
     }
 
     pub fn expression(&self, expr: &Expr<'tcx>) -> HirNode {
+        if let Some(assignment) = self.tuple_assignment(expr) {
+            return assignment;
+        }
         if let Some(assertion) = self.assertion(expr) {
             return assertion;
         }

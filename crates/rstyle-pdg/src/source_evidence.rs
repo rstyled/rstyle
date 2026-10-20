@@ -483,6 +483,9 @@ fn expression_kind(expression: &syn::Expr) -> Option<&'static str> {
         }
         syn::Expr::Binary(_) => "expr_binary",
         syn::Expr::Unary(_) => "expr_unary",
+        syn::Expr::Assign(assign) if matches!(&*assign.left, syn::Expr::Tuple(_)) => {
+            "expr_tuple_assign"
+        }
         syn::Expr::Assign(_) => "expr_assign",
         syn::Expr::Cast(_) => "expr_cast",
         syn::Expr::If(_) => "expr_if",

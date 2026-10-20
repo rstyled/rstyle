@@ -678,8 +678,8 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         }
         "expr_cast" if ctx.profile.supports("rust.integer-casts") => check_supported(node, ctx),
         "expr_block" | "stmt_expr" | "stmt_semi" | "stmt_let" | "expr_path" | "expr_lit"
-        | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_assign_op"
-        | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
+        | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_tuple_assign"
+        | "expr_assign_op" | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
         _ => check_deferred(node),
     }
 }
@@ -774,6 +774,15 @@ fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         "expr_binary" => check_binary(node),
         "expr_unary" => check_unary(node),
         "expr_assign" => check_assign(node, ctx),
+        "expr_tuple_assign" => match crate::tuple_assignment::verify(node, ctx.facts) {
+            Ok(()) => Outcome::ok(),
+            Err(message) => error(
+                "rust.scalar-tuple-assignment",
+                "tuple_assignment",
+                node,
+                &message,
+            ),
+        },
         "expr_assign_op" => check_assign_op(node, ctx),
         "expr_if" => check_if(node),
         "expr_ret" => check_expr_ty(node, "return"),

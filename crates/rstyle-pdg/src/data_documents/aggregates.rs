@@ -123,17 +123,32 @@ fn collect<'a>(
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     if crate::data_subslices::candidate(node, facts) {
-        let checked = crate::data_subslices::verify(node, facts)?;
-        for operand in [checked.base, checked.start, checked.end] {
-            collect(operand, constructors, facts)?;
-        }
-        return Ok(());
+        return collect_subslice(node, constructors, facts);
     }
+    let children = if node.kind == "expr_tuple_assign" {
+        crate::tuple_assignment::verify(node, facts)?;
+        &node.children[1..]
+    } else {
+        node.children.as_slice()
+    };
+
     if crate::data_aggregates::constructor(node) {
         constructors.push(node);
     }
-    for child in &node.children {
+    for child in children {
         collect(child, constructors, facts)?;
+    }
+    Ok(())
+}
+
+fn collect_subslice<'a>(
+    node: &'a HirNode,
+    constructors: &mut Vec<&'a HirNode>,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let checked = crate::data_subslices::verify(node, facts)?;
+    for operand in [checked.base, checked.start, checked.end] {
+        collect(operand, constructors, facts)?;
     }
     Ok(())
 }

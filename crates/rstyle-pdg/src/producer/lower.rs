@@ -95,7 +95,9 @@ fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
     let count = node.children.len();
     let complete = match node.kind.as_str() {
         "stmt_expr" | "stmt_semi" | "expr_unary" | "expr_cast" => count == 1,
-        "expr_binary" | "expr_assign" | "expr_assign_op" | "expr_index" => count == 2,
+        "expr_binary" | "expr_assign" | "expr_tuple_assign" | "expr_assign_op" | "expr_index" => {
+            count == 2
+        }
         "expr_if" => (2..=3).contains(&count),
         "expr_ret" => count <= 1,
         "expr_path" | "expr_lit" | "pat_binding" | "ty_annotation" => count == 0,
@@ -584,6 +586,29 @@ impl Builder<'_> {
         self.emit(operation, evaluated.flow)
     }
 
+    fn tuple_assignment(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let flow = self.computation(&node.children[1], flow);
+        let values = self
+            .nodes
+            .last()
+            .expect("RHS tuple computation")
+            .operands
+            .clone();
+        node.children[0]
+            .children
+            .iter()
+            .zip(values)
+            .fold(flow, |flow, (target, value)| {
+                let operation = Operation {
+                    operator: Some("=".into()),
+                    span: target.span,
+                    operands: vec![value],
+                    ..self.write_target(node, target, "tuple_reassignment")
+                };
+                self.emit(operation, flow)
+            })
+    }
+
     fn assignment(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.expression(&node.children[1], flow);
         let mut operation = self.write(node, "reassignment");
@@ -594,8 +619,12 @@ impl Builder<'_> {
     }
 
     fn write(&self, node: &HirNode, form: &str) -> Operation {
+        self.write_target(node, &node.children[0], form)
+    }
+
+    fn write_target(&self, node: &HirNode, target: &HirNode, form: &str) -> Operation {
         let mut operation = template(node, NodeCategory::Assignment);
-        let target = node.children[0]
+        let target = target
             .res
             .as_ref()
             .and_then(|r| r.target.as_ref())
@@ -1136,6 +1165,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         }
         "expr_binary" | "expr_cast" | "expr_method_call" | "expr_call" => Builder::computation,
         "expr_assign" => Builder::assignment,
+        "expr_tuple_assign" => Builder::tuple_assignment,
         "expr_assign_op" => Builder::compound,
         "expr_if" => Builder::branch,
         "expr_match" => Builder::scalar_match,
