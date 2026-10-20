@@ -20,6 +20,10 @@ pub enum TypeToken {
     Shared(Box<TypeToken>),
     Slice(Box<TypeToken>),
     Str,
+    SliceArrayResult {
+        length: u64,
+        borrowed: bool,
+    },
     Struct {
         nominal: Nominal,
         fields: Vec<(String, TypeToken)>,
@@ -38,6 +42,10 @@ impl TypeToken {
             TypeTree::Shared(value) => Self::Shared(Box::new(Self::from_tree(value))),
             TypeTree::Slice(value) => Self::Slice(Box::new(Self::from_tree(value))),
             TypeTree::Str => Self::Str,
+            TypeTree::SliceArrayResult { length, borrowed } => Self::SliceArrayResult {
+                length: *length,
+                borrowed: *borrowed,
+            },
             TypeTree::Struct {
                 nominal, fields, ..
             } => Self::Struct {
@@ -116,6 +124,11 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         | TypeToken::Shared(element)
         | TypeToken::Slice(element) => check(element, depth + 1, entries),
         TypeToken::Str => Ok(()),
+        TypeToken::SliceArrayResult { length, .. }
+            if *length <= crate::concrete_types::MAX_FIELDS as u64 =>
+        {
+            Ok(())
+        }
         TypeToken::Struct { nominal, fields }
             if nominal
                 .source_identity

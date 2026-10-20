@@ -27,6 +27,10 @@ pub enum TypeTree {
     Shared(Box<TypeTree>),
     Slice(Box<TypeTree>),
     Str,
+    SliceArrayResult {
+        length: u64,
+        borrowed: bool,
+    },
     Struct {
         nominal: Nominal,
         source: crate::SourceText,
@@ -129,6 +133,9 @@ fn check(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), Strin
 
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
+        TypeTree::SliceArrayResult { length, .. } if *length > MAX_FIELDS as u64 => {
+            Err("Slice conversion result exceeds supported array length".into())
+        }
         TypeTree::Scalar(token) if scalar(token) => Ok(()),
         TypeTree::Scalar(_) => Err("Unsupported scalar in concrete type observation".into()),
         TypeTree::Struct {

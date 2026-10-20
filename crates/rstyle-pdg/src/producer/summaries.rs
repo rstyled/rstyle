@@ -56,7 +56,9 @@ impl SummaryCapture<'_> {
         let [operation] = operations.as_slice() else {
             return Err("Ambiguous or missing call source/HIR correspondence".into());
         };
-        if node.kind == "expr_call" || crate::helper_calls::direct_resolution(node).is_some() {
+        if (node.kind == "expr_call" && crate::data_bytes::kind(node).is_none())
+            || crate::helper_calls::direct_resolution(node).is_some()
+        {
             return serde_json::to_value(HelperRecord {
                 pdg_node_id: &operation.id,
                 source_span: node.span,

@@ -66,6 +66,9 @@ pub fn assess(
 }
 
 fn proof_method(node: &Operation) -> &'static str {
+    if node.construct.as_deref() == Some("data.bytes.unwrap") {
+        return "concrete Result unwrap requires Ok; exceptional transfer and cleanup omitted";
+    }
     if node.operator.as_deref() == Some("assert") {
         "resolved standard assertion; only a directly known true boolean discharges omitted panic flow"
     } else {
@@ -91,12 +94,13 @@ fn limitation(facts: &dyn crate::unit_store::EvidenceFacts, node: &Operation) ->
 }
 
 fn relevant(node: &Operation) -> bool {
-    node.category == NodeCategory::Computation
-        && node.ty != "bool"
-        && matches!(
-            node.operator.as_deref(),
-            Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "assert")
-        )
+    node.construct.as_deref() == Some("data.bytes.unwrap")
+        || node.category == NodeCategory::Computation
+            && node.ty != "bool"
+            && matches!(
+                node.operator.as_deref(),
+                Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "assert")
+            )
 }
 
 fn constant(

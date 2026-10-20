@@ -82,7 +82,36 @@ pub fn resolve_for(
     if let Some(summary) = resolve(node) {
         return Ok(Some(summary.clone()));
     }
+    if crate::data_bytes::kind(node).is_some() && crate::data_bytes::enabled(facts) {
+        return crate::data_bytes::resolve(node, facts);
+    }
     crate::data_library::resolve(node, facts)
+}
+
+pub(crate) fn verify_build(
+    record: &serde_json::Value,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    for (key, expected) in [
+        (
+            "overflow_checks",
+            serde_json::to_value(&facts.build.overflow_checks),
+        ),
+        (
+            "debug_assertions",
+            serde_json::to_value(&facts.build.debug_assertions),
+        ),
+        (
+            "panic_strategy",
+            serde_json::to_value(&facts.build.panic_strategy),
+        ),
+    ] {
+        if record[key] != expected.map_err(|error| error.to_string())? {
+            return Err("Serialized library call build settings disagree".into());
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

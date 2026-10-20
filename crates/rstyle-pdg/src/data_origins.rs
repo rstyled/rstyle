@@ -20,6 +20,7 @@ pub struct Origin {
 pub fn shared(token: &TypeToken) -> bool {
     match token {
         TypeToken::Shared(_) => true,
+        TypeToken::SliceArrayResult { borrowed: true, .. } => true,
         TypeToken::Tuple(elements) => elements.iter().any(shared),
         TypeToken::Struct { fields, .. } => fields.iter().any(|(_, field)| shared(field)),
         TypeToken::Array { element, .. } | TypeToken::Slice(element) => shared(element),

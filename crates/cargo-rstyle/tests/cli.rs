@@ -1,5 +1,6 @@
 //! End-to-end tests: real `cargo check` through the real rustc driver.
 
+mod byte_windows;
 #[path = "../src/diagnostic_process.rs"]
 mod diagnostic_process;
 mod shared_evidence;
@@ -2600,7 +2601,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.31.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.32.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6160,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.31.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.32.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -10675,7 +10676,7 @@ fn corrupt_index(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
 }
 
 #[test]
-fn clones_data_external_associated_calls_retain_identity_without_admission() {
+fn clones_data_external_associated_calls_retain_distinct_authorities() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
@@ -10689,7 +10690,14 @@ fn clones_data_external_associated_calls_retain_identity_without_admission() {
     assert!(output.status.success(), "{report}");
     let mut identities = std::collections::BTreeSet::new();
     for function in report["functions"].as_array().unwrap() {
-        assert_eq!(function["outcome"], "excluded");
+        assert_eq!(
+            function["outcome"],
+            if function["facts"]["name"] == "native" {
+                "admitted"
+            } else {
+                "excluded"
+            }
+        );
         let (unit, index) = data_unit(function);
         let analysis = unit.analysis();
         let facts = analysis.function(index).unwrap();

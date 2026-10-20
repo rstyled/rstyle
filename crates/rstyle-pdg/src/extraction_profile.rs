@@ -56,6 +56,22 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.shared-dereference-reads",
     "rust.scalar-index-reads",
     "rust.shared-subslice-views",
+    "rust.slice-array-byte-calls",
+];
+
+const DATA_CALL_SUMMARIES: &[&str] = &[
+    "rstyle.primitive.unsigned-abs/1",
+    "rstyle.primitive.wrapping-mul/1",
+    "rstyle.helper.source-body/1",
+    "rstyle.helper.shared-return/1",
+    "rstyle.helper.read-only-body/1",
+    "rstyle.data.slice.len/1",
+    "rstyle.data.slice.is-empty/1",
+    "rstyle.data.str.len/1",
+    "rstyle.data.str.is-empty/1",
+    "rstyle.data.bytes.copy-result/1",
+    "rstyle.data.bytes.unwrap/1",
+    "rstyle.data.bytes.native-u32/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -164,7 +180,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.31.0", 43)),
+            Self::DataV3 => Some(("3.32.0", 44)),
         }
     }
 
@@ -203,17 +219,7 @@ impl ExtractionProfile {
 
     pub fn summaries(self) -> &'static [&'static str] {
         if matches!(self, Self::DataV2 | Self::DataV3) {
-            return &[
-                "rstyle.primitive.unsigned-abs/1",
-                "rstyle.primitive.wrapping-mul/1",
-                "rstyle.helper.source-body/1",
-                "rstyle.helper.shared-return/1",
-                "rstyle.helper.read-only-body/1",
-                "rstyle.data.slice.len/1",
-                "rstyle.data.slice.is-empty/1",
-                "rstyle.data.str.len/1",
-                "rstyle.data.str.is-empty/1",
-            ];
+            return &DATA_CALL_SUMMARIES[..if self == Self::DataV3 { 12 } else { 9 }];
         }
         if self == Self::DataV1 {
             return &[

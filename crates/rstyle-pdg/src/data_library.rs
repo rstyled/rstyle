@@ -3,6 +3,7 @@
 mod documents;
 mod resolve;
 mod verify;
+pub(crate) use documents::verify_calls;
 pub use documents::{evidence, verify_documents};
 pub use resolve::resolve;
 pub(crate) use resolve::source_resolved;
@@ -35,6 +36,8 @@ pub struct Callee {
     pub crate_name: String,
     pub crate_hash: String,
     pub definition_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<Box<Callee>>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

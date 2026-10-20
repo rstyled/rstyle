@@ -2,6 +2,7 @@
 
 mod aggregates;
 mod borrows;
+mod byte_calls;
 mod index_reads;
 mod indirect_reads;
 mod locals;
@@ -52,12 +53,22 @@ fn install_derived_reads(
     pair: &mut Pair,
     context: &mut LocationContext<'_>,
 ) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    let projected = install_projection_reads(pair, context)?;
+    let helpers = crate::helper_reads::install(pair, context)?;
+    let bytes = byte_calls::install(pair, context)?;
+
+    let locations = crate::helper_reads::merge_locations(projected, helpers)?;
+    crate::helper_reads::merge_locations(locations, bytes)
+}
+
+fn install_projection_reads(
+    pair: &mut Pair,
+    context: &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
     let indirect = indirect_reads::install(pair, context)?;
     let indexed = index_reads::install(pair, context)?;
-    let helpers = crate::helper_reads::install(pair, context)?;
-    let locations = crate::helper_reads::merge_locations(indirect, indexed)?;
 
-    crate::helper_reads::merge_locations(locations, helpers)
+    crate::helper_reads::merge_locations(indirect, indexed)
 }
 
 fn finish_locations(
@@ -152,7 +163,10 @@ pub fn read_keys(node: &crate::PdgNode) -> Vec<String> {
                 .location_id
                 .as_ref()
                 .map(|id| {
-                    if node.attributes.construct.as_deref() == Some("data.index") {
+                    if matches!(
+                        node.attributes.construct.as_deref(),
+                        Some("data.index" | "data.bytes.copy-result")
+                    ) {
                         format!("location:{id}:index-read:{}", node.id)
                     } else {
                         format!("location:{id}")
@@ -201,7 +215,8 @@ pub fn verify<'a>(
     let pair = pair.into();
     crate::inherent_calls::definition(facts)?;
     crate::data_receivers::verify_documents(pair, facts)?;
-    crate::data_library::verify_documents(pair, facts)?;
+    let calls = crate::field_locations::operations(&facts.body, &["expr_call", "expr_method_call"]);
+    crate::data_library::verify_calls(pair, facts, &calls)?;
     crate::data_frontend::verify(facts)?;
     aggregates::verify(pair, facts)?;
     locals::verify(pair, facts)?;
@@ -218,7 +233,7 @@ pub fn verify<'a>(
     for field in &fields.operations {
         verify_field(pair, &mut context, field, &mut expected)?;
     }
-    expected.extend(verify_derived_reads(pair, &mut context)?);
+    expected.extend(verify_derived_reads(pair, &mut context, &calls)?);
 
     let actual: BTreeMap<_, _> = pair
         .pdg
@@ -246,12 +261,23 @@ pub fn verify<'a>(
 fn verify_derived_reads(
     pair: crate::producer::PairView<'_>,
     context: &mut LocationContext<'_>,
+    calls: &[&crate::HirNode],
 ) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
-    let mut expected = indirect_reads::verify_dereferences(pair, context)?;
-    expected.extend(index_reads::verify(pair, context)?);
+    let mut expected = verify_projection_reads(pair, context)?;
+    expected.extend(byte_calls::verify(pair, context, calls)?);
     crate::helper_reads::verify_locations(pair, context, &mut expected)?;
 
     Ok(expected)
+}
+
+fn verify_projection_reads(
+    pair: crate::producer::PairView<'_>,
+    context: &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    let indirect = indirect_reads::verify_dereferences(pair, context)?;
+    let indexed = index_reads::verify(pair, context)?;
+
+    crate::helper_reads::merge_locations(indirect, indexed)
 }
 
 fn verify_field(
@@ -310,7 +336,7 @@ fn serialized_operation_mut<'a>(
     let node_id = serialized_operation(pair.as_view(), &source.span, |node| {
         matches!(
             node.category,
-            NodeCategory::Read | NodeCategory::Computation
+            NodeCategory::Read | NodeCategory::Computation | NodeCategory::Call
         ) && node.original_kind.known_value() == Some(source.kind.as_str())
     })?
     .id

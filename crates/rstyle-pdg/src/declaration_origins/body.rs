@@ -97,6 +97,10 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
     Ok(match token {
         TypeToken::Scalar(value) => TypeTree::Scalar(value.clone()),
         TypeToken::Str => TypeTree::Str,
+        TypeToken::SliceArrayResult { length, borrowed } => TypeTree::SliceArrayResult {
+            length: *length,
+            borrowed: *borrowed,
+        },
         TypeToken::Shared(element) => TypeTree::Shared(Box::new(tree(element, origins)?)),
         TypeToken::Slice(element) => TypeTree::Slice(Box::new(tree(element, origins)?)),
         TypeToken::Array { element, length } => TypeTree::Array {

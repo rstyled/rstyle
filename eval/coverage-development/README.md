@@ -297,3 +297,47 @@ Current method capture records the trait definition, not a selected implementati
 rustc `Instance::try_resolve` is available, but has not been added to capture or
 treated as sufficient proof. No extraction behavior or admission count changed in
 this preparation. The next delivery milestone remains the complete get_batch chain.
+
+## First natural byte reader admitted (Data-v3 3.32.0)
+
+The safe, unmodified `block::compress::get_batch` now admits in the declared whole
+lz4_flex default-feature build context. The subslice, concrete copied Result,
+unwrap failure requirement and native u32 byte interpretation compose as separate
+typed operations. The [support contract](../../docs/extraction-profiles/copied-byte-windows-v1.md)
+specifies bounds, read locations, evaluation order, source/library authority and
+remaining exclusions. Native-only by-value array decoder helpers also compose;
+the panicking reader itself is not certified as a nonpanicking helper.
+
+The connected development test independently specifies 16 function classifications:
+11 admitted and 5 excluded. Positives include the complete expression, saved
+views, helper-selected slice bases, local Result/array values, endpoint rebinding
+and native-only decoder helper composition. A wrong three-byte window is admitted
+only as a partial computation with explicit conversion failure and unwrap
+normal-completion requirements. Wrong-endian/other-width calls, borrowed-array
+conversion, generic conversions and a caller requiring a reader helper summary
+remain excluded. Endpoint rebinding retains formal root zero; helper-selected
+inputs retain both possible roots. Semantic/effect/operand/build-summary and
+selected-implementation corruptions must fail independent verification.
+
+Frozen `run-57ulgkuc` versus `run-yy464a72` retains every identity and denominator:
+12 admitted / 41 excluded / 7 inactive, with one gain (safe get_batch at bytes
+1298..1416), zero losses and 28 validated graph documents. This is extraction
+coverage evidence, separate from held-out detector quality or rewrite safety.
+
+Next complete the architecture companion as one connected delivery: its local
+size_of constant and named array length, borrowed-array conversion/Result origins,
+explicit array load and usize native conversion remain blockers. The inspected
+core conversion distinguishes borrowing from copying; no byte read may be
+invented at borrowed conversion, and the later dereference must retain its exact
+array/view dependency. The source/build selections and frozen inventory stay fixed.
+
+Final gates: 776 workspace tests passed (5 existing ignores), clippy with warnings
+denied and formatting/diff checks passed, repository rstyle checked 2468 functions
+with 0 violations and patterns had 0 candidates. All 14 inventory tests passed.
+Final rerun `run-n1ejrbwy` exactly reproduces `run-57ulgkuc` on selected identities,
+outcomes, denominators and context counts. The retained natural get_batch bundle
+was also independently loaded and document-verified, strictly admitted and matched
+against the declared development expression: evaluated, Accepted, score 1, no
+diagnostics. This checks end-to-end composition; it is not detector-quality or
+rewrite-safety evidence. Byte and metadata verification reuse one source-call
+inventory, and functions without byte operations skip byte installation.

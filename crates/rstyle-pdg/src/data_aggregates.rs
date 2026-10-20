@@ -98,6 +98,9 @@ pub(crate) fn token(node: &HirNode) -> Result<&str, String> {
 pub(crate) fn reference_free(ty: &TypeToken) -> bool {
     match ty {
         TypeToken::Scalar(_) => true,
+        TypeToken::SliceArrayResult {
+            borrowed: false, ..
+        } => true,
         TypeToken::Tuple(elements) => elements.iter().all(reference_free),
         TypeToken::Array { element, .. } => reference_free(element),
         TypeToken::Struct { fields, .. } => fields.iter().all(|(_, ty)| reference_free(ty)),

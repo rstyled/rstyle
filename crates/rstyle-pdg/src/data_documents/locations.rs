@@ -6,14 +6,14 @@ use serde::{Deserialize, Serialize};
 const ABSTRACTION: &str = "rstyle.formal-field/2";
 
 fn abstraction(path: &[Projection]) -> &'static str {
-    if path
-        .iter()
-        .any(|step| matches!(step, Projection::IndexedElement { .. }))
-    {
-        "rstyle.formal-indexed-element/1"
-    } else {
-        ABSTRACTION
-    }
+    path.iter()
+        .rev()
+        .find_map(|step| match step {
+            Projection::ByteWindow { .. } => Some("rstyle.formal-byte-window/1"),
+            Projection::IndexedElement { .. } => Some("rstyle.formal-indexed-element/1"),
+            _ => None,
+        })
+        .unwrap_or(ABSTRACTION)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]

@@ -12,11 +12,16 @@ pub(super) struct Effects {
 pub(super) enum Kind {
     Index,
     Indirect,
+    Byte,
 }
 
 impl Kind {
     fn accepts(&self, node: &crate::PdgNode) -> bool {
         match self {
+            Self::Byte => matches!(
+                node.attributes.construct.as_deref(),
+                Some("data.bytes.copy-result" | "data.bytes.unwrap" | "data.bytes.native-u32")
+            ),
             Self::Index => matches!(
                 node.attributes.construct.as_deref(),
                 Some("data.index" | "data.value-index")
@@ -33,6 +38,7 @@ impl Kind {
         facts: &'a dyn crate::unit_store::EvidenceFacts,
     ) -> Result<Vec<&'a HirNode>, String> {
         match self {
+            Self::Byte => Ok(super::byte_calls::sources(facts)),
             Self::Index => Ok(
                 crate::field_locations::operations(&facts.body, &["expr_index"])
                     .into_iter()
@@ -60,6 +66,13 @@ impl Kind {
         context: &mut LocationContext<'_>,
     ) -> Result<Effects, String> {
         let (locations, annotations) = match self {
+            Self::Byte => {
+                let kind = crate::data_bytes::verify(source, context.facts)?;
+                (
+                    crate::data_bytes::locations(source, context.facts, kind)?,
+                    BTreeMap::from([(crate::data_bytes::KEY.into(), kind.semantics())]),
+                )
+            }
             Self::Index => {
                 let checked = crate::data_index_reads::verify(source, context.facts)?;
                 (

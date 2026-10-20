@@ -236,6 +236,9 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 
     fn storage(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
+        if let Some(result) = self.slice_array_result(ty) {
+            return Ok(result);
+        }
         match ty.kind() {
             ty::Array(element, length) => self.array(*element, *length, depth),
             ty::Adt(definition, arguments) => self.structure(*definition, arguments, depth),
@@ -243,6 +246,42 @@ impl<'tcx> Capture<'_, 'tcx> {
                 "Outside the concrete drop-free/shared type observation grammar",
             )),
         }
+    }
+
+    fn slice_array_result(&self, value: Ty<'tcx>) -> Option<TypeTree> {
+        if !self.ctx.profile.supports("rust.slice-array-byte-calls") {
+            return None;
+        }
+        let ty::Adt(definition, arguments) = value.kind() else {
+            return None;
+        };
+        let tcx = self.ctx.tcx;
+        if !tcx.is_diagnostic_item(rustc_span::sym::Result, definition.did()) {
+            return None;
+        }
+        let ty::Adt(error, _) = arguments.type_at(1).kind() else {
+            return None;
+        };
+        if tcx.crate_name(error.did().krate).as_str() != "core"
+            || !tcx
+                .def_path_str(error.did())
+                .ends_with("::array::TryFromSliceError")
+        {
+            return None;
+        }
+        let (array, borrowed) = match arguments.type_at(0).kind() {
+            ty::Ref(_, array, Mutability::Not) => (*array, true),
+            _ => (arguments.type_at(0), false),
+        };
+        let ty::Array(element, length) = array.kind() else {
+            return None;
+        };
+        if !matches!(element.kind(), ty::Uint(ty::UintTy::U8)) {
+            return None;
+        }
+        let length = length.try_to_target_usize(tcx)?;
+
+        (length <= MAX_FIELDS as u64).then_some(TypeTree::SliceArrayResult { length, borrowed })
     }
 
     fn array(

@@ -188,6 +188,9 @@ pub fn direct_resolution(node: &HirNode) -> Option<Value> {
 pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
     let mut calls = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
+    calls.retain(|node| {
+        !crate::data_bytes::enabled(facts) || crate::data_bytes::kind(node).is_none()
+    });
 
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
@@ -290,7 +293,15 @@ fn check_boundary(
         || pair.pdg.nodes.iter().any(|node| {
             matches!(
                 node.attributes.construct.as_deref(),
-                Some("loop" | "while" | "data.index" | "data.value-index" | "data.subslice-place")
+                Some(
+                    "loop"
+                        | "while"
+                        | "data.index"
+                        | "data.value-index"
+                        | "data.subslice-place"
+                        | "data.bytes.copy-result"
+                        | "data.bytes.unwrap"
+                )
             )
         })
     {
@@ -468,6 +479,7 @@ fn verify_inventory(pair: producer::PairView<'_>, facts: &dyn EvidenceFacts) -> 
         .filter(|node| {
             node.category == crate::NodeCategory::Call
                 && (node.original_kind.known_value() == Some("expr_call")
+                    && node.attributes.construct.as_deref() != Some("data.bytes.native-u32")
                     || records.iter().any(|record| {
                         record["pdg_node_id"] == node.id && record.get("dependency").is_some()
                     }))

@@ -14,6 +14,7 @@ pub mod concrete_types;
 mod cyclic_values;
 mod data_aggregates;
 mod data_bounds;
+pub(crate) mod data_bytes;
 mod data_component_origins;
 mod data_dereferences;
 pub mod data_documents;

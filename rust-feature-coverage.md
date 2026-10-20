@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.31.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.32.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -142,7 +142,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. General autoref, repeated/overloaded deref, unsizing and mutable/by-value inherent receivers remain unavailable. |
 | C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Four instantiations only: i32/i64 unsigned_abs and u32/u64 wrapping_mul. Not general primitive-method support. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
-| C10 | General core/std/third-party APIs | Missing | `u32::from_le_bytes(bytes)`, `hint::unlikely(b)` | Additional resolved summaries or captured verified bodies, effect/result dependencies and toolchain authority. Familiar names are not proof. |
+| C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
 | C11 | By-value memory-reading helper arguments/results | Missing | `inspect_value(s)`, `make_value(x)` | Pure reference-free construction results compose in the D11 fixture; by-value memory-reading substitution, reference-bearing helper results and ownership remain unavailable. Supported interface types do not establish that call boundary. |
 | C12 | Borrowed results from memory-reading helpers | Missing | `get_field_ref(s)` | Exact callee read effects plus result origin/location substitution, not just whole-formal forwarding. |
 | C13 | Cross-unit/package helper linking | Missing | `library_crate::helper(x)` | Capture/resolve selected units before summary derivation, preserve build contexts/transitive dependencies; modules inside one unit already work. |
@@ -1646,3 +1646,53 @@ excluded, 7 inactive (0 gained, 0 lost); 26 graph documents validated. Natural
 get_batch no longer reports index/range-expansion/additional-type blockers but
 still lacks the required connected call summaries. The next milestone targets
 conversion/Result/native-byte composition together, not separate syntax counts.
+
+
+### Natural copied byte-window admission: Data-v3 3.32.0
+
+The complete safe lz4_flex 0.14.0 `block::compress::get_batch` now admits through
+whole unmodified-library Cargo capture, independent verification, strict admission
+and matching. This connects subslice bounds/origins, endpoint arithmetic, concrete
+slice-to-array conversion, typed Result payload/failure and native byte semantics;
+see the [bounded contract](docs/extraction-profiles/copied-byte-windows-v1.md).
+The development corpus also exercises local Result/array values, saved views,
+helper-selected shared slices and endpoint rebinding. The independent arithmetic
+runtime oracle is included in workspace tests.
+
+The conversion records its compiler-selected blanket TryInto implementation in
+the existing callee vocabulary. Its precise slice/array/error signature and pinned
+core source authority justify the delegated TryFrom semantics. No general trait
+or enum support follows. Conversion conditionally reads the evaluated four-byte
+view on Ok; unwrap keeps its Ok normal-completion requirement and disclosed panic
+flow; native conversion preserves each byte's little-endian significance. Calls
+remain separate typed graph operations. No source snapshots or retained caches
+were added, and unrelated non-byte functions skip byte-call installation. Byte
+reads reuse the existing shared location/effect installer and existing call build
+verification is shared. No broader performance claim follows.
+
+Frozen rerun `target/hir-coverage/run-57ulgkuc/` compared with `run-yy464a72/` keeps
+all 60 source identities and every denominator unchanged. The sole outcome change
+is the selected safe get_batch at bytes 1298..1416, excluded to admitted:
+**12 admitted / 41 excluded / 7 inactive; 1 gained, 0 lost**. There are 28 validated
+graph documents (12 lz4_flex, 0 regex-syntax, 16 time-core). Historical inventory
+artifacts and inactive unsafe alternatives remain unchanged.
+
+The family is not complete. `get_batch_arch` still combines a local size_of const,
+named array length, borrowed-array conversion/Result origins, explicit array load
+and usize native-byte conversion; these are the next connected delivery target.
+S09 mixed-content Position/Span proof remains unresolved. General Option/Result
+branching and payload binding, F10 loop/value merges, and the remaining roadmap
+continue after the selected family; broad async/unsafe/FFI/macros remain deferred.
+
+Final validation: 776 workspace tests passed with 5 existing ignores, including
+the assertion-argument receiver regression. Workspace clippy (`-D warnings`),
+formatting and diff checks passed. Repository-built rstyle checked 2468 functions
+with 0 violations; patterns reported 0 candidates, with thresholds/ignores
+unchanged. All 14 inventory tests passed. The final inventory rerun
+`run-n1ejrbwy` reproduced `run-57ulgkuc` exactly on selected identities, outcomes,
+denominators and context counts. Byte and metadata-call verification share one
+source-call inventory, avoiding a second whole-body scan. Independently importing
+the retained natural get_batch bundle, verifying its documents and strictly
+admitting it also succeeded; matching against the declared development expression
+was evaluated and accepted at score 1 under the unchanged configuration. This is
+a composition check, not held-out detector-quality evidence or rewrite authority.

@@ -602,7 +602,42 @@ impl Context<'_> {
         if let Some(owner) = super::inherent::implementation(self.tcx, callee, self.profile) {
             return Some(self.helper_callee(callee, "resolved_inherent_callee", Some(owner)));
         }
-        Some(self.library_callee(callee))
+        let mut resolution = self.library_callee(callee);
+        if self.profile.supports("rust.slice-array-byte-calls")
+            && self
+                .tcx
+                .def_path_str(callee)
+                .ends_with("::convert::TryInto::try_into")
+        {
+            let mut record: rstyle_pdg::data_library::Callee =
+                serde_json::from_str(&resolution.description).expect("captured library callee");
+            record.implementation = self.selected_implementation(expression, callee);
+            resolution.description =
+                serde_json::to_string(&record).expect("captured library callee");
+        }
+
+        Some(resolution)
+    }
+
+    fn selected_implementation(
+        &self,
+        expression: &Expr<'_>,
+        callee: rustc_hir::def_id::DefId,
+    ) -> Option<Box<rstyle_pdg::data_library::Callee>> {
+        let environment = ty::TypingEnv::post_analysis(self.tcx, expression.hir_id.owner.def_id);
+        let selected = ty::Instance::try_resolve(
+            self.tcx,
+            environment,
+            callee,
+            self.typeck.node_args(expression.hir_id),
+        )
+        .ok()
+        .flatten()?;
+        let implementation = self.library_callee(selected.def_id());
+
+        Some(Box::new(
+            serde_json::from_str(&implementation.description).expect("captured implementation"),
+        ))
     }
 
     fn range_desugaring(&self, expression: &Expr<'_>) -> bool {
@@ -625,6 +660,7 @@ impl Context<'_> {
                 self.tcx.crate_hash(callee.krate).to_string()
             },
             definition_hash: format!("{:?}", self.tcx.def_path_hash(callee)),
+            implementation: None,
         };
 
         PathRes {

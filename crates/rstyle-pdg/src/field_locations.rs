@@ -26,6 +26,10 @@ pub enum Projection {
     IndexedElement {
         operand_position: u64,
     },
+    ByteWindow {
+        operand_position: u64,
+        length: u64,
+    },
     StructField {
         nominal: Nominal,
         position: usize,

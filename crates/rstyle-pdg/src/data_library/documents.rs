@@ -53,9 +53,17 @@ pub fn verify_documents<'a>(
     pair: impl Into<PairView<'a>>,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
-    let pair = pair.into();
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
+
+    verify_calls(pair.into(), facts, &methods)
+}
+
+pub(crate) fn verify_calls(
+    pair: PairView<'_>,
+    facts: &dyn EvidenceFacts,
+    calls: &[&HirNode],
+) -> Result<(), String> {
     let records = pair
         .pdg
         .extensions
@@ -67,7 +75,13 @@ pub fn verify_documents<'a>(
     {
         return Err("Paired library call inventories disagree".into());
     }
-    check_method_inventory(pair, methods.len())?;
+    check_method_inventory(
+        pair,
+        calls
+            .iter()
+            .filter(|node| node.kind == "expr_method_call")
+            .count(),
+    )?;
 
     let context = Documents {
         pair,
@@ -75,7 +89,11 @@ pub fn verify_documents<'a>(
         records,
     };
     let mut verified = 0;
-    for method in methods.into_iter().filter(|node| operation(node).is_some()) {
+    for method in calls
+        .iter()
+        .copied()
+        .filter(|node| operation(node).is_some())
+    {
         let summary = resolve(method, facts)?.ok_or("Unverified serialized library CALL")?;
         context.verify_call(method, &summary)?;
         verified += 1;
@@ -151,14 +169,8 @@ impl Documents<'_> {
         };
 
         verify_metadata(node, call, record, summary)?;
-        if record["library"] != evidence(call, facts)?
-            || record["overflow_checks"]
-                != serde_json::to_value(&facts.build.overflow_checks).map_err(|e| e.to_string())?
-            || record["debug_assertions"]
-                != serde_json::to_value(&facts.build.debug_assertions).map_err(|e| e.to_string())?
-            || record["panic_strategy"]
-                != serde_json::to_value(&facts.build.panic_strategy).map_err(|e| e.to_string())?
-        {
+        crate::call_summaries::verify_build(record, facts)?;
+        if record["library"] != evidence(call, facts)? {
             return Err("Serialized library/core/receiver/build evidence disagrees".into());
         }
         crate::helper_calls::verify_call_operands(*pair, node, call, record)

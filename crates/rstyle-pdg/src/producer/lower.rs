@@ -555,6 +555,9 @@ impl Builder<'_> {
         };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
+            construct: crate::data_bytes::kind(node)
+                .filter(|_| crate::data_bytes::enabled(self.facts))
+                .map(|kind| kind.construct().into()),
             operands: evaluated.values,
             ..template(node, category)
         };
