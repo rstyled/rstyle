@@ -319,6 +319,7 @@ fn selected_attributes(
             .iter()
             .any(|name| path.is_ident(name))
             && !(root && path.is_ident("no_std"))
+            && !(!root && matches!(&attribute, syn::Meta::Path(path) if path.is_ident("macro_use")))
         {
             return Err("Selected module attribute lacks supported presence/path semantics".into());
         }

@@ -205,3 +205,39 @@ This test resolver is a structural oracle, not production core authority. The
 next implementation must connect the already checked source environment and
 exact function ownership to actual core resolution before enabling semantics;
 additional syntax rows alone will not complete this family.
+
+## Scoped source resolution (semantic activation still closed)
+
+The source-only route now reuses the existing owner/policy-local checked source
+environment to find one exact original function, including a nested function's
+enclosing blocks. Direct core/std Option paths, the prelude binding and direct
+renamed/grouped imports have bounded resolution. Scalar aliases, local type/module
+shadowing, unresolved relevant globs and active lexical macro invocations remain
+rejections. Parent-module type imports are not inherited by child modules; unknown
+ancestor expansion/derive effects are still checked. Inactive nested owners cannot
+be substituted for an identically spelled active function.
+The existing compiler invocation must also establish that explicit dependencies
+have not overridden the core/std roots; missing or response-file-hidden arguments
+do not establish that proof.
+
+The actual source snapshots for both declared natural classifiers pass this
+check, with the original spans and hashes above, in their original captured
+default-feature Cargo contexts. regex-syntax's snapshot is still the retained
+3.40 capture, not a new current-policy natural assessment. These results prove
+the source dependency only, not admission or decoder support.
+
+This audit found a further concrete source boundary: regex-automata imports a
+closed source module through bare `#[macro_use]`. The module inventory can now
+account for that name import, and the Option-only route can verify it without
+assuming anything about macro execution. Active item/statement invocations and
+unknown derives are still rejected; neighboring function-body macros are outside
+the selected function's lexical type scope. The existing nominal Copy route still
+rejects this mixed-unit macro-import boundary and gains no ownership permission.
+
+No new serialized inventory, source buffer or persistent cache is added. Shared
+facts borrow the existing cached environment; standalone checks use the same
+environment constructor. Semantic type rejection runs before source resolution,
+so the still-unsupported scalar Option interfaces do not invoke this route during
+ordinary extraction. The next milestone must connect scalar types, constructors,
+payload projection, saved values and helper transport for all four intended
+positives, rather than adding another independent syntax or evidence checkpoint.

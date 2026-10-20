@@ -129,6 +129,13 @@ pub(super) fn contexts(count: usize) -> Box<[Derived]> {
 }
 
 impl FunctionView<'_> {
+    pub(super) fn option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
+        self.resolver
+            .sources()
+            .environment(self.facts())?
+            .verify_option_type(self.facts(), path, scalar)
+    }
+
     pub(super) fn nominal(&self) -> Result<ResolutionView<'_>, String> {
         let result = self
             .derived()

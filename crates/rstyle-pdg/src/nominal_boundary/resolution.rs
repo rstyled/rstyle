@@ -10,12 +10,21 @@ use crate::{
     declaration_origins,
 };
 use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
+mod builtin_options;
 pub(crate) mod environment;
 mod selected;
 pub(crate) use environment::Environment;
 use syn::spanned::Spanned;
 
 type Namespace = Vec<String>;
+
+pub(crate) fn verify_option_type(
+    facts: &HirFnFacts,
+    path: &syn::TypePath,
+    scalar: &str,
+) -> Result<(), String> {
+    standalone_environment(facts)?.verify_option_type(facts, path, scalar)
+}
 
 pub struct Resolution {
     pub namespace: Namespace,
@@ -85,14 +94,17 @@ struct Declaration {
 }
 
 pub fn verify(facts: &HirFnFacts, interface: &InterfaceObservations) -> Result<Resolution, String> {
+    verify_in(facts, interface, standalone_environment(facts)?)
+}
+
+fn standalone_environment(facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
     let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
-    let constants = constant_context(facts)?;
-    let environment = Rc::new(Environment::with_options(
+    Environment::with_options(
         Arc::clone(&census),
-        constants,
+        constant_context(facts)?,
         selected_cfgs(facts)?,
-    )?);
-    verify_in(facts, interface, environment)
+    )
+    .map(Rc::new)
 }
 
 pub(crate) fn constant_context(facts: &HirFnFacts) -> Result<bool, String> {

@@ -124,6 +124,14 @@ pub(super) fn module_item(
     item: &syn::Item,
     configuration: &crate::conditional_source::Configuration<'_>,
 ) -> Result<(), String> {
+    module_item_in(item, configuration, false)
+}
+
+pub(super) fn module_item_in(
+    item: &syn::Item,
+    configuration: &crate::conditional_source::Configuration<'_>,
+    macro_imports: bool,
+) -> Result<(), String> {
     if let syn::Item::Type(item) = item
         && concrete_types::scalar(&item.ident.to_string())
     {
@@ -143,6 +151,12 @@ pub(super) fn module_item(
     {
         if attribute.path().is_ident("derive") {
             derive(&attribute)?;
+        } else if macro_imports
+            && matches!(item, syn::Item::Mod(_))
+            && matches!(&attribute, syn::Meta::Path(path) if path.is_ident("macro_use"))
+        {
+            // Imports macro names from an independently closed source module.
+            // Actual invocations and shadowing definitions remain checked.
         } else if ![
             "non_exhaustive",
             "repr",

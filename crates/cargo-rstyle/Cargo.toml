@@ -22,6 +22,7 @@ sha2 = { version = "0.10", features = ["asm"] }
 [dev-dependencies]
 assert_cmd = "2"
 insta = { version = "1", features = ["json"] }
+syn = { version = "2", features = ["full"] }
 tempfile = "3"
 
 [lints]

@@ -7,6 +7,7 @@ mod diagnostic_process;
 mod inherent_expansions;
 mod loop_merge_target;
 mod nominal_copy;
+mod option_sources;
 mod shared_evidence;
 use shared_evidence::{load as data_unit, reject_helper};
 

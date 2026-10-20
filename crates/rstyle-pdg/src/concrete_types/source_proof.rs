@@ -6,6 +6,13 @@ use super::TypeTree;
 /// caller supplies independently verified evidence, never a name heuristic.
 pub trait PathResolution {
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String>;
+
+    fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
+        if self.resolve(path)? != TypeTree::Option(Box::new(payload.clone())) {
+            return Err("Source path resolution disagrees with concrete Option".into());
+        }
+        Ok(())
+    }
 }
 
 pub fn verify(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), String> {
@@ -111,6 +118,7 @@ fn path_proof(
             payload,
             resolution,
         )?;
+        return resolution.scalar_option(path, payload);
     } else {
         super::lifetimes::verify_path(path, tree)?;
     }

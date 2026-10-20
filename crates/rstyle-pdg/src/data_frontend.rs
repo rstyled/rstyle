@@ -38,13 +38,23 @@ fn nominal_resolution<'a>(
     facts.nominal_resolution().map(Some)
 }
 
-struct Resolver<'a>(Option<&'a crate::nominal_boundary::resolution::Resolution>);
+struct Resolver<'a> {
+    nominal: Option<&'a crate::nominal_boundary::resolution::Resolution>,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+}
 impl PathResolution for Resolver<'_> {
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
-        self.0.map_or_else(
+        self.nominal.map_or_else(
             || Unresolved.resolve(path),
             |resolution| resolution.resolve(path),
         )
+    }
+
+    fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
+        let TypeTree::Scalar(scalar) = payload else {
+            return Err("Core Option source proof requires a scalar payload".into());
+        };
+        self.facts.verify_option_type(path, scalar)
     }
 }
 
@@ -111,6 +121,7 @@ fn verify_interface(
             syn::FnArg::Typed(source) => SourceProof {
                 bytes: &facts.source.bytes,
                 resolution,
+                facts,
             }
             .verify_type(
                 &source.ty,
@@ -190,6 +201,7 @@ fn verify_fields(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), Str
 struct SourceProof<'a> {
     bytes: &'a str,
     resolution: Option<&'a crate::nominal_boundary::resolution::Resolution>,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
 }
 impl SourceProof<'_> {
     fn verify_type(
@@ -201,17 +213,21 @@ impl SourceProof<'_> {
         let Observation::Captured { ty } = observation else {
             return Err("Unsupported concrete data type".into());
         };
-        source_proof::verify_top_spelling(
-            spelling(self.bytes, source)?,
-            ty,
-            &Resolver(self.resolution),
-        )?;
-
         let token = data_types::token(ty)?;
         data_types::parse(&token)?;
         if normalized != Some(token.as_str()) {
             return Err("Resolved data interface token disagrees with captured tree".into());
         }
+
+        source_proof::verify_top_spelling(
+            spelling(self.bytes, source)?,
+            ty,
+            &Resolver {
+                nominal: self.resolution,
+                facts: self.facts,
+            },
+        )?;
+
         Ok(())
     }
 }
@@ -242,7 +258,12 @@ fn verify_output(
     } else {
         &facts.source.bytes
     };
-    SourceProof { bytes, resolution }.verify_type(
+    SourceProof {
+        bytes,
+        resolution,
+        facts,
+    }
+    .verify_type(
         &output,
         observation,
         facts.signature.return_ty.normalized.as_deref(),

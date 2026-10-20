@@ -2793,3 +2793,52 @@ rstyle checks **2,634 functions /zero violations**; patterns reports **zero
 candidates**, with no new suppressions/ignores. No full natural recapture, frozen
 replay or new performance measurement is claimed for this unactivated source
 check; those remain required at connected semantic activation.
+
+### Scalar Option lexical source boundary (activation remains closed)
+
+The existing checked source environment now supplies the bounded core Option
+path proof, without constructing a nominal ownership/Copy certificate. It checks
+one exact original function, enclosing blocks for nested helpers, relevant
+module/block bindings, direct core/std/prelude spellings and grouped/renamed
+imports. It rejects scalar aliases, type/module shadowing, unresolved relevant
+globs, active lexical macro invocations and unknown derives. An identically
+spelled inactive nested function cannot replace the active source owner.
+
+Both declared natural classifiers pass this source check on their complete
+original captured source contexts, retaining the exact hashes/spans in
+`docs/extraction-profiles/scalar-option-byte-widths-v1.md`. The audit found two
+coarse dependencies: ancestor module globs do not supply child-module type
+bindings, and regex-automata imports a closed source module with bare
+`#[macro_use]`. The Option-only proof accounts for that name import while still
+rejecting active invocations. Nominal ownership keeps its existing macro-import
+rejection, tested with an otherwise Copy owner. No general macro execution,
+neighboring-body purity or drop behavior is inferred.
+
+Shared views reuse the existing owner/policy-local environment; standalone checks
+use the same constructor. There is no additional cache, source copy or serialized
+proof record. Unsupported semantic types are rejected before source lookup, so
+this still-unactivated scalar Option route avoids work during ordinary capture.
+The policy remains **3.41.0 /53 capabilities**. The six-function development
+selection retains all identities and outcomes: **0 admitted /6 excluded**, complete
+capture/assessment and zero unknowns. No end-to-end admission gain is claimed.
+The next milestone must connect scalar types, Some/None construction, owned
+payload projection, snapshots and helper transport for the complete selected
+family; another independent syntax/evidence checkpoint would not complete it.
+
+The workspace passes **831 tests**, with five existing skips, plus doctests.
+Seven focused source/Copy regressions pass after the final owner-activity check
+and shared standalone-constructor refactor, including rejection of overridden
+core/std extern roots and hidden compiler arguments. All-targets clippy with warnings
+denied, fmt and diff checks pass. rstyle checks **2,657 functions /zero
+violations**; patterns reports **zero candidates**, with no new suppressions or
+ignores. Frozen replay **run-wm2_93wr** matches **run-rncfhp4y** for all 60
+identities/outcomes and every denominator: **20 admitted /33 excluded /7
+inactive**, 56 verified documents, zero gains/losses.
+
+A quiescent end-to-end capture diagnostic alternates the complete 8306481
+CLI/driver pair with the current pair over the unchanged six-function corpus.
+After one warmup pair, seven retained pairs have median **0.300 s baseline
+/0.281 s current** and peak RSS **103544 /103920 KiB**. Every capture retains the
+same hashes, spans and outcomes; no material regression is observed in this
+bounded unsupported workload. This does not measure future activated source
+resolution or establish a whole-package performance guarantee.

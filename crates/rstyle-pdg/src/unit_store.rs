@@ -36,6 +36,12 @@ mod sealed {
 pub trait EvidenceFacts: sealed::Sealed {
     fn facts(&self) -> &HirFnFacts;
 
+    /// Check original scalar Option spelling in the exact lexical function
+    /// owner. This supplies no semantic type or nominal ownership permission.
+    fn verify_option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
+        crate::nominal_boundary::resolution::verify_option_type(self.facts(), path, scalar)
+    }
+
     /// Resolve exact source/type evidence; shared views retain successful results
     /// only within their owning analysis and verification policy.
     fn nominal_resolution(
@@ -72,6 +78,9 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn verify_option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
+        T::verify_option_type(*self, path, scalar)
+    }
     fn nominal_resolution(
         &self,
     ) -> Result<crate::nominal_boundary::resolution::ResolutionView<'_>, String> {
@@ -189,6 +198,10 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn verify_option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
+        self.option_type(path, scalar)
+    }
+
     fn nominal_resolution(
         &self,
     ) -> Result<crate::nominal_boundary::resolution::ResolutionView<'_>, String> {
