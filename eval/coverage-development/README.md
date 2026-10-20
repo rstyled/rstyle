@@ -1,0 +1,85 @@
+# Function-family development targets
+
+This development work is separate from `eval/hir-coverage/selection.json` and its
+historical denominator. It is not a holdout or detector-quality study. Expectations
+below are specified from original source before a new admission experiment.
+
+## Initial target: regex-syntax 0.8.11 position/span data APIs
+
+Use the unmodified published package, existing pinned archive/lock from
+`../hir-coverage/provenance.json`, library target, default features, development
+profile, test=false, pinned workspace compiler, Data-v3. Preserve the complete
+Cargo unit. Do not extract the structs into a clean miniature crate as evidence
+of natural-crate support. The first target is four functions in `src/ast/mod.rs`:
+
+| Function | Source semantics / independent positive oracle |
+| --- | --- |
+| `Position::new(offset, line, column)` | Return the three arguments in their exact corresponding fields. |
+| `Span::new(start, end)` | Return both complete Position values in their respective fields. |
+| `Span::is_empty(&self)` | Compare only start.offset and end.offset for equality. Different line/column values must not affect the result. |
+| `Span::is_one_line(&self)` | Compare only start.line and end.line for equality. Different offsets/columns must not affect the result. |
+
+These functions are selected for ordinary data behavior and a shared declaration
+chain, not for admission success. The source byte identities are already frozen
+in the original inventory; that inventory is not being edited. They currently
+remain excluded. The intended bounded contract is nongeneric, immutable scalar
+struct construction/projection/comparison with exact local nominal ownership and
+transitive drop-free fields, inside a mixed-content crate. It does not admit the
+neighboring enum, formatting, trait dispatch or destructor bodies.
+
+Follow-on composition targets are `Span::splat` (calls Span::new and duplicates a
+Copy value), and `Span::with_start` / `with_end` (by-value self plus struct update).
+Do not count the initial target complete until all four functions pass actual
+Cargo capture, independent verification, strict admission and matching. Do not
+count follow-on targets from isolated constructor or update tests.
+
+## Blocker audit (2026-10-20)
+
+This is a source and implementation audit, not a claim that all blockers have
+already been discovered experimentally.
+
+| Shared or function-specific blocker | Evidence and required investigation |
+| --- | --- |
+| Root attributes | lib.rs has no_std and cfg_attr(docsrs_regex, feature(doc_cfg)); census boundary_attributes accepts only doc/lint attributes. Must distinguish semantic crate configuration from unsupported expansion without dropping attributes. |
+| Module closure | Root includes cfg-selected std/test items and many external modules; Closure::child rejects every module attribute. Need selected presence/path and original ownership correspondence for every captured file. |
+| External/named imports | ast imports core::cmp::Ordering and alloc items; resolution indexes all use items, rejects globs/leading-colon paths, and has no general external nominal proof. Prove that imported bindings cannot be mistaken for the local Position/Span declarations; do not silently discard imports. |
+| Target derives | Both structs derive Clone, Copy, Eq, PartialEq and cfg_attr(arbitrary). Current declaration/census checks reject expansion attributes. Need exact built-in derive identity and active cfg evidence; spelling alone cannot justify trusted expansion. arbitrary-enabled context remains out of initial scope. |
+| Neighboring items | ast contains enums, trait implementations, formatting macros and Drop for Ast and ClassSet. The recursive unit whitelist rejects these. Need exact ownership/dependency analysis and complete treatment of items capable of defining Drop or altering selected names. Neighboring destructors cannot be treated as absent. |
+| Transitive type evidence | Position has three usize fields; Span contains two Position fields. Driver checks local struct shape, no destructor and no UnsafeCell and recursively captures field types. Independent source proof must establish corresponding declarations and drop behavior; rustc's observation alone is insufficient. |
+| Constructor/result composition | Existing aggregate representation is relevant but must be tested with both nested nominal results and real crate ownership. No presumed admission from syntax support. |
+| splat follow-on | Callee certification and complete nominal result transfer depend on Span::new; existing unsupported-helper rejection is downstream, not a separate purity proof. |
+| Update follow-on | supported_receiver currently accepts shared reference receivers only. By-value self and update evaluation order are independently required. |
+
+Unknowns to resolve before implementation: exact selected module/cfg closure in the
+captured unit; full expansion ownership of target derives; whether all needed
+checks can reuse existing capture evidence; any further rejection after boundary
+proof; cost of dependency analysis. Inspect the existing unit/source evidence
+before adding transport records, snapshots or caches. Reuse parsed unit state;
+avoid a complete source/trait rescan per function.
+
+## Independent negative and composition expectations
+
+- Swapping constructor fields changes the graph/value oracle. Equal scalar values
+  in one test must not hide swapped dependencies.
+- Getter graphs must preserve the complete start/end and offset/line paths; a
+  column read, missing field read or invented alias independence must fail.
+- A selected struct with Drop, a field with Drop/interior mutability, unresolved
+  expansion affecting that struct, ambiguous import/owner or missing source must
+  remain excluded or incomplete as appropriate, including nested and cfg forms.
+- A neighboring unrelated destructor may become compatible only after proving
+  its exact owner and all selected types' drop closure. A macro that can introduce
+  a relevant impl is not automatically unrelated.
+- Custom derives, active arbitrary derive, unresolved cfg/path modules and
+  missing expansion ownership remain outside the initial contract.
+- Mutated source buffers, field declarations, nominal identities, ownership and
+  graph accesses must fail independent verification and strict replay.
+- Complete Cargo tests must exercise constructor results consumed by getters and
+  the follow-on constructor call chain. Matching must distinguish altered field
+  paths while accepting independently justified equivalent family members.
+
+Before each implementation milestone, refine this audit from actual captures and
+record every discovered blocker, preserving unknown/inactive/incomplete outcomes.
+Report new/lost admissions for this unchanged four-function target and the frozen
+60-definition inventory separately. Reassess if successive foundational milestones
+produce no natural admission gains. Keep abstraction activation, rewrite safety
+and detector-quality claims separate.

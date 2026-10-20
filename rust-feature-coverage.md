@@ -1584,3 +1584,13 @@ identities/outcomes, denominators and context counts from `run-8dgqxypr/`:
 documents (10 lz4_flex, 0 regex-syntax, 16 time-core). This is foundational scalar
 index support, not completion of the subslice/conversion/checked-access/helper
 chains needed by the natural read-only targets. No performance gain is claimed.
+
+
+### Next target: mixed-content Position/Span APIs
+
+The [development target and blocker audit](eval/coverage-development/README.md)
+selects four natural regex-syntax 0.8.11 constructors/getters, with source-derived
+semantic expectations, build context, negative cases and explicit unknowns.
+This is separate from the unchanged frozen inventory. S09/module/import proof
+comes first; splat and by-value updates are connected follow-ons. No new admission
+or complete source-boundary contract is claimed by this planning checkpoint.
