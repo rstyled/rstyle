@@ -3607,3 +3607,21 @@ IntErrorKind and must not be treated as a unit error. Current HIR leaves that
 Result unnormalized. Inspect existing concrete-type and summary dependencies
 before extending them; no additional provenance inventory or cache is justified.
 This audit activates no capability and changes no frozen/historical result.
+
+### Data-v3 3.51: connected bitset cardinality
+
+The [bounded implementation](docs/extraction-profiles/bitset-cardinality-v1.md#connected-351-implementation)
+connects count_ones → selected lossless TryFrom → immediate Result unwrap →
+helper composition, reusing existing evidence without a new inventory/cache.
+The unchanged natural roster gains precisely LookSet::len/is_empty: **76 → 78
+admitted /2582, zero losses/unknown/failed**. Development expectations pass
+**8 admitted /6 excluded** in std/no_std contexts across three targets; mutation
+and unsupported-result boundaries reject. Final full suite: **892 passed /five skipped**; fresh Clippy passes. Fresh rstyle/patterns: **zero violations/candidates**. Control timing
+ranges overlap; the expanded corpus does additional work. Frozen sixty retain **20 admitted /33 excluded /seven inactive** and every
+identity/denominator; 74 package documents verify. The unchanged regex-syntax
+roster gains its two selected counterparts (**20 → 22 /956**, zero losses);
+lz4_flex/time-core are unchanged. All 78 natural admissions, eight development
+positives and two counterparts pass independent strict checking; all **66
+selected comparisons** complete without diagnostics. Fresh doctests/formatting pass; refreshed alternating control timing ranges
+overlap (Copy 0.90/0.89s, cyclic 0.64/0.65s); the development corpus measures
+0.39/0.50s for two/eight admissions. Historical selections/results remain unchanged.

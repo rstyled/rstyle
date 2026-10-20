@@ -35,11 +35,14 @@ BITSET_IDENTITIES = (
 )
 
 
+SYNTAX_BITSET_IDENTITIES = ((106740, 106954, '8c28b6c9656796472b49e0ad77a5b8e44ffd919bad31c4ecc41db4b55339890c'), (107029, 107090, '6cb522a32ff9b04eeaa82bcd249d5d6af393bbb8707c26236ca1c3ee317554f3'))
+
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("crate", type=Path)
-    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality"], default="tagged-units")
+    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality"], default="tagged-units")
     args = parser.parse_args()
     families = {
         "tagged-units": ("src/util/alphabet.rs", IDENTITIES,
@@ -50,6 +53,9 @@ def main():
         "bitset-cardinality": ("src/util/look.rs", BITSET_IDENTITIES,
                                Path(__file__).with_name("bitset-cardinality-oracle.rs"),
                                "rstyle_bitset_cardinality_oracle"),
+        "syntax-bitset-cardinality": ("src/hir/mod.rs", SYNTAX_BITSET_IDENTITIES,
+                                      Path(__file__).with_name("bitset-cardinality-oracle.rs"),
+                                      "rstyle_bitset_cardinality_oracle"),
     }
     relative, identities, oracle_path, test_filter = families[args.family]
     source = (args.crate / relative).read_bytes()

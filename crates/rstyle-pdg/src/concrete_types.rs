@@ -31,6 +31,8 @@ pub enum TypeTree {
     Slice(Box<TypeTree>),
     Str,
     Option(Box<TypeTree>),
+    /// Core Result<T, TryFromIntError>; no error layout is inferred.
+    IntConversionResult(String),
     SliceArrayResult {
         length: u64,
         borrowed: bool,
@@ -181,6 +183,9 @@ fn check(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), Strin
 
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
+        TypeTree::IntConversionResult(value) if value != "usize" => {
+            Err("Integer conversion Result requires a registered scalar payload".into())
+        }
         TypeTree::Option(payload) if !option_payload(payload) => {
             Err("Option observation requires a scalar or shared scalar payload".into())
         }

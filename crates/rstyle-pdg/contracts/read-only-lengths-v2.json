@@ -73,6 +73,9 @@
     "core::num::<impl u128>::from_ne_bytes": "DefPathHash(Fingerprint(5614226571623188065, 15116585459962463829))",
     "std::convert::num::<impl std::convert::From<u8> for usize>::from": "DefPathHash(Fingerprint(5614226571623188065, 2428535403949200870))",
     "std::convert::num::<impl std::convert::From<u16> for usize>::from": "DefPathHash(Fingerprint(5614226571623188065, 14139487642035305947))",
-    "std::option::Option::<T>::map_or": "DefPathHash(Fingerprint(5614226571623188065, 1045911436530815376))"
+    "std::option::Option::<T>::map_or": "DefPathHash(Fingerprint(5614226571623188065, 1045911436530815376))",
+    "std::convert::TryFrom::try_from": "DefPathHash(Fingerprint(5614226571623188065, 9706828146766316131))",
+    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u32> for usize>::try_from": "DefPathHash(Fingerprint(5614226571623188065, 4896361325527872486))",
+    "core::num::<impl u32>::count_ones": "DefPathHash(Fingerprint(5614226571623188065, 17582260398683722935))"
   }
 }

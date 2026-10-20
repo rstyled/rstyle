@@ -21,6 +21,7 @@ pub enum TypeToken {
     Slice(Box<TypeToken>),
     Str,
     Option(Box<TypeToken>),
+    IntConversionResult(String),
     SliceArrayResult {
         length: u64,
         borrowed: bool,
@@ -47,6 +48,7 @@ impl TypeToken {
             TypeTree::Shared(value) => Self::Shared(Box::new(Self::from_tree(value))),
             TypeTree::Slice(value) => Self::Slice(Box::new(Self::from_tree(value))),
             TypeTree::Str => Self::Str,
+            TypeTree::IntConversionResult(value) => Self::IntConversionResult(value.clone()),
             TypeTree::Option(value) => Self::Option(Box::new(Self::from_tree(value))),
             TypeTree::SliceArrayResult { length, borrowed } => Self::SliceArrayResult {
                 length: *length,
@@ -82,7 +84,9 @@ impl TypeToken {
 
     pub fn native_width(&self) -> bool {
         match self {
-            Self::Scalar(value) => matches!(value.as_str(), "isize" | "usize"),
+            Self::Scalar(value) | Self::IntConversionResult(value) => {
+                matches!(value.as_str(), "isize" | "usize")
+            }
             Self::Tuple(values) => values.iter().any(Self::native_width),
             Self::Array { element, .. }
             | Self::Shared(element)
@@ -136,6 +140,12 @@ pub(crate) fn parse_for(
     {
         return Err("Option type requires its registered payload capability".into());
     }
+
+    if text.contains("\"kind\":\"int_conversion_result\"")
+        && !profile.supports("rust.bitset-cardinality")
+    {
+        return Err("Integer Result requires its registered capability".into());
+    }
     Ok(ty)
 }
 
@@ -173,6 +183,7 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
             Ok(())
         }
         TypeToken::Str => Ok(()),
+        TypeToken::IntConversionResult(value) if value == "usize" => Ok(()),
         TypeToken::SliceArrayResult { length, .. }
             if *length <= crate::concrete_types::MAX_FIELDS as u64 =>
         {

@@ -7,6 +7,7 @@
 //! compiler-independent fact records ([`frontend`]) and their analysis live
 //! here.
 
+pub(crate) mod bitset_cardinality;
 pub mod call_summaries;
 pub mod cfg;
 pub mod checked_options;

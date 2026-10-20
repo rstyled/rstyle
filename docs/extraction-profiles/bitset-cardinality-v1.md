@@ -121,3 +121,63 @@ Clippy with warnings denied, formatting, Python parsing and whitespace checks
 pass. Fresh rstyle checks 2848 functions /zero violations; patterns reports zero
 candidates. The preceding 887-test full run validates unchanged production code;
 this audit adds no production changes and does not claim a new full-suite run.
+
+## Connected 3.51 implementation
+
+The bounded capability connects u32 count_ones, the selected lossless 64-bit
+TryFrom implementation, immediate integer Result unwrap, and composed helpers.
+It reuses existing concrete observations, implementation selection and summaries;
+no provenance inventory or cache is added. Result<usize, TryFromIntError> has an
+explicit type token without invented error layout. Both std and no_std paths
+normalize; the first natural replay exposed the missing core error spelling.
+Saved Results, other input widths, fallback methods, borrowed receiver adjustments,
+general payload matching and `?` remain unsupported.
+
+Measured evidence:
+
+- Unchanged regex-automata roster/context: **76 → 78 admissions /2582**, exactly
+  selected LookSet::len/is_empty, zero losses, unknowns or failed assessments.
+- Fixed development corpus: **2 → 8 admitted /14**, six negatives retained.
+  Strict import, independent checking and matching pass in std/no_std contexts on
+  all three installed targets. Ten graph/fact mutations and boundary cases reject.
+- Final full suite: **892 passed /five skipped**, including the expanded no_std
+  composition regression. Fresh Clippy, doctests and formatting pass. Rstyle: **2865 functions /zero
+  violations**; patterns: **zero candidates**.
+- Frozen sixty: **20 admitted /33 excluded /seven inactive**, identical identities,
+  denominators and outcomes; 74 package documents verified. lz4_flex remains
+  7/150 admitted and time-core 8/226.
+- Independent documents, producer verification and strict admission pass for all
+  78 natural admissions, eight development positives and two counterpart methods.
+  All **66 comparisons across twelve selected functions** complete without
+  diagnostics or unknown CFG evidence, using unchanged matching defaults.
+
+### Source-selected regex-syntax counterpart
+
+The unchanged regex-syntax 0.8.11 full default-feature debug library contains
+hir::LookSet::len at 106740..106954 and is_empty at 107029..107090 in
+src/hir/mod.rs. Their hashes equal the two original selections above. Both were
+specified in scope before replay; neither changes the frozen sixty. Both complete
+original-crate arithmetic oracles pass. The unchanged 956-function roster gains
+exactly these two methods: **20 → 22 admissions**, zero losses. Strict verification
+and selected matching pass.
+This is source-selected coverage evidence, not a held-out detector-quality claim.
+
+### Comparative performance
+
+Against exact ec97611, one warmup plus seven alternating quiescent pairs:
+
+| Workload | Median seconds, baseline/current | Ranges | Median peak RSS KiB |
+| --- | --- | --- | --- |
+| Copy control | 0.90 /0.89 | 0.87–0.92 /0.86–0.91 | 122284 /123028 |
+| Cyclic control | 0.64 /0.65 | 0.60–0.65 /0.63–0.66 | 110936 /111740 |
+| Bitset corpus | 0.39 /0.50 | 0.38–0.43 /0.45–0.51 | 119100 /120704 |
+
+Control matching is identical. The bitset corpus does additional proof/matching
+work for eight admissions instead of two. These bounded controls show no clear
+regression; they do not establish broad performance invariance.
+
+Remaining concrete chains: Unit::eoi needs assertion/source-HIR correspondence
+and narrowing integer Result behavior; ByteClasses::eoi additionally needs
+checked_sub/Option unwrap and that helper. Accel::contains needs iterator callback
+composition, while as_accel_tys needs lexical scalar aliases and formatted
+assertions. These exclusions remain; separate fixtures do not certify them.

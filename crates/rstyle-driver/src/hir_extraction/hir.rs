@@ -679,6 +679,34 @@ impl Context<'_> {
                 && signature.output() == self.tcx.types.usize
     }
 
+    fn int_conversion_capture(
+        &self,
+        expression: &Expr<'_>,
+        callee: rustc_hir::def_id::DefId,
+    ) -> bool {
+        if !self.profile.supports("rust.bitset-cardinality")
+            || !self
+                .tcx
+                .def_path_str(callee)
+                .ends_with("::convert::TryFrom::try_from")
+        {
+            return false;
+        }
+        let signature = self
+            .tcx
+            .fn_sig(callee)
+            .instantiate(self.tcx, self.typeck.node_args(expression.hir_id))
+            .skip_binder();
+        let ty::Adt(definition, arguments) = signature.output().kind() else {
+            return false;
+        };
+
+        self.tcx
+            .is_diagnostic_item(rustc_span::sym::Result, definition.did())
+            && signature.inputs() == [self.tcx.types.u32]
+            && arguments.type_at(0) == self.tcx.types.usize
+    }
+
     fn selected_implementation(
         &self,
         expression: &Expr<'_>,
@@ -753,7 +781,8 @@ impl Context<'_> {
         }
         if !callee.is_local() && kind == rustc_hir::def::DefKind::AssocFn && self.profile.is_data()
         {
-            let capture = self.scalar_from_capture(expression, callee);
+            let capture = self.scalar_from_capture(expression, callee)
+                || self.int_conversion_capture(expression, callee);
             return Some(self.instantiated_callee(expression, callee, capture));
         }
         if kind == rustc_hir::def::DefKind::Fn

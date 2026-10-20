@@ -250,6 +250,9 @@ impl<'tcx> Capture<'_, 'tcx> {
                 .tree(payload, depth + 1)
                 .map(|payload| TypeTree::Option(Box::new(payload)));
         }
+        if let Some(result) = self.int_conversion_result(ty) {
+            return Ok(result);
+        }
         if let Some(result) = self.slice_array_result(ty) {
             return Ok(result);
         }
@@ -275,6 +278,34 @@ impl<'tcx> Capture<'_, 'tcx> {
         }
     }
 
+    fn int_conversion_result(&self, value: Ty<'tcx>) -> Option<TypeTree> {
+        if !self.ctx.profile.supports("rust.bitset-cardinality") {
+            return None;
+        }
+        let ty::Adt(definition, arguments) = value.kind() else {
+            return None;
+        };
+        let tcx = self.ctx.tcx;
+
+        if !tcx.is_diagnostic_item(rustc_span::sym::Result, definition.did())
+            || arguments.type_at(0) != tcx.types.usize
+        {
+            return None;
+        }
+        let ty::Adt(error, _) = arguments.type_at(1).kind() else {
+            return None;
+        };
+        let path = tcx.def_path_str(error.did());
+        (tcx.crate_name(error.did().krate).as_str() == "core"
+            && matches!(
+                path.as_str(),
+                "core::num::error::TryFromIntError"
+                    | "core::num::TryFromIntError"
+                    | "std::num::TryFromIntError"
+            ))
+        .then(|| TypeTree::IntConversionResult("usize".into()))
+    }
+
     fn slice_array_result(&self, value: Ty<'tcx>) -> Option<TypeTree> {
         if !self.ctx.profile.supports("rust.slice-array-byte-calls") {
             return None;
@@ -283,6 +314,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             return None;
         };
         let tcx = self.ctx.tcx;
+
         if !tcx.is_diagnostic_item(rustc_span::sym::Result, definition.did()) {
             return None;
         }

@@ -78,6 +78,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.tagged-unit-classifiers",
     "rust.immediate-option-callbacks",
     "rust.borrowed-array-views",
+    "rust.bitset-cardinality",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -102,6 +103,9 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.data.scalar-size/1",
     "rstyle.data.option.is-some/1",
     "rstyle.helper.borrowed-array-view/1",
+    "rstyle.data.bitset.count-u32/1",
+    "rstyle.data.integer.try-u32-usize/1",
+    "rstyle.data.integer.unwrap-ok-usize/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -210,7 +214,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.50.0", 65)),
+            Self::DataV3 => Some(("3.51.0", 66)),
         }
     }
 

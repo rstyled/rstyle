@@ -616,6 +616,8 @@ impl Builder<'_> {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
             construct: if crate::size_calls::candidate(node, self.facts) {
                 Some(crate::size_calls::CONSTRUCT.into())
+            } else if let Some(kind) = crate::bitset_cardinality::kind(node, self.facts) {
+                Some(kind.construct().into())
             } else if crate::scalar_from::candidate(node, self.facts) {
                 Some(crate::scalar_from::CONSTRUCT.into())
             } else if crate::checked_options::get_candidate(node, self.facts) {
