@@ -189,23 +189,58 @@ impl Graph<'_> {
                 .collect();
             return self.origins(self.operand(node, 0)?, &path, visiting);
         }
-        if let Some((&position, rest)) = selectors.split_first()
+        if !selectors.is_empty()
             && matches!(
                 node.original_kind.known_value(),
                 Some("expr_tup" | "expr_struct")
             )
         {
-            let operand = crate::data_component_origins::operand(
-                source_node(node, self.facts)?,
-                position,
-                self.facts,
-            )?;
+            let (operand, rest) = constructor_operand(node, selectors)?;
             return self.origins(self.operand(node, operand as u64)?, rest, visiting);
+        }
+
+        self.forwarded_inputs(node, selectors, visiting)
+    }
+
+    fn forwarded_inputs(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
+        if selectors.is_empty()
+            && let Some(slots) = update_slots(node)?
+        {
+            return self.updated(node, &slots, visiting);
         }
         if !selectors.is_empty() && node.category == NodeCategory::Call {
             return Err("Selected helper aggregate result is unsupported".into());
         }
         self.input_origins(node, selectors, visiting)
+    }
+
+    fn updated(
+        &self,
+        node: &PdgNode,
+        slots: &[Option<usize>],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
+        let crate::data_types::TypeToken::Struct { fields, .. } =
+            crate::data_types::parse(&wire_type(node)?)?
+        else {
+            return Err("Serialized update requires a struct type".into());
+        };
+        let mut roots = BTreeSet::new();
+        for (position, _) in fields
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, ty))| data_origins::shared(ty))
+        {
+            let selectors = [position];
+            let (operand, remaining) = crate::data_component_origins::slot(slots, &selectors)?;
+            roots.extend(self.origins(self.operand(node, operand as u64)?, remaining, visiting)?);
+        }
+        Ok(roots.into_iter().collect())
     }
 
     fn operand(&self, node: &PdgNode, position: u64) -> Result<&PdgNode, String> {
@@ -272,6 +307,46 @@ impl Graph<'_> {
         }
         Ok(roots.into_iter().collect())
     }
+}
+
+fn constructor_operand<'a>(
+    node: &PdgNode,
+    selectors: &'a [usize],
+) -> Result<(usize, &'a [usize]), String> {
+    let (&position, rest) = selectors
+        .split_first()
+        .ok_or("Missing graph component selector")?;
+    if node.original_kind.known_value() == Some("expr_tup") {
+        return Ok((position, rest));
+    }
+    let slots: Vec<Option<usize>> = serde_json::from_str(
+        node.attributes
+            .literal
+            .as_ref()
+            .and_then(|literal| literal.known_value())
+            .ok_or("Missing serialized struct slots")?,
+    )
+    .map_err(|error| error.to_string())?;
+    crate::data_component_origins::slot(&slots, selectors)
+}
+
+fn update_slots(node: &PdgNode) -> Result<Option<Vec<Option<usize>>>, String> {
+    if node.attributes.construct.as_deref() != Some("data.struct") {
+        return Ok(None);
+    }
+    let text = node
+        .attributes
+        .literal
+        .as_ref()
+        .and_then(|literal| literal.known_value())
+        .ok_or("Missing serialized struct slots")?;
+    // Descriptors are independently checked against canonical source-derived slots.
+    if !text.contains("null") {
+        return Ok(None);
+    }
+    serde_json::from_str(text)
+        .map(Some)
+        .map_err(|error| error.to_string())
 }
 
 fn returned_operands(

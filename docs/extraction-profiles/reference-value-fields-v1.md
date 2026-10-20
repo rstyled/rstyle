@@ -53,3 +53,7 @@ matching. Corrupt origin annotations, selected slots and base operands fail both
 independent document and strict producer verification. Separate negative cases
 exercise the retained mutation, borrow, update, helper and nominal boundaries.
 Final validation and frozen natural inventory results are recorded in the roadmap.
+
+Reference-bearing struct updates additionally compose in Data-v3 3.24.0; see the
+[update contract](reference-struct-updates-v1.md). The exclusions above describe
+the original 3.23.0 boundary.

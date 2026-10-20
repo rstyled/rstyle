@@ -56,12 +56,30 @@ fn verify_struct(
     references: bool,
 ) -> Result<(), String> {
     let slots = crate::data_structs::slots(node, facts)?;
-    if references && slots.contains(&None) {
+    if references
+        && slots.contains(&None)
+        && !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.reference-struct-updates")
+    {
         return Err(
             "Reference-bearing struct updates need component-specific origin substitution".into(),
         );
     }
     Ok(())
+}
+
+// Verified struct slots permit a same-typed operand only for the update base.
+pub(crate) fn update(node: &HirNode) -> bool {
+    node.kind == "expr_struct"
+        && node.children.last().is_some_and(|child| {
+            child
+                .ty
+                .as_ref()
+                .and_then(|ty| ty.normalized.as_deref())
+                .is_some()
+                && child.ty.as_ref().and_then(|ty| ty.normalized.as_deref())
+                    == node.ty.as_ref().and_then(|ty| ty.normalized.as_deref())
+        })
 }
 
 pub(crate) fn reference_literal(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {

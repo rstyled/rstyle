@@ -36,3 +36,7 @@ partial-move tracking and nontrivial destruction remain unavailable. Legacy
 selections do not gain updates. D11 remains Partial for reference-bearing values
 and broader constant counts; D12–D13 and the full roadmap remain active. Frozen
 inventory measurements are recorded separately in the roadmap continuation log.
+
+Data-v3 3.24.0 extends this contract to [reference-bearing struct updates](reference-struct-updates-v1.md),
+using component-specific origins. Earlier construction/local-value extensions and
+this update extension supersede the corresponding original exclusions above.

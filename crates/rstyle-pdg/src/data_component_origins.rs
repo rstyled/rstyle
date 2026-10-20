@@ -10,12 +10,12 @@ pub(crate) fn source(
     selectors: &[usize],
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
-    let Some((&position, rest)) = selectors.split_first() else {
+    if selectors.is_empty() {
         return crate::data_origins::origins(node, facts);
-    };
+    }
     match node.kind.as_str() {
         "expr_tup" | "expr_struct" => {
-            let operand = operand(node, position, facts)?;
+            let (operand, rest) = operand(node, selectors, facts)?;
             source(
                 node.children
                     .get(operand)
@@ -150,17 +150,59 @@ fn selection<'a>(
     Ok(([projection].into_iter().chain(path).collect(), component))
 }
 
-pub(crate) fn operand(
+pub(crate) fn operand<'a>(
     node: &HirNode,
-    position: usize,
+    selectors: &'a [usize],
     facts: &dyn EvidenceFacts,
-) -> Result<usize, String> {
+) -> Result<(usize, &'a [usize]), String> {
+    let (&position, rest) = selectors
+        .split_first()
+        .ok_or("Missing component selector")?;
     match node.kind.as_str() {
-        "expr_tup" if position < node.children.len() => Ok(position),
-        "expr_struct" => crate::data_structs::slots(node, facts)?
-            .iter()
-            .position(|slot| *slot == Some(position))
-            .ok_or("Selected constructor slot is absent".into()),
+        "expr_tup" if position < node.children.len() => Ok((position, rest)),
+        "expr_struct" => slot(&crate::data_structs::slots(node, facts)?, selectors),
         _ => Err("Selected value lacks a supported constructor".into()),
     }
+}
+
+pub(crate) fn slot<'a>(
+    slots: &[Option<usize>],
+    selectors: &'a [usize],
+) -> Result<(usize, &'a [usize]), String> {
+    let (&position, rest) = selectors.split_first().ok_or("Missing struct selector")?;
+    if let Some(operand) = slots.iter().position(|slot| *slot == Some(position)) {
+        return Ok((operand, rest));
+    }
+    slots
+        .iter()
+        .position(Option::is_none)
+        .map(|operand| (operand, selectors))
+        .ok_or("Selected constructor slot is absent".into())
+}
+
+pub(crate) fn updated(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Vec<Origin>, String> {
+    let slots = crate::data_structs::slots(node, facts)?;
+    let TypeToken::Struct { fields, .. } =
+        crate::data_types::parse(crate::data_aggregates::token(node)?)?
+    else {
+        return Err("Update requires an exact struct type".into());
+    };
+
+    let mut roots = Vec::new();
+    for (position, _) in fields
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, ty))| crate::data_origins::shared(ty))
+    {
+        let selectors = [position];
+        let (operand, remaining) = slot(&slots, &selectors)?;
+        roots.extend(source(
+            node.children
+                .get(operand)
+                .ok_or("Missing update component operand")?,
+            remaining,
+            facts,
+        )?);
+    }
+    Ok(roots)
 }

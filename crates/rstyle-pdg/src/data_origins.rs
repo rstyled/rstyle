@@ -75,6 +75,10 @@ fn constructed(
     if !crate::data_aggregates::reference_literal(node, facts) {
         return Err("Reference-bearing literals require their registered capability".into());
     }
+    if crate::data_aggregates::update(node) {
+        return crate::data_component_origins::updated(node, facts);
+    }
+
     let mut roots = Vec::new();
     for child in &node.children {
         roots.extend(origins(child, facts)?);
