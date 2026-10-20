@@ -15,6 +15,7 @@ mod size_calls;
 pub mod source;
 mod sources;
 mod tuple_assignment;
+mod variant_patterns;
 
 use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rstyle_pdg::frontend::*;

@@ -15,6 +15,7 @@ mod platform_regressions;
 mod scoped_imports;
 mod shared_evidence;
 mod try_capture;
+mod variant_capture;
 use shared_evidence::{load as data_unit, reject_helper};
 
 use assert_cmd::cargo::cargo_bin;

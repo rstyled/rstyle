@@ -3323,3 +3323,31 @@ and empty matching. The original three selected methods remain excluded in the
 fresh 3.46 roster. This is a source/semantic target boundary, not a new capability
 or admission gain. General Result/Try, iterator/closure and macro activation
 remain separate remaining work.
+
+### Tagged-unit prerequisite: retain tuple-variant pattern payloads
+
+Data-v3 capture now preserves exact local enum tuple-constructor identity and
+ordered payload patterns in the existing HIR tree. The selected getters retain
+their scalar binding declarations and matching body-read HirIds; wildcard arms
+remain explicit. This repairs the selected family's missing pattern-child link
+without adding an enum type token, capability, source gate exception, serialized
+table/cache or admission permission. The fixed eleven-function development
+selection remains entirely excluded, and historical profiles retain their
+previous unsupported pattern shape.
+
+Two real-Cargo regressions check identities, payload arity/bindings, historical
+shape, reference/rest/tuple-struct boundaries, unchanged exclusions and producer
+rejection. The remaining chain is complete enum nominal capture/proof, variant
+construction and conditional payload matching through helper snapshots and
+scalar Options. This foundational increment yields no claimed natural gain;
+the next increment must connect that chain rather than add another isolated
+observation. The full roadmap remains active.
+
+All 869 workspace tests pass with five existing skips; all-target Clippy with
+warnings denied, formatting and whitespace checks pass. Rstyle reports 2735
+functions /zero violations and patterns zero candidates. Seven alternating
+quiescent comparisons against 347ddce retain identical source identities,
+outcomes and matching reports: byte-window median .89/.88s, cyclic .64/.65s
+(overlapping ranges), excluded enum corpus .30/.29s. The contract records RSS,
+ranges and limitations. No whole-library capture or new frozen replay is claimed
+for this observational prerequisite.

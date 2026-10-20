@@ -110,3 +110,46 @@ standalone Rust formatting and whitespace checks pass. Rstyle reports 2733
 functions and zero violations; patterns reports zero candidates. Production
 Rust is unchanged, so this audit does not replace the preceding milestone's
 867-test workspace validation or its performance measurements.
+
+## Observational tuple-variant pattern increment
+
+Data-v3 now retains local enum tuple-pattern constructor identity and ordered
+payload patterns in the existing HIR node tree as `pat_local_variant`. This
+repairs blocker 4's missing binding declarations: the scalar binding HirId and
+symbol now remain alongside the body read of that binding. The type observation
+remains unsupported; no enum token, capability, source exception, match grammar
+or helper-summary permission is activated. All eleven development functions
+remain excluded. Historical profiles retain childless unsupported patterns.
+
+The observation requires an actual local enum type and a resolved tuple
+constructor belonging to that enum. It reuses the existing callee identity
+representation, including the established local-unencoded crate marker, without
+requesting local metadata before encoding. Tuple structs and patterns with a
+rest marker remain unsupported. Reference payload bindings retain their distinct
+unsupported binding-pattern shape rather than acquiring scalar binding support.
+The special checked core Option path remains first and unchanged.
+
+Two real-Cargo regressions check exact constructor paths, payload arity, binding
+identity and declaration inventory, wildcard preservation, old-profile shape,
+reference/rest/tuple-struct boundaries, unchanged exclusion and producer rejection.
+This is the first production prerequisite after the source-selected audit; the
+remaining connected chain is complete enum capture/declaration proof, variant
+construction, conditional match/payload semantics and helper composition. Do not
+follow it with a second isolated observational increment without reassessing
+practical family progress. No natural admission gain is claimed here.
+
+Validation: all 869 workspace nextest tests pass with five existing skips;
+all-target Clippy with warnings denied, formatting and whitespace checks pass.
+Rstyle reports 2735 functions with zero violations and patterns zero candidates.
+No thresholds, suppressions or ignore entries change.
+
+Against isolated 347ddce, one warmup and seven alternating quiescent pairs per
+workload retain all source identities and outcomes. The 16-function byte-window
+control stays at eleven admissions; baseline/current median .89/.88s (ranges
+.86–.90/.87–.92), median RSS 122240/122228 KiB. The six-function cyclic control
+stays at four admissions; .64/.65s (ranges .63–.67/.62–.66), RSS 111076/111076.
+The eleven-function enum corpus stays at zero admissions; .30/.29s (ranges
+.27–.34/.28–.35), RSS 110664/110496. All fourteen retained unchanged-control
+matching reports and seven enum empty matching reports are exactly identical.
+The cyclic +.01s median shift has overlapping ranges; these bounded observations
+do not establish a broad performance guarantee or a natural admission gain.
