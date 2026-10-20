@@ -134,6 +134,7 @@ fn bind(facts: &HirFnFacts, unit: &mut BindingContext<'_>) -> Result<Option<Bind
     let origins = options.data::<Origins>()?;
     let context = declaration_origins::context(facts, &interface, &origins)?;
     unit.origins.verify(&context, &origins)?;
+    unit.origins.verify_copy(facts, &origins)?;
     let declarations = origins
         .declarations
         .iter()

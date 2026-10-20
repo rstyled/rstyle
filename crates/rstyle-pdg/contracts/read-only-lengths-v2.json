@@ -49,6 +49,8 @@
     "std::mem::size_of": "DefPathHash(Fingerprint(5614226571623188065, 7415061775977191516))",
     "core::slice::<impl [T]>::get": "DefPathHash(Fingerprint(5614226571623188065, 10384474675237722472))",
     "std::prelude::v1::None": "DefPathHash(Fingerprint(5614226571623188065, 6158097746107675430))",
-    "std::prelude::v1::Some": "DefPathHash(Fingerprint(5614226571623188065, 92389130931836586))"
+    "std::prelude::v1::Some": "DefPathHash(Fingerprint(5614226571623188065, 92389130931836586))",
+    "core::marker::Copy#trait": "DefPathHash(Fingerprint(5614226571623188065, 1471198259949423865))",
+    "core::marker::Copy#derive": "DefPathHash(Fingerprint(5614226571623188065, 7507778768895532798))"
   }
 }

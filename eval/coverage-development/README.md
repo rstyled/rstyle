@@ -976,3 +976,24 @@ closure in this mixed crate before exercising constructor/getter composition.
 A lifetime-only impl relaxation cannot solve this chain by itself. Manual Copy,
 custom derives, unresolved expansions and missing observations remain outside
 the observation contract; none is treated as a negative or purity proof.
+
+
+## Checked Copy evidence and next natural-family boundary
+
+Selected-unit binding now verifies the pinned core trait and builtin derive
+identities separately, and checks active derive-token ownership using the
+existing original-file parse. Strict import of all 956 functions in the retained
+natural regex-syntax bundle succeeds, including the exact four selected source
+digests. They remain excluded: zero gains/losses. Missing observations cannot
+support drop claims; inactive/custom derives and hidden neighboring effects have
+not become supported.
+
+After these two zero-gain S09 prerequisites, the next milestone is the connected
+four-function family. Its environment currently fails the global recursive item
+whitelist before checking relevant declarations. Selected module cfg/path and
+name dependencies must replace that coarse restriction together, including
+imports, neighboring generic structs, derives and potential hidden Drop behavior.
+The existing source snapshot and parsed module environment should suffice; do
+not add another source inventory/cache. Preserve exact attribute-excluding
+declaration ranges across the origin and resolution indexes. A syntactic local
+Copy check alone is not a whole-module or whole-family certificate.

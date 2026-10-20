@@ -9,7 +9,7 @@ pub(crate) struct Sources {
 struct CheckedFile {
     bytes: crate::SourceSnapshot,
     digest: String,
-    structs: Vec<ByteSpan>,
+    structs: Vec<(ByteSpan, Vec<syn::Attribute>)>,
 }
 
 impl Sources {
@@ -21,6 +21,29 @@ impl Sources {
         verify_inventory(interface, origins, |origin, declaration| {
             self.check(origin, declaration)
         })
+    }
+
+    pub(crate) fn verify_copy(
+        &self,
+        facts: &crate::HirFnFacts,
+        origins: &Origins,
+    ) -> Result<(), String> {
+        for origin in &origins.declarations {
+            let Some(observed) = &origin.builtin_copy else {
+                continue;
+            };
+            let file = self
+                .files
+                .get(&origin.source_file)
+                .ok_or("Copy observation lacks checked declaration source")?;
+            let (_, attributes) = file
+                .structs
+                .iter()
+                .find(|(span, _)| *span == origin.declaration_span)
+                .ok_or("Copy observation lacks exact struct ownership")?;
+            super::copy::verify(facts, origin, observed, attributes)?;
+        }
+        Ok(())
     }
 
     fn check(&mut self, origin: &Origin, declaration: &str) -> Result<(), String> {
@@ -71,7 +94,7 @@ impl CheckedFile {
         if self
             .structs
             .iter()
-            .filter(|candidate| **candidate == span)
+            .filter(|(candidate, _)| *candidate == span)
             .count()
             != 1
         {
@@ -84,7 +107,7 @@ impl CheckedFile {
 struct StructSpans<'a> {
     source: &'a str,
     prefix: u32,
-    spans: Vec<ByteSpan>,
+    spans: Vec<(ByteSpan, Vec<syn::Attribute>)>,
 }
 
 impl<'ast> syn::visit::Visit<'ast> for StructSpans<'_> {
@@ -95,11 +118,25 @@ impl<'ast> syn::visit::Visit<'ast> for StructSpans<'_> {
             syn::Visibility::Inherited => item.struct_token.span,
             _ => item.vis.span(),
         };
-        self.spans.push(ByteSpan {
-            start: crate::source_evidence::byte_offset(self.source, start.start()) as u32
-                + self.prefix,
-            end: crate::source_evidence::byte_offset(self.source, span.end()) as u32 + self.prefix,
-        });
+        self.spans.push((
+            ByteSpan {
+                start: crate::source_evidence::byte_offset(self.source, start.start()) as u32
+                    + self.prefix,
+                end: crate::source_evidence::byte_offset(self.source, span.end()) as u32
+                    + self.prefix,
+            },
+            // This index binds Copy observations only. Other attributes remain
+            // in the original snapshot and require separate boundary proof.
+            item.attrs
+                .iter()
+                .filter(|attribute| {
+                    ["derive", "cfg", "cfg_attr"]
+                        .iter()
+                        .any(|name| attribute.path().is_ident(name))
+                })
+                .cloned()
+                .collect(),
+        ));
     }
 }
 

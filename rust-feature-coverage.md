@@ -2184,3 +2184,65 @@ CI regressions and all three architecture tests, including real cross-target
 capture and independent document verification. rstyle reports 2,581 functions
 and zero violations; patterns reports zero candidates with 15 existing ignores.
 S09 and D17 remain partial; this milestone does not support the natural family.
+
+
+### S09 Copy observation verification and boundary replanning (2026-10-20)
+
+Selected-unit binding now independently checks every present builtin Copy
+observation. The existing pinned target registries distinguish the core trait
+and derive namespaces despite their shared display path. The std/core display
+aliases require identical exact crate/definition hashes; an implementation
+payload, wrong path, unregistered hash or trait/derive substitution fails binding.
+The original struct index retains only derive/cfg/cfg_attr metadata needed for
+this check. It reuses the existing per-file parse and snapshot. Other attributes
+remain in the original source and still require boundary proof; this index does
+not certify their effects or omit them from that proof.
+
+The checker requires the exact original derive path token on the exact struct
+and evaluates its cfg_attr using captured build cfgs. It does not treat a correctly
+spelled token in an inactive derive as evidence. Missing observations remain
+unavailable, not negative or drop-free. Ancestor module closure and general
+expansion ownership are not certified by this local attribute check.
+
+Strict import of the complete 956-function regex-syntax bundle from
+`run-o52m9whk` succeeds under these checks. All four selected function digests
+remain exactly those recorded in the development target; Position has one and
+Span has two checked declaration observations. All four remain excluded, with
+zero new/lost admissions. The frozen 60-selection identity/outcome comparison
+remains 13 admitted / 40 excluded / seven inactive. No scoring, policy capability,
+threshold, selection or historical artifact changed.
+
+Two consecutive S09 prerequisites have produced no admission gains. The next
+milestone must connect the checked declarations to the complete natural family,
+not add another capture inventory or independent syntax row. Inspection confirms
+that Environment construction still demands the recursive unit whitelist before
+resolution can use these observations. Its indexing also rejects unrelated generic
+structs and glob/external imports globally. A precise replacement must establish
+selected cfg/module ownership and relevant name/declaration dependencies while
+retaining neighboring items and unknown expansion effects. The declaration span
+convention must also remain consistent: origin spans exclude preceding attributes,
+while the current resolution index uses syn item spans. Do not relax each global
+check in isolation and infer support from clean miniature crates.
+
+Validation includes the 801-test workspace suite (five existing ignores), then
+all five Copy Cargo tests and all 108 PDG library tests after the attribute-retention
+refinement. Negative checks reject forged hashes, swapped namespaces, unrelated
+spans, implementation payloads and a forged Copy claim on the inactive struct's
+own token. Original-byte tests include BOM, Unicode and CRLF. All three installed
+CI targets retain std/no_std behavior. Clippy, fmt and diff checks pass; rstyle
+reports 2,586 functions / zero violations and patterns zero candidates, with 15
+existing ignores unchanged. No new suppression or ignore was added.
+
+
+A local debug-build import comparison against `8d12e4c` uses the same retained
+956-function bundle, identical dependency lockfiles and compiler, and six
+alternating baseline/checked pairs. Median elapsed time is 5.335 s baseline /
+5.405 s checked; median peak RSS is 508,850 / 508,838 KiB. This diagnostic finds
+no material memory increase and about 70 ms additional median time on this input;
+it is not a full-capture performance guarantee. An earlier comparison resolved
+different dependency versions and is discarded. No benchmark threshold or
+production cache was introduced to obtain these figures.
+
+Strict replay also imports all three retained frozen-package bundles under the
+new verifier: time-core 226 functions / eight graphs, lz4_flex 150 / seven, and
+regex-syntax 956 / zero. No root inventory changed.

@@ -4,12 +4,17 @@ use super::*;
 #[test]
 fn builtin_copy_observations_bind_trait_macro_and_original_declaration() {
     let directory = clone_workspace();
-    std::fs::write(directory.path().join("src/lib.rs"), source()).unwrap();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        format!("\u{feff}// π\r\n{}", source()),
+    )
+    .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 8);
     check_observations(functions);
+    reject_copy_corruptions(functions);
 }
 
 fn check_observations(functions: &[Value]) {
@@ -225,6 +230,7 @@ fn conditional_copy_derives_follow_actual_compiler_presence() {
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
+    reject_inactive_copy(&report);
     for name in ["active", "inactive"] {
         let function = report["functions"]
             .as_array()
@@ -243,4 +249,79 @@ fn conditional_copy_derives_follow_actual_compiler_presence() {
             name == "active"
         );
     }
+}
+
+fn reject_copy_corruptions(functions: &[Value]) {
+    let selected = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "copied")
+        .unwrap();
+    let context: rstyle_pdg::nominal_binding::PackageContext = serde_json::from_value(
+        selected["facts"]["build"]["frontend_options"]["rstyle.nominal_selected_unit"]["package"]
+            .clone(),
+    )
+    .unwrap();
+    let original = selected["facts"].clone();
+    let facts = serde_json::from_value(original.clone()).unwrap();
+    rstyle_pdg::nominal_binding::bind_unit(&[facts], &context).unwrap();
+    for change in ["trait", "derive", "span", "path", "implementation"] {
+        let mut changed = original.clone();
+        let observed = &mut changed["build"]["frontend_options"]["concrete_declaration_origins"]["declarations"]
+            [0]["builtin_copy"];
+        match change {
+            "trait" => observed["trait_definition"]["definition_hash"] = "unregistered".into(),
+            "derive" => {
+                observed["derive_definition"]["definition_hash"] =
+                    observed["trait_definition"]["definition_hash"].clone()
+            }
+            "span" => observed["derive_span"]["start"] = 0.into(),
+            "path" => observed["derive_definition"]["path"] = "custom::Copy".into(),
+            "implementation" => {
+                observed["trait_definition"]["implementation"] =
+                    observed["derive_definition"].clone()
+            }
+            _ => unreachable!(),
+        }
+        let facts = serde_json::from_value(changed).unwrap();
+        let error = rstyle_pdg::nominal_binding::bind_unit(&[facts], &context)
+            .err()
+            .unwrap();
+        assert!(error.contains("Copy observation"), "{change}: {error}");
+    }
+}
+
+fn reject_inactive_copy(report: &Value) {
+    let functions = report["functions"].as_array().unwrap();
+    let active = functions
+        .iter()
+        .find(|f| f["facts"]["name"] == "active")
+        .unwrap();
+    let inactive = functions
+        .iter()
+        .find(|f| f["facts"]["name"] == "inactive")
+        .unwrap();
+    let context: rstyle_pdg::nominal_binding::PackageContext = serde_json::from_value(
+        inactive["facts"]["build"]["frontend_options"]["rstyle.nominal_selected_unit"]["package"]
+            .clone(),
+    )
+    .unwrap();
+    let mut changed = inactive["facts"].clone();
+    let copied = active["facts"]["build"]["frontend_options"]["concrete_declaration_origins"]
+        ["declarations"][0]["builtin_copy"].clone();
+    let origin = &mut changed["build"]["frontend_options"]["concrete_declaration_origins"]["declarations"]
+        [0];
+    origin["builtin_copy"] = copied;
+    // Point at the inactive struct's own correctly spelled token, rather than
+    // merely reusing the unrelated active struct's span.
+    let bytes = origin["file_bytes"].as_str().unwrap();
+    let start = bytes
+        .find("#[cfg_attr(any(), derive(Clone, Copy))]")
+        .unwrap()
+        + "#[cfg_attr(any(), derive(Clone, ".len();
+    origin["builtin_copy"]["derive_span"] = serde_json::json!({"start": start, "end": start + 4});
+    let facts = serde_json::from_value(changed).unwrap();
+    let error = rstyle_pdg::nominal_binding::bind_unit(&[facts], &context)
+        .err()
+        .unwrap();
+    assert!(error.contains("active derive-token ownership"), "{error}");
 }

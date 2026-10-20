@@ -2,6 +2,7 @@
 //! These checks bind bytes and locations, not effects or package authority.
 
 mod body;
+mod copy;
 mod files;
 pub use body::context;
 pub(crate) use files::Sources;
