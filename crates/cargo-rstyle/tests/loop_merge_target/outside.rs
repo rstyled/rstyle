@@ -9,15 +9,7 @@ fn outside_loop_merges_compose_with_nested_choices_and_short_circuits() {
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 11);
     for function in functions {
-        assert_eq!(
-            function["outcome"],
-            if function["facts"]["name"] == "inside" {
-                "excluded"
-            } else {
-                "admitted"
-            },
-            "{function}"
-        );
+        assert_eq!(function["outcome"], "admitted", "{function}");
     }
     check_aggregate_documents(&report);
     check_equivalent_matching(&report, ["after", "same"]);
@@ -28,7 +20,7 @@ fn outside_loop_merges_compose_with_nested_choices_and_short_circuits() {
     reject_cyclic_site_mutations(after);
 }
 
-fn reject_cyclic_site_mutations(function: &Value) {
+pub(super) fn reject_cyclic_site_mutations(function: &Value) {
     let (unit, index) = data_unit(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
@@ -57,13 +49,14 @@ fn reject_cyclic_site_mutations(function: &Value) {
 
 fn synchronize_alternative(edges: &mut [rstyle_pdg::PdgEdge], sites: &Value, change: &str) {
     if matches!(change, "guard" | "snapshot") {
-        let first = &sites[0]["alternatives"][0];
+        let position = if change == "snapshot" { 1 } else { 0 };
+        let first = &sites[0]["alternatives"][position];
         let edge = edges
             .iter_mut()
             .find(|edge| {
                 edge.target == sites[0]["pdg_node_id"].as_str().unwrap()
                     && edge.subkind == "value_alternative"
-                    && edge.operand_position == Some(0)
+                    && edge.operand_position == Some(position as u64)
             })
             .unwrap();
         edge.source = first["value_pdg_node_id"].as_str().unwrap().into();
@@ -123,8 +116,8 @@ fn corrupt_site(sites: &mut Value, change: &str, nodes: &[rstyle_pdg::PdgNode]) 
                 serde_json::json!([[]])
         }
         "snapshot" => {
-            sites[0]["alternatives"][0]["value_pdg_node_id"] =
-                sites[0]["alternatives"][1]["value_pdg_node_id"].clone()
+            sites[0]["alternatives"][1]["value_pdg_node_id"] =
+                sites[0]["alternatives"][0]["value_pdg_node_id"].clone()
         }
         "controller" => {
             sites[0]["controller_pdg_node_id"] = nodes

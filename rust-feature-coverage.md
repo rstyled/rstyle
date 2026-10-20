@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.40.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.41.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -81,7 +81,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F07 | Destructuring, reference, slice, and enum patterns | Partial | `Some(x) => x`, `[a, ..] => a` | Data-v3 3.36.0 supports only exhaustive checked-access `Some(&scalar)`/`None` patterns with verified guarded loads and bindings. General payload/field/element patterns and ownership/borrow effects remain missing. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
-| F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Merges in loop bodies/conditions and iteration-specific cyclic snapshots remain excluded. |
+| F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Data-v3 3.41.0 additionally supports [bounded cyclic prefix scans](docs/extraction-profiles/cyclic-prefix-scans-v1.md): reducible loop-body/condition merges with finite iteration-local availability. General iterator/value-carrying exit and broader caller compositions remain open. |
 | F11 | Labelled and value-carrying exits | Missing | `'outer: loop { break 'outer; }`, `break x` | Exact target resolution and value/frontier dependencies; also labelled block expressions. |
 | F12 | Iterator `for` loops | Missing | `for x in xs { ... }` | Iterator protocol, yielded values, effects, drop, and source/desugaring correspondence; not covered by scalar `while`. |
 | F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. General Option/Result interfaces, construction, early return, conversions, cleanup and `?` remain missing. |
@@ -2608,3 +2608,83 @@ incomplete while capture and assessment complete. No gain is claimed yet.
 rstyle reports 2,622 functions with zero violations; patterns has zero candidates.
 The three independent runtime-oracle tests pass. No production extraction rule,
 threshold, scoring, suppression or historical artifact changes in this audit.
+
+
+### Connected cyclic prefix scans (Data-v3 3.41.0)
+
+Adds `rust.cyclic-value-merges` (53 capabilities). The
+[bounded contract](docs/extraction-profiles/cyclic-prefix-scans-v1.md) connects
+repeated short-circuit/conditional values with existing scalar updates,
+length summaries, array/slice reads, bounds and exact scalar constants. The
+selected natural `skip_initial_padding` and `skip_ignore` functions both complete
+independent document verification, strict admission and comparison with their
+source-declared development counterparts. All six selected natural/development
+comparisons complete without diagnostics; both corresponding pairs are Accepted
+at score 1. This does not activate abstraction mining or establish detector
+quality, equivalence or rewrite safety.
+
+The temporary finite proof derives dominance and reducible natural-loop regions
+from serialized CFG edges. Each backedge clears outcomes and must-evaluated
+availability in its loop region. Regions sharing a header are united across
+continue paths; nested-loop resets preserve surrounding-iteration values until
+the outer backedge. The verifier retains exact alternatives, guards, completion
+frontiers, consumers and scalar reaching definitions. No new serialized epochs,
+histories, source copies or persistent caches are introduced. No-merge graphs
+retain their previous path, and nonrepeating sites retain their previous proof
+without an additional nonrepetition scan or allocating empty reset lookups.
+
+The separate fixed six-function development selection improves **0 to 4
+admissions**, with both independent mutation/value-exit negatives still excluded.
+All six comparisons complete. Original data-encoding capture preserves all 127
+names/digests/spans: **3 to 4 admissions**, exactly `skip_ignore`, zero losses.
+Full-library matching is intentionally incomplete with max-pairs zero; it is
+separate from the complete selected comparisons above.
+
+Frozen replay `run-rncfhp4y` preserves all 60 identities, denominators and outcomes
+versus `run-yf3i09jl`: **20 admitted /33 excluded /7 inactive**, zero gains/losses.
+Its 56 verified documents retain the prior natural results. No historical result
+is relabeled. Data-v2 remains excluded in new cyclic composition regressions.
+
+Independent finite-state tests compare reset-aware availability with saturated
+execution-history states on small cyclic graphs and kill masks. Vertex-deletion
+reachability independently specifies the dominance expectations for sibling,
+nested, self-loop, acyclic and irreducible cases. Cargo regressions cover saved
+preloop values, nested loops, continue/break and final-condition behavior, and
+reject unavailable snapshots, altered guards/controllers/frontiers/successors,
+missing index reads/bounds and swapped operands. The three independent runtime
+oracle tests retain all-byte translation, bounded zero-prefix and 1025
+alternating/final-condition expectations. Existing outside-loop and no-merge
+regressions remain intact; two former Data-v3 cyclic exclusions now correctly
+admit without changing their historical baseline records.
+
+Remaining blocker combinations are the declared natural scanner callers:
+returned-reference parsing, Result/error payload flow and unsafe boundaries in
+regex-automata's deserializer; generics, mutable buffers and error propagation
+in data-encoding's decoder. General iterator protocols, memory mutation,
+value-carrying/labelled exits and broader async/concurrency/FFI remain outside
+this bounded support. Select the next connected family from source and its full
+dependency chain instead of treating F10 as complete Rust loop support.
+
+Original regex-automata capture/assessment preserves all 2,582 names/digests/spans:
+**7 to 8 admissions /2,574 exclusions /0 unknown**, exactly
+`util::wire::skip_initial_padding`, zero losses. Together the two unchanged
+whole-package selections gain exactly the two declared scanners across 2,709
+functions. Both capture and assessment complete; max-pairs zero intentionally
+leaves full-library matching incomplete. The original baseline artifacts and
+source-first identities remain unchanged.
+
+Final validation passes **824 workspace tests with five existing ignores**,
+all-targets clippy with warnings denied, formatting and diff checks. rstyle
+reports **2,632 functions /zero violations**; patterns reports **zero candidates**.
+No thresholds, scoring, suppressions or existing ignore entries changed.
+
+A quiescent diagnostic against d63e2bc uses identical compiler/dependency-lock
+identities and unchanged raw inputs. Five alternating constructor/getter sample
+pairs (after a warmup pair overlapping the short style scan) each freshly capture
+four unchanged natural graphs: median **3.13 s baseline /3.16 s current**, peak
+RSS **494688 /494240 KiB**. Six alternating loop sample pairs each freshly
+capture three existing no-merge/outside-loop functions twenty times: median
+**10.840 s /10.855 s**, peak RSS **18158 /18264 KiB**. No material regression is
+observed on these bounded workloads; this is not a whole-capture or general
+state-space performance guarantee. The new repeated-merge path performs the
+additional finite proof required for the selected scanner admissions.

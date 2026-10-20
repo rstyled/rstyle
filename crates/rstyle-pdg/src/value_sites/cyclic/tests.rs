@@ -62,3 +62,93 @@ fn path_intersection(
     }
     result
 }
+
+#[test]
+fn reset_aware_must_evaluation_matches_finite_execution_states() {
+    let states: Vec<_> = (0..3)
+        .map(|index| State {
+            vertex: format!("c{index}"),
+            outcomes: BTreeMap::new(),
+        })
+        .collect();
+    let candidates: Vec<_> = (0..3)
+        .flat_map(|source| (1..3).map(move |target| (source, target)))
+        .collect();
+    for mask in 0..64u16 {
+        let edges: BTreeSet<_> = candidates
+            .iter()
+            .enumerate()
+            .filter(|(bit, _)| mask & (1 << bit) != 0)
+            .map(|(_, edge)| *edge)
+            .collect();
+        // Network::build only interns reachable states. Exercise that same
+        // precondition, established independently by exhaustive exploration.
+        if execution_intersections(&edges, 0)
+            .iter()
+            .any(BTreeSet::is_empty)
+        {
+            continue;
+        }
+        for killed in 0..8u8 {
+            let region: BTreeSet<_> = (0..3)
+                .filter(|bit| killed & (1 << bit) != 0)
+                .map(|index| format!("c{index}"))
+                .collect();
+            let resets = Resets(
+                edges
+                    .iter()
+                    .filter(|(source, target)| source >= target)
+                    .map(|(source, target)| {
+                        ((format!("c{source}"), format!("c{target}")), region.clone())
+                    })
+                    .collect(),
+            );
+            let actual = must_evaluate_with(&states, &edges, &resets);
+            check_execution_intersections(&actual, &edges, killed);
+        }
+    }
+}
+
+// Enumerate the finite product of program location and complete execution
+// history bits. Saturation includes arbitrarily many loop traversals.
+fn execution_intersections(edges: &BTreeSet<(usize, usize)>, killed: u8) -> Vec<BTreeSet<u8>> {
+    let mut reached = vec![BTreeSet::new(); 3];
+    let mut pending = vec![(0usize, 0u8)];
+    while let Some((source, bits)) = pending.pop() {
+        if !reached[source].insert(bits) {
+            continue;
+        }
+        for (_, target) in edges.iter().filter(|(vertex, _)| *vertex == source) {
+            let executed = bits | (1 << source);
+            let next = if source >= *target {
+                executed & !killed
+            } else {
+                executed
+            };
+            pending.push((*target, next));
+        }
+    }
+    reached
+}
+
+fn check_execution_intersections(
+    actual: &[BTreeSet<String>],
+    edges: &BTreeSet<(usize, usize)>,
+    killed: u8,
+) {
+    let expected = execution_intersections(edges, killed);
+    for (vertex, histories) in expected.iter().enumerate() {
+        if histories.is_empty() {
+            continue;
+        }
+        let intersection = histories.iter().fold(7u8, |prior, bits| prior & bits);
+        let names: BTreeSet<_> = (0..3)
+            .filter(|bit| intersection & (1 << bit) != 0)
+            .map(|index| format!("c{index}"))
+            .collect();
+        assert_eq!(
+            actual[vertex], names,
+            "edges={edges:?}, killed={killed}, vertex={vertex}"
+        );
+    }
+}

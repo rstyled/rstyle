@@ -1038,7 +1038,10 @@ fn check_loop_values(
     node: &HirNode,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Outcome {
-    if !profile.supports("rust.scalar-loops") || !contains_loop(node) {
+    if !profile.supports("rust.scalar-loops")
+        || !contains_loop(node)
+        || profile.supports("rust.cyclic-value-merges")
+    {
         return Outcome::ok();
     }
     check_no_loop_merges(

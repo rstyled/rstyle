@@ -1,7 +1,9 @@
 //! Source-selected expectations precede loop/merge support.
 use super::*;
 
+mod iterations;
 mod outside;
+mod prefix;
 mod tuple_cases;
 
 fn natural_gcd() -> &'static str {
@@ -45,7 +47,7 @@ fn check_target_classifications(functions: &[Value]) {
             function["outcome"],
             if matches!(
                 name,
-                "sequential" | "tuple_step" | "gcd" | "after_loop" | "before_loop"
+                "sequential" | "tuple_step" | "gcd" | "after_loop" | "before_loop" | "cyclic_merge"
             ) {
                 "admitted"
             } else {
@@ -53,16 +55,6 @@ fn check_target_classifications(functions: &[Value]) {
             },
             "{function}"
         );
-        if name == "cyclic_merge" {
-            assert!(
-                function["reasons"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .any(|reason| { reason.as_str().unwrap().contains("cyclic policy excludes") }),
-                "{function}"
-            );
-        }
     }
 }
 

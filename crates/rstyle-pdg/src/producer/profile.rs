@@ -62,6 +62,9 @@ fn cyclic_policy(profile: ExtractionProfile) -> Result<Value, String> {
     if profile.supports("rust.outside-loop-value-merges") {
         policy["value_availability"] = "outside-cycle-guard-states-and-must-evaluation/1".into();
     }
+    if profile.supports("rust.cyclic-value-merges") {
+        policy["value_availability"] = "natural-loop-kill-gen-and-guard-states/1".into();
+    }
     Ok(policy)
 }
 

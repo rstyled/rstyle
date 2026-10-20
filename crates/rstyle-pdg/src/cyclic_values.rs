@@ -53,6 +53,13 @@ pub(crate) fn verify_bindings(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<()
     check_reads(pdg, &mapping, &reached, &incoming)
 }
 
+/// Shared finite graph analysis; callers derive their own value-availability proof.
+pub(crate) fn dominators(cfg: &CfgDocument) -> BTreeMap<String, BTreeSet<String>> {
+    let reached = reachable_vertices(cfg);
+    let incoming = predecessors(cfg, &reached);
+    dominance(cfg, &reached, &incoming)
+}
+
 fn predecessors(cfg: &CfgDocument, reached: &BTreeSet<String>) -> Sets {
     let mut sets: Sets = reached
         .iter()

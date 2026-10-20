@@ -1,5 +1,7 @@
-//! Finite serialized-CFG proof for conditional values whose controllers cannot repeat.
+//! Finite serialized-CFG proof for conditional values, with iteration-local freshness.
 use super::*;
+mod fresh;
+use fresh::Resets;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct State {
@@ -34,10 +36,8 @@ pub(crate) fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<
             .collect(),
     };
 
-    for site in &context.sites {
-        check_nonrepeating(&context, site)?;
-    }
-    let flow = Flow::build(&context)?;
+    let resets = iteration_resets(&context)?;
+    let flow = Flow::build(&context, &resets)?;
     let mut available = BTreeSet::new();
     for site in &context.sites {
         if flow.check_site(&context, site)? {
@@ -63,8 +63,27 @@ pub(crate) fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<
     Ok(available)
 }
 
+fn iteration_resets(context: &Context<'_>) -> Result<Resets, String> {
+    let existing = context
+        .sites
+        .iter()
+        .try_for_each(|site| check_nonrepeating(context, site, false));
+    if existing.is_ok() {
+        return Ok(Resets::default());
+    }
+    if !crate::extraction_profile::policy_supports(&context.pdg.profile, "rust.cyclic-value-merges")
+    {
+        existing?;
+    }
+    for site in &context.sites {
+        check_nonrepeating(context, site, true)?;
+    }
+
+    Resets::build(context.cfg)
+}
+
 impl Flow {
-    fn build(context: &Context<'_>) -> Result<Self, String> {
+    fn build(context: &Context<'_>, resets: &Resets) -> Result<Self, String> {
         let relevant = relevant_controllers(context);
         let first = State {
             vertex: context.cfg.entry_node_id.clone(),
@@ -75,14 +94,19 @@ impl Flow {
             states: vec![first],
             edges: BTreeSet::new(),
         };
+        let transitions = Transitions {
+            context,
+            relevant: &relevant,
+            resets,
+        };
         let mut next = 0;
         while next < network.states.len() {
-            network.extend(context, next, &relevant)?;
+            network.extend(&transitions, next)?;
             next += 1;
         }
         let Network { states, edges, .. } = network;
 
-        let before = must_evaluate(&states, &edges);
+        let before = must_evaluate_with(&states, &edges, resets);
         Ok(Self {
             states,
             edges,
@@ -221,43 +245,62 @@ impl Flow {
     }
 }
 
-fn transition(
-    context: &Context<'_>,
-    state: &State,
-    edge: &CfgEdge,
-    relevant: &BTreeSet<String>,
-) -> Result<State, String> {
-    let mut outcomes = state.outcomes.clone();
-    if matches!(edge.kind, CfgEdgeKind::True | CfgEdgeKind::False) {
-        let controller = context
-            .operation_at(&edge.source)
-            .ok_or("Boolean edge lacks an operation")?;
-        if relevant.contains(controller) {
-            outcomes.insert(
-                controller.into(),
-                if edge.kind == CfgEdgeKind::True {
-                    "true"
-                } else {
-                    "false"
-                }
-                .into(),
-            );
-        }
-    }
-    Ok(State {
-        vertex: edge.target.clone(),
-        outcomes,
-    })
+struct Transitions<'a, 'b> {
+    context: &'a Context<'b>,
+    relevant: &'a BTreeSet<String>,
+    resets: &'a Resets,
 }
 
+impl Transitions<'_, '_> {
+    fn apply(&self, state: &State, edge: &CfgEdge) -> Result<State, String> {
+        let mut outcomes = state.outcomes.clone();
+        if matches!(edge.kind, CfgEdgeKind::True | CfgEdgeKind::False) {
+            let controller = self
+                .context
+                .operation_at(&edge.source)
+                .ok_or("Boolean edge lacks an operation")?;
+            if self.relevant.contains(controller) {
+                outcomes.insert(
+                    controller.into(),
+                    if edge.kind == CfgEdgeKind::True {
+                        "true"
+                    } else {
+                        "false"
+                    }
+                    .into(),
+                );
+            }
+        }
+        self.resets.clear_guards(self.context, edge, &mut outcomes);
+        Ok(State {
+            vertex: edge.target.clone(),
+            outcomes,
+        })
+    }
+}
+
+#[cfg(test)]
 fn must_evaluate(states: &[State], edges: &BTreeSet<(usize, usize)>) -> Vec<BTreeSet<String>> {
+    must_evaluate_with(states, edges, &Resets::default())
+}
+
+fn must_evaluate_with(
+    states: &[State],
+    edges: &BTreeSet<(usize, usize)>,
+    resets: &Resets,
+) -> Vec<BTreeSet<String>> {
     let all: BTreeSet<_> = states.iter().map(|state| state.vertex.clone()).collect();
     let mut before = vec![all; states.len()];
     before[0].clear();
+    let proof = MustEvaluation {
+        states,
+        edges,
+        resets,
+    };
     let mut pending: BTreeSet<_> = (1..states.len()).collect();
 
     while let Some(index) = pending.pop_first() {
-        let next = predecessor_meet(index, states, edges, &before);
+        let next = proof.predecessor_meet(index, &before);
         if next != before[index] {
             before[index] = next;
             pending.extend(
@@ -271,17 +314,26 @@ fn must_evaluate(states: &[State], edges: &BTreeSet<(usize, usize)>) -> Vec<BTre
     before
 }
 
-fn predecessor_meet(
-    index: usize,
-    states: &[State],
-    edges: &BTreeSet<(usize, usize)>,
-    before: &[BTreeSet<String>],
-) -> BTreeSet<String> {
-    let mut next = before[index].clone();
-    for (source, _) in edges.iter().filter(|(_, target)| *target == index) {
-        next.retain(|vertex| before[*source].contains(vertex) || states[*source].vertex == *vertex);
+struct MustEvaluation<'a> {
+    states: &'a [State],
+    edges: &'a BTreeSet<(usize, usize)>,
+    resets: &'a Resets,
+}
+
+impl MustEvaluation<'_> {
+    fn predecessor_meet(&self, index: usize, before: &[BTreeSet<String>]) -> BTreeSet<String> {
+        let mut next = before[index].clone();
+        for (source, _) in self.edges.iter().filter(|(_, target)| *target == index) {
+            let killed = self
+                .resets
+                .region(&self.states[*source].vertex, &self.states[index].vertex);
+            next.retain(|vertex| {
+                !killed.is_some_and(|region| region.contains(vertex))
+                    && (before[*source].contains(vertex) || self.states[*source].vertex == *vertex)
+            });
+        }
+        next
     }
-    next
 }
 
 fn relevant_controllers(context: &Context<'_>) -> BTreeSet<String> {
@@ -311,20 +363,16 @@ struct Network {
 }
 
 impl Network {
-    fn extend(
-        &mut self,
-        context: &Context<'_>,
-        source: usize,
-        relevant: &BTreeSet<String>,
-    ) -> Result<(), String> {
+    fn extend(&mut self, transitions: &Transitions<'_, '_>, source: usize) -> Result<(), String> {
         let vertex = self.states[source].vertex.clone();
-        for edge in context
+        for edge in transitions
+            .context
             .cfg
             .edges
             .iter()
             .filter(|edge| edge.source == vertex)
         {
-            let state = transition(context, &self.states[source], edge, relevant)?;
+            let state = transitions.apply(&self.states[source], edge)?;
             let target = self.intern(state);
             self.edges.insert((source, target));
         }
@@ -378,9 +426,9 @@ fn repeats(cfg: &CfgDocument, start: &str) -> bool {
     false
 }
 
-fn check_nonrepeating(context: &Context<'_>, site: &Site) -> Result<(), String> {
+fn check_nonrepeating(context: &Context<'_>, site: &Site, allow: bool) -> Result<(), String> {
     let controller = cfg_operation(context, &site.controller_pdg_node_id)?;
-    if repeats(context.cfg, controller) {
+    if !allow && repeats(context.cfg, controller) {
         return Err("Value-merge controller can repeat in a cycle".into());
     }
     for alternative in &site.alternatives {
@@ -388,10 +436,12 @@ fn check_nonrepeating(context: &Context<'_>, site: &Site) -> Result<(), String> 
         if value.annotations.get(TYPE).and_then(known_type) == Some("unit") {
             return Err("Unit cyclic alternative value".into());
         }
-        if !matches!(
-            value.category,
-            NodeCategory::Merge | NodeCategory::FormalInput
-        ) && repeats(context.cfg, cfg_operation(context, &value.id)?)
+        if !allow
+            && !matches!(
+                value.category,
+                NodeCategory::Merge | NodeCategory::FormalInput
+            )
+            && repeats(context.cfg, cfg_operation(context, &value.id)?)
         {
             return Err("Cyclic alternative snapshot requires iteration evidence".into());
         }
