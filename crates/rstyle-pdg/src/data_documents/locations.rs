@@ -5,6 +5,17 @@ use serde::{Deserialize, Serialize};
 
 const ABSTRACTION: &str = "rstyle.formal-field/2";
 
+fn abstraction(path: &[Projection]) -> &'static str {
+    if path
+        .iter()
+        .any(|step| matches!(step, Projection::IndexedElement { .. }))
+    {
+        "rstyle.formal-indexed-element/1"
+    } else {
+        ABSTRACTION
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct LocationKey {
@@ -61,7 +72,7 @@ impl LocationTable {
         let mut ids = BTreeSet::new();
         for location in locations {
             let id = LocationId::from_wire(&location.id, locations.len())?;
-            if location.abstraction != ABSTRACTION || !ids.insert(id) {
+            if !ids.insert(id) {
                 return Err("Unsupported or duplicate local location record".into());
             }
             let record = Record::deserialize(
@@ -71,6 +82,11 @@ impl LocationTable {
                     .ok_or("Missing typed location record")?,
             )
             .map_err(|error| error.to_string())?;
+            if location.abstraction != abstraction(&record.path) {
+                return Err(
+                    "Location abstraction disagrees with its projection interpretation".into(),
+                );
+            }
             let key = LocationKey {
                 parameter: record.parameter,
                 root_symbol: record.root_symbol,
@@ -141,6 +157,33 @@ impl<'a> LocationContext<'a> {
         })
     }
 
+    pub fn read_accesses(
+        &mut self,
+        locations: Vec<crate::field_locations::derived::Located>,
+    ) -> Result<(Vec<crate::Access>, BTreeMap<String, MemoryLocation>), String> {
+        let entries = locations
+            .into_iter()
+            .map(|location| {
+                self.formal_location(
+                    location.parameter,
+                    &location.path,
+                    TypeToken::from_tree(&location.value),
+                )
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let reads = entries
+            .keys()
+            .map(|id| crate::Access {
+                symbol_id: None,
+                location_id: Some(id.clone()),
+                unresolved_reason: None,
+                operand_position: Some(0),
+            })
+            .collect();
+
+        Ok((reads, entries))
+    }
+
     pub fn formal_location(
         &mut self,
         parameter: u32,
@@ -164,14 +207,14 @@ impl<'a> LocationContext<'a> {
 
         let location = MemoryLocation {
             id: id.clone(),
-            abstraction: ABSTRACTION.into(),
+            abstraction: abstraction(&key.path).into(),
             description: "Read-only formal projection; shared roots may alias".into(),
             evidence: crate::Capability {
                 policy: Some(
                     crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?.policy(),
                 ),
                 status: crate::CapabilityStatus::Supported,
-                description: "Independent source/resolved field and immutable concrete type proof"
+                description: "Independent source projection and immutable concrete type proof"
                     .into(),
             },
             extensions: BTreeMap::from([(

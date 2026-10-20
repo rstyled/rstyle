@@ -139,7 +139,7 @@ fn captured(location: Location) -> Result<Vec<Located>, String> {
     }
 }
 
-fn referents(
+pub(crate) fn referents(
     base: &HirNode,
     facts: &dyn EvidenceFacts,
     origins: Vec<Origin>,

@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.29.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.30.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -110,7 +110,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](docs/extraction-profiles/reference-value-fields-v1.md). Data-v3 3.27.0 adds [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md), snapshot copies and branch/loop origin flow. Data-v3 3.28.0 adds [indirect shared-reference field reads](docs/extraction-profiles/indirect-field-reads-v1.md) through multiple origins, mutable bindings, snapshots and shared helper results. Aggregate helper-result field bases remain unfinished. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
-| D15 | Array/slice element reads | Missing | `xs[i]` | Evaluate base/index once, preserve element location/index identity and bounds behavior. |
+| D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Aggregate/reference elements and complete exceptional flow remain unfinished. |
 | D16 | Slice ranges and borrowed subslices | Missing | `&xs[start..end]` | Bound evaluation, range representation, source origins, checks and panic limitations; str has separate UTF-8 constraints. |
 | D17 | Checked access and concrete Option | Missing | `xs.get(i)`, `Some(x)`, `None` | Registered access semantics plus construction/discriminants/bounded payload extraction; part of the read-only goal, not general enum support. |
 | D18 | Reference-bearing array element origins | Missing | `refs: [&S; 2]` | Type observation alone lacks the per-element origin evidence needed for by-value reference-bearing arrays. |
@@ -264,37 +264,42 @@ the same function. Frozen source is in
 | `lz4_flex`: `backtrack_match` | D15, D20–D21 | Indexing plus mutable-reference reads/writes. |
 | `regex-syntax`: `auxiliary_span`, `partial_cmp` | D17, D19, T01, T09, S09 | Option construction is only part of the problem: enum payloads and trait comparison/dispatch are broader tiers. |
 
-## Suggested delivery ladder
+## Delivery priorities (updated 2026-10-20)
 
-This is a proposed sequencing framework, **not measured priority or a new frozen
-acceptance contract**. Rows overlap: library or source-evidence work may be needed
-before a syntax slice can admit a natural function.
+Optimize for useful, correctly admitted complete function families. Capability,
+fixture and commit counts are not success measures. Finish the current scalar
+indexing slice before changing direction.
 
-1. **Re-establish current coverage:** X09. Extend the unchanged frozen sample
-   assessment to Data-v3; record all blocker combinations and unknowns, not just
-   the first error. Do not replace the historical denominator or infer inactivity.
-2. **Finish scalar composition:** V12, F06, F14, S03–S04. Assertions,
-   resolved constants and richer patterns target scalar sample families without
-   requiring a general mutable-memory model.
-3. **Finish connected read-only data:** D11–D18, C10–C13, with S09 and F10.
-   Construction, non-scalar locals, precise reference origins, indexing/subslicing,
-   concrete Option, calls and a usable nominal proof must compose end to end.
-4. **Expand idiomatic safe Rust:** D19–D25, F07–F08, F12–F13, C14–C17,
-   T01–T10. Enums, traits/generics, mutation/ownership/drop, closures and iterators
-   are interacting workstreams, not one small slice each.
-5. **Expand runtime/system boundaries:** C18, D26, A01–A04, U01–U04,
-   alongside exceptional flow. IO, async, synchronization and unsafe/FFI need
-   explicitly bounded effect and execution models.
-6. **Validate usefulness separately:** X10–X11. Freeze natural coverage targets
-   and later held-out quality criteria before claiming real-world applicability
-   or detector quality. Rewrite safety is not an implicit final rung.
+1. **Declare the next end-to-end target from source.** Inspect all known blocker
+   combinations and unknowns for a small tractable natural function family.
+   Record functions, exact build contexts, bounded support and independently
+   specified positive/negative expectations before evaluating admissions. Keep
+   the existing frozen inventory and identities/denominators unchanged; use a
+   separate small development corpus where needed.
+2. **Investigate shared source boundaries early.** Audit S09 and module/import
+   restrictions for constructors, getters and their callers. Replace coarse
+   unit rejection only with justified ownership/drop/effect evidence. Neighboring
+   items, derives, macros and hidden effects remain part of that proof.
+3. **Complete the selected family's read-only chain.** Prioritize required
+   indexing/subslicing, bounds/evaluation order, reference/helper-result flow,
+   concrete checked access/Option and call summaries. Require complete composition
+   through Cargo capture, independent verification, strict admission and matching.
+4. **Close high-impact composition gaps.** Address F10, patterns, aliases,
+   destructuring and scalar gaps when they block that family. Treat concrete
+   Option/Result payload binding, match/if-let and eventually `?` as connected
+   work. Defer broad async/concurrency/unsafe/FFI and general macro support unless
+   required by the declared target.
+5. **Measure each milestone.** Report end-to-end support, new/lost admissions on
+   unchanged selections, remaining blocker combinations and actual validation.
+   A foundational increment may have no gain but must advance a concrete blocker
+   chain. Reassess after repeated milestones without practical gains.
 
-Each capability should advance from missing/partial only after capture, source and
-semantic evidence, CFG/PDG lowering, applicable effect/origin summaries, independent
-verification/import, projection, and a composed real-Cargo fixture are connected.
-Resource exhaustion remains incomplete execution. Keep a small independent
-example and a negative case with each slice, and rerun the frozen natural inventory
-to measure actual gains.
+Preserve strict evidence and historical results: no silent omission, prefix
+certification, invented purity/alias independence, missing-data-as-zero or relaxed
+thresholds. Keep unsupported, unknown, inactive and incomplete outcomes distinct.
+Use independent semantic expectations, adversarial/composition cases and existing
+regressions. Abstraction mining activation, rewrite safety and held-out detector
+quality remain separate from extraction coverage.
 
 ## Measurement baseline and maintenance
 
@@ -1551,3 +1556,31 @@ less than the selected array/slice length on normal completion. Index bounds and
 source correspondence are semantic obligations, not a reason to introduce source
 snapshots or retained provenance caches. General exceptional flow remains a
 separate roadmap item.
+
+
+### Scalar indexing: Data-v3 3.30.0
+
+Adds `rust.scalar-index-reads` (42 capabilities), with unchanged Data matching.
+The [contract](docs/extraction-profiles/scalar-index-reads-v1.md) specifies scalar
+owned/shared array and shared slice reads, access-relative indexed locations,
+normal-completion bounds requirements, and the indexed-helper boundary. No capture
+records, source snapshots or retained caches are added.
+
+MIR experiments confirm that local/field places materialize their base after the
+index expression, whereas computed bases preserve their earlier value. Source
+reference flow and graph lowering follow this ordering while retaining base/index
+operand positions zero/one. The composed Cargo fixture covers 25 functions:
+18 admitted and 7 intentional exclusions, exact origin and value snapshots,
+shared template access counts, independent/strict import, and corrupt bounds,
+locations and operand rejection. D15 remains Partial; D13–D18 and the broader
+roadmap remain active.
+
+Validation for this indexing milestone: 764 workspace tests passed with 5 existing
+ignores; workspace clippy and formatting passed. Repository-built rstyle checked
+2412 functions with 0 violations; patterns reported 0 candidates. All 14 inventory
+tests passed. Frozen rerun `target/hir-coverage/run-1sbtdgtr/` preserves all 60
+identities/outcomes, denominators and context counts from `run-8dgqxypr/`:
+11 admitted, 42 excluded, 7 inactive (0 gained, 0 lost). Capture validated 26 graph
+documents (10 lz4_flex, 0 regex-syntax, 16 time-core). This is foundational scalar
+index support, not completion of the subslice/conversion/checked-access/helper
+chains needed by the natural read-only targets. No performance gain is claimed.

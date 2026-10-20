@@ -287,11 +287,12 @@ fn check_boundary(
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
         || !pair.pdg.memory_locations.is_empty()
             && !crate::helper_reads::supported(facts, pair.as_view())
-        || pair
-            .pdg
-            .nodes
-            .iter()
-            .any(|node| matches!(node.attributes.construct.as_deref(), Some("loop" | "while")))
+        || pair.pdg.nodes.iter().any(|node| {
+            matches!(
+                node.attributes.construct.as_deref(),
+                Some("loop" | "while" | "data.index" | "data.value-index")
+            )
+        })
     {
         return Err(vec![
             "Helper summary requires verified memory-free or registered shared read-only effects, nonpanicking acyclic returning flow"

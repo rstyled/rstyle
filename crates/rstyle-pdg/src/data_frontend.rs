@@ -249,6 +249,9 @@ fn verify_nodes(
         crate::data_aggregates::verify(node, facts)?;
     }
     crate::data_locals::verify_node(node, facts)?;
+    if crate::data_index_reads::candidate(node, facts) {
+        crate::data_index_reads::verify(node, facts)?.locations(facts)?;
+    }
     if crate::data_dereferences::candidate(node, facts) {
         crate::field_locations::derived::locations(node, facts)?;
     }

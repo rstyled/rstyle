@@ -23,6 +23,9 @@ pub struct FieldResolution {
 #[serde(tag = "kind", deny_unknown_fields)]
 pub enum Projection {
     SharedReferent,
+    IndexedElement {
+        operand_position: u64,
+    },
     StructField {
         nominal: Nominal,
         position: usize,

@@ -95,7 +95,7 @@ fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
     let count = node.children.len();
     let complete = match node.kind.as_str() {
         "stmt_expr" | "stmt_semi" | "expr_unary" | "expr_cast" => count == 1,
-        "expr_binary" | "expr_assign" | "expr_assign_op" => count == 2,
+        "expr_binary" | "expr_assign" | "expr_assign_op" | "expr_index" => count == 2,
         "expr_if" => (2..=3).contains(&count),
         "expr_ret" => count <= 1,
         "expr_path" | "expr_lit" | "pat_binding" | "ty_annotation" => count == 0,
@@ -310,6 +310,46 @@ impl Builder<'_> {
             operands: self.operand(&flow.value),
             construct: Some("data.field".into()),
             ..template(node, NodeCategory::Read)
+        };
+        self.emit(operation, flow)
+    }
+
+    fn index_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let [base, index] = node.children.as_slice() else {
+            unreachable!("eligible index operands")
+        };
+
+        let late = crate::data_index_reads::delayed_base(base);
+        let (first, second) = if late { (index, base) } else { (base, index) };
+        let flow = self.expression(first, flow);
+        let first_value = flow.value.clone().expect("eligible index operand value");
+        let flow = self.expression(second, flow);
+        let second_value = flow.value.clone().expect("eligible index operand value");
+        let values = if late {
+            vec![second_value, first_value]
+        } else {
+            vec![first_value, second_value]
+        };
+
+        let shared = crate::data_index_reads::shared_base(node);
+        let operation = Operation {
+            operands: values,
+            construct: Some(
+                if shared {
+                    "data.index"
+                } else {
+                    "data.value-index"
+                }
+                .into(),
+            ),
+            ..template(
+                node,
+                if shared {
+                    NodeCategory::Read
+                } else {
+                    NodeCategory::Computation
+                },
+            )
         };
         self.emit(operation, flow)
     }
@@ -1027,6 +1067,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         }
         "expr_path" => Builder::read,
         "expr_field" => Builder::field_read,
+        "expr_index" => Builder::index_read,
         "expr_unary" => Builder::unary,
         "expr_addr_of" => Builder::borrow,
         "expr_tup" if !node.children.is_empty() => Builder::computation,

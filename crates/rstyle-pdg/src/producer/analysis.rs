@@ -364,7 +364,7 @@ fn read_edges(
 ) -> Result<Vec<Dependence>, String> {
     if matches!(
         node.construct.as_deref(),
-        Some("data.indirect-field" | "data.indirect-deref")
+        Some("data.indirect-field" | "data.indirect-deref" | "data.index")
     ) && node.symbol.is_none()
     {
         return Ok(Vec::new());

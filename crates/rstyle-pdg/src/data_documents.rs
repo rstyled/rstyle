@@ -2,6 +2,7 @@
 
 mod aggregates;
 mod borrows;
+mod index_reads;
 mod indirect_reads;
 mod locals;
 mod locations;
@@ -38,13 +39,23 @@ fn install_locations(
         .map(|field| install_field(&mut pair.pdg, field, &mut context))
         .collect::<Result<BTreeMap<_, _>, _>>()?;
 
-    let indirect = indirect_reads::install(&mut pair, &mut context)?;
-    let locations = crate::helper_reads::merge_locations(locations, indirect)?;
-    let helpers = crate::helper_reads::install(&mut pair, &mut context)?;
+    let derived = install_derived_reads(&mut pair, &mut context)?;
     finish_locations(
         pair,
-        crate::helper_reads::merge_locations(locations, helpers)?,
+        crate::helper_reads::merge_locations(locations, derived)?,
     )
+}
+
+fn install_derived_reads(
+    pair: &mut Pair,
+    context: &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    let indirect = indirect_reads::install(pair, context)?;
+    let indexed = index_reads::install(pair, context)?;
+    let helpers = crate::helper_reads::install(pair, context)?;
+    let locations = crate::helper_reads::merge_locations(indirect, indexed)?;
+
+    crate::helper_reads::merge_locations(locations, helpers)
 }
 
 fn finish_locations(
@@ -138,7 +149,13 @@ pub fn read_keys(node: &crate::PdgNode) -> Vec<String> {
             access
                 .location_id
                 .as_ref()
-                .map(|id| format!("location:{id}"))
+                .map(|id| {
+                    if node.attributes.construct.as_deref() == Some("data.index") {
+                        format!("location:{id}:index-read:{}", node.id)
+                    } else {
+                        format!("location:{id}")
+                    }
+                })
                 .or_else(|| access.symbol_id.as_ref().map(|id| format!("binding:{id}")))
         })
         .collect()
@@ -199,8 +216,7 @@ pub fn verify<'a>(
     for field in &fields.operations {
         verify_field(pair, &mut context, field, &mut expected)?;
     }
-    expected.extend(indirect_reads::verify_dereferences(pair, &mut context)?);
-    crate::helper_reads::verify_locations(pair, &mut context, &mut expected)?;
+    expected.extend(verify_derived_reads(pair, &mut context)?);
 
     let actual: BTreeMap<_, _> = pair
         .pdg
@@ -223,6 +239,17 @@ pub fn verify<'a>(
     verify_reads(pair, fields.operations.len())?;
     borrows::verify(pair, facts)?;
     origins::verify(pair, facts)
+}
+
+fn verify_derived_reads(
+    pair: crate::producer::PairView<'_>,
+    context: &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    let mut expected = indirect_reads::verify_dereferences(pair, context)?;
+    expected.extend(index_reads::verify(pair, context)?);
+    crate::helper_reads::verify_locations(pair, context, &mut expected)?;
+
+    Ok(expected)
 }
 
 fn verify_field(
@@ -272,6 +299,25 @@ fn serialized_field<'a>(
             NodeCategory::Read | NodeCategory::Computation
         ) && node.original_kind.known_value() == Some("expr_field")
     })
+}
+
+fn serialized_operation_mut<'a>(
+    pair: &'a mut Pair,
+    source: &crate::HirNode,
+) -> Result<&'a mut crate::PdgNode, String> {
+    let node_id = serialized_operation(pair.as_view(), &source.span, |node| {
+        matches!(
+            node.category,
+            NodeCategory::Read | NodeCategory::Computation
+        ) && node.original_kind.known_value() == Some(source.kind.as_str())
+    })?
+    .id
+    .clone();
+    pair.pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.id == node_id)
+        .ok_or_else(|| "Missing serialized source operation".into())
 }
 
 pub(crate) fn serialized_operation<'a>(
@@ -329,6 +375,9 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<
                     &pair.pdg.profile,
                     "rust.shared-dereference-reads",
                 ));
+    let indexed = node.category == NodeCategory::Read
+        && node.original_kind.known_value() == Some("expr_index")
+        && crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.scalar-index-reads");
     let call = node.category == NodeCategory::Call
         && (node.original_kind.known_value() == Some("expr_call")
             || node.original_kind.known_value() == Some("expr_method_call")
@@ -345,6 +394,7 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<
         .iter()
         .any(|access| access.location_id.is_some())
         || !field
+            && !indexed
             && !call
             && node
                 .attributes
@@ -430,6 +480,13 @@ fn field_base<'a>(
         return Err("Field source lacks exact base".into());
     };
 
+    value_operation(pair, base)
+}
+
+fn value_operation<'a>(
+    pair: crate::producer::PairView<'a>,
+    base: &crate::HirNode,
+) -> Result<&'a crate::PdgNode, String> {
     let mut base = base;
     while base.kind == "expr_block"
         && let Some(tail) = base.children.last()

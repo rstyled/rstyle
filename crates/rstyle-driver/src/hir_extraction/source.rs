@@ -167,6 +167,7 @@ fn selected_expression(
         ast::ExprKind::Unary(ast::UnOp::Deref, _) => {
             profile.supports("rust.shared-dereference-reads")
         }
+        ast::ExprKind::Index(..) => profile.supports("rust.scalar-index-reads"),
         ast::ExprKind::Call(..) => profile.supports("rust.verified-helper-calls"),
         ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
         ast::ExprKind::While(..)

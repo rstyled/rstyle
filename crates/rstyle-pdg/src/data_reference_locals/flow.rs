@@ -84,6 +84,17 @@ impl<'a> Index<'a> {
         self.sequence(&node.children, state)
     }
 
+    fn indexed(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {
+        let [base, index] = node.children.as_slice() else {
+            return Err("Index flow lacks two operands".into());
+        };
+        if crate::data_index_reads::delayed_base(base) {
+            self.sequence([index, base], state)
+        } else {
+            self.children(node, state)
+        }
+    }
+
     fn returned(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {
         self.sequence(&node.children, state)?;
         Ok(Transfer::default())
@@ -161,7 +172,11 @@ impl<'a> Index<'a> {
         Ok((remaining, selected))
     }
 
-    fn sequence(&mut self, nodes: &'a [HirNode], state: State) -> Result<Transfer, String> {
+    fn sequence(
+        &mut self,
+        nodes: impl IntoIterator<Item = &'a HirNode>,
+        state: State,
+    ) -> Result<Transfer, String> {
         let mut result = Transfer::normal(state);
         for node in nodes {
             let Some(state) = result.normal.take() else {
@@ -296,6 +311,7 @@ type Handler<'a> = fn(&mut Index<'a>, &'a HirNode, State) -> Result<Transfer, St
 fn dispatch<'a>(node: &HirNode) -> Handler<'a> {
     match node.kind.as_str() {
         "expr_if" => Index::branch,
+        "expr_index" => Index::indexed,
         "expr_while" | "expr_loop" => Index::looped,
         "expr_break" | "expr_continue" => Index::interrupted,
         "expr_ret" => Index::returned,

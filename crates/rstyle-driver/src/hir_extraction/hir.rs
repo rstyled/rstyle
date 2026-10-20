@@ -384,7 +384,8 @@ impl<'tcx> Context<'tcx> {
             ExprKind::Block(block, _) => self.block_children(block),
             ExprKind::Binary(_, left, right)
             | ExprKind::Assign(left, right, _)
-            | ExprKind::AssignOp(_, left, right) => {
+            | ExprKind::AssignOp(_, left, right)
+            | ExprKind::Index(left, right, _) => {
                 vec![self.expression(left), self.expression(right)]
             }
             ExprKind::Unary(_, inner)
@@ -526,13 +527,14 @@ impl<'tcx> Context<'tcx> {
         }
     }
 
-    fn dispatch(&self, expr: &Expr<'tcx>) -> Option<Dispatch> {
-        let (op, operands) = match expr.kind {
+    fn dispatch_operands(&self, expr: &Expr<'tcx>) -> Option<(String, Vec<&'tcx Expr<'tcx>>)> {
+        Some(match expr.kind {
             ExprKind::Binary(op, left, right) => (op.node.as_str().to_string(), vec![left, right]),
             ExprKind::AssignOp(op, left, right) => {
                 (op.node.as_str().to_string(), vec![left, right])
             }
             ExprKind::Unary(op, value) => (op.as_str().to_string(), vec![value]),
+            ExprKind::Index(base, index, _) => ("[]".into(), vec![base, index]),
             ExprKind::Cast(value, _) => ("as".to_string(), vec![value]),
             ExprKind::Call(callee, args) => (
                 self.direct_callee(callee).and_then(|res| {
@@ -548,7 +550,11 @@ impl<'tcx> Context<'tcx> {
                 std::iter::once(receiver).chain(args.iter()).collect(),
             ),
             _ => return None,
-        };
+        })
+    }
+
+    fn dispatch(&self, expr: &Expr<'tcx>) -> Option<Dispatch> {
+        let (op, operands) = self.dispatch_operands(expr)?;
         let operand_tys: Vec<String> = operands
             .iter()
             .map(|e| {

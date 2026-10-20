@@ -17,6 +17,7 @@ mod data_component_origins;
 mod data_dereferences;
 pub mod data_documents;
 pub mod data_frontend;
+mod data_index_reads;
 pub mod data_library;
 mod data_locals;
 pub mod data_origins;

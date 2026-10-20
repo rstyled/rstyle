@@ -36,18 +36,7 @@ pub(super) fn install(
 }
 
 fn install_read(pair: &mut Pair, source: &HirNode, reads: Vec<Access>) -> Result<(), String> {
-    let node = pair
-        .pdg
-        .nodes
-        .iter_mut()
-        .find(|node| {
-            node.original_kind.known_value() == Some(source.kind.as_str())
-                && node.source_span.as_ref().is_some_and(|span| {
-                    span.start == u64::from(source.span.start)
-                        && span.end == u64::from(source.span.end)
-                })
-        })
-        .ok_or("Missing indirect field read")?;
+    let node = super::serialized_operation_mut(pair, source)?;
     node.attributes.reads = reads;
     Ok(())
 }
@@ -56,27 +45,8 @@ fn effects(
     source: &HirNode,
     context: &mut LocationContext<'_>,
 ) -> Result<(Vec<Access>, BTreeMap<String, MemoryLocation>), String> {
-    let entries = derived::locations(source, context.facts)?
-        .into_iter()
-        .map(|location| {
-            context.formal_location(
-                location.parameter,
-                &location.path,
-                crate::data_types::TypeToken::from_tree(&location.value),
-            )
-        })
-        .collect::<Result<BTreeMap<_, _>, _>>()?;
-    let reads = entries
-        .keys()
-        .map(|id| Access {
-            symbol_id: None,
-            location_id: Some(id.clone()),
-            unresolved_reason: None,
-            operand_position: Some(0),
-        })
-        .collect();
-
-    Ok((reads, entries))
+    let locations = derived::locations(source, context.facts)?;
+    context.read_accesses(locations)
 }
 
 pub(super) fn verify(

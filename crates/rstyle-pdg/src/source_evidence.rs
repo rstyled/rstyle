@@ -180,6 +180,12 @@ impl Inventory<'_> {
             return Some("expr_array");
         }
 
+        if matches!(expression, syn::Expr::Index(_))
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.scalar-index-reads"))
+        {
+            return Some("expr_index");
+        }
         if matches!(expression, syn::Expr::Field(_) | syn::Expr::Reference(_))
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.concrete-read-only-data"))

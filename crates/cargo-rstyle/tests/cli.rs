@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.29.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.30.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.29.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.30.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -10447,4 +10447,229 @@ fn check_dereference_flow_component(report: &Value) {
             ]}
         ])
     );
+}
+
+const INDEX_READ_FAMILY: &str = r#"
+    pub struct Holder<'a> { pub bytes: &'a [u8] }
+    pub fn first(a: &[u8], i: usize) -> u8 { a[i] }
+    pub fn other(a: &[u8], i: usize) -> u8 { a[i] }
+    pub fn array(a: [u8; 3], i: usize) -> u8 { a[i] }
+    pub fn local_array(a: u8, b: u8, i: usize) -> u8 { let values = [a, b]; values[i] }
+    pub fn shared_array(a: &[u8; 3], i: usize) -> u8 { a[i] }
+    pub fn field(h: &Holder<'_>, i: usize) -> u8 { h.bytes[i] }
+    pub fn mutable(a: &[u8], b: &[u8], i: usize) -> u8 { let mut selected = a; selected = b; selected[i] }
+    pub fn index_rebind<'a>(mut a: &'a [u8], b: &'a [u8]) -> u8 { a[{ a = b; 0 }] }
+    pub fn array_rebind(mut a: [u8; 2], b: [u8; 2]) -> u8 { a[{ a = b; 0 }] }
+    pub fn field_rebind<'a>(mut h: &'a Holder<'a>, other: &'a Holder<'a>) -> u8 { h.bytes[{ h = other; 0 }] }
+    pub fn computed<'a>(mut selected: &'a [u8], other: &'a [u8]) -> u8 { ({ selected })[{ selected = other; 0 }] }
+    pub fn computed_array(mut a: [u8; 2], b: [u8; 2]) -> u8 { ({ a })[{ a = b; 0 }] }
+    pub fn snapshot(a: &[u8], b: &[u8], i: usize) -> u8 { let mut selected = a; let saved = selected; selected = b; saved[i] }
+    pub fn looped(a: &[u8], b: &[u8], mut count: u32, i: usize) -> u8 { let mut selected = a; while count > 0 { selected = b; count -= 1; } selected[i] }
+    pub fn loop_read(a: &[u8], mut i: usize) -> u8 { let mut value = 0; while i > 0 { i -= 1; value = a[i]; } value }
+    pub fn choose<'a>(a: &'a [u8], b: &'a [u8], pick: bool) -> &'a [u8] { if pick { a } else { b } }
+    pub fn helper_base(a: &[u8], b: &[u8], pick: bool, i: usize) -> u8 { choose(a, b, pick)[i] }
+    pub fn twice(a: &[u8], i: usize, j: usize) -> u8 { a[i] + a[j] }
+    pub fn reference_element<'a>(a: &[&'a u8], i: usize) -> &'a u8 { a[i] }
+    pub fn aggregate_element(a: &[(u8, u8)], i: usize) -> (u8, u8) { a[i] }
+    pub fn borrow_local(a: [u8; 2], i: usize) -> u8 { let r = &a; r[i] }
+    pub fn write(a: &mut [u8], i: usize) -> u8 { a[i] = 1; a[i] }
+    pub fn range(a: &[u8]) -> &[u8] { &a[1..] }
+    pub fn index_helper(a: &[u8], i: usize) -> u8 { first(a, i) }
+    pub fn array_helper(a: [u8; 3], i: usize) -> u8 { array(a, i) }
+"#;
+
+#[test]
+fn clones_data_index_reads_preserve_places_snapshots_bounds_and_scalar_values() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), INDEX_READ_FAMILY).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["functions"].as_array().unwrap().len(), 25);
+    for function in report["functions"].as_array().unwrap() {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "reference_element"
+                | "aggregate_element"
+                | "borrow_local"
+                | "write"
+                | "range"
+                | "index_helper"
+                | "array_helper"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_index_locations(&report);
+    check_index_place_values(&report);
+    check_index_corruption(&report);
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    for function in legacy["functions"].as_array().unwrap() {
+        if function["facts"]["name"] != "choose" {
+            assert_eq!(function["outcome"], "excluded", "{function}");
+        }
+    }
+}
+
+fn check_index_locations(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for (name, expected) in [
+        ("first", vec![0]),
+        ("mutable", vec![1]),
+        ("index_rebind", vec![1]),
+        ("field_rebind", vec![1]),
+        ("computed", vec![0]),
+        ("snapshot", vec![0]),
+        ("looped", vec![0, 1]),
+        ("helper_base", vec![0, 1]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let mut actual: Vec<_> = pair
+            .pdg
+            .memory_locations
+            .iter()
+            .filter_map(|location| {
+                let record = &location.extensions[rstyle_pdg::data_documents::LOCATION_KEY];
+                let last = record["path"].as_array().unwrap().last().unwrap();
+                if last["kind"] != "IndexedElement" {
+                    return None;
+                }
+                assert_eq!(last["operand_position"], 1);
+                assert_eq!(location.abstraction, "rstyle.formal-indexed-element/1");
+                Some(record["parameter"].as_u64().unwrap())
+            })
+            .collect();
+        actual.sort();
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+fn check_index_place_values(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for (name, category) in [
+        ("array_rebind", rstyle_pdg::NodeCategory::Assignment),
+        ("computed_array", rstyle_pdg::NodeCategory::FormalInput),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        assert!(pair.pdg.memory_locations.is_empty());
+        let indexed = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.attributes.construct.as_deref() == Some("data.value-index"))
+            .unwrap();
+        let base = pair
+            .pdg
+            .edges
+            .iter()
+            .find(|edge| {
+                edge.target == indexed.id
+                    && edge.subkind == "value_operand"
+                    && edge.operand_position == Some(0)
+            })
+            .unwrap();
+        let reaching: Vec<_> = pair
+            .pdg
+            .edges
+            .iter()
+            .filter(|edge| edge.target == base.source && edge.subkind == "reaching_definition")
+            .collect();
+        assert_eq!(reaching.len(), 1);
+        let producer = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.id == reaching[0].source)
+            .unwrap();
+        assert_eq!(producer.category, category, "{name}");
+    }
+    check_index_access_count(report);
+}
+
+fn check_index_access_count(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "twice")
+        .unwrap();
+    let pair = shared_evidence::pair(&unit, function);
+    assert_eq!(pair.pdg.memory_locations.len(), 1);
+    assert_eq!(pair.pdg.function.reference_count.value, Some(5));
+}
+
+fn check_index_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    for mutation in ["bounds", "missing", "symbol", "selector", "operand"] {
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        corrupt_index(&mut pair, mutation);
+        assert!(
+            rstyle_pdg::data_documents::verify(&pair, &facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&pair, &facts).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+fn corrupt_index(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
+    let node = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.index"))
+        .unwrap();
+    match mutation {
+        "bounds" => {
+            node.annotations.remove("rstyle.data:index-bounds");
+        }
+        "missing" => node.attributes.reads.clear(),
+        "symbol" => node.attributes.reads[0].symbol_id = Some("invented".into()),
+        "selector" => {
+            pair.pdg.memory_locations[0]
+                .extensions
+                .get_mut(rstyle_pdg::data_documents::LOCATION_KEY)
+                .unwrap()["path"][1]["operand_position"] = 0.into()
+        }
+        _ => {
+            pair.pdg
+                .edges
+                .iter_mut()
+                .find(|edge| {
+                    edge.target == node.id
+                        && edge.subkind == "value_operand"
+                        && edge.operand_position == Some(1)
+                })
+                .unwrap()
+                .operand_position = Some(0)
+        }
+    }
 }
