@@ -3,7 +3,7 @@ use super::{BuiltinCopy, Origin};
 use crate::{ByteSpan, HirFnFacts};
 use syn::{Token, punctuated::Punctuated, spanned::Spanned};
 
-pub(super) fn verify(
+pub(crate) fn verify(
     facts: &HirFnFacts,
     origin: &Origin,
     observed: &BuiltinCopy,

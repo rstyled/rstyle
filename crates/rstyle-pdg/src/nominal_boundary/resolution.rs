@@ -11,6 +11,7 @@ use crate::{
 };
 use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
 pub(crate) mod environment;
+mod selected;
 pub(crate) use environment::Environment;
 use syn::spanned::Spanned;
 
@@ -64,12 +65,18 @@ struct Declaration {
     path: PathBuf,
     span: ByteSpan,
     namespace: Namespace,
+    module_index: usize,
+    item_index: usize,
 }
 
 pub fn verify(facts: &HirFnFacts, interface: &InterfaceObservations) -> Result<Resolution, String> {
     let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
     let constants = constant_context(facts)?;
-    let environment = Rc::new(Environment::with_constants(Arc::clone(&census), constants)?);
+    let environment = Rc::new(Environment::with_options(
+        Arc::clone(&census),
+        constants,
+        selected_cfgs(facts)?,
+    )?);
     verify_in(facts, interface, environment)
 }
 
@@ -108,6 +115,9 @@ pub(crate) fn verify_in(
         &origins,
         environment.census(),
     )?;
+    if environment.copy_boundary {
+        selected::verify(facts, &origins, &resolution.trees, &environment)?;
+    }
     function_scope(
         facts,
         &environment.modules,
@@ -138,16 +148,44 @@ fn source_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
 struct Index {
     declarations: BTreeMap<Namespace, Declaration>,
     imports: BTreeMap<(Namespace, String), Namespace>,
+    unresolved_expansions: std::collections::BTreeSet<Namespace>,
 }
-fn build_index(modules: &[census::Module], census: &census::Census) -> Result<Index, String> {
+fn build_index(
+    modules: &[census::Module],
+    census: &census::Census,
+    cfgs: Option<&[String]>,
+) -> Result<Index, String> {
     let mut index = Index {
         declarations: BTreeMap::new(),
         imports: BTreeMap::new(),
+        unresolved_expansions: Default::default(),
     };
-    for module in modules {
-        index.items(module, file_bytes(census, &module.path)?)?;
+    for (module_index, module) in modules.iter().enumerate() {
+        index.items(&IndexSite {
+            module,
+            bytes: file_bytes(census, &module.path)?,
+            module_index,
+            selected: cfgs.is_some(),
+        })?;
+        if let Some(cfgs) = cfgs {
+            let configuration = crate::conditional_source::Configuration::new(cfgs);
+            if module
+                .items
+                .iter()
+                .any(|item| selected::module_item(item, &configuration).is_err())
+            {
+                index.unresolved_expansions.insert(module.namespace.clone());
+            }
+        }
     }
     for (namespace, name) in index.imports.keys() {
+        if cfgs.is_some()
+            && (selected::builtin_derive(name)
+                || concrete_types::scalar(name)
+                || name.starts_with("*::"))
+        {
+            index.unresolved_expansions.insert(namespace.clone());
+        }
         let key: Vec<_> = namespace.iter().cloned().chain([name.clone()]).collect();
         if index.declarations.contains_key(&key) {
             return Err("Import shadows a nominal declaration".into());
@@ -155,72 +193,129 @@ fn build_index(modules: &[census::Module], census: &census::Census) -> Result<In
     }
     Ok(index)
 }
+struct IndexSite<'a> {
+    module: &'a census::Module,
+    bytes: &'a str,
+    module_index: usize,
+    selected: bool,
+}
+
 impl Index {
-    fn items(&mut self, module: &census::Module, bytes: &str) -> Result<(), String> {
-        for item in &module.items {
+    fn items(&mut self, site: &IndexSite<'_>) -> Result<(), String> {
+        for (item_index, item) in site.module.items.iter().enumerate() {
             match item {
-                syn::Item::Struct(item) => {
-                    let mut key = module.namespace.clone();
-                    key.push(item.ident.to_string());
-                    if concrete_types::lifetimes::parameter_count(&item.generics).is_err()
-                        || self
-                            .declarations
-                            .insert(
-                                key,
-                                Declaration {
-                                    path: module.path.clone(),
-                                    span: source_span(bytes, item.span()),
-                                    namespace: module.namespace.clone(),
-                                },
-                            )
-                            .is_some()
-                    {
-                        return Err("Generic or ambiguous nominal declaration".into());
+                syn::Item::Struct(item) => self.structure(site, item_index, item)?,
+                syn::Item::Use(item) => {
+                    let path = match (item.leading_colon.is_some(), site.selected) {
+                        (false, _) => Vec::new(),
+                        (true, true) => vec!["<external>".into()],
+                        (true, false) => {
+                            return Err("External import lacks captured nominal evidence".into());
+                        }
+                    };
+                    Imports {
+                        values: &mut self.imports,
+                        namespace: &site.module.namespace,
+                        selected: site.selected,
                     }
-                }
-                syn::Item::Use(item) if item.leading_colon.is_none() => {
-                    imports_tree(&item.tree, Vec::new(), &module.namespace, &mut self.imports)?;
-                }
-                syn::Item::Use(_) => {
-                    return Err("External import lacks captured nominal evidence".into());
+                    .tree(&item.tree, path)?;
                 }
                 _ => {}
             }
         }
         Ok(())
     }
+
+    fn structure(
+        &mut self,
+        site: &IndexSite<'_>,
+        item_index: usize,
+        item: &syn::ItemStruct,
+    ) -> Result<(), String> {
+        let mut key = site.module.namespace.clone();
+        key.push(item.ident.to_string());
+        if !site.selected && concrete_types::lifetimes::parameter_count(&item.generics).is_err() {
+            return Err("Generic nominal declaration".into());
+        }
+
+        let declaration = Declaration {
+            path: site.module.path.clone(),
+            span: if site.selected {
+                struct_span(site.bytes, item)
+            } else {
+                source_span(site.bytes, item.span())
+            },
+            namespace: site.module.namespace.clone(),
+            module_index: site.module_index,
+            item_index,
+        };
+        if self.declarations.insert(key, declaration).is_some() {
+            return Err("Ambiguous nominal declaration".into());
+        }
+        Ok(())
+    }
 }
 
-fn imports_tree(
-    tree: &syn::UseTree,
-    mut path: Namespace,
-    namespace: &Namespace,
-    imports: &mut BTreeMap<(Namespace, String), Namespace>,
-) -> Result<(), String> {
-    match tree {
-        syn::UseTree::Path(item) => {
-            path.push(item.ident.to_string());
-            imports_tree(&item.tree, path, namespace, imports)
-        }
-        syn::UseTree::Group(item) => {
-            for child in &item.items {
-                imports_tree(child, path.clone(), namespace, imports)?;
+struct Imports<'a> {
+    values: &'a mut BTreeMap<(Namespace, String), Namespace>,
+    namespace: &'a Namespace,
+    selected: bool,
+}
+
+impl Imports<'_> {
+    fn tree(&mut self, tree: &syn::UseTree, mut path: Namespace) -> Result<(), String> {
+        match tree {
+            syn::UseTree::Path(item) => {
+                path.push(item.ident.to_string());
+                self.tree(&item.tree, path)
             }
-            Ok(())
+            syn::UseTree::Group(item) => self.group(item, path),
+            leaf => self.endpoint(leaf, path),
         }
-        leaf => {
-            let (name, alias) = match leaf {
-                syn::UseTree::Name(item) => (item.ident.to_string(), item.ident.to_string()),
-                syn::UseTree::Rename(item) => (item.ident.to_string(), item.rename.to_string()),
-                _ => {
-                    return Err(
-                        "Glob imports require unavailable lexical resolution evidence".into(),
-                    );
-                }
-            };
+    }
+
+    fn endpoint(&mut self, tree: &syn::UseTree, path: Namespace) -> Result<(), String> {
+        match tree {
+            syn::UseTree::Glob(_) if self.selected => self.glob(path),
+            leaf => self.leaf(leaf, path),
+        }
+    }
+
+    fn group(&mut self, item: &syn::UseGroup, path: Namespace) -> Result<(), String> {
+        for child in &item.items {
+            self.tree(child, path.clone())?;
+        }
+        Ok(())
+    }
+
+    fn glob(&mut self, path: Namespace) -> Result<(), String> {
+        // Retain the unresolved glob; it never supplies a selected type witness.
+        let key = (self.namespace.clone(), format!("*::{}", path.join("::")));
+        self.values
+            .entry(key)
+            .or_insert(anchored(path, self.namespace, true)?);
+        Ok(())
+    }
+
+    fn leaf(&mut self, leaf: &syn::UseTree, mut path: Namespace) -> Result<(), String> {
+        let (name, alias) = match leaf {
+            syn::UseTree::Name(item) => (item.ident.to_string(), item.ident.to_string()),
+            syn::UseTree::Rename(item) => (item.ident.to_string(), item.rename.to_string()),
+            _ => return Err("Glob imports require unavailable lexical resolution evidence".into()),
+        };
+        let alias = if name == "self" {
+            if alias == "self" {
+                path.last()
+                    .cloned()
+                    .ok_or("Self import lacks a parent path")?
+            } else {
+                alias
+            }
+        } else {
             path.push(name);
-            insert_import(alias, path, namespace, imports)
-        }
+            alias
+        };
+        insert_import(alias, path, self.namespace, self.values)
     }
 }
 
@@ -232,7 +327,10 @@ fn insert_import(
 ) -> Result<(), String> {
     let path = anchored(path, namespace, true)?;
     if imports.insert((namespace.clone(), name), path).is_some() {
-        return Err("Ambiguous named import".into());
+        return Err(format!(
+            "Ambiguous named import in {}",
+            namespace.join("::")
+        ));
     }
     Ok(())
 }
@@ -374,34 +472,51 @@ fn function_scope(
         .filter(|module| module.path.to_string_lossy() == file)
     {
         let bytes = file_bytes(census, &module.path)?;
-        candidates.extend(module_functions(module, bytes, facts));
+        candidates.extend(module_functions(
+            module,
+            bytes,
+            facts,
+            resolution.environment.copy_boundary,
+        ));
     }
 
     let [(namespace, receiver)] = candidates.as_slice() else {
         return Err("Missing or ambiguous exact lexical function ownership".into());
     };
     resolution.namespace = namespace.clone();
+    if resolution.environment.copy_boundary {
+        selected::check_namespace(&resolution.environment, namespace)?;
+    }
     if let Some(receiver) = receiver {
-        let syn::Type::Path(path) = receiver.as_ref() else {
-            return Err("Unsupported inherent receiver type".into());
-        };
-        resolution.owner_path = Some(
-            Scoped {
-                resolution,
-                namespace: &resolution.namespace,
-            }
-            .name(path)?,
-        );
-        match resolution.resolve(path) {
-            Ok(owner) => resolution.receiver = Some(owner),
-            Err(error)
-                if facts.signature.has_self
-                    || !supports(facts, "rust.static-inherent-helper-calls")? =>
-            {
-                return Err(error);
-            }
-            Err(_) => {}
+        resolve_receiver(resolution, receiver, facts)?;
+    }
+    Ok(())
+}
+
+fn resolve_receiver(
+    resolution: &mut Resolution,
+    receiver: &syn::Type,
+    facts: &HirFnFacts,
+) -> Result<(), String> {
+    let syn::Type::Path(path) = receiver else {
+        return Err("Unsupported inherent receiver type".into());
+    };
+    resolution.owner_path = Some(
+        Scoped {
+            resolution,
+            namespace: &resolution.namespace,
         }
+        .name(path)?,
+    );
+    match resolution.resolve(path) {
+        Ok(owner) => resolution.receiver = Some(owner),
+        Err(error)
+            if facts.signature.has_self
+                || !supports(facts, "rust.static-inherent-helper-calls")? =>
+        {
+            return Err(error);
+        }
+        Err(_) => {}
     }
     Ok(())
 }
@@ -533,6 +648,7 @@ fn module_functions(
     module: &census::Module,
     bytes: &str,
     facts: &HirFnFacts,
+    selected: bool,
 ) -> Vec<(Namespace, Option<Box<syn::Type>>)> {
     let mut candidates = Vec::new();
     for item in &module.items {
@@ -545,9 +661,14 @@ fn module_functions(
                 })
                 .exact(bytes, facts) =>
             {
-                candidates.push((module.namespace.clone(), None))
+                if !selected || selected::function_attributes(facts, &item.attrs).is_ok() {
+                    candidates.push((module.namespace.clone(), None))
+                }
             }
             syn::Item::Impl(item) => {
+                if selected && !selected::implementation(facts, item) {
+                    continue;
+                }
                 for member in &item.items {
                     if let syn::ImplItem::Fn(method) = member
                         && (FunctionSource {
@@ -556,6 +677,8 @@ fn module_functions(
                             body: &method.block,
                         })
                         .exact(bytes, facts)
+                        && (!selected
+                            || selected::function_attributes(facts, &method.attrs).is_ok())
                     {
                         candidates.push((module.namespace.clone(), Some(item.self_ty.clone())));
                     }
@@ -720,5 +843,66 @@ impl Resolution {
             return Err("Nominal owner contradicts the exact lexical declaration/package".into());
         }
         Ok(())
+    }
+}
+
+pub(crate) fn selected_cfgs(facts: &HirFnFacts) -> Result<Option<&[String]>, String> {
+    Ok(supports(facts, "rust.copy-nominal-boundary")?.then_some(facts.build.cfgs.as_slice()))
+}
+
+fn struct_span(bytes: &str, item: &syn::ItemStruct) -> ByteSpan {
+    let start = match item.vis {
+        syn::Visibility::Inherited => item.struct_token.span,
+        _ => item.vis.span(),
+    };
+    ByteSpan {
+        start: source_span(bytes, start).start,
+        end: source_span(bytes, item.span()).end,
+    }
+}
+
+#[cfg(test)]
+mod imports_tests {
+    use super::*;
+
+    #[test]
+    fn grouped_self_renames_and_external_roots_retain_exact_bindings() {
+        let mut values = BTreeMap::new();
+        let namespace = vec!["api".into()];
+        for source in [
+            "use core::fmt::{self, Debug};",
+            "use core::cmp::{self as compare, Ordering};",
+        ] {
+            let item: syn::ItemUse = syn::parse_str(source).unwrap();
+            Imports {
+                values: &mut values,
+                namespace: &namespace,
+                selected: true,
+            }
+            .tree(&item.tree, Vec::new())
+            .unwrap();
+        }
+        assert_eq!(values[&(namespace.clone(), "fmt".into())], ["core", "fmt"]);
+        assert_eq!(
+            values[&(namespace.clone(), "compare".into())],
+            ["core", "cmp"]
+        );
+        assert_eq!(
+            values[&(namespace.clone(), "Debug".into())],
+            ["core", "fmt", "Debug"]
+        );
+        assert!(!values.contains_key(&(namespace.clone(), "self".into())));
+        let item: syn::ItemUse = syn::parse_str("use ::core::fmt as external;").unwrap();
+        Imports {
+            values: &mut values,
+            namespace: &namespace,
+            selected: true,
+        }
+        .tree(&item.tree, vec!["<external>".into()])
+        .unwrap();
+        assert_eq!(
+            values[&(namespace, "external".into())],
+            ["<external>", "core", "fmt"]
+        );
     }
 }

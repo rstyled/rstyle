@@ -21,8 +21,8 @@ of natural-crate support. The first target is four functions in `src/ast/mod.rs`
 
 These functions are selected for ordinary data behavior and a shared declaration
 chain, not for admission success. The source byte identities are already frozen
-in the original inventory; that inventory is not being edited. They currently
-remain excluded. The intended bounded contract is nongeneric, immutable scalar
+in the original inventory; that inventory is not being edited. At initial selection they were all
+excluded; current measured outcomes are recorded below. The intended bounded contract is nongeneric, immutable scalar
 struct construction/projection/comparison with exact local nominal ownership and
 transitive drop-free fields, inside a mixed-content crate. It does not admit the
 neighboring enum, formatting, trait dispatch or destructor bodies.
@@ -997,3 +997,40 @@ The existing source snapshot and parsed module environment should suffice; do
 not add another source inventory/cache. Preserve exact attribute-excluding
 declaration ranges across the origin and resolution indexes. A syntactic local
 Copy check alone is not a whole-module or whole-family certificate.
+
+
+## Natural Copy boundary results and remaining bridge (2026-10-20)
+
+Data-v3 3.37.0 admits the exact four initial Position/Span functions in fresh
+unmodified-package Cargo replay `run-9t3zkk5i`, and the natural Span::splat caller.
+All four initial source identities pass independent document verification, strict
+admission and selected matching against the development counterparts (score 1).
+All 28 pairs across those eight functions evaluate completely. Frozen identities
+and denominators remain unchanged: 18/35/7, five gains and zero losses relative
+to 13/40/7. The complete 956-function natural unit retains every identity and
+source span, with nine gains and zero losses; extra gains are not a newly selected
+family or detector-quality evaluation.
+
+`position-span.rs` is a separate ten-function development corpus, evaluated inside
+ordinary external modules beside generic/enum/Drop/macro contents. Its nine
+admitted cases cover the four endpoints, splat, constructor-result field
+consumption, an existing shared-reference getter caller and alternate getters.
+The composed case constructing a local then calling its shared method remains
+excluded. All 36 admitted pairs evaluate, but this does not complete the bridge:
+implicit owned-local borrowing and concrete helper read substitution still need
+connected support. Keep this failed expectation/case in the selection; do not
+remove it or certify the family from its individual endpoints.
+
+`position-span-oracle.rs` specifies independent runtime expectations against the
+published regex-syntax crate, not reimplemented test getters: distinct scalar
+components and full nested values, splat preservation, and all 64 binary
+combinations of the relevant getter inputs. Both tests pass in a temporary Cargo
+harness depending on `regex-syntax = "=0.8.11"` with default features.
+
+The originally requested matching distinction for altered field paths is not
+achieved: the offset and column getters retain distinct extraction paths but the
+current detector gives score 1 to both shapes. Record this as a separate detector
+limitation; it is not equivalence evidence. Thresholds/scoring remain unchanged.
+Negative Cargo cases still reject missing Copy evidence, relevant unknown macros,
+primitive aliases, relevant globs, and a custom extra derive even alongside a
+valid builtin Copy observation. Unknown sibling effects are never certified.

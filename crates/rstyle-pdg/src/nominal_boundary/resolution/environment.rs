@@ -12,6 +12,7 @@ pub(crate) struct Environment {
     sources: BTreeMap<PathBuf, SourceId>,
     pub(super) modules: Vec<census::Module>,
     pub(super) index: Index,
+    pub(super) copy_boundary: bool,
 }
 
 pub(super) struct SnapshotView<'a> {
@@ -36,12 +37,30 @@ impl Environment {
         Self::with_constants(census, false)
     }
 
+    #[cfg(test)]
     pub(crate) fn with_constants(
         census: Arc<census::Census>,
         constants: bool,
     ) -> Result<Self, String> {
-        let modules = census::verify_with_constants(&census, constants)?;
-        let index = build_index(&modules, &census)?;
+        Self::with_options(census, constants, None)
+    }
+
+    pub(crate) fn with_options(
+        census: Arc<census::Census>,
+        constants: bool,
+        cfgs: Option<&[String]>,
+    ) -> Result<Self, String> {
+        let closed = census::verify_with_constants(&census, constants)
+            .and_then(|modules| build_index(&modules, &census, None).map(|index| (modules, index)));
+        let (modules, index, copy_boundary) = match closed {
+            Ok((modules, index)) => (modules, index, false),
+            Err(error) => {
+                let Some(cfgs) = cfgs else { return Err(error) };
+                let modules = census::verify_selected(&census, cfgs)?;
+                let index = build_index(&modules, &census, Some(cfgs))?;
+                (modules, index, true)
+            }
+        };
         let sources = census
             .files
             .iter()
@@ -58,6 +77,7 @@ impl Environment {
             sources,
             modules,
             index,
+            copy_boundary,
         })
     }
 

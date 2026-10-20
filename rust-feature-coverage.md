@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.36.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.37.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -195,7 +195,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Assertions are a proposed narrow first slice. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | Current unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Other items, macros/derives and unsafe forms can still block simple APIs; finer ownership/drop/effect proofs remain. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Non-Copy declarations, unresolved/custom expansions, rewritten module paths and local aggregate autoref/helper-read composition remain open. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
@@ -2246,3 +2246,96 @@ production cache was introduced to obtain these figures.
 Strict replay also imports all three retained frozen-package bundles under the
 new verifier: time-core 226 functions / eight graphs, lz4_flex 150 / seven, and
 regex-syntax 956 / zero. No root inventory changed.
+
+
+### S09 useful natural admissions through selected Copy declarations (2026-10-20)
+
+Data-v3 is now 3.37.0 with 49 capabilities. The
+[Copy nominal boundary](docs/extraction-profiles/copy-nominal-boundary-v1.md)
+connects the existing checked observations to exact source declarations in
+cfg-selected mixed modules. The legacy closed-unit proof remains available for
+ordinary non-Copy structures. The new path requires nongeneric structs containing
+only scalars and recursively checked structs, with a positive pinned builtin Copy
+proof for every selected declaration. This establishes the relevant no-Drop law
+without assuming that unrelated destructors are absent or that neighboring methods
+are pure. Selected module/function/impl ownership, complete fields and lexical
+expansion/name dependencies remain mandatory.
+
+The index retains all original active items and all import forms, including
+unresolved globs; a glob never supplies a type witness. Unknown expansions or
+custom derives/attributes in an ancestor lexical scope block the selected scope.
+Relevant proc-macro-name imports, globs and primitive aliases also remain closed.
+Unrelated sibling contents remain retained, with generated/unsupported functions
+still classified independently. Module cfg removal is explicit; rewritten paths,
+unsafe module ownership, orphan files and unresolved module attributes fail.
+`use path::{self, Name}` now correctly binds the module's actual name rather than
+creating a spurious binding named self. Declaration ranges use the exact
+attribute-excluding convention captured for the original struct.
+
+Fresh real Cargo replay `run-9t3zkk5i` preserves all 60 frozen function identities,
+source digests, spans and denominators relative to `run-o52m9whk`. It improves
+**13 admitted / 40 excluded / seven inactive** to **18 admitted / 35 excluded /
+seven inactive**, five gains and zero losses. Gains are Position::new, Span::new,
+Span::splat, Span::is_empty and Span::is_one_line. The splat digest remains
+`5e4fb92183b0c3b033fc8e3aaf9a41809e6c2af59f4902c7c11fb295b406afa0`;
+the other four are the original development-target identities. The four-function
+initial selection improves from zero to four admissions; splat exercises the
+natural constructor-call chain. The three packages produce 48 independently
+verified documents (14 lz4_flex, 18 regex-syntax, 16 time-core).
+
+Streaming comparison of every regex-syntax record preserves all 956 names,
+function spans and source digests. Its complete Cargo unit improves from zero
+admissions to nine, with zero losses. The additional four admitted endpoints are
+ClassBytesRange::start/end and Utf8Range::new/matches. These are observed additional
+gains, not independently preselected family-completion claims. All other records
+remain excluded. Capture and assessment are complete. Full-library matching was
+intentionally not run (max-pairs 0); the resulting pair-enumeration/evaluation
+incompleteness is not relabeled as complete.
+
+The separate ten-function Position/Span development selection is nine admitted /
+one excluded; all 36 admitted pairs evaluate completely. It tests nested constructor
+results consumed by direct fields, Span::splat, and a shared-reference getter
+caller in the presence of a sibling generic struct, enum, Drop impl and generated
+function. The generated function remains retained and excluded. All four natural
+endpoints strictly import and match their development counterparts with score 1;
+all 28 pairs across that eight-function selection evaluate without diagnostics
+or incompleteness. Exact offset/line/column read paths are checked independently.
+
+The family is **not complete**. The source-selected composed function constructs
+a local Span then invokes its shared getter, requiring an implicit borrow of the
+owned local. It remains excluded by exact helper receiver/signature and location
+checks. Existing shared-receiver calls do not prove this bridge. The next connected
+work must handle the captured autoref adjustment and concrete local aggregate
+read-summary substitution, preserving evaluation order, snapshots and aliases.
+By-value self updates and cyclic loop/value merges remain separate open blockers.
+Do not move on to checklist syntax merely because the four endpoints now pass.
+
+An initial negative matching expectation was not met: changing the scalar getter
+from offset to column preserves distinct verified field paths, but the existing
+shape matcher still returns Accepted / score 1. This is a documented detector
+limitation. It does not authorize equivalence or rewriting, and no scoring or
+threshold was changed. Detector-quality work remains separate from extraction.
+
+Independent runtime tests against the unmodified published regex-syntax 0.8.11
+pass two oracles: distinct constructor components/full nested values, and all 64
+binary combinations of offset/line/column getter inputs. Negative Cargo cases
+reject missing Copy observations, active unknown macros, primitive aliases,
+unresolved relevant globs, and an additional custom derive even when valid builtin
+Copy evidence is present. Other tests check cfg-selected exact module closure,
+orphan/missing files and grouped self/renamed/external imports.
+
+The implementation adds no capture records, source buffers or serialized proof
+flags. It reuses the existing parsed-unit environment and declaration handles.
+The existing cache now distinguishes cfg contexts and retains failed environment
+construction per immutable census and verification policy. An early full-unit
+experiment exposed repeated deep retries on rejected functions and was stopped;
+retaining that failure prevents the repeated parse. A regression test checks
+strict/generated isolation without publishing function evidence on failure. No
+whole-capture performance guarantee is inferred from these functional results.
+
+The sequential workspace run passes 805 tests with five existing ignores, followed
+by the focused source-closure/import tests. All-targets clippy with warnings denied,
+formatting and diff checks pass. rstyle reports 2,606 functions and zero violations;
+patterns reports zero candidates with 15 existing ignores unchanged. No source
+selection, historical artifact, suppression, ignore, score or threshold was changed.
+S09, D11/D12, D17 and F10 remain Partial and the overall roadmap remains active.

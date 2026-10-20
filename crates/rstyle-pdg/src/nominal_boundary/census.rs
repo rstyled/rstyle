@@ -44,12 +44,25 @@ pub(crate) fn verify_with_constants(
     census: &Census,
     constants: bool,
 ) -> Result<Vec<Module>, String> {
+    verify_mode(census, constants, None)
+}
+
+pub(crate) fn verify_selected(census: &Census, cfgs: &[String]) -> Result<Vec<Module>, String> {
+    verify_mode(census, true, Some(cfgs))
+}
+
+fn verify_mode(
+    census: &Census,
+    constants: bool,
+    cfgs: Option<&[String]>,
+) -> Result<Vec<Module>, String> {
     let files = checked_files(census)?;
     let mut closure = Closure {
         files,
         visited: BTreeSet::new(),
         modules: Vec::new(),
         constants,
+        selected: cfgs.map(crate::conditional_source::Configuration::new),
     };
     let root = &census.context.root_source;
     let directory = root.parent().ok_or("Missing root module directory")?;
@@ -116,6 +129,7 @@ struct Closure<'a> {
     visited: BTreeSet<PathBuf>,
     modules: Vec<Module>,
     constants: bool,
+    selected: Option<crate::conditional_source::Configuration<'a>>,
 }
 
 impl Closure<'_> {
@@ -134,7 +148,11 @@ impl Closure<'_> {
             .ok_or("Missing selected module source buffer")?;
         let source = source.strip_prefix('\u{feff}').unwrap_or(source);
         let file = syn::parse_file(source).map_err(|e| e.to_string())?;
-        boundary_attributes(&file.attrs)?;
+        if let Some(configuration) = &self.selected {
+            selected_attributes(configuration, &file.attrs, true)?;
+        } else {
+            boundary_attributes(&file.attrs)?;
+        }
 
         self.items(
             Site {
@@ -147,8 +165,25 @@ impl Closure<'_> {
     }
 
     fn items(&mut self, site: Site<'_>, items: Vec<syn::Item>) -> Result<(), String> {
+        let items = if let Some(configuration) = &self.selected {
+            items
+                .into_iter()
+                .map(|item| {
+                    configuration
+                        .active(crate::conditional_source::item_attributes(&item))
+                        .map(|active| active.then_some(item))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect()
+        } else {
+            items
+        };
         for item in &items {
-            verify_nested_items(item, self.constants)?;
+            if self.selected.is_none() {
+                verify_nested_items(item, self.constants)?;
+            }
             if let syn::Item::Mod(module) = item {
                 self.child(&site, module)?;
             }
@@ -162,7 +197,12 @@ impl Closure<'_> {
     }
 
     fn child(&mut self, site: &Site<'_>, module: &syn::ItemMod) -> Result<(), String> {
-        if !module.attrs.is_empty() {
+        if module.unsafety.is_some() {
+            return Err("Unsafe module ownership is unsupported".into());
+        }
+        if let Some(configuration) = &self.selected {
+            selected_attributes(configuration, &module.attrs, false)?;
+        } else if !module.attrs.is_empty() {
             return Err("Module attributes require resolved presence/path evidence".into());
         }
         let mut child_namespace = site.namespace.clone();
@@ -265,6 +305,27 @@ fn boundary_impl(item: &syn::ItemImpl, constants: bool) -> Result<(), String> {
     Ok(())
 }
 
+fn selected_attributes(
+    configuration: &crate::conditional_source::Configuration<'_>,
+    attributes: &[syn::Attribute],
+    root: bool,
+) -> Result<(), String> {
+    if !configuration.active(attributes)? {
+        return Err("Inactive module cannot own selected source".into());
+    }
+    for attribute in configuration.effective_attributes(attributes)? {
+        let path = attribute.path();
+        if !["cfg", "doc", "allow", "warn", "deny", "forbid"]
+            .iter()
+            .any(|name| path.is_ident(name))
+            && !(root && path.is_ident("no_std"))
+        {
+            return Err("Selected module attribute lacks supported presence/path semantics".into());
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,6 +343,38 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn selected_cfg_closure_owns_exact_active_files_and_keeps_other_items() {
+        let proof = sample(&[
+            (
+                "/sample/src/lib.rs",
+                "#![no_std]\n#[cfg(feature = \"api\")] mod api; #[cfg(not(feature = \"api\"))] mod other;",
+            ),
+            (
+                "/sample/src/api.rs",
+                "pub struct Data; enum Other { A } impl Drop for Data { fn drop(&mut self) {} }",
+            ),
+        ]);
+        let cfgs = vec!["feature=\"api\"".to_owned()];
+        let modules = verify_selected(&proof, &cfgs).unwrap();
+        assert_eq!(modules.len(), 2);
+        let api = modules
+            .iter()
+            .find(|module| module.namespace == ["api"])
+            .unwrap();
+        // Closure is ownership evidence, not a drop/effect certificate.
+        assert_eq!(api.items.len(), 3);
+        assert!(verify(&proof).is_err());
+        assert!(verify_selected(&proof, &[]).is_err());
+        let mut orphan = proof;
+        orphan.files.push(UnitFile {
+            path: "/sample/src/other.rs".into(),
+            bytes: "".into(),
+            digest: digest(b""),
+        });
+        assert!(verify_selected(&orphan, &cfgs).is_err());
     }
 
     #[test]

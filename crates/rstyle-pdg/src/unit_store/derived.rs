@@ -1,4 +1,4 @@
-//! Successful derived evidence is local to an immutable function and policy.
+//! Function evidence and unit construction results are immutable and policy-local.
 use super::*;
 use crate::{
     inherent_calls::Definition,
@@ -44,7 +44,8 @@ pub(super) struct Sources(RefCell<Vec<SourceContext>>);
 struct SourceContext {
     census: Arc<Census>,
     constants: bool,
-    checked: Checked<Rc<Environment>>,
+    cfgs: Option<Vec<String>>,
+    checked: Checked<Result<Rc<Environment>, String>>,
 }
 
 impl Sources {
@@ -53,27 +54,40 @@ impl Sources {
         self.for_census(
             &census,
             crate::nominal_boundary::resolution::constant_context(facts)?,
+            crate::nominal_boundary::resolution::selected_cfgs(facts)?,
         )
     }
 
-    fn for_census(&self, census: &Arc<Census>, constants: bool) -> Result<Rc<Environment>, String> {
+    fn for_census(
+        &self,
+        census: &Arc<Census>,
+        constants: bool,
+        cfgs: Option<&[String]>,
+    ) -> Result<Rc<Environment>, String> {
         let mut contexts = self.0.borrow_mut();
         let index = if let Some(index) = contexts.iter().position(|context| {
-            Arc::ptr_eq(&context.census, census) && context.constants == constants
+            Arc::ptr_eq(&context.census, census)
+                && context.constants == constants
+                && context.cfgs.as_deref() == cfgs
         }) {
             index
         } else {
             contexts.push(SourceContext {
                 census: Arc::clone(census),
                 constants,
+                cfgs: cfgs.map(<[String]>::to_vec),
                 checked: Checked::default(),
             });
             contexts.len() - 1
         };
         contexts[index]
             .checked
-            .get(|| Environment::with_constants(Arc::clone(census), constants).map(Rc::new))
+            .get(|| {
+                Ok(Environment::with_options(Arc::clone(census), constants, cfgs).map(Rc::new))
+            })?
+            .as_ref()
             .map(Rc::clone)
+            .map_err(Clone::clone)
     }
 
     fn resolve(&self, facts: &HirFnFacts) -> Result<Resolution, String> {
@@ -189,35 +203,56 @@ mod tests {
     fn source_environments_are_owner_and_policy_local_and_reused() {
         let census = crate::nominal_boundary::resolution::environment::tests::census();
         let sources = Sources::default();
-        let first = sources.for_census(&census, false).unwrap();
+        let first = sources.for_census(&census, false, None).unwrap();
         assert!(Rc::ptr_eq(
             &first,
-            &sources.for_census(&census, false).unwrap()
+            &sources.for_census(&census, false, None).unwrap()
         ));
         crate::verification_policy::generated(|| {
-            let generated = sources.for_census(&census, false).unwrap();
+            let generated = sources.for_census(&census, false, None).unwrap();
             assert!(!Rc::ptr_eq(&first, &generated));
             assert!(Rc::ptr_eq(
                 &generated,
-                &sources.for_census(&census, false).unwrap()
+                &sources.for_census(&census, false, None).unwrap()
             ));
         });
         assert!(Rc::ptr_eq(
             &first,
-            &sources.for_census(&census, false).unwrap()
+            &sources.for_census(&census, false, None).unwrap()
         ));
         assert!(!Rc::ptr_eq(
             &first,
-            &Sources::default().for_census(&census, false).unwrap()
+            &Sources::default().for_census(&census, false, None).unwrap()
         ));
-        let constants = sources.for_census(&census, true).unwrap();
+        let constants = sources.for_census(&census, true, None).unwrap();
         assert!(!Rc::ptr_eq(&first, &constants));
         assert!(Rc::ptr_eq(
             &constants,
-            &sources.for_census(&census, true).unwrap()
+            &sources.for_census(&census, true, None).unwrap()
         ));
         let mut changed = (*census).clone();
         changed.files[0].bytes = format!("{} ", changed.files[0].bytes).into();
-        assert!(sources.for_census(&Arc::new(changed), false).is_err());
+        assert!(sources.for_census(&Arc::new(changed), false, None).is_err());
+    }
+
+    #[test]
+    fn immutable_unit_failures_are_retained_without_becoming_function_evidence() {
+        let mut census = crate::nominal_boundary::resolution::environment::tests::census()
+            .as_ref()
+            .clone();
+        census.files[0].digest = "sha256:invalid".into();
+        let census = Arc::new(census);
+        let sources = Sources::default();
+        assert!(sources.for_census(&census, false, None).is_err());
+        assert!(sources.for_census(&census, false, None).is_err());
+        let contexts = sources.0.borrow();
+        assert_eq!(contexts.len(), 1);
+        assert!(contexts[0].checked.0[0].get().unwrap().is_err());
+        assert!(contexts[0].checked.0[1].get().is_none());
+        drop(contexts);
+        crate::verification_policy::generated(|| {
+            assert!(sources.for_census(&census, false, None).is_err());
+        });
+        assert!(sources.0.borrow()[0].checked.0[1].get().unwrap().is_err());
     }
 }

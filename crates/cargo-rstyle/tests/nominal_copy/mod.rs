@@ -1,4 +1,4 @@
-//! Resolved Copy derive evidence is observational; nominal admission stays closed.
+//! Resolved Copy observations and exact original declaration binding.
 use super::*;
 
 #[test]
@@ -19,7 +19,15 @@ fn builtin_copy_observations_bind_trait_macro_and_original_declaration() {
 
 fn check_observations(functions: &[Value]) {
     for function in functions {
-        assert_eq!(function["outcome"], "excluded", "{function}");
+        let positive = matches!(
+            function["facts"]["name"].as_str(),
+            Some("copied" | "Copied::copied_method")
+        );
+        assert_eq!(
+            function["outcome"],
+            if positive { "admitted" } else { "excluded" },
+            "{function}"
+        );
         let facts: rstyle_pdg::HirFnFacts =
             serde_json::from_value(function["facts"].clone()).unwrap();
         let origins = facts
@@ -179,7 +187,7 @@ fn a_procedural_derive_named_copy_cannot_supply_the_builtin_observation() {
     assert_eq!(functions.len(), 3);
 }
 
-fn custom_derive_workspace() -> TempDir {
+pub(super) fn custom_derive_workspace() -> TempDir {
     let directory = clone_workspace();
     let manifest = directory.path().join("Cargo.toml");
     let bytes = std::fs::read_to_string(&manifest).unwrap();
@@ -238,7 +246,14 @@ fn conditional_copy_derives_follow_actual_compiler_presence() {
             .iter()
             .find(|f| f["facts"]["name"] == name)
             .unwrap();
-        assert_eq!(function["outcome"], "excluded");
+        assert_eq!(
+            function["outcome"],
+            if name == "active" {
+                "admitted"
+            } else {
+                "excluded"
+            }
+        );
         let origins: rstyle_pdg::declaration_origins::Origins = serde_json::from_value(
             function["facts"]["build"]["frontend_options"]["concrete_declaration_origins"].clone(),
         )
