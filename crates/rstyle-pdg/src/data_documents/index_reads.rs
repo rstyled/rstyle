@@ -11,37 +11,8 @@ pub(super) fn install(
     pair: &mut Pair,
     context: &mut LocationContext<'_>,
 ) -> Result<BTreeMap<String, MemoryLocation>, String> {
-    if !pair.pdg.nodes.iter().any(operation) {
-        return Ok(BTreeMap::new());
-    }
-
-    let facts = context.facts;
-    let locations = crate::field_locations::operations(&facts.body, &["expr_index"])
-        .into_iter()
-        .map(|source| {
-            let checked = data_index_reads::verify(source, facts)?;
-            let derived = checked.locations(facts)?;
-            let (reads, entries) = context.read_accesses(derived)?;
-            install_node(pair, source, reads, checked.bounds()?)?;
-            Ok(entries)
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-
-    Ok(locations.into_iter().flatten().collect())
-}
-
-fn install_node(
-    pair: &mut Pair,
-    source: &crate::HirNode,
-    reads: Vec<Access>,
-    bounds: serde_json::Value,
-) -> Result<(), String> {
-    let node = super::serialized_operation_mut(pair, source)?;
-    node.attributes.reads = reads;
-    node.annotations
-        .insert(data_index_reads::BOUNDS_KEY.into(), bounds);
-
-    Ok(())
+    super::subslice_views::install(pair, context.facts)?;
+    super::read_accesses::install(pair, context, super::read_accesses::Kind::Index)
 }
 
 pub(super) fn verify(
@@ -49,7 +20,11 @@ pub(super) fn verify(
     context: &mut LocationContext<'_>,
 ) -> Result<BTreeMap<String, MemoryLocation>, String> {
     let facts = context.facts;
-    let sources = crate::field_locations::operations(&facts.body, &["expr_index"]);
+    let (views, sources): (Vec<_>, Vec<_>) =
+        crate::field_locations::operations(&facts.body, &["expr_index"])
+            .into_iter()
+            .partition(|source| crate::data_subslices::candidate(source, facts));
+    super::subslice_views::verify(pair, facts, views)?;
     let serialized = pair.pdg.nodes.iter().filter(|node| operation(node)).count();
     if serialized != sources.len() {
         return Err("Index operation inventory disagrees with source".into());
@@ -120,8 +95,10 @@ fn verify_operands(
 }
 
 fn operation(node: &PdgNode) -> bool {
-    matches!(
-        node.category,
-        NodeCategory::Read | NodeCategory::Computation
-    ) && node.original_kind.known_value() == Some("expr_index")
+    node.attributes.construct.as_deref() != Some("data.subslice-place")
+        && matches!(
+            node.category,
+            NodeCategory::Read | NodeCategory::Computation
+        )
+        && node.original_kind.known_value() == Some("expr_index")
 }

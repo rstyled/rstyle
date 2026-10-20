@@ -9,36 +9,7 @@ pub(super) fn install(
     pair: &mut Pair,
     context: &mut LocationContext<'_>,
 ) -> Result<BTreeMap<String, MemoryLocation>, String> {
-    if !pair.pdg.nodes.iter().any(|node| {
-        matches!(
-            node.attributes.construct.as_deref(),
-            Some("data.indirect-field" | "data.indirect-deref")
-        )
-    }) {
-        return Ok(BTreeMap::new());
-    }
-
-    let sources =
-        crate::field_locations::operations(&context.facts.body, &["expr_field", "expr_unary"]);
-    let places = crate::data_places::Places::verify(context.facts)?;
-    let facts = context.facts;
-    let entries = sources
-        .into_iter()
-        .filter(|source| derived::candidate(source, facts) && !places.contains(source))
-        .map(|source| {
-            let (reads, entries) = effects(source, context)?;
-            install_read(pair, source, reads)?;
-            Ok(entries)
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-
-    Ok(entries.into_iter().flatten().collect())
-}
-
-fn install_read(pair: &mut Pair, source: &HirNode, reads: Vec<Access>) -> Result<(), String> {
-    let node = super::serialized_operation_mut(pair, source)?;
-    node.attributes.reads = reads;
-    Ok(())
+    super::read_accesses::install(pair, context, super::read_accesses::Kind::Indirect)
 }
 
 fn effects(

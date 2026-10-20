@@ -21,6 +21,10 @@ pub(super) fn verify(
         }
         verify_address(node)?;
         let source = super::origins::source_node(node, facts)?;
+        if crate::data_subslices::borrowed(source, facts) {
+            super::subslice_views::verify_borrow(pair, node, source, facts)?;
+            continue;
+        }
         let expected = crate::data_places::borrow_origin(source, facts)?;
         let operand = super::field_base(pair, facts, node)?;
         super::verify_field_value_edge(pair, node, operand)?;

@@ -242,6 +242,13 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if crate::data_subslices::candidate(node, facts) {
+        let checked = crate::data_subslices::verify(node, facts)?;
+        for operand in [checked.base, checked.start, checked.end] {
+            verify_nodes(operand, facts, places)?;
+        }
+        return Ok(());
+    }
     if crate::data_aggregates::constructor(node)
         && crate::extraction_profile::ExtractionProfile::from_facts(facts)?
             .supports("rust.aggregate-literal-values")
@@ -261,6 +268,19 @@ fn verify_nodes(
             verify_path(node, facts, token)?;
         }
     }
+    verify_reference_origins(node, facts, places)?;
+
+    for child in &node.children {
+        verify_nodes(child, facts, places)?;
+    }
+    Ok(())
+}
+
+fn verify_reference_origins(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    places: &crate::data_places::Places,
+) -> Result<(), String> {
     let origins = if places.contains(node) {
         Vec::new()
     } else {
@@ -279,9 +299,6 @@ fn verify_nodes(
         return Err("Reference-valued expression lacks complete formal origins".into());
     }
 
-    for child in &node.children {
-        verify_nodes(child, facts, places)?;
-    }
     Ok(())
 }
 

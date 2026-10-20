@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let mut constructors = Vec::new();
-    collect(&facts.body, &mut constructors);
+    collect(&facts.body, &mut constructors, facts)?;
     if constructors.is_empty() {
         return Ok(());
     }
@@ -117,13 +117,25 @@ impl<'a> Context<'a> {
     }
 }
 
-fn collect<'a>(node: &'a HirNode, constructors: &mut Vec<&'a HirNode>) {
+fn collect<'a>(
+    node: &'a HirNode,
+    constructors: &mut Vec<&'a HirNode>,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    if crate::data_subslices::candidate(node, facts) {
+        let checked = crate::data_subslices::verify(node, facts)?;
+        for operand in [checked.base, checked.start, checked.end] {
+            collect(operand, constructors, facts)?;
+        }
+        return Ok(());
+    }
     if crate::data_aggregates::constructor(node) {
         constructors.push(node);
     }
     for child in &node.children {
-        collect(child, constructors);
+        collect(child, constructors, facts)?;
     }
+    Ok(())
 }
 
 pub(super) fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), String> {

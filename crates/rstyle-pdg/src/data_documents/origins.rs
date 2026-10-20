@@ -135,10 +135,8 @@ impl Graph<'_> {
         selectors: &[usize],
         visiting: &mut BTreeSet<String>,
     ) -> Result<Vec<Origin>, String> {
-        if node.category == NodeCategory::Computation
-            && node.original_kind.known_value() == Some("expr_addr_of")
-        {
-            return super::borrows::graph_origin(node, self.pair).map(|origin| vec![origin]);
+        if let Some(origins) = self.address_origins(node, selectors, visiting) {
+            return origins;
         }
         if node.category == NodeCategory::FormalInput {
             return self.formal(node, selectors);
@@ -151,11 +149,21 @@ impl Graph<'_> {
             return loaded_origins(node, selectors, self.pair);
         }
 
+        self.traversed_origins(node, selectors, visiting)
+    }
+
+    fn traversed_origins(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
         let key = if selectors.is_empty() {
             node.id.clone()
         } else {
             format!("{}:{selectors:?}", node.id)
         };
+
         if !visiting.insert(key.clone()) {
             return if crate::data_reference_locals::flow_enabled(self.facts) {
                 Ok(Vec::new())
@@ -163,11 +171,42 @@ impl Graph<'_> {
                 Err("Cyclic reference value proof is unavailable".into())
             };
         }
+
         let roots = self.selected_inputs(node, selectors, visiting)?;
         if !crate::data_reference_locals::flow_enabled(self.facts) {
             visiting.remove(&key);
         }
         Ok(roots)
+    }
+
+    fn address_origins(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Option<Result<Vec<Origin>, String>> {
+        if node.category == NodeCategory::Computation
+            && node.original_kind.known_value() == Some("expr_addr_of")
+        {
+            let source = match source_node(node, self.facts) {
+                Ok(source) => source,
+                Err(error) => return Some(Err(error)),
+            };
+            if crate::data_subslices::borrowed(source, self.facts) {
+                return Some(
+                    self.operand(node, 0)
+                        .and_then(|base| self.origins(base, selectors, visiting)),
+                );
+            }
+            return Some(super::borrows::graph_origin(node, self.pair).map(|origin| vec![origin]));
+        }
+        if node.attributes.construct.as_deref() == Some("data.subslice-place") {
+            return Some(
+                self.operand(node, 0)
+                    .and_then(|base| self.origins(base, selectors, visiting)),
+            );
+        }
+        None
     }
 
     fn formal(&self, node: &PdgNode, selectors: &[usize]) -> Result<Vec<Origin>, String> {

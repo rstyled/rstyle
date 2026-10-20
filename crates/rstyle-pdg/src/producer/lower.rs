@@ -315,6 +315,14 @@ impl Builder<'_> {
     }
 
     fn index_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_subslices::candidate(node, self.facts) {
+            self.subslice(node, flow)
+        } else {
+            self.scalar_index(node, flow)
+        }
+    }
+
+    fn scalar_index(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let [base, index] = node.children.as_slice() else {
             unreachable!("eligible index operands")
         };
@@ -352,6 +360,18 @@ impl Builder<'_> {
             )
         };
         self.emit(operation, flow)
+    }
+
+    fn subslice(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let checked = crate::data_subslices::verify(node, self.facts).expect("verified subslice");
+        let evaluated = self.evaluate_sequence([checked.base, checked.start, checked.end], flow);
+        let operation = Operation {
+            operands: evaluated.values,
+            construct: Some("data.subslice-place".into()),
+            ..template(node, NodeCategory::Computation)
+        };
+
+        self.emit(operation, evaluated.flow)
     }
 
     fn unary(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -400,7 +420,11 @@ impl Builder<'_> {
     }
 
     fn borrow(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        let flow = self.field_place(&node.children[0], flow);
+        let flow = if crate::data_subslices::borrowed(node, self.facts) {
+            self.expression(&node.children[0], flow)
+        } else {
+            self.field_place(&node.children[0], flow)
+        };
         self.address_operation(node, flow, "data.borrow")
     }
 
@@ -470,6 +494,26 @@ impl Builder<'_> {
         };
 
         self.emit(operation, flow)
+    }
+
+    fn evaluate_sequence<'a>(
+        &mut self,
+        operands: impl IntoIterator<Item = &'a HirNode>,
+        flow: Flow,
+    ) -> Operands {
+        operands.into_iter().fold(
+            Operands {
+                flow,
+                values: Vec::new(),
+            },
+            |mut evaluated, operand| {
+                evaluated.flow = self.expression(operand, evaluated.flow);
+                evaluated
+                    .values
+                    .extend(evaluated.flow.value.iter().cloned());
+                evaluated
+            },
+        )
     }
 
     fn evaluate_operands(&mut self, node: &HirNode, flow: Flow) -> Operands {

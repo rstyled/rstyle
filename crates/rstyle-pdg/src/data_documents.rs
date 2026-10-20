@@ -7,6 +7,8 @@ mod indirect_reads;
 mod locals;
 mod locations;
 mod origins;
+mod read_accesses;
+mod subslice_views;
 mod value_fields;
 pub(crate) use locations::{LocationContext, correspondence as location_correspondence};
 

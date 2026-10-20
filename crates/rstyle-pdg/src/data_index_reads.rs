@@ -8,19 +8,9 @@ use crate::{
     field_locations::{Projection, derived::Located},
     unit_store::EvidenceFacts,
 };
-use serde::Serialize;
 use serde_json::Value;
 
 pub(crate) const BOUNDS_KEY: &str = "rstyle.data:index-bounds";
-
-#[derive(Serialize)]
-struct Bounds {
-    rule: &'static str,
-    base_operand: u64,
-    index_operand: u64,
-    array_length: Option<u64>,
-    exceptional_flow: &'static str,
-}
 
 pub(crate) struct Checked<'a> {
     pub base: &'a HirNode,
@@ -106,14 +96,7 @@ pub(crate) fn verify<'a>(
 
 impl Checked<'_> {
     pub fn bounds(&self) -> Result<Value, String> {
-        serde_json::to_value(Bounds {
-            rule: "index-less-than-length",
-            base_operand: 0,
-            index_operand: 1,
-            array_length: self.length,
-            exceptional_flow: "omitted",
-        })
-        .map_err(|error| error.to_string())
+        crate::data_bounds::Bounds::index(self.length).value()
     }
 
     pub fn locations(&self, facts: &dyn EvidenceFacts) -> Result<Vec<Located>, String> {

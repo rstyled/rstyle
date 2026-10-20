@@ -161,6 +161,12 @@ impl Inventory<'_> {
     }
 
     fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
+        if matches!(expression, syn::Expr::Range(_))
+            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.shared-subslice-views"))
+        {
+            return Some("expr_struct");
+        }
         if matches!(expression, syn::Expr::Struct(_))
             && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.named-struct-values"))

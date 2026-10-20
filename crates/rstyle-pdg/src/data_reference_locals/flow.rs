@@ -88,7 +88,11 @@ impl<'a> Index<'a> {
         let [base, index] = node.children.as_slice() else {
             return Err("Index flow lacks two operands".into());
         };
-        if crate::data_index_reads::delayed_base(base) {
+        let builtin = node
+            .dispatch
+            .as_ref()
+            .is_some_and(|dispatch| dispatch.kind == "builtin");
+        if builtin && crate::data_index_reads::delayed_base(base) {
             self.sequence([index, base], state)
         } else {
             self.children(node, state)

@@ -98,6 +98,13 @@ impl Resolver<'_> {
             "expr_field" => {
                 crate::data_component_origins::select_origins(node, selectors, self.facts)
             }
+            "expr_addr_of"
+                if selectors.is_empty() && crate::data_subslices::borrowed(node, self.facts) =>
+            {
+                crate::data_subslices::verify_borrow(node, self.facts)?;
+                let checked = crate::data_subslices::verify(&node.children[0], self.facts)?;
+                self.source(checked.base, selectors, visiting)
+            }
             "expr_addr_of" if selectors.is_empty() => {
                 Ok(vec![crate::data_places::borrow_origin(node, self.facts)?])
             }

@@ -552,6 +552,17 @@ fn binding_node(binding: &BindingFact) -> HirNode {
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if crate::data_subslices::candidate(node, ctx.facts) {
+        return match crate::data_subslices::verify(node, ctx.facts) {
+            Ok(checked) => Outcome::combine(
+                [checked.base, checked.start, checked.end]
+                    .into_iter()
+                    .map(|operand| check_node(operand, in_expansion, ctx))
+                    .collect(),
+            ),
+            Err(reason) => error("rust.shared-subslice-views", "subslice", node, &reason),
+        };
+    }
     if node.kind == "expr_assert" && ctx.profile.supports("rust.scalar-assertions") {
         return check_assertion(node, ctx);
     }

@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.30.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.31.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -111,7 +111,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
 | D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Aggregate/reference elements and complete exceptional flow remain unfinished. |
-| D16 | Slice ranges and borrowed subslices | Missing | `&xs[start..end]` | Bound evaluation, range representation, source origins, checks and panic limitations; str has separate UTF-8 constraints. |
+| D16 | Slice ranges and borrowed subslices | Partial | `&xs[start..end]` | Data-v3 3.31.0 supports [bounded shared subslice views](docs/extraction-profiles/shared-subslice-views-v1.md) with scalar elements, exact base/start/end snapshots and normal-completion bounds. Arrays, open/inclusive ranges, mutable views, str/UTF-8 rules and transport through helper summaries remain unfinished. |
 | D17 | Checked access and concrete Option | Missing | `xs.get(i)`, `Some(x)`, `None` | Registered access semantics plus construction/discriminants/bounded payload extraction; part of the read-only goal, not general enum support. |
 | D18 | Reference-bearing array element origins | Missing | `refs: [&S; 2]` | Type observation alone lacks the per-element origin evidence needed for by-value reference-bearing arrays. |
 | D19 | General enums and variants | Missing | `enum E { A(u32), B }` | Variant identity, construction, discriminants, payloads, pattern bindings, moves and drop; includes Result and enum-based APIs beyond concrete Option. |
@@ -1616,3 +1616,33 @@ and pinned MIR establish base-before-endpoints snapshots, unlike builtin scalar
 indexing. Full validation and unchanged frozen classifications are recorded in
 the development plan. The next connected support work remains subslice views,
 bounds/source verification and subsequent conversion/Result/byte-read composition.
+
+
+### Connected bounded subslice views: Data-v3 3.31.0
+
+Adds `rust.shared-subslice-views` (43 capabilities). The
+[contract](docs/extraction-profiles/shared-subslice-views-v1.md) connects original
+range syntax, pinned core identities, base-before-endpoints lowering, normal-flow
+bounds, saved/nested/shared-helper-result bases, reference origins and later
+scalar reads. It reuses existing capture and graph records. No source snapshots
+or retained caches are added; internal read installation and bounds serialization
+are shared with existing index/dereference handling.
+
+The composed Cargo tests exercise admitted views and later reads through
+independent document verification, strict replay and matching. Corruption cases
+reject missing bounds, duplicated endpoint roles and invented reads. The source
+reference-flow fix preserves the independent runtime/MIR snapshot oracle while
+keeping builtin scalar-index rebinding behavior. Existing helper summaries cannot
+claim bounds-preserving/nonpanicking view calls, so those callees remain excluded.
+This advances the declared lz4_flex chain; Result/conversion/native-byte operations
+remain required before natural reader admission can be claimed.
+
+Validation: 770 workspace tests passed with 5 existing ignores; workspace clippy
+and formatting passed. Repository-built rstyle checked 2441 functions with 0
+violations and patterns reported 0 candidates. The 14 inventory tests passed.
+Frozen rerun `target/hir-coverage/run-yy464a72/` preserves all 60 identities/outcomes,
+denominators and context counts relative to `run-tw6vnfnv/`: 11 admitted, 42
+excluded, 7 inactive (0 gained, 0 lost); 26 graph documents validated. Natural
+get_batch no longer reports index/range-expansion/additional-type blockers but
+still lacks the required connected call summaries. The next milestone targets
+conversion/Result/native-byte composition together, not separate syntax counts.

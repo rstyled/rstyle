@@ -31,8 +31,12 @@ impl Places {
 
     fn visit(&mut self, node: &HirNode, facts: &HirFnFacts) -> Result<(), String> {
         if node.kind == "expr_addr_of" {
-            borrow_origin(node, facts)?;
-            self.insert_fields(&node.children[0])?;
+            if crate::data_subslices::borrowed(node, facts) {
+                crate::data_subslices::verify_borrow(node, facts)?;
+            } else {
+                borrow_origin(node, facts)?;
+                self.insert_fields(&node.children[0])?;
+            }
         } else if node.kind == "expr_field" && !crate::data_value_fields::candidate(node, facts) {
             let [base] = node.children.as_slice() else {
                 return Err("Field projection lacks one exact base".into());

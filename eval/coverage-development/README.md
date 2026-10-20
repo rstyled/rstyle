@@ -224,3 +224,44 @@ denominators and context counts from `run-h5cz2c75/`: 11 admitted, 42 excluded,
 7 inactive (0 gained, 0 lost). Capture validates 26 graph documents. The independent
 runtime oracle and MIR emission pass. Range capture is evidence preparation,
 not admitted subslice functionality; both natural reader functions remain excluded.
+
+
+## Bounded subslice views implemented (Data-v3 3.31.0)
+
+The [contract](../../docs/extraction-profiles/shared-subslice-views-v1.md)
+connects exclusive bounded shared-slice views, exact endpoint source/callee
+identity, base-before-endpoints snapshots, bounds requirements, saved/nested
+views and subsequent scalar reads. Existing shared helper results can be bases;
+view-containing helper bodies remain outside current summaries. The composed
+Cargo family has 12 functions, 7 admitted and 5 deliberately excluded, with
+independent verification, strict replay and matching. A separate two-function
+Cargo regression compares overloaded-range and builtin-scalar rebinding origins
+against the independent runtime/MIR oracle. Graph and raw-unit corruption cases
+reject lost bounds/operand roles, invented reads and wrong Index/Range identities.
+
+Frozen rerun `target/hir-coverage/run-yy464a72/` preserves all 60 identities and
+outcomes, denominators and context counts relative to `run-tw6vnfnv/`: 11 admitted,
+42 excluded, 7 inactive (0 gained, 0 lost), with 26 validated graph documents.
+The actual safe get_batch rejection set now contains only call-summary/helper
+resolution restrictions: its previous index/range expansion/additional-type
+rejections are gone. get_batch_arch additionally retains the local size constant
+and reference-result composition blockers. Neither reader is yet admitted.
+
+The next milestone must connect concrete slice-to-array conversion,
+Result/unwrap failure and native-byte semantics to obtain a natural get_batch
+admission. Do not split these into disconnected fixture/capability milestones.
+The architecture companion then also needs its local size_of constant/named
+length and borrowed-array conversion/result composition. Preserve the original
+source/build selections and independent byte/window/failure expectations above.
+
+No capture record type, source snapshot or retained cache is added. View bounds
+reuse typed graph annotations. Index and view verification share one existing
+HIR operation inventory, avoiding a second whole-body scan; functions without
+views skip view installation. No broader performance or detector-quality claim
+follows from these structural checks.
+
+Final view-slice gates: 770 workspace tests passed (5 existing ignores), workspace
+clippy and formatting passed, repository-built rstyle checked 2441 functions with
+0 violations, patterns had 0 candidates, and all 14 inventory tests passed.
+The shared-inventory scan refactor was followed by a second complete workspace
+run. No broad runtime performance claim is made.

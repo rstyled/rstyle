@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.30.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.31.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.30.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.31.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -10752,7 +10752,14 @@ fn clones_data_range_capture_distinguishes_core_desugaring_and_custom_structs() 
         let facts = analysis.function(index).unwrap();
         match facts.name.as_str() {
             "window" | "suffix" | "inclusive" => {
-                assert_eq!(function["outcome"], "excluded");
+                assert_eq!(
+                    function["outcome"],
+                    if facts.name == "window" {
+                        "admitted"
+                    } else {
+                        "excluded"
+                    }
+                );
                 check_range_capture(&facts.body);
             }
             "custom" => {
@@ -10795,4 +10802,155 @@ fn find_kind<'a>(node: &'a rstyle_pdg::HirNode, kind: &str) -> Option<&'a rstyle
     node.children
         .iter()
         .find_map(|child| find_kind(child, kind))
+}
+
+#[test]
+fn clones_data_subslice_flow_snapshots_base_before_endpoint_rebinding() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn snapshot<'a>(a: &'a [u8], b: &'a [u8]) -> &'a [u8] {
+            let mut selected = a;
+            &selected[{ selected = b; 0 }..1]
+        }
+        pub fn scalar(a: &[u8], b: &[u8]) -> u8 {
+            let mut selected = a;
+            selected[{ selected = b; 0 }]
+        }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    for function in report["functions"].as_array().unwrap() {
+        let (unit, index) = data_unit(function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        let indexed = find_kind(&facts.body, "expr_index").unwrap();
+        let base = &indexed.children[0];
+        let roots = rstyle_pdg::data_origins::origins(base, &facts).unwrap();
+        let scalar = facts.name == "scalar";
+        assert_eq!(roots.len(), 1);
+        assert_eq!(roots[0].parameter, u32::from(scalar));
+        assert_eq!(function["outcome"], "admitted", "{function}");
+    }
+    check_aggregate_documents(&report);
+}
+
+#[test]
+fn clones_data_shared_subslice_views_preserve_endpoints_and_saved_origins() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn window(a: &[u8], lo: usize, hi: usize) -> &[u8] { &a[lo..hi] }
+        pub fn same(a: &[u8], lo: usize, hi: usize) -> &[u8] { &a[lo..hi] }
+        pub fn read(a: &[u8], lo: usize, hi: usize, i: usize) -> u8 {
+            let view = &a[lo..hi]; view[i]
+        }
+        pub fn saved<'a>(a: &'a [u8], b: &'a [u8], lo: usize, hi: usize) -> &'a [u8] {
+            let mut selected = a; let view = &selected[lo..hi]; selected = b; view
+        }
+        pub fn nested(a: &[u8], lo: usize, hi: usize) -> u8 { let view = &a[lo..hi]; (&view[0..1])[0] }
+        pub fn choose<'a>(a: &'a [u8], b: &'a [u8], pick: bool) -> &'a [u8] { if pick { a } else { b } }
+        pub fn helper_base<'a>(a: &'a [u8], b: &'a [u8], pick: bool) -> &'a [u8] { &choose(a, b, pick)[0..1] }
+        pub fn caller(a: &[u8]) -> &[u8] { window(a, 0, 1) }
+        pub fn array(a: &[u8; 4]) -> &[u8] { &a[0..1] }
+        pub fn suffix(a: &[u8], lo: usize) -> &[u8] { &a[lo..] }
+        pub fn inclusive(a: &[u8], hi: usize) -> &[u8] { &a[0..=hi] }
+        pub fn write(a: &mut [u8], lo: usize, hi: usize) -> &mut [u8] { &mut a[lo..hi] }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    for function in report["functions"].as_array().unwrap() {
+        let positive = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "window" | "same" | "read" | "saved" | "nested" | "choose" | "helper_base"
+        );
+        assert_eq!(
+            function["outcome"],
+            if positive { "admitted" } else { "excluded" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_subslice_corruption(&report);
+    check_equivalent_matching(&report, ["window", "same"]);
+}
+
+fn check_subslice_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "window")
+        .unwrap();
+    check_subslice_authorities(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    for mutation in ["bounds", "operand", "read"] {
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        corrupt_subslice(&mut pair, mutation);
+        assert!(
+            rstyle_pdg::data_documents::verify(&pair, &facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&pair, &facts).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+fn corrupt_subslice(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
+    let node = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.subslice-place"))
+        .unwrap();
+    match mutation {
+        "bounds" => {
+            node.annotations.remove("rstyle.data:subslice-bounds");
+        }
+        "read" => node.attributes.reads.push(rstyle_pdg::Access {
+            symbol_id: Some("invented".into()),
+            location_id: None,
+            unresolved_reason: None,
+            operand_position: Some(0),
+        }),
+        _ => {
+            pair.pdg
+                .edges
+                .iter_mut()
+                .find(|edge| {
+                    edge.target == node.id
+                        && edge.subkind == "value_operand"
+                        && edge.operand_position == Some(2)
+                })
+                .unwrap()
+                .operand_position = Some(1)
+        }
+    }
+}
+
+fn check_subslice_authorities(function: &Value) {
+    for range in [false, true] {
+        shared_evidence::reject_edit(function, |bundle, index| {
+            let indexed = &mut bundle["functions"][index]["body"]["children"][0]["children"][0];
+            let operation = if range {
+                &mut indexed["children"][1]
+            } else {
+                indexed
+            };
+            let mut callee: Value =
+                serde_json::from_str(operation["res"]["description"].as_str().unwrap()).unwrap();
+            callee["definition_hash"] = "invented".into();
+            operation["res"]["description"] = callee.to_string().into();
+        });
+    }
 }

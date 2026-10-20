@@ -51,7 +51,7 @@ pub fn origins(
             field_locations::derived::selected(node, &[], facts)?
         }
         "expr_tup" | "expr_struct" => constructed(node, facts)?,
-        "expr_addr_of" => vec![crate::data_places::borrow_origin(node, facts)?],
+        "expr_addr_of" => borrowed(node, facts)?,
         "expr_block" | "expr_ret" => {
             let value = node
                 .children
@@ -73,6 +73,20 @@ pub fn origins(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect())
+}
+
+fn borrowed(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
+    if crate::data_subslices::borrowed(node, facts) {
+        crate::data_subslices::verify_borrow(node, facts)?;
+        return origins(
+            crate::data_subslices::verify(&node.children[0], facts)?.base,
+            facts,
+        );
+    }
+    Ok(vec![crate::data_places::borrow_origin(node, facts)?])
 }
 
 fn constructed(

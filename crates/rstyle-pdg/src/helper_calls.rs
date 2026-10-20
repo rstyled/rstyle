@@ -290,7 +290,7 @@ fn check_boundary(
         || pair.pdg.nodes.iter().any(|node| {
             matches!(
                 node.attributes.construct.as_deref(),
-                Some("loop" | "while" | "data.index" | "data.value-index")
+                Some("loop" | "while" | "data.index" | "data.value-index" | "data.subslice-place")
             )
         })
     {
