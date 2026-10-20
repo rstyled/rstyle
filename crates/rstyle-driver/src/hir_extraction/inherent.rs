@@ -46,7 +46,7 @@ pub fn capture(ctx: &Context<'_>, id: LocalDefId, facts: &mut HirFnFacts) -> Res
         return Ok(());
     }
     let nominal = if facts.signature.has_self {
-        owner_nominal(facts)
+        owner_nominal(facts, ctx.profile)
     } else {
         super::concrete_types::static_owner(ctx, implementation)?
     };
@@ -90,13 +90,18 @@ fn expanded_signature(tcx: TyCtxt<'_>, id: LocalDefId) -> bool {
         .is_some_and(|signature| signature.span.from_expansion())
 }
 
-fn owner_nominal(facts: &HirFnFacts) -> Option<rstyle_pdg::concrete_types::Nominal> {
+fn owner_nominal(
+    facts: &HirFnFacts,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Option<rstyle_pdg::concrete_types::Nominal> {
     let token = facts.signature.params.first()?.ty.normalized.as_deref()?;
-    let TypeToken::Shared(owner) = rstyle_pdg::data_types::parse(token).ok()? else {
-        return None;
+    let owner = match rstyle_pdg::data_types::parse(token).ok()? {
+        TypeToken::Shared(owner) => *owner,
+        owner @ TypeToken::Struct { .. } if profile.supports("rust.owned-copy-self") => owner,
+        _ => return None,
     };
 
-    match *owner {
+    match owner {
         TypeToken::Struct { nominal, .. } => Some(nominal),
         _ => None,
     }

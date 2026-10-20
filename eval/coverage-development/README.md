@@ -1035,3 +1035,18 @@ limitation; it is not equivalence evidence. Thresholds/scoring remain unchanged.
 Negative Cargo cases still reject missing Copy evidence, relevant unknown macros,
 primitive aliases, relevant globs, and a custom extra derive even alongside a
 valid builtin Copy observation. Unknown sibling effects are never certified.
+
+
+## Copy value-self updates
+
+`span-updates.rs` adds a separate source-selected ten-function selection to the
+same mixed module as `position-span.rs`. Seven positive cases cover both endpoint
+updates, chaining, helper-result receivers, shared getters, retained Copy values
+and UFCS; three negative cases retain mutable/typed self and shared-to-owned
+exclusions. Data-v3 3.39 admits seven versus zero under 3.38 on identical source.
+The original ten remain admitted: all 136 pairs among seventeen positives complete.
+The fourth independent runtime oracle checks exact replacement and preservation
+against published regex-syntax 0.8.11. See the
+[value-self contract](../../docs/extraction-profiles/owned-copy-self-v1.md).
+Direct owned-formal field getter calls still encounter the shared-only helper-read
+boundary; this result does not certify arbitrary by-value methods.

@@ -4,8 +4,34 @@
 mod development;
 
 #[cfg(test)]
+mod updates {
+    use super::development::{Position, Span};
+    include!("span-updates.rs");
+}
+
+#[cfg(test)]
 mod tests {
     use regex_syntax::ast::{Position, Span};
+
+    #[test]
+    fn value_updates_preserve_complete_opposite_endpoint_and_original() {
+        let start = Position::new(3, 5, 7);
+        let end = Position::new(11, 13, 17);
+        let replacement = Position::new(19, 23, 29);
+        let original = Span::new(start, end);
+        assert_eq!(original.with_start(replacement), Span::new(replacement, end));
+        assert_eq!(original.with_end(replacement), Span::new(start, replacement));
+        assert_eq!(original, Span::new(start, end));
+        let build = |p: Position| super::development::Position::new(p.offset, p.line, p.column);
+        let value = super::development::Span::new(build(start), build(end));
+        let updated = super::updates::updated_both(value, build(replacement), build(start));
+        assert!(updated == super::development::Span::new(build(replacement), build(start)));
+        let (saved, changed) = super::updates::retained(value, build(replacement));
+        assert!(saved == value);
+        assert!(changed == super::development::Span::new(build(replacement), build(end)));
+        assert!(!super::updates::updated_empty(value, build(replacement)));
+        assert!(super::updates::updated_empty(value, build(end)));
+    }
 
     #[test]
     fn constructor_to_owned_getter_matches_independent_offsets() {

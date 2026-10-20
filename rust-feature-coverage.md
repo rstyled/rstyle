@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.38.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.39.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -138,8 +138,8 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C03 | Memory-free helpers with shared inputs | Covered | `choose(left, right, flag)` | Supported canonical shared types and actual arguments; shared input alone does not authorize memory reads. |
 | C04 | Whole shared-formal helper results | Covered | `identity_ref(xs).len()` | Verified selected-formal return origins and actual substitution; not a field-reading borrowed-result summary. |
 | C05 | Direct memory-reading shared-input helpers | Covered | `read_field(s)` | Data-v2/v3: scalar/unit results, exact per-occurrence reads and actual-origin substitution, preserving alias uncertainty. |
-| C06 | Concrete inherent method calls and UFCS | Partial | `s.value()`, `S::value(s)` | Data-v3: same-unit nongeneric inherent impl/method, shared receiver or [static associated calls](docs/extraction-profiles/static-inherent-helper-calls-v1.md), exact owner/source proof and supported summary. Shared receivers require adjustment proof. Data-v3 3.38.0 adds [owned Copy receiver snapshots](docs/extraction-profiles/owned-copy-receiver-v1.md) for scalar-returning read-only helpers. No trait dispatch. |
-| C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. Data-v3 3.38.0 also supports exactly one shared borrow of a checked scalar-struct Copy value for a scalar-returning read-only helper. General autoref, repeated/overloaded deref, unsizing and mutable/by-value inherent receivers remain unavailable. |
+| C06 | Concrete inherent method calls and UFCS | Partial | `s.value()`, `S::value(s)` | Data-v3: same-unit nongeneric inherent impl/method, shared receiver or [static associated calls](docs/extraction-profiles/static-inherent-helper-calls-v1.md), exact owner/source proof and supported summary. Shared receivers require adjustment proof. Data-v3 3.38.0 adds [owned Copy receiver snapshots](docs/extraction-profiles/owned-copy-receiver-v1.md) for scalar-returning read-only helpers. Data-v3 3.39.0 adds [checked Copy value-self updates](docs/extraction-profiles/owned-copy-self-v1.md) under the existing body/summary restrictions. No trait dispatch. |
+| C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. Data-v3 3.38.0 also supports exactly one shared borrow of a checked scalar-struct Copy value for a scalar-returning read-only helper. Data-v3 3.39.0 accepts an empty adjustment chain for checked Copy immutable untyped value-self receivers. General autoref, repeated/overloaded deref, unsizing and mutable inherent receivers remain unavailable. |
 | C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Four instantiations only: i32/i64 unsigned_abs and u32/u64 wrapping_mul. Not general primitive-method support. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
 | C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
@@ -2423,3 +2423,56 @@ increase for that workload; it is not a whole-capture performance guarantee.
 Earlier attempts importing retained policy-specific graph inventories were not
 comparable and are discarded, without relaxing strict inventory verification or
 changing the retained artifacts. No production benchmark cache was introduced.
+
+
+### Checked Copy value-self updates (2026-10-20)
+
+Data-v3 3.39.0 completes the selected seven-method Position/Span family with
+`Span::with_start` and `Span::with_end` in the same default-feature natural build
+context and exact source identities recorded above. The bounded
+[value-self contract](docs/extraction-profiles/owned-copy-self-v1.md) requires
+checked Copy ownership, immutable untyped self, exact callee signature and empty
+method adjustment evidence. Existing source snapshots and receiver records are
+reused; no new provenance table, cache or source copy is introduced.
+
+Final frozen replay `run-o2jhsw07` yields **20 admitted / 33 excluded / 7 inactive**:
+two gains and zero losses versus `run-th89oo5m`. The 60-function selection and
+its denominator remain fixed. The 956-function natural unit has eleven admissions.
+Capture and assessment complete; max-pairs zero does not claim full-library matching.
+
+The separate `span-updates.rs` development selection was specified from source
+before activation: seven positive cases and three negative receiver forms. Against
+the same mixed-unit source, policy 3.38 admits zero of these ten and 3.39 admits
+seven, with zero losses. Combined with the unchanged original ten cases, seventeen
+functions admit and all 136 comparisons complete. Independent runtime expectations
+check complete endpoint replacement, opposite-endpoint preservation, retained Copy
+values and update-to-getter composition against published regex-syntax behavior.
+
+A remaining composition gap is direct owned-formal field getters: `get(self) -> u8
+{ self.n }` can leave its caller excluded because the current helper read contract
+requires shared formal locations. This milestone does not claim all by-value
+method bodies. Mutable/typed self, borrowed-to-owned adjustments, non-Copy owners,
+cyclic F10 merges and general Option/payload control flow remain bounded or open.
+The next audit should select natural functions blocked by those combinations.
+
+
+The final verifier imports the complete seven-method natural/development family:
+all fourteen functions strictly admit, all 91 comparisons complete with no
+diagnostics, and each of the seven corresponding pairs is Accepted at score 1.
+These scores are not equivalence or rewrite-safety claims. The four independent
+runtime oracles pass. Cross-target Cargo capture tests pass on installed Linux
+ARM64, Linux x86_64 and macOS ARM64 contexts, including exact negative receiver
+expectations. Formatting, all-targets clippy with warnings denied and diff checks
+pass; rstyle checks 2,618 functions with zero violations, and patterns has zero
+candidates. No scoring, thresholds, suppressions or existing ignore entries change.
+
+A final six-pair alternating performance diagnostic against 58addd6 decodes the
+same raw 956-function input and freshly captures the same four constructor/getter
+records in each version. Both produce four graphs. Median elapsed time is 3.255 s
+baseline /3.230 s current; median peak RSS is 505742 /505724 KiB. No material
+regression is observed for this bounded workload; this is not a whole-capture
+performance guarantee. No production cache or instrumentation is added.
+
+The final corrected workspace run passes 811 tests with 5 existing ignores.
+The signature-binding regression proves an internally consistent borrowed-receiver
+observation cannot substitute for the verified by-value callee signature.

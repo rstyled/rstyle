@@ -76,3 +76,47 @@ pub(crate) fn signature_arguments<'a>(
     arguments[0] = crate::data_types::TypeToken::Shared(Box::new(receiver)).text()?;
     Ok(std::borrow::Cow::Owned(arguments))
 }
+
+/// A by-value receiver reuses the independently checked nominal Copy boundary.
+pub(crate) fn value_self(facts: &dyn EvidenceFacts, owner: &TypeTree) -> Result<bool, String> {
+    Ok(
+        crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.owned-copy-self")
+            && facts.nominal_resolution()?.checked_owned_copy(owner),
+    )
+}
+
+pub(crate) fn value_call(record: &Method, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    let Observation::Captured {
+        ty: owner @ TypeTree::Struct { .. },
+    } = &record.receiver_type
+    else {
+        return Ok(false);
+    };
+    Ok(record.adjustments.is_empty()
+        && record.adjusted_type == record.receiver_type
+        && record.signature_inputs.first() == Some(&record.receiver_type)
+        && value_self(facts, owner)?)
+}
+
+/// Convert an already checked instantiated signature to the source operand types.
+pub(crate) fn call_signature(
+    record: &Method,
+    facts: &dyn EvidenceFacts,
+    signature: &mut [String],
+) -> Result<bool, String> {
+    if value_call(record, facts)? {
+        return Ok(true);
+    }
+    if !from_record(record, facts)? {
+        return Ok(false);
+    }
+
+    let Observation::Captured { ty } = &record.receiver_type else {
+        return Err("Missing concrete owned receiver".into());
+    };
+    *signature
+        .first_mut()
+        .ok_or("Missing instantiated receiver input")? = crate::data_types::token(ty)?;
+    Ok(true)
+}

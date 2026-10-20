@@ -647,7 +647,8 @@ fn supported_inherent_member(item: &syn::ItemImpl, bytes: &str, facts: &HirFnFac
 fn supported_receiver(signature: &syn::Signature, facts: &HirFnFacts) -> bool {
     match signature.inputs.first() {
         Some(syn::FnArg::Receiver(receiver)) => {
-            receiver.reference.is_some()
+            (receiver.reference.is_some()
+                || supports(facts, "rust.owned-copy-self").unwrap_or(false))
                 && receiver.mutability.is_none()
                 && receiver.colon_token.is_none()
         }

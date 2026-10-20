@@ -118,6 +118,12 @@ fn verify_interface(
                 parameter.ty.normalized.as_deref(),
             )?,
             syn::FnArg::Receiver(receiver) => {
+                if receiver.reference.is_none()
+                    && !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+                        .supports("rust.owned-copy-self")
+                {
+                    return Err("Owned self requires its registered Copy boundary".into());
+                }
                 verify_receiver(receiver, observation, parameter, resolution)?
             }
         }
@@ -137,15 +143,20 @@ fn verify_receiver(
     let owning = resolution
         .and_then(|r| r.receiver.as_ref())
         .ok_or("Missing exact owning receiver impl")?;
-    let expected = TypeTree::Shared(Box::new(owning.clone()));
-    if receiver.reference.is_none()
-        || receiver.mutability.is_some()
+    let expected = if receiver.reference.is_some() {
+        TypeTree::Shared(Box::new(owning.clone()))
+    } else if resolution.is_some_and(|r| r.checked_owned_copy(owning)) {
+        owning.clone()
+    } else {
+        return Err("Owned self requires checked Copy/source correspondence".into());
+    };
+    if receiver.mutability.is_some()
         || receiver.colon_token.is_some()
         || !matches!(observation, Observation::Captured { ty } if ty == &expected)
         || parameter.position != 0
         || parameter.ty.normalized.as_deref() != Some(data_types::token(&expected)?.as_str())
     {
-        return Err("Receiver requires exact concrete shared-self correspondence".into());
+        return Err("Receiver requires exact concrete self correspondence".into());
     }
     Ok(())
 }

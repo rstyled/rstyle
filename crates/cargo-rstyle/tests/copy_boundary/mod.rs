@@ -371,3 +371,285 @@ fn check_snapshot_paths(reads: &[rstyle_pdg::helper_reads::Read], mixed: bool) {
         }
     );
 }
+
+#[test]
+fn copy_value_self_updates_compose_with_results_getters_and_ufcs() {
+    let directory = update_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    check_value_self_outcomes(&report);
+    for (name, slot) in [("data::Span::with_start", 0), ("data::Span::with_end", 1)] {
+        check_value_update(read_call_function(&report, name), slot);
+        check_value_owner(read_call_function(&report, name));
+    }
+    check_value_adjustment(read_call_function(&report, "data::updated_both"));
+    assert_eq!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        17
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 136);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    check_aggregate_documents(&report);
+}
+
+fn check_value_update(function: &Value, slot: usize) {
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let construct = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        construct.attributes.literal.as_ref().unwrap().known_value(),
+        Some(format!("[{slot},null]").as_str())
+    );
+    construct.attributes.literal = Some(rstyle_pdg::StringFact::known(&format!(
+        "[{},null]",
+        1 - slot
+    )));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_ccgraph::admit_produced(&pair, &facts).is_err());
+    let mut changed = facts.clone();
+    let mut origins = changed
+        .build
+        .frontend_options
+        .data::<rstyle_pdg::declaration_origins::Origins>()
+        .unwrap()
+        .as_ref()
+        .clone();
+    for origin in &mut origins.declarations {
+        origin.builtin_copy = None;
+    }
+    changed.build.frontend_options.insert(
+        rstyle_pdg::declaration_origins::KEY.into(),
+        serde_json::to_value(origins).unwrap(),
+    );
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    shared_evidence::reject_facts(function, &changed);
+}
+
+fn check_value_adjustment(function: &Value) {
+    use rstyle_pdg::{
+        concrete_types::{Observation, TypeTree},
+        data_receivers::{self, Adjustment, Kind},
+    };
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let mut capture = data_receivers::verify(&facts).unwrap();
+    assert_eq!(capture.methods.len(), 2);
+    assert!(
+        capture
+            .methods
+            .iter()
+            .all(|record| record.adjustments.is_empty())
+    );
+    let record = &mut capture.methods[0];
+    let Observation::Captured { ty } = &record.receiver_type else {
+        panic!("missing owned type")
+    };
+    let shared = Observation::Captured {
+        ty: TypeTree::Shared(Box::new(ty.clone())),
+    };
+    record.adjusted_type = shared.clone();
+    record.adjustments.push(Adjustment {
+        kind: Kind::SharedBorrow,
+        target: shared,
+    });
+    let mut changed = facts.clone();
+    changed.build.frontend_options.insert(
+        data_receivers::KEY.into(),
+        serde_json::to_value(capture).unwrap(),
+    );
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    shared_evidence::reject_facts(function, &changed);
+}
+
+fn update_workspace() -> TempDir {
+    let directory = workspace();
+    std::fs::write(
+        directory.path().join("src/data.rs"),
+        format!(
+            "{}\n{}",
+            include_str!("../../../../eval/coverage-development/position-span.rs"),
+            include_str!("../../../../eval/coverage-development/span-updates.rs")
+        ),
+    )
+    .unwrap();
+    directory
+}
+
+fn check_value_self_outcomes(report: &Value) {
+    let positive = [
+        "data::Span::with_start",
+        "data::Span::with_end",
+        "data::updated_both",
+        "data::updated_empty",
+        "data::result_update",
+        "data::ufcs_update",
+        "data::retained",
+    ];
+    let negative = [
+        "data::Span::mutable_self",
+        "data::Span::typed_self",
+        "data::shared_to_owned",
+    ];
+    for name in positive.into_iter().chain(negative) {
+        let function = read_call_function(report, name);
+        assert_eq!(
+            function["outcome"],
+            if positive.contains(&name) {
+                "admitted"
+            } else {
+                "excluded"
+            },
+            "{function}"
+        );
+    }
+}
+
+#[test]
+fn copy_value_self_updates_preserve_installed_ci_contexts() {
+    for target in [
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-apple-darwin",
+    ] {
+        let output = Command::new("rustc")
+            .args(["--print", "target-libdir", "--target", target])
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        if !Path::new(String::from_utf8(output.stdout).unwrap().trim()).is_dir() {
+            continue;
+        }
+        let directory = update_workspace();
+        let (output, report) = clones(
+            directory.path(),
+            &["--target", target, "--extraction-profile", "hir-data-v3"],
+        );
+        assert!(output.status.success(), "{target}: {report}");
+        check_value_self_outcomes(&report);
+        check_aggregate_documents(&report);
+        assert_eq!(report["pair_evaluation_complete"], true);
+    }
+}
+
+#[test]
+fn value_self_calls_bind_observed_signature_to_the_actual_callee() {
+    use rstyle_pdg::{
+        concrete_types::{Observation, TypeTree},
+        data_receivers::{self, Adjustment, Kind},
+    };
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        #[derive(Clone, Copy)] pub struct Data { pub n: u8 }
+        impl Data { pub fn get(self) -> u8 { 7 } }
+        pub fn caller(value: Data) -> u8 { value.get() }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let function = read_call_function(&report, "caller");
+    assert_eq!(function["outcome"], "admitted", "{function}");
+    let (unit, index) = data_unit(function);
+    let mut functions = unit.functions().to_vec();
+    let changed = &mut functions[index];
+    let mut capture = data_receivers::verify(changed).unwrap();
+    let record = &mut capture.methods[0];
+    let Observation::Captured { ty } = &record.receiver_type else {
+        panic!("missing type")
+    };
+    let borrowed = Observation::Captured {
+        ty: TypeTree::Shared(Box::new(ty.clone())),
+    };
+    record.adjusted_type = borrowed.clone();
+    record.signature_inputs[0] = borrowed.clone();
+    record.adjustments.push(Adjustment {
+        kind: Kind::SharedBorrow,
+        target: borrowed,
+    });
+    changed.build.frontend_options.insert(
+        data_receivers::KEY.into(),
+        serde_json::to_value(capture).unwrap(),
+    );
+    // The observation is internally well-formed; binding it to the actual
+    // by-value callee must still fail rather than trusting its adjusted inputs.
+    data_receivers::verify(changed).unwrap();
+    let replay = rstyle_pdg::unit_store::UnitStore::capture(functions).unwrap();
+    assert_eq!(replay.functions().len(), unit.functions().len());
+    assert!(replay.pair(index).is_none());
+}
+
+fn check_value_owner(function: &Value) {
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let origins = facts
+        .build
+        .frontend_options
+        .data::<rstyle_pdg::declaration_origins::Origins>()
+        .unwrap();
+    let other = origins
+        .declarations
+        .iter()
+        .find(|origin| origin.nominal.definition_path.ends_with("::Position"))
+        .unwrap()
+        .nominal
+        .clone();
+    let mut changed = facts.clone();
+    substitute_value_owner(&mut changed, other);
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    shared_evidence::reject_facts(function, &changed);
+}
+
+fn substitute_value_owner(
+    facts: &mut rstyle_pdg::HirFnFacts,
+    other: rstyle_pdg::concrete_types::Nominal,
+) {
+    use rstyle_pdg::inherent_calls::{self, Definition, UnitDefinitions};
+    let mut record: Definition = serde_json::from_value(
+        facts
+            .build
+            .frontend_options
+            .get(inherent_calls::KEY)
+            .unwrap()
+            .clone(),
+    )
+    .unwrap();
+    let mut definitions: UnitDefinitions = serde_json::from_value(
+        facts
+            .build
+            .frontend_options
+            .get(inherent_calls::UNIT_KEY)
+            .unwrap()
+            .clone(),
+    )
+    .unwrap();
+    record.owner_nominal = other.clone();
+    for item in &mut definitions.definitions {
+        if item.implementation_identity == record.implementation_identity {
+            item.owner_nominal = other.clone();
+        }
+    }
+    facts.build.frontend_options.insert(
+        inherent_calls::KEY.into(),
+        serde_json::to_value(record).unwrap(),
+    );
+    facts.build.frontend_options.insert(
+        inherent_calls::UNIT_KEY.into(),
+        serde_json::to_value(definitions).unwrap(),
+    );
+}

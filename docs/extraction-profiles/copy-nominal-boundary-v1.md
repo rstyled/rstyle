@@ -51,7 +51,8 @@ not establish implicit receiver borrowing or read substitution. Data-v3 3.38.0
 connects those pieces under the separate
 [owned Copy receiver contract](owned-copy-receiver-v1.md), completing the selected
 constructor → owned local → shared scalar getter composition. General local
-storage borrowing and by-value self updates remain unsupported.
+storage borrowing remains unsupported. Checked Copy by-value self updates are
+covered separately by [the bounded value-self contract](owned-copy-self-v1.md).
 
 Matching remains similarity detection. The offset and column getter variants
 retain distinct verified source/field paths but currently receive score 1 from
