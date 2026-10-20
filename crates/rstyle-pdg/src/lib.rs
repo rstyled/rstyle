@@ -48,6 +48,7 @@ pub mod producer;
 pub mod scalar_constants;
 mod scalar_exhaustiveness;
 pub mod scalar_patterns;
+pub mod size_constants;
 pub mod source_evidence;
 mod source_table;
 pub mod unit_store;

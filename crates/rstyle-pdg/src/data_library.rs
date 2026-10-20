@@ -49,6 +49,8 @@ pub struct Registry {
     pub core_hash: String,
     pub source_digests: BTreeMap<String, String>,
     pub operations: Vec<Operation>,
+    #[serde(default)]
+    pub definitions: BTreeMap<String, String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -61,26 +63,27 @@ pub struct Operation {
 }
 
 pub fn registry() -> &'static Registry {
-    static REGISTRY: OnceLock<Registry> = OnceLock::new();
-    REGISTRY.get_or_init(|| {
-        serde_json::from_str(include_str!("../contracts/read-only-lengths-v2.json"))
-            .expect("independently tested read-only library registry")
+    &registries()[0]
+}
+
+pub fn registries() -> &'static [Registry] {
+    static REGISTRIES: OnceLock<Vec<Registry>> = OnceLock::new();
+    REGISTRIES.get_or_init(|| {
+        [
+            include_str!("../contracts/read-only-lengths-v2.json"),
+            include_str!("../contracts/read-only-lengths-x86_64-v2.json"),
+            include_str!("../contracts/read-only-lengths-macos-aarch64-v2.json"),
+        ]
+        .into_iter()
+        .map(|source| {
+            serde_json::from_str(source).expect("independently tested pinned library registry")
+        })
+        .collect()
     })
 }
 
-pub fn registries() -> [&'static Registry; 2] {
-    static X86_64: OnceLock<Registry> = OnceLock::new();
-    let x86_64 = X86_64.get_or_init(|| {
-        serde_json::from_str(include_str!(
-            "../contracts/read-only-lengths-x86_64-v2.json"
-        ))
-        .expect("independently tested x86_64 read-only library registry")
-    });
-    [registry(), x86_64]
-}
-
 pub fn registry_for(facts: &crate::HirFnFacts) -> Option<&'static Registry> {
-    registries().into_iter().find(|registry| {
+    registries().iter().find(|registry| {
         facts.build.rustc_commit.known_value() == Some(registry.rustc_commit.as_str())
             && facts.build.target_triple.known_value() == Some(registry.target.as_str())
             && facts.build.pointer_width.value == Some(registry.pointer_width)
@@ -92,7 +95,7 @@ pub fn operation(node: &HirNode) -> Option<&'static Operation> {
     (node.kind == "expr_method_call" && dispatch.kind == "resolved_method").then_some(())?;
     let authority = callee(node).ok().and_then(|callee| {
         registries()
-            .into_iter()
+            .iter()
             .find(|registry| registry.core_hash == callee.crate_hash)
     });
     authority
@@ -131,19 +134,29 @@ mod tests {
 
     #[test]
     fn target_authorities_share_semantics_but_not_definition_identity() {
-        let [arm, x86] = registries();
-        assert_ne!(arm.identity, x86.identity);
-        assert_ne!(arm.target, x86.target);
-        assert_ne!(arm.core_hash, x86.core_hash);
-        assert_eq!(arm.rustc_commit, x86.rustc_commit);
-        assert_eq!(arm.source_digests, x86.source_digests);
-        assert_eq!(arm.operations.len(), x86.operations.len());
-        for (left, right) in arm.operations.iter().zip(&x86.operations) {
+        let arm = registry();
+        for other in &registries()[1..] {
+            assert_ne!(arm.identity, other.identity);
+            assert_ne!(arm.target, other.target);
+            assert_ne!(arm.core_hash, other.core_hash);
+            assert_eq!(arm.rustc_commit, other.rustc_commit);
+            assert_eq!(arm.source_digests, other.source_digests);
+            assert_eq!(arm.operations.len(), other.operations.len());
+            assert_eq!(arm.definitions.len(), 8);
             assert_eq!(
-                (&left.id, &left.path, &left.referent, &left.result),
-                (&right.id, &right.path, &right.referent, &right.result)
+                arm.definitions.keys().collect::<Vec<_>>(),
+                other.definitions.keys().collect::<Vec<_>>()
             );
-            assert_ne!(left.definition_hash, right.definition_hash);
+            for (path, hash) in &arm.definitions {
+                assert_ne!(Some(hash), other.definitions.get(path));
+            }
+            for (left, right) in arm.operations.iter().zip(&other.operations) {
+                assert_eq!(
+                    (&left.id, &left.path, &left.referent, &left.result),
+                    (&right.id, &right.path, &right.referent, &right.result)
+                );
+                assert_ne!(left.definition_hash, right.definition_hash);
+            }
         }
     }
 

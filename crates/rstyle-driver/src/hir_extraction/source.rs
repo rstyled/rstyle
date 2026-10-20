@@ -129,6 +129,9 @@ impl<'a> Visitor<'a> for Owned {
     }
     fn visit_stmt(&mut self, statement: &'a ast::Stmt) {
         match &statement.kind {
+            ast::StmtKind::Item(item)
+                if self.profile.supports("rust.native-borrowed-byte-readers")
+                    && matches!(item.kind, ast::ItemKind::Const(..)) => {}
             ast::StmtKind::Item(item) => self.reject(item.span, "rust.blocks", "nested_item"),
             ast::StmtKind::MacCall(mac) if selected_assertion(&mac.mac, self.profile) => {}
             ast::StmtKind::MacCall(_) => {

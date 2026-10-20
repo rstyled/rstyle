@@ -301,6 +301,8 @@ fn check_boundary(
                         | "data.subslice-place"
                         | "data.bytes.copy-result"
                         | "data.bytes.unwrap"
+                        | "data.bytes.borrow-result"
+                        | "data.bytes.unwrap-borrow"
                 )
             )
         })
@@ -479,7 +481,10 @@ fn verify_inventory(pair: producer::PairView<'_>, facts: &dyn EvidenceFacts) -> 
         .filter(|node| {
             node.category == crate::NodeCategory::Call
                 && (node.original_kind.known_value() == Some("expr_call")
-                    && node.attributes.construct.as_deref() != Some("data.bytes.native-u32")
+                    && !matches!(
+                        node.attributes.construct.as_deref(),
+                        Some("data.bytes.native-u32" | "data.bytes.native-usize")
+                    )
                     || records.iter().any(|record| {
                         record["pdg_node_id"] == node.id && record.get("dependency").is_some()
                     }))

@@ -17,10 +17,7 @@ pub struct ScalarConstant {
 
 impl ScalarConstant {
     pub fn decode(resolution: &PathRes) -> Result<Self, String> {
-        if resolution.kind != RESOLUTION || resolution.target.is_some() {
-            return Err("Expected a resolved scalar constant".into());
-        }
-        serde_json::from_str(&resolution.description).map_err(|error| error.to_string())
+        decode_record(resolution, RESOLUTION)
     }
 
     pub fn verify(node: &HirNode, pointer_width: Option<u64>) -> Result<Self, String> {
@@ -109,4 +106,14 @@ fn integer_value(text: &str, signed: bool, width: u64) -> bool {
 
     text.parse::<u128>()
         .is_ok_and(|value| value.to_string() == text && (width == 128 || value < 1u128 << width))
+}
+
+pub(crate) fn decode_record<T: serde::de::DeserializeOwned>(
+    resolution: &PathRes,
+    kind: &str,
+) -> Result<T, String> {
+    if resolution.kind != kind || resolution.target.is_some() {
+        return Err(format!("Expected {kind} resolution"));
+    }
+    serde_json::from_str(&resolution.description).map_err(|error| error.to_string())
 }

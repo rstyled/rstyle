@@ -655,6 +655,15 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     match node.kind.as_str() {
+        "stmt_size_const" => match crate::size_constants::verify(node, ctx.facts) {
+            Ok(()) => Outcome::ok(),
+            Err(reason) => error(
+                "rust.native-borrowed-byte-readers",
+                "local_size",
+                node,
+                &reason,
+            ),
+        },
         "expr_call" if ctx.profile.supports("rust.verified-helper-calls") => {
             if crate::data_bytes::kind(node).is_some() && crate::data_bytes::enabled(ctx.facts) {
                 return check_method(node, ctx);

@@ -5,8 +5,6 @@ use crate::{HirNode, data_types::TypeToken, unit_store::EvidenceFacts};
 use syn::spanned::Spanned;
 
 pub(crate) const BOUNDS_KEY: &str = "rstyle.data:subslice-bounds";
-const INDEX: &str = "DefPathHash(Fingerprint(5614226571623188065, 15938615241105906548))";
-const RANGE: &str = "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))";
 
 pub(crate) struct Checked<'a> {
     pub base: &'a HirNode,
@@ -62,8 +60,8 @@ pub(crate) fn verify<'a>(
 
     verify_dispatch(node, base, range)?;
 
-    authority(node, "resolved_callee", INDEX, facts)?;
-    authority(range, "resolved_range_type", RANGE, facts)?;
+    authority(node, "resolved_callee", "std::ops::Index::index", facts)?;
+    authority(range, "resolved_range_type", "std::ops::Range", facts)?;
     source(node, base, range, facts)?;
     Ok(Checked { base, start, end })
 }
@@ -100,16 +98,11 @@ fn verify_dispatch(node: &HirNode, base: &HirNode, range: &HirNode) -> Result<()
 fn authority(
     node: &HirNode,
     kind: &str,
-    identity: &str,
+    path: &str,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     let registry =
         crate::data_library::registry_for(facts).ok_or("Unpinned subslice compiler/target")?;
-    // This implementation's independently inspected core authority is aarch64.
-    if registry.target != "aarch64-unknown-linux-gnu" {
-        return Err("Subslice authority is not registered for this target".into());
-    }
-
     let resolution = node
         .res
         .as_ref()
@@ -117,9 +110,12 @@ fn authority(
         .ok_or("Missing resolved subslice authority")?;
     let callee: crate::data_library::Callee =
         serde_json::from_str(&resolution.description).map_err(|error| error.to_string())?;
+
     if callee.crate_name != "core"
         || callee.crate_hash != registry.core_hash
-        || callee.definition_hash != identity
+        || callee.path != path
+        || registry.definitions.get(path) != Some(&callee.definition_hash)
+        || callee.implementation.is_some()
     {
         return Err("Subslice disagrees with pinned core index/range authority".into());
     }

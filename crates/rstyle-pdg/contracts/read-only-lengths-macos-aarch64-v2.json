@@ -1,0 +1,51 @@
+{
+  "identity": "rstyle.rust.read-only-length-registry.macos-aarch64/2",
+  "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+  "target": "arm64-apple-macosx",
+  "pointer_width": 64,
+  "core_hash": "32c3d1db268e158f817dfd97ac1b490b",
+  "source_digests": {
+    "slice": "sha256:062320a86dc6a3d20718bc8fca824bd1f3df0bb8bb0c3d72e101be989cf576bf",
+    "str": "sha256:bb2e4e174e8db5c79f6c602565c1f97f049f10ca600540bfb1d3c7f382de9bc5"
+  },
+  "operations": [
+    {
+      "id": "rstyle.data.slice.len",
+      "path": "core::slice::<impl [T]>::len",
+      "definition_hash": "DefPathHash(Fingerprint(9963928104983068931, 13017820095962503994))",
+      "referent": "slice",
+      "result": "usize"
+    },
+    {
+      "id": "rstyle.data.slice.is-empty",
+      "path": "core::slice::<impl [T]>::is_empty",
+      "definition_hash": "DefPathHash(Fingerprint(9963928104983068931, 8874361661223769727))",
+      "referent": "slice",
+      "result": "bool"
+    },
+    {
+      "id": "rstyle.data.str.len",
+      "path": "core::str::<impl str>::len",
+      "definition_hash": "DefPathHash(Fingerprint(9963928104983068931, 262879401457336981))",
+      "referent": "str",
+      "result": "usize"
+    },
+    {
+      "id": "rstyle.data.str.is-empty",
+      "path": "core::str::<impl str>::is_empty",
+      "definition_hash": "DefPathHash(Fingerprint(9963928104983068931, 16381202909092306794))",
+      "referent": "str",
+      "result": "bool"
+    }
+  ],
+  "definitions": {
+    "std::ops::Index::index": "DefPathHash(Fingerprint(9963928104983068931, 16562579357227418987))",
+    "std::ops::Range": "DefPathHash(Fingerprint(9963928104983068931, 10537819065912900640))",
+    "std::convert::TryInto::try_into": "DefPathHash(Fingerprint(9963928104983068931, 1428442718671533223))",
+    "<T as std::convert::TryInto<U>>::try_into": "DefPathHash(Fingerprint(9963928104983068931, 13119662365420563571))",
+    "std::result::Result::<T, E>::unwrap": "DefPathHash(Fingerprint(9963928104983068931, 755838527256809161))",
+    "core::num::<impl u32>::from_ne_bytes": "DefPathHash(Fingerprint(9963928104983068931, 8014950809488697633))",
+    "core::num::<impl usize>::from_ne_bytes": "DefPathHash(Fingerprint(9963928104983068931, 13215756791464092488))",
+    "std::mem::size_of": "DefPathHash(Fingerprint(9963928104983068931, 4182141971247338114))"
+  }
+}

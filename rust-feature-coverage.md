@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.32.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.33.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -57,8 +57,8 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | V09 | Floats and floating-point operations | Missing | `x: f64`, `x / 2.0` | Type, literal, operation, and comparison semantics; NaNs, signed zero, and casts must not be treated as integer semantics. |
 | V10 | Character values and operations | Missing | `c: char`, `'a'` | Unicode scalar types/literals and relevant calls/conversions. |
 | V11 | Additional built-in casts/coercions | Missing | `flag as u8`, `x as f32` | Bool/char/float conversions are outside the current integer-cast boundary; pointer casts belong to unsafe work. |
-| V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Nonlocal/generic/trait constants and aggregate values remain missing. |
-| V13 | General const expressions and const blocks | Missing | `[u8; N + 1]`, `const { 1 + 2 }` | Current array types require literal lengths; const fn support does not authorize this. |
+| V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Data-v3 3.33.0 additionally verifies the original top-level local `const usize = core::mem::size_of::<usize>()` for [native byte readers](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Nonlocal/generic/trait constants and aggregate values remain missing. |
+| V13 | General const expressions and const blocks | Missing | `[u8; N + 1]`, `const { 1 + 2 }` | General array expressions remain missing. Data-v3 3.33.0 permits one verified local native-size constant as a byte-array annotation length; arithmetic lengths and const blocks remain unsupported. Const fn support does not authorize these. |
 | V14 | Uninitialized locals / definite assignment | Missing | `let x; x = 1; x` | Declaration without initializer is currently rejected. |
 | V15 | Destructuring and wildcard bindings | Missing | `let (a, b) = pair;`, `let _ = x;` | Named single-binding patterns are the supported declaration/parameter grammar; unit value discard is not general wildcard-pattern support. |
 | V16 | Type aliases | Missing | `type Count = u32;` | Alias declaration/use correspondence, not merely an import renamed with `use ... as ...`. |
@@ -142,7 +142,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. General autoref, repeated/overloaded deref, unsizing and mutable/by-value inherent receivers remain unavailable. |
 | C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Four instantiations only: i32/i64 unsigned_abs and u32/u64 wrapping_mul. Not general primitive-method support. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
-| C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
+| C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
 | C11 | By-value memory-reading helper arguments/results | Missing | `inspect_value(s)`, `make_value(x)` | Pure reference-free construction results compose in the D11 fixture; by-value memory-reading substitution, reference-bearing helper results and ownership remain unavailable. Supported interface types do not establish that call boundary. |
 | C12 | Borrowed results from memory-reading helpers | Missing | `get_field_ref(s)` | Exact callee read effects plus result origin/location substitution, not just whole-formal forwarding. |
 | C13 | Cross-unit/package helper linking | Missing | `library_crate::helper(x)` | Capture/resolve selected units before summary derivation, preserve build contexts/transitive dependencies; modules inside one unit already work. |
@@ -1706,3 +1706,50 @@ source independently of that baseline. Runtime checks exercise saved-view/rebind
 and offset pointer identity. This is target preparation, with no extraction change
 or claimed natural gain. The next support delivery remains the entire architecture
 reader chain, preserving get_batch and the unchanged frozen inventory.
+
+### Complete architecture-reader chain and CI portability (Data-v3 3.33.0)
+
+The selected safe lz4_flex `get_batch_arch` now passes complete Cargo capture,
+independent document verification, strict admission and matching in its original
+library context. The connected contract covers the separately owned local
+`size_of::<usize>()` const, declaration-bound array length, borrowed slice-to-array
+Result, conditional Ok origins, unwrap failure, actual array load and native usize
+decoding. Each call remains a separate typed operation. The preselected development
+corpus yields 5 admitted / 3 excluded; saved Results/views, helper-selected roots,
+endpoint rebinding and repeated reads also compose. The reader caller remains
+excluded because the existing helper contract cannot transport its possible panic.
+See [the bounded contract](docs/extraction-profiles/native-borrowed-byte-readers-v1.md).
+
+The reported macOS subslice regressions exposed an ARM Linux-only authority check.
+Subslice, byte-call and native-size verification now use separate pinned registries
+for Linux ARM64, Linux x86_64 and macOS ARM64. Exact compiler, core crate,
+definition fingerprints, source bindings and concrete signatures remain mandatory;
+unknown or mismatched authorities remain excluded. macOS capture uses LLVM triple
+`arm64-apple-macosx`, distinct from Cargo's `aarch64-apple-darwin` target name.
+Real Cargo cross-target regression checks exercise all three installed targets,
+including both reported subslice forms, reader composition and metadata calls.
+They also reject substituting another registered target or an unknown compiler.
+This establishes cross-target capture/admission, not local native macOS execution.
+
+The frozen selection remains unchanged: the architecture reader advances the safe
+two-reader family; no broad Option/Result, iterator or mutation support follows.
+The next family audit should prioritize F10 loop/value merges and concrete checked
+access/Option composition. S09 mixed-content nominal ownership remains unresolved;
+neighboring derives, impls and drop behavior still require exact evidence.
+
+Validation at this boundary: 782 workspace tests passed, with 5 existing ignores;
+all 14 inventory tests passed. Clippy across all targets with warnings denied,
+formatting and diff checks passed. Repository-built rstyle checked 2489 functions
+with 0 violations; patterns reported 0 candidates. No thresholds, scoring or
+ignore settings changed. The retained natural architecture-reader bundle was
+independently imported, verified and strictly admitted, then matched against the
+preselected development reader: Accepted, score 1, under unchanged matching rules.
+
+Final frozen rerun `target/hir-coverage/run-akr9djbd/` retains all 60 exact source
+identities and every denominator from `run-n1ejrbwy`: 60 selected contexts,
+53 active/captured/assessed and 7 independently inactive. The sole transition is
+safe lz4_flex `get_batch_arch`, bytes 1784..2020, excluded to admitted:
+**13 admitted / 40 excluded / 7 inactive; 1 gained, 0 lost**. All outcomes match
+the earlier architecture run `run-12i29cvg`; the portability fix loses no selected
+admissions. There are 30 validated documents: 14 lz4_flex, 0 regex-syntax and
+16 time-core. Historical results and frozen identities remain untouched.

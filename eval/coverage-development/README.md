@@ -436,3 +436,56 @@ clippy with warnings denied, formatting and diff checks passed. Repository-built
 rstyle checked 2468 functions with 0 violations; patterns reported 0 candidates.
 No frozen rerun was performed for these test/documentation-only changes; the last
 measured natural result remains run-n1ejrbwy (12 admitted / 41 excluded / 7 inactive).
+
+## Complete natural byte-reader family (Data-v3 3.33.0)
+
+The selected safe get_batch/get_batch_arch family now composes through whole
+unmodified lz4_flex library Cargo capture, document verification, strict admission
+and matching. The [architecture contract](../../docs/extraction-profiles/native-borrowed-byte-readers-v1.md)
+connects original local-size authority and named lengths, borrowed conversion,
+conditional Result payload origins, unwrap failure, the explicit array content
+read and native usize byte significance. It preserves the copied reader and its
+existing negative tests. General Option/Result branching and panicking helper
+transport are not implied.
+
+All eight preselected development definitions are retained: the five intended
+positives admit and all three intended negatives remain excluded. The original
+0/8 baseline above is historical evidence, not a changed expectation or sample.
+Additional Cargo composition tests exercise shared-helper-selected roots,
+native decoder helpers and two different windows with separate read occurrences;
+nested constants, literal initializers and arithmetic annotation lengths remain
+excluded. Independent mutations reject initializer definition/argument/value,
+source authority, conflicting scalar use/named length, invented/missing content
+reads, lost conditional payload origins and changed failure/endian rules.
+
+Frozen run-gldoldo0 compared with run-n1ejrbwy preserves all 60 identities and
+all denominators. The sole transition is safe get_batch_arch, compress.rs bytes
+1784..2020, SHA 15fb3015ac81edc5139d11679038a7e7f5d8292da7096b611681051a98889e2b,
+excluded to admitted: 13 admitted / 40 excluded / 7 inactive, one gained and
+zero lost. The 60 function contexts (53 active and 7 inactive) are preserved;
+their outcome counts change by that same single transition. There are 30
+validated graph documents: 14 lz4_flex, 0 regex-syntax and 16 time-core.
+
+The retained natural architecture bundle was independently loaded and verified,
+strictly admitted and matched against the predeclared batch_arch expression:
+evaluated, Accepted, score 1, no diagnostics, under unchanged matching settings.
+Saved-view spellings need not themselves score 1 against different spellings;
+their semantic runtime expectations and strict composition tests are checked
+separately. No scoring/threshold changes were made to force equivalence.
+
+No new source snapshots, persisted caches or per-call provenance were introduced.
+The local compile-time declaration reuses ScalarConstant and Callee evidence;
+byte operations reuse existing type, origin, location and summary records.
+Ordinary formal referents use borrowed type views; only the slice-to-array view
+needs an owned type. Functions without a local size declaration skip the added
+size-use/annotation pass. This is structural evidence, not a runtime benchmark.
+
+The selected two-reader target has no remaining blockers in its declared context.
+The broader roadmap remains unfinished. An adjacent count_same_bytes audit shows
+mutable cursor writes, iterator/chunk/zip/closure semantics, open-ended subslices,
+nested helper ownership and further scalar summaries together; admitting the
+readers does not make that function supported. S09 still requires mixed-content
+derive/impl/drop ownership proof; no unit-wide whitelist was relaxed here. The
+next target selection should prioritize F10 and concrete checked-access/Option
+compositions with tractable full blocker chains, rather than enter iterator or
+mutable-memory tiers just because they neighbor these readers.

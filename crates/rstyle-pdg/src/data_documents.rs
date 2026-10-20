@@ -154,7 +154,7 @@ fn memory_evidence(
     })
 }
 
-pub fn read_keys(node: &crate::PdgNode) -> Vec<String> {
+pub fn read_keys(node: &crate::PdgNode, locations: &[crate::MemoryLocation]) -> Vec<String> {
     node.attributes
         .reads
         .iter()
@@ -166,7 +166,12 @@ pub fn read_keys(node: &crate::PdgNode) -> Vec<String> {
                     if matches!(
                         node.attributes.construct.as_deref(),
                         Some("data.index" | "data.bytes.copy-result")
-                    ) {
+                    ) || node.attributes.construct.as_deref() == Some("data.indirect-deref")
+                        && locations.iter().any(|location| {
+                            location.id == *id
+                                && location.abstraction == "rstyle.formal-byte-window/1"
+                        })
+                    {
                         format!("location:{id}:index-read:{}", node.id)
                     } else {
                         format!("location:{id}")
@@ -452,7 +457,7 @@ fn read_count(pair: crate::producer::PairView<'_>) -> Result<u64, String> {
             (node.category == NodeCategory::Read || calls && node.category == NodeCategory::Call)
                 && nodes.contains(&node.id)
         })
-        .flat_map(read_keys)
+        .flat_map(|node| read_keys(node, &pair.pdg.memory_locations))
         .collect();
     Ok(keys.len() as u64)
 }

@@ -138,6 +138,17 @@ impl Graph<'_> {
         if let Some(origins) = self.address_origins(node, selectors, visiting) {
             return origins;
         }
+        if matches!(
+            node.attributes.construct.as_deref(),
+            Some("data.bytes.borrow-result" | "data.bytes.unwrap-borrow")
+        ) {
+            if !selectors.is_empty() {
+                return Err("Byte payload has no aggregate selector".into());
+            }
+            let kind = crate::data_bytes::verify(source_node(node, self.facts)?, self.facts)?;
+            let roots = self.origins(self.operand(node, 0)?, &[], visiting)?;
+            return Ok(crate::data_bytes::project(kind, roots));
+        }
         if node.category == NodeCategory::FormalInput {
             return self.formal(node, selectors);
         }

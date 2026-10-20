@@ -218,13 +218,13 @@ impl Verification<'_> {
         };
         let referent = origin_value(ty, &origin.path)?;
         let expected = crate::data_types::TypeToken::Shared(Box::new(
-            crate::data_types::TypeToken::from_tree(referent),
+            crate::data_types::TypeToken::from_tree(&referent),
         ));
         if crate::data_types::parse(crate::data_aggregates::token(root)?)? != expected {
             return Err("Shared field alias disagrees with its original referent type".into());
         }
 
-        let (suffix, value) = source_projection(referent, &source.members)?;
+        let (suffix, value) = source_projection(&referent, &source.members)?;
         let expected = Location::Captured {
             parameter: origin.parameter,
             path: origin.path.iter().cloned().chain(suffix).collect(),
@@ -463,9 +463,30 @@ fn check_field_resolution(node: &HirNode, location: &Location) -> Result<(), Str
 }
 
 pub(super) fn origin_value<'a>(
-    mut value: &'a TypeTree,
+    value: &'a TypeTree,
     path: &[Projection],
-) -> Result<&'a TypeTree, String> {
+) -> Result<std::borrow::Cow<'a, TypeTree>, String> {
+    if let Some((
+        Projection::ByteWindow {
+            operand_position: 0,
+            length: 8,
+        },
+        prefix,
+    )) = path.split_last()
+    {
+        let referent = base_value(value, prefix)?;
+        if *referent != TypeTree::Slice(Box::new(TypeTree::Scalar("u8".into()))) {
+            return Err("Borrowed byte window requires a shared byte-slice origin".into());
+        }
+        return Ok(std::borrow::Cow::Owned(TypeTree::Array {
+            element: Box::new(TypeTree::Scalar("u8".into())),
+            length: 8,
+        }));
+    }
+    base_value(value, path).map(std::borrow::Cow::Borrowed)
+}
+
+fn base_value<'a>(mut value: &'a TypeTree, path: &[Projection]) -> Result<&'a TypeTree, String> {
     for step in path {
         value = match (value, step) {
             (TypeTree::Shared(referent), Projection::SharedReferent) => referent,

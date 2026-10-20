@@ -20,7 +20,14 @@ impl Kind {
         match self {
             Self::Byte => matches!(
                 node.attributes.construct.as_deref(),
-                Some("data.bytes.copy-result" | "data.bytes.unwrap" | "data.bytes.native-u32")
+                Some(
+                    "data.bytes.copy-result"
+                        | "data.bytes.unwrap"
+                        | "data.bytes.native-u32"
+                        | "data.bytes.borrow-result"
+                        | "data.bytes.unwrap-borrow"
+                        | "data.bytes.native-usize"
+                )
             ),
             Self::Index => matches!(
                 node.attributes.construct.as_deref(),

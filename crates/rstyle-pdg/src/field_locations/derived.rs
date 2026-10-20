@@ -162,13 +162,13 @@ pub(crate) fn referents(
                 return Err("Indirect field has no concrete formal root".into());
             };
             let value = source::origin_value(ty, &origin.path)?;
-            if TypeToken::from_tree(value) != *expected {
+            if TypeToken::from_tree(&value) != *expected {
                 return Err("Indirect field referent contradicts its source value type".into());
             }
             Ok(Located {
                 parameter: origin.parameter,
                 path: origin.path,
-                value: value.clone(),
+                value: value.into_owned(),
             })
         })
         .collect()

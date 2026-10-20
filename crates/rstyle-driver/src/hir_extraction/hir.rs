@@ -514,7 +514,15 @@ impl<'tcx> Context<'tcx> {
                     ..self.node(stmt.hir_id, stmt.span, kind)
                 }
             }
-            StmtKind::Item(id) => self.node(stmt.hir_id, self.tcx.hir_item(id).span, "stmt_item"),
+            StmtKind::Item(id) => {
+                let item = self.tcx.hir_item(id);
+                let mut node = self.node(stmt.hir_id, item.span, "stmt_item");
+                if let Some(resolution) = self.native_size_constant(item) {
+                    node.kind = "stmt_size_const".into();
+                    node.res = Some(resolution);
+                }
+                node
+            }
         }
     }
 
@@ -650,7 +658,7 @@ impl Context<'_> {
             )
     }
 
-    fn library_callee(&self, callee: rustc_hir::def_id::DefId) -> PathRes {
+    pub(super) fn library_callee(&self, callee: rustc_hir::def_id::DefId) -> PathRes {
         let callee = rstyle_pdg::data_library::Callee {
             path: self.tcx.def_path_str(callee),
             crate_name: self.tcx.crate_name(callee.krate).to_string(),

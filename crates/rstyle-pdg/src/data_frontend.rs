@@ -15,6 +15,7 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
     let source: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
     verify_lifetimes(&source)?;
+    crate::size_constants::verify_function(facts)?;
     let resolution = nominal_resolution(facts, &interface)?;
     verify_interface(facts, &source, &interface, resolution.as_deref())?;
 

@@ -11,6 +11,13 @@ enum Semantics {
         reads_on: &'static str,
         error: &'static str,
     },
+    BorrowExactLengthOrErr {
+        length: u64,
+        receiver_operand: u64,
+        payload_origins_on: &'static str,
+        content_read: bool,
+        error: &'static str,
+    },
     OkPayloadOrPanic {
         result_operand: u64,
         normal_completion_requires: &'static str,
@@ -20,28 +27,37 @@ enum Semantics {
         array_operand: u64,
         length: u64,
         endian: &'static str,
-        byte_significance_bits: [u8; 4],
+        byte_significance_bits: Vec<u8>,
     },
 }
 
 pub(super) fn value(kind: Kind) -> serde_json::Value {
     let semantics = match kind {
+        Kind::Borrow => Semantics::BorrowExactLengthOrErr {
+            length: 8,
+            receiver_operand: 0,
+            payload_origins_on: "ok",
+            content_read: false,
+            error: "core::array::TryFromSliceError",
+        },
         Kind::Copy => Semantics::CopyExactLengthOrErr {
             length: 4,
             receiver_operand: 0,
             reads_on: "ok",
             error: "core::array::TryFromSliceError",
         },
-        Kind::Unwrap => Semantics::OkPayloadOrPanic {
+        Kind::Unwrap | Kind::UnwrapBorrow => Semantics::OkPayloadOrPanic {
             result_operand: 0,
             normal_completion_requires: "ok",
             exceptional_flow: "omitted",
         },
-        Kind::Native => Semantics::UnsignedByteSignificance {
+        Kind::Native | Kind::NativeUsize => Semantics::UnsignedByteSignificance {
             array_operand: 0,
-            length: 4,
+            length: kind.length(),
             endian: "little",
-            byte_significance_bits: [0, 8, 16, 24],
+            byte_significance_bits: (0..kind.length())
+                .map(|position| (position * 8) as u8)
+                .collect(),
         },
     };
 

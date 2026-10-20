@@ -198,6 +198,10 @@ impl Builder<'_> {
         lowerer(node)(self, node, flow)
     }
 
+    fn compile_time_item(&mut self, _: &HirNode, flow: Flow) -> Flow {
+        flow
+    }
+
     fn expression_statement(&mut self, node: &HirNode, flow: Flow) -> Flow {
         self.expression(&node.children[0], flow)
     }
@@ -1104,6 +1108,7 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_assert" => Builder::assertion,
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,
+        "stmt_size_const" => Builder::compile_time_item,
         "expr_path"
             if node
                 .res

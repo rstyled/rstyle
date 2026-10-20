@@ -17,21 +17,23 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
         .ok_or("Missing original byte call")?;
     let syntax: syn::Expr = syn::parse_str(bytes).map_err(|error| error.to_string())?;
     let argument = match (kind, crate::data_aggregates::ungroup(&syntax)) {
-        (Kind::Native, syn::Expr::Call(call))
+        (Kind::Native | Kind::NativeUsize, syn::Expr::Call(call))
             if native_invocation(call) && node.kind == "expr_call" =>
         {
             &call.args[0]
         }
-        (Kind::Copy | Kind::Unwrap, syn::Expr::MethodCall(call))
-            if call.args.is_empty()
-                && call.turbofish.is_none()
-                && node.kind == "expr_method_call"
-                && call.method
-                    == if kind == Kind::Copy {
-                        "try_into"
-                    } else {
-                        "unwrap"
-                    } =>
+        (
+            Kind::Copy | Kind::Unwrap | Kind::Borrow | Kind::UnwrapBorrow,
+            syn::Expr::MethodCall(call),
+        ) if call.args.is_empty()
+            && call.turbofish.is_none()
+            && node.kind == "expr_method_call"
+            && call.method
+                == if kind.conversion() {
+                    "try_into"
+                } else {
+                    "unwrap"
+                } =>
         {
             &call.receiver
         }

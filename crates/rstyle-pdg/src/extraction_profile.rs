@@ -57,6 +57,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.scalar-index-reads",
     "rust.shared-subslice-views",
     "rust.slice-array-byte-calls",
+    "rust.native-borrowed-byte-readers",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -72,6 +73,9 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.data.bytes.copy-result/1",
     "rstyle.data.bytes.unwrap/1",
     "rstyle.data.bytes.native-u32/1",
+    "rstyle.data.bytes.borrow-result/1",
+    "rstyle.data.bytes.unwrap-borrow/1",
+    "rstyle.data.bytes.native-usize/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -180,7 +184,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.32.0", 44)),
+            Self::DataV3 => Some(("3.33.0", 45)),
         }
     }
 

@@ -37,5 +37,15 @@
       "referent": "str",
       "result": "bool"
     }
-  ]
+  ],
+  "definitions": {
+    "std::ops::Index::index": "DefPathHash(Fingerprint(5614226571623188065, 15938615241105906548))",
+    "std::ops::Range": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+    "std::convert::TryInto::try_into": "DefPathHash(Fingerprint(5614226571623188065, 6122392695558844466))",
+    "<T as std::convert::TryInto<U>>::try_into": "DefPathHash(Fingerprint(5614226571623188065, 11163084439670324212))",
+    "std::result::Result::<T, E>::unwrap": "DefPathHash(Fingerprint(5614226571623188065, 9871469522270606756))",
+    "core::num::<impl u32>::from_ne_bytes": "DefPathHash(Fingerprint(5614226571623188065, 1786064518753250710))",
+    "core::num::<impl usize>::from_ne_bytes": "DefPathHash(Fingerprint(5614226571623188065, 10425104633548385397))",
+    "std::mem::size_of": "DefPathHash(Fingerprint(5614226571623188065, 7415061775977191516))"
+  }
 }

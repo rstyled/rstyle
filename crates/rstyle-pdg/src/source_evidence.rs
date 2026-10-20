@@ -310,7 +310,15 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
             crate::conditional_source::item_attributes(item),
             item.span(),
         ) {
-            self.add("stmt_item", item.span());
+            let kind = if crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+                .is_ok_and(|profile| profile.supports("rust.native-borrowed-byte-readers"))
+                && matches!(item, syn::Item::Const(_))
+            {
+                "stmt_size_const"
+            } else {
+                "stmt_item"
+            };
+            self.add(kind, item.span());
         }
     }
 }

@@ -136,3 +136,47 @@ fn constant_value(value: ConstValue, ty: Ty<'_>) -> Option<String> {
         _ => None,
     }
 }
+
+impl Context<'_> {
+    pub(super) fn native_size_constant(&self, item: &rustc_hir::Item<'_>) -> Option<PathRes> {
+        use rustc_hir::{ConstItemRhs, ExprKind, ItemKind};
+        if !self.profile.supports("rust.native-borrowed-byte-readers") || item.span.from_expansion()
+        {
+            return None;
+        }
+        let ItemKind::Const(_, _, _, ConstItemRhs::Body(body)) = item.kind else {
+            return None;
+        };
+
+        let value = self.tcx.hir_body(body).value;
+        let ExprKind::Call(callee, []) = value.kind else {
+            return None;
+        };
+        let ExprKind::Path(ref path) = callee.kind else {
+            return None;
+        };
+        let typeck = self.tcx.typeck(item.owner_id.def_id);
+        let Res::Def(_, definition) = typeck.qpath_res(path, callee.hir_id) else {
+            return None;
+        };
+        let args = typeck.node_args(callee.hir_id);
+        if args.len() != 1 || args.type_at(0) != self.tcx.types.usize {
+            return None;
+        }
+        let resolution =
+            self.constant_resolution(Res::Def(DefKind::Const, item.owner_id.to_def_id()))?;
+        let constant = ScalarConstant::decode(&resolution).ok()?;
+        rstyle_pdg::size_constants::declaration(&constant.declaration).ok()?;
+        let initializer = self.library_callee(definition);
+        let record = rstyle_pdg::size_constants::NativeSize {
+            constant,
+            initializer: serde_json::from_str(&initializer.description).ok()?,
+            argument: "usize".into(),
+        };
+        Some(PathRes {
+            kind: rstyle_pdg::size_constants::RESOLUTION.into(),
+            target: None,
+            description: serde_json::to_string(&record).ok()?,
+        })
+    }
+}

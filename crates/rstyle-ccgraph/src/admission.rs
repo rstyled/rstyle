@@ -292,7 +292,7 @@ fn imported_matching_profile(pdg: &PdgDocument) -> crate::graph::MatchingProfile
             "2.0.0" | "3.0.0" | "3.1.0" | "3.2.0" | "3.3.0" | "3.4.0" | "3.5.0" | "3.6.0" | "3.7.0"
             | "3.8.0" | "3.9.0" | "3.10.0" | "3.11.0" | "3.12.0" | "3.13.0" | "3.14.0" | "3.15.0"
             | "3.16.0" | "3.17.0" | "3.18.0" | "3.19.0" | "3.20.0" | "3.21.0" | "3.22.0" | "3.23.0"
-            | "3.24.0" | "3.25.0" | "3.26.0" | "3.27.0" | "3.30.0" | "3.31.0" | "3.32.0",
+            | "3.24.0" | "3.25.0" | "3.26.0" | "3.27.0" | "3.30.0" | "3.31.0" | "3.32.0" | "3.33.0",
         ) => MatchingProfile::DataCallsV1,
         (rstyle_pdg::extraction_profile::DATA_ID, _) => MatchingProfile::DataV1,
         _ => MatchingProfile::ScalarV1,
@@ -375,21 +375,18 @@ fn import_nodes(
     reachability: &BTreeMap<String, bool>,
     value_sites: &BTreeSet<String>,
 ) -> Result<Vec<ImportedNode>, Vec<String>> {
-    collect_results(pdg.nodes.iter().map(|node| {
-        import_node(
-            node,
-            reachability,
-            value_sites,
-            pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID,
-        )
-    }))
+    collect_results(
+        pdg.nodes
+            .iter()
+            .map(|node| import_node(node, reachability, value_sites, pdg)),
+    )
 }
 
 fn import_node(
     node: &rstyle_pdg::PdgNode,
     reachability: &BTreeMap<String, bool>,
     value_sites: &BTreeSet<String>,
-    data: bool,
+    pdg: &PdgDocument,
 ) -> Result<ImportedNode, String> {
     let procedural = matches!(
         node.category,
@@ -419,8 +416,8 @@ fn import_node(
         defines_binding: !node.attributes.defines.is_empty(),
         reads_or_writes: !node.attributes.reads.is_empty() || !node.attributes.writes.is_empty(),
         value_site_reachable: value_sites.contains(&node.id),
-        read_symbols: if data {
-            rstyle_pdg::data_documents::read_keys(node)
+        read_symbols: if pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID {
+            rstyle_pdg::data_documents::read_keys(node, &pdg.memory_locations)
         } else {
             read_symbols(node)
         },

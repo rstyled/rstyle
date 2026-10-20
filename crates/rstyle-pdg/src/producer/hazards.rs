@@ -66,7 +66,10 @@ pub fn assess(
 }
 
 fn proof_method(node: &Operation) -> &'static str {
-    if node.construct.as_deref() == Some("data.bytes.unwrap") {
+    if matches!(
+        node.construct.as_deref(),
+        Some("data.bytes.unwrap" | "data.bytes.unwrap-borrow")
+    ) {
         return "concrete Result unwrap requires Ok; exceptional transfer and cleanup omitted";
     }
     if node.operator.as_deref() == Some("assert") {
@@ -94,13 +97,15 @@ fn limitation(facts: &dyn crate::unit_store::EvidenceFacts, node: &Operation) ->
 }
 
 fn relevant(node: &Operation) -> bool {
-    node.construct.as_deref() == Some("data.bytes.unwrap")
-        || node.category == NodeCategory::Computation
-            && node.ty != "bool"
-            && matches!(
-                node.operator.as_deref(),
-                Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "assert")
-            )
+    matches!(
+        node.construct.as_deref(),
+        Some("data.bytes.unwrap" | "data.bytes.unwrap-borrow")
+    ) || node.category == NodeCategory::Computation
+        && node.ty != "bool"
+        && matches!(
+            node.operator.as_deref(),
+            Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "assert")
+        )
 }
 
 fn constant(

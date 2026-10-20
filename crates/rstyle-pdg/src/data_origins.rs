@@ -32,6 +32,9 @@ pub fn origins(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
+    if node.kind == "ty_annotation" {
+        return Ok(Vec::new());
+    }
     let Some(text) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) else {
         return Ok(Vec::new());
     };
@@ -45,9 +48,29 @@ pub fn origins(
         return crate::data_reference_locals::selected(node, &[], facts);
     }
 
-    let origins = match node.kind.as_str() {
-        "expr_path" => formal(node, facts, &ty)?,
-        "expr_field" => field(node, facts, &ty)?,
+    if let Some(origins) =
+        crate::data_bytes::source_origins(node, facts, |operand| origins(operand, facts))
+    {
+        return origins;
+    }
+    let origins = source_operation(node, facts, text, &ty)?;
+
+    Ok(origins
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect())
+}
+
+fn source_operation(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    text: &str,
+    ty: &TypeToken,
+) -> Result<Vec<Origin>, String> {
+    Ok(match node.kind.as_str() {
+        "expr_path" => formal(node, facts, ty)?,
+        "expr_field" => field(node, facts, ty)?,
         "expr_unary" if crate::data_dereferences::candidate(node, facts) => {
             field_locations::derived::selected(node, &[], facts)?
         }
@@ -68,12 +91,7 @@ pub fn origins(
         }
         "pat_binding" => Vec::new(),
         _ => return Err("Unsupported reference-valued source operation".into()),
-    };
-    Ok(origins
-        .into_iter()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect())
+    })
 }
 
 fn borrowed(
