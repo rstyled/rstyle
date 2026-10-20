@@ -1,5 +1,6 @@
 //! Operation lowering preserves source evaluation order and snapshot values.
 
+mod enums;
 mod loops;
 mod options;
 
@@ -198,6 +199,9 @@ impl Builder<'_> {
     }
 
     fn expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_enums::constructor_candidate(node, self.facts) {
+            return self.structure(node, flow);
+        }
         if crate::checked_options::constructor_candidate(node, self.facts) {
             return self.option_constructor(node, flow);
         }
@@ -484,6 +488,17 @@ impl Builder<'_> {
     }
 
     fn declaration(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_discards::candidate(node, self.facts) {
+            return self.emit(
+                Operation {
+                    construct: Some("data.copy-discard".into()),
+                    ty: "unit".into(),
+                    ..template(node, NodeCategory::Computation)
+                },
+                flow,
+            );
+        }
+
         let initializer = node
             .children
             .iter()
@@ -584,18 +599,43 @@ impl Builder<'_> {
     }
 
     fn structure(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        let evaluated = self.evaluate_operands(node, flow);
-        let operation = Operation {
-            construct: Some("data.struct".into()),
-            literal: Some(
-                crate::data_structs::descriptor(node, self.facts)
-                    .expect("verified nominal field slots"),
-            ),
-            operands: evaluated.values,
-            ..template(node, NodeCategory::Computation)
+        let operation = if crate::data_enums::constructor_candidate(node, self.facts) {
+            Operation {
+                construct: Some("data.enum-value".into()),
+                operator: Some(
+                    crate::data_enums::constructor(node, self.facts)
+                        .expect("verified enum constructor"),
+                ),
+                ..template(node, NodeCategory::Computation)
+            }
+        } else {
+            Operation {
+                construct: Some("data.struct".into()),
+                literal: Some(
+                    crate::data_structs::descriptor(node, self.facts)
+                        .expect("verified nominal field slots"),
+                ),
+                ..template(node, NodeCategory::Computation)
+            }
         };
+        self.constructed_value(node, operation, flow)
+    }
 
+    fn constructed_value(&mut self, node: &HirNode, mut operation: Operation, flow: Flow) -> Flow {
+        let evaluated = self.evaluate_operands(node, flow);
+        operation.operands = evaluated.values;
         self.emit(operation, evaluated.flow)
+    }
+
+    fn conditional_payload(
+        &mut self,
+        read: Operation,
+        mut declaration: Operation,
+        flow: Flow,
+    ) -> Flow {
+        let flow = self.emit(read, flow);
+        declaration.operands = self.operand(&flow.value);
+        self.emit(declaration, flow)
     }
 
     fn tuple_assignment(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -872,6 +912,9 @@ impl Builder<'_> {
     }
 
     fn scalar_match(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_enums::match_candidate(node, self.facts) {
+            return self.enum_match(node, flow);
+        }
         if crate::checked_options::match_candidate(node, self.facts) {
             return self.option_match(node, flow);
         }

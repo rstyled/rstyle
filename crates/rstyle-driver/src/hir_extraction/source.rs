@@ -102,6 +102,15 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_local(&mut self, local: &'a ast::Local) {
+        if self.profile.supports("rust.scalar-enum-values")
+            && matches!(local.pat.kind, ast::PatKind::Wild)
+            && local.ty.is_none()
+            && let ast::LocalKind::Init(value) = &local.kind
+        {
+            self.visit_expr(value);
+            return;
+        }
+
         if !matches!(local.kind, ast::LocalKind::Init(_)) {
             self.reject(local.span, "rust.local-bindings", "declaration_shape");
         }
@@ -267,6 +276,13 @@ fn source_match_pattern(
     kind: &ast::PatKind,
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> bool {
+    if profile.supports("rust.scalar-enum-values")
+        && let ast::PatKind::TupleStruct(_, _, children) = kind
+        && matches!(children.as_slice(), [child] if matches!(child.kind,
+            ast::PatKind::Wild | ast::PatKind::Ident(ast::BindingMode(ast::ByRef::No, ast::Mutability::Not), _, None)))
+    {
+        return true;
+    }
     if profile.supports("rust.checked-slice-option")
         && let ast::PatKind::TupleStruct(_, _, children) = kind
     {

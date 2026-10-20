@@ -2,6 +2,7 @@
 
 mod copy;
 mod receivers;
+mod scalar_enums;
 
 use super::hir::Context;
 use rstyle_pdg::{HirFnFacts, concrete_types::*};
@@ -250,10 +251,23 @@ impl<'tcx> Capture<'_, 'tcx> {
         }
         match ty.kind() {
             ty::Array(element, length) => self.array(*element, *length, depth),
-            ty::Adt(definition, arguments) => self.structure(*definition, arguments, depth),
+            ty::Adt(definition, arguments) => self.nominal_type(*definition, arguments, depth),
             _ => Err(unsupported(
                 "Outside the concrete drop-free/shared type observation grammar",
             )),
+        }
+    }
+
+    fn nominal_type(
+        &mut self,
+        definition: ty::AdtDef<'tcx>,
+        arguments: ty::GenericArgsRef<'tcx>,
+        depth: usize,
+    ) -> Result<TypeTree, Failure> {
+        if self.ctx.profile.supports("rust.scalar-enum-values") && definition.is_enum() {
+            self.scalar_enum(definition, arguments, depth)
+        } else {
+            self.structure(definition, arguments, depth)
         }
     }
 

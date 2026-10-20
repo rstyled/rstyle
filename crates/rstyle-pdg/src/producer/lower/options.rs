@@ -126,16 +126,14 @@ impl Builder<'_> {
                 },
             )
         };
-        let flow = self.emit(read, flow);
         let declaration = Operation {
             construct_span: input.node.span,
             ty: "unit".into(),
             symbol: binding.binding.clone(),
             write_form: Some("initialization".into()),
             role: "option_payload_binding".into(),
-            operands: self.operand(&flow.value),
             ..template(binding, NodeCategory::Declaration)
         };
-        self.emit(declaration, flow)
+        self.conditional_payload(read, declaration, flow)
     }
 }

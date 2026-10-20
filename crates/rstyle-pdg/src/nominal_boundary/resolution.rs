@@ -36,6 +36,12 @@ pub struct Resolution {
 }
 
 impl Resolution {
+    pub(crate) fn requires_scalar_enums(&self) -> bool {
+        self.trees
+            .values()
+            .any(|tree| matches!(tree, TypeTree::Enum { .. }))
+    }
+
     pub(crate) fn requires_scoped_imports(&self) -> bool {
         self.environment.copy_boundary
             && self
@@ -59,7 +65,7 @@ impl Resolution {
     }
 
     pub(crate) fn checked_owned_copy(&self, tree: &TypeTree) -> bool {
-        let TypeTree::Struct { nominal, .. } = tree else {
+        let Some((nominal, _)) = tree.nominal_parts() else {
             return false;
         };
         let key: Vec<_> = nominal
@@ -254,7 +260,9 @@ impl Index {
     fn items(&mut self, site: &IndexSite<'_>) -> Result<(), String> {
         for (item_index, item) in site.module.items.iter().enumerate() {
             match item {
-                syn::Item::Struct(item) => self.structure(site, item_index, item)?,
+                syn::Item::Struct(_) | syn::Item::Enum(_) => {
+                    self.nominal_item(site, item_index, item)?
+                }
                 syn::Item::Use(item) => {
                     let path = match (item.leading_colon.is_some(), site.selected) {
                         (false, _) => Vec::new(),
@@ -276,22 +284,27 @@ impl Index {
         Ok(())
     }
 
-    fn structure(
+    fn nominal_item(
         &mut self,
         site: &IndexSite<'_>,
         item_index: usize,
-        item: &syn::ItemStruct,
+        item: &syn::Item,
     ) -> Result<(), String> {
+        let (ident, generics) = match item {
+            syn::Item::Struct(item) => (&item.ident, &item.generics),
+            syn::Item::Enum(item) => (&item.ident, &item.generics),
+            _ => return Err("Expected nominal declaration".into()),
+        };
         let mut key = site.module.namespace.clone();
-        key.push(item.ident.to_string());
-        if !site.selected && concrete_types::lifetimes::parameter_count(&item.generics).is_err() {
+        key.push(ident.to_string());
+        if !site.selected && concrete_types::lifetimes::parameter_count(generics).is_err() {
             return Err("Generic nominal declaration".into());
         }
 
         let declaration = Declaration {
             path: site.module.path.clone(),
             span: if site.selected {
-                struct_span(site.bytes, item)
+                nominal_span(site.bytes, item)?
             } else {
                 source_span(site.bytes, item.span())
             },
@@ -414,7 +427,7 @@ fn anchored(path: Namespace, namespace: &Namespace, import: bool) -> Result<Name
 
 fn collect(tree: &TypeTree, trees: &mut BTreeMap<Namespace, TypeTree>) -> Result<(), String> {
     match tree {
-        TypeTree::Struct { .. } => collect_nominal(tree, trees)?,
+        TypeTree::Struct { .. } | TypeTree::Enum { .. } => collect_nominal(tree, trees)?,
         TypeTree::Tuple(elements) => {
             for element in elements {
                 collect(element, trees)?;
@@ -432,12 +445,9 @@ fn collect_nominal(
     tree: &TypeTree,
     trees: &mut BTreeMap<Namespace, TypeTree>,
 ) -> Result<(), String> {
-    let TypeTree::Struct {
-        nominal, fields, ..
-    } = tree
-    else {
-        return Err("Non-nominal type registry entry".into());
-    };
+    let (nominal, _) = tree
+        .nominal_parts()
+        .ok_or("Non-nominal type registry entry")?;
     let key = nominal
         .definition_path
         .split("::")
@@ -450,7 +460,7 @@ fn collect_nominal(
         return Err("Contradictory nominal trees in one interface".into());
     }
 
-    for field in fields {
+    for field in tree.nominal_fields() {
         collect(&field.ty, trees)?;
     }
     Ok(())
@@ -463,12 +473,7 @@ fn verify_declarations(
     census: &census::Census,
 ) -> Result<(), String> {
     for (key, tree) in &resolution.trees {
-        let TypeTree::Struct {
-            nominal, fields, ..
-        } = tree
-        else {
-            return Err("Non-nominal registry entry".into());
-        };
+        let (nominal, _) = tree.nominal_parts().ok_or("Non-nominal registry entry")?;
         let declaration = declarations
             .get(key)
             .ok_or("Nominal tree lacks lexical source declaration")?;
@@ -493,7 +498,7 @@ fn verify_declarations(
             resolution,
             namespace: &declaration.namespace,
         };
-        for field in fields {
+        for field in tree.nominal_fields() {
             concrete_types::source_proof::verify_top_spelling(
                 &field.declaration,
                 &field.ty,
@@ -901,15 +906,20 @@ pub(crate) fn selected_cfgs(facts: &HirFnFacts) -> Result<Option<&[String]>, Str
     Ok(supports(facts, "rust.copy-nominal-boundary")?.then_some(facts.build.cfgs.as_slice()))
 }
 
-fn struct_span(bytes: &str, item: &syn::ItemStruct) -> ByteSpan {
-    let start = match item.vis {
-        syn::Visibility::Inherited => item.struct_token.span,
-        _ => item.vis.span(),
+fn nominal_span(bytes: &str, item: &syn::Item) -> Result<ByteSpan, String> {
+    let (visibility, token) = match item {
+        syn::Item::Struct(item) => (&item.vis, item.struct_token.span),
+        syn::Item::Enum(item) => (&item.vis, item.enum_token.span),
+        _ => return Err("Expected nominal item span".into()),
     };
-    ByteSpan {
+    let start = match visibility {
+        syn::Visibility::Inherited => token,
+        _ => visibility.span(),
+    };
+    Ok(ByteSpan {
         start: source_span(bytes, start).start,
         end: source_span(bytes, item.span()).end,
-    }
+    })
 }
 
 #[cfg(test)]

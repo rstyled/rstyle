@@ -9,7 +9,7 @@ pub(crate) struct Sources {
 struct CheckedFile {
     bytes: crate::SourceSnapshot,
     digest: String,
-    structs: Vec<(ByteSpan, Vec<syn::Attribute>)>,
+    declarations: Vec<(ByteSpan, Vec<syn::Attribute>)>,
 }
 
 impl Sources {
@@ -37,7 +37,7 @@ impl Sources {
                 .get(&origin.source_file)
                 .ok_or("Copy observation lacks checked declaration source")?;
             let (_, attributes) = file
-                .structs
+                .declarations
                 .iter()
                 .find(|(span, _)| *span == origin.declaration_span)
                 .ok_or("Copy observation lacks exact struct ownership")?;
@@ -69,7 +69,7 @@ impl CheckedFile {
             .unwrap_or(&origin.file_bytes);
         let prefix = origin.file_bytes.len() - source.len();
         let file = syn::parse_file(source).map_err(|error| error.to_string())?;
-        let mut visitor = StructSpans {
+        let mut visitor = DeclarationSpans {
             source,
             prefix: prefix as u32,
             spans: Vec::new(),
@@ -79,7 +79,7 @@ impl CheckedFile {
         Ok(Self {
             bytes: origin.file_bytes.clone(),
             digest: origin.file_digest.clone(),
-            structs: visitor.spans,
+            declarations: visitor.spans,
         })
     }
 
@@ -92,7 +92,7 @@ impl CheckedFile {
             return Err("Declaration origin file identity or original byte range disagrees".into());
         }
         if self
-            .structs
+            .declarations
             .iter()
             .filter(|(candidate, _)| *candidate == span)
             .count()
@@ -104,13 +104,13 @@ impl CheckedFile {
     }
 }
 
-struct StructSpans<'a> {
+struct DeclarationSpans<'a> {
     source: &'a str,
     prefix: u32,
     spans: Vec<(ByteSpan, Vec<syn::Attribute>)>,
 }
 
-impl<'ast> syn::visit::Visit<'ast> for StructSpans<'_> {
+impl<'ast> syn::visit::Visit<'ast> for DeclarationSpans<'_> {
     fn visit_item_struct(&mut self, item: &'ast syn::ItemStruct) {
         use syn::spanned::Spanned;
         let span = item.span();
@@ -118,6 +118,26 @@ impl<'ast> syn::visit::Visit<'ast> for StructSpans<'_> {
             syn::Visibility::Inherited => item.struct_token.span,
             _ => item.vis.span(),
         };
+        self.record(span, start, &item.attrs);
+    }
+
+    fn visit_item_enum(&mut self, item: &'ast syn::ItemEnum) {
+        use syn::spanned::Spanned;
+        let start = match item.vis {
+            syn::Visibility::Inherited => item.enum_token.span,
+            _ => item.vis.span(),
+        };
+        self.record(item.span(), start, &item.attrs);
+    }
+}
+
+impl DeclarationSpans<'_> {
+    fn record(
+        &mut self,
+        span: proc_macro2::Span,
+        start: proc_macro2::Span,
+        attributes: &[syn::Attribute],
+    ) {
         self.spans.push((
             ByteSpan {
                 start: crate::source_evidence::byte_offset(self.source, start.start()) as u32
@@ -125,9 +145,7 @@ impl<'ast> syn::visit::Visit<'ast> for StructSpans<'_> {
                 end: crate::source_evidence::byte_offset(self.source, span.end()) as u32
                     + self.prefix,
             },
-            // This index binds Copy observations only. Other attributes remain
-            // in the original snapshot and require separate boundary proof.
-            item.attrs
+            attributes
                 .iter()
                 .filter(|attribute| {
                     ["derive", "cfg", "cfg_attr"]
@@ -201,14 +219,17 @@ mod tests {
         sources.verify(&interface, &origins).unwrap();
         assert_eq!(sources.files.len(), 1);
         let checked = &sources.files["/sample/src/lib.rs"];
-        let spans = checked.structs.as_ptr();
+        let spans = checked.declarations.as_ptr();
         assert!(crate::SourceSnapshot::ptr_eq(
             &checked.bytes,
             &origins.declarations[0].file_bytes
         ));
         for _ in 0..20 {
             sources.verify(&interface, &origins).unwrap();
-            assert_eq!(sources.files["/sample/src/lib.rs"].structs.as_ptr(), spans);
+            assert_eq!(
+                sources.files["/sample/src/lib.rs"].declarations.as_ptr(),
+                spans
+            );
         }
         let mut changed = origins.clone();
         for origin in &mut changed.declarations {
@@ -220,7 +241,10 @@ mod tests {
         let mut contradictory = origins.clone();
         contradictory.declarations[1] = changed.declarations[1].clone();
         assert!(verify(&interface, &contradictory).is_err());
-        assert_eq!(sources.files["/sample/src/lib.rs"].structs.as_ptr(), spans);
+        assert_eq!(
+            sources.files["/sample/src/lib.rs"].declarations.as_ptr(),
+            spans
+        );
     }
 
     #[test]

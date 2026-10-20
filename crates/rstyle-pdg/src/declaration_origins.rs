@@ -133,13 +133,7 @@ fn collect<'a>(
     entries: &mut BTreeMap<String, (&'a Nominal, &'a str)>,
 ) -> Result<(), String> {
     match tree {
-        TypeTree::Struct {
-            nominal,
-            source,
-            fields,
-        } => {
-            collect_struct(nominal, source, fields, entries)?;
-        }
+        TypeTree::Struct { .. } | TypeTree::Enum { .. } => collect_nominal(tree, entries)?,
         TypeTree::Tuple(elements) => {
             for element in elements {
                 collect(element, entries)?;
@@ -154,19 +148,18 @@ fn collect<'a>(
     Ok(())
 }
 
-fn collect_struct<'a>(
-    nominal: &'a Nominal,
-    source: &'a str,
-    fields: &'a [crate::concrete_types::Field],
+fn collect_nominal<'a>(
+    tree: &'a TypeTree,
     entries: &mut BTreeMap<String, (&'a Nominal, &'a str)>,
 ) -> Result<(), String> {
+    let (nominal, source) = tree.nominal_parts().ok_or("Expected nominal declaration")?;
     if entries
         .insert(nominal.definition_path.clone(), (nominal, source))
         .is_some_and(|previous| previous != (nominal, source))
     {
         return Err("Conflicting observations for one nominal declaration".into());
     }
-    for field in fields {
+    for field in tree.nominal_fields() {
         collect(&field.ty, entries)?;
     }
 

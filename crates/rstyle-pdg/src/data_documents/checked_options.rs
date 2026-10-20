@@ -1,5 +1,4 @@
 //! Independent source-to-document checked Option interpretation.
-mod guards;
 
 use super::*;
 use crate::{
@@ -133,7 +132,7 @@ fn verify_match(
         load,
         &[super::value_operation(pair, checked.scrutinee)?],
     )?;
-    verify_binding(pair, &checked, load)?;
+    super::conditional_payloads::binding(pair, checked.binding, load)?;
     for (index, arm) in source.children[1..].iter().enumerate() {
         let construct = if index == checked.some_arm {
             "match.option-some"
@@ -148,25 +147,14 @@ fn verify_match(
             &[super::value_operation(pair, checked.scrutinee)?],
         )?;
         if index == checked.some_arm {
-            guards::verify(pair, selector, load)?;
+            super::conditional_payloads::verify(pair, selector, load)?;
         }
     }
     Ok(entries)
 }
 
 fn inventory(pair: PairView<'_>, expected_counts: [usize; 7]) -> Result<(), String> {
-    for (construct, expected) in CONSTRUCTS.into_iter().zip(expected_counts) {
-        if pair
-            .pdg
-            .nodes
-            .iter()
-            .filter(|node| node.attributes.construct.as_deref() == Some(construct))
-            .count()
-            != expected
-        {
-            return Err("Checked Option operation inventory disagrees with source".into());
-        }
-    }
+    super::verify_construct_inventory(pair, CONSTRUCTS, expected_counts)?;
     if pair.pdg.nodes.iter().any(|node| {
         node.annotations.contains_key(options::KEY)
             && node
@@ -257,30 +245,4 @@ fn effects(node: &PdgNode, construct: &str, reads: &[crate::Access]) -> Result<(
         return Err("Checked Option operation invents a call/operator".into());
     }
     Ok(())
-}
-
-fn verify_binding(
-    pair: PairView<'_>,
-    checked: &options::Match<'_>,
-    load: &PdgNode,
-) -> Result<(), String> {
-    let declaration = super::serialized_operation(pair, &checked.binding.span, |node| {
-        node.category == NodeCategory::Declaration
-    })?;
-    let symbol = checked
-        .binding
-        .binding
-        .as_ref()
-        .ok_or("Missing Option scalar binding")?;
-    if declaration.attributes.symbol_ids != [symbol.clone()]
-        || declaration.attributes.defines.len() != 1
-        || declaration.attributes.writes.len() != 1
-        || declaration.attributes.writes[0].symbol_id.as_ref() != Some(symbol)
-        || declaration.attributes.writes[0].location_id.is_some()
-        || !declaration.attributes.reads.is_empty()
-        || declaration.attributes.write_form.as_deref() != Some("initialization")
-    {
-        return Err("Option payload does not define its exact scalar binding".into());
-    }
-    super::verify_saved_operands(pair, declaration, &[load])
 }

@@ -178,6 +178,9 @@ impl<'a> Visit<'a> for Owners<'a, '_> {
 
 impl<'a> Owners<'a, '_> {
     fn inspect_item(&mut self, item: &'a syn::Item) -> Result<(), String> {
+        if let syn::Item::Impl(implementation) = item {
+            return self.inspect_implementation(implementation);
+        }
         let syn::Item::Fn(function) = item else {
             return Ok(());
         };
@@ -210,6 +213,34 @@ impl<'a> Owners<'a, '_> {
             return Err("Nested Option owner has unsupported enclosing generics".into());
         }
         self.visit_block(&function.block);
+        Ok(())
+    }
+
+    fn inspect_implementation(&mut self, item: &'a syn::ItemImpl) -> Result<(), String> {
+        let span = source_span(self.bytes, item.span());
+        if span.start > self.facts.fn_span.start || span.end < self.facts.fn_span.end {
+            return Ok(());
+        }
+        if !self.configuration.active(&item.attrs)? || !selected::implementation(self.facts, item) {
+            return Err("Option method requires an active supported inherent owner".into());
+        }
+
+        for member in &item.items {
+            if let syn::ImplItem::Fn(method) = member
+                && (FunctionSource {
+                    vis: &method.vis,
+                    sig: &method.sig,
+                    body: &method.block,
+                })
+                .exact(self.bytes, self.facts)
+            {
+                if !self.configuration.active(&method.attrs)? {
+                    return Err("Option source method owner is inactive".into());
+                }
+                selected::function_attributes(self.facts, &method.attrs)?;
+                self.matches.push(self.blocks.clone());
+            }
+        }
         Ok(())
     }
 }

@@ -29,6 +29,10 @@ pub enum TypeToken {
         nominal: Nominal,
         fields: Vec<(String, TypeToken)>,
     },
+    Enum {
+        nominal: Nominal,
+        variants: Vec<(String, TypeToken)>,
+    },
 }
 
 impl TypeToken {
@@ -57,6 +61,15 @@ impl TypeToken {
                     .map(|field| (field.name.clone(), Self::from_tree(&field.ty)))
                     .collect(),
             },
+            TypeTree::Enum {
+                nominal, variants, ..
+            } => Self::Enum {
+                nominal: nominal.clone(),
+                variants: variants
+                    .iter()
+                    .map(|variant| (variant.name.clone(), Self::from_tree(&variant.payload.ty)))
+                    .collect(),
+            },
         }
     }
 
@@ -76,6 +89,9 @@ impl TypeToken {
             | Self::Slice(element)
             | Self::Option(element) => element.native_width(),
             Self::Struct { fields, .. } => fields.iter().any(|(_, field)| field.native_width()),
+            Self::Enum { variants, .. } => {
+                variants.iter().any(|(_, payload)| payload.native_width())
+            }
             _ => false,
         }
     }
@@ -111,6 +127,9 @@ pub(crate) fn parse_for(
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
+    if text.contains("\"kind\":\"enum\"") && !profile.supports("rust.scalar-enum-values") {
+        return Err("Enum type requires its registered scalar payload capability".into());
+    }
     if text.contains("\"kind\":\"option\"")
         && (!profile.supports("rust.checked-slice-option")
             || scalar_option(&ty) && !profile.supports("rust.scalar-option-values"))
@@ -159,15 +178,10 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         {
             Ok(())
         }
-        TypeToken::Struct { nominal, fields }
-            if nominal
-                .source_identity
-                .as_ref()
-                .is_some_and(|id| !id.is_empty())
-                && fields.len() <= crate::concrete_types::MAX_FIELDS =>
-        {
-            check_nominal_fields(fields, depth, entries)
-        }
+        TypeToken::Struct { fields, .. }
+        | TypeToken::Enum {
+            variants: fields, ..
+        } if valid_nominal(token) => check_nominal_fields(fields, depth, entries),
         // Admission additionally requires independently verified nominal source/effects.
         _ => Err("Data type token lacks a registered concrete proof".into()),
     }
@@ -201,4 +215,18 @@ fn check_nominal_fields(
         check(field, depth + 1, entries)?;
     }
     Ok(())
+}
+
+fn valid_nominal(token: &TypeToken) -> bool {
+    let (nominal, valid) = match token {
+        TypeToken::Struct { nominal, fields } => (nominal, fields.len() <= crate::concrete_types::MAX_FIELDS),
+        TypeToken::Enum { nominal, variants } => (nominal, !variants.is_empty() && variants.len() <= 16
+            && variants.iter().all(|(_, payload)| matches!(payload, TypeToken::Scalar(value) if scalar(value) && value != "unit"))),
+        _ => return false,
+    };
+    valid
+        && nominal
+            .source_identity
+            .as_ref()
+            .is_some_and(|id| !id.is_empty())
 }

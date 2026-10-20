@@ -1,4 +1,6 @@
 use super::*;
+mod boundaries;
+mod corruption;
 
 fn descendants<'a>(node: &'a rstyle_pdg::HirNode, output: &mut Vec<&'a rstyle_pdg::HirNode>) {
     output.push(node);
@@ -8,7 +10,7 @@ fn descendants<'a>(node: &'a rstyle_pdg::HirNode, output: &mut Vec<&'a rstyle_pd
 }
 
 #[test]
-fn local_variant_patterns_retain_identity_and_payload_without_admission() {
+fn scalar_enum_family_completes_capture_and_preserves_historical_patterns() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
@@ -20,7 +22,7 @@ fn local_variant_patterns_retain_identity_and_payload_without_admission() {
         assert!(output.status.success(), "{report}");
         let functions = report["functions"].as_array().unwrap();
         assert_eq!(functions.len(), 11);
-        assert!(functions.iter().all(|f| f["outcome"] == "excluded"));
+        check_family_outcomes(&report, profile);
         for name in ["Unit::byte", "Unit::end"] {
             let function = functions
                 .iter()
@@ -29,8 +31,48 @@ fn local_variant_patterns_retain_identity_and_payload_without_admission() {
             let facts: rstyle_pdg::HirFnFacts =
                 serde_json::from_value(function["facts"].clone()).unwrap();
             check_patterns(&facts, profile);
-            assert!(rstyle_pdg::producer::produce(&facts).is_err());
+            assert_eq!(
+                rstyle_pdg::producer::produce(&facts).is_ok(),
+                profile == "hir-data-v3"
+            );
         }
+    }
+}
+
+fn check_family_outcomes(report: &Value, profile: &str) {
+    let functions = report["functions"].as_array().unwrap();
+    for function in functions {
+        let positive = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "Unit::new_byte" | "Unit::new_end" | "Unit::byte" | "Unit::end" | "roundtrip" | "saved"
+        );
+        assert_eq!(
+            function["outcome"],
+            if profile == "hir-data-v3" && positive {
+                "admitted"
+            } else {
+                "excluded"
+            },
+            "{function}"
+        );
+    }
+    if profile == "hir-data-v3" {
+        check_aggregate_documents(report);
+        for flag in [
+            "capture_complete",
+            "assessment_complete",
+            "pair_evaluation_complete",
+            "pair_enumeration_complete",
+        ] {
+            assert_eq!(report[flag], true, "{flag}");
+        }
+        assert!(
+            report["matching"]["pairs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|pair| pair["evaluation_status"] == "evaluated")
+        );
     }
 }
 

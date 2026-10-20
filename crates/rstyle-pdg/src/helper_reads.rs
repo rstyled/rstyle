@@ -42,7 +42,11 @@ pub(crate) fn supported(
             .normalized
             .as_deref()
             .and_then(|ty| crate::data_types::parse(ty).ok())
-            .is_some_and(|ty| matches!(ty, TypeToken::Scalar(_)))
+            .is_some_and(|ty| {
+                matches!(ty, TypeToken::Scalar(_))
+                    || crate::extraction_profile::facts_support(facts, "rust.scalar-enum-values")
+                        && matches!(ty, TypeToken::Option(payload) if matches!(*payload, TypeToken::Scalar(_)))
+            })
         && pair.pdg.memory_locations.iter().all(|location| {
             captured(location).is_ok_and(|location| {
                 formal_type(facts, location.parameter)

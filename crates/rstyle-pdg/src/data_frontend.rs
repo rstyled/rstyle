@@ -35,12 +35,16 @@ pub(crate) fn verify_document_policy(
     let imports =
         crate::extraction_profile::policy_supports(profile, "rust.scoped-nominal-imports");
     let arrays = crate::extraction_profile::policy_supports(profile, "rust.copy-array-fields");
-    if imports && arrays {
+    let enums = crate::extraction_profile::policy_supports(profile, "rust.scalar-enum-values");
+    if imports && arrays && enums {
         return Ok(());
     }
 
     let interface = interface(facts)?;
     if let Some(resolution) = nominal_resolution(facts, &interface)? {
+        if !enums && resolution.requires_scalar_enums() {
+            return Err("Scalar enum values require their registered document policy".into());
+        }
         if !imports && resolution.requires_scoped_imports() {
             return Err(
                 "Scoped nominal import proof requires its registered document policy".into(),
@@ -316,6 +320,7 @@ fn verify_nodes(
     {
         crate::data_aggregates::verify(node, facts)?;
     }
+    verify_enum_node(node, facts)?;
     crate::data_locals::verify_node(node, facts)?;
     if crate::checked_options::constructor_candidate(node, facts) {
         crate::checked_options::verify_constructor(node, facts)?;
@@ -342,6 +347,19 @@ fn verify_nodes(
 
     for child in &node.children {
         verify_nodes(child, facts, places)?;
+    }
+    Ok(())
+}
+
+fn verify_enum_node(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    if crate::data_enums::constructor_candidate(node, facts) {
+        crate::data_enums::constructor(node, facts)?;
+    }
+    if crate::data_enums::match_candidate(node, facts) {
+        crate::data_enums::matched(node, facts)?;
     }
     Ok(())
 }

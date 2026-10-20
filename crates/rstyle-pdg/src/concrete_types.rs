@@ -3,6 +3,8 @@
 mod declarations;
 pub mod lifetimes;
 mod option_spelling;
+mod scalar_enums;
+pub use scalar_enums::variant_declarations;
 pub mod source_proof;
 
 use crate::source_evidence::byte_offset;
@@ -38,6 +40,50 @@ pub enum TypeTree {
         source: crate::SourceText,
         fields: Vec<Field>,
     },
+    Enum {
+        nominal: Nominal,
+        source: crate::SourceText,
+        variants: Vec<Variant>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Variant {
+    pub position: usize,
+    pub name: String,
+    pub payload: Field,
+}
+
+impl TypeTree {
+    pub(crate) fn nominal_parts(&self) -> Option<(&Nominal, &crate::SourceText)> {
+        match self {
+            Self::Struct {
+                nominal, source, ..
+            }
+            | Self::Enum {
+                nominal, source, ..
+            } => Some((nominal, source)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn nominal_fields(&self) -> impl Iterator<Item = &Field> {
+        let fields = match self {
+            Self::Struct { fields, .. } => Some(fields),
+            _ => None,
+        };
+        let variants = match self {
+            Self::Enum { variants, .. } => Some(variants),
+            _ => None,
+        };
+        fields.into_iter().flatten().chain(
+            variants
+                .into_iter()
+                .flatten()
+                .map(|variant| &variant.payload),
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -148,6 +194,11 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
             source,
             fields,
         } => check_declaration(nominal, source, fields),
+        TypeTree::Enum {
+            nominal,
+            source,
+            variants,
+        } => scalar_enums::check(nominal, source, variants),
         _ => Ok(()),
     }
 }
@@ -163,11 +214,11 @@ fn option_payload(tree: &TypeTree) -> bool {
 }
 
 fn check_children(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), String> {
+    if tree.nominal_parts().is_some() {
+        return check_many(tree.nominal_fields().map(|field| &field.ty), depth, entries);
+    }
     match tree {
         TypeTree::Tuple(elements) => check_many(elements.iter(), depth, entries),
-        TypeTree::Struct { fields, .. } => {
-            check_many(fields.iter().map(|field| &field.ty), depth, entries)
-        }
         TypeTree::Array { element, .. }
         | TypeTree::Shared(element)
         | TypeTree::Slice(element)
@@ -201,15 +252,7 @@ fn check_declaration(
     fields: &[Field],
 ) -> Result<(), String> {
     check_declaration_budget(source, fields)?;
-    if nominal.package_name.is_empty()
-        || nominal.package_version.is_empty()
-        || !is_digest(&nominal.manifest_digest)
-        || nominal.declaration_digest != source.identity()
-    {
-        return Err(
-            "Concrete nominal source/package identity is incomplete or inconsistent".into(),
-        );
-    }
+    check_identity(nominal, source)?;
     let declaration: syn::ItemStruct = syn::parse_str(source)
         .map_err(|error| format!("Invalid concrete struct declaration: {error}"))?;
     if nominal.definition_path.rsplit("::").next() != Some(declaration.ident.to_string().as_str())
@@ -223,6 +266,19 @@ fn check_declaration(
         check_field(source, position, declared, captured)?;
     }
 
+    Ok(())
+}
+
+fn check_identity(nominal: &Nominal, source: &crate::SourceText) -> Result<(), String> {
+    if nominal.package_name.is_empty()
+        || nominal.package_version.is_empty()
+        || !is_digest(&nominal.manifest_digest)
+        || nominal.declaration_digest != source.identity()
+    {
+        return Err(
+            "Concrete nominal source/package identity is incomplete or inconsistent".into(),
+        );
+    }
     Ok(())
 }
 

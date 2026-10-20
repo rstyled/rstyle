@@ -15,48 +15,66 @@ pub(super) fn verify(
     }
     let mut copies = std::collections::BTreeSet::new();
     for (key, tree) in trees {
-        let TypeTree::Struct {
-            nominal, fields, ..
-        } = tree
-        else {
-            return Err("Mixed-unit proof requires concrete structs".into());
-        };
-        if fields
-            .iter()
+        if matches!(tree, TypeTree::Enum { .. }) && !supports(facts, "rust.scalar-enum-values")? {
+            return Err("Scalar enum ownership requires its registered capability".into());
+        }
+        if tree
+            .nominal_fields()
             .any(|field| !supported_field(facts, &field.ty))
         {
-            return Err("Mixed-unit Copy fields require scalars or checked nested structs".into());
+            return Err("Mixed-unit Copy fields require supported complete values".into());
         }
         let declaration = environment
             .index
             .declarations
             .get(key)
             .ok_or("Missing selected struct declaration")?;
-        let syn::Item::Struct(item) =
-            &environment.modules[declaration.module_index].items[declaration.item_index]
-        else {
-            return Err("Selected declaration handle is not a struct".into());
+        let item = &environment.modules[declaration.module_index].items[declaration.item_index];
+        let attributes = match item {
+            syn::Item::Struct(item) => &item.attrs,
+            syn::Item::Enum(item) if matches!(tree, TypeTree::Enum { .. }) => &item.attrs,
+            _ => return Err("Selected declaration handle has the wrong nominal kind".into()),
         };
-        let origin = origins
-            .declarations
-            .iter()
-            .find(|origin| &origin.nominal == nominal)
-            .ok_or("Missing selected declaration origin")?;
-        if let Some(copy) = &origin.builtin_copy {
-            crate::declaration_origins::copy::verify(facts, origin, copy, &item.attrs)?;
+        if checked_copy(facts, origins, tree, attributes)? {
             copies.insert(key.clone());
-        } else {
-            borrowed::verify(facts, tree)?;
         }
         check_namespace(facts, environment, &declaration.namespace)?;
-        structure(facts, item)?;
+        match item {
+            syn::Item::Struct(item) => structure(facts, item)?,
+            syn::Item::Enum(item) => scalar_enum(facts, item)?,
+            _ => unreachable!(),
+        }
     }
     Ok(copies)
+}
+
+fn checked_copy(
+    facts: &HirFnFacts,
+    origins: &Origins,
+    tree: &TypeTree,
+    attributes: &[syn::Attribute],
+) -> Result<bool, String> {
+    let (nominal, _) = tree.nominal_parts().ok_or("Expected nominal declaration")?;
+    let origin = origins
+        .declarations
+        .iter()
+        .find(|origin| &origin.nominal == nominal)
+        .ok_or("Missing selected declaration origin")?;
+    if let Some(copy) = &origin.builtin_copy {
+        crate::declaration_origins::copy::verify(facts, origin, copy, attributes)?;
+        Ok(true)
+    } else if matches!(tree, TypeTree::Struct { .. }) {
+        borrowed::verify(facts, tree)?;
+        Ok(false)
+    } else {
+        Err("Scalar enum requires positive builtin Copy evidence".into())
+    }
 }
 
 fn supported_field(facts: &HirFnFacts, tree: &TypeTree) -> bool {
     match tree {
         TypeTree::Scalar(_) | TypeTree::Struct { .. } => true,
+        TypeTree::Enum { .. } => supports(facts, "rust.scalar-enum-values").unwrap_or(false),
         TypeTree::Array { element, .. } => {
             supports(facts, "rust.copy-array-fields").unwrap_or(false)
                 && matches!(element.as_ref(), TypeTree::Scalar(_))
@@ -66,20 +84,40 @@ fn supported_field(facts: &HirFnFacts, tree: &TypeTree) -> bool {
 }
 
 fn structure(facts: &HirFnFacts, item: &syn::ItemStruct) -> Result<(), String> {
-    if !item.generics.params.is_empty() || item.generics.where_clause.is_some() {
+    nominal_attributes(facts, &item.generics, &item.attrs)?;
+    for field in &item.fields {
+        function_attributes(facts, &field.attrs)?;
+    }
+    Ok(())
+}
+
+fn scalar_enum(facts: &HirFnFacts, item: &syn::ItemEnum) -> Result<(), String> {
+    nominal_attributes(facts, &item.generics, &item.attrs)?;
+    for variant in &item.variants {
+        function_attributes(facts, &variant.attrs)?;
+        for field in &variant.fields {
+            function_attributes(facts, &field.attrs)?;
+        }
+    }
+    Ok(())
+}
+
+fn nominal_attributes(
+    facts: &HirFnFacts,
+    generics: &syn::Generics,
+    attributes: &[syn::Attribute],
+) -> Result<(), String> {
+    if !generics.params.is_empty() || generics.where_clause.is_some() {
         return Err("Selected Copy struct must be nongeneric".into());
     }
     let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
 
-    for attribute in configuration.effective_attributes(&item.attrs)? {
+    for attribute in configuration.effective_attributes(attributes)? {
         if attribute.path().is_ident("derive") {
             derive(&attribute)?;
             continue;
         }
         ordinary(&attribute)?;
-    }
-    for field in &item.fields {
-        function_attributes(facts, &field.attrs)?;
     }
     Ok(())
 }

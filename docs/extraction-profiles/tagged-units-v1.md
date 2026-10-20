@@ -1,7 +1,7 @@
 # Tagged byte-unit constructor and projections
 
-This is the next source-selected development target after Data-v3 3.46, not an
-activated capability. The frozen inventory and its denominators stay unchanged.
+This contract specifies the source-selected family connected in Data-v3 3.47.
+The frozen inventory and its denominators stay unchanged.
 
 ## Original selection and semantics
 
@@ -46,7 +46,7 @@ methods must remain present; their operations are not executed by these methods.
 This family avoids the checked-reader error chain's non-Copy ownership, generic
 checker, local macro-generated payload declarations and residual semantics.
 
-Known simultaneous blockers are:
+At the 3.46 baseline, the simultaneous blockers were:
 
 1. Concrete type capture currently handles structs, not local enums. Unit's
    complete field tree therefore fails too. Source/nominal verification must
@@ -74,7 +74,7 @@ Known simultaneous blockers are:
    verification, strict admission and matching. Existing support for these
    pieces separately is not evidence of complete enum composition.
 
-Unknowns to resolve before activation: original constructor HIR identity shape,
+Baseline unknowns to resolve before activation: original constructor HIR identity shape,
 exact variant-pattern resolution/capture and enum declaration source span
 ownership under current builtin derives; complete helper snapshots for tagged
 values; resulting performance on unchanged scalar controls. No ABI tag layout
@@ -153,3 +153,71 @@ The eleven-function enum corpus stays at zero admissions; .30/.29s (ranges
 matching reports and seven enum empty matching reports are exactly identical.
 The cyclic +.01s median shift has overlapping ranges; these bounded observations
 do not establish a broad performance guarantee or a natural admission gain.
+
+## Connected implementation validation
+
+The data-v3 3.47.0 / 62-capability implementation connects the finite
+scalar enum shape through existing concrete trees, declaration origins, positive
+Copy observations and lexical source resolution. Struct and enum reconstruction
+share one path. The registered `rust.scalar-enum-values` capability covers exact
+variant construction, exhaustive conditional payload matching and the required
+scalar Option helper results. Enum-dependent pass-through documents also require
+that document policy. No new serialized provenance table is added.
+
+The unchanged eleven-function development corpus admits all six intended
+functions: `new_byte`, `new_end`, `byte`, `end`, `roundtrip` and `saved` (six gains,
+no losses). The three named negatives and two generated Clone functions remain
+excluded. Capture, assessment and matching complete. A permanent Cargo regression
+independently verifies serialized documents; data-v2 retains exclusions and its
+historical pattern shape. Reference/rest/tuple-struct boundaries remain excluded.
+The original-crate runtime oracle passes all three exhaustive tests, including
+every byte and all 65536 sentinel payloads.
+
+The `saved` composition requires a bounded wildcard discard: `let _ = local;`
+with no annotation, attributes, nonlocal place, destructuring or initializer
+computation. The local must be scalar or have exact positive nominal Copy proof.
+The explicit `data.copy-discard` operation has unit type and no operands, value
+read, write, call or binding. Wildcard matching against a plain local place does
+not move/load its value or run a destructor. Independently checked source spans,
+local identity, type and document operation inventory retain that distinction.
+Other wildcard initializers remain unsupported; no effectful evaluation is
+silently omitted.
+
+All five tagged-unit Cargo tests pass, including 24 serialized-operation changes,
+successful-guard removal and seven named negative source cases (non-Copy/Drop,
+reference/generic payloads, guarded matches and unsupported discards). The twelve
+existing checked-Option Cargo regressions pass after sharing conditional payload
+initialization/guard checks and operation inventories. The full PDG package checks
+pass (235 tests passed, four ignored). Workspace all-target Clippy, formatting and
+whitespace checks pass. Rstyle reports 2785 functions and zero violations;
+patterns reports zero candidates. All 876 workspace nextest tests pass with five existing skips; workspace
+doctests also pass.
+
+The fresh complete-original-library roster retains all 2582 exact identities and
+build contexts. Admissions increase 66 to 69, with precisely the selected original
+Unit::u8/as_u8/as_eoi gaining and no losses. All three digests and original spans
+remain unchanged. Capture and assessment complete with zero unknown/failed
+outcomes; full enumeration is explicitly budgeted out. Independent verification
+passes for all 69 natural admissions and six development admissions. All 36
+comparisons among the selected nine functions complete with unchanged matching
+defaults, no incomplete evaluations and no diagnostics. These results concern
+extraction coverage; they establish no rewrite safety or held-out detector quality.
+Frozen replay retains all 60 identities/denominators and 20 admitted /33 excluded
+/7 inactive, with 70 verified documents. Complete package rosters match 3.46:
+lz4_flex 150 functions /7 admitted, regex-syntax 956 /20, time-core 226 /8.
+Historical reports and the frozen selection remain unchanged.
+
+Against isolated 209fbf4, one warmup and seven alternating quiescent pairs per
+workload preserve all source identities and expected outcomes. The 16-function
+byte-window control stays at eleven admissions; baseline/current median .87/.89s
+(ranges .86–.88/.86–.91), median RSS 122976/123508 KiB. The six-function cyclic
+control stays at four admissions; .62/.62s (ranges .60–.65/.61–.64), RSS
+111804/112020 KiB.
+All fourteen retained unchanged-control matching reports are exactly identical.
+The eleven-function enum corpus gains six admissions with completed matching;
+.29/.47s (ranges .27–.32/.44–.52), RSS 111136/113924 KiB. This added work includes
+producing/verifying the newly supported functions and their comparisons. The
+unchanged controls show overlapping timing ranges and small RSS differences;
+these bounded observations do not prove a broad performance guarantee. Candidate
+checks test node shape before capability lookup, avoiding work on unrelated nodes
+without adding a cache or changing the accepted grammar.

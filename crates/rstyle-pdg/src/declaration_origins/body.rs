@@ -42,7 +42,7 @@ pub fn context<'a>(
 
 fn nodes(node: &HirNode, tokens: &mut BTreeMap<String, TypeToken>) -> Result<(), String> {
     if let Some(text) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref())
-        && text.contains("\"kind\":\"struct\"")
+        && (text.contains("\"kind\":\"struct\"") || text.contains("\"kind\":\"enum\""))
     {
         collect_tokens(&crate::data_types::parse(text)?, tokens)?;
     }
@@ -57,7 +57,7 @@ fn collect_tokens(
     tokens: &mut BTreeMap<String, TypeToken>,
 ) -> Result<(), String> {
     match token {
-        TypeToken::Struct { .. } => nominal_tokens(token, tokens)?,
+        TypeToken::Struct { .. } | TypeToken::Enum { .. } => nominal_tokens(token, tokens)?,
         TypeToken::Tuple(elements) => {
             for element in elements {
                 collect_tokens(element, tokens)?;
@@ -75,8 +75,13 @@ fn nominal_tokens(
     token: &TypeToken,
     tokens: &mut BTreeMap<String, TypeToken>,
 ) -> Result<(), String> {
-    let TypeToken::Struct { nominal, fields } = token else {
-        return Err("Expected a nominal body type".into());
+    let (nominal, fields) = match token {
+        TypeToken::Struct { nominal, fields }
+        | TypeToken::Enum {
+            nominal,
+            variants: fields,
+        } => (nominal, fields),
+        _ => return Err("Expected a nominal body type".into()),
     };
     if let Some(previous) = tokens.get(&nominal.definition_path) {
         return if previous == token {
@@ -114,25 +119,26 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
                 .map(|element| tree(element, origins))
                 .collect::<Result<_, _>>()?,
         ),
-        TypeToken::Struct { nominal, fields } => structure(nominal, fields, origins)?,
+        TypeToken::Struct { nominal, fields } => {
+            nominal_tree(nominal, fields, origins, NominalKind::Structure)?
+        }
+        TypeToken::Enum { nominal, variants } => {
+            nominal_tree(nominal, variants, origins, NominalKind::Enumeration)?
+        }
     })
 }
 
-fn structure(
+fn nominal_tree(
     nominal: &Nominal,
     fields: &[(String, TypeToken)],
     origins: &Origins,
+    kind: NominalKind,
 ) -> Result<TypeTree, String> {
-    let origin = origins
-        .declarations
-        .iter()
-        .find(|origin| origin.nominal == *nominal)
-        .ok_or("Body nominal type lacks its original declaration")?;
-    let source = origin
-        .file_bytes
-        .get(origin.declaration_span.start as usize..origin.declaration_span.end as usize)
-        .ok_or("Body nominal declaration range is invalid")?;
-    let declarations = crate::concrete_types::field_declarations(source)?;
+    let source = origin_source(nominal, origins)?;
+    let declarations = match kind {
+        NominalKind::Structure => crate::concrete_types::field_declarations(source)?,
+        NominalKind::Enumeration => crate::concrete_types::variant_declarations(source)?,
+    };
     if declarations.len() != fields.len() {
         return Err("Body nominal field count disagrees with declaration".into());
     }
@@ -153,9 +159,66 @@ fn structure(
             })
         })
         .collect::<Result<_, String>>()?;
-    Ok(TypeTree::Struct {
-        nominal: nominal.clone(),
-        source: source.into(),
-        fields,
-    })
+    Ok(kind.wrap(nominal.clone(), source.into(), fields))
+}
+
+fn origin_source<'a>(nominal: &Nominal, origins: &'a Origins) -> Result<&'a str, String> {
+    let origin = origins
+        .declarations
+        .iter()
+        .find(|origin| origin.nominal == *nominal)
+        .ok_or("Body nominal type lacks its original declaration")?;
+    let source = origin
+        .file_bytes
+        .get(origin.declaration_span.start as usize..origin.declaration_span.end as usize)
+        .ok_or("Body nominal declaration range is invalid")?;
+    Ok(source)
+}
+
+#[derive(Clone, Copy)]
+enum NominalKind {
+    Structure,
+    Enumeration,
+}
+
+impl NominalKind {
+    fn wrap(
+        self,
+        nominal: Nominal,
+        source: crate::SourceText,
+        fields: Vec<crate::concrete_types::Field>,
+    ) -> TypeTree {
+        match self {
+            Self::Structure => TypeTree::Struct {
+                nominal,
+                source,
+                fields,
+            },
+            Self::Enumeration => TypeTree::Enum {
+                nominal,
+                source,
+                variants: fields
+                    .into_iter()
+                    .map(|field| {
+                        let crate::concrete_types::Field {
+                            position,
+                            name,
+                            declaration,
+                            ty,
+                        } = field;
+                        crate::concrete_types::Variant {
+                            position,
+                            name,
+                            payload: crate::concrete_types::Field {
+                                position: 0,
+                                name: "0".into(),
+                                declaration,
+                                ty,
+                            },
+                        }
+                    })
+                    .collect(),
+            },
+        }
+    }
 }

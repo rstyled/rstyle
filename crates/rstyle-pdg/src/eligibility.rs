@@ -553,16 +553,14 @@ fn binding_node(binding: &BindingFact) -> HirNode {
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
-    if crate::data_subslices::candidate(node, ctx.facts) {
-        return match crate::data_subslices::verify(node, ctx.facts) {
-            Ok(checked) => Outcome::combine(
-                checked
-                    .operands()
-                    .map(|operand| check_node(operand, in_expansion, ctx))
-                    .collect(),
-            ),
-            Err(reason) => error("rust.shared-subslice-views", "subslice", node, &reason),
+    if crate::data_discards::candidate(node, ctx.facts) {
+        return match crate::data_discards::verify(node, ctx.facts) {
+            Ok(()) => Outcome::ok(),
+            Err(reason) => error("rust.scalar-enum-values", "copy_discard", node, &reason),
         };
+    }
+    if crate::data_subslices::candidate(node, ctx.facts) {
+        return check_subslice(node, in_expansion, ctx);
     }
     if node.kind == "expr_assert" && ctx.profile.supports("rust.scalar-assertions") {
         return check_assertion(node, ctx);
@@ -580,6 +578,9 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
         && matches!(node.kind.as_str(), "expr_break" | "expr_continue")
     {
         return check_loop_exit(node, ctx);
+    }
+    if crate::data_enums::match_candidate(node, ctx.facts) {
+        return check_enum_match(node, ctx);
     }
     if crate::checked_options::match_candidate(node, ctx.facts) {
         return check_option_match(node, ctx);
@@ -602,6 +603,18 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     );
 
     own.merge(children)
+}
+
+fn check_subslice(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    match crate::data_subslices::verify(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(
+            checked
+                .operands()
+                .map(|operand| check_node(operand, in_expansion, ctx))
+                .collect(),
+        ),
+        Err(reason) => error("rust.shared-subslice-views", "subslice", node, &reason),
+    }
 }
 
 fn check_assertion(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
@@ -715,6 +728,17 @@ fn check_method(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 }
 
 fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if crate::data_enums::constructor_candidate(node, ctx.facts) {
+        return Some(match crate::data_enums::constructor(node, ctx.facts) {
+            Ok(_) => Outcome::ok(),
+            Err(reason) => error(
+                crate::data_enums::CAPABILITY,
+                "enum_constructor",
+                node,
+                &reason,
+            ),
+        });
+    }
     if crate::checked_options::constructor_candidate(node, ctx.facts) {
         return Some(check_option_constructor(node, ctx));
     }
@@ -1656,5 +1680,25 @@ fn check_option_result(node: &HirNode, ctx: &Ctx<'_>, construct: &str) -> Outcom
         }
     } else {
         check_expr_ty(node, construct)
+    }
+}
+
+fn check_enum_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::data_enums::matched(node, ctx.facts) {
+        Ok(checked) => {
+            let result = match node_norm(node) {
+                Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
+                _ => check_expr_ty(node, "enum_match_result"),
+            };
+            Outcome::combine(
+                std::iter::once(result)
+                    .chain(std::iter::once(check_node(checked.scrutinee, false, ctx)))
+                    .chain(node.children[1..].iter().map(|arm| {
+                        check_node(arm.children.last().expect("verified enum arm"), false, ctx)
+                    }))
+                    .collect(),
+            )
+        }
+        Err(reason) => error(crate::data_enums::CAPABILITY, "enum_match", node, &reason),
     }
 }

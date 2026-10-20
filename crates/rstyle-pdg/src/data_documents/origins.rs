@@ -520,6 +520,12 @@ fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> 
             Some("unit")
         }
         NodeCategory::Control => Some("bool"),
+        NodeCategory::Computation
+            if node.attributes.construct.as_deref() == Some("data.copy-discard") =>
+        {
+            crate::data_discards::verify(source_node(node, facts)?, facts)?;
+            Some("unit")
+        }
         NodeCategory::Computation if node.original_kind.known_value() == Some("expr_assign_op") => {
             source_node(node, facts)?
                 .dispatch

@@ -4,12 +4,14 @@ mod aggregates;
 mod borrows;
 mod byte_calls;
 mod checked_options;
+mod conditional_payloads;
 mod index_reads;
 mod indirect_reads;
 mod locals;
 mod locations;
 mod origins;
 mod read_accesses;
+mod scalar_enums;
 mod scalar_from;
 mod size_calls;
 mod subslice_views;
@@ -238,6 +240,7 @@ pub fn verify<'a>(
     crate::data_frontend::verify(facts)?;
     verify_registration(pair, facts)?;
     aggregates::verify(pair, facts)?;
+    scalar_enums::verify(pair, facts)?;
     locals::verify(pair, facts)?;
     verify_interface(pair, facts)?;
 
@@ -761,6 +764,28 @@ pub(super) fn verify_saved_operands(
             .any(|edge| edge.target == node.id && edge.subkind == "reaching_definition")
     {
         return Err("Operation loses its exact ordered saved value operands".into());
+    }
+    Ok(())
+}
+
+fn verify_construct_inventory<const N: usize>(
+    pair: PairView<'_>,
+    constructs: [&str; N],
+    expected: [usize; N],
+) -> Result<(), String> {
+    for (construct, count) in constructs.into_iter().zip(expected) {
+        if pair
+            .pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some(construct))
+            .count()
+            != count
+        {
+            return Err(format!(
+                "Operation inventory for {construct} disagrees with original source"
+            ));
+        }
     }
     Ok(())
 }

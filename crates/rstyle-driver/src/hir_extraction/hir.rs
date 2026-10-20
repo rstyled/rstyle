@@ -738,6 +738,15 @@ impl Context<'_> {
         let Res::Def(kind, callee) = self.typeck.qpath_res(path, expression.hir_id) else {
             return None;
         };
+        if self.profile.supports("rust.scalar-enum-values")
+            && callee.is_local()
+            && matches!(
+                kind,
+                rustc_hir::def::DefKind::Ctor(rustc_hir::def::CtorOf::Variant, _)
+            )
+        {
+            return Some(self.library_callee(callee));
+        }
         if !callee.is_local() && kind == rustc_hir::def::DefKind::AssocFn && self.profile.is_data()
         {
             let capture = self.scalar_from_capture(expression, callee);

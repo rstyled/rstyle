@@ -105,6 +105,9 @@ pub(crate) fn reference_free(ty: &TypeToken) -> bool {
         TypeToken::Array { element, .. } => reference_free(element),
         TypeToken::Option(payload) => matches!(payload.as_ref(), TypeToken::Scalar(_)),
         TypeToken::Struct { fields, .. } => fields.iter().all(|(_, ty)| reference_free(ty)),
+        TypeToken::Enum { variants, .. } => variants
+            .iter()
+            .all(|(_, ty)| matches!(ty, TypeToken::Scalar(_))),
         _ => false,
     }
 }
