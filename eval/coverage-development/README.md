@@ -1157,3 +1157,22 @@ make these functions pass. The contract records the complete blocker chain,
 independent expectations, negative boundaries, matching limitations, measured
 performance costs and remaining caller/Result work. Neither the oracle nor these
 similarity results authorize rewrites or detector-quality claims.
+
+## Checked native reader expectations (not activated)
+
+Run `python3 eval/coverage-development/checked-native-readers-oracle.py
+/path/to/regex-automata-0.4.18` with the repository toolchain on PATH. The runner
+checks the five selected reader/helper source identities, copies the complete
+original crate into a temporary directory, and appends only a test module.
+`cargo test --locked --lib` retains original default features, dependencies,
+error enums and helper bodies. Dependencies may need downloading on the first
+run. No original source or manifest is changed in place.
+
+Three independent tests check all 65536 two-byte words, every wide bit position,
+all shorter lengths, exact and longer buffers, and preservation of the original
+BufferTooSmall payload including its static description pointer. Expected values
+use explicit byte accumulation rather than another native conversion call.
+The tests pass on the current ARM Linux host; they establish runtime expectations,
+not extraction support, native cross-platform execution or detector quality.
+The [dependency audit](../../docs/extraction-profiles/checked-native-readers-audit.md)
+records the still-excluded complete original function family and remaining gates.

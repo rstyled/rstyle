@@ -122,3 +122,39 @@ been enumerated.
 Evidence: the complete current report recorded in the native-prefix contract,
 functions 2314–2316, 2320 and 2280 respectively. No new capture or duplicate
 full report was necessary to establish this baseline.
+
+## Captured-fact follow-up and runtime oracle
+
+The existing shared unit confirms that both slice and static-string reader
+parameters are already captured. Reader results and the error constructor result
+are Unsupported concrete observations; the generic checker retains `T` and an
+unsupported slice parameter, rather than a separately instantiated u8 body.
+The native leaf calls already carry resolved direct-callee definition identities,
+and size calls retain their supported scalar-size evidence.
+
+Crucially, each `?` is an `expr_match` with no captured children. The driver
+`Context::children` captures only `MatchSource::Normal`; it does not traverse
+Try desugaring. Therefore the checker call and residual operations inside that
+match are absent from the retained subtree. Adding a Result type token cannot
+recover them. Any future Try capture must explicitly distinguish synthetic
+compiler nodes from original source operations and retain the operand and both
+continuations; it must not reinterpret this empty match as a supported prefix.
+Enum construction is likewise unnormalized, with no resolved constructor record
+in the current nested error expressions. These are actual capture gaps, beyond
+the admission contract gaps above. No production grammar was widened here.
+
+`checked-native-readers-oracle.py` copies the complete original crate, verifies
+all five source identities, appends only its runtime test module, and executes
+the original default-feature library tests with a name filter and locked Cargo
+dependencies. Three tests pass on ARM Linux: all 65536 u16 words, every bit of
+the wide input, every short length, tails and exact sizes, and BufferTooSmall
+payload value/pointer preservation for three static descriptions. This uses
+the actual original error enum and helpers, not substituted fixture bodies.
+It specifies runtime results only; it does not establish extraction admission,
+absence of speculative machine loads, or native execution on other targets.
+
+The next production contract must account for this missing Try operand capture
+as well as the helper/error chain. Keep general enums and arbitrary generic
+specialization out of a scalar-helper increment; such an increment must preserve
+partial behavior and cannot claim the checked family complete. No admission
+change is expected from the runtime oracle or this audit.

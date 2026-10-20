@@ -3142,3 +3142,11 @@ readers do not pass the nonpanicking helper boundary. General `?` alone cannot
 yield admission. Inspect the existing complete unit facts and error dependency
 closure before selecting the first implementation contract. No inventories,
 capabilities, thresholds, capture metadata or measured outcomes change here.
+
+The captured-fact follow-up confirms an additional concrete gap: Try-desugared
+`expr_match` nodes currently have no captured children. Original checker calls
+and residual operations cannot be recovered by adding Result types alone.
+The complete-original-crate checked-reader runtime oracle now passes three tests
+(all u16 words, wide bits, short/tail inputs and exact error-description payloads).
+This establishes independent expectations while admissions remain 0/3; no
+production capture, memory or runtime behavior changes in this increment.
