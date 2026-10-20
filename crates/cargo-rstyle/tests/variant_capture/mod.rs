@@ -1,5 +1,6 @@
 use super::*;
 mod boundaries;
+mod byte_comparisons;
 mod classifiers;
 mod corruption;
 

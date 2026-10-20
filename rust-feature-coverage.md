@@ -3471,3 +3471,30 @@ excluded /7 inactive**, with 70 verified documents. Complete package source
 identities, build contexts and outcomes match 3.47: lz4_flex 150 functions /7
 admitted, regex-syntax 956 /20 and time-core 226 /8. Historical reports and the
 frozen selection remain unchanged.
+
+### Next connected target: tagged byte comparisons
+
+The [byte-comparison contract](docs/extraction-profiles/tagged-byte-comparisons-v1.md)
+selects original Unit::is_byte from its complete default-feature Cargo library,
+with exact source identity and independent all-byte/query expectations. Its full
+chain combines Option::map_or authority, separately owned closure body/parameter
+capture, scalar shared-capture/drop proof, eager default evaluation, conditional
+payload reads and helper/result composition. Existing Unit/Option support is
+required throughout; no general closure capability or new provenance table is
+activated by this audit.
+
+A fixed separate extension preserves the original eleven-function corpus and
+specifies seven new composed positives, six named negatives, the counterfeit
+method and its generated Clone. The real Cargo 3.48 baseline passes: all 26
+functions assessed, six admitted and twenty excluded, complete capture and
+matching, with independent checking of existing admissions. The complete-original
+oracle now passes six tests, including all byte/query pairs and all u16 sentinel
+payloads at four query values. No new natural admission gain is claimed; the
+unchanged natural baseline remains 72/2582 and the frozen selection remains 60.
+The next implementation must close the complete bounded callback chain and
+measure against c875a72, rather than add an isolated observation increment.
+
+Audit validation passes the Cargo baseline, six original-source oracle tests,
+CLI integration-test Clippy with warnings denied, formatting, Python compilation
+and whitespace. Rstyle remains 2786 functions /zero violations and patterns zero
+candidates. Production Rust and the 3.48 policy remain unchanged.

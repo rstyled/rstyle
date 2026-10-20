@@ -67,4 +67,19 @@ mod rstyle_tagged_units_oracle {
             }
         }
     }
+    #[test]
+    fn byte_comparisons_cover_all_byte_pairs_and_full_sentinel_payloads() {
+        for actual in 0..=u8::MAX {
+            let unit = Unit::u8(actual);
+            for expected in 0..=u8::MAX {
+                assert_eq!(unit.is_byte(expected), actual == expected);
+            }
+        }
+        for sentinel in 0..=u16::MAX {
+            let unit = Unit(UnitKind::EOI(sentinel));
+            for expected in [0, 1, 127, 255] {
+                assert!(!unit.is_byte(expected));
+            }
+        }
+    }
 }
