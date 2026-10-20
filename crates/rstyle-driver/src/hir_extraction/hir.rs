@@ -305,6 +305,17 @@ impl<'tcx> Context<'tcx> {
             ExprKind::Path(_) if node.kind == "expr_struct" => None,
             ExprKind::Path(ref path) => self.path_resolution(expr, path),
             ExprKind::MethodCall(..) => self.method_callee(expr),
+            ExprKind::Index(..) if self.profile.is_data() => self.method_callee(expr),
+            ExprKind::Struct(path, ..) if self.range_desugaring(expr) => {
+                match self.typeck.qpath_res(path, expr.hir_id) {
+                    Res::Def(_, definition) => {
+                        let mut resolution = self.library_callee(definition);
+                        resolution.kind = "resolved_range_type".into();
+                        Some(resolution)
+                    }
+                    _ => None,
+                }
+            }
             ExprKind::Break(destination, _) | ExprKind::Continue(destination) => Some(PathRes {
                 kind: if destination.label.is_none() {
                     "innermost_loop"
@@ -592,6 +603,16 @@ impl Context<'_> {
             return Some(self.helper_callee(callee, "resolved_inherent_callee", Some(owner)));
         }
         Some(self.library_callee(callee))
+    }
+
+    fn range_desugaring(&self, expression: &Expr<'_>) -> bool {
+        self.profile.is_data()
+            && matches!(
+                expression.span.ctxt().outer_expn_data().kind,
+                rustc_span::hygiene::ExpnKind::Desugaring(
+                    rustc_span::hygiene::DesugaringKind::RangeExpr
+                )
+            )
     }
 
     fn library_callee(&self, callee: rustc_hir::def_id::DefId) -> PathRes {

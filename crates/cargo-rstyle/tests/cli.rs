@@ -10728,3 +10728,71 @@ fn find_external_call(node: &rstyle_pdg::HirNode) -> Option<&rstyle_pdg::HirNode
     }
     node.children.iter().find_map(find_external_call)
 }
+
+#[test]
+fn clones_data_range_capture_distinguishes_core_desugaring_and_custom_structs() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn window(a: &[u8], lo: usize, hi: usize) -> &[u8] { &a[lo..hi] }
+        pub fn suffix(a: &[u8], lo: usize) -> &[u8] { &a[lo..] }
+        pub fn inclusive(a: &[u8], hi: usize) -> &[u8] { &a[..=hi] }
+        pub struct Range { pub start: usize, pub end: usize }
+        pub fn custom(start: usize, end: usize) -> Range { Range { start, end } }
+        pub fn scalar(a: &[u8], i: usize) -> u8 { a[i] }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    for function in report["functions"].as_array().unwrap() {
+        let (unit, index) = data_unit(function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        match facts.name.as_str() {
+            "window" | "suffix" | "inclusive" => {
+                assert_eq!(function["outcome"], "excluded");
+                check_range_capture(&facts.body);
+            }
+            "custom" => {
+                let node = find_kind(&facts.body, "expr_struct").unwrap();
+                assert!(node.res.is_none());
+                assert!(node.expansion.is_none());
+            }
+            "scalar" => {
+                assert_eq!(function["outcome"], "admitted");
+                assert!(find_kind(&facts.body, "expr_index").unwrap().res.is_none());
+            }
+            _ => panic!("unexpected function"),
+        }
+    }
+}
+
+fn check_range_capture(body: &rstyle_pdg::HirNode) {
+    let indexed = find_kind(body, "expr_index").unwrap();
+    let resolution = indexed.res.as_ref().unwrap();
+    assert_eq!(resolution.kind, "resolved_callee");
+    let callee: rstyle_pdg::data_library::Callee =
+        serde_json::from_str(&resolution.description).unwrap();
+    assert_eq!(callee.crate_name, "core");
+    assert!(callee.path.ends_with("::index"));
+    assert_eq!(indexed.dispatch.as_ref().unwrap().kind, "overloaded");
+    let range = &indexed.children[1];
+    let resolution = range.res.as_ref().unwrap();
+    assert_eq!(resolution.kind, "resolved_range_type");
+    let callee: rstyle_pdg::data_library::Callee =
+        serde_json::from_str(&resolution.description).unwrap();
+    assert_eq!(callee.crate_name, "core");
+    assert!(callee.path.contains("::ops::Range"), "{}", callee.path);
+    assert!(range.expansion.is_some());
+}
+
+fn find_kind<'a>(node: &'a rstyle_pdg::HirNode, kind: &str) -> Option<&'a rstyle_pdg::HirNode> {
+    if node.kind == kind {
+        return Some(node);
+    }
+    node.children
+        .iter()
+        .find_map(|child| find_kind(child, kind))
+}

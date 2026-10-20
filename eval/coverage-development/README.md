@@ -182,3 +182,45 @@ The 14 inventory tests pass. Both safe readers remain excluded, with no claim of
 new end-to-end support. No new capture record type, snapshot or retained cache is
 introduced. This resolves the missing external associated-callee identity on the
 active reader chain; admission still requires the remaining connected semantics.
+
+## Subslice capture and evaluation-order evidence
+
+The driver now retains the overloaded Index callee in the existing PathRes/Callee
+representation and marks resolved range-type identity only for rustc RangeExpr
+desugaring. It preserves the expansion record. A user-written Range struct does
+not receive this tag. Bounded, open and inclusive source ranges are captured but
+remain excluded; scalar builtin index capture remains unchanged. The new Cargo
+regression checks these distinctions without authorizing any range operation.
+
+The independent executable [subslice-order.rs](subslice-order.rs), compiled and
+run with the pinned compiler, establishes a critical difference from builtin
+scalar indexing: a range access snapshots the shared slice base **before** its
+start/end expressions. Rebinding a local or a field-bearing holder in the start
+expression retains the old slice; computed bases also retain their snapshot.
+Explicit effects show base, start, end order (123). Pinned MIR shows the base copy
+before rebinding and before the Range construction/Index call. Do not apply
+`data_index_reads::delayed_base` to overloaded subslicing.
+
+Reproduce the independent oracle without changing crate sources:
+
+```sh
+rustc --edition=2024 eval/coverage-development/subslice-order.rs -o /tmp/rstyle-subslice-order
+/tmp/rstyle-subslice-order
+rustc --edition=2024 --emit=mir eval/coverage-development/subslice-order.rs -o /tmp/rstyle-subslice-order.mir
+```
+
+This does not establish admitted range graphs or checked-access semantics.
+Next connect original range endpoint correspondence and pinned core authority,
+then lower a view with the proven base/start/end ordering and normal-completion
+bounds; reference snapshots and later element reads must compose through that
+view. Preserve the distinction between view construction and reading bytes.
+
+
+Subslice capture checkpoint validation: 768 workspace tests pass, with 5 existing
+ignores; clippy/fmt pass. Repository rstyle checks 2416 functions with 0 violations;
+patterns reports 0 candidates. The 14 inventory tests pass. Frozen rerun
+`target/hir-coverage/run-tw6vnfnv/` preserves all 60 identities/outcomes,
+denominators and context counts from `run-h5cz2c75/`: 11 admitted, 42 excluded,
+7 inactive (0 gained, 0 lost). Capture validates 26 graph documents. The independent
+runtime oracle and MIR emission pass. Range capture is evidence preparation,
+not admitted subslice functionality; both natural reader functions remain excluded.

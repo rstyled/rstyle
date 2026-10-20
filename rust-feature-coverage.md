@@ -1607,3 +1607,12 @@ than the initial four bodies suggest. This reassessment follows foundational wor
 without natural gains; it does not change the frozen sample or claim admission.
 External associated-function capture now reuses existing library Callee and typed
 Dispatch records. Identity observation alone does not authorize a call summary.
+
+
+The subsequent subslice evidence checkpoint retains overloaded Index and rustc
+range-type identities using existing callee records; it does not admit ranges.
+The [independent runtime oracle](eval/coverage-development/subslice-order.rs)
+and pinned MIR establish base-before-endpoints snapshots, unlike builtin scalar
+indexing. Full validation and unchanged frozen classifications are recorded in
+the development plan. The next connected support work remains subslice views,
+bounds/source verification and subsequent conversion/Result/byte-read composition.
