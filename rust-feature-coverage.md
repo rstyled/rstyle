@@ -3548,3 +3548,24 @@ Workspace Clippy with warnings denied, doctests, formatting and whitespace pass.
 Fresh rstyle: **2827 functions /zero violations**; patterns: **zero candidates**.
 Final full workspace CI run: **884 passed /five skipped**, including the reported
 assertion/subslice regressions and the corrected definition-count assertion.
+
+### Next connected target: borrowed accelerator views
+
+The [source-first contract](docs/extraction-profiles/borrowed-accel-views-v1.md)
+selects original regex-automata Accel::len, Accel::is_empty and Accel::needles in
+the complete default-feature library. Their chain combines a named literal array
+length, borrowed-only array-field owner proof, range bounds/evaluation order,
+formal field origins and helper-result/local/scalar-read composition. The
+original owner derives Clone but not Copy: owned constructors/consumption remain
+explicit negatives, not silently granted Copy or drop permission.
+
+The fixed separate eighteen-function corpus specifies ten future positives and
+eight negatives before baseline evaluation. At unchanged 3.49 it passes with
+one admitted slice control /seventeen excluded and complete capture, independent
+checking and matching. Both complete-original-crate runtime oracle tests pass,
+including address identity and panics for metadata 8..=255. The natural HIR
+confirms array-place Index dispatch; field origins and later helper restrictions
+still need implementation evidence. This audit activates no new capability,
+changes no frozen selection and claims no additional natural gain. Reuse the
+existing checked source/module environment, observations and field-location
+machinery; no additional global provenance registry or cache is justified.

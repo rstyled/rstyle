@@ -1,4 +1,5 @@
 use super::*;
+mod borrowed_accel;
 mod boundaries;
 mod byte_comparisons;
 mod classifiers;

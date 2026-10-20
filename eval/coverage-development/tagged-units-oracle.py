@@ -1,4 +1,4 @@
-"""Test original tagged byte units inside a disposable complete original crate.
+"""Test selected original byte helpers inside a disposable complete original crate.
 
 This runtime oracle adds only a test module to a copy of regex-automata 0.4.18.
 It neither measures admission nor substitutes a declaration or method body.
@@ -22,24 +22,37 @@ IDENTITIES = (
     (11998, 12190, "c692de960c7c46267c5f6f7562f85dc065bcac35375dbd15a11a5d7d70509cf2"),
 )
 
+ACCEL_IDENTITIES = (
+    (18618, 18687, "42d2bcaa66823a8ad482f6d8abd981f0d91cd19b3e4c0e8486de74d7ee3f5f3f"),
+    (18803, 18865, "78d4124cda0a33ad8ad19db5c2b488457c1bb820179c97266b811a0bcc3d2d42"),
+    (19001, 19074, "adc9be3867dec592d18a4ff056241b1a08d57d3629b54482c4dc011525cae7c1"),
+)
+
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("crate", type=Path)
+    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel"], default="tagged-units")
     args = parser.parse_args()
-    source = (args.crate / "src/util/alphabet.rs").read_bytes()
-    for start, end, digest in IDENTITIES:
+    relative, identities, oracle_path, test_filter = (
+        ("src/dfa/accel.rs", ACCEL_IDENTITIES,
+         Path(__file__).with_name("borrowed-accel-views-oracle.rs"), "rstyle_borrowed_accel_oracle")
+        if args.family == "borrowed-accel" else
+        ("src/util/alphabet.rs", IDENTITIES, Path(__file__).with_suffix(".rs"), "rstyle_tagged_units_oracle")
+    )
+    source = (args.crate / relative).read_bytes()
+    for start, end, digest in identities:
         if hashlib.sha256(source[start:end]).hexdigest() != digest:
             raise ValueError(f"Original source identity changed at {start}..{end}")
-    oracle = Path(__file__).with_suffix(".rs").read_bytes()
+    oracle = oracle_path.read_bytes()
     with tempfile.TemporaryDirectory(prefix="rstyle-tagged-units-oracle-") as temp:
         destination = Path(temp) / "original"
         shutil.copytree(args.crate, destination, ignore=shutil.ignore_patterns("target", ".git"))
-        (destination / "src/util/alphabet.rs").write_bytes(source + b"\n" + oracle)
+        (destination / relative).write_bytes(source + b"\n" + oracle)
         subprocess.run([
             "cargo", "test", "--locked", "--manifest-path", str(destination / "Cargo.toml"),
-            "--target-dir", str(Path(temp) / "target"), "--lib", "rstyle_tagged_units_oracle",
+            "--target-dir", str(Path(temp) / "target"), "--lib", test_filter,
         ], cwd=ROOT, check=True)
 
 
