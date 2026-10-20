@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.26.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.27.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.26.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.27.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -8799,14 +8799,11 @@ fn clones_data_shared_reference_locals_preserve_initializer_and_formal_origins()
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 14);
     for function in functions {
-        let excluded = matches!(
-            function["facts"]["name"].as_str().unwrap(),
-            "mutable" | "rebound" | "formal_rebound"
-        ) || (!has_length_authority(&report)
+        let excluded = !has_length_authority(&report)
             && matches!(
                 function["facts"]["name"].as_str().unwrap(),
                 "length" | "empty"
-            ));
+            );
         assert_eq!(
             function["outcome"],
             if excluded { "excluded" } else { "admitted" },
@@ -8815,7 +8812,7 @@ fn clones_data_shared_reference_locals_preserve_initializer_and_formal_origins()
     }
     check_aggregate_documents(&report);
     check_equivalent_matching(&report, ["first", "other"]);
-    check_reference_local_corruption(&report);
+    check_reference_local_corruption(read_call_function(&report, "conditional"));
     let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
     assert!(output.status.success(), "{legacy}");
     assert!(
@@ -8850,13 +8847,7 @@ fn reference_local_workspace() -> TempDir {
     directory
 }
 
-fn check_reference_local_corruption(report: &Value) {
-    let function = report["functions"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|function| function["facts"]["name"] == "conditional")
-        .unwrap();
+fn check_reference_local_corruption(function: &Value) {
     let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
     let pair = rstyle_pdg::producer::produce(&facts).unwrap();
     let read = pair
@@ -9033,7 +9024,7 @@ fn clones_data_reference_bearing_values_preserve_origin_unions_and_exact_slots()
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "mutable" | "reassigned" | "arrays" | "zero" | "helper_return"
+            "arrays" | "zero" | "helper_return"
         );
         assert_eq!(
             function["outcome"],
@@ -9182,7 +9173,7 @@ fn clones_data_reference_value_fields_select_exact_component_origins() {
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "mutable" | "rebound" | "borrow" | "helper_result" | "helper_field"
+            "borrow" | "helper_result" | "helper_field"
         );
         assert_eq!(
             function["outcome"],
@@ -9392,7 +9383,7 @@ fn clones_data_reference_struct_updates_remove_only_overwritten_origins() {
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "mutable" | "helper" | "array"
+            "helper" | "array"
         );
         assert_eq!(
             function["outcome"],
@@ -9629,10 +9620,7 @@ fn clones_data_body_nominal_types_compose_without_signature_witnesses() {
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 13);
     for function in functions {
-        let excluded = matches!(
-            function["facts"]["name"].as_str().unwrap(),
-            "borrow" | "mutable"
-        );
+        let excluded = matches!(function["facts"]["name"].as_str().unwrap(), "borrow");
         assert_eq!(
             function["outcome"],
             if excluded { "excluded" } else { "admitted" },
@@ -9653,6 +9641,188 @@ fn clones_data_body_nominal_types_compose_without_signature_witnesses() {
             .all(|function| function["outcome"] == "excluded"),
         "{legacy}"
     );
+}
+
+const REFERENCE_REBINDING_FAMILY: &str = r#"
+        pub struct Pair<'a> { pub left: &'a i32, pub right: &'a i32 }
+        pub fn first<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; selected = b; selected
+        }
+        pub fn other<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; selected = b; selected
+        }
+        pub fn snapshot<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; let saved = selected; selected = b; saved
+        }
+        pub fn branch<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 {
+            let mut selected = a; if pick { selected = b; } selected
+        }
+        pub fn killed<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 {
+            let mut selected = a; if pick { selected = b; } selected = a; selected
+        }
+        pub fn looped<'a>(a: &'a i32, b: &'a i32, mut count: u32) -> &'a i32 {
+            let mut selected = a;
+            while count > 0 { selected = b; count -= 1; }
+            selected
+        }
+        pub fn swapped<'a>(a: &'a i32, b: &'a i32, mut count: u32) -> &'a i32 {
+            let mut left = a; let mut right = b;
+            while count > 0 { let saved = left; left = right; right = saved; count -= 1; }
+            left
+        }
+        pub fn aggregate<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 {
+            let mut pair = Pair { left: a, right: b };
+            if pick { pair = Pair { left: b, right: a }; }
+            pair.left
+        }
+        pub fn aggregate_snapshot<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut pair = Pair { left: a, right: b }; let saved = pair.left;
+            pair = Pair { left: b, right: a }; saved
+        }
+        pub fn update<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut pair = Pair { left: a, right: b }; pair = Pair { left: b, ..pair }; pair.right
+        }
+        pub fn parameter<'a>(mut a: &'a i32, b: &'a i32) -> &'a i32 { a = b; a }
+        pub fn stopped<'a>(a: &'a i32, b: &'a i32, flag: bool) -> &'a i32 {
+            let mut selected = a; loop { selected = b; if flag { break; } continue; } selected
+        }
+        pub fn matched<'a>(a: &'a i32, b: &'a i32, flag: bool) -> &'a i32 {
+            let mut selected = a; match flag { true => selected = b, false => {} } selected
+        }
+        pub fn guarded<'a>(a: &'a i32, b: &'a i32, flag: bool) -> &'a i32 {
+            let mut selected = a; match flag { true if flag => selected = b, _ => {} } selected
+        }
+        pub fn whole<'a>(value: &'a i32) -> &'a i32 { value }
+        pub fn helper<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut selected = a; selected = whole(b); selected }
+        pub fn composed<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { first(a, b) }
+        pub fn storage_borrow(value: i32) -> i32 { let reference = &value; *reference }
+    "#;
+
+#[test]
+fn clones_data_reference_rebindings_preserve_snapshots_and_component_flow() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        REFERENCE_REBINDING_FAMILY,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["functions"].as_array().unwrap().len(), 18);
+    for function in report["functions"].as_array().unwrap() {
+        assert_eq!(
+            function["outcome"],
+            if function["facts"]["name"] == "storage_borrow" {
+                "excluded"
+            } else {
+                "admitted"
+            },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_reference_rebinding_origins(&report);
+    check_reference_local_corruption(read_call_function(&report, "branch"));
+    check_reference_local_corruption(read_call_function(&report, "swapped"));
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    for name in [
+        "first",
+        "snapshot",
+        "looped",
+        "swapped",
+        "aggregate",
+        "update",
+        "parameter",
+    ] {
+        assert_eq!(
+            read_call_function(&legacy, name)["outcome"],
+            "excluded",
+            "{name}: {legacy}"
+        );
+    }
+}
+
+#[test]
+fn clones_data_reference_rebindings_skip_disabled_assertion_effects() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn debug<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; debug_assert!({ selected = b; true }); selected
+        }
+        pub fn active<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; assert!({ selected = b; true }); selected
+        }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--release", "--extraction-profile", "hir-data-v3"],
+    );
+    assert!(output.status.success(), "{report}");
+    for name in ["debug", "active"] {
+        assert_eq!(
+            read_call_function(&report, name)["outcome"],
+            "admitted",
+            "{report}"
+        );
+    }
+    check_aggregate_documents(&report);
+    let (unit, _) = data_unit(read_call_function(&report, "debug"));
+    for (name, parameter) in [("debug", 0), ("active", 1)] {
+        let pair = shared_evidence::pair(&unit, read_call_function(&report, name));
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        assert_eq!(
+            returned.annotations[rstyle_pdg::data_origins::KEY][0]["parameter"],
+            parameter
+        );
+    }
+}
+
+fn check_reference_rebinding_origins(report: &Value) {
+    let (unit, _) = data_unit(read_call_function(report, "first"));
+    for (name, expected) in [
+        ("first", vec![1]),
+        ("snapshot", vec![0]),
+        ("branch", vec![0, 1]),
+        ("killed", vec![0]),
+        ("looped", vec![0, 1]),
+        ("swapped", vec![0, 1]),
+        ("aggregate", vec![0, 1]),
+        ("aggregate_snapshot", vec![0]),
+        ("update", vec![1]),
+        ("parameter", vec![1]),
+        ("stopped", vec![1]),
+        ("matched", vec![0, 1]),
+        ("guarded", vec![0, 1]),
+        ("helper", vec![1]),
+        ("composed", vec![1]),
+    ] {
+        let function = read_call_function(report, name);
+        let pair = shared_evidence::pair(&unit, function);
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let actual: Vec<_> = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|origin| origin["parameter"].as_u64().unwrap())
+            .collect();
+        assert_eq!(actual, expected, "{name}");
+    }
 }
 
 #[test]

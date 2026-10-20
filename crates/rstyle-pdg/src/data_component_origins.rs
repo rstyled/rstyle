@@ -10,6 +10,9 @@ pub(crate) fn source(
     selectors: &[usize],
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
+    if crate::data_reference_locals::flow_enabled(facts) {
+        return crate::data_reference_locals::selected(node, selectors, facts);
+    }
     if selectors.is_empty() {
         return crate::data_origins::origins(node, facts);
     }
@@ -78,7 +81,7 @@ fn local_or_formal(
     source(initializer, selectors, facts)
 }
 
-fn select_origins(
+pub(crate) fn select_origins(
     node: &HirNode,
     selectors: &[usize],
     facts: &dyn EvidenceFacts,

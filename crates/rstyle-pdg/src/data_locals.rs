@@ -50,6 +50,7 @@ pub(crate) fn verify_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(
 
     if (node.kind == "expr_assign" || target.binding_mut == Some(true))
         && crate::data_types::parse(token).is_ok_and(|ty| crate::data_origins::shared(&ty))
+        && !ExtractionProfile::from_facts(facts)?.supports("rust.reference-rebindings")
     {
         return Err("Reference-bearing locals require immutable initialized bindings".into());
     }

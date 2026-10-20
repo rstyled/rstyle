@@ -160,11 +160,22 @@ impl Graph<'_> {
             return loaded_origins(node, selectors, self.pair);
         }
 
-        if !visiting.insert(node.id.clone()) {
-            return Err("Cyclic reference value proof is unavailable".into());
+        let key = if selectors.is_empty() {
+            node.id.clone()
+        } else {
+            format!("{}:{selectors:?}", node.id)
+        };
+        if !visiting.insert(key.clone()) {
+            return if crate::data_reference_locals::flow_enabled(self.facts) {
+                Ok(Vec::new())
+            } else {
+                Err("Cyclic reference value proof is unavailable".into())
+            };
         }
         let roots = self.selected_inputs(node, selectors, visiting)?;
-        visiting.remove(&node.id);
+        if !crate::data_reference_locals::flow_enabled(self.facts) {
+            visiting.remove(&key);
+        }
         Ok(roots)
     }
 
@@ -412,6 +423,14 @@ fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> 
         }
         NodeCategory::Return => facts.signature.return_ty.normalized.as_deref(),
         NodeCategory::Declaration | NodeCategory::Assignment => Some("unit"),
+        NodeCategory::Control
+            if matches!(
+                node.original_kind.known_value(),
+                Some("expr_break" | "expr_continue")
+            ) =>
+        {
+            Some("unit")
+        }
         NodeCategory::Control => Some("bool"),
         NodeCategory::Computation if node.original_kind.known_value() == Some("expr_assign_op") => {
             source_node(node, facts)?
@@ -425,9 +444,12 @@ fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> 
             .and_then(|ty| ty.normalized.as_deref()),
     };
     if expected.is_none() || wire_type(node)?.as_str() != expected.unwrap_or_default() {
-        return Err(
-            "Serialized value type disagrees with independently checked source role".into(),
-        );
+        return Err(format!(
+            "Serialized value type disagrees with independently checked source role in {} at {}: expected {expected:?}, actual {}",
+            facts.name,
+            node.id,
+            wire_type(node)?
+        ));
     }
     Ok(())
 }

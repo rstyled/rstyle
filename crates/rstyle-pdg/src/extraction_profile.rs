@@ -51,6 +51,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.reference-struct-updates",
     "rust.body-nominal-types",
     "rust.static-inherent-helper-calls",
+    "rust.reference-rebindings",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -159,7 +160,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.26.0", 38)),
+            Self::DataV3 => Some(("3.27.0", 39)),
         }
     }
 

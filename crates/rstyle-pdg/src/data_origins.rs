@@ -40,6 +40,10 @@ pub fn origins(
         return Ok(Vec::new());
     }
 
+    if crate::data_reference_locals::flow_enabled(facts) {
+        return crate::data_reference_locals::selected(node, &[], facts);
+    }
+
     let origins = match node.kind.as_str() {
         "expr_path" => formal(node, facts, &ty)?,
         "expr_field" => field(node, facts, &ty)?,

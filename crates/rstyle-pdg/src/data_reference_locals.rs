@@ -1,4 +1,7 @@
-//! Resolve immutable reference-bearing values from existing binding identities.
+//! Resolve reference-bearing locals from existing binding identities and flow.
+
+mod flow;
+mod origins;
 
 use crate::{HirNode, HirRef, extraction_profile::ExtractionProfile, unit_store::EvidenceFacts};
 
@@ -60,4 +63,26 @@ fn declaration<'a>(node: &'a HirNode, target: &HirRef) -> Option<&'a HirNode> {
     node.children
         .iter()
         .find_map(|child| declaration(child, target))
+}
+
+pub(crate) fn flow_enabled(facts: &dyn EvidenceFacts) -> bool {
+    ExtractionProfile::from_facts(facts)
+        .is_ok_and(|profile| profile.supports("rust.reference-rebindings"))
+        && facts.bindings.iter().any(|binding| {
+            binding.is_mut
+                && binding
+                    .ty
+                    .normalized
+                    .as_deref()
+                    .and_then(|token| crate::data_types::parse(token).ok())
+                    .is_some_and(|ty| crate::data_origins::shared(&ty))
+        })
+}
+
+pub(crate) fn selected(
+    node: &HirNode,
+    selectors: &[usize],
+    facts: &dyn EvidenceFacts,
+) -> Result<Vec<crate::data_origins::Origin>, String> {
+    origins::selected(node, selectors, facts)
 }

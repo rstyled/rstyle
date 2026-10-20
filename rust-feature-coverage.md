@@ -106,8 +106,8 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D08 | Stored shared-reference fields | Covered | `s.bytes`, where the field is `&[u8]` | Distinguishes loading a reference from borrowing its storage and reading its referent. |
 | D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; Data-v3 3.22.0 also supports [construction and whole immutable tuple/struct locals](docs/extraction-profiles/reference-bearing-values-v1.md). [Component projections from constructed/local values](docs/extraction-profiles/reference-value-fields-v1.md) compose in Data-v3 3.23.0; mutable rebindings and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
-| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.22.0 additionally supports [reference-bearing tuple/named/tuple-struct values](docs/extraction-profiles/reference-bearing-values-v1.md). Ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates remain supported; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Data-v3 3.24.0 also supports [reference-bearing struct updates](docs/extraction-profiles/reference-struct-updates-v1.md) with component-specific origin replacement. Broader const counts, reference-bearing arrays and mutable local origin propagation remain unfinished. |
-| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](docs/extraction-profiles/reference-value-fields-v1.md). Mutable reference rebindings, multiple-origin shared-local field reads and helper-result field bases still need component/origin correspondence. |
+| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.22.0 additionally supports [reference-bearing tuple/named/tuple-struct values](docs/extraction-profiles/reference-bearing-values-v1.md). Ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates remain supported; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Data-v3 3.24.0 also supports [reference-bearing struct updates](docs/extraction-profiles/reference-struct-updates-v1.md) with component-specific origin replacement. Broader const counts and reference-bearing arrays remain unfinished. Data-v3 3.27.0 supports [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md) with snapshot and component origins. |
+| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](docs/extraction-profiles/reference-value-fields-v1.md). Data-v3 3.27.0 adds [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md), snapshot copies and branch/loop origin flow. Multiple-origin or mutable shared-local field-memory reads and aggregate helper-result field bases remain unfinished. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Explicit `*` is unavailable. Only verified shared field/receiver transitions exist; repeated implicit dereferences lacking storage-read evidence fail closed. |
 | D15 | Array/slice element reads | Missing | `xs[i]` | Evaluate base/index once, preserve element location/index identity and bounds behavior. |
@@ -1348,4 +1348,60 @@ Frozen run `target/hir-coverage/run-ftluk_j2/` completes all three packages with
 identities/outcomes, all denominators and context counts match 3.25.0
 (`run-2sony2uw`). Twenty-six admitted graph documents pass schema checks
 (10 lz4, 0 regex, 16 time). Static associated calls add no measured frozen admission
+gain; these checks do not establish general performance or detector quality.
+
+
+### D11–D12 reference rebindings with source and graph snapshot flow
+
+Data-v3 extraction 3.27.0 adds `rust.reference-rebindings` (39 capabilities);
+matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/reference-rebindings-v1.md) permits whole shared
+references and reference-bearing tuple/struct values in mutable local/formal
+bindings. Whole assignment kills the prior binding definition. Earlier saved
+values retain their own read snapshots, including component projections and updates.
+
+Temporary source kill/gen follows existing HIR binding identities and original RHS
+operations through branches, scalar matches/pure guards, short circuits and finite
+loop fixed points. Return/break/continue retain their transfer roles. Only reference-
+bearing definitions enter the flow state; functions without mutable reference-bearing
+bindings retain their existing origin reconstruction. Source and serialized-graph
+origin queries carry component selectors and visit each operation/component pair
+once per query, traversing cycles to all formal terminals without loop unrolling.
+No serialized records, source snapshots or retained caches are added.
+
+Independent document verification compares source-derived and graph-derived formal
+origins. Existing serialized CFG kill/gen checks the reaching-definition edges;
+strict producer verification remains required. The data verifier recognizes the
+existing unit-valued break/continue control operations alongside boolean predicates.
+The composed Cargo fixture asserts exact return origins for assignment kills,
+snapshots, branches, loops, saved-value swaps, aggregate replacements, updates,
+mutable formals, scalar matches/guards and supported shared helper results, including
+a caller of a rebinding callee. A release-build fixture distinguishes active
+assertion assignments from disabled debug-assertion source operands. Missing
+binding edges and changed origin annotations are rejected in branch and cyclic
+cases. Earlier fixtures now admit their whole-value mutable/rebound cases.
+
+This does not add writes through references, component mutation, local storage
+borrows, reference-bearing arrays or aggregate helper results. Mutable/multiple-
+origin shared-local field-memory reads and conditional expression merges in
+loop-containing functions remain unfinished. D11–D12 stay Partial and the full
+roadmap remains active.
+
+Validation: 761 workspace tests pass with the same 5 existing ignores, including
+the original assertion-argument receiver regression. The 18-function reference-flow
+fixture admits 17 functions and excludes the local storage borrow; exact return
+origins, branch/cyclic graph corruption and Data-v2 exclusions pass. The release
+assertion fixture also passes independent and strict verification, preserving the
+pre-assertion origin when debug assertions are disabled. Clippy passes
+for all targets with warnings denied; formatting and diff checks pass.
+Repository-built rstyle reports 2,362 functions and 0 violations; patterns reports
+0 candidates with the same 15 existing ignores. All 14 inventory bookkeeping tests
+pass. Inventory capture ran after workspace tests finished, avoiding executable
+replacement during test launches.
+
+Frozen final run `target/hir-coverage/run-myi5gqyy/` completes all three packages
+with 11 admitted, 42 excluded and 7 independently inactive out of 60. All 60 frozen
+identities/outcomes, all denominators and context counts match 3.26.0
+(`run-ftluk_j2`). Twenty-six admitted graph documents pass schema checks
+(10 lz4, 0 regex, 16 time). Reference rebindings add no measured frozen admission
 gain; these checks do not establish general performance or detector quality.
