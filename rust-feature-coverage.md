@@ -3012,3 +3012,41 @@ Validation: the three reported tests and the three-target regression pass;
 workspace all-target clippy denies warnings; fmt is clean; rstyle reports zero
 violations and patterns reports zero candidates. Cross-target checks compile and
 verify evidence on Linux; they do not execute native macOS binaries.
+
+
+### Next connected target: native unsigned prefix readers (not activated)
+
+Selected from original source before admission assessment: regex-automata
+0.4.18's `util::wire::{read_u16,read_u32,read_u128}` in its complete default-feature
+Cargo library context. The [contract](docs/extraction-profiles/native-prefix-readers-v1.md)
+fixes all three original spans/hashes and a separate unchanged 11-function
+selection, including independent positives/negatives and std/no_std contexts.
+
+The full blocker chain is RangeTo prefix representation/bounds and saved base →
+exact core/std display authority → original size_of generic-call evidence →
+2/4/16-byte copied Result/unwrap contracts → native u16/u32/u128 decodes. The
+four-byte chain already exists; two/sixteen-byte type/signature observations are
+already captured. Do not add redundant type tables. The unresolved size_of call
+is hidden by prefix rejection, so the first eligibility reason is insufficient.
+The natural crate's core paths add real failures absent from the std fixture;
+the separate no_std module reproduces them without include/path rewriting.
+
+Both development contexts capture/assess all 11 functions at **1 admitted /10
+excluded /0 unknown**, with complete empty-pair enumeration/evaluation. Current
+3.43 classification rejects the three original readers in the retained complete
+3.42 Cargo unit, preserving their identities and all 2582 captured functions. This audit
+is **not** a new complete 3.43 natural CLI report or whole-unit admission count;
+fresh original capture and roster comparison remain required before activation.
+
+Four independent runtime tests pass against exact original bodies and complete
+development compositions: every two-byte word, 32/128-bit positions, short-input
+panics, extra trailing bytes, helper choices and saved/base-rebinding behavior.
+This source/semantic audit adds no production code, provenance table, cache or
+admissions. Data-v3 remains 3.43.0 and the frozen 60-function inventory is unchanged.
+The next implementation must connect this complete chain rather than count
+isolated prefix, intrinsic or conversion fixtures as family support.
+
+Validation of this audit: both development Cargo reports and strict choose
+imports pass, all four runtime oracle tests pass, Python syntax/fmt/diff checks
+pass, rstyle remains **2686 functions /0 violations**, patterns **0 candidates**.
+No extraction engine, threshold, suppression or ignore-ledger change is made.

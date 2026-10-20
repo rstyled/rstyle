@@ -1126,3 +1126,21 @@ constructor), preserving all 11 captured identities and six exclusions including
 derived methods. All ten comparisons complete. The original corpus comment is
 retained as part of the source identity; measured support is recorded here and
 in the contract. The oracle is also run with adler2 default features disabled.
+
+
+## Native unsigned prefix readers (declared, not activated)
+
+`native-prefix-readers.rs` fixes 11 functions before admission assessment. The
+eight intended positives connect RangeTo prefixes, concrete size_of calls,
+2/4/16-byte copied Results/unwrap and u16/u32/u128 native decodes, with selected,
+saved and endpoint-rebound bases. Three negatives retain suffix, signed and
+panicking-helper boundaries. Baseline Data-v3 3.43 admits only choose in both
+std-root and ordinary external-module no_std development contexts (1/11 each).
+Do not edit the corpus to improve these classifications.
+
+`native-prefix-readers-oracle.py /path/to/regex-automata-0.4.18/src/util/wire.rs`
+checks the three original function spans/hashes, builds a temporary pinned-rustc
+harness with `native-prefix-readers-oracle.rs`, and runs four independent numeric,
+short-input and saved-base tests. No original Cargo neighbors are omitted from
+pipeline coverage by this runtime-only harness. See the
+[full source-selected contract and blocker audit](../../docs/extraction-profiles/native-prefix-readers-v1.md).
