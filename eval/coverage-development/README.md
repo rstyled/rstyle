@@ -1205,3 +1205,12 @@ verification checks all 59 natural and five development admissions; the
 selected seven graphs complete 21 comparisons, two Accepted and 19 Rejected
 under unchanged scoring. See the contract for bounded performance evidence
 and remaining restrictions. Whole-library matching is not claimed.
+
+## Nested-array byte membership (not activated)
+
+`byte-membership-oracle.py /path/to/regex-automata-0.4.18` verifies both selected
+ByteSet source identities and tests their original complete-crate implementation
+with default features and locked dependencies. Expectations include all empty-set
+queries, every singleton/query pair, dense patterns and all-bits-set queries.
+The [contract](../../docs/extraction-profiles/byte-membership-v1.md) records the
+full known chain and remaining composition unknowns; no admission gain is claimed.

@@ -3229,3 +3229,15 @@ source blocker combinations and outcomes are unchanged. Full rosters also retain
 with identical source identities and no outcome changes. Seventy documents
 verify. Build evidence differences are producer revision and invocation paths
 after normalization of temporary source roots; compiler/settings stay fixed.
+
+### Next source-selected family: nested-array byte membership
+
+After the 45-gain scalar-owner milestone, select original regex-automata
+`ByteSet::empty` and `ByteSet::contains` plus development constructor/getter
+composition. The [byte-membership contract](docs/extraction-profiles/byte-membership-v1.md)
+records exact source identities, independent all-byte/singleton/dense expectations,
+fixed-array Copy proof, concrete u8-to-usize From, nested indexed-read composition,
+range/partial-helper and dynamic snapshot blockers. Both selected functions
+remain excluded at 3.45; this audit does not activate them or replace the frozen
+inventory. Mutable updates, iterator/closure and Result serialization stay
+outside this bounded family.
