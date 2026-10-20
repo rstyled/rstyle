@@ -3050,3 +3050,22 @@ Validation of this audit: both development Cargo reports and strict choose
 imports pass, all four runtime oracle tests pass, Python syntax/fmt/diff checks
 pass, rstyle remains **2686 functions /0 violations**, patterns **0 candidates**.
 No extraction engine, threshold, suppression or ignore-ledger change is made.
+
+### Reported CI regressions: current-tree revalidation
+
+Revalidated the three reported assertion/subslice failures while preserving the
+in-progress native-prefix-reader implementation. All three pass, as does the
+combined real-Cargo regression across installed ARM Linux, x86 Linux, and ARM
+macOS targets. These cross-target captures verify exact pinned compiler/core
+identities, strict documents/admission, saved base origins, and equivalent
+matching; this is not a native macOS execution claim. The target-authority fixes
+and dedicated regression are already published on this feature branch.
+
+Current-tree validation: **850 workspace tests passed /5 existing skips**;
+workspace doctests, all-target clippy with warnings denied, formatting and diff
+checks passed; rstyle **2703 functions /0 violations**, patterns **0 candidates**.
+All four independent prefix-reader runtime oracle tests also pass. These results
+include uncommitted prefix-reader work; they do not activate its prospective
+coverage milestone or replace the pending natural/frozen roster and performance
+comparisons. Existing frozen identities and historical outcomes are unchanged
+by this validation record.
