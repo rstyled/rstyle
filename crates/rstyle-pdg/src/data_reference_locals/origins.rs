@@ -56,7 +56,7 @@ impl Resolver<'_> {
             "expr_field" if crate::data_value_fields::candidate(node, self.facts) => {
                 Self::projection
             }
-            "expr_field" | "expr_addr_of" | "pat_binding" => Self::terminal,
+            "expr_field" | "expr_unary" | "expr_addr_of" | "pat_binding" => Self::terminal,
             "expr_block" | "expr_ret" => Self::tail,
             "expr_if" => Self::alternatives,
             "expr_call" | "expr_method_call" if selectors.is_empty() => Self::call,

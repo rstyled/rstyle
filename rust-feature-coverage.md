@@ -1506,3 +1506,48 @@ Frozen run `target/hir-coverage/run-p_9a7q3l/` completes all three packages with
 and outcomes, all denominators and context counts match 3.28.0 (`run-fyvdv1kb`).
 Twenty-six admitted graph documents pass schema checks (10 lz4, 0 regex, 16 time).
 Explicit shared dereference adds no measured frozen admission gain.
+
+
+### D14 reference-bearing loads during rebinding flow
+
+The 3.29.0 follow-up routes reference-valued unary operations through the source
+flow resolver's terminal dispatch. The loaded-reference terminal already derived
+physical origins, but its caller omitted unary expressions when mutable reference
+flow was enabled. Such functions were incorrectly excluded. No new capability,
+matching policy, capture record or retained state is required.
+
+The shared-dereference fixture now has 22 functions: 20 admit, while the local
+storage borrow and pointee write remain excluded. Four added cases assert exact
+returned origins for a loaded reference saved before reassignment, a load after
+reassignment, a load after a loop with both possible roots, and a selected
+component of a saved aggregate load. Independent and
+strict shared-unit verification pass alongside the legacy exclusions.
+
+Validation: all 763 workspace tests pass with the same 5 existing ignores.
+Clippy with warnings denied, formatting and diff checks pass. Repository-built
+rstyle reports 2,390 functions and 0 violations; patterns reports 0 candidates with
+the same 15 existing ignores.
+
+Frozen follow-up run `target/hir-coverage/run-8dgqxypr/` retains 11 admitted,
+42 excluded and 7 independently inactive out of 60. All 60 identities/outcomes,
+all denominators and context counts match `run-p_9a7q3l`. Twenty-six admitted graph
+documents pass schema checks (10 lz4, 0 regex, 16 time). All 14 inventory bookkeeping
+tests pass. This correction adds no measured frozen admission gain.
+
+### D15 indexing evaluation-order acceptance notes
+
+D15 remains Missing. The next implementation must distinguish place evaluation
+from reading the value of that place. A compiler MIR experiment using
+`rustc --crate-type lib --emit=mir` confirms that `a[{ a = b; 0 }]` indexes the
+new `b` value for both owned array locals and shared slice-reference locals.
+Likewise, `holder.bytes[{ holder = other; 0 }]` reads the new holder's field.
+In contrast, `({ selected })[{ selected = other; 0 }]` retains the earlier
+computed reference temporary. These cases must be included in the composed Cargo
+fixture; always snapshotting the base value before evaluating the index would
+misrepresent the first three cases.
+
+The element read must retain the evaluated index and the requirement that it be
+less than the selected array/slice length on normal completion. Index bounds and
+source correspondence are semantic obligations, not a reason to introduce source
+snapshots or retained provenance caches. General exceptional flow remains a
+separate roadmap item.

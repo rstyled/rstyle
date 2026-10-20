@@ -10231,6 +10231,10 @@ const SHARED_DEREFERENCE_FAMILY: &str = r#"
     pub fn loop_read(a: &u8, mut count: u32) -> u8 { let mut value = 0; while count > 0 { value = *a; count -= 1; } value }
     pub fn choose<'a>(a: &'a u8, b: &'a u8, pick: bool) -> &'a u8 { if pick { a } else { b } }
     pub fn helper(a: &u8, b: &u8, pick: bool) -> u8 { *choose(a, b, pick) }
+    pub fn flow_snapshot<'a>(a: &&'a u8, b: &&'a u8) -> &'a u8 { let mut selected = a; let saved = *selected; selected = b; saved }
+    pub fn flow_rebound<'a>(a: &&'a u8, b: &&'a u8) -> &'a u8 { let mut selected = a; selected = b; *selected }
+    pub fn flow_loop<'a>(a: &&'a u8, b: &&'a u8, mut count: u32) -> &'a u8 { let mut selected = a; while count > 0 { selected = b; count -= 1; } *selected }
+    pub fn flow_component<'a>(a: &(&'a u8, u8), b: &(&'a u8, u8)) -> &'a u8 { let mut selected = a; let saved = *selected; selected = b; saved.0 }
     pub fn local(value: u8) -> u8 { let r = &value; *r }
     pub fn write(a: &mut u8) -> u8 { *a = 1; *a }
 "#;
@@ -10245,7 +10249,7 @@ fn clones_data_shared_dereferences_compose_physical_reads_and_reference_flow() {
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["functions"].as_array().unwrap().len(), 18);
+    assert_eq!(report["functions"].as_array().unwrap().len(), 22);
     for function in report["functions"].as_array().unwrap() {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
@@ -10258,6 +10262,8 @@ fn clones_data_shared_dereferences_compose_physical_reads_and_reference_flow() {
         );
     }
     check_shared_dereference_locations(&report);
+    check_dereference_flow_origins(&report);
+    check_dereference_flow_component(&report);
     check_aggregate_documents(&report);
     check_equivalent_matching(&report, ["first", "other"]);
     let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
@@ -10377,4 +10383,68 @@ fn check_shared_dereference_paths(report: &Value) {
             );
         }
     }
+}
+
+fn check_dereference_flow_origins(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for (name, roots) in [
+        ("flow_snapshot", vec![0]),
+        ("flow_rebound", vec![1]),
+        ("flow_loop", vec![0, 1]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let origins = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap();
+        let actual: Vec<_> = origins
+            .iter()
+            .map(|origin| {
+                assert_eq!(
+                    origin["path"],
+                    serde_json::json!([
+                        {"kind":"SharedReferent"}, {"kind":"SharedReferent"}
+                    ])
+                );
+                origin["parameter"].as_u64().unwrap()
+            })
+            .collect();
+        assert_eq!(actual, roots, "{name}");
+    }
+}
+
+fn check_dereference_flow_component(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "flow_component")
+        .unwrap();
+    let (unit, index) = data_unit(function);
+    let pair = unit.pair(index).unwrap();
+    let returned = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+        .unwrap();
+    assert_eq!(
+        returned.annotations[rstyle_pdg::data_origins::KEY],
+        serde_json::json!([
+            {"parameter":0,"path":[
+                {"kind":"SharedReferent"}, {"kind":"TupleField","position":0}, {"kind":"SharedReferent"}
+            ]}
+        ])
+    );
 }
