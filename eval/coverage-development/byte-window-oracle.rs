@@ -2,6 +2,9 @@
 //! Run with pinned rustc --edition=2021 --test, with overflow checks enabled.
 //! These tests specify semantics; passing does not establish rstyle admission.
 
+#[path = "arch-readers.rs"]
+mod architecture;
+
 fn get_batch(input: &[u8], n: usize) -> u32 {
     u32::from_ne_bytes(input[n..n + 4].try_into().unwrap())
 }
@@ -86,4 +89,53 @@ fn invalid_windows_and_endpoint_overflow_fail() {
         assert!(std::panic::catch_unwind(|| get_batch(&input, start)).is_err());
         assert!(std::panic::catch_unwind(|| get_batch_arch(&input, start)).is_err());
     }
+}
+
+#[test]
+fn architecture_compositions_preserve_values_and_saved_base() {
+    let input = [19u8, 23, 1, 2, 3, 4, 5, 6, 7, 8, 29, 31];
+    let other = [255u8; 12];
+    let width = core::mem::size_of::<usize>();
+    for start in 0..=input.len() - width {
+        let value = expected(&input[start..start + width]) as usize;
+        assert_eq!(architecture::batch_arch(&input, start), value);
+        assert_eq!(architecture::saved_arch(&input, start), value);
+        assert_eq!(architecture::result_local_arch(&input, start), value);
+        assert_eq!(architecture::caller_arch(&input, start), value);
+    }
+    let (snapshot, selected) = architecture::snapshot_arch(&input, &other);
+    assert_eq!(snapshot, expected(&input[..width]) as usize);
+    assert_ne!(snapshot, expected(&other[..width]) as usize);
+    assert_eq!(selected.as_ptr(), other.as_ptr());
+}
+
+#[test]
+fn architecture_borrow_preserves_offset_identity_and_failure() {
+    const WIDTH: usize = core::mem::size_of::<usize>();
+    let input = [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    let view = &input[2..2 + WIDTH];
+    let result: Result<&[u8; WIDTH], _> = view.try_into();
+    let arr = result.unwrap();
+    assert_eq!(arr.as_ptr(), view.as_ptr());
+    assert_ne!(arr.as_ptr(), input.as_ptr());
+    assert_eq!(arr.as_slice(), view);
+    for length in [0, WIDTH - 1, WIDTH + 1] {
+        let result: Result<&[u8; WIDTH], _> = input[..length].try_into();
+        assert!(result.is_err());
+    }
+    assert!(std::panic::catch_unwind(|| architecture::wrong_length_arch(&input, 0)).is_err());
+}
+
+#[test]
+fn architecture_negative_controls_are_semantically_distinguishable() {
+    let input = [1u8, 2, 3, 4, 5, 6, 7, 8];
+    let native = architecture::batch_arch(&input, 0);
+    // The intended admission contract is native little-endian aarch64 only.
+    const {
+        assert!(cfg!(target_endian = "little"));
+        assert!(core::mem::size_of::<usize>() == 8);
+    }
+    assert_ne!(architecture::endian_arch(&input, 0), native);
+    // Equal values do not authorize a different constant initializer authority.
+    assert_eq!(architecture::other_size_authority_arch(&input, 0), native);
 }

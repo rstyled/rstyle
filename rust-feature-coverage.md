@@ -1696,3 +1696,13 @@ the retained natural get_batch bundle, verifying its documents and strictly
 admitting it also succeeded; matching against the declared development expression
 was evaluated and accepted at score 1 under the unchanged configuration. This is
 a composition check, not held-out detector-quality evidence or rewrite authority.
+
+The [architecture-reader source audit and preselected expectations](eval/coverage-development/README.md#architecture-reader-target-established-before-support)
+now specify the next complete chain, including separately owned constant proof,
+named length, conditional borrowed Result origins, indirect array reads and native
+usize authority. Eight separate development functions retain a tested 3.32 baseline
+of 0 admitted / 8 excluded; intended positives and negatives are defined from
+source independently of that baseline. Runtime checks exercise saved-view/rebinding
+and offset pointer identity. This is target preparation, with no extraction change
+or claimed natural gain. The next support delivery remains the entire architecture
+reader chain, preserving get_batch and the unchanged frozen inventory.

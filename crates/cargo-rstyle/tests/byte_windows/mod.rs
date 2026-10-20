@@ -2,6 +2,44 @@
 use super::*;
 
 #[test]
+fn architecture_reader_development_baseline_retains_all_blocked_functions() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        include_str!("../../../../eval/coverage-development/arch-readers.rs"),
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 8, "{report}");
+    let names: std::collections::BTreeSet<_> = functions
+        .iter()
+        .map(|function| function["facts"]["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "batch_arch",
+            "saved_arch",
+            "result_local_arch",
+            "snapshot_arch",
+            "wrong_length_arch",
+            "endian_arch",
+            "other_size_authority_arch",
+            "caller_arch"
+        ]
+        .into_iter()
+        .collect()
+    );
+    // Current baseline only. README specifies the intended five positives
+    // independently; update this assertion at the connected support milestone.
+    for function in functions {
+        assert_eq!(function["outcome"], "excluded", "{function}");
+    }
+}
+
+#[test]
 fn copied_byte_windows_compose_through_strict_admission_and_matching() {
     let directory = workspace();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);

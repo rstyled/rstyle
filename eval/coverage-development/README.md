@@ -341,3 +341,98 @@ against the declared development expression: evaluated, Accepted, score 1, no
 diagnostics. This checks end-to-end composition; it is not detector-quality or
 rewrite-safety evidence. Byte and metadata verification reuse one source-call
 inventory, and functions without byte operations skip byte installation.
+
+## Architecture-reader target established before support
+
+`arch-readers.rs` is a separate eight-function development corpus. It does not
+edit the frozen selection or replace the natural library. The CLI regression
+compiles the complete file as a Cargo library, pinned native aarch64, development
+profile, test=false, no features, Data-v3. The natural target remains the original
+lz4_flex 0.14.0 default-feature library context described above. Both contexts
+must pass complete capture, independent verification, strict admission and
+matching before the two-reader natural family is complete.
+
+The following intended classifications were specified from source before the
+first capture of this corpus. Current 3.32 capture excludes all eight and retains
+every function; that baseline is tested separately from these intended results.
+
+| Function | Intended bounded classification and semantic expectation |
+| --- | --- |
+| batch_arch | Admit the complete original size_of/borrowed Result/unwrap/load/native-usize chain; arithmetic byte significance equals the natural reader. |
+| saved_arch | Admit; saving a view before conversion preserves its pointer, offset and width. |
+| result_local_arch | Admit; saving the borrowed Result before unwrap preserves conditional Ok origins, not a copied payload or an unconditional valid reference. |
+| snapshot_arch | Admit; the array read uses a (formal 0), while the separately returned current slice is b (formal 1). Base evaluation precedes endpoint rebinding. |
+| wrong_length_arch | Admit only as a partial computation: width-minus-one conversion is Err, so unwrap has no normal continuation. Never invent a byte read on that conversion. |
+| endian_arch | Exclude under the proposed native-only contract; asymmetric bytes distinguish big-endian from native decoding. |
+| other_size_authority_arch | Exclude under the proposed usize-size-only initializer contract even though size_of::<u64>() has the same value on this target. Equal values do not prove allowed initializer authority. |
+| caller_arch | Exclude until helper summaries can transport the reader's possible panic and normal-completion requirements. Do not reuse the existing nonpanicking helper summary. |
+
+The runtime oracle now directly exercises this corpus, independently computing
+expected scalar values with arithmetic. It also checks an offset borrowed-array
+pointer, Err for zero/short/long views, the deliberately failing reader and the
+rebound slice's separate pointer. Runtime success is not extraction evidence.
+
+### Complete known blocker chain and bounded implementation plan
+
+Retained natural `run-n1ejrbwy` reports reference-valued source operation,
+original-source deferred blocks/calls, nested-item rejection, missing/mismatched
+primitive summaries and a missing helper link. These diagnostics overlap; the
+following dependency audit distinguishes the underlying causes rather than
+treating the first rejection as the whole task.
+
+1. The local constant is a separately owned item. Both original-source and HIR
+   gates reject it. Support only a complete top-level function-local const usize
+   initialized by resolved core size_of::<usize>(), with exact declaration/value,
+   target pointer width and no attributes/expansions. Resolve its initializer in
+   its own type-checking context. Do not traverse it as a runtime function child
+   or merely accept the source spelling. Existing ScalarConstant evidence can
+   carry referenced scalar values but does not prove initializer authority.
+2. The explicit array type names that exact declaration. Verify the named length
+   against original source and the selected constant, not only rustc's normalized
+   eight-element array observation. Other nested items remain rejected.
+3. Capture already observes Result<&[u8;8],TryFromSliceError> and the selected
+   blanket TryInto implementation. Admission still needs exact borrowed signature
+   and pinned conversion semantics: success iff length is eight, no content read
+   at conversion, conditional Ok payload origins. Unwrap retains its panic and
+   Ok normal-completion requirement.
+4. Shared-reference origin propagation must compose through the borrowed Result,
+   unwrap, locals/rebinding and saved views. Formal slice origins currently cannot
+   be projected to the returned array referent: field_locations::source::origin_value
+   returns borrowed TypeTree values and only handles shared/tuple/struct steps.
+   Its two callers are source alias verification and derived referent locations.
+   Both must independently validate the new access-relative array view. Reuse
+   ByteWindow rather than inventing absolute aliases or independent roots.
+5. Builtin array dereference is already captured and supported in isolation.
+   Its indirect physical read needs the converted view's parameterized location
+   and occurrence identity. Different windows sharing a formal root cannot be
+   collapsed into one absolute read or treated as alias-independent.
+6. Native usize decoding needs a separate exact eight-byte summary and source
+   check. Existing native-u32 authority does not authorize it. The retained core
+   definition fingerprint low word is 10425104633548385397; this observation alone
+   is insufficient without complete signature, build and source verification.
+7. Helper inventory/summary selection must recognize the supported primitive
+   calls without accidentally certifying a panicking reader helper. Preserve the
+   copied reader's existing admission and its negative tests.
+
+Unknowns: additional rejection after the combined implementation; precise
+Result-origin validation across local reassignment; location occurrence handling
+for repeated indirect views; source-length verification interactions with
+shadowing; cost of any changed origin representation. Test forged initializer
+identity/value/length, missing reads or bounds, wrong operand/order, wrong origin,
+missing source and forged native authority. No new unit-wide source-boundary
+relaxation is justified for this family: the copied natural reader already admits
+in the same complete library. S09's unresolved derive/impl ownership dependencies
+remain as audited above, rather than being silently ignored.
+
+Deliver the chain as one connected support increment, then rerun the unchanged
+natural selection and measure new/lost admissions. The development baseline is
+0 admitted / 8 excluded; this preparation changes no extraction behavior and
+claims no new natural admissions. It does not add a capability or policy revision.
+
+Validation for this target-preparation checkpoint: 780 workspace tests passed,
+5 existing ignores, including the assertion-receiver regression; the seven-test
+standalone runtime oracle also passed with overflow checks enabled. Workspace
+clippy with warnings denied, formatting and diff checks passed. Repository-built
+rstyle checked 2468 functions with 0 violations; patterns reported 0 candidates.
+No frozen rerun was performed for these test/documentation-only changes; the last
+measured natural result remains run-n1ejrbwy (12 admitted / 41 excluded / 7 inactive).
