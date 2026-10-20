@@ -132,7 +132,8 @@ fn bind(facts: &HirFnFacts, unit: &mut BindingContext<'_>) -> Result<Option<Bind
         return Err("Missing original declaration evidence".into());
     }
     let origins = options.data::<Origins>()?;
-    unit.origins.verify(&interface, &origins)?;
+    let context = declaration_origins::context(facts, &interface, &origins)?;
+    unit.origins.verify(&context, &origins)?;
     let declarations = origins
         .declarations
         .iter()

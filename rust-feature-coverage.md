@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.24.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.25.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -195,7 +195,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Assertions are a proposed narrow first slice. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | Current unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Other items, macros/derives and unsafe forms can still block simple APIs; finer ownership/drop/effect proofs remain. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | Current unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Other items, macros/derives and unsafe forms can still block simple APIs; finer ownership/drop/effect proofs remain. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
@@ -1250,3 +1250,62 @@ identities/outcomes, all denominators and context counts match 3.23.0
 (10 lz4, 0 regex, 16 time). Reference-bearing updates add no measured frozen
 admission gain; these checks do not establish general performance or detector
 quality.
+
+### S09 nominal types used only in function bodies
+
+Data-v3 extraction 3.25.0 adds `rust.body-nominal-types` (37 capabilities);
+matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
+[contract](docs/extraction-profiles/body-nominal-types-v1.md) removes the signature
+witness requirement for supported body-only concrete structs. Scalar/shared-only
+interfaces can compose named/tuple/unit construction, imported constructor aliases,
+nested values, immutable locals, reference-bearing updates, conditional aggregates,
+field projections and `Self` construction.
+
+Capture already observes body tokens and original declarations. It now retains
+existing declaration-origin entries needed by successfully captured body types,
+rather than pruning all entries absent from signature observations. Incomplete,
+unused observations still do not add declaration entries. No frontend record,
+provenance format, source snapshot or retained cache is introduced. Callable
+parameter/result observations remain unchanged.
+
+A temporary declaration inventory reconstructs bounded nominal trees from canonical
+body tokens and their original declaration ranges. Field names/order, declaration
+spelling, recursive types and repeated observations must agree. The same inventory
+feeds existing Cargo package binding and independent lexical nominal verification,
+including original file/range/digest, selected unit/package, source census, imports,
+field spelling and owner checks. It is not a callable signature. Functions with no
+declaration origins, or with all declarations already covered by the signature,
+avoid body reconstruction. Earlier profiles keep their declaration boundary.
+
+The composed real Cargo fixture covers imported aliases in another source module,
+nested/tuple/unit constructors, locals, updates, conditional values, scalar/shared
+results, a scalar helper composed with body-only construction, and `Self`
+construction in an inherent implementation. It checks unchanged serialized
+interface arity alongside retained body declarations. Every admitted graph passes
+independent document and strict producer verification, and equivalent functions
+reach accepted matching. Changed declaration identity, source range or observed
+field layout is rejected. An earlier reference projection fixture now admits its
+body-only constructor. Data-v2 retains its exclusions.
+
+Local storage borrows, mutable reference-bearing locals and static associated helper
+calls remain negative cases. The latter still require a broader ownership contract
+than current shared-receiver helper certification; admitting the associated body
+as a root does not establish that call boundary. Enums, traits/generics, macros,
+derives, conditional modules and general ownership/drop remain outside this nominal
+slice. S09 stays Partial, and the complete roadmap remains active.
+
+Validation: 758 workspace tests pass with the same 5 existing ignores, including
+the original assertion-argument receiver regression. The expanded 13-function
+fixture additionally passes helper composition and unchanged interface-arity
+checks (10 admitted, 3 excluded). Clippy passes for all targets with warnings denied;
+formatting and diff checks pass. Repository-built rstyle reports 2,317 functions
+and 0 violations; patterns reports 0 candidates with the same 15 existing ignores.
+All 14 inventory bookkeeping tests pass. Inventory capture ran after the workspace
+test process finished, avoiding executable replacement during test launches.
+
+Frozen run `target/hir-coverage/run-2sony2uw/` completes all three packages with
+11 admitted, 42 excluded and 7 independently inactive out of 60. All 60 frozen
+identities/outcomes, all denominators and context counts match 3.24.0
+(`run-fdc85x8c`). Twenty-six admitted graph documents pass schema checks
+(10 lz4, 0 regex, 16 time). Body-only nominal types add no measured frozen admission
+gain; these checks do not establish general performance or detector quality.

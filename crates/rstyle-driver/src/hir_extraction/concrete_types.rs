@@ -165,17 +165,20 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 
     fn install_origins(
-        mut self,
+        self,
         observations: &InterfaceObservations,
         facts: &mut HirFnFacts,
     ) -> Result<(), String> {
-        let expected = rstyle_pdg::declaration_origins::declarations(observations)?;
-        self.origins.retain(|key, _| expected.contains_key(key));
-        let origins = rstyle_pdg::declaration_origins::Origins {
+        let mut origins = rstyle_pdg::declaration_origins::Origins {
             identity: rstyle_pdg::declaration_origins::IDENTITY.into(),
             declarations: self.origins.into_values().collect(),
         };
-        rstyle_pdg::declaration_origins::verify(observations, &origins)?;
+        let context = rstyle_pdg::declaration_origins::context(facts, observations, &origins)?;
+        let expected = rstyle_pdg::declaration_origins::declarations(&context)?;
+        origins
+            .declarations
+            .retain(|origin| expected.contains_key(&origin.nominal.definition_path));
+        rstyle_pdg::declaration_origins::verify(&context, &origins)?;
         facts.build.frontend_options.insert_data(origins);
 
         Ok(())

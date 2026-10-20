@@ -89,7 +89,8 @@ pub(crate) fn verify_in(
         .build
         .frontend_options
         .data::<declaration_origins::Origins>()?;
-    declaration_origins::verify_in(interface, &origins, &environment)?;
+    let context = declaration_origins::context(facts, interface, &origins)?;
+    declaration_origins::verify_in(&context, &origins, &environment)?;
     let mut resolution = Resolution {
         namespace: Vec::new(),
         receiver: None,
@@ -97,7 +98,7 @@ pub(crate) fn verify_in(
         environment: Rc::clone(&environment),
     };
 
-    for observation in interface.parameters.iter().chain([&interface.result]) {
+    for observation in context.parameters.iter().chain([&context.result]) {
         if let Observation::Captured { ty } = observation {
             collect(ty, &mut resolution.trees)?;
         }

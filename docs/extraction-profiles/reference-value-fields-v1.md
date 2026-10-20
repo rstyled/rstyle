@@ -57,3 +57,7 @@ Final validation and frozen natural inventory results are recorded in the roadma
 Reference-bearing struct updates additionally compose in Data-v3 3.24.0; see the
 [update contract](reference-struct-updates-v1.md). The exclusions above describe
 the original 3.23.0 boundary.
+
+Data-v3 3.25.0 additionally removes the body-only nominal registry exclusion; see
+[body nominal types](body-nominal-types-v1.md). Broader mixed-content unit and
+helper ownership boundaries still apply.

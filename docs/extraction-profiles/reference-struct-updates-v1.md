@@ -52,3 +52,7 @@ tracking, aggregate helper results and broader memory-reading helper substitutio
 remain unfinished. Existing nominal declaration proof boundaries still apply.
 This capability establishes none of those broader contracts. Validation and frozen
 natural inventory measurements are recorded in the roadmap continuation log.
+
+Data-v3 3.25.0 additionally supports [body-only nominal types](body-nominal-types-v1.md),
+so a body constructor/update need not have its nominal type in the signature.
+The remaining source-unit restrictions still apply.

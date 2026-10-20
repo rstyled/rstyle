@@ -2600,7 +2600,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.24.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.25.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6159,7 +6159,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.24.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.25.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -9182,7 +9182,7 @@ fn clones_data_reference_value_fields_select_exact_component_origins() {
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "mutable" | "rebound" | "borrow" | "helper_result" | "helper_field" | "body_nominal"
+            "mutable" | "rebound" | "borrow" | "helper_result" | "helper_field"
         );
         assert_eq!(
             function["outcome"],
@@ -9619,4 +9619,150 @@ fn check_reference_update_nested_paths(report: &Value) {
         }
         assert_eq!(path.last().unwrap()["kind"], "SharedReferent");
     }
+}
+
+#[test]
+fn clones_data_body_nominal_types_compose_without_signature_witnesses() {
+    let directory = body_nominal_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 13);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "borrow" | "mutable" | "self_call"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_body_nominal_corruption(&report);
+    check_body_nominal_interface(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn body_nominal_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/model.rs"),
+        r#"
+        pub struct Pair<'a> { pub left: &'a i32, pub right: &'a i32 }
+        pub struct Outer<'a> { pub inner: Pair<'a> }
+        pub struct Tuple<'a>(pub &'a i32, pub &'a i32);
+        pub struct Scalar { pub value: i32 }
+        impl Scalar { pub fn extract(value: i32) -> i32 { Self { value }.value } }
+        pub struct Unit;
+    "#,
+    )
+    .unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        mod model;
+        use model::Pair as Alias;
+        pub fn first<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = Alias { right: b, left: a }; pair.left }
+        pub fn other<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = Alias { right: b, left: a }; pair.left }
+        pub fn nested<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let outer = model::Outer { inner: Alias { left: a, right: b } }; outer.inner.right }
+        pub fn tuple<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { model::Tuple(a, b).1 }
+        pub fn update<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = Alias { left: a, right: b }; Alias { left: b, ..pair }.right }
+        pub fn conditional<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 { (if pick { Alias { left: a, right: b } } else { Alias { left: b, right: a } }).left }
+        pub fn scalar(value: i32) -> i32 { model::Scalar { value }.value }
+        pub fn helper(value: i32) -> i32 { scalar(value) }
+        pub fn self_call(value: i32) -> i32 { model::Scalar::extract(value) }
+        pub fn unit(value: i32) -> i32 { let tag = model::Unit; value }
+        pub fn borrow(value: i32) -> i32 { let saved = model::Scalar { value }; let reference = &saved.value; saved.value }
+        pub fn mutable<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut pair = Alias { left: a, right: b }; pair.left }
+    "#).unwrap();
+    directory
+}
+
+fn check_body_nominal_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let view = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    for corruption in ["origin", "range", "field"] {
+        let mut facts = (*view).clone();
+        let mut origins = facts
+            .build
+            .frontend_options
+            .data::<rstyle_pdg::declaration_origins::Origins>()
+            .unwrap()
+            .into_owned();
+        assert_eq!(origins.declarations.len(), 1);
+        match corruption {
+            "origin" => origins.declarations[0]
+                .nominal
+                .definition_path
+                .push_str("_other"),
+            "range" => origins.declarations[0].declaration_span.end -= 1,
+            _ => {
+                let mut changed = serde_json::to_value(&facts).unwrap();
+                change_body_nominal_fields(&mut changed["body"]);
+                facts = serde_json::from_value(changed).unwrap();
+            }
+        }
+        facts.build.frontend_options.insert_data(origins);
+        assert!(
+            rstyle_pdg::data_documents::verify(pair, &facts).is_err(),
+            "{corruption}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify_view(pair.as_view(), &facts).is_err(),
+            "{corruption}"
+        );
+    }
+}
+
+fn change_body_nominal_fields(node: &mut Value) {
+    if let Some(text) = node["ty"]["normalized"].as_str()
+        && let Ok(mut ty) = serde_json::from_str::<Value>(text)
+        && ty["kind"] == "struct"
+    {
+        ty["value"]["fields"][0][0] = "wrong".into();
+        node["ty"]["normalized"] = serde_json::to_string(&ty).unwrap().into();
+    }
+    if let Some(children) = node["children"].as_array_mut() {
+        for child in children {
+            change_body_nominal_fields(child);
+        }
+    }
+}
+
+fn check_body_nominal_interface(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts = &function["facts"];
+    assert_eq!(facts["signature"]["params"].as_array().unwrap().len(), 2);
+    let observations = &facts["build"]["frontend_options"][rstyle_pdg::concrete_types::KEY];
+    assert_eq!(observations["parameters"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        function["nominal_unit_binding"]["declarations"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
 }
