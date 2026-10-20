@@ -2561,3 +2561,50 @@ owner plus returned-reference helper chain; and ScalarRange's owned Option/tuple
 construction, checked conversion and Result unwrapping. Borrowed scalar access
 does not certify these combinations. Prioritize a tractable natural F10 family
 in the next audit rather than broadening async/unsafe/FFI or general macros.
+
+
+### F10 natural target audit: cyclic prefix scans
+
+The next selected family is regex-automata 0.4.18
+`util::wire::skip_initial_padding` and data-encoding 2.11.1 `skip_ignore`, in their
+unmodified default-feature library Cargo contexts. Selection follows source
+inspection before admission assessment. The
+[development contract](docs/extraction-profiles/cyclic-prefix-scans-v1.md) records
+exact source digests, build contexts, independent expectations, all known gates
+and explicit implementation unknowns. The frozen 60-function identities and
+denominator remain unchanged. This is a target declaration, not new support.
+
+These functions compose current-iteration short-circuit merges with bounds,
+slice/array reads, scalar updates, length summaries and a scalar table marker.
+The source gate is only the first blocker: the serialized checker independently
+rejects repeated controllers/snapshots and currently proves cumulative rather
+than evaluation-local availability. Removing that rejection would not establish
+fresh values. Any extension must verify the latest evaluation using finite
+existing CFG/PDG evidence, including skipped nested conditions, while retaining
+the no-merge and outside-loop paths. No new serialized epoch/history, source
+inventory or runtime cache is justified by the selected family.
+
+Original data-encoding Cargo capture/assessment completes all 127 functions; the
+selected exact source is excluded by the F10 source gate. A separate six-function
+development selection captures/assesses completely: **0 admitted /6 excluded**.
+Both scans, alternating loop-local values and a saved short-circuit result are
+the four intended positives, all currently blocked by F10. Mutation and
+value-carrying break remain negatives with distinct existing restrictions.
+Three independent runtime tests pass, covering all 256 translation bytes,
+explicit table changes, empty/maximal start cases, capped prefix lengths and
+1025 alternating/final-condition cases. Runtime correctness does not certify
+pipeline admission. The separate library caller chains still require Result,
+generic parsing/buffer mutation and unsafe/source boundaries; they are not
+claimed supported by this bounded prefix-scan target.
+
+
+The original regex-automata Cargo baseline now completes all 2,582 functions:
+**7 admitted /2,575 excluded /0 unknown**, with all retained names/digests/spans
+unchanged. Data-encoding completes 127 functions: **3 admitted /124 excluded /
+0 unknown**. Both selected digests match the source-first declaration and both
+scanners are excluded by F10, establishing **0/2 admissions** before activation.
+The commands use max-pairs zero, so full-library matching is intentionally
+incomplete while capture and assessment complete. No gain is claimed yet.
+rstyle reports 2,622 functions with zero violations; patterns has zero candidates.
+The three independent runtime-oracle tests pass. No production extraction rule,
+threshold, scoring, suppression or historical artifact changes in this audit.

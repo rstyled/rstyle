@@ -1067,3 +1067,21 @@ checking, append it to an otherwise unchanged published regex-syntax 0.8.11
 `development`. It exercises the actual private natural methods without changing
 the separate Cargo capture sources. The five tests (one oracle and four natural
 module tests) pass. See the [bounded contract](../../docs/extraction-profiles/borrowed-scalar-owner-v1.md).
+
+
+## Cyclic prefix scan target (not yet supported)
+
+`cyclic-prefix-scans.rs` fixes a separate six-function development selection:
+the two natural prefix-scan shapes, alternating loop-local values and a saved
+short-circuit result are the four intended positives; mutation and value-carrying
+break are retained negatives. Current Data-v3 3.40 captures and assesses all six,
+with zero admissions. All four positives currently fail the F10 source gate.
+The ordinary arithmetic composition retains existing overflow/partial-flow rules;
+it does not require an unrelated wrapping-method summary.
+
+`cyclic-prefix-oracle.rs` appends to that source in a temporary rustc test harness.
+Its three tests pass: capped zero-prefix lengths, all 256 translation bytes and
+explicit table changes, empty/out-of-range starts, and 1025 iteration-value/final
+condition cases. The oracle specifies behavior independently of the extraction
+checker and does not establish pipeline support. See the
+[selected natural family and blocker audit](../../docs/extraction-profiles/cyclic-prefix-scans-v1.md).
