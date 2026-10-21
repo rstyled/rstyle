@@ -77,7 +77,7 @@ fn check_context(target: &str, no_std: bool, source: &str) {
     verify_admissions(&report);
 }
 
-pub(super) fn verify_admissions(report: &Value) {
+pub(super) fn verify_admissions(report: &Value) -> rstyle_pdg::unit_store::UnitStore {
     let (unit, _) = data_unit(&report["functions"][0]);
     let analysis = unit.analysis();
     for function in report["functions"]
@@ -91,6 +91,8 @@ pub(super) fn verify_admissions(report: &Value) {
         rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
         rstyle_ccgraph::admit_produced(pair, &facts).unwrap();
     }
+    drop(analysis);
+    unit
 }
 
 #[test]

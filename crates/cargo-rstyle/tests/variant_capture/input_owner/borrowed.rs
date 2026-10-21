@@ -76,8 +76,8 @@ fn check_context(target: &str) {
         }
         let negative = function(&report, "nested_reference_caller");
         assert_eq!(negative["outcome"], "excluded", "{}", negative["reasons"]);
-        super::super::word_classifiers::verify_admissions(&report);
-        check_locations(&report);
+        let unit = super::super::word_classifiers::verify_admissions(&report);
+        check_locations(&report, &unit);
         for flag in [
             "capture_complete",
             "assessment_complete",
@@ -105,9 +105,8 @@ fn assert_matching(report: &Value, first: &str, second: &str, expected: &str) {
     assert_eq!(pair["decision"], expected);
 }
 
-fn check_locations(report: &Value) {
-    let (unit, index) = data_unit(function(report, "Input::get_haystack"));
-    let pair = unit.pair(index).unwrap();
+fn check_locations(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
+    let pair = shared_evidence::pair(unit, function(report, "Input::get_haystack"));
     assert_eq!(pair.pdg.memory_locations.len(), 1);
     let slot = &pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY];
     assert_eq!(slot["parameter"], 0);
@@ -116,7 +115,7 @@ fn check_locations(report: &Value) {
     assert_eq!(slot["path"][1]["name"], "haystack");
     for name in ["saved", "later"] {
         let entry = function(report, name);
-        let pair = unit.pair(shared_evidence::index(entry)).unwrap();
+        let pair = shared_evidence::pair(unit, entry);
         if name == "saved" {
             let returned = pair
                 .pdg

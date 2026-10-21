@@ -59,6 +59,7 @@ fn passive_copy_children_do_not_import_neighboring_macro_effects() {
 fn check_passive_context(target: &str) {
     for no_std in [false, true] {
         let (_directory, report) = capture_context(&source(), no_std, Some(target));
+        let unit = super::super::word_classifiers::verify_admissions(&report);
         for name in [
             "Input::get_earliest",
             "Input::get_haystack",
@@ -71,13 +72,12 @@ fn check_passive_context(target: &str) {
         ] {
             let entry = function(&report, name);
             assert_eq!(entry["outcome"], "admitted", "{name}: {}", entry["reasons"]);
-            reject_previous(entry);
+            reject_previous(entry, &unit);
         }
         for name in ["exposed", "invoked", "owned", "construct"] {
             let entry = function(&report, name);
             assert_eq!(entry["outcome"], "excluded", "{name}: {}", entry["reasons"]);
         }
-        super::super::word_classifiers::verify_admissions(&report);
         check_getter_matching(&report);
     }
 }
@@ -104,11 +104,11 @@ fn check_getter_matching(report: &Value) {
     );
 }
 
-fn reject_previous(entry: &Value) {
-    let (unit, index) = data_unit(entry);
+fn reject_previous(entry: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
+    let index = shared_evidence::index(entry);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
-    let captured = unit.pair(index).unwrap();
+    let captured = shared_evidence::pair(unit, entry);
     let mut pair = rstyle_pdg::producer::Pair {
         pdg: captured.pdg.clone(),
         cfg: captured.cfg.clone(),

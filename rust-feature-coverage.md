@@ -4159,3 +4159,17 @@ proof reuse cuts the unchanged slowest CLI test 187.29→50.35s and the full sui
 Next blocker combinations remain borrowed Option payload/closure/helper-result
 composition for Transition, and opaque field/drop proof for PatternSet; broader
 Rust, rewrite safety and detector-quality claims remain separate.
+
+
+### Strict comparison and fixture replay performance
+
+Normalize JSON in place, serialize unordered sort keys once and compare documents
+sequentially; preserve identifier mapping, ordering, duplicates and historical
+exceptions. Fixtures reuse one strict unit import per context; all mutation,
+admission and policy assertions remain. Equal-work alternating samples before
+fixture reuse: flags 49.83–50.02→42.44–42.51s, slices 43.03–43.13→39.74–39.88s.
+Final development-worktree suite, including the pending callback slice:
+224.835→167.679s, 1014→1020 passing tests /5 existing skips. Flags 50.665→36.672s,
+slices 43.520→34.448s, passive owners 29.801→13.857s include duplicate-import
+removal. Doctests/fmt/Clippy pass; rstyle 0/3327, patterns 0 unignored, existing
+15 ignores unchanged. Evidence: `/tmp/rstyle-slow-*`; no new coverage milestone.

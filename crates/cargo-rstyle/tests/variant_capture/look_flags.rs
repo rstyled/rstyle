@@ -45,25 +45,25 @@ fn fieldless_flags_complete_value_construction_membership_and_grouped_helpers() 
                     function["reasons"]
                 );
             }
-            super::word_classifiers::verify_admissions(&report);
+            let unit = super::word_classifiers::verify_admissions(&report);
             assert_eq!(report["pair_evaluation_complete"], true);
             assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 91);
-            reject_changed_value(&report);
+            reject_changed_value(&report, &unit);
         }
     }
 }
 
-fn reject_changed_value(report: &Value) {
+fn reject_changed_value(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
     let function = report["functions"]
         .as_array()
         .unwrap()
         .iter()
         .find(|f| f["facts"]["name"] == "LookSet::contains_anchor_lf")
         .unwrap();
-    let (unit, index) = data_unit(function);
+    let index = shared_evidence::index(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
-    let pair = unit.pair(index).unwrap();
+    let pair = shared_evidence::pair(unit, function);
     let mut changed = rstyle_pdg::producer::Pair {
         pdg: pair.pdg.clone(),
         cfg: pair.cfg.clone(),

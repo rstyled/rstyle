@@ -1,6 +1,9 @@
 //! Producer handoff checks using captured source/build evidence and the real
 //! interchange boundary. Producer conformance flags are never an input proof.
 
+mod normalization;
+use normalization::normalize;
+
 use super::{Pair, PairView, analyze_facts, emit, lower};
 use crate::*;
 use serde_json::Value;
@@ -314,112 +317,33 @@ fn compare_documents(
     expected: PairView<'_>,
     renaming: &BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
-    let actual_docs = [
-        serde_json::to_value(actual.pdg),
-        serde_json::to_value(actual.cfg),
-    ];
-    let expected_docs = [
-        serde_json::to_value(expected.pdg),
-        serde_json::to_value(expected.cfg),
-    ];
-    let empty = BTreeMap::new();
-    for (actual, expected) in actual_docs.into_iter().zip(expected_docs) {
-        let actual = normalize(actual.map_err(|e| vec![e.to_string()])?, "", renaming);
-        let expected = normalize(expected.map_err(|e| vec![e.to_string()])?, "", &empty);
-        if actual != expected {
-            return Err(vec![format!(
-                "Serialized extraction facts disagree with captured source/build/normal-flow evidence: {}",
-                first_difference(&actual, &expected, "")
-            )]);
-        }
+    compare_document(actual.pdg, expected.pdg, renaming)?;
+    compare_document(actual.cfg, expected.cfg, renaming)
+}
+
+fn compare_document<T: serde::Serialize>(
+    actual: &T,
+    expected: &T,
+    renaming: &BTreeMap<String, String>,
+) -> Result<(), Vec<String>> {
+    let actual = normalize(
+        serde_json::to_value(actual).map_err(|e| vec![e.to_string()])?,
+        "",
+        renaming,
+    );
+    let expected = normalize(
+        serde_json::to_value(expected).map_err(|e| vec![e.to_string()])?,
+        "",
+        &BTreeMap::new(),
+    );
+    if actual != expected {
+        return Err(vec![format!(
+            "Serialized extraction facts disagree with captured source/build/normal-flow evidence: {}",
+            first_difference(&actual, &expected, "")
+        )]);
     }
 
     Ok(())
-}
-
-fn normalize(value: Value, field: &str, renaming: &BTreeMap<String, String>) -> Value {
-    match value {
-        Value::Object(object) => {
-            let entries = object
-                .into_iter()
-                .filter(|(key, _)| {
-                    !(field == "conformance" && matches!(key.as_str(), "status" | "reasons"))
-                })
-                .filter(|(key, _)| !(matches!(field, "edges" | "diagnostics") && key == "id"))
-                // Historical selection records carried an informational document
-                // path. The registered profile identity remains authoritative.
-                .filter(|(key, _)| {
-                    !(field == crate::extraction_profile::EVIDENCE_KEY && key == "contract")
-                })
-                .map(|(key, value)| {
-                    let value = normalize(value, &key, renaming);
-                    (key, value)
-                })
-                .collect();
-            Value::Object(entries)
-        }
-        Value::Array(values) => {
-            let mut values: Vec<_> = values
-                .into_iter()
-                .map(|v| normalize(v, field, renaming))
-                .collect();
-            if unordered(field) {
-                values.sort_by_key(Value::to_string);
-            }
-            Value::Array(values)
-        }
-        Value::String(value) if reference_field(field) => {
-            Value::String(renaming.get(&value).cloned().unwrap_or(value))
-        }
-        value => value,
-    }
-}
-
-fn unordered(field: &str) -> bool {
-    matches!(
-        field,
-        "nodes"
-            | "edges"
-            | "symbols"
-            | "definitions"
-            | "sources"
-            | "diagnostics"
-            | "alternatives"
-            | "memory_locations"
-            | "entry_reachable_cfg_node_ids"
-            | "completion_cfg_node_ids"
-            | "compat.rust.hir-r0:operation-map"
-            | "compat.rust.hir-r0:operation-provenance"
-            | "compat.rust.hir-r0:value-sites"
-            | "compat.rust.hir-r0:guards"
-    )
-}
-
-fn reference_field(field: &str) -> bool {
-    matches!(
-        field,
-        "id" | "location_id"
-            | crate::data_places::KEY
-            | "source"
-            | "target"
-            | "node_id"
-            | "symbol_id"
-            | "symbol_ids"
-            | "defines"
-            | "definition_id"
-            | "source_id"
-            | "cfg_node_id"
-            | "cfg_operation_id"
-            | "pdg_node_id"
-            | "controller_pdg_node_id"
-            | "value_pdg_node_id"
-            | "cfg_successor_node_id"
-            | "completion_cfg_node_ids"
-            | "entry_reachable_cfg_node_ids"
-            | "entry_node_id"
-            | "exit_node_ids"
-            | "origin_node_ids"
-    )
 }
 
 fn first_difference(actual: &Value, expected: &Value, path: &str) -> String {
