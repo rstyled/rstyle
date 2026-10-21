@@ -202,6 +202,11 @@ fn check_receiver_snapshot(function: &serde_json::Value) {
         bundle["functions"][index]["build"]["frontend_options"]["data_method_receivers"]["methods"]
             [0]["adjustments"] = serde_json::json!([]);
     });
+    shared_evidence::reject_edit(function, |bundle, index| {
+        let record = &mut bundle["functions"][index]["build"]["frontend_options"]["data_method_receivers"]
+            ["methods"][0];
+        record["signature_inputs"][0] = record["receiver_type"].clone();
+    });
 }
 
 #[test]
