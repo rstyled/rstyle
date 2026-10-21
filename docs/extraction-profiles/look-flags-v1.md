@@ -41,3 +41,28 @@ cases include custom repr, generic/mixed/payload declarations, unresolved named
 constant discriminants, overflow and incomplete inventories. `Look::reversed`,
 `from_repr`, `as_char`, mutable setters and iterator construction remain outside
 this declared family and must not gain support from a prefix of their bodies.
+
+
+## 3.60 evidence in progress
+
+Complete unchanged regex-automata capture: **98 → 114 /2582**, zero losses,
+identical source/build identities; all thirteen targets plus `empty` admit and
+all six negative controls remain excluded. Three incidental gains were audited
+from source: `StartKind::write_to_len` (constant size, unused shared receiver) and
+`Start::{as_u8, as_usize}` (complete fieldless declaration, explicit shared load,
+cast and existing widening conversion). They are observed gains, not preselected
+acceptance targets or a new family claim.
+
+All **114 natural admissions independently strict-verify**; all **91 selected
+original comparisons** complete, including incompatible-interface rejection.
+Retained report: `/tmp/rstyle-look-flags-natural-target/rstyle/clones/run-aOQHu7/report.json`;
+compact delta/roster `/tmp/rstyle-look-flags-natural-roster.json`, strict/matching
+logs `/tmp/rstyle-look-flags-strict.{log,stderr}` and
+`/tmp/rstyle-look-flags-selected-matching.json`. Full-library matching remains
+explicitly incomplete under max-pairs zero.
+
+One complete run took **1079.51s /7037116 KiB peak RSS**, versus the retained
+3.59 sample **881.67s /6393560 KiB**, with sixteen additional admissions. These
+single runs are workload observations, not an equal-work performance conclusion;
+alternating controls remain pending. Frozen inventory, additional controls and
+final quality gates are pending, so this increment is not marked delivered.

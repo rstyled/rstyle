@@ -185,6 +185,7 @@ fn check_receiver_snapshot(function: &serde_json::Value) {
     }
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
+    reject_previous_policy(pair, &facts, "Shared Copy value receivers require");
     let mut changed = rstyle_pdg::producer::Pair {
         pdg: pair.pdg.clone(),
         cfg: pair.cfg.clone(),
@@ -231,6 +232,15 @@ fn fieldless_enum_support_retains_signed_values_and_closed_declaration_boundarie
     for function in report["functions"].as_array().unwrap() {
         let name = function["facts"]["name"].as_str().unwrap();
         let expected = matches!(name, "signed" | "unsigned" | "negative");
+        if name == "negative" {
+            let (unit, index) = data_unit(function);
+            let analysis = unit.analysis();
+            reject_previous_policy(
+                unit.pair(index).unwrap(),
+                &analysis.function(index).unwrap(),
+                "Fieldless enum requires",
+            );
+        }
         assert_eq!(
             function["outcome"],
             if expected { "admitted" } else { "excluded" },
@@ -239,4 +249,20 @@ fn fieldless_enum_support_retains_signed_values_and_closed_declaration_boundarie
         );
     }
     super::word_classifiers::verify_admissions(&report);
+}
+
+fn reject_previous_policy(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    expected: &str,
+) {
+    let mut changed = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    changed.pdg.profile.version = "3.59.0".into();
+    changed.cfg.profile.version = "3.59.0".into();
+    let error = rstyle_pdg::data_documents::verify(&changed, facts).unwrap_err();
+    assert!(error.contains(expected), "{error}");
+    assert!(rstyle_ccgraph::admit_produced(&changed, facts).is_err());
 }

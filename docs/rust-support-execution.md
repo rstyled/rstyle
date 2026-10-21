@@ -157,3 +157,26 @@ is source/design-ready, implementation blocked on explicit float/NaN/target and
 constant interfaces after character integration. No float capture/oracle run or
 support activation is claimed. Matching remains clone detection, separate from
 bitwise semantics and rewrite safety.
+
+
+## 3.60 natural replay result
+
+Session62733 completed with expected exit2 solely for max-pairs zero: 114/2582
+admitted, 2468 excluded, no unknown/failed, capture/assessment complete. Streaming
+comparison passes all 2582 unchanged identities/build settings, all declared
+positives/negatives and zero losses. Three extra gains audited: StartKind size
+query and Start enum's explicit-load/cast/widening pair. See compact family
+contract for retained paths and bounded timing observations.
+
+Session97103 independently strict-verified all114 admissions and completed all91
+selected original comparisons (128.31s /5919124 KiB). Added explicit3.59 document
+policy negatives for fieldless values and shared Copy receivers; focused wrapper
+(two tests plus doctests) and Clippy pass. Final full gates must include these
+additional assertions; production behavior is unchanged from the green snapshot.
+
+Frozen rerun session49348 is active at `target/hir-coverage/run-bo_05z1o`, stable
+snapshot binaries; lz4 capture/document verification completed. After it finishes,
+run `/tmp/rstyle-look-flags-frozen-compare.py run-bo_05z1o`, then strict frozen
+replay. Performance script `/tmp/rstyle-look-flags-performance.py` is prepared:
+three unchanged-work controls plus1→14 flag admissions, warmup+seven alternating
+samples. Run only after other heavy work completes. Char files remain unregistered.
