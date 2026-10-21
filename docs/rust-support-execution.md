@@ -8,8 +8,8 @@ routing remains in the plan; this record tracks the active dependency frontier.
 
 - HEAD/remote: `f71eff3`, branch `feature/rust-feature-coverage`, Data-v3 3.59.
   Native macOS, Linux x86 and Linux ARM checks independently observed successful.
-- Existing task work: uncommitted Data-v3 3.60 fieldless flag enums and shared Copy
-  value receivers, including complete implicit receiver reads. Preserve and finish
+- Existing task work: Data-v3 3.60 fieldless flag enums and shared Copy
+  value receivers, including complete implicit receiver reads (now committed `4fcc007`). Finish
   this coherent increment before integrating first-wave production changes.
 - Unrelated untracked work is preserved: `crates/rstyle-pdg/src/slice_access/`,
   `docs/pdg-and-clones.md`, `ferrante_toplas_87.pdf`.
@@ -27,9 +27,14 @@ routing remains in the plan; this record tracks the active dependency frontier.
   newly supported shared Copy receivers and one expected the prior capability
   count. Expectations updated; existing semantic tampering controls retained.
 - Clippy with warnings denied now passes after extracting focused receiver test
-  checks. Exact test/doctest wrapper is running (session 15168), log
-  `/tmp/rstyle-wave-baseline-tests.log`. Formatting/style/pattern gate reruns
-  remain pending; this checkpoint is **not green**. No new ignores/suppressions.
+  checks. Exact initial wrapper then exposed one remaining stale count (17→18 functions,
+  136→153 pairs). Corrected and focused wrapper/doctests pass. Final complete
+  wrapper passes: **936/936**, five existing skips, doctests pass; log
+  `/tmp/rstyle-wave-baseline-tests-final.log` (328.392s).
+- Formatting and Clippy pass; required style wrapper reports 0/3041, patterns
+  wrapper passes with 0 candidates and unchanged existing ignores. Logs:
+  `/tmp/rstyle-wave-baseline-{clippy.log,style.json,patterns.log}`.
+  Full-original/strict/matching/delta evidence is still pending; **not delivered**.
 
 ## Ownership and readiness
 
@@ -42,7 +47,7 @@ No new branches/worktrees. Existing clean baseline checkout is retained.
 | ID / owner | State | Target / hard prerequisite | Exclusive initial write set |
 | --- | --- | --- | --- |
 | Existing 3.60 / lead | validating | 13 original Look/LookSet flag functions plus empty; complete source/Copy → variant/cast → receiver load → helper chain; full original measurement pending | Existing dirty flag modules, their tests/oracles/contract; shared seams remain lead-owned |
-| P01.A / A | ready (activation pending baseline) | regex-syntax 0.8.11 `is_meta_character(char)`; freeze source/build and truth table, then propose vocabulary | Audit only initially; dedicated char leaf modules/oracle/tests after approval |
+| P01.A / A | implementing (exclusive leaves only) | regex-syntax 0.8.11 `is_meta_character(char)`; freeze source/build and truth table, then propose vocabulary | Audit only initially; dedicated char leaf modules/oracle/tests after approval |
 | P08.B / B | blocked (source audit complete) | Natural saved checked-sub Option caller; complete blockers before activation | Audit only; proposed bitset_cardinality subtree and dedicated saved tests |
 | P06.C / C | blocked (source audit complete) | Single borrowed-result getter → wrapper → consumer; reject unsuitable Input chain with named dependencies | Audit only; proposed helper_references/helper_views and dedicated tests |
 | P05.D / D | blocked (source audit complete) | Natural residual in-package module ownership family; existing path tests are controls | Audit only; proposed census/selected-module proof and dedicated source tests |
@@ -102,3 +107,26 @@ A's shared-interface review found that globally widening `scalar()` would also
 activate unsupported aggregate/Option cases and invalidate an enum-cast integer
 guard. Use a dedicated capability-gated char primitive path; retain existing
 integer gates. Original char spelling already survives producer serialization.
+
+- Connected production increment committed as `4fcc007`; exact original 14-function
+  selection plus six negative controls frozen in `0406406` before fresh original
+  measurement. Neither commit claims complete natural acceptance. All shared
+  production files remain unchanged during the final suite.
+
+
+## Green baseline and current execution
+
+Integrated production `4fcc007` plus source selection `0406406`: exact section-6
+baseline gates all pass. Existing ignores remain unchanged. This is a green
+implementation checkpoint, not yet completed natural-family delivery.
+
+- Stable CLI/driver snapshot: `/tmp/rstyle-look-flags-final-bin/`, built from
+  `0406406`. Complete unchanged regex-automata capture now runs as session 62733,
+  timeout 1800s, isolated output `/tmp/rstyle-look-flags-natural-target`.
+  Logs `/tmp/rstyle-look-flags-natural-capture.{log,stderr}`. No broad matching:
+  max-pairs zero remains explicitly incomplete; strict selected replay follows.
+- A approved for dedicated `character_scalars.rs` and `variant_capture/character_leaf.rs`
+  leaves, plus its existing contract/oracle only. No builds/captures/registration
+  or shared source edits. Shared integration follows the current family's evidence.
+- Lead retains shared seams, binaries, captures, strict replay, staging and commits.
+  B/C/D audits establish named prerequisites; no unsupported activation granted.
