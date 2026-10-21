@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.67.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.68.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -19,8 +19,9 @@ Data-v3 3.62 connects literal character ranges and the pinned ASCII predicate;
 3.63–3.66 connects original float kernels through exact bits/constants, ordered
 arithmetic/narrowing, bounded i32-controlled float alternatives and independently
 checked cfg-if module/dependency proof. Data-v3 3.67 adds complete borrowed
-mixed-owner type and lifetime-only callable evidence; original Input source
-closure and stored-reference result composition remain pending.
+mixed-owner type and lifetime-only callable evidence; 3.68 adds exact passive
+Copy dependency proof, connecting five original Input getters. Stored-reference
+helper-result composition remains pending.
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -209,7 +210,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Standard assertions have a bounded dedicated contract (F14); general expansion support remains missing. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Data-v3 3.45.0 adds [closed local import scopes](docs/extraction-profiles/scoped-import-flag-owners-v1.md) and checked Copy value helper reads, connecting original Epsilons constructor/getter methods in the complete regex-automata library. Data-v3 3.47.0 reuses those source/Copy proofs for complete finite scalar enum declarations, admitting original Unit constructors/projections beside their unchanged derives and custom Debug impl. Data-v3 3.58 adds borrowed-only owners with independently checked Copy child structs; see [ASCII boundaries](docs/extraction-profiles/ascii-boundaries-v1.md). Data-v3 3.64–3.66 narrows ancestor namespace checks only for exhaustively proved call-free float leaves, including bounded i32 control dependencies; general nominal import restrictions remain unchanged. Non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Data-v3 3.45.0 adds [closed local import scopes](docs/extraction-profiles/scoped-import-flag-owners-v1.md) and checked Copy value helper reads, connecting original Epsilons constructor/getter methods in the complete regex-automata library. Data-v3 3.47.0 reuses those source/Copy proofs for complete finite scalar enum declarations, admitting original Unit constructors/projections beside their unchanged derives and custom Debug impl. Data-v3 3.58 adds borrowed-only owners with independently checked Copy child structs; see [ASCII boundaries](docs/extraction-profiles/ascii-boundaries-v1.md). Data-v3 3.64–3.66 narrows ancestor namespace checks only for exhaustively proved call-free float leaves, including bounded i32 control dependencies; general nominal import restrictions remain unchanged. Data-v3 3.68 permits selected Copy dependencies only inside a distinct shared owner, with complete source/field/Copy proof and no direct dependency operations; original Input getters admit beside unchanged index-type macros. Non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
@@ -4075,9 +4076,36 @@ Complete lz4_flex8/150, regex-syntax39/956 and time-core11/226 rosters have **ze
 new/lost admissions**; all58 admissions strict-verify and six selected comparisons
 complete. Logs: `/tmp/rstyle-input-owner-*`. Libm was not recaptured this increment.
 
-**No original Input gain claimed:** the3.66 complete automata baseline timed out
-during assessment after compilation; no complete roster/delta exists. Next prove
-selected Copy dependencies beside `index_type_impls!` without omitting hidden
-effects, then measure the original getter/callers. Stored-slot versus referent
-origins and helper-result substitution follow. This foundation advances that
-concrete blocker chain; the broader roadmap remains active.
+**No original Input gain at this checkpoint.** Subsequent streaming recovery
+validated complete3.66/3.67 reports despite CLI timeouts: automata114→120/2582,
+six stored-slice flag/count reader gains, zero losses; all identities unchanged.
+Full-library matching remains incomplete. Original Input source closure follows
+in3.68. Native3.67 CI passes Linux x86/ARM/macOS
+([run39660188327](https://github.com/rstyled/rstyle/actions/runs/39660188327)).
+
+
+### Data-v3 3.68: original getters through precise Copy dependency proof
+
+[Contract](docs/extraction-profiles/borrowed-result-chain-v1.md): exact builtin
+Copy dependencies may remain inside a distinct shared owner despite neighboring
+macros; complete declarations, derives, fields and owning-scope checks remain.
+Original Input `get_earliest`, `get_span`, `start`, `end` and `is_done` now strictly
+admit, including repeated helper-result field reads. Direct dependency operations,
+macro effects, owned Input/drop and missing evidence remain closed.
+
+Fresh complete3.67 Cargo evidence recertified under3.68: automata **120→132/2582**,
+**12 gains /0 losses**, all source/build identities unchanged; all132 admissions
+strict-verify. No driver grammar changed. Independent original native oracle:
+**1128 states /11280 observations**. All10 selected comparisons complete; the
+predeclared cross-result negative `get_span`/`get_earliest` unexpectedly matches
+(7/8 negatives hold). This is a detector limitation, not equivalence evidence;
+scoring/admission remain unchanged. Full-library matching stays incomplete.
+
+**1002 tests /5 existing skips**, doctests/fmt/Clippy pass; **rstyle0/3223,
+patterns0 unignored**, ignores unchanged. Frozen `run-kxk6hkj_` versus3.67
+`run-jgt43t72` stays **23 admitted /30 excluded /7 inactive**; complete syntax39/956,
+lz4_flex8/150 and time-core11/226 rosters are unchanged. All58 package admissions
+strict-verify; six selected comparisons complete. Libm was not recaptured.
+
+Next: stored-reference slot/referent origins and helper-result substitution for
+`haystack → is_char_boundary → utf8::is_boundary`. Broader roadmap remains active.

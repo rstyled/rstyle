@@ -1,6 +1,7 @@
 //! Source-first Input-shaped diagnostic. Every original owner field and every
 //! mixed Anchored variant is retained; useful acceptance is a bool-field getter.
 //! Original-package acceptance is measured separately from this development case.
+mod passive;
 use super::float_kernels::function as exact_function;
 use super::*;
 

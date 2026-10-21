@@ -3,18 +3,25 @@ use super::*;
 use crate::declaration_origins::Origins;
 mod borrowed;
 mod imports;
+pub(super) mod passive;
 mod scalar_leaf;
+
+pub(super) struct Selection {
+    pub copies: std::collections::BTreeSet<Namespace>,
+    pub passive_dependencies: bool,
+}
 
 pub(super) fn verify(
     facts: &HirFnFacts,
     origins: &Origins,
     trees: &BTreeMap<Namespace, TypeTree>,
     environment: &Environment,
-) -> Result<std::collections::BTreeSet<Namespace>, String> {
+) -> Result<Selection, String> {
     if trees.is_empty() && !supports(facts, "rust.accelerator-packing")? {
         return Err("Mixed-unit boundary requires selected Copy declarations".into());
     }
     let mut copies = std::collections::BTreeSet::new();
+    let mut passive_dependencies = false;
     for (key, tree) in trees {
         verify_type(facts, tree)?;
         let declaration = environment
@@ -23,24 +30,16 @@ pub(super) fn verify(
             .get(key)
             .ok_or("Missing selected struct declaration")?;
         let item = &environment.modules[declaration.module_index].items[declaration.item_index];
-        let attributes = match item {
-            syn::Item::Struct(item) => &item.attrs,
-            syn::Item::Enum(item)
-                if matches!(
-                    tree,
-                    TypeTree::Enum { .. }
-                        | TypeTree::FieldlessEnum { .. }
-                        | TypeTree::MixedEnum { .. }
-                ) =>
-            {
-                &item.attrs
-            }
-            _ => return Err("Selected declaration handle has the wrong nominal kind".into()),
-        };
+        let attributes = declaration_attributes(item, tree)?;
         if checked_copy(facts, origins, tree, attributes)? {
             copies.insert(key.clone());
         }
-        check_namespace(facts, environment, &declaration.namespace)?;
+        if let Err(error) = check_namespace(facts, environment, &declaration.namespace) {
+            if !copies.contains(key) || !passive::verify(facts, tree)? {
+                return Err(error);
+            }
+            passive_dependencies = true;
+        }
         match item {
             syn::Item::Struct(item) => structure(facts, item, copies.contains(key))?,
             syn::Item::Enum(item) => scalar_enum(facts, item)?,
@@ -53,7 +52,28 @@ pub(super) fn verify(
             borrowed::verify(facts, tree, &copies)?;
         }
     }
-    Ok(copies)
+    Ok(Selection {
+        copies,
+        passive_dependencies,
+    })
+}
+
+fn declaration_attributes<'a>(
+    item: &'a syn::Item,
+    tree: &TypeTree,
+) -> Result<&'a [syn::Attribute], String> {
+    match item {
+        syn::Item::Struct(item) => Ok(&item.attrs),
+        syn::Item::Enum(item)
+            if matches!(
+                tree,
+                TypeTree::Enum { .. } | TypeTree::FieldlessEnum { .. } | TypeTree::MixedEnum { .. }
+            ) =>
+        {
+            Ok(&item.attrs)
+        }
+        _ => Err("Selected declaration handle has the wrong nominal kind".into()),
+    }
 }
 
 fn verify_type(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> {

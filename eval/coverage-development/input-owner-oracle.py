@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-root', type=Path)
     parser.add_argument('--native')
+    parser.add_argument('--getters', action='store_true')
     args = parser.parse_args()
     selection = json.loads((ROOT / 'input-owner-selection.json').read_text())
     source = args.source_root or Path(selection['package']['source_root'])
@@ -41,15 +42,19 @@ def main():
     request = '\n'.join(rows) + '\n'
     assert hashlib.sha256(request.encode()).hexdigest() == selection['sample']['request_sha256']
     if args.native:
-        run = subprocess.run([args.native], input=request, text=True, capture_output=True,
+        command = [args.native] + (['--getters'] if args.getters else [])
+        run = subprocess.run(command, input=request, text=True, capture_output=True,
                              check=True, timeout=60)
         lines = run.stdout.splitlines()
         assert len(lines) == len(rows)
         for row, result in zip(rows, lines):
             earliest = int(row.split()[-1])
             expected = [0, earliest, earliest, 1 - earliest, earliest]
+            if args.getters:
+                start, end = map(int, row.split()[1:3])
+                expected += [start, end, start, end, int(start > end)]
             assert [int(value) for value in result.split()] == expected, (row, result, expected)
-    print(json.dumps({'states': len(rows), 'observations': len(rows) * 5,
+    print(json.dumps({'states': len(rows), 'observations': len(rows) * (10 if args.getters else 5),
                       'native_checked': bool(args.native),
                       'request_sha256': selection['sample']['request_sha256']}, sort_keys=True))
 

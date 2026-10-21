@@ -14,6 +14,7 @@ fn anchor(value: &str) -> Anchored {
 }
 
 fn main() {
+    let getters = std::env::args().any(|argument| argument == "--getters");
     for line in io::stdin().lock().lines() {
         let line = line.unwrap();
         let fields: Vec<_> = line.split_whitespace().collect();
@@ -36,6 +37,8 @@ fn main() {
         input.set_span(Span { start, end });
         input.set_anchored(anchor(fields[3]));
         let configured = input.get_earliest();
+        let span = input.get_span();
+        let positions = (input.start(), input.end(), input.is_done());
         input.set_span(Span {
             start: 0,
             end: haystack.len(),
@@ -46,6 +49,22 @@ fn main() {
         let toggled = input.get_earliest();
         input.set_earliest(earliest);
         let restored = input.get_earliest();
+        if getters {
+            println!(
+                "{} {} {} {} {} {} {} {} {} {}",
+                u8::from(default),
+                u8::from(configured),
+                u8::from(neighboring),
+                u8::from(toggled),
+                u8::from(restored),
+                span.start,
+                span.end,
+                positions.0,
+                positions.1,
+                u8::from(positions.2)
+            );
+            continue;
+        }
         println!(
             "{} {} {} {} {}",
             u8::from(default),

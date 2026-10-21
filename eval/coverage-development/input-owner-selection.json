@@ -371,13 +371,144 @@
       "changed unused owner field/declaration/derive/impl lifetime must not be silently omitted"
     ]
   },
-  "status": "source selection frozen before admission; original native oracle passed; complete-owner diagnostic validated; original admission pending",
+  "status": "source-selected before admission; five original Input getters strictly verified under 3.68; stored-reference helper composition remains open",
   "validation": {
     "original_native": {
       "states": 1128,
       "observations": 5640,
       "passed": true
     },
-    "original_admission": "pending; 3.66 full-package baseline assessment exceeded its 1200-second wall-clock limit"
+    "original_admission": {
+      "capture": "fresh complete 3.67 original Cargo unit, recertified under 3.68; no driver grammar changed",
+      "raw_bundle": "/tmp/rstyle-input-boundary-baseline-target/rstyle/clones/run-Bx3CjX/invocation-UBY2WU/unit.evidence.json",
+      "recertified_bundle": "/tmp/rstyle-input-boundary-final.unit.json",
+      "identities": 2582,
+      "baseline_admitted": 120,
+      "current_admitted": 132,
+      "new": 12,
+      "lost": 0,
+      "strictly_verified": 132,
+      "selected_strictly_verified": 5,
+      "selected_comparisons_complete": 10,
+      "full_library_matching": "incomplete; explicit zero-pair resource budget",
+      "delta": "/tmp/rstyle-input-boundary-delta.json",
+      "roster": "/tmp/rstyle-input-boundary-368-final-roster.json",
+      "strict_log": "/tmp/rstyle-input-boundary-final-recertify.log"
+    },
+    "connected_getters_native": {
+      "states": 1128,
+      "observations": 11280,
+      "passed": true
+    },
+    "recovered_baselines": {
+      "status": "CLI processes timed out, but complete reports parsed with capture_complete and assessment_complete true; all 2582 source/build identities match",
+      "3.66": {
+        "admitted": 114,
+        "excluded": 2468,
+        "roster": "/tmp/rstyle-input-boundary-366-roster.json"
+      },
+      "3.67": {
+        "admitted": 120,
+        "excluded": 2462,
+        "roster": "/tmp/rstyle-input-boundary-367-roster.json"
+      }
+    },
+    "gates": {
+      "tests_passed": 1002,
+      "existing_skips": 5,
+      "doctests": "passed",
+      "format": "passed",
+      "clippy_warnings_denied": "passed",
+      "rstyle_violations": 0,
+      "rstyle_functions": 3223,
+      "unignored_patterns": 0,
+      "ignores_and_suppressions": "unchanged"
+    },
+    "frozen_replay": {
+      "baseline": "target/hir-coverage/run-jgt43t72",
+      "current": "target/hir-coverage/run-kxk6hkj_",
+      "counts": {
+        "admitted": 23,
+        "excluded": 30,
+        "inactive": 7
+      },
+      "identities_and_denominators": "unchanged",
+      "new": 0,
+      "lost": 0,
+      "complete_package_rosters": "unchanged: lz4_flex8/150, regex-syntax39/956, time-core11/226",
+      "strict_admissions": 58,
+      "selected_comparisons": 6,
+      "delta": "/tmp/rstyle-input-boundary-frozen-delta.json",
+      "strict_log": "/tmp/rstyle-input-boundary-frozen-strict.log"
+    }
+  },
+  "connected_getters": {
+    "status": "source-selected before 3.68 admission measurement; all four connected getters strictly verified with get_earliest",
+    "functions": [
+      {
+        "name": "util::search::Input::<'h>::get_span",
+        "span": {
+          "start": 26207,
+          "end": 26263
+        },
+        "sha256": "ae702ae9a8b28d3c1fde42ec962baa9eb65d733241da874c1f2c5dcbbbdd2b93",
+        "source": "pub fn get_span(&self) -> Span {\n        self.span\n    }"
+      },
+      {
+        "name": "util::search::Input::<'h>::start",
+        "span": {
+          "start": 24974,
+          "end": 25040
+        },
+        "sha256": "1eadc91459295155f95054325fed5a3e9c15665fa01616db0dba08050b36fc7a",
+        "source": "pub fn start(&self) -> usize {\n        self.get_span().start\n    }"
+      },
+      {
+        "name": "util::search::Input::<'h>::end",
+        "span": {
+          "start": 25587,
+          "end": 25649
+        },
+        "sha256": "55476e14e4e9772df93403b170214f63bca1cbff3550fc04598534b266783064",
+        "source": "pub fn end(&self) -> usize {\n        self.get_span().end\n    }"
+      },
+      {
+        "name": "util::search::Input::<'h>::is_done",
+        "span": {
+          "start": 28387,
+          "end": 28476
+        },
+        "sha256": "3040dc8738c50321cbf610bd50a2838f18ab1da4e5ee1379865db18dae907d1c",
+        "source": "pub fn is_done(&self) -> bool {\n        self.get_span().start > self.get_span().end\n    }"
+      }
+    ],
+    "expectations": {
+      "get_span": "exact configured (start,end)",
+      "start": "configured start",
+      "end": "configured end",
+      "is_done": "start > end, including empty and terminated spans"
+    },
+    "unknowns": [],
+    "expected_observations_per_state": 10,
+    "matching_expectations": {
+      "selected_functions": 5,
+      "comparisons": 10,
+      "cross_result_interfaces": "all eight bool/usize/Span cross-interface pairs reject; same-interface decisions are measured, not equivalence claims"
+    },
+    "matching_observation": {
+      "completed_comparisons": 10,
+      "expected_cross_interface_rejections": 8,
+      "observed_cross_interface_rejections": 7,
+      "unexpected_acceptance": [
+        "get_span",
+        "get_earliest"
+      ],
+      "status": "predeclared detector negative not met; interface strings are scored rather than enforced as exact type compatibility; keep separate from extraction admission and do not change scoring"
+    },
+    "resolved_blockers": [
+      "same complete Input/Anchored/PatternID/SmallIndex source and Copy closure as get_earliest",
+      "exact stored Span field read and owned Copy result",
+      "get_span helper result field substitution, repeated calls and usize comparison"
+    ]
   }
 }

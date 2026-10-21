@@ -97,6 +97,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.float-subtraction",
     "rust.closed-scalar-control-dependencies",
     "rust.borrowed-mixed-owners",
+    "rust.passive-copy-dependencies",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -238,7 +239,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.67.0", 84)),
+            Self::DataV3 => Some(("3.68.0", 85)),
         }
     }
 

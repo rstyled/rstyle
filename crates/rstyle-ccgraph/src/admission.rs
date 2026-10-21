@@ -297,7 +297,7 @@ fn imported_matching_profile(pdg: &PdgDocument) -> crate::graph::MatchingProfile
             | "3.42.0" | "3.43.0" | "3.44.0" | "3.45.0" | "3.46.0" | "3.47.0" | "3.48.0" | "3.49.0"
             | "3.50.0" | "3.51.0" | "3.52.0" | "3.53.0" | "3.54.0" | "3.55.0" | "3.56.0" | "3.57.0"
             | "3.58.0" | "3.59.0" | "3.60.0" | "3.61.0" | "3.62.0" | "3.63.0" | "3.64.0" | "3.65.0"
-            | "3.66.0" | "3.67.0",
+            | "3.66.0" | "3.67.0" | "3.68.0",
         ) => MatchingProfile::DataCallsV1,
         (rstyle_pdg::extraction_profile::DATA_ID, _) => MatchingProfile::DataV1,
         _ => MatchingProfile::ScalarV1,

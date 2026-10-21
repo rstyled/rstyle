@@ -45,6 +45,7 @@ pub struct Resolution {
     copy_trees: std::collections::BTreeSet<Namespace>,
     array_views: bool,
     scalar_aliases: bool,
+    passive_copy_dependencies: bool,
 }
 
 fn requires_mixed_owner(tree: &TypeTree) -> bool {
@@ -67,6 +68,21 @@ fn requires_mixed_owner(tree: &TypeTree) -> bool {
 }
 
 impl Resolution {
+    fn select_copies(
+        &mut self,
+        facts: &HirFnFacts,
+        origins: &declaration_origins::Origins,
+    ) -> Result<(), String> {
+        let selected = selected::verify(facts, origins, &self.trees, &self.environment)?;
+        self.copy_trees = selected.copies;
+        self.passive_copy_dependencies = selected.passive_dependencies;
+        Ok(())
+    }
+
+    pub(crate) fn requires_passive_copy_dependencies(&self) -> bool {
+        self.passive_copy_dependencies
+    }
+
     pub(crate) fn requires_borrowed_mixed_owners(&self) -> bool {
         self.has_mixed_owners()
             || self.environment.copy_boundary && self.trees.values().any(requires_mixed_owner)
@@ -251,6 +267,7 @@ pub(crate) fn verify_in(
         owner_path: None,
         trees: BTreeMap::new(),
         copy_trees: Default::default(),
+        passive_copy_dependencies: false,
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
         environment: Rc::clone(&environment),
@@ -268,7 +285,7 @@ pub(crate) fn verify_in(
         environment.census(),
     )?;
     if environment.copy_boundary {
-        resolution.copy_trees = selected::verify(facts, &origins, &resolution.trees, &environment)?;
+        resolution.select_copies(facts, &origins)?;
     }
     function_scope(
         facts,

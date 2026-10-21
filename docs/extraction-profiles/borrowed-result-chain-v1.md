@@ -125,10 +125,38 @@ reads and lifetime families remain supported. The diagnostic substitutes a built
 Debug derive for PatternID's generated Debug impl; it is not original acceptance.
 The independent original-library oracle passes 1128 states /5640 observations.
 
-Original admission remains pending. The 3.66 full-package baseline compiled, then
-hit its 1200-second wall-clock limit during assessment; no complete roster or delta
-was produced. Retain `/tmp/rstyle-input-owner-baseline-target/rstyle/clones/run-KZh2xL`
-as incomplete evidence. The source audit identifies neighboring `index_type_impls!`
-invocations in the selected Copy wrapper's module as a remaining lexical boundary.
-Next establish precise dependency/effect proof there, then measure the complete
-original getter and callers before extending stored-slot/result-origin composition.
+The3.66/3.67 processes hit1200-second limits, but subsequent streaming recovery
+validated complete2582-record reports with capture/assessment complete:114→120
+admissions, zero losses. Full-library matching remains incomplete.
+
+## Data-v3 3.68: original scalar/Span getter composition
+
+The [source selection](../../eval/coverage-development/input-owner-selection.json)
+now also fixes original `get_span`, `start`, `end` and repeated-call `is_done`:
+return the configured span/endpoints and exactly `start > end`, including empty
+and terminated spans. They share the complete owner and selected Copy dependency
+boundary with `get_earliest`; no stored-slice read is needed.
+
+A dependency may use the narrower boundary only with exact complete declaration,
+field/source resolution and pinned builtin Copy evidence, and only when every
+captured occurrence stays inside a distinct shared struct owner. Direct values,
+references, construction, field loads and callable uses of that dependency do
+not qualify. Missing type evidence grants nothing. Selected attributes remain
+checked; the actual function's owning scope and all ordinary operation, helper,
+effect and origin checks remain closed. This proves no macro-generated method
+semantics and gives no permission to execute neighboring implementations.
+The `rust.passive-copy-dependencies` capability is independently required only
+when this narrower proof is used; historical policies cannot certify it.
+
+Fresh complete3.67 Cargo evidence recertified under3.68 admits all five original
+getters: **120→132/2582**,12 gains/0 losses, identical source/build identities.
+All132 roots strict-verify; no driver grammar changed. Incidental gains were
+source-audited: sparse State range/accelerator, Transition::matches_byte and four
+Match/HalfMatch getters. Independent original oracle:1128 states/11280 observations.
+All10 selected comparisons complete; get_span/get_earliest unexpectedly passes
+its predeclared cross-result negative (7/8 hold). Keep that detector limitation
+separate from extraction support; no scoring/threshold changes.
+
+Retained paths and exact build/source identities are in the selection; the root
+roadmap records the frozen replay and integrated gates.
+Stored-reference helper-result composition remains the next target.

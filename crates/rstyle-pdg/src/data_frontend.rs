@@ -36,6 +36,7 @@ pub(crate) fn verify_document_policy(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     let capabilities = [
+        "rust.passive-copy-dependencies",
         "rust.borrowed-mixed-owners",
         "rust.scoped-nominal-imports",
         "rust.copy-array-fields",
@@ -90,6 +91,11 @@ fn verify_nominal_policy(
     resolution: &crate::nominal_boundary::resolution::Resolution,
 ) -> Result<(), String> {
     for (capability, required, message) in [
+        (
+            "rust.passive-copy-dependencies",
+            resolution.requires_passive_copy_dependencies(),
+            "Passive Copy dependencies require their registered document policy",
+        ),
         (
             "rust.borrowed-mixed-owners",
             resolution.requires_borrowed_mixed_owners(),
