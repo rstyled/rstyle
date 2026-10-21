@@ -299,6 +299,7 @@ fn same_inventory(
     let b = files(second);
 
     Ok(first.identity == second.identity
+        && first.expansions == second.expansions
         && a.len() == first.files.len()
         && b.len() == second.files.len()
         && a == b)

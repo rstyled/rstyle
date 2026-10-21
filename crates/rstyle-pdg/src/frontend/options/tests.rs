@@ -216,6 +216,7 @@ fn compatibility_mutation_invalidates_typed_record_until_unit_freeze() {
 fn source_census_is_shared_lossless_and_rejects_conflicting_snapshots() {
     use crate::nominal_boundary::census::{Census, IDENTITY};
     let census = Arc::new(Census {
+        expansions: Vec::new(),
         identity: IDENTITY.into(),
         context: crate::nominal_boundary::tests::context(),
         files: Vec::new(),
@@ -398,6 +399,7 @@ fn reordered_census_files_preserve_meaning_and_readable_order() {
         digest: crate::concrete_types::digest(bytes.as_bytes()),
     };
     let first = Arc::new(Census {
+        expansions: Vec::new(),
         identity: IDENTITY.into(),
         context,
         files: vec![file(root, "mod child;"), file(child, "pub struct Child;")],

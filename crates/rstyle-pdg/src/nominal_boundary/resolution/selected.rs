@@ -3,6 +3,7 @@ use super::*;
 use crate::declaration_origins::Origins;
 mod borrowed;
 mod imports;
+mod scalar_leaf;
 
 pub(super) fn verify(
     facts: &HirFnFacts,
@@ -272,6 +273,11 @@ pub(super) fn check_namespace(
     environment: &Environment,
     namespace: &[String],
 ) -> Result<(), String> {
+    if supports(facts, "rust.closed-scalar-module-dependencies")?
+        && scalar_leaf::verify(facts, environment, namespace)?
+    {
+        return imports::verify_leaf(facts, environment, namespace);
+    }
     if environment
         .index
         .unresolved_expansions

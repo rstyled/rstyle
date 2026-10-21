@@ -42,21 +42,30 @@ impl Environment {
         census: Arc<census::Census>,
         constants: bool,
     ) -> Result<Self, String> {
-        Self::with_options(census, constants, None)
+        Self::with_options(census, constants, None, false)
     }
 
     pub(crate) fn with_options(
         census: Arc<census::Census>,
         constants: bool,
         cfgs: Option<&[String]>,
+        expansions: bool,
     ) -> Result<Self, String> {
-        let closed = census::verify_with_constants(&census, constants)
-            .and_then(|modules| build_index(&modules, &census, None).map(|index| (modules, index)));
+        let closed = if expansions && !census.expansions.is_empty() {
+            Err("Module expansion records require independent expanded closure".into())
+        } else {
+            census::verify_with_constants(&census, constants)
+        }
+        .and_then(|modules| build_index(&modules, &census, None).map(|index| (modules, index)));
         let (modules, index, copy_boundary) = match closed {
             Ok((modules, index)) => (modules, index, false),
             Err(error) => {
                 let Some(cfgs) = cfgs else { return Err(error) };
-                let modules = census::verify_selected(&census, cfgs)?;
+                let modules = if expansions {
+                    census::verify_expanded(&census, cfgs)?
+                } else {
+                    census::verify_selected(&census, cfgs)?
+                };
                 let index = build_index(&modules, &census, Some(cfgs))?;
                 (modules, index, true)
             }
@@ -139,6 +148,7 @@ pub(crate) mod tests {
     pub(crate) fn census() -> Arc<census::Census> {
         let bytes = "\u{feff}// π\r\npub struct Data { pub value: i32 }\r\n";
         Arc::new(census::Census {
+            expansions: Vec::new(),
             identity: census::IDENTITY.into(),
             context: crate::nominal_boundary::tests::context(),
             files: vec![census::UnitFile {

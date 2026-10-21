@@ -6,30 +6,77 @@ pub(super) fn verify(
     environment: &Environment,
     namespace: &[String],
 ) -> Result<(), String> {
+    verify_in(facts, environment, namespace, true)
+}
+
+pub(super) fn verify_leaf(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    namespace: &[String],
+) -> Result<(), String> {
+    verify_in(facts, environment, namespace, false)
+}
+
+fn verify_in(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    namespace: &[String],
+    ancestors: bool,
+) -> Result<(), String> {
     let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
     for module in environment
         .modules
         .iter()
-        .filter(|m| namespace.starts_with(&m.namespace))
+        .filter(|m| relevant(namespace, &m.namespace, ancestors))
     {
         for item in &module.items {
+            if !ancestors && shadows_float(item) {
+                return Err("Scalar leaf primitive name has a local declaration".into());
+            }
             module_item_in(item, &configuration, true)?;
-            macro_import(item, module, environment, &configuration)?;
+            if ancestors || !verified_macro_import(item, module) {
+                macro_import(item, module, environment, &configuration)?;
+            }
         }
     }
     for ((scope, name), target) in &environment.index.imports {
-        if !namespace.starts_with(scope) {
+        if !relevant(namespace, scope, ancestors) {
             continue;
         }
         if name.starts_with("*::") {
+            if !ancestors {
+                return Err("Scalar leaf has an unresolved local glob import".into());
+            }
             glob(environment, target, &configuration)?;
-        } else if protected(name) {
+        } else if protected(name) || !ancestors && matches!(name.as_str(), "f32" | "f64") {
             return Err(
                 "Selected import shadows a primitive, library root or builtin derive".into(),
             );
         }
     }
     Ok(())
+}
+
+fn relevant(namespace: &[String], scope: &[String], ancestors: bool) -> bool {
+    namespace == scope || ancestors && namespace.starts_with(scope)
+}
+
+fn shadows_float(item: &syn::Item) -> bool {
+    let name = match item {
+        syn::Item::Type(item) => &item.ident,
+        syn::Item::Struct(item) => &item.ident,
+        syn::Item::Enum(item) => &item.ident,
+        syn::Item::Trait(item) => &item.ident,
+        syn::Item::Union(item) => &item.ident,
+        syn::Item::Mod(item) => &item.ident,
+        syn::Item::ExternCrate(item) => item.rename.as_ref().map_or(&item.ident, |(_, name)| name),
+        _ => return false,
+    };
+    name == "f32" || name == "f64"
+}
+
+fn verified_macro_import(item: &syn::Item, owner: &census::Module) -> bool {
+    matches!(item, syn::Item::Mod(module) if owner.verified_macro_imports.contains(&module.ident.to_string()))
 }
 
 fn protected(name: &str) -> bool {

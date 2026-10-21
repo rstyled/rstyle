@@ -1,8 +1,8 @@
 # Original float kernels: acceptance contract v1
 
-Status: Data-v3 3.63 implements the bounded float foundation. Diagnostic
-composition admits; the selected original family remains blocked by module
-ownership proof. Full-original capture has zero gains and zero losses (1/1131).
+Status: Data-v3 3.64 completes both selected original kernels through strict
+admission and matching. Complete libm admission increases **1→5/1131**, with
+zero losses on unchanged source/build identities.
 
 ## Original selection and context
 
@@ -23,7 +23,8 @@ default/arch features, native aarch64 Linux, nightly-2026-09-30 commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`, debug/unoptimized, overflow checks,
 unwind, `ENSURE_NO_PANIC` absent. Actual cfgs, package/unit/definition identities and invocation are retained in
 the selection: `arch_enabled` present, `assert_no_panic` absent. The conditional
-attribute is inactive. Separate module-owning `cfg_if!` invocations remain a blocker. Later no-default/x86 Linux/ARM macOS contexts need their
+attribute is inactive. Local module-owning `cfg_if!` invocations now have checked
+source/expansion ownership. Later no-default/x86 Linux/ARM macOS contexts need their
 own evidence. Frozen sixty identities/denominators remain unchanged.
 
 ## Complete known blocker chain and bounded semantics
@@ -110,21 +111,42 @@ policy and ordinary codegen; historical 3.62 and backend overrides reject.
 Diagnostic selection: 14 admitted /14 excluded, 91 complete comparisons across
 three targets × std/no_std; these are composition tests, not original acceptance.
 
-Full-original measurement preserves all 1131 identities/build contexts:
-**1 admitted /1130 excluded → unchanged**, both selected kernels excluded with
-`Orphan source file prevents closed selected-unit proof`. The existing census
-retains140 files, including20 generic files and the aarch64 architecture module
-owned through local `cfg_if!` invocations. The ordinary module walker cannot prove
-these declarations. No buffer is omitted and no macro permission is invented.
-Next prerequisite: bounded first-match cfg-if module ownership, exact local macro
-definition/invocation linkage and inactive/unknown evidence (P22/P05). Until then,
-this foundation advances the float blocker chain without completing the family.
-Evidence: `/tmp/rstyle-float-kernels-delivery-capture.json`,
-`/tmp/rstyle-float-natural-delta.json` (zero changes). Strict original matching
-remains pending admission; diagnostic strict verification is a separate result.
+Data-v3 3.63 retained all140 original source files but could not prove21
+cfg-if-owned files and their descendants; both originals remained excluded.
+Data-v3 3.64 independently checks the complete vendored cfg-if definition,
+textual binding, first-true cfg selection and every compiler expansion stage.
+Two emitted external-module declarations close the original inventory; ordinary
+descendants keep ordinary ownership. Extra/missing/forged records, changed or
+shadowed macros, unsupported outputs and unknown effects fail closed.
 
-Integrated validation: 955 tests pass /5 existing skips; doctests, fmt and
-workspace all-target Clippy pass; rstyle0/3119, patterns0 unignored. Frozen60 and
-all three reproduced package selections have zero admission changes against
-3.62 (`run-bgyl78v2` versus `run-15rr9we7`). Native three-platform CI is separate
-from the local three-target capture/composition checks and remains pending push.
+The exact original call-free float leaf must independently exhaust every source
+dependency before ancestor namespace restrictions can be narrowed. Only primitive
+float values, initialized immutable locals, exact owned literal constants and
+registered ordered operations qualify. Local aliases/globs/expansions, calls,
+nominal values, references, hidden drops and uncovered prefixes/suffixes reject.
+General nominal import restrictions and historical policies remain unchanged.
+
+Complete unchanged original capture: **5 admitted /1126 excluded /1131**, four
+gains and zero losses against3.63. Both selected kernels strict-verify; their
+single comparison completes and rejects structurally. Incidental `dec_digit` and
+`hex_digit` gains reuse existing scalar Option/range semantics: source-audited,
+strict-verified and exhaustively runtime-checked over256 bytes each. All five
+original admissions independently pass document/producer verification and strict
+admission. Full-library matching remains explicitly budget-limited at zero pairs.
+
+Validation:976 tests /5 existing skips; doctests/fmt/all-target Clippy pass;
+rstyle0/3174 functions, patterns0 unignored, existing ignore ledger unchanged.
+The4202-input original numerical oracle passes. Frozen60 stays23 admitted /30
+excluded /7 inactive, preserving identities/denominators. Complete package rosters
+retain syntax39/956, lz4_flex8/150 and time-core11/226, zero gains/losses. All58
+package admissions strict-verify; six selected comparisons complete. Retained run
+`run-qqq32cfl` compares against3.63 `run-bgyl78v2`. Native three-platform CI for
+this implementation remains pending push;3.63 passed all three runners.
+
+Retained evidence: `/tmp/rstyle-float-kernels-cfg-if-final-capture.json`,
+`/tmp/rstyle-float-cfg-if-natural-delta.json`,
+`/tmp/rstyle-float-cfg-if-original-{strict.log,matching.json}` and
+`/tmp/rstyle-float-cfg-if-{native-oracle,digits-oracle}.log`.
+Next candidate: original `k_cos`, requiring ordered binary64 subtraction and an
+independent two-input NaN oracle. Borrowed results, Result/?, general macros,
+float comparisons and broader ownership remain outside this contract.

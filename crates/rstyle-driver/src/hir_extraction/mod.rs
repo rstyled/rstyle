@@ -10,6 +10,7 @@ mod float_scalars;
 mod hir;
 mod inherent;
 mod library_resolution;
+mod module_expansions;
 mod nominal_census;
 mod options;
 pub mod output;

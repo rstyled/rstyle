@@ -1,6 +1,10 @@
 //! Original unit buffers and independent ordinary-module closure.
 
 use super::UnitContext;
+mod cfg_if;
+pub mod expansions;
+mod macro_scope;
+mod module_proof;
 #[cfg(test)]
 use crate::concrete_types::digest;
 use serde::{Deserialize, Serialize};
@@ -28,12 +32,15 @@ pub struct Census {
     pub identity: String,
     pub context: UnitContext,
     pub files: Vec<UnitFile>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub expansions: Vec<expansions::ModuleExpansion>,
 }
 
 pub struct Module {
     pub path: PathBuf,
     pub namespace: Vec<String>,
     pub items: Vec<syn::Item>,
+    pub verified_macro_imports: BTreeSet<String>,
 }
 
 pub fn verify(census: &Census) -> Result<Vec<Module>, String> {
@@ -44,17 +51,22 @@ pub(crate) fn verify_with_constants(
     census: &Census,
     constants: bool,
 ) -> Result<Vec<Module>, String> {
-    verify_mode(census, constants, None)
+    verify_mode(census, constants, None, false)
 }
 
 pub(crate) fn verify_selected(census: &Census, cfgs: &[String]) -> Result<Vec<Module>, String> {
-    verify_mode(census, true, Some(cfgs))
+    verify_mode(census, true, Some(cfgs), false)
+}
+
+pub(crate) fn verify_expanded(census: &Census, cfgs: &[String]) -> Result<Vec<Module>, String> {
+    verify_mode(census, true, Some(cfgs), true)
 }
 
 fn verify_mode(
     census: &Census,
     constants: bool,
     cfgs: Option<&[String]>,
+    expansions: bool,
 ) -> Result<Vec<Module>, String> {
     let files = checked_files(census)?;
     let mut closure = Closure {
@@ -63,13 +75,25 @@ fn verify_mode(
         modules: Vec::new(),
         constants,
         selected: cfgs.map(crate::conditional_source::Configuration::new),
+        expansions: expansions.then_some(census.expansions.as_slice()),
+        used_expansions: BTreeSet::new(),
     };
     let root = &census.context.root_source;
     let directory = root.parent().ok_or("Missing root module directory")?;
 
-    closure.file(root, directory, Vec::new())?;
+    closure.file(
+        Site {
+            path: root,
+            directory,
+            namespace: Vec::new(),
+        },
+        macro_scope::Scope::default(),
+    )?;
     if closure.visited.len() != census.files.len() {
         return Err("Orphan source file prevents closed selected-unit proof".into());
+    }
+    if expansions && closure.used_expansions.len() != census.expansions.len() {
+        return Err("Module expansion inventory has an unproved or duplicate output".into());
     }
     Ok(closure.modules)
 }
@@ -80,6 +104,14 @@ pub fn check_budget(census: &Census) -> Result<(), String> {
             .checked_add(file.bytes.len())
             .ok_or("Source census byte overflow")
     })?;
+    if census.expansions.len() > MAX_FILES
+        || census
+            .expansions
+            .iter()
+            .any(|record| record.chain.len() > 128)
+    {
+        return Err("Module expansion inventory exceeds source census budget".into());
+    }
     if census.files.len() > MAX_FILES || bytes > MAX_BYTES {
         return Err("Source census exceeds file/byte budget".into());
     }
@@ -130,21 +162,37 @@ struct Closure<'a> {
     modules: Vec<Module>,
     constants: bool,
     selected: Option<crate::conditional_source::Configuration<'a>>,
+    expansions: Option<&'a [expansions::ModuleExpansion]>,
+    used_expansions: BTreeSet<usize>,
+}
+
+struct ModuleItems {
+    scope: macro_scope::Scope,
+    items: Vec<syn::Item>,
+    macro_imports: BTreeSet<String>,
+}
+
+impl ModuleItems {
+    fn record(&mut self, item: syn::Item, imported: bool) {
+        if imported && let syn::Item::Mod(module) = &item {
+            self.macro_imports.insert(module.ident.to_string());
+        }
+        self.items.push(item);
+    }
 }
 
 impl Closure<'_> {
     fn file(
         &mut self,
-        path: &Path,
-        directory: &Path,
-        namespace: Vec<String>,
-    ) -> Result<(), String> {
-        if !self.visited.insert(path.into()) {
+        site: Site<'_>,
+        scope: macro_scope::Scope,
+    ) -> Result<macro_scope::Scope, String> {
+        if !self.visited.insert(site.path.into()) {
             return Err("Source file has ambiguous module ownership".into());
         }
         let source = self
             .files
-            .get(path)
+            .get(site.path)
             .ok_or("Missing selected module source buffer")?;
         let source = source.strip_prefix('\u{feff}').unwrap_or(source);
         let file = syn::parse_file(source).map_err(|e| e.to_string())?;
@@ -154,49 +202,76 @@ impl Closure<'_> {
             boundary_attributes(&file.attrs)?;
         }
 
-        self.items(
-            Site {
-                path,
-                directory,
-                namespace,
-            },
-            file.items,
-        )
+        self.items(site, file.items, scope)
     }
 
-    fn items(&mut self, site: Site<'_>, items: Vec<syn::Item>) -> Result<(), String> {
-        let items = if let Some(configuration) = &self.selected {
-            items
-                .into_iter()
-                .map(|item| {
-                    configuration
-                        .active(crate::conditional_source::item_attributes(&item))
-                        .map(|active| active.then_some(item))
-                })
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .flatten()
-                .collect()
-        } else {
-            items
+    fn items(
+        &mut self,
+        site: Site<'_>,
+        items: Vec<syn::Item>,
+        scope: macro_scope::Scope,
+    ) -> Result<macro_scope::Scope, String> {
+        let mut state = ModuleItems {
+            scope,
+            items: Vec::new(),
+            macro_imports: BTreeSet::new(),
         };
-        for item in &items {
-            if self.selected.is_none() {
-                verify_nested_items(item, self.constants)?;
+
+        for item in items {
+            if let Some(configuration) = &self.selected
+                && !configuration.active(crate::conditional_source::item_attributes(&item))?
+            {
+                continue;
             }
-            if let syn::Item::Mod(module) = item {
-                self.child(&site, module)?;
+            let expanded = self.expand(&site, &item, &state.scope)?;
+            for item in expanded.unwrap_or_else(|| vec![item]) {
+                if let Some(configuration) = &self.selected
+                    && !configuration.active(crate::conditional_source::item_attributes(&item))?
+                {
+                    continue;
+                }
+                let imported = self.item(&site, &item, &mut state.scope)?;
+                state.record(item, imported);
             }
         }
         self.modules.push(Module {
             path: site.path.into(),
             namespace: site.namespace,
-            items,
+            items: state.items,
+            verified_macro_imports: state.macro_imports,
         });
-        Ok(())
+        Ok(state.scope)
     }
 
-    fn child(&mut self, site: &Site<'_>, module: &syn::ItemMod) -> Result<(), String> {
+    fn item(
+        &mut self,
+        site: &Site<'_>,
+        item: &syn::Item,
+        scope: &mut macro_scope::Scope,
+    ) -> Result<bool, String> {
+        if self.selected.is_none() {
+            verify_nested_items(item, self.constants)?;
+        }
+        if self.expansions.is_some() {
+            self.observe(site, item, scope)?;
+        }
+
+        let syn::Item::Mod(module) = item else {
+            return Ok(false);
+        };
+        let child = self.child(site, module, scope.child())?;
+        if self.expansions.is_some() && self.macro_use(module)? {
+            return scope.import_child(&child);
+        }
+        Ok(false)
+    }
+
+    fn child(
+        &mut self,
+        site: &Site<'_>,
+        module: &syn::ItemMod,
+        scope: macro_scope::Scope,
+    ) -> Result<macro_scope::Scope, String> {
         if module.unsafety.is_some() {
             return Err("Unsafe module ownership is unsupported".into());
         }
@@ -217,6 +292,7 @@ impl Closure<'_> {
                     namespace: child_namespace,
                 },
                 items.clone(),
+                scope,
             );
         }
 
@@ -227,7 +303,14 @@ impl Closure<'_> {
             .filter(|p| self.files.contains_key(p))
             .collect();
         match candidates.as_slice() {
-            [source] => self.file(source, &child_directory, child_namespace),
+            [source] => self.file(
+                Site {
+                    path: source,
+                    directory: &child_directory,
+                    namespace: child_namespace,
+                },
+                scope,
+            ),
             _ => Err("Missing or ambiguous ordinary external module source".into()),
         }
     }
@@ -333,6 +416,7 @@ mod tests {
 
     fn sample(files: &[(&str, &str)]) -> Census {
         Census {
+            expansions: Vec::new(),
             identity: IDENTITY.into(),
             context: crate::nominal_boundary::tests::context(),
             files: files

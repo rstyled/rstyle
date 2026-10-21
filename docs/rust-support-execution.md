@@ -83,7 +83,7 @@ Follow-up controls finished: copy/cyclic 0.62→0.62s; ASCII 0.84→0.88s; flags
 | P08 saved checked / B | Source audit blocked: smallest located natural chain requires generics, let-else, Result/?, closures and borrowed aggregates. Scalar Result alternative additionally requires char/tables and binary-search protocol. No isolated vocabulary activation. |
 | P06 borrowed result / C | Input::haystack → is_char_boundary → utf8::is_boundary needs lifetime-only callable ownership, stored-reference fields, complete mixed Anchored child and distinct slot reads/result origins. |
 | P05 ownership / D | No tractable residual path/cfg positive found; no census redesign justified. Callable lifetime proof needs driver implementation/direct-callee and independent selected-impl/member gates together. Nominal lifetime capture exists; stored-reference/mixed-child/result-origin proof remains separate. |
-| P02 floats / D design | Source contract/oracle and full Cargo context ready for libm k_sinf/k_cosf; baseline1/1131 admits, both targets exclude. Actual arch_enabled present/assert_no_panic absent. Exact float bits/constants, ordered arithmetic and f64→f32 narrowing remain one connected activation. |
+| P02 floats / lead | Data3.64 delivers unchanged libm k_sinf/k_cosf through exact cfg-if module ownership and exhaustive primitive dependency proof. Full libm1→5/1131, zero losses; all5 strict-verify, one selected comparison completes. Frozen60 and complete syntax/lz4/time rosters unchanged; all58 package admissions strict-verify. Next source audit: k_cos subtraction and two-input NaN oracle; k_sin additionally needs integer branch composition. |
 
 Contracts: [character](extraction-profiles/character-leaf-v1.md),
 [checked consumption](extraction-profiles/saved-checked-consumption-v1.md),
@@ -94,11 +94,14 @@ Contracts: [character](extraction-profiles/character-leaf-v1.md),
 
 ## Resume order
 
-Escape caller full gates/original capture/strict replay pass; retained run
-`run-15rr9we7` against char3.61 `run-8osa6f3z`. Equal-work controls pass with unchanged admissions/matching. Preserve frozen60.
-Source-only contract/oracle/selection for float kernels is ready; native original
-harness passes4202 cases and pinned NaN authority is documented; actual Cargo
-context is captured (arch_enabled present, assert_no_panic absent). Both selected
-kernels remain excluded; no additional source-boundary rejection was observed. Integrate that complete
-constant/arithmetic/narrowing chain next when ready, without isolated vocabulary
-activation. The full P01–P22 frontier stays active.
+Data3.64 is fully gated locally:976 tests/5 skips, fmt/Clippy/doctests,
+rstyle0/3174 and patterns0 unignored. Original float family completes; frozen run
+`run-qqq32cfl` versus3.63 `run-bgyl78v2` preserves all memberships/denominators
+and has no package gains/losses. All63 original admissions strict-verify; seven
+selected comparisons complete. Native3.64 CI remains pending push.
+
+Audit original `k_cos` next: source order, subtraction, six constants and exact
+two-input NaN semantics. No new call/storage/control flow is needed; do not
+reuse the single-input oracle without proving the expanded output set. The
+borrowed-result/checked-value prerequisites above and full P01–P22 frontier stay
+active. Fold concise evidence updates into semantic implementation commits.

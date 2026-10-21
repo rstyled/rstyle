@@ -22,6 +22,11 @@ pub fn capture(
         identity: census::IDENTITY.into(),
         context: context.clone(),
         files: captured,
+        expansions: if options.selected().supports("rust.cfg-if-module-ownership") {
+            super::module_expansions::capture(tcx, &options.sources)?
+        } else {
+            Vec::new()
+        },
     };
     census::check_budget(&census)?;
     let census = std::sync::Arc::new(census);

@@ -178,6 +178,7 @@ fn standalone_environment(facts: &HirFnFacts) -> Result<Rc<Environment>, String>
         Arc::clone(&census),
         constant_context(facts)?,
         selected_cfgs(facts)?,
+        supports(facts, "rust.cfg-if-module-ownership")?,
     )
     .map(Rc::new)
 }

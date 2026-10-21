@@ -20,6 +20,10 @@ pub(super) struct CensusExport<'a> {
     identity: &'a str,
     context: &'a UnitContext,
     files: Vec<FileExport<'a>>,
+    #[serde(
+        skip_serializing_if = "<[crate::nominal_boundary::census::expansions::ModuleExpansion]>::is_empty"
+    )]
+    expansions: &'a [crate::nominal_boundary::census::expansions::ModuleExpansion],
 }
 #[derive(Serialize)]
 struct FileExport<'a> {
@@ -33,6 +37,8 @@ pub(super) struct CensusImport {
     identity: String,
     context: UnitContext,
     files: Vec<FileImport>,
+    #[serde(default)]
+    expansions: Vec<crate::nominal_boundary::census::expansions::ModuleExpansion>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -58,6 +64,7 @@ impl<'a> CensusExport<'a> {
         Ok(Self {
             identity: &census.identity,
             context: &census.context,
+            expansions: &census.expansions,
             files,
         })
     }
@@ -82,6 +89,7 @@ impl SourceRecord for CensusImport {
         let census = Census {
             identity: self.identity,
             context: self.context,
+            expansions: self.expansions,
             files,
         };
         Ok(Entry::Census(Record::new(Arc::new(census), Vec::new())))
