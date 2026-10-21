@@ -234,8 +234,22 @@ pub(crate) fn locations(
     } else {
         receiver
     };
-    let roots = crate::data_origins::origins(base, facts)?;
-    let mut locations = crate::field_locations::derived::referents(base, facts, roots)?;
+    let mut locations =
+        if matches!(
+            crate::data_aggregates::parsed_type(base)?,
+            crate::data_types::TypeToken::Array { .. }
+        ) && crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
+        {
+            let root = crate::data_places::field_origin(base, facts)?;
+            crate::field_locations::derived::from_origins(
+                crate::data_aggregates::parsed_type(base)?,
+                facts,
+                vec![root],
+            )?
+        } else {
+            let roots = crate::data_origins::origins(base, facts)?;
+            crate::field_locations::derived::referents(base, facts, roots)?
+        };
     for location in &mut locations {
         location
             .path

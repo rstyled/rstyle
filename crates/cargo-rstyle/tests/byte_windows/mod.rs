@@ -24,6 +24,7 @@ fn copied_byte_windows_compose_through_strict_admission_and_matching() {
                 | "snapshot"
                 | "decode"
                 | "decoded"
+                | "caller"
         );
         assert_eq!(
             function["outcome"],
@@ -31,6 +32,7 @@ fn copied_byte_windows_compose_through_strict_admission_and_matching() {
             "{function}"
         );
     }
+    shared_evidence::check_partial_helper(function_named(functions, "caller"));
     check_aggregate_documents(&report);
     check_equivalent_matching(&report, ["batch", "same"]);
     let batch = functions

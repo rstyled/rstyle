@@ -30,7 +30,12 @@ impl Places {
     }
 
     fn visit(&mut self, node: &HirNode, facts: &HirFnFacts) -> Result<(), String> {
-        if node.kind == "expr_addr_of" {
+        if node.kind == "expr_addr_of"
+            || matches!(
+                crate::data_bytes::kind(node),
+                Some(crate::data_bytes::Kind::Copy(_))
+            )
+        {
             self.borrowed_place(node, facts)?;
         } else if node.kind == "expr_field" && !crate::data_value_fields::candidate(node, facts) {
             let [base] = node.children.as_slice() else {
@@ -46,7 +51,32 @@ impl Places {
         Ok(())
     }
 
+    fn implicit_copy_place(&mut self, node: &HirNode, facts: &HirFnFacts) -> Result<(), String> {
+        if crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
+            && matches!(
+                crate::data_bytes::kind(node),
+                Some(crate::data_bytes::Kind::Copy(_))
+            )
+            && node
+                .children
+                .first()
+                .is_some_and(|operand| crate::data_subslices::candidate(operand, facts))
+        {
+            let checked = crate::data_subslices::verify(&node.children[0], facts)?;
+            if checked.array_length.is_some() {
+                self.insert_fields(checked.base)?;
+            }
+        }
+        Ok(())
+    }
+
     fn borrowed_place(&mut self, node: &HirNode, facts: &HirFnFacts) -> Result<(), String> {
+        if matches!(
+            crate::data_bytes::kind(node),
+            Some(crate::data_bytes::Kind::Copy(_))
+        ) {
+            return self.implicit_copy_place(node, facts);
+        }
         if crate::data_subslices::borrowed(node, facts) {
             let checked = crate::data_subslices::verify_borrow(node, facts)?;
             if checked.array_length.is_some() {

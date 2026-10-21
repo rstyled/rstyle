@@ -9,6 +9,7 @@ struct Inventory<'a> {
     fields: Vec<&'a syn::ExprField>,
     bindings: Vec<String>,
     has_macros: bool,
+    facts: Option<&'a dyn crate::unit_store::EvidenceFacts>,
     configuration: Option<crate::conditional_source::Configuration<'a>>,
 }
 
@@ -80,8 +81,10 @@ impl<'a> Visit<'a> for Inventory<'a> {
         syn::visit::visit_expr_binary(self, binary);
     }
 
-    fn visit_macro(&mut self, _: &'a syn::Macro) {
-        self.has_macros = true;
+    fn visit_macro(&mut self, mac: &'a syn::Macro) {
+        if !self.simple_assertion(mac) {
+            self.has_macros = true;
+        }
     }
 
     fn visit_item(&mut self, _: &'a syn::Item) {
@@ -90,6 +93,35 @@ impl<'a> Visit<'a> for Inventory<'a> {
 }
 
 impl Inventory<'_> {
+    fn simple_assertion(&self, mac: &syn::Macro) -> bool {
+        let Some(facts) = self.facts else {
+            return false;
+        };
+        if !crate::extraction_profile::facts_support(facts, "rust.accelerator-packing") {
+            return false;
+        }
+
+        let span = ByteSpan {
+            start: byte_offset(&facts.source.bytes, mac.span().start()) as u32,
+            end: byte_offset(&facts.source.bytes, mac.span().end()) as u32,
+        };
+        let sources = crate::field_locations::operations(&facts.body, &["expr_assert"]);
+        sources.into_iter().any(|node| {
+            node.span == span
+                && node
+                    .children
+                    .iter()
+                    .all(|child| matches!(child.kind.as_str(), "expr_path" | "expr_lit"))
+                && crate::assertions::verify(
+                    node,
+                    &node.snippet,
+                    facts.build.debug_assertions.value,
+                    crate::extraction_profile::ExtractionProfile::from_facts(facts).unwrap(),
+                )
+                .is_ok()
+        })
+    }
+
     fn inactive(&self, attributes: &[syn::Attribute]) -> bool {
         !attributes.is_empty()
             && self
@@ -123,6 +155,7 @@ pub(super) fn verify(
     let function: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
     let mut inventory = Inventory {
+        facts: Some(facts),
         configuration: crate::extraction_profile::ExtractionProfile::from_facts(facts)?
             .supports("rust.cfg-source-removal")
             .then(|| crate::conditional_source::Configuration::new(&facts.build.cfgs)),

@@ -63,7 +63,10 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), St
 
 fn verify_copy(value: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let ty = crate::data_types::parse(crate::data_aggregates::token(value)?)?;
-    if matches!(ty, TypeToken::Scalar(_)) {
+    if matches!(ty, TypeToken::Scalar(_))
+        || crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
+            && matches!(ty, TypeToken::Shared(_))
+    {
         return Ok(());
     }
 

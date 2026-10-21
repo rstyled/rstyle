@@ -67,7 +67,8 @@ fn verify_copy_location(
 ) -> Result<(), String> {
     // Array-place windows need their own physical copy location. Reject before
     // emission while that receiver form is outside the byte-copy contract.
-    if matches!(kind, Kind::Copy(_))
+    if !crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
+        && matches!(kind, Kind::Copy(_))
         && crate::data_subslices::candidate(operand, facts)
         && operand.children.first().is_some_and(|base| {
             matches!(

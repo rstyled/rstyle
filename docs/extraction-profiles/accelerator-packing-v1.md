@@ -83,3 +83,76 @@ Validation: **898 tests pass /5 skipped**, doctests, Clippy and formatting pass;
 rstyle and patterns report **zero violations/candidates**. The pinned original
 packing oracle passes. Natural/frozen selections were not replayed for this
 reject-only repair; their last measured results remain unchanged.
+
+## Connected 3.53 contract
+
+Reuse the checked module environment for direct scalar aliases; no alias census
+or cache. Standard scalar equality assertions preserve two once-only operands,
+left-to-right snapshots, builtin equality/Debug and debug activation. Comparison
+panic remains possible. With field proof, only verified standard assertions
+whose operands are plain scalar paths/literals bypass the coarse macro veto;
+macro operands with writes or field accesses still require further proof.
+
+Implicit array-field byte-copy receivers lower as places, with physical reads
+on the copy CALL only. Preserve each bounds check, exact byte window,
+reads_on=ok, saved Result and unwrap panic. Extend existing checked-Copy helper
+proof to the pinned copied-byte Result and transport each verified read
+occurrence. These summaries describe possible callee reads, not unconditional
+reads: their source operation retains its conditions and endpoint snapshots.
+Do not infer disjoint windows, owner Copy or omitted cleanup.
+
+The fixed nineteen functions meet the original **13 admitted /6 excluded**
+expectations, including packing/getter/saved/selected composition. Existing
+copied-window and u16 prefix callers also admit with explicit Partial evidence.
+
+## Measured delivery
+
+| Unchanged selection | Before → after admitted | Losses |
+| --- | --- | --- |
+| Development family, 19 functions | 2 → 13 | 0 |
+| regex-automata 0.4.18, 2,582 functions | 81 → 82 | 0 |
+| lz4_flex 0.14.0, 150 functions | 7 → 8 | 0 |
+| regex-syntax 0.8.11, 956 functions | 22 → 22 | 0 |
+| time-core 0.1.9, 226 functions | 11 → 11 | 0 |
+| Frozen sixty | 23 → 23 | 0 |
+
+Natural gains are original `Accel::as_accel_tys` and lz4_flex's
+`HashTable4KU16::get_hash_at`: its safe-encode `get_batch` performs the copied
+slice/native conversion before `hash` and the usize cast. Complete package
+identities/build contexts match their baselines. Frozen results remain
+23 admitted /30 excluded /7 inactive, with unchanged identities/denominators.
+
+All 82 natural and 13 development admissions pass independent source/document
+verification and strict admission; the original packing function plus the
+thirteen development positives complete all **91 selected comparisons** without
+diagnostics. Full natural enumeration remains deliberately incomplete under
+pair-budget zero; no full-package matching or detector-quality claim follows.
+All 41 admissions across the three frozen-inventory packages also pass
+independent source/document verification and strict admission.
+
+Validation: **905 tests pass /5 skipped**, plus doctests, Clippy and formatting;
+rstyle checks **2,900 functions /0 violations**, patterns **0 candidates**.
+Tests cover std/no_std on all three installed targets, release debug removal,
+runtime byte-weight/snapshot/panic laws, and rejected mutations of alias source,
+comparison operands/order/operator, bounds, conditional reads, helper summaries
+and document policy. The independent oracle also passes in the original crate.
+
+Quiescent controls against `1887e11`: one warmup and seven alternating samples
+per version, complete capture/assessment/matching, identical source selections.
+
+| Workload | Admissions before → after | Median seconds before → after |
+| --- | --- | --- |
+| Copied-byte helpers | 11 → 12 | 0.87 → 0.65 |
+| Cyclic prefix scans | 4 → 4 | 0.63 → 0.64 |
+| Accelerator packing | 2 → 13 | 0.56 → 0.75 |
+| Borrowed accelerator views | 10 → 10 | 0.76 → 0.75 |
+
+Unchanged controls retain identical matching and overlapping timing ranges.
+Packing now evaluates 78 pairs instead of one; median peak RSS rises about
+3.4 MiB. These small controls do not establish large-crate performance.
+
+Remaining chains: `Accel::contains` needs immutable iterator/position callback
+semantics and Option<usize>/is_some composition; `Unit::is_word_byte` needs a
+named callback and its original const-built indexed table. General saved
+Option/Result payload control flow and `?`, mutable/owned non-Copy receivers,
+broader aliases and formatted/custom comparisons remain outside this contract.

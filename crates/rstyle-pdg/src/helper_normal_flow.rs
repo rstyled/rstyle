@@ -38,6 +38,9 @@ fn copy_type(facts: &dyn EvidenceFacts, ty: &crate::ResolvedTy) -> bool {
 fn copy_token(facts: &dyn EvidenceFacts, ty: &TypeToken) -> bool {
     match ty {
         TypeToken::Scalar(_) | TypeToken::Shared(_) | TypeToken::IntConversionResult(_) => true,
+        TypeToken::SliceArrayResult {
+            borrowed: false, ..
+        } => crate::extraction_profile::facts_support(facts, "rust.accelerator-packing"),
         TypeToken::Tuple(elements) => elements.iter().all(|ty| copy_token(facts, ty)),
         TypeToken::Array { element, .. } | TypeToken::Option(element) => copy_token(facts, element),
         TypeToken::Struct { .. } | TypeToken::Enum { .. } => facts

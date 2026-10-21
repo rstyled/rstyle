@@ -656,7 +656,7 @@ fn check_assertion(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
                 node,
                 source,
                 ctx.facts.build.debug_assertions.value,
-                ctx.profile.supports("rust.end-of-input"),
+                ctx.profile,
             )
         });
     let own = match verified {

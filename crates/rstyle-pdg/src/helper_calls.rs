@@ -299,6 +299,8 @@ fn check_boundary(
 ) -> Result<ReferenceOutputs, Vec<String>> {
     let outputs = crate::helper_references::returned(facts, pair).map_err(|error| vec![error])?;
     let view = crate::helper_views::projected(facts, &outputs);
+    let byte_reads = crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
+        && crate::helper_normal_flow::supported(facts, pair.as_view());
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
         && !(pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial
             && (view || crate::helper_normal_flow::supported(facts, pair.as_view())))
@@ -311,13 +313,15 @@ fn check_boundary(
                     "loop"
                         | "while"
                         | "data.index"
-                        | "data.bytes.copy-result"
-                        | "data.bytes.unwrap"
                         | "data.bytes.borrow-result"
                         | "data.bytes.unwrap-borrow"
                 )
-            ) || node.attributes.construct.as_deref() == Some("data.subslice-place")
-                && !(view && crate::helper_views::array_operation(node))
+            ) || matches!(
+                node.attributes.construct.as_deref(),
+                Some("data.bytes.copy-result" | "data.bytes.unwrap")
+            ) && !byte_reads
+                || node.attributes.construct.as_deref() == Some("data.subslice-place")
+                    && !(byte_reads || view && crate::helper_views::array_operation(node))
                 || node.attributes.construct.as_deref() == Some("data.value-index")
                     && !crate::producer::bounded_value_index(pair.as_view(), node, facts)
         })

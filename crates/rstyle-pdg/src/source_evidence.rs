@@ -145,13 +145,20 @@ impl Inventory<'_> {
             return false;
         }
         self.add("expr_assert", mac.span());
+        self.assertion_children(&assertion);
+        true
+    }
+
+    fn assertion_children(&mut self, assertion: &crate::assertions::Assertion) {
         self.visit_expr(&assertion.condition);
-        if let Some(diagnostic) = assertion.diagnostic {
-            for capture in diagnostic.captures {
+        if let Some(right) = &assertion.right {
+            self.visit_expr(right);
+        }
+        if let Some(diagnostic) = &assertion.diagnostic {
+            for capture in &diagnostic.captures {
                 self.add("expr_path", capture.span);
             }
         }
-        true
     }
 
     fn expression(&mut self, expression: &syn::Expr) {

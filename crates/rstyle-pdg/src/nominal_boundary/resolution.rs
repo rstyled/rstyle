@@ -13,6 +13,7 @@ use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
 mod array_lengths;
 mod builtin_options;
 pub(crate) mod environment;
+mod scalar_aliases;
 mod selected;
 pub(crate) use environment::Environment;
 use syn::spanned::Spanned;
@@ -35,6 +36,7 @@ pub struct Resolution {
     environment: Rc<Environment>,
     copy_trees: std::collections::BTreeSet<Namespace>,
     array_views: bool,
+    scalar_aliases: bool,
 }
 
 impl Resolution {
@@ -189,6 +191,7 @@ pub(crate) fn verify_in(
         trees: BTreeMap::new(),
         copy_trees: Default::default(),
         array_views: supports(facts, "rust.borrowed-array-views")?,
+        scalar_aliases: supports(facts, "rust.accelerator-packing")?,
         environment: Rc::clone(&environment),
     };
 
@@ -832,6 +835,11 @@ impl PathResolution for Scoped<'_> {
                 .receiver
                 .clone()
                 .ok_or_else(|| "Self lacks exact owning impl proof".into());
+        }
+        if self.resolution.scalar_aliases
+            && let Some(tree) = scalar_aliases::resolve(self, path)?
+        {
+            return Ok(tree);
         }
         let names = self.name(path)?;
         let tree = self

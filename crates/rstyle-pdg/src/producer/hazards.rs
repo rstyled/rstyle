@@ -134,6 +134,10 @@ fn proof_method(node: &Operation) -> &'static str {
     if node.category == NodeCategory::Call {
         return "independently verified callee may panic; exceptional transfer and cleanup omitted";
     }
+
+    if node.operator.as_deref() == Some("assert-eq") {
+        return "builtin scalar equality over ordered snapshots; possible assertion panic retained";
+    }
     if node.operator.as_deref() == Some("assert") {
         "resolved standard assertion; only a directly known true boolean discharges omitted panic flow"
     } else {
@@ -164,7 +168,7 @@ fn limitation(facts: &dyn crate::unit_store::EvidenceFacts, node: &Operation) ->
         );
     }
 
-    if node.operator.as_deref() == Some("assert") {
+    if matches!(node.operator.as_deref(), Some("assert" | "assert-eq")) {
         return format!(
             "Assertion at bytes {}..{} may panic; successful normal continuation is modeled, while exceptional transfer and unwinding/cleanup are omitted.",
             node.span.start, node.span.end
@@ -193,7 +197,7 @@ fn relevant(node: &Operation) -> bool {
         && node.ty != "bool"
         && matches!(
             node.operator.as_deref(),
-            Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "assert")
+            Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "assert" | "assert-eq")
         )
 }
 
@@ -306,6 +310,9 @@ fn proven_safe(
     let Some(op) = node.operator.as_deref() else {
         return false;
     };
+    if op == "assert-eq" {
+        return false;
+    }
     if op == "assert" {
         return graph
             .nodes

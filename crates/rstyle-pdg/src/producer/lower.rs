@@ -280,7 +280,14 @@ impl Builder<'_> {
             (node.res.as_ref().unwrap().description.clone(), None)
         };
         let operation = Operation {
-            operator: Some("assert".into()),
+            operator: Some(
+                if assertion.right.is_some() {
+                    "assert-eq"
+                } else {
+                    "assert"
+                }
+                .into(),
+            ),
             construct: Some(construct),
             literal,
             operands: evaluated.values,

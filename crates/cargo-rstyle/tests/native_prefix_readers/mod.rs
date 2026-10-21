@@ -60,8 +60,8 @@ fn check_family(report: &Value) {
         assert_eq!(
             function["outcome"],
             match name {
-                "suffix" | "signed" | "caller_u16" => "excluded",
-                "read_u16" | "read_u32" | "read_u128" | "native_u16" | "choose"
+                "suffix" | "signed" => "excluded",
+                "caller_u16" | "read_u16" | "read_u32" | "read_u128" | "native_u16" | "choose"
                 | "selected_u16" | "saved_u16" | "snapshot_u16" => "admitted",
                 _ => panic!("Unexpected function outside the declared selection: {name}"),
             },
@@ -88,7 +88,7 @@ fn check_family(report: &Value) {
         assert_eq!(report[flag], true, "{flag}");
     }
     let pairs = report["matching"]["pairs"].as_array().unwrap();
-    assert_eq!(pairs.len(), 28);
+    assert_eq!(pairs.len(), 36);
     assert!(
         pairs
             .iter()

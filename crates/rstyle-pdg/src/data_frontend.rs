@@ -37,11 +37,20 @@ pub(crate) fn verify_document_policy(
     let arrays = crate::extraction_profile::policy_supports(profile, "rust.copy-array-fields");
     let enums = crate::extraction_profile::policy_supports(profile, "rust.scalar-enum-values");
     let views = crate::extraction_profile::policy_supports(profile, "rust.borrowed-array-views");
-    if imports && arrays && enums && views {
+    let packing = crate::extraction_profile::policy_supports(profile, "rust.accelerator-packing");
+    if imports && arrays && enums && views && packing {
         return Ok(());
     }
 
     let interface = interface(facts)?;
+    if !packing
+        && crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
+        && facts
+            .nominal_resolution()
+            .is_ok_and(|resolution| resolution.requires_scalar_aliases(&facts.source.bytes))
+    {
+        return Err("Scalar alias proof requires its registered document policy".into());
+    }
     if let Some(resolution) = nominal_resolution(facts, &interface)? {
         if !views && resolution.requires_borrowed_array_views() {
             return Err("Borrowed array views require their registered document policy".into());
@@ -78,7 +87,14 @@ struct Resolver<'a> {
 impl PathResolution for Resolver<'_> {
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
         self.nominal.map_or_else(
-            || Unresolved.resolve(path),
+            || {
+                if crate::extraction_profile::facts_support(self.facts, "rust.accelerator-packing")
+                {
+                    self.facts.nominal_resolution()?.resolve(path)
+                } else {
+                    Unresolved.resolve(path)
+                }
+            },
             |resolution| resolution.resolve(path),
         )
     }
@@ -311,6 +327,9 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if crate::data_discards::candidate(node, facts) {
+        return crate::data_discards::verify(node, facts);
+    }
     if crate::data_subslices::candidate(node, facts) {
         let checked = crate::data_subslices::verify(node, facts)?;
         for operand in checked.operands() {

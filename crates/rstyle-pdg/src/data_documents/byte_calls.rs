@@ -43,16 +43,7 @@ pub(super) fn verify(
     let mut locations = BTreeMap::new();
     for source in sources {
         let kind = data_bytes::verify(source, context.facts)?;
-        if kind.requires_prefix(source)
-            && !crate::extraction_profile::policy_supports(
-                &pair.pdg.profile,
-                crate::data_subslices::PREFIX_CAPABILITY,
-            )
-        {
-            return Err(
-                "Extended byte signatures/displays require their registered document policy".into(),
-            );
-        }
+        verify_policy(pair, source, kind)?;
         let node = super::serialized_operation(pair, &source.span, |node| {
             node.category == NodeCategory::Call
         })?;
@@ -87,6 +78,42 @@ fn verify_node(
         || node.attributes.call_form != Some(crate::CallForm::Direct)
     {
         return Err("Byte call loses its exact semantics or effects".into());
+    }
+    Ok(())
+}
+
+fn verify_policy(
+    pair: PairView<'_>,
+    source: &crate::HirNode,
+    kind: data_bytes::Kind,
+) -> Result<(), String> {
+    if kind.requires_prefix(source)
+        && !crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            crate::data_subslices::PREFIX_CAPABILITY,
+        )
+    {
+        return Err(
+            "Extended byte signatures/displays require their registered document policy".into(),
+        );
+    }
+    if matches!(kind, data_bytes::Kind::Copy(_))
+        && source
+            .children
+            .first()
+            .and_then(|receiver| receiver.children.first())
+            .is_some_and(|base| {
+                matches!(
+                    crate::data_aggregates::parsed_type(base),
+                    Ok(crate::data_types::TypeToken::Array { .. })
+                )
+            })
+        && !crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            "rust.accelerator-packing",
+        )
+    {
+        return Err("Implicit array-place copies require their registered document policy".into());
     }
     Ok(())
 }

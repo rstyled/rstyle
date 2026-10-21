@@ -24,19 +24,8 @@ impl<'tcx> Context<'tcx> {
             return None;
         }
 
-        let active = assertion.name == "assert" || self.tcx.sess.opts.debug_assertions;
-        let condition = if assertion.name == "debug_assert" {
-            debug_condition(expression, active)?
-        } else {
-            assert_condition(expression)?
-        };
-        let condition = self.expression(condition);
-        let mut children = vec![condition];
-        children.extend(self.diagnostic_captures(
-            expression,
-            &source,
-            assertion.diagnostic.as_ref(),
-        )?);
+        let active = !assertion.name.starts_with("debug_") || self.tcx.sess.opts.debug_assertions;
+        let children = self.assertion_operands(expression, &source, &assertion)?;
         let node = self.node(expression.hir_id, expression.span, "expr_assert");
 
         Some(HirNode {
@@ -54,6 +43,60 @@ impl<'tcx> Context<'tcx> {
             children,
             ..node
         })
+    }
+
+    fn assertion_operands(
+        &self,
+        expression: &Expr<'tcx>,
+        source: &str,
+        assertion: &Assertion,
+    ) -> Option<Vec<HirNode>> {
+        if let Some(right) = assertion.right_span(source, self.span(expression.span).start) {
+            if !self.profile.supports("rust.accelerator-packing") {
+                return None;
+            }
+            return [
+                assertion.condition_span(source, self.span(expression.span).start),
+                right,
+            ]
+            .into_iter()
+            .map(|span| self.comparison_operand(expression, span))
+            .collect();
+        }
+
+        let condition = if assertion.name == "debug_assert" {
+            debug_condition(expression, self.tcx.sess.opts.debug_assertions)?
+        } else {
+            assert_condition(expression)?
+        };
+        let mut children = vec![self.expression(condition)];
+        children.extend(self.diagnostic_captures(
+            expression,
+            source,
+            assertion.diagnostic.as_ref(),
+        )?);
+        Some(children)
+    }
+
+    fn comparison_operand(
+        &self,
+        expression: &Expr<'tcx>,
+        expected: rstyle_pdg::ByteSpan,
+    ) -> Option<HirNode> {
+        let mut scan = OperandScan {
+            context: self,
+            expected,
+            found: Vec::new(),
+        };
+        scan.visit_expr(expression);
+        let [id] = scan.found.as_slice() else {
+            return None;
+        };
+        let rustc_hir::Node::Expr(operand) = self.tcx.hir_node(*id) else {
+            return None;
+        };
+
+        Some(self.expression(operand))
     }
 
     fn diagnostic_captures(
@@ -153,4 +196,20 @@ fn debug_condition<'a, 'tcx>(expression: &'a Expr<'tcx>, active: bool) -> Option
         return None;
     };
     assert_condition(inner)
+}
+
+struct OperandScan<'a, 'tcx> {
+    context: &'a Context<'tcx>,
+    expected: rstyle_pdg::ByteSpan,
+    found: Vec<rustc_hir::HirId>,
+}
+
+impl<'v> Visitor<'v> for OperandScan<'_, '_> {
+    fn visit_expr(&mut self, expression: &'v Expr<'v>) {
+        if !expression.span.from_expansion() && self.context.span(expression.span) == self.expected
+        {
+            self.found.push(expression.hir_id);
+        }
+        intravisit::walk_expr(self, expression);
+    }
 }

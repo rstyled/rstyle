@@ -4,10 +4,13 @@ use crate::{HirNode, NodeCategory, PdgNode, producer::PairView, unit_store::Evid
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let sources = crate::field_locations::operations(&facts.body, &["expr_assert"]);
     let mut active = 0;
+    let mut comparisons = 0;
 
     for source in sources {
         let assertion = crate::assertions::Assertion::parse(&source.snippet)?;
-        if let Some(diagnostic) = assertion.diagnostic {
+        if assertion.right.is_some() {
+            comparisons += verify_comparison(pair, facts, source)?;
+        } else if let Some(diagnostic) = assertion.diagnostic {
             crate::assertions::formatting::verify(source, &source.snippet, &diagnostic)?;
             if !crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.end-of-input")
                 || crate::data_library::registry_for(facts).is_none()
@@ -23,6 +26,10 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<()
         }
     }
 
+    verify_inventory(pair, active, comparisons)
+}
+
+fn verify_inventory(pair: PairView<'_>, active: usize, comparisons: usize) -> Result<(), String> {
     let actual = pair
         .pdg
         .nodes
@@ -34,6 +41,21 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<()
                 .is_some_and(|name| name.ends_with(".scalar-format"))
         })
         .count();
+
+    let actual_comparisons = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| {
+            matches!(
+                node.attributes.construct.as_deref(),
+                Some("core::assert_eq" | "core::debug_assert_eq")
+            )
+        })
+        .count();
+    if actual_comparisons != comparisons {
+        return Err("Comparison assertion inventory disagrees with complete source".into());
+    }
     if actual != active {
         return Err("Formatted assertion inventory disagrees with complete source".into());
     }
@@ -105,4 +127,50 @@ fn operands(pair: PairView<'_>, node: &PdgNode, source: &HirNode) -> Result<(), 
         crate::helper_calls::verify_operand(pair, &edge.source, child)?;
     }
     Ok(())
+}
+
+fn verify_comparison(
+    pair: PairView<'_>,
+    facts: &dyn EvidenceFacts,
+    source: &HirNode,
+) -> Result<usize, String> {
+    if !crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.accelerator-packing")
+        || crate::data_library::registry_for(facts).is_none()
+    {
+        return Err("Scalar comparison assertion requires its registered build/policy".into());
+    }
+
+    crate::assertions::verify(
+        source,
+        &source.snippet,
+        facts.build.debug_assertions.value,
+        crate::extraction_profile::ExtractionProfile::from_facts(facts)?,
+    )?;
+    if source.lit.as_deref() != Some("true") {
+        return Ok(0);
+    }
+
+    let node = super::serialized_operation(pair, &source.span, |node| {
+        node.category == NodeCategory::Computation
+    })?;
+    if node.attributes.construct.as_deref()
+        != source.res.as_ref().map(|res| res.description.as_str())
+        || node.original_kind.known_value() != Some("expr_assert")
+        || node
+            .attributes
+            .operator
+            .as_ref()
+            .and_then(crate::StringFact::known_value)
+            != Some("assert-eq")
+        || node.attributes.literal.is_some()
+        || !node.attributes.reads.is_empty()
+        || !node.attributes.writes.is_empty()
+        || !node.attributes.defines.is_empty()
+        || !node.attributes.symbol_ids.is_empty()
+    {
+        return Err("Comparison assertion loses builtin equality or exact effects".into());
+    }
+
+    operands(pair, node, source)?;
+    Ok(1)
 }

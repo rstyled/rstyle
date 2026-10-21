@@ -10,7 +10,7 @@ pub(super) fn verify(
     trees: &BTreeMap<Namespace, TypeTree>,
     environment: &Environment,
 ) -> Result<std::collections::BTreeSet<Namespace>, String> {
-    if trees.is_empty() {
+    if trees.is_empty() && !supports(facts, "rust.accelerator-packing")? {
         return Err("Mixed-unit boundary requires selected Copy declarations".into());
     }
     let mut copies = std::collections::BTreeSet::new();

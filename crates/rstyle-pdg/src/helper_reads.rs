@@ -135,7 +135,7 @@ pub(crate) fn derive(
 fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String> {
     if !matches!(
         location.abstraction.as_str(),
-        "rstyle.formal-field/2" | "rstyle.formal-checked-element/1"
+        "rstyle.formal-field/2" | "rstyle.formal-checked-element/1" | "rstyle.formal-byte-window/1"
     ) {
         return Err("Helper read lacks registered formal location interpretation".into());
     }
@@ -156,6 +156,7 @@ fn indirect_read(
     let capability = match node.attributes.construct.as_deref() {
         Some("data.indirect-field") => "rust.indirect-field-reads",
         Some("data.indirect-deref") => "rust.shared-dereference-reads",
+        Some("data.bytes.copy-result") => "rust.accelerator-packing",
         Some("data.option-payload") => "rust.checked-slice-option",
         _ => return Ok(false),
     };
@@ -217,6 +218,20 @@ fn project(value: TypeToken, projection: &Projection) -> Result<TypeToken, Strin
             if matches!(value.as_ref(), TypeToken::Scalar(_)) =>
         {
             Ok(*value)
+        }
+        (
+            TypeToken::Slice(element) | TypeToken::Array { element, .. },
+            Projection::ByteWindow {
+                operand_position: 0,
+                length,
+            },
+        ) if matches!(element.as_ref(), TypeToken::Scalar(scalar) if scalar == "u8")
+            && matches!(length, 2 | 4 | 16) =>
+        {
+            Ok(TypeToken::Array {
+                element,
+                length: *length,
+            })
         }
         (TypeToken::Tuple(fields), Projection::TupleField { position }) => fields
             .get(*position)
