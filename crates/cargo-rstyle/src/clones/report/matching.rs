@@ -124,19 +124,14 @@ impl Serialize for Pair<'_> {
 }
 
 fn evaluation_status(stages: &[StageRecord]) -> &'static str {
-    if stages
+    // Visit each stage once, retaining error precedence over incompatibility.
+    stages
         .iter()
-        .any(|s| matches!(s.outcome, StageOutcome::Error { .. }))
-    {
-        return "failed";
-    }
-    if stages
-        .iter()
-        .any(|s| matches!(s.outcome, StageOutcome::Ineligible { .. }))
-    {
-        return "incompatible";
-    }
-    "evaluated"
+        .fold("evaluated", |status, stage| match &stage.outcome {
+            StageOutcome::Error { .. } => "failed",
+            StageOutcome::Ineligible { .. } if status != "failed" => "incompatible",
+            _ => status,
+        })
 }
 
 struct Stages<'a> {
