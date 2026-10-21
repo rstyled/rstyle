@@ -45,9 +45,10 @@ fn parts(expression: &syn::Expr) -> Result<(&'static str, Vec<&syn::Expr>), Stri
             let operator = match value.op {
                 syn::BinOp::Add(_) => "+",
                 syn::BinOp::Mul(_) => "*",
+                syn::BinOp::Sub(_) => "-",
                 _ => {
                     return Err(
-                        "Float source operator is outside ordered add/multiply support".into(),
+                        "Float source operator is outside registered ordered arithmetic".into(),
                     );
                 }
             };

@@ -12,6 +12,7 @@ mod character_ranges;
 mod classifiers;
 mod corruption;
 mod end_of_input;
+mod float_cos_tail;
 mod float_kernels;
 mod float_scope;
 mod indexed_helpers;

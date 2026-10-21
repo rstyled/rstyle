@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.64.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.65.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -16,7 +16,7 @@ Data-v3 3.60 adds complete fieldless flag values and verified shared Copy
 receivers through their original constructor/query helper chains. Data-v3 3.61
 adds standalone Unicode scalar literals, comparisons and literal/OR matching.
 Data-v3 3.62 connects literal character ranges and the pinned ASCII predicate;
-3.63–3.64 connects original float kernels through exact bits/constants, ordered
+3.63–3.65 connects original float kernels through exact bits/constants, ordered
 arithmetic/narrowing and independently checked cfg-if module/dependency proof.
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
@@ -65,7 +65,7 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | V06 | Scalar blocks and expression tails | Covered | `{ let y = x; y }` | Normal-flow evaluation and saved operands are retained. |
 | V07 | Integer-to-integer casts | Covered | `x as u64` | Resolved built-in integer casts only. |
 | V08 | Ordinary const-function bodies | Covered | `const fn f(x: u32) -> u32 { x }` | Function qualification is supported; this is not general compile-time evaluation. |
-| V09 | Floats and floating-point operations | Partial | `x: f64`, `x / 2.0` | Standalone f32/f64, exact bits/constants, f64 +/*, sign negation and f64→f32 narrowing connect the [original float kernels](docs/extraction-profiles/float-kernels-v1.md) in Data-v3 3.64; comparisons, other arithmetic and nested floats remain unsupported. |
+| V09 | Floats and floating-point operations | Partial | `x: f64`, `x / 2.0` | Standalone f32/f64, exact bits/constants, ordered f64 +/*/−, sign negation and f64→f32 narrowing connect the [original float kernels](docs/extraction-profiles/float-kernels-v1.md) through Data-v3 3.65; comparisons, division, f32 binary arithmetic and nested floats remain unsupported. |
 | V10 | Character values and operations | Partial | `c: char`, `'a'` | Data-v3 3.61 supports standalone Unicode scalar interfaces/locals, exact literals, builtin comparisons and literal/OR/wildcard matching through verified helpers; see [character contract](docs/extraction-profiles/character-leaf-v1.md). Data-v3 3.62 adds literal ranges and the pinned ASCII predicate through the [escape classifier](docs/extraction-profiles/character-escapes-v1.md); other casts/APIs and structured character types remain deferred. |
 | V11 | Additional built-in casts/coercions | Partial | `flag as u8`, `x as f32` | Builtin f64→f32 narrowing has a bounded contract; bool/char and other float conversions remain unsupported; pointer casts belong to unsafe work. |
 | V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Data-v3 3.33.0 additionally verifies the original top-level local `const usize = core::mem::size_of::<usize>()` for [native byte readers](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.56 adds [owned local const-built bool arrays](docs/extraction-profiles/word-byte-classifiers-v1.md) with complete evaluated contents and lossless unsigned index bounds. Other aggregates and nonlocal/generic/trait constants remain missing. |
@@ -4002,8 +4002,31 @@ time-core11/226 are unchanged. All **63 original admissions** strict-verify;
 patterns0 unignored**, ignores unchanged. Numerical oracle4202 inputs; digit
 oracles256 bytes each. Retained frozen run `run-qqq32cfl` versus `run-bgyl78v2`;
 compact evidence paths are in the contract. Automata was not remeasured; native
-three-platform CI for3.64 is pending push (3.63 passed all runners).
+three-platform CI for3.64 passes (run39643046602).
 
 Next source-selected candidate: original `k_cos`, ordered f64 subtraction and an
 independent two-input NaN oracle. Lifetime-only callable owners, stored-reference
 results, mixed children, Result/?, broader loops and the P01–P22 roadmap remain open.
+
+
+### Data-v3 3.65: original cosine tail with ordered subtraction
+
+[Contract](docs/extraction-profiles/float-kernels-v1.md): checked binary64
+subtraction completes unchanged original libm `k_cos`, including six constants
+and shadowed saved operands. Libm **5→6/1131**, one gain, zero losses; source/build
+identities unchanged. All six libm admissions strict-verify; three selected
+comparisons complete. Independent original oracle: **4352 inputs**.
+
+Frozen60 stays **23 admitted /30 excluded /7 inactive**; complete syntax39/956,
+lz4_flex8/150 and time-core11/226 remain unchanged. Run `run-6qkc6ea9` versus
+3.64 `run-qqq32cfl`. **980 tests /5 existing skips**, doctests/fmt/Clippy pass;
+**rstyle0/3175, patterns0 unignored**, ignores unchanged. Three-target × std/no_std
+composition, resealed semantic attacks and historical-policy rejection pass.
+All **64 original admissions** strict-verify; **nine selected comparisons** complete.
+Native CI for3.65 is pending;3.64 passes all three runners. Automata was not
+remeasured; full-library matching remains budget-limited.
+
+Next: original `k_sin` needs exact i32 equality and exhaustive float-result
+branches. Borrowed `Input` getters still need complete mixed-enum owner proof,
+lifetime-only callable ownership and stored-slot/referent origin distinction.
+The broader P01–P22 roadmap remains active; evidence stays in implementation commits.

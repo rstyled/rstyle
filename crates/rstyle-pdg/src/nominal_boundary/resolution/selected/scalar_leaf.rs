@@ -43,10 +43,19 @@ pub(super) fn verify(
         return Err("Missing or ambiguous exact original scalar leaf ownership".into());
     };
 
-    Ok(source_leaf(function, &module.items).is_ok())
+    Ok(source_leaf(
+        function,
+        &module.items,
+        supports(facts, crate::float_scalars::SUBTRACTION)?,
+    )
+    .is_ok())
 }
 
-fn source_leaf(function: &syn::ItemFn, items: &[syn::Item]) -> Result<(), String> {
+fn source_leaf(
+    function: &syn::ItemFn,
+    items: &[syn::Item],
+    subtraction: bool,
+) -> Result<(), String> {
     let signature = &function.sig;
     if signature.constness.is_some()
         || signature.asyncness.is_some()
@@ -65,6 +74,7 @@ fn source_leaf(function: &syn::ItemFn, items: &[syn::Item]) -> Result<(), String
     let mut scope = Scope {
         values: BTreeMap::new(),
         items,
+        subtraction,
     };
     for input in &signature.inputs {
         let syn::FnArg::Typed(input) = input else {
@@ -108,6 +118,7 @@ fn binding(pattern: &syn::Pat) -> Result<String, String> {
 struct Scope<'a> {
     values: BTreeMap<String, &'static str>,
     items: &'a [syn::Item],
+    subtraction: bool,
 }
 
 impl Scope<'_> {
@@ -176,11 +187,12 @@ impl Scope<'_> {
     }
 
     fn binary(&self, value: &syn::ExprBinary) -> Result<&'static str, String> {
-        if !matches!(value.op, syn::BinOp::Add(_) | syn::BinOp::Mul(_))
+        if !(matches!(value.op, syn::BinOp::Add(_) | syn::BinOp::Mul(_))
+            || self.subtraction && matches!(value.op, syn::BinOp::Sub(_)))
             || self.expression(&value.left)? != "f64"
             || self.expression(&value.right)? != "f64"
         {
-            return Err("Scalar leaf supports only binary64 add and multiply".into());
+            return Err("Scalar leaf requires registered binary64 arithmetic".into());
         }
         Ok("f64")
     }
@@ -243,6 +255,10 @@ mod tests {
     use super::source_leaf;
 
     fn checked(source: &str) -> bool {
+        checked_with_subtraction(source, false)
+    }
+
+    fn checked_with_subtraction(source: &str, subtraction: bool) -> bool {
         let file = syn::parse_file(source).unwrap();
         let function = file
             .items
@@ -252,7 +268,24 @@ mod tests {
                 _ => None,
             })
             .unwrap();
-        source_leaf(function, &file.items).is_ok()
+        source_leaf(function, &file.items, subtraction).is_ok()
+    }
+
+    #[test]
+    fn subtraction_needs_its_own_capability_and_complete_primitive_dependencies() {
+        let source = "fn kernel(x:f64,y:f64)->f64 {let w=x*y; let w=1.0-w; w+((1.0-w)-x*y)}";
+        assert!(!checked(source));
+        assert!(checked_with_subtraction(source, true));
+        for body in ["x / y", "helper(x)-y", "{let _drop=Noise; x-y}"] {
+            assert!(!checked_with_subtraction(
+                &format!("fn kernel(x:f64,y:f64)->f64 {{{body}}}"),
+                true
+            ));
+        }
+        assert!(!checked_with_subtraction(
+            "fn kernel(x:f32,y:f32)->f32 {x-y}",
+            true
+        ));
     }
 
     #[test]

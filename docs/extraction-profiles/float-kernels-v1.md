@@ -1,8 +1,9 @@
 # Original float kernels: acceptance contract v1
 
-Status: Data-v3 3.64 completes both selected original kernels through strict
-admission and matching. Complete libm admission increases **1→5/1131**, with
-zero losses on unchanged source/build identities.
+Status: Data-v3 3.64 completes `k_sinf`/`k_cosf`; 3.65 adds ordered binary64
+subtraction for original `k_cos`. Its complete-libm capture measures **5→6/1131**,
+zero losses on unchanged source/build identities. All six libm admissions
+strict-verify; three selected comparisons complete (all structurally rejected).
 
 ## Original selection and context
 
@@ -108,7 +109,7 @@ The implementation connects standalone float interfaces/literals, exact owned
 constants, binary64 addition/multiplication, f32/f64 sign negation and f64→f32
 narrowing. It checks source order, saved values, bit widths, NaN interpretation,
 policy and ordinary codegen; historical 3.62 and backend overrides reject.
-Diagnostic selection: 14 admitted /14 excluded, 91 complete comparisons across
+Initial diagnostic selection: 14 admitted /14 excluded, 91 complete comparisons across
 three targets × std/no_std; these are composition tests, not original acceptance.
 
 Data-v3 3.63 retained all140 original source files but could not prove21
@@ -141,12 +142,52 @@ excluded /7 inactive, preserving identities/denominators. Complete package roste
 retain syntax39/956, lz4_flex8/150 and time-core11/226, zero gains/losses. All58
 package admissions strict-verify; six selected comparisons complete. Retained run
 `run-qqq32cfl` compares against3.63 `run-bgyl78v2`. Native three-platform CI for
-this implementation remains pending push;3.63 passed all three runners.
+3.64 passes Linux x86, Linux ARM and macOS (run39643046602).
 
 Retained evidence: `/tmp/rstyle-float-kernels-cfg-if-final-capture.json`,
 `/tmp/rstyle-float-cfg-if-natural-delta.json`,
 `/tmp/rstyle-float-cfg-if-original-{strict.log,matching.json}` and
 `/tmp/rstyle-float-cfg-if-{native-oracle,digits-oracle}.log`.
-Next candidate: original `k_cos`, requiring ordered binary64 subtraction and an
-independent two-input NaN oracle. Borrowed results, Result/?, general macros,
-float comparisons and broader ownership remain outside this contract.
+## Original cosine tail (Data-v3 3.65)
+
+[Selection](../../eval/coverage-development/float-cos-tail-selection.json): unchanged
+libm0.2.16 `math::k_cos::k_cos(f64,f64)->f64`, bytes2723..2973, SHA-256
+`241cccd334d65622668b01aba6c01735e209c6825500be4263fa81f62fbfd99a`.
+Same complete-original Cargo context as above. Baseline3.64 rejects ordered
+subtraction and falls back to the ancestor source-boundary rejection. Four exact
+binary64 subtractions, six constants and the two distinct saved `w` bindings now
+compose through the exhaustive dependency proof; no broader source exception.
+The new capability is required by facts and document policy independently.
+
+The [independent oracle](../../eval/coverage-development/float-cos-tail-oracle.py)
+rounds exact rational arithmetic after every source operation. All **4352 inputs**
+pass against the [native harness](../../eval/coverage-development/float-cos-tail-native.rs)
+including the unchanged complete original file:256 directed pairs +4096 frozen
+random pairs. Finite/signed-zero expectations are exact. Allowed NaN fractions
+are preferred or either original NaN input's unchanged/quieted fraction, either
+sign. Both raw inputs meet in the late `x*y`; each can propagate to the final
+addition with compatible shared-intermediate choices. This exact set proof is
+specific to this graph and pinned targets, not arbitrary multiple-input DAGs.
+
+Diagnostic composition: eight admitted/four excluded,28 complete comparisons,
+three targets × std/no_std. Resealed operator, rounding, contraction, effect,
+operand-order, constant and saved-binding mutations reject;3.64 policy remains
+closed. f32 subtraction, division, comparison, unknown calls and hidden Drop
+remain excluded. The earlier float fixture now admits15/rejects13,105 comparisons.
+
+Retained evidence: `/tmp/rstyle-float-cos-tail-{natural-delta.json,oracle.log}`;
+complete capture `/tmp/rstyle-float-cos-tail-natural-capture.json` and
+`/tmp/rstyle-float-cos-tail-original-{strict.log,matching.json}`. Full-library matching remains
+budget-limited. Next candidate `k_sin` needs a checked i32 branch condition and
+exhaustive float-result alternatives; no additional control transport is yet
+justified. Borrowed results, Result/?, general macros, float comparisons and
+broader ownership remain outside this contract.
+
+
+3.65 gates: **980 tests /5 skips**, doctests/fmt/Clippy pass; **rstyle0/3175,
+patterns0 unignored**, existing ignores unchanged. Frozen60 stays23/30/7;
+complete syntax39/956, lz4_flex8/150 and time-core11/226 have no gains/losses.
+Run `run-6qkc6ea9` versus3.64 `run-qqq32cfl`; exact source/build identities and
+all denominators match. All64 original admissions strict-verify; nine selected
+comparisons complete. Fresh replay logs: `/tmp/rstyle-float-cos-tail-frozen-strict.log`.
+Native3.65 CI pending;3.64 passes all three runners.

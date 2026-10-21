@@ -8,6 +8,7 @@ use crate::{HirNode, ProfileId, frontend::normalized, unit_store::EvidenceFacts}
 use serde_json::Value;
 
 pub const CAPABILITY: &str = "rust.float-kernel-scalars";
+pub(crate) const SUBTRACTION: &str = "rust.float-subtraction";
 pub const RESOLUTION: &str = "resolved_float_literal";
 pub(crate) const LITERAL: &str = "data.float-literal";
 pub(crate) const CONSTANT: &str = "data.float-constant";
@@ -83,7 +84,7 @@ pub(crate) fn verify_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(
         "expr_lit" => literal(node, facts).map(|_| ()),
         "expr_path" if computation(node) => constant(node).map(|_| ()),
         "expr_path" => Ok(()),
-        "expr_binary" => binary(node),
+        "expr_binary" => binary(node, facts),
         "expr_unary" => negate(node),
         "expr_cast" => narrow(node),
         // Existing call, control, binding and type verifiers remain responsible
@@ -124,12 +125,20 @@ pub(crate) fn constant(node: &HirNode) -> Result<FloatValue, String> {
     values::constant(&record)
 }
 
-pub(crate) fn binary(node: &HirNode) -> Result<(), String> {
+fn binary(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let [_, _] = node.children.as_slice() else {
         return Err("Float arithmetic requires two ordered saved operands".into());
     };
-    if !crate::builtin_scalars::matches(node, &["f64", "f64"], "f64", &["+", "*"]) {
-        return Err("Float kernels require builtin binary64 addition/multiplication".into());
+    if node
+        .dispatch
+        .as_ref()
+        .is_some_and(|dispatch| dispatch.op == "-")
+        && !crate::extraction_profile::facts_support(facts, SUBTRACTION)
+    {
+        return Err("Float subtraction requires its registered capability".into());
+    }
+    if !crate::builtin_scalars::matches(node, &["f64", "f64"], "f64", &["+", "*", "-"]) {
+        return Err("Float kernels require registered builtin binary64 arithmetic".into());
     }
     Ok(())
 }
@@ -229,7 +238,23 @@ pub(crate) fn verify_document_policy(
         CAPABILITY,
         || function(facts),
         "Float scalars require their registered document policy",
+    )?;
+    crate::extraction_profile::require_document(
+        policy,
+        SUBTRACTION,
+        || contains_subtraction(&facts.body),
+        "Float subtraction requires its registered document policy",
     )
+}
+
+fn contains_subtraction(node: &HirNode) -> bool {
+    node.kind == "expr_binary"
+        && uses(node)
+        && node
+            .dispatch
+            .as_ref()
+            .is_some_and(|dispatch| dispatch.op == "-")
+        || node.children.iter().any(contains_subtraction)
 }
 
 fn function(facts: &dyn EvidenceFacts) -> bool {

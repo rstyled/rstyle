@@ -3,7 +3,7 @@
 //! ordinary original-source functions. Later true/false branches own no functions.
 use super::*;
 
-const CFG_IF: &str = r###"/// `libm` cannot have dependencies, so this is vendored directly from the `cfg-if` crate
+pub(super) const CFG_IF: &str = r###"/// `libm` cannot have dependencies, so this is vendored directly from the `cfg-if` crate
 /// (with some comments stripped for compactness).
 macro_rules! cfg_if {
     // match if/else chains with a final `else`
@@ -68,7 +68,7 @@ mod k_sinf;
 mod k_cosf;
 "#;
 
-fn workspace(root: &str, definition: &str) -> TempDir {
+pub(super) fn workspace(root: &str, definition: &str) -> TempDir {
     let directory = clone_workspace();
     let source = directory.path().join("src");
     std::fs::create_dir(source.join("selected")).unwrap();

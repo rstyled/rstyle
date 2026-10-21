@@ -47,6 +47,7 @@ const POSITIVES: &[&str] = &[
     "sin_same",
     "sum",
     "multiply",
+    "subtract",
     "narrow",
     "literal64",
     "literal32",
@@ -111,7 +112,7 @@ fn check_family(report: &Value) {
         assert_eq!(report[flag], true, "{flag}");
     }
     let pairs = report["matching"]["pairs"].as_array().unwrap();
-    assert_eq!(pairs.len(), 91);
+    assert_eq!(pairs.len(), 105);
     let left = &function(report, "sin_wrapper")["key"];
     let right = &function(report, "sin_same")["key"];
     let identical = pairs
@@ -162,7 +163,7 @@ fn float_kernel_documents_reject_resealed_semantic_corruption_and_historical_pol
     reject_resealed(bundle, "unsafe floating backend override");
 }
 
-fn function<'a>(report: &'a Value, name: &str) -> &'a Value {
+pub(super) fn function<'a>(report: &'a Value, name: &str) -> &'a Value {
     report["functions"]
         .as_array()
         .unwrap()
@@ -247,7 +248,7 @@ fn mutate_constant(record: &mut Value, mutation: &str) {
     assert_ne!(record[key].as_str(), Some(original.as_str()));
 }
 
-fn reject_resealed(bundle: Value, mutation: &str) {
+pub(super) fn reject_resealed(bundle: Value, mutation: &str) {
     let bytes = serde_json::to_vec(&bundle).unwrap();
     let seal = rstyle_pdg::unit_store::BundleManifest {
         schema: "rstyle.shared-unit.manifest/2".into(),
