@@ -3926,3 +3926,24 @@ pass; **rstyle0 /3051 functions, patterns0 unignored**, existing ignores unchang
 The contract records structural matching limits and performance evidence. Next
 complete the escapable-character chain (ASCII predicate plus ranges); the broader
 P01–P22 roadmap remains active.
+
+### Data-v3 3.62: complete character escape classifier
+
+[Compact contract](docs/extraction-profiles/character-escapes-v1.md): literal
+Unicode scalar ranges and exactly pinned `char::is_ascii` connect the unchanged
+original `is_escapeable_character` through its metacharacter helper and early
+returns. Syntax **38→39 /956**, zero losses; lz4_flex **8/150**, time-core
+**11/226** and frozen **23 admitted /30 excluded /7 inactive /60** unchanged.
+Automata's prior114/2582 was not remeasured.
+
+All **58 original admissions** strict-verify; **six original comparisons** complete.
+Exhaustive oracle1112064 valid scalars; three targets × std/no_std composition and
+resealed adversarial tests pass. **945 tests /5 skips**, fmt/Clippy/doctests pass;
+**rstyle0 /3070 functions, patterns0 unignored**. Implementation native CI passes
+Linux x86, Linux ARM and macOS. Existing structural detector limitations remain;
+no equivalence, rewrite-safety or held-out quality claim follows.
+
+Next source-selected family: original libm `k_sinf`/`k_cosf`, joining exact float
+bits/constants, ordered arithmetic and f64→f32 narrowing. Its independent4202-input
+oracle passes; actual Cargo context and production activation remain open. The
+broader P01–P22 roadmap and borrowed-result/Result/ownership blockers remain active.

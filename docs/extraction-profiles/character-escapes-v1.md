@@ -1,7 +1,6 @@
 # Character escape classification
 
-Connected implementation passes integrated gates, 2026-10-21; complete-original
-acceptance pending. This separate development selection preserves the frozen 60.
+Delivered Data-v3 **3.62**, 2026-10-21; unchanged original accepted end to end. This separate development selection preserves the frozen 60.
 
 Original: regex-syntax **0.8.11**, `src/lib.rs::is_escapeable_character(char)`
 with required helper `is_meta_character`. The adjacent selection JSON freezes
@@ -31,8 +30,8 @@ Linux ARM `(5614226571623188065,6519353580426412939)`, Linux x86
 `(2625310331494506890,16256494501121032715)`, macOS ARM
 `(9963928104983068931,12767430517691631255)`; existing registry pins compiler,
 target and core crate hash. Probe evidence `/tmp/rstyle-character-ascii-probe*.json`.
-Complete-caller development source correspondence and strict tests pass; original
-admission remains to be measured.
+Complete-caller source correspondence and strict tests pass in development and
+the unchanged original package.
 
 Independent expectation: true on precisely 64 ASCII scalar values, false on
 all other valid Unicode scalars. The standalone oracle encodes the disjoint
@@ -64,5 +63,21 @@ saved-operand corruptions pass; historical3.61 rejects new capabilities.
 Integrated gates: **945 tests pass /5 existing skips**, doctests/fmt/Clippy pass;
 **rstyle0 /3070 functions, patterns0 unignored**, no new ignores. Logs
 `/tmp/rstyle-character-escapes-delivery-{tests.log,clippy.log,style.json,patterns.log}`.
-Complete original capture, strict retained-unit replay and measured admission
-changes remain pending; fixture results alone do not establish original support.
+Original acceptance: syntax **38→39 /956**, solely the frozen escape classifier;
+lz4_flex **8/150** and time-core **11/226** unchanged, zero losses and identical
+source/build identities. Frozen **23 admitted /30 excluded /7 inactive /60**
+unchanged. Automata's prior114/2582 was not remeasured. All **58 original admissions**
+strict-verify; **six comparisons** complete. Escape rejects against each selected
+peer. Existing meta/word-byte structural acceptance remains a detector limitation,
+not semantic equivalence; neither scoring nor thresholds changed.
+
+Evidence: `target/hir-coverage/run-15rr9we7` against3.61 `run-8osa6f3z`;
+`/tmp/rstyle-character-escapes-{full-frozen-delta.json,original-strict.log,original-matching.json}`.
+Strict replay54.35s /758972KiB. Native CI for implementation `9967f3d` passes
+Linux x86, Linux ARM and macOS. Full-library matching remains budget-limited.
+Equal-work controls (3.60→3.62 combined;3.61 binaries were not retained), warmup
+plus seven alternating samples: Copy0.65→0.64s, cyclic0.63→0.64s,
+ASCII0.87→0.87s, flags7.96→8.01s median. Admissions12/4/10/14 and matching
+unchanged; median peak memory essentially unchanged. Samples/ranges retained in
+`/tmp/rstyle-character-escapes-performance-results.json`; this is not an isolated
+3.62 performance comparison.

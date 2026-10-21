@@ -46,8 +46,16 @@ own evidence. Frozen sixty identities/denominators remain unchanged.
    Historical policies must reject. Matching stays structural under unchanged
    scoring; neither numerical equivalence nor rewrite safety follows.
 
-Known remaining capture questions: exact constant/literal HIR transport, actual
-build-script cfgs and conditional-attribute source correspondence. No new cache,
+Integration audit: `producer/casts.rs` currently classifies every cast as integer;
+float narrowing needs separate evidence. `producer/hazards.rs` treats non-bool
+`+/*` as integer arithmetic; restrict this to exact integer domains before float
+activation. Constant declaration name/type checks do not prove value equality;
+independently parse original decimal/unary-minus source and compare width-specific
+bits. Existing ordered operand flow can be reused without a new inventory.
+
+Known remaining capture questions: actual build-script cfgs and inactive
+conditional-attribute ownership. `ENSURE_NO_PANIC` presence, even empty, enables
+`assert_no_panic`; capture cfgs rather than assuming environment defaults. No new cache,
 analysis substrate or generalized source exception is justified by this contract.
 
 ## Pinned NaN authority
