@@ -45,7 +45,7 @@ No new branches/worktrees. Existing clean baseline checkout is retained.
 | P01.A / A | ready (activation pending baseline) | regex-syntax 0.8.11 `is_meta_character(char)`; freeze source/build and truth table, then propose vocabulary | Audit only initially; dedicated char leaf modules/oracle/tests after approval |
 | P08.B / B | blocked (source audit complete) | Natural saved checked-sub Option caller; complete blockers before activation | Audit only; proposed bitset_cardinality subtree and dedicated saved tests |
 | P06.C / C | blocked (source audit complete) | Single borrowed-result getter → wrapper → consumer; reject unsuitable Input chain with named dependencies | Audit only; proposed helper_references/helper_views and dedicated tests |
-| P05.D / D | needs source audit | Natural residual in-package module ownership family; existing path tests are controls | Audit only; proposed census/selected-module proof and dedicated source tests |
+| P05.D / D | blocked (source audit complete) | Natural residual in-package module ownership family; existing path tests are controls | Audit only; proposed census/selected-module proof and dedicated source tests |
 
 Readiness requires original identities/build contexts, complete known blocker DAG,
 independent positive/negative expectations, bounded contract, uncertainty and a
@@ -82,5 +82,12 @@ frontier after every family; broader P01–P22 coverage remains active.
   prerequisites: lifetime-only complete owner proof, stored-reference fields,
   mixed Anchored child proof and separate slot-read/result-referent summaries.
   Ordinary PatternID declarations do not establish a need for general macros.
-- D: source ownership audit dispatched; a capacity failure interrupted its first
-  turn, then retried. No production authority or shared-file ownership granted.
+- D: [source ownership audit](extraction-profiles/source-ownership-frontier-v1.md)
+  found no tractable residual path/cfg positive. Reprioritize to C's demonstrated
+  lifetime-only callable/complete owner prerequisite; nominal lifetime capture
+  already exists. Shared-reference and mixed-enum children still need complete
+  proof. No census change is justified. No production authority granted.
+
+- Contract/frontier commit `cde2959` pushed to the feature branch. B is auditing
+  a concrete scalar/unit Result or scalar Option if-let replacement; no production
+  work is authorized while the current integrated baseline runs.
