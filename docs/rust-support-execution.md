@@ -151,3 +151,9 @@ frozen sixty/other package deltas and bounded performance controls, serially.
 The current complete-original capture uses stable 3.60 binaries; do not rebuild
 or replace them. Character shared integration waits for this coherent family
 boundary. Root roadmap remains at delivered 3.59 until evidence warrants updating.
+
+D's fallback [float kernel contract](extraction-profiles/float-kernels-v1.md)
+is source/design-ready, implementation blocked on explicit float/NaN/target and
+constant interfaces after character integration. No float capture/oracle run or
+support activation is claimed. Matching remains clone detection, separate from
+bitwise semantics and rewrite safety.
