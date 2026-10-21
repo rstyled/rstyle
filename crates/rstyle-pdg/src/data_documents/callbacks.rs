@@ -9,7 +9,7 @@ const ENVIRONMENT: &str = "callback.shared-byte-environment";
 const SELECTOR: &str = "callback.option-some";
 
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
-    let calls = option_callbacks::invocations(facts);
+    let calls = option_callbacks::invocations(facts, crate::option_callbacks::Kind::Closure);
     super::verify_construct_inventory(
         pair,
         [ENVIRONMENT, SELECTOR, "callback.option-result"],
@@ -46,7 +46,7 @@ fn verify_invocation(
 
     payload(pair, &checked, selector, receiver)
         .map_err(|error| format!("Callback payload/result: {error}"))?;
-    order::verify(pair, &checked, environment, selector)
+    order::verify(pair, &checked.arguments(), environment, selector)
         .map_err(|error| format!("Callback argument order: {error}"))?;
     Ok(())
 }
@@ -72,10 +72,19 @@ fn payload(
         node.category == NodeCategory::Declaration
     })?;
     super::conditional_payloads::verify(pair, selector, declaration)?;
-    order::result(pair, checked, selector)
+    let body = super::value_operation(pair, checked.predicate.body)?;
+    order::result(
+        pair,
+        order::ResultValues {
+            call: checked.call,
+            body,
+            default: checked.default,
+        },
+        selector,
+    )
 }
 
-fn effects(node: &PdgNode, category: NodeCategory) -> Result<(), String> {
+pub(super) fn effects(node: &PdgNode, category: NodeCategory) -> Result<(), String> {
     if node.category != category
         || !node.attributes.reads.is_empty()
         || !node.attributes.writes.is_empty()

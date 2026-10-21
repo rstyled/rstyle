@@ -48,6 +48,13 @@ fn check_context(target: &str, no_std: bool, source: &str) {
                     | "scalar"
                     | "table::is_word_byte"
                     | "word_byte"
+                    | "Unit::is_word_byte"
+                    | "word_unit"
+                    | "saved"
+                    | "empty_default"
+                    | "named"
+                    | "named_none"
+                    | "aliased"
             )
         } else {
             !matches!(name, "characters" | "byte_string")
@@ -70,7 +77,7 @@ fn check_context(target: &str, no_std: bool, source: &str) {
     verify_admissions(&report);
 }
 
-fn verify_admissions(report: &Value) {
+pub(super) fn verify_admissions(report: &Value) {
     let (unit, _) = data_unit(&report["functions"][0]);
     let analysis = unit.analysis();
     for function in report["functions"]

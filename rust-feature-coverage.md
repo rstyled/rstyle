@@ -7,9 +7,9 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.55.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
-Data-v3 3.55 connects byte expressions/range/OR patterns through complete ASCII
-classifier and checked-access/helper composition; the continuation log records results.
+`rstyle.rust.hir-data/3.57.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
+named Option callbacks through verified helpers; the continuation log records results.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -59,7 +59,7 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | V09 | Floats and floating-point operations | Missing | `x: f64`, `x / 2.0` | Type, literal, operation, and comparison semantics; NaNs, signed zero, and casts must not be treated as integer semantics. |
 | V10 | Character values and operations | Missing | `c: char`, `'a'` | Unicode scalar types/literals and relevant calls/conversions. |
 | V11 | Additional built-in casts/coercions | Missing | `flag as u8`, `x as f32` | Bool/char/float conversions are outside the current integer-cast boundary; pointer casts belong to unsafe work. |
-| V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Data-v3 3.33.0 additionally verifies the original top-level local `const usize = core::mem::size_of::<usize>()` for [native byte readers](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Nonlocal/generic/trait constants and aggregate values remain missing. |
+| V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Data-v3 3.33.0 additionally verifies the original top-level local `const usize = core::mem::size_of::<usize>()` for [native byte readers](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.56 adds [owned local const-built bool arrays](docs/extraction-profiles/word-byte-classifiers-v1.md) with complete evaluated contents and lossless unsigned index bounds. Other aggregates and nonlocal/generic/trait constants remain missing. |
 | V13 | General const expressions and const blocks | Missing | `[u8; N + 1]`, `const { 1 + 2 }` | General array expressions remain missing. Data-v3 3.33.0 permits one verified local native-size constant as a byte-array annotation length; arithmetic lengths and const blocks remain unsupported. Const fn support does not authorize these. |
 | V14 | Uninitialized locals / definite assignment | Missing | `let x; x = 1; x` | Declaration without initializer is currently rejected. |
 | V15 | Destructuring and wildcard bindings | Partial | `let (a, b) = pair;`, `let _ = x;` | Data-v3 3.47.0 supports only `let _ = local;` for an exact scalar or checked-Copy nominal place, with no value read, binding or drop. General wildcard initializers, destructuring and wildcard parameters remain missing. |
@@ -149,7 +149,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C12 | Borrowed results from memory-reading helpers | Missing | `get_field_ref(s)` | Exact callee read effects plus result origin/location substitution, not just whole-formal forwarding. |
 | C13 | Cross-unit/package helper linking | Missing | `library_crate::helper(x)` | Capture/resolve selected units before summary derivation, preserve build contexts/transitive dependencies; modules inside one unit already work. |
 | C14 | Looping, recursive, panicking or nonreturning callees | Missing | `recursive(x)`, `helper_with_loop(x)` | Existing caller scalar loops do not authorize these summaries; need interprocedural fixed points/flow/effect contracts. |
-| C15 | Function items as values, pointers and indirect calls | Missing | `let f: fn(u32) -> u32 = helper; f(x)` | Callable identity/possible targets, concrete signatures, effects and indirect-call dependencies. |
+| C15 | Function items as values, pointers and indirect calls | Partial | `value.map_or(false, classify)` | Data-v3 3.57 connects [immediate local fn(u8) -> bool items](docs/extraction-profiles/word-byte-classifiers-v1.md) to exact verified helpers, eager arguments, guarded payload invocation and result selection. Stored items, function pointers, other signatures and indirect calls remain missing. |
 | C16 | Closures and captured environments | Partial | `move \|x\| x + offset` | Data-v3 3.49 supports [immediate Option<u8>::map_or equality callbacks](docs/extraction-profiles/tagged-byte-comparisons-v1.md): one by-value u8 payload and one shared u8 capture, eager default, Some-only body and independently checked result merge. Data-v3 3.54 also verifies the [immediate shared-byte position callback](docs/extraction-profiles/iterator-byte-position-v1.md), including `\|&b\|` and stable shared capture storage. General bodies, captures, escape/lifetime and drop remain open. |
 | C17 | Iterator adapters and higher-order functions | Partial | `xs.iter().position(\|&b\| b == byte)` | Data-v3 3.54 connects one [fresh shared byte iterator](docs/extraction-profiles/iterator-byte-position-v1.md), exact equality callback, first-match prefix reads and Option/helper composition. Stored iterators, arbitrary predicates, adapters, other element types and general protocols/cleanup remain excluded. |
 | C18 | Side-effecting calls | Missing | `std::fs::write(path, bytes)`, `println!("x")` | IO/global effects, ordering and failure behavior; distinguish macro provenance from the underlying call effects. |
@@ -3801,3 +3801,28 @@ performance observations and validation limits. Next connect exact named map_or
 callbacks to finish Unit::is_word_byte and its selected callers; five LookMatcher
 callers still need separate owner/arithmetic work. No new census/cache or weaker
 admission/scoring.
+
+
+### Data-v3 3.57: connected named Option callbacks
+
+Original regex-automata Unit::is_word_byte now completes its unchanged
+constructor/projection → Option → named callback → const-table chain through
+Cargo capture, independent verification, strict admission and matching.
+Natural **84 → 85 /2582**, development **6 → 13 /20**, zero losses. Other
+selections and the frozen sixty are unchanged: **23 admitted /30 excluded
+/7 inactive**, identical source/build identities and denominators.
+
+All **149 admissions** independently strict-verify; all **91 selected comparisons**
+complete. **924 tests pass /5 skipped**, six target/std contexts, original oracles,
+Clippy/doctests/fmt, **rstyle 0 /3007 functions; patterns 0**. The
+[compact contract/results](docs/extraction-profiles/word-byte-classifiers-v1.md)
+records bounds, negative expectations, stable controls and validation limits.
+Full natural matching remains explicitly budget-limited; no new census/cache or
+weaker admission/scoring.
+
+Next audit LookMatcher's five direct ASCII predicates and negating wrapper as
+one chain. The current borrowed-owner gate rejects its nested checked-Copy field;
+metadata length resolution also depends on that frontend validation. Confirm
+those dependencies, then assess guarded slice-read and possible-panic helper
+transport before promising the family. General stored callables, Result/if-let/?,
+broader loop/value composition and cross-unit helpers remain open.

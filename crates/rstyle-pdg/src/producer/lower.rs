@@ -4,6 +4,7 @@ mod callbacks;
 mod enums;
 mod iterator_position;
 mod loops;
+mod named_callbacks;
 mod options;
 
 use super::graph::*;
@@ -630,12 +631,22 @@ impl Builder<'_> {
     }
 
     fn invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::named_callbacks::candidate(node, self.facts) {
+            return self.named_callback(
+                crate::named_callbacks::verify(node, self.facts).expect("eligible named callback"),
+                flow,
+            );
+        }
         if crate::iterator_position::candidate(node, self.facts) {
             return self.byte_position(
                 crate::iterator_position::verify(node, self.facts).expect("eligible byte position"),
                 flow,
             );
         }
+        self.ordinary_invocation(node, flow)
+    }
+
+    fn ordinary_invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
         if node.kind == "expr_method_call"
             && crate::extraction_profile::facts_support(
                 self.facts,
@@ -970,7 +981,9 @@ impl Builder<'_> {
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
         let mut merge = Operation {
             id: id.clone(),
-            construct: if crate::option_callbacks::candidate(node, self.facts) {
+            construct: if crate::named_callbacks::candidate(node, self.facts) {
+                Some(crate::named_callbacks::RESULT.into())
+            } else if crate::option_callbacks::candidate(node, self.facts) {
                 Some("callback.option-result".into())
             } else if crate::iterator_position::candidate(node, self.facts) {
                 Some("iterator.position-result".into())

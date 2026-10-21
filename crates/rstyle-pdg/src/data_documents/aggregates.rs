@@ -192,7 +192,11 @@ pub(super) fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), St
             && !(child.kind == "expr_method_call"
                 && matches!(
                     value.attributes.construct.as_deref(),
-                    Some("callback.option-result" | "iterator.position-result")
+                    Some(
+                        "callback.option-result"
+                            | "iterator.position-result"
+                            | crate::named_callbacks::RESULT
+                    )
                 )))
         || (value.category != NodeCategory::Merge
             && value.original_kind.known_value() != Some(child.kind.as_str()))

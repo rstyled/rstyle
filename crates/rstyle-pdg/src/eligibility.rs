@@ -626,6 +626,9 @@ fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
             ),
         });
     }
+    if crate::named_callbacks::candidate(node, ctx.facts) {
+        return Some(check_named_callback(node, ctx));
+    }
     if crate::option_callbacks::candidate(node, ctx.facts) {
         return Some(check_callback(node, ctx));
     }
@@ -636,6 +639,21 @@ fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         });
     }
     None
+}
+
+fn check_named_callback(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::named_callbacks::verify(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(vec![
+            check_node(checked.receiver, false, ctx),
+            check_node(checked.default, false, ctx),
+        ]),
+        Err(reason) => error(
+            crate::named_callbacks::CAPABILITY,
+            "named_callback",
+            node,
+            &reason,
+        ),
+    }
 }
 
 fn check_callback(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {

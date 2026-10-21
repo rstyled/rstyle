@@ -186,7 +186,9 @@ pub fn direct_resolution(node: &HirNode) -> Option<Value> {
     let inherent = node.kind == "expr_method_call"
         && node.res.as_ref()?.kind == "resolved_inherent_callee"
         && node.dispatch.as_ref()?.kind == "resolved_method";
-    if (!direct && !inherent) || node.res.as_ref()?.target.is_some() {
+    let item = crate::named_callbacks::function_item(node)
+        && node.dispatch.as_ref()?.kind == "resolved_function_item";
+    if (!direct && !inherent && !item) || node.res.as_ref()?.target.is_some() {
         return None;
     }
 
@@ -204,13 +206,22 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
 
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
-    calls.extend(
-        methods
-            .into_iter()
-            .filter(|node| direct_resolution(node).is_some()),
-    );
-
     calls
+        .into_iter()
+        .chain(
+            methods
+                .into_iter()
+                .filter(|node| direct_resolution(node).is_some()),
+        )
+        .chain(
+            crate::option_callbacks::invocations(
+                facts,
+                crate::option_callbacks::Kind::FunctionItem,
+            )
+            .into_iter()
+            .filter_map(|call| call.children.last()),
+        )
+        .collect()
 }
 
 pub(crate) fn certify_view(
@@ -400,30 +411,12 @@ fn check_signature(
         .dispatch
         .as_ref()
         .ok_or("Missing resolved helper signature")?;
-    let arguments: Option<Vec<_>> = callee
-        .signature
-        .params
-        .iter()
-        .map(|param| param.ty.normalized.clone())
-        .collect();
-    let result = callee.signature.return_ty.normalized.as_ref();
-    let actual = if arguments.as_deref() == Some(dispatch.operand_tys.as_slice()) {
-        std::borrow::Cow::Borrowed(dispatch.operand_tys.as_slice())
+    let signature = if crate::named_callbacks::function_item(node) {
+        crate::named_callbacks::signature(node, caller, callee)?;
+        true
     } else {
-        crate::owned_receiver::signature_arguments(node, caller, &dispatch.operand_tys)?
+        ordinary_signature(node, caller, callee)?
     };
-    let signature = arguments.as_deref() == Some(actual.as_ref())
-        && !dispatch.operand_tys.iter().any(|ty| ty == "unit")
-        && result == Some(&dispatch.result_ty)
-        && node.ty.as_ref().and_then(|ty| ty.normalized.as_ref()) == result
-        && node.children.len() == dispatch.operand_tys.len()
-        && node
-            .children
-            .iter()
-            .zip(&dispatch.operand_tys)
-            .all(|(child, expected)| {
-                child.ty.as_ref().and_then(|ty| ty.normalized.as_ref()) == Some(expected)
-            });
     let build = same_build(caller, callee)?;
     if !signature
         || !build
@@ -438,6 +431,42 @@ fn check_signature(
     }
 
     Ok(())
+}
+
+fn ordinary_signature(
+    node: &HirNode,
+    caller: &dyn EvidenceFacts,
+    callee: &dyn EvidenceFacts,
+) -> Result<bool, String> {
+    let dispatch = node
+        .dispatch
+        .as_ref()
+        .ok_or("Missing resolved helper signature")?;
+    let arguments: Option<Vec<_>> = callee
+        .signature
+        .params
+        .iter()
+        .map(|param| param.ty.normalized.clone())
+        .collect();
+    let result = callee.signature.return_ty.normalized.as_ref();
+    let actual = if arguments.as_deref() == Some(dispatch.operand_tys.as_slice()) {
+        std::borrow::Cow::Borrowed(dispatch.operand_tys.as_slice())
+    } else {
+        crate::owned_receiver::signature_arguments(node, caller, &dispatch.operand_tys)?
+    };
+
+    Ok(arguments.as_deref() == Some(actual.as_ref())
+        && !dispatch.operand_tys.iter().any(|ty| ty == "unit")
+        && result == Some(&dispatch.result_ty)
+        && node.ty.as_ref().and_then(|ty| ty.normalized.as_ref()) == result
+        && node.children.len() == dispatch.operand_tys.len()
+        && node
+            .children
+            .iter()
+            .zip(&dispatch.operand_tys)
+            .all(|(child, expected)| {
+                child.ty.as_ref().and_then(|ty| ty.normalized.as_ref()) == Some(expected)
+            }))
 }
 
 fn same_build(caller: &dyn EvidenceFacts, callee: &dyn EvidenceFacts) -> Result<bool, String> {
@@ -606,6 +635,9 @@ pub(crate) fn verify_call_operands(
     call: &HirNode,
     record: &Value,
 ) -> Result<(), String> {
+    if crate::named_callbacks::function_item(call) {
+        return crate::data_documents::named_callbacks::operands(pair, call, node, record);
+    }
     let operands = record["operand_pdg_node_ids"]
         .as_array()
         .ok_or("Missing serialized helper operands")?;

@@ -15,6 +15,7 @@ mod indirect_reads;
 mod iterator_position;
 mod locals;
 mod locations;
+pub(crate) mod named_callbacks;
 mod origins;
 mod read_accesses;
 mod scalar_enums;
@@ -357,6 +358,7 @@ fn verify_call_reads(
     calls: &[&crate::HirNode],
 ) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
     callbacks::verify(pair, context.facts)?;
+    named_callbacks::verify(pair, context.facts)?;
     let bytes = byte_calls::verify(pair, context, calls)?;
     let options = checked_options::verify(pair, context, calls)?;
     let iterators = iterator_position::verify(pair, context)?;

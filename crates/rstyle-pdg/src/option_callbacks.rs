@@ -4,6 +4,7 @@
 mod invocation;
 mod predicate;
 pub(crate) mod source;
+pub(crate) use invocation::{Arguments, verify_arguments};
 pub use invocation::{Invocation, verify_map_or};
 pub use predicate::{Predicate, verify_predicate};
 
@@ -26,7 +27,7 @@ pub(crate) fn candidate(
         })
 }
 
-pub(crate) fn invocations(facts: &dyn crate::unit_store::EvidenceFacts) -> Vec<&crate::HirNode> {
+fn candidates(facts: &dyn crate::unit_store::EvidenceFacts) -> Vec<&crate::HirNode> {
     if !crate::extraction_profile::facts_support(facts, "rust.immediate-option-callbacks") {
         return Vec::new();
     }
@@ -38,11 +39,27 @@ pub(crate) fn invocations(facts: &dyn crate::unit_store::EvidenceFacts) -> Vec<&
         .collect()
 }
 
+pub(crate) enum Kind {
+    Closure,
+    FunctionItem,
+}
+
+pub(crate) fn invocations(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    kind: Kind,
+) -> Vec<&crate::HirNode> {
+    let named = matches!(kind, Kind::FunctionItem);
+    candidates(facts)
+        .into_iter()
+        .filter(|node| crate::named_callbacks::candidate(node, facts) == named)
+        .collect()
+}
+
 pub(crate) fn verify_environment_event(
     source: &crate::HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
-    let call = invocations(facts)
+    let call = invocations(facts, Kind::Closure)
         .into_iter()
         .find(|call| {
             call.children

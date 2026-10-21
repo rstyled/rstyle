@@ -5,9 +5,9 @@ use serde_json::Value;
 
 const SITES: &str = "compat.rust.hir-r0:value-sites";
 
-pub(super) fn verify(
+pub(in crate::data_documents) fn verify(
     pair: PairView<'_>,
-    checked: &option_callbacks::Invocation<'_>,
+    checked: &option_callbacks::Arguments<'_>,
     environment: &PdgNode,
     selector: &PdgNode,
 ) -> Result<(), String> {
@@ -30,9 +30,15 @@ pub(super) fn verify(
     Ok(())
 }
 
-pub(super) fn result(
+pub(in crate::data_documents) struct ResultValues<'a> {
+    pub call: &'a HirNode,
+    pub body: &'a PdgNode,
+    pub default: &'a HirNode,
+}
+
+pub(in crate::data_documents) fn result(
     pair: PairView<'_>,
-    checked: &option_callbacks::Invocation<'_>,
+    checked: ResultValues<'_>,
     selector: &PdgNode,
 ) -> Result<(), String> {
     let merge = super::super::value_operation(pair, checked.call)?;
@@ -44,7 +50,7 @@ pub(super) fn result(
     let alternatives = site["alternatives"]
         .as_array()
         .ok_or("Missing callback result alternatives")?;
-    let body = super::super::value_operation(pair, checked.predicate.body)?;
+    let body = checked.body;
     let default = super::super::value_operation(pair, checked.default)?;
     if site["controller_pdg_node_id"] != selector.id || alternatives.len() != 2 {
         return Err("Callback result loses its exact tag controller or alternatives".into());

@@ -51,6 +51,7 @@ mod helper_views;
 pub mod inherent_calls;
 pub mod iterator_position;
 pub mod model;
+pub(crate) mod named_callbacks;
 pub mod nominal_binding;
 pub mod nominal_boundary;
 pub mod option_callbacks;

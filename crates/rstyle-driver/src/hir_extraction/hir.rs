@@ -355,7 +355,9 @@ impl<'tcx> Context<'tcx> {
 
     fn path_resolution(&self, expr: &Expr<'tcx>, path: &hir::QPath<'tcx>) -> Option<PathRes> {
         let res = self.typeck.qpath_res(path, expr.hir_id);
-        self.bool_array_resolution(res)
+        self.named_option_function(expr)
+            .map(|(resolution, _)| resolution)
+            .or_else(|| self.bool_array_resolution(res))
             .or_else(|| self.constant_resolution(res))
             .or_else(|| {
                 Some(PathRes {
@@ -602,6 +604,9 @@ impl<'tcx> Context<'tcx> {
     }
 
     fn dispatch(&self, expr: &Expr<'tcx>) -> Option<Dispatch> {
+        if let Some((_, dispatch)) = self.named_option_function(expr) {
+            return Some(dispatch);
+        }
         let (op, operands) = self.dispatch_operands(expr)?;
         let operand_tys: Vec<String> = operands
             .iter()
@@ -818,7 +823,7 @@ impl Context<'_> {
         Some(self.helper_callee(callee, "resolved_direct_callee", inherent))
     }
 
-    fn helper_callee(
+    pub(super) fn helper_callee(
         &self,
         callee: rustc_hir::def_id::DefId,
         kind: &str,

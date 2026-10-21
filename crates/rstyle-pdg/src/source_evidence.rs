@@ -740,6 +740,8 @@ fn resolved_summary(
 ) -> bool {
     (node.hir == *hir
         && (crate::inherent_calls::source_resolved(node, facts).unwrap_or(false)
+            || crate::named_callbacks::candidate(node, facts)
+                && crate::named_callbacks::verify_source(node, facts).is_ok()
             || crate::option_callbacks::candidate(node, facts)
                 && crate::option_callbacks::verify_map_or(node, facts).is_ok()
             || crate::iterator_position::source_resolved(node, hir, facts)

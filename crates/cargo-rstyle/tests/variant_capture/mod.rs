@@ -9,6 +9,7 @@ mod corruption;
 mod end_of_input;
 mod iterator_position;
 mod iterator_position_corruption;
+mod named_callbacks;
 mod word_classifiers;
 
 fn descendants<'a>(node: &'a rstyle_pdg::HirNode, output: &mut Vec<&'a rstyle_pdg::HirNode>) {

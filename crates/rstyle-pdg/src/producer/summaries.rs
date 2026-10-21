@@ -41,6 +41,9 @@ impl SummaryCapture<'_> {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
+        if crate::named_callbacks::function_item(node) {
+            records.push(self.record(node)?);
+        }
         if matches!(node.kind.as_str(), "expr_call" | "expr_method_call")
             && !crate::checked_options::constructor_candidate(node, self.facts)
             && !crate::data_enums::constructor_candidate(node, self.facts)

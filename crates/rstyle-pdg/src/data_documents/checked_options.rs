@@ -54,7 +54,8 @@ pub(super) fn verify(
             &gets,
             &matches,
             &constructors,
-            crate::option_callbacks::invocations(facts).len(),
+            crate::option_callbacks::invocations(facts, crate::option_callbacks::Kind::Closure)
+                .len(),
         ),
     )?;
     for source in constructors {

@@ -542,7 +542,7 @@ fn source_type<'a>(
     node: &PdgNode,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<&'a str>, String> {
-    if let Some(ty) = iterator_type(node) {
+    if let Some(ty) = event_type(node) {
         return Ok(Some(ty));
     }
 
@@ -596,8 +596,23 @@ fn input_type<'a>(
         .and_then(|parameter| parameter.ty.normalized.as_deref()))
 }
 
-fn iterator_type(node: &PdgNode) -> Option<&'static str> {
+fn event_type(node: &PdgNode) -> Option<&'static str> {
     match node.category {
+        NodeCategory::Computation
+            if node.attributes.construct.as_deref() == Some(crate::named_callbacks::ITEM) =>
+        {
+            Some("unit")
+        }
+        NodeCategory::Computation
+            if node.attributes.construct.as_deref() == Some(crate::named_callbacks::PAYLOAD) =>
+        {
+            Some("u8")
+        }
+        NodeCategory::Call
+            if node.attributes.construct.as_deref() == Some(crate::named_callbacks::INVOKE) =>
+        {
+            Some("bool")
+        }
         NodeCategory::Read
             if node.attributes.construct.as_deref() == Some(crate::iterator_position::PREFIX) =>
         {
@@ -620,14 +635,15 @@ fn iterator_type(node: &PdgNode) -> Option<&'static str> {
     }
 }
 
-pub(super) fn source_node<'a>(
-    node: &PdgNode,
-    facts: &'a dyn crate::unit_store::EvidenceFacts,
-) -> Result<&'a HirNode, String> {
-    let kind = if node.category == NodeCategory::Merge {
+fn source_kind(node: &PdgNode) -> Result<&str, String> {
+    Ok(if node.category == NodeCategory::Merge {
         if matches!(
             node.attributes.construct.as_deref(),
-            Some("callback.option-result" | "iterator.position-result")
+            Some(
+                "callback.option-result"
+                    | "iterator.position-result"
+                    | crate::named_callbacks::RESULT
+            )
         ) {
             "expr_method_call"
         } else {
@@ -643,7 +659,14 @@ pub(super) fn source_node<'a>(
         } else {
             kind
         }
-    };
+    })
+}
+
+pub(super) fn source_node<'a>(
+    node: &PdgNode,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+) -> Result<&'a HirNode, String> {
+    let kind = source_kind(node)?;
     let span: crate::Span = if let Some(span) = &node.source_span {
         span.clone()
     } else {

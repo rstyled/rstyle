@@ -39,6 +39,51 @@ impl<'tcx> Context<'tcx> {
         )
     }
 
+    pub(super) fn named_option_function(
+        &self,
+        expr: &Expr<'tcx>,
+    ) -> Option<(rstyle_pdg::PathRes, rstyle_pdg::Dispatch)> {
+        let ty::FnDef(definition, arguments) = self.typeck.expr_ty(expr).kind() else {
+            return None;
+        };
+        if !self.profile.supports("rust.named-option-callbacks")
+            || !definition.is_local()
+            || !arguments.skip_binder().is_empty()
+            || self.tcx.generics_of(*definition).count() != 0
+            || self.tcx.def_kind(*definition) != rustc_hir::def::DefKind::Fn
+            || !matches!(expr.kind, ExprKind::Path(_))
+            || expr.span.from_expansion()
+            || !self.typeck.expr_adjustments(expr).is_empty()
+            || !self.immediate_option_callback(expr)
+        {
+            return None;
+        }
+        let hir::Node::Expr(parent) = self.tcx.parent_hir_node(expr.hir_id) else {
+            return None;
+        };
+        if !matches!(parent.kind, ExprKind::MethodCall(_, _, arguments, _) if arguments.len() == 2)
+        {
+            return None;
+        }
+        let signature = self
+            .tcx
+            .fn_sig(*definition)
+            .instantiate_identity()
+            .skip_binder();
+        if signature.inputs() != [self.tcx.types.u8] || signature.output() != self.tcx.types.bool {
+            return None;
+        }
+
+        let resolution = self.helper_callee(*definition, "resolved_function_item", None);
+        let dispatch = rstyle_pdg::Dispatch {
+            kind: "resolved_function_item".into(),
+            op: self.tcx.def_path_str(*definition),
+            operand_tys: vec!["u8".into()],
+            result_ty: "bool".into(),
+        };
+        Some((resolution, dispatch))
+    }
+
     fn callback_pattern(&self, pattern: &hir::Pat<'tcx>) -> HirNode {
         let mut node = self.pattern(pattern);
         if self.profile.supports("rust.byte-iterator-position")

@@ -8,10 +8,10 @@ struct Callback<'a> {
     checked: crate::option_callbacks::Invocation<'a>,
 }
 
-struct Arguments {
-    flow: Flow,
-    receiver: String,
-    default: String,
+pub(super) struct SavedArguments {
+    pub(super) flow: Flow,
+    pub(super) receiver: String,
+    pub(super) default: String,
 }
 
 impl Builder<'_> {
@@ -22,25 +22,29 @@ impl Builder<'_> {
         flow: Flow,
     ) -> Flow {
         let callback = Callback { node, checked };
-        let arguments = self.callback_arguments(&callback, flow);
+        let arguments = self.callback_arguments(&callback.checked.arguments(), flow);
         let selected = self.callback_select(&callback, &arguments.receiver, arguments.flow);
 
         self.callback_result(
             &callback,
-            Arguments {
+            SavedArguments {
                 flow: selected,
                 ..arguments
             },
         )
     }
 
-    fn callback_arguments(&mut self, callback: &Callback<'_>, flow: Flow) -> Arguments {
-        let receiver = self.expression(callback.checked.receiver, flow);
+    pub(super) fn callback_arguments(
+        &mut self,
+        callback: &crate::option_callbacks::Arguments<'_>,
+        flow: Flow,
+    ) -> SavedArguments {
+        let receiver = self.expression(callback.receiver, flow);
         let saved_receiver = receiver.value.clone().expect("owned Option value");
-        let default = self.expression(callback.checked.default, receiver);
+        let default = self.expression(callback.default, receiver);
         let saved_default = default.value.clone().expect("eager bool default");
 
-        Arguments {
+        SavedArguments {
             flow: default,
             receiver: saved_receiver,
             default: saved_default,
@@ -73,7 +77,7 @@ impl Builder<'_> {
         )
     }
 
-    fn callback_result(&mut self, callback: &Callback<'_>, arguments: Arguments) -> Flow {
+    fn callback_result(&mut self, callback: &Callback<'_>, arguments: SavedArguments) -> Flow {
         let selected = arguments.flow;
         let controller = selected.value.clone().expect("Option selector");
         let payload = self.callback_payload(callback, &arguments.receiver, arm(&selected, "true"));

@@ -15,11 +15,49 @@ pub struct Invocation<'a> {
     pub predicate: Predicate<'a>,
 }
 
+impl<'a> Invocation<'a> {
+    pub(crate) fn arguments(&self) -> Arguments<'a> {
+        Arguments {
+            call: self.call,
+            receiver: self.receiver,
+            default: self.default,
+            callback: self.callback,
+        }
+    }
+}
+
+pub(crate) struct Arguments<'a> {
+    pub call: &'a HirNode,
+    pub receiver: &'a HirNode,
+    pub default: &'a HirNode,
+    pub callback: &'a HirNode,
+}
+
 /// This source contract does not certify a graph or activate a capability.
 pub fn verify_map_or<'a>(
     node: &'a HirNode,
     facts: &'a dyn EvidenceFacts,
 ) -> Result<Invocation<'a>, String> {
+    let Arguments {
+        call,
+        receiver,
+        default,
+        callback,
+    } = verify_arguments(node, facts)?;
+    let predicate = verify_predicate(callback, facts)?;
+    Ok(Invocation {
+        call,
+        receiver,
+        default,
+        callback,
+        predicate,
+    })
+}
+
+pub(crate) fn verify_arguments<'a>(
+    node: &'a HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<Arguments<'a>, String> {
     let [receiver, default, callback] = node.children.as_slice() else {
         return Err("Immediate map_or requires receiver, eager default and callback".into());
     };
@@ -43,14 +81,12 @@ pub fn verify_map_or<'a>(
     crate::data_receivers::verify_dispatch(node, &callee.path, &["bool"])?;
     signature(node, facts)?;
     super::source::invocation(node, facts)?;
-    let predicate = verify_predicate(callback, facts)?;
 
-    Ok(Invocation {
+    Ok(Arguments {
         call: node,
         receiver,
         default,
         callback,
-        predicate,
     })
 }
 

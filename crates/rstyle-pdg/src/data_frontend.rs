@@ -328,6 +328,11 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if crate::named_callbacks::candidate(node, facts) {
+        let checked = crate::named_callbacks::verify(node, facts)?;
+        verify_nodes(checked.receiver, facts, places)?;
+        return verify_nodes(checked.default, facts, places);
+    }
     if crate::data_discards::candidate(node, facts) {
         return crate::data_discards::verify(node, facts);
     }
