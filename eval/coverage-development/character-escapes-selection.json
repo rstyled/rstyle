@@ -1,0 +1,210 @@
+{
+  "schema": "rstyle.development-source-selection/1",
+  "package": "regex-syntax",
+  "version": "0.8.11",
+  "path": "src/lib.rs",
+  "file_sha256": "c51d1e55a8b6c4608e21a278ed0ef9480f73ab5b814b6ca6127f4a049c4d5007",
+  "manifest_sha256": "10c3f14629c0900ac452dd6d55a62aab561bbabbdf5774a802c8d223933cfa3b",
+  "build": {
+    "features": [
+      "default",
+      "std",
+      "unicode",
+      "unicode-age",
+      "unicode-bool",
+      "unicode-case",
+      "unicode-gencat",
+      "unicode-perl",
+      "unicode-script",
+      "unicode-segment"
+    ],
+    "cfgs": [
+      "debug_assertions",
+      "feature=\"default\"",
+      "feature=\"std\"",
+      "feature=\"unicode\"",
+      "feature=\"unicode-age\"",
+      "feature=\"unicode-bool\"",
+      "feature=\"unicode-case\"",
+      "feature=\"unicode-gencat\"",
+      "feature=\"unicode-perl\"",
+      "feature=\"unicode-script\"",
+      "feature=\"unicode-segment\"",
+      "fmt_debug=\"full\"",
+      "overflow_checks",
+      "panic=\"unwind\"",
+      "relocation_model=\"pic\"",
+      "target_abi=\"\"",
+      "target_arch=\"aarch64\"",
+      "target_endian=\"little\"",
+      "target_env=\"gnu\"",
+      "target_family=\"unix\"",
+      "target_feature=\"neon\"",
+      "target_feature=\"outline-atomics\"",
+      "target_has_atomic",
+      "target_has_atomic=\"128\"",
+      "target_has_atomic=\"16\"",
+      "target_has_atomic=\"32\"",
+      "target_has_atomic=\"64\"",
+      "target_has_atomic=\"8\"",
+      "target_has_atomic=\"ptr\"",
+      "target_has_atomic_load_store",
+      "target_has_atomic_load_store=\"128\"",
+      "target_has_atomic_load_store=\"16\"",
+      "target_has_atomic_load_store=\"32\"",
+      "target_has_atomic_load_store=\"64\"",
+      "target_has_atomic_load_store=\"8\"",
+      "target_has_atomic_load_store=\"ptr\"",
+      "target_has_atomic_primitive_alignment=\"128\"",
+      "target_has_atomic_primitive_alignment=\"16\"",
+      "target_has_atomic_primitive_alignment=\"32\"",
+      "target_has_atomic_primitive_alignment=\"64\"",
+      "target_has_atomic_primitive_alignment=\"8\"",
+      "target_has_atomic_primitive_alignment=\"ptr\"",
+      "target_has_reliable_f128",
+      "target_has_reliable_f128_math",
+      "target_has_reliable_f16",
+      "target_has_reliable_f16_math",
+      "target_has_reliable_f16b",
+      "target_has_threads",
+      "target_object_format=\"elf\"",
+      "target_os=\"linux\"",
+      "target_pointer_width=\"64\"",
+      "target_thread_local",
+      "target_vendor=\"unknown\"",
+      "ub_checks",
+      "unix"
+    ],
+    "edition": {
+      "status": "known",
+      "value": "2021"
+    },
+    "target_triple": {
+      "status": "known",
+      "value": "aarch64-unknown-linux-gnu"
+    },
+    "rustc_commit": {
+      "status": "known",
+      "value": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
+    },
+    "pointer_width": {
+      "status": "known",
+      "value": 64,
+      "policy": {
+        "id": "compat.rust.hir-r0",
+        "version": "0.1.0"
+      }
+    },
+    "overflow_checks": {
+      "status": "known",
+      "value": true
+    },
+    "debug_assertions": {
+      "status": "known",
+      "value": true
+    },
+    "opt_level": {
+      "status": "known",
+      "value": "No"
+    },
+    "panic_strategy": {
+      "status": "known",
+      "value": "unwind"
+    },
+    "data_layout": {
+      "status": "known",
+      "value": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"
+    }
+  },
+  "functions": [
+    {
+      "name": "is_escapeable_character",
+      "span": {
+        "start": 12468,
+        "end": 13792
+      },
+      "source_digest": "sha256:a8d9c39d81417378e890a43ca66328e7b04d37c5d6565e46e8c2c87e7246cc95"
+    },
+    {
+      "name": "is_meta_character",
+      "span": {
+        "start": 10733,
+        "end": 10950
+      },
+      "source_digest": "sha256:0f2fcf316d20d0343f8433184d833380f8b45b9761ce7b268555e58fd89184ef"
+    }
+  ],
+  "negative_controls": [
+    {
+      "name": "is_word_character",
+      "span": {
+        "start": 14436,
+        "end": 14557
+      },
+      "source_digest": "sha256:d60d002f9d944967ea1eb40f5291f84ac38fe2ead3e6e71ad584690acd724e8b",
+      "blockers": [
+        "concrete Result helper and payload flow",
+        "registered expect failure behavior",
+        "Unicode table/helper protocol"
+      ]
+    },
+    {
+      "name": "try_is_word_character",
+      "span": {
+        "start": 15127,
+        "end": 15257
+      },
+      "source_digest": "sha256:fcd7e298bcb90431543ce2c8d4a10fdbdb9e06ebd94c2d2463e433988b13c392",
+      "blockers": [
+        "concrete Result<bool, UnicodeWordError> interface",
+        "Unicode table/helper protocol"
+      ]
+    }
+  ],
+  "expectations": {
+    "is_escapeable_character": {
+      "valid_scalars": 1112064,
+      "positive_scalars": 64,
+      "positive_numeric_intervals_inclusive": [
+        [
+          0,
+          47
+        ],
+        [
+          58,
+          59
+        ],
+        [
+          61,
+          61
+        ],
+        [
+          63,
+          64
+        ],
+        [
+          91,
+          96
+        ],
+        [
+          123,
+          127
+        ]
+      ]
+    },
+    "is_meta_character": {
+      "positive_scalars": 18
+    }
+  },
+  "readiness": {
+    "source_selected_before_admission": true,
+    "unknowns": [
+      "actual char::is_ascii Method receiver transport and resolved target fingerprint await fresh capture"
+    ],
+    "known_blockers": [
+      "exact core char::is_ascii identity and shared-autoref scalar receiver evidence",
+      "inclusive character literal ranges with OR/literal/wildcard composition",
+      "existing helper call and early-return composition must survive complete original capture"
+    ]
+  }
+}
