@@ -42,6 +42,7 @@ pub mod eligibility;
 mod evidence_budget;
 pub mod extraction_profile;
 pub mod field_locations;
+mod fieldless_enums;
 pub mod frontend;
 pub mod helper_calls;
 mod helper_normal_flow;

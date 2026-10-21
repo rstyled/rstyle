@@ -11,6 +11,7 @@ mod end_of_input;
 mod indexed_helpers;
 mod iterator_position;
 mod iterator_position_corruption;
+mod look_flags;
 mod named_callbacks;
 mod word_classifiers;
 

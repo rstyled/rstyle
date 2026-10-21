@@ -1,6 +1,8 @@
 //! Bounded, observational concrete type evidence. Never authorizes admission.
 
 mod declarations;
+mod fieldless_enums;
+pub use fieldless_enums::fieldless_variants;
 pub mod lifetimes;
 mod option_spelling;
 mod scalar_enums;
@@ -42,6 +44,11 @@ pub enum TypeTree {
         source: crate::SourceText,
         fields: Vec<Field>,
     },
+    FieldlessEnum {
+        nominal: Nominal,
+        source: crate::SourceText,
+        variants: Vec<(String, i64)>,
+    },
     Enum {
         nominal: Nominal,
         source: crate::SourceText,
@@ -61,6 +68,9 @@ impl TypeTree {
     pub(crate) fn nominal_parts(&self) -> Option<(&Nominal, &crate::SourceText)> {
         match self {
             Self::Struct {
+                nominal, source, ..
+            }
+            | Self::FieldlessEnum {
                 nominal, source, ..
             }
             | Self::Enum {
@@ -204,6 +214,11 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
             source,
             variants,
         } => scalar_enums::check(nominal, source, variants),
+        TypeTree::FieldlessEnum {
+            nominal,
+            source,
+            variants,
+        } => fieldless_enums::check(nominal, source, variants),
         _ => Ok(()),
     }
 }

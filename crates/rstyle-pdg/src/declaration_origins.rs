@@ -133,7 +133,9 @@ fn collect<'a>(
     entries: &mut BTreeMap<String, (&'a Nominal, &'a str)>,
 ) -> Result<(), String> {
     match tree {
-        TypeTree::Struct { .. } | TypeTree::Enum { .. } => collect_nominal(tree, entries)?,
+        TypeTree::Struct { .. } | TypeTree::Enum { .. } | TypeTree::FieldlessEnum { .. } => {
+            collect_nominal(tree, entries)?
+        }
         TypeTree::Tuple(elements) => {
             for element in elements {
                 collect(element, entries)?;

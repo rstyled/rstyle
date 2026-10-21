@@ -71,7 +71,9 @@ fn verify_copy(value: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String>
     }
 
     let nominal = match &ty {
-        TypeToken::Struct { nominal, .. } | TypeToken::Enum { nominal, .. } => nominal,
+        TypeToken::Struct { nominal, .. }
+        | TypeToken::Enum { nominal, .. }
+        | TypeToken::FieldlessEnum { nominal, .. } => nominal,
         _ => return Err("Discard requires a scalar or checked Copy nominal local".into()),
     };
     let path: syn::TypePath = syn::parse_str(&format!("crate::{}", nominal.definition_path))

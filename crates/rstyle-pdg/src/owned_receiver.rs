@@ -61,11 +61,75 @@ pub(crate) fn checked(call: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool,
     from_record(record, facts)
 }
 
+/// Exact builtin dereference followed by a checked Copy value receiver.
+pub(crate) fn shared_copy(call: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    if call.kind != "expr_method_call"
+        || !crate::extraction_profile::facts_support(facts, "rust.fieldless-enum-values")
+    {
+        return Ok(false);
+    }
+
+    let shared_nominal = call
+        .children
+        .first()
+        .and_then(|child| child.ty.as_ref())
+        .and_then(|ty| ty.normalized.as_deref())
+        .is_some_and(|text| {
+            text.starts_with("{\"kind\":\"shared\",\"value\":{\"kind\":\"struct\",")
+                || text.starts_with("{\"kind\":\"shared\",\"value\":{\"kind\":\"fieldless_enum\",")
+        });
+    if !shared_nominal {
+        return Ok(false);
+    }
+
+    let capture = crate::data_receivers::verify(facts)?;
+    let Some(record) = capture
+        .methods
+        .iter()
+        .find(|record| record.call == call.hir)
+    else {
+        return Ok(false);
+    };
+
+    shared_copy_record(record, facts)
+}
+
+fn shared_copy_record(record: &Method, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    let Observation::Captured {
+        ty: TypeTree::Shared(owner),
+    } = &record.receiver_type
+    else {
+        return Ok(false);
+    };
+    if !matches!(
+        owner.as_ref(),
+        TypeTree::Struct { .. } | TypeTree::FieldlessEnum { .. }
+    ) {
+        return Ok(false);
+    }
+    let adjusted = Observation::Captured { ty: *owner.clone() };
+    Ok(record.adjustments.len() == 1
+        && record.adjustments[0].kind == Kind::BuiltinDereference
+        && record.adjustments[0].target == adjusted
+        && record.adjusted_type == adjusted
+        && record.signature_inputs.first() == Some(&adjusted)
+        && facts.nominal_resolution()?.checked_owned_copy(owner))
+}
+
 pub(crate) fn signature_arguments<'a>(
     call: &HirNode,
     facts: &dyn EvidenceFacts,
     operands: &'a [String],
 ) -> Result<std::borrow::Cow<'a, [String]>, String> {
+    if shared_copy(call, facts)? {
+        let receiver = crate::data_types::parse(operands.first().ok_or("Missing Copy receiver")?)?;
+        let crate::data_types::TypeToken::Shared(owner) = receiver else {
+            return Err("Missing shared Copy receiver".into());
+        };
+        let mut arguments = operands.to_vec();
+        arguments[0] = owner.text()?;
+        return Ok(std::borrow::Cow::Owned(arguments));
+    }
     if !checked(call, facts)? {
         return Ok(std::borrow::Cow::Borrowed(operands));
     }
@@ -88,7 +152,7 @@ pub(crate) fn value_self(facts: &dyn EvidenceFacts, owner: &TypeTree) -> Result<
 
 pub(crate) fn value_call(record: &Method, facts: &dyn EvidenceFacts) -> Result<bool, String> {
     let Observation::Captured {
-        ty: owner @ TypeTree::Struct { .. },
+        ty: owner @ (TypeTree::Struct { .. } | TypeTree::FieldlessEnum { .. }),
     } = &record.receiver_type
     else {
         return Ok(false);
@@ -108,7 +172,9 @@ pub(crate) fn call_signature(
     if value_call(record, facts)? {
         return Ok(true);
     }
-    if !from_record(record, facts)? {
+    let copied = crate::extraction_profile::facts_support(facts, "rust.fieldless-enum-values")
+        && shared_copy_record(record, facts)?;
+    if !(copied || from_record(record, facts)?) {
         return Ok(false);
     }
 

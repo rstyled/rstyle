@@ -5,6 +5,7 @@ use crate::{HirNode, unit_store::EvidenceFacts};
 const CONSTRUCTS: [&str; 3] = ["data.enum-value", "match.enum-variant", "data.enum-payload"];
 
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    super::fieldless_enums::verify(pair, facts)?;
     let constructors = crate::field_locations::selected_operations(
         facts,
         &["expr_call"],

@@ -33,20 +33,24 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
-    let imports =
-        crate::extraction_profile::policy_supports(profile, "rust.scoped-nominal-imports");
-    let arrays = crate::extraction_profile::policy_supports(profile, "rust.copy-array-fields");
-    let enums = crate::extraction_profile::policy_supports(profile, "rust.scalar-enum-values");
-    let views = crate::extraction_profile::policy_supports(profile, "rust.borrowed-array-views");
-    let packing = crate::extraction_profile::policy_supports(profile, "rust.accelerator-packing");
-    let children =
-        crate::extraction_profile::policy_supports(profile, "rust.borrowed-copy-child-fields");
-    if imports && arrays && enums && views && packing && children {
+    let capabilities = [
+        "rust.scoped-nominal-imports",
+        "rust.copy-array-fields",
+        "rust.scalar-enum-values",
+        "rust.borrowed-array-views",
+        "rust.accelerator-packing",
+        "rust.borrowed-copy-child-fields",
+        crate::fieldless_enums::CAPABILITY,
+    ];
+    if capabilities
+        .iter()
+        .all(|capability| crate::extraction_profile::policy_supports(profile, capability))
+    {
         return Ok(());
     }
 
-    let interface = interface(facts)?;
-    if !packing
+    verify_copy_receiver_policy(profile, facts)?;
+    if !crate::extraction_profile::policy_supports(profile, "rust.accelerator-packing")
         && crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
         && facts
             .nominal_resolution()
@@ -54,26 +58,67 @@ pub(crate) fn verify_document_policy(
     {
         return Err("Scalar alias proof requires its registered document policy".into());
     }
+
+    let interface = interface(facts)?;
     if let Some(resolution) = nominal_resolution(facts, &interface)? {
-        if !children && resolution.requires_borrowed_copy_child_fields() {
-            return Err(
-                "Borrowed Copy child fields require their registered document policy".into(),
-            );
+        verify_nominal_policy(profile, &resolution)?;
+    }
+    Ok(())
+}
+
+fn verify_copy_receiver_policy(
+    profile: &crate::ProfileId,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    if !crate::extraction_profile::policy_supports(profile, crate::fieldless_enums::CAPABILITY) {
+        for call in crate::helper_calls::call_nodes(facts) {
+            if crate::owned_receiver::shared_copy(call, facts)? {
+                return Err(
+                    "Shared Copy value receivers require their registered document policy".into(),
+                );
+            }
         }
-        if !views && resolution.requires_borrowed_array_views() {
-            return Err("Borrowed array views require their registered document policy".into());
-        }
-        if !enums && resolution.requires_scalar_enums() {
-            return Err("Scalar enum values require their registered document policy".into());
-        }
-        if !imports && resolution.requires_scoped_imports() {
-            return Err(
-                "Scoped nominal import proof requires its registered document policy".into(),
-            );
-        }
-        if !arrays && resolution.requires_copy_array_fields() {
-            return Err("Copy array fields require their registered document policy".into());
-        }
+    }
+    Ok(())
+}
+
+fn verify_nominal_policy(
+    profile: &crate::ProfileId,
+    resolution: &crate::nominal_boundary::resolution::Resolution,
+) -> Result<(), String> {
+    for (capability, required, message) in [
+        (
+            crate::fieldless_enums::CAPABILITY,
+            resolution.requires_enum_values(true),
+            "Fieldless enum requires its registered document policy",
+        ),
+        (
+            "rust.borrowed-copy-child-fields",
+            resolution.requires_borrowed_copy_child_fields(),
+            "Borrowed Copy child fields require their registered document policy",
+        ),
+        (
+            "rust.borrowed-array-views",
+            resolution.requires_borrowed_array_views(),
+            "Borrowed array views require their registered document policy",
+        ),
+        (
+            "rust.scalar-enum-values",
+            resolution.requires_enum_values(false),
+            "Scalar enum values require their registered document policy",
+        ),
+        (
+            "rust.scoped-nominal-imports",
+            resolution.requires_scoped_imports(),
+            "Scoped nominal import proof requires its registered document policy",
+        ),
+        (
+            "rust.copy-array-fields",
+            resolution.requires_copy_array_fields(),
+            "Copy array fields require their registered document policy",
+        ),
+    ] {
+        crate::extraction_profile::require_document(profile, capability, || required, message)?;
     }
     Ok(())
 }
@@ -406,6 +451,14 @@ fn verify_enum_node(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::fieldless_enums::value_candidate(node, facts) {
+        crate::fieldless_enums::value(node, facts)?;
+    }
+
+    if crate::fieldless_enums::cast_candidate(node, facts) {
+        crate::fieldless_enums::cast(node, facts)?;
+    }
+
     if crate::data_enums::constructor_candidate(node, facts) {
         crate::data_enums::constructor(node, facts)?;
     }
@@ -476,6 +529,9 @@ fn verify_path(
             facts.build.pointer_width.value,
         )
         .map(|_| ());
+    }
+    if crate::fieldless_enums::value_candidate(node, facts) {
+        return crate::fieldless_enums::value(node, facts).map(|_| ());
     }
     verify_binding_path(node, facts, token)
 }

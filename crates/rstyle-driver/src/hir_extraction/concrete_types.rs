@@ -2,6 +2,7 @@
 
 mod callbacks;
 mod copy;
+mod fieldless_enums;
 mod receivers;
 mod scalar_enums;
 
@@ -157,7 +158,9 @@ impl<'tcx> Capture<'_, 'tcx> {
             node.ty.as_mut().expect("present type").normalized = token;
         }
         self.child_tokens(&mut node.children)?;
-        if matches!(node.kind.as_str(), "expr_method_call" | "expr_call") {
+        if matches!(node.kind.as_str(), "expr_method_call" | "expr_call")
+            || node.kind == "expr_cast" && self.ctx.profile.supports("rust.fieldless-enum-values")
+        {
             install_call_tokens(node);
         }
         Ok(())
@@ -271,7 +274,15 @@ impl<'tcx> Capture<'_, 'tcx> {
         arguments: ty::GenericArgsRef<'tcx>,
         depth: usize,
     ) -> Result<TypeTree, Failure> {
-        if self.ctx.profile.supports("rust.scalar-enum-values") && definition.is_enum() {
+        if self.ctx.profile.supports("rust.fieldless-enum-values")
+            && definition.is_enum()
+            && definition
+                .variants()
+                .iter()
+                .all(|variant| variant.fields.is_empty())
+        {
+            self.fieldless_enum(definition, arguments)
+        } else if self.ctx.profile.supports("rust.scalar-enum-values") && definition.is_enum() {
             self.scalar_enum(definition, arguments, depth)
         } else {
             self.structure(definition, arguments, depth)

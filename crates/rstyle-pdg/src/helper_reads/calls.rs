@@ -26,6 +26,7 @@ pub(crate) fn verify_arguments(
     call: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    copy_receivers::locations(call, facts)?;
     visit_reads(summary, call, facts, |_| Ok(()))
 }
 
@@ -35,10 +36,39 @@ fn expected(
     context: &mut LocationContext<'_>,
 ) -> Result<Effects, String> {
     let mut effects = Effects::default();
+    install_receiver_copy(call, context, &mut effects)?;
     visit_reads(summary, call, context.facts, |occurrence| {
         install_read(&mut effects, occurrence, context)
     })?;
+    if effects.reads.len() > crate::concrete_types::MAX_ENTRIES {
+        return Err(BUDGET_ERROR.into());
+    }
+
     Ok(effects)
+}
+
+fn install_receiver_copy(
+    call: &HirNode,
+    context: &mut LocationContext<'_>,
+    effects: &mut Effects,
+) -> Result<(), String> {
+    for (origin, value) in copy_receivers::locations(call, context.facts)? {
+        let (id, location) = context.formal_location(origin.parameter, &origin.path, value)?;
+        let root = context
+            .facts
+            .signature
+            .params
+            .get(origin.parameter as usize)
+            .ok_or("Missing Copy receiver formal")?;
+        effects.reads.push(Access {
+            symbol_id: Some(root.symbol.clone()),
+            location_id: Some(id.clone()),
+            unresolved_reason: None,
+            operand_position: Some(0),
+        });
+        insert_location(&mut effects.locations, id, location)?;
+    }
+    Ok(())
 }
 
 fn visit_reads(
@@ -57,6 +87,7 @@ fn visit_reads(
     }
 
     let owned = borrowed_snapshot(summary, call, facts)?;
+    let copy_deref = crate::owned_receiver::shared_copy(call, facts)?;
     let mut count = 0;
     for read in reads {
         let actual = call
@@ -64,7 +95,8 @@ fn visit_reads(
             .get(read.parameter as usize)
             .ok_or("Helper read lacks its actual argument")?;
         let copied = read.path.first() != Some(&Projection::SharedReferent)
-            && copied_input(summary, facts, read.parameter)?;
+            && copied_input(summary, facts, read.parameter)?
+            && !(copy_deref && read.parameter == 0);
         if owned && read.parameter == 0 || copied {
             if count == crate::concrete_types::MAX_ENTRIES {
                 return Err(BUDGET_ERROR.into());
@@ -125,7 +157,14 @@ fn checked_read<'a>(
     call: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<ReadOccurrence<'a>, String> {
-    let path = indexed::substitute(read, &origin.path, call, facts)?;
+    let path = if read.parameter == 0
+        && read.path.first() != Some(&Projection::SharedReferent)
+        && crate::owned_receiver::shared_copy(call, facts)?
+    {
+        origin.path.iter().chain(&read.path).cloned().collect()
+    } else {
+        indexed::substitute(read, &origin.path, call, facts)?
+    };
     if type_at(facts, origin.parameter, &path)? != read.value {
         return Err("Substituted helper location disagrees with actual referent type".into());
     }

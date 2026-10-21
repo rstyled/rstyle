@@ -257,6 +257,21 @@ impl Builder<'_> {
         }
     }
 
+    fn fieldless_value(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let (tag, value) =
+            crate::fieldless_enums::value(node, self.facts).expect("verified fieldless variant");
+
+        self.emit(
+            Operation {
+                construct: Some(crate::fieldless_enums::VALUE.into()),
+                operator: Some(tag),
+                literal: Some(value.to_string()),
+                ..template(node, NodeCategory::Computation)
+            },
+            flow,
+        )
+    }
+
     fn constant(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let constant = crate::scalar_constants::ScalarConstant::decode(
             node.res.as_ref().expect("constant resolution"),
@@ -668,7 +683,9 @@ impl Builder<'_> {
         };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
-            construct: if crate::size_calls::candidate(node, self.facts) {
+            construct: if crate::fieldless_enums::cast_candidate(node, self.facts) {
+                Some(crate::fieldless_enums::CAST.into())
+            } else if crate::size_calls::candidate(node, self.facts) {
                 Some(crate::size_calls::CONSTRUCT.into())
             } else if let Some(kind) = crate::bitset_cardinality::kind(node, self.facts) {
                 Some(kind.construct().into())
@@ -1301,6 +1318,14 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,
         "stmt_size_const" | "stmt_bool_array" | "stmt_const_array_fn" => Builder::compile_time_item,
+        "expr_path"
+            if node
+                .res
+                .as_ref()
+                .is_some_and(|resolution| resolution.kind == "resolved_fieldless_variant") =>
+        {
+            Builder::fieldless_value
+        }
         "expr_path" => Builder::path,
         "expr_field" => Builder::field_read,
         "expr_index" => Builder::index_read,

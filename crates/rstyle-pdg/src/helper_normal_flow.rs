@@ -46,9 +46,11 @@ fn copy_token(facts: &dyn EvidenceFacts, ty: &TypeToken) -> bool {
         } => crate::extraction_profile::facts_support(facts, "rust.accelerator-packing"),
         TypeToken::Tuple(elements) => elements.iter().all(|ty| copy_token(facts, ty)),
         TypeToken::Array { element, .. } | TypeToken::Option(element) => copy_token(facts, element),
-        TypeToken::Struct { .. } | TypeToken::Enum { .. } => facts
-            .nominal_resolution()
-            .is_ok_and(|resolution| resolution.checked_copy_token(ty)),
+        TypeToken::Struct { .. } | TypeToken::Enum { .. } | TypeToken::FieldlessEnum { .. } => {
+            facts
+                .nominal_resolution()
+                .is_ok_and(|resolution| resolution.checked_copy_token(ty))
+        }
         _ => false,
     }
 }

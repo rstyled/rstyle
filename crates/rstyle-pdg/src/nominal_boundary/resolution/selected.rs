@@ -15,15 +15,7 @@ pub(super) fn verify(
     }
     let mut copies = std::collections::BTreeSet::new();
     for (key, tree) in trees {
-        if matches!(tree, TypeTree::Enum { .. }) && !supports(facts, "rust.scalar-enum-values")? {
-            return Err("Scalar enum ownership requires its registered capability".into());
-        }
-        if tree
-            .nominal_fields()
-            .any(|field| !supported_field(facts, &field.ty))
-        {
-            return Err("Mixed-unit Copy fields require supported complete values".into());
-        }
+        verify_type(facts, tree)?;
         let declaration = environment
             .index
             .declarations
@@ -32,7 +24,11 @@ pub(super) fn verify(
         let item = &environment.modules[declaration.module_index].items[declaration.item_index];
         let attributes = match item {
             syn::Item::Struct(item) => &item.attrs,
-            syn::Item::Enum(item) if matches!(tree, TypeTree::Enum { .. }) => &item.attrs,
+            syn::Item::Enum(item)
+                if matches!(tree, TypeTree::Enum { .. } | TypeTree::FieldlessEnum { .. }) =>
+            {
+                &item.attrs
+            }
             _ => return Err("Selected declaration handle has the wrong nominal kind".into()),
         };
         if checked_copy(facts, origins, tree, attributes)? {
@@ -52,6 +48,25 @@ pub(super) fn verify(
         }
     }
     Ok(copies)
+}
+
+fn verify_type(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> {
+    if matches!(tree, TypeTree::Enum { .. }) && !supports(facts, "rust.scalar-enum-values")? {
+        return Err("Scalar enum ownership requires its registered capability".into());
+    }
+    if matches!(tree, TypeTree::FieldlessEnum { .. })
+        && (!supports(facts, "rust.fieldless-enum-values")?
+            || facts.build.pointer_width.value != Some(64))
+    {
+        return Err("Fieldless enum requires its registered ownership capability".into());
+    }
+    if tree
+        .nominal_fields()
+        .any(|field| !supported_field(facts, &field.ty))
+    {
+        return Err("Mixed-unit Copy fields require supported complete values".into());
+    }
+    Ok(())
 }
 
 fn checked_copy(
@@ -79,6 +94,9 @@ fn checked_copy(
 fn supported_field(facts: &HirFnFacts, tree: &TypeTree) -> bool {
     match tree {
         TypeTree::Scalar(_) | TypeTree::Struct { .. } => true,
+        TypeTree::FieldlessEnum { .. } => {
+            supports(facts, "rust.fieldless-enum-values").unwrap_or(false)
+        }
         TypeTree::Enum { .. } => supports(facts, "rust.scalar-enum-values").unwrap_or(false),
         TypeTree::Array { element, .. } => {
             supports(facts, "rust.copy-array-fields").unwrap_or(false)

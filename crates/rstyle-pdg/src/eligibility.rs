@@ -800,17 +800,37 @@ fn check_method(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 }
 
+fn enum_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    let (capability, kind, checked) = if crate::fieldless_enums::value_candidate(node, ctx.facts) {
+        (
+            crate::fieldless_enums::CAPABILITY,
+            "fieldless_value",
+            crate::fieldless_enums::value(node, ctx.facts).map(|_| ()),
+        )
+    } else if crate::fieldless_enums::cast_candidate(node, ctx.facts) {
+        (
+            crate::fieldless_enums::CAPABILITY,
+            "fieldless_cast",
+            crate::fieldless_enums::cast(node, ctx.facts),
+        )
+    } else if crate::data_enums::constructor_candidate(node, ctx.facts) {
+        (
+            crate::data_enums::CAPABILITY,
+            "enum_constructor",
+            crate::data_enums::constructor(node, ctx.facts).map(|_| ()),
+        )
+    } else {
+        return None;
+    };
+    Some(match checked {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error(capability, kind, node, &reason),
+    })
+}
+
 fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
-    if crate::data_enums::constructor_candidate(node, ctx.facts) {
-        return Some(match crate::data_enums::constructor(node, ctx.facts) {
-            Ok(_) => Outcome::ok(),
-            Err(reason) => error(
-                crate::data_enums::CAPABILITY,
-                "enum_constructor",
-                node,
-                &reason,
-            ),
-        });
+    if let Some(outcome) = enum_kind(node, ctx) {
+        return Some(outcome);
     }
     if crate::checked_options::constructor_candidate(node, ctx.facts) {
         return Some(check_option_constructor(node, ctx));

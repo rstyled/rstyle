@@ -98,11 +98,18 @@ fn owner_nominal(
     let owner = match rstyle_pdg::data_types::parse(token).ok()? {
         TypeToken::Shared(owner) => *owner,
         owner @ TypeToken::Struct { .. } if profile.supports("rust.owned-copy-self") => owner,
+        owner @ TypeToken::FieldlessEnum { .. }
+            if profile.supports("rust.fieldless-enum-values") =>
+        {
+            owner
+        }
         _ => return None,
     };
 
     match owner {
-        TypeToken::Struct { nominal, .. } => Some(nominal),
+        TypeToken::Struct { nominal, .. } | TypeToken::FieldlessEnum { nominal, .. } => {
+            Some(nominal)
+        }
         _ => None,
     }
 }

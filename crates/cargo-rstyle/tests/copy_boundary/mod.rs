@@ -390,9 +390,9 @@ fn copy_value_self_updates_compose_with_results_getters_and_ufcs() {
             .iter()
             .filter(|function| function["outcome"] == "admitted")
             .count(),
-        17
+        18
     );
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 136);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 153);
     assert_eq!(report["pair_evaluation_complete"], true);
     check_aggregate_documents(&report);
 }
@@ -497,12 +497,9 @@ fn check_value_self_outcomes(report: &Value) {
         "data::result_update",
         "data::ufcs_update",
         "data::retained",
-    ];
-    let negative = [
-        "data::Span::mutable_self",
-        "data::Span::typed_self",
         "data::shared_to_owned",
     ];
+    let negative = ["data::Span::mutable_self", "data::Span::typed_self"];
     for name in positive.into_iter().chain(negative) {
         let function = read_call_function(report, name);
         assert_eq!(

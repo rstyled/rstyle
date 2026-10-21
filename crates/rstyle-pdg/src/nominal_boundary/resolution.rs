@@ -61,10 +61,12 @@ impl Resolution {
         })
     }
 
-    pub(crate) fn requires_scalar_enums(&self) -> bool {
-        self.trees
-            .values()
-            .any(|tree| matches!(tree, TypeTree::Enum { .. }))
+    pub(crate) fn requires_enum_values(&self, fieldless: bool) -> bool {
+        self.trees.values().any(|tree| match tree {
+            TypeTree::FieldlessEnum { .. } => fieldless,
+            TypeTree::Enum { .. } => !fieldless,
+            _ => false,
+        })
     }
 
     pub(crate) fn requires_scoped_imports(&self) -> bool {
@@ -92,7 +94,8 @@ impl Resolution {
     pub(crate) fn checked_copy_token(&self, token: &crate::data_types::TypeToken) -> bool {
         let nominal = match token {
             crate::data_types::TypeToken::Struct { nominal, .. }
-            | crate::data_types::TypeToken::Enum { nominal, .. } => nominal,
+            | crate::data_types::TypeToken::Enum { nominal, .. }
+            | crate::data_types::TypeToken::FieldlessEnum { nominal, .. } => nominal,
             _ => return false,
         };
         let key: Vec<_> = nominal
@@ -472,7 +475,9 @@ fn anchored(path: Namespace, namespace: &Namespace, import: bool) -> Result<Name
 
 fn collect(tree: &TypeTree, trees: &mut BTreeMap<Namespace, TypeTree>) -> Result<(), String> {
     match tree {
-        TypeTree::Struct { .. } | TypeTree::Enum { .. } => collect_nominal(tree, trees)?,
+        TypeTree::Struct { .. } | TypeTree::Enum { .. } | TypeTree::FieldlessEnum { .. } => {
+            collect_nominal(tree, trees)?
+        }
         TypeTree::Tuple(elements) => {
             for element in elements {
                 collect(element, trees)?;

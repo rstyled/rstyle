@@ -1,6 +1,7 @@
 //! Exact read occurrences derived from independently verified callee documents.
 
 mod calls;
+mod copy_receivers;
 mod indexed;
 pub(crate) use calls::{
     check_budgets, install, merge_locations, verify_arguments, verify_effects, verify_locations,

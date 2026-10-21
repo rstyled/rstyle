@@ -42,7 +42,9 @@ pub fn context<'a>(
 
 fn nodes(node: &HirNode, tokens: &mut BTreeMap<String, TypeToken>) -> Result<(), String> {
     if let Some(text) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref())
-        && (text.contains("\"kind\":\"struct\"") || text.contains("\"kind\":\"enum\""))
+        && (text.contains("\"kind\":\"struct\"")
+            || text.contains("\"kind\":\"enum\"")
+            || text.contains("\"kind\":\"fieldless_enum\""))
     {
         collect_tokens(&crate::data_types::parse(text)?, tokens)?;
     }
@@ -57,7 +59,9 @@ fn collect_tokens(
     tokens: &mut BTreeMap<String, TypeToken>,
 ) -> Result<(), String> {
     match token {
-        TypeToken::Struct { .. } | TypeToken::Enum { .. } => nominal_tokens(token, tokens)?,
+        TypeToken::Struct { .. } | TypeToken::Enum { .. } | TypeToken::FieldlessEnum { .. } => {
+            nominal_tokens(token, tokens)?
+        }
         TypeToken::Tuple(elements) => {
             for element in elements {
                 collect_tokens(element, tokens)?;
@@ -81,6 +85,7 @@ fn nominal_tokens(
             nominal,
             variants: fields,
         } => (nominal, fields),
+        TypeToken::FieldlessEnum { nominal, .. } => (nominal, &Vec::new()),
         _ => return Err("Expected a nominal body type".into()),
     };
     if let Some(previous) = tokens.get(&nominal.definition_path) {
@@ -123,6 +128,11 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
         TypeToken::Struct { nominal, fields } => {
             nominal_tree(nominal, fields, origins, NominalKind::Structure)?
         }
+        TypeToken::FieldlessEnum { nominal, variants } => TypeTree::FieldlessEnum {
+            nominal: nominal.clone(),
+            source: origin_source(nominal, origins)?.into(),
+            variants: variants.clone(),
+        },
         TypeToken::Enum { nominal, variants } => {
             nominal_tree(nominal, variants, origins, NominalKind::Enumeration)?
         }

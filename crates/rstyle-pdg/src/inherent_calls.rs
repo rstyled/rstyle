@@ -76,11 +76,13 @@ fn check_receiver_owner(
     let owner =
         crate::nominal_boundary::resolution::inherent_owner(facts, &record.implementation_span)?;
     let receiver = receiver_type(facts)?;
-    let owned = matches!(&receiver, TypeToken::Struct { .. })
-        && crate::owned_receiver::value_self(facts, &owner)?;
+    let owned = matches!(
+        &receiver,
+        TypeToken::Struct { .. } | TypeToken::FieldlessEnum { .. }
+    ) && crate::owned_receiver::value_self(facts, &owner)?;
     let owner = TypeToken::from_tree(&owner);
 
-    if !matches!(&owner, TypeToken::Struct { nominal, .. } if nominal == &record.owner_nominal)
+    if !matches!(&owner, TypeToken::Struct { nominal, .. } | TypeToken::FieldlessEnum { nominal, .. } if nominal == &record.owner_nominal)
         || !facts.signature.has_self
         || receiver
             != if owned {

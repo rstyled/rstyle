@@ -26,7 +26,7 @@ pub fn verify(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), S
 
 fn fields(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), String> {
     match tree {
-        TypeTree::Struct { .. } | TypeTree::Enum { .. } => {
+        TypeTree::Struct { .. } | TypeTree::Enum { .. } | TypeTree::FieldlessEnum { .. } => {
             for member in tree.nominal_fields() {
                 let source = syn::parse_str(&member.declaration).map_err(|e| format!("{e}"))?;
                 correspondence(&source, &member.ty, resolution)?;

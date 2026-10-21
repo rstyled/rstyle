@@ -33,7 +33,7 @@ pub fn evidence(
                 "operand_type": input.ty,
                 "result_type": node.ty,
                 "target_pointer_width": width,
-                "semantics": "rust-integer-as/1",
+                "semantics": if node.construct.as_deref() == Some(crate::fieldless_enums::CAST) { "rust-fieldless-enum-as/1" } else { "rust-integer-as/1" },
                 "span": node.span
             }))
         })

@@ -357,6 +357,7 @@ impl<'tcx> Context<'tcx> {
         let res = self.typeck.qpath_res(path, expr.hir_id);
         self.named_option_function(expr)
             .map(|(resolution, _)| resolution)
+            .or_else(|| self.fieldless_variant(res))
             .or_else(|| self.bool_array_resolution(res))
             .or_else(|| self.constant_resolution(res))
             .or_else(|| {
@@ -375,6 +376,32 @@ impl<'tcx> Context<'tcx> {
                     description: format!("{res:?}"),
                 })
             })
+    }
+
+    fn fieldless_variant(&self, res: Res) -> Option<PathRes> {
+        if !self.profile.supports("rust.fieldless-enum-values") {
+            return None;
+        }
+
+        let variant = match res {
+            Res::Def(rustc_hir::def::DefKind::Variant, variant) => variant,
+            Res::Def(
+                rustc_hir::def::DefKind::Ctor(
+                    rustc_hir::def::CtorOf::Variant,
+                    rustc_hir::def::CtorKind::Const,
+                ),
+                constructor,
+            ) => self.tcx.parent(constructor),
+            _ => return None,
+        };
+
+        if !variant.is_local() {
+            return None;
+        }
+
+        let mut resolution = self.library_callee(variant);
+        resolution.kind = "resolved_fieldless_variant".into();
+        Some(resolution)
     }
 
     fn field_resolution(&self, expr: &Expr<'tcx>, base: &Expr<'tcx>) -> Option<PathRes> {

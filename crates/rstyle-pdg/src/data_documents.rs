@@ -10,6 +10,7 @@ mod byte_scalars;
 mod callbacks;
 mod checked_options;
 mod conditional_payloads;
+mod fieldless_enums;
 mod index_reads;
 mod indirect_reads;
 mod iterator_position;

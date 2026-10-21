@@ -30,6 +30,10 @@ pub enum TypeToken {
         nominal: Nominal,
         fields: Vec<(String, TypeToken)>,
     },
+    FieldlessEnum {
+        nominal: Nominal,
+        variants: Vec<(String, i64)>,
+    },
     Enum {
         nominal: Nominal,
         variants: Vec<(String, TypeToken)>,
@@ -63,6 +67,12 @@ impl TypeToken {
                     .map(|field| (field.name.clone(), Self::from_tree(&field.ty)))
                     .collect(),
             },
+            TypeTree::FieldlessEnum {
+                nominal, variants, ..
+            } => Self::FieldlessEnum {
+                nominal: nominal.clone(),
+                variants: variants.clone(),
+            },
             TypeTree::Enum {
                 nominal, variants, ..
             } => Self::Enum {
@@ -87,6 +97,7 @@ impl TypeToken {
             Self::Scalar(value) | Self::IntConversionResult(value) => {
                 matches!(value.as_str(), "isize" | "usize")
             }
+            Self::FieldlessEnum { .. } => true,
             Self::Tuple(values) => values.iter().any(Self::native_width),
             Self::Array { element, .. }
             | Self::Shared(element)
@@ -131,6 +142,11 @@ pub(crate) fn parse_for(
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
+    if text.contains("\"kind\":\"fieldless_enum\"")
+        && !profile.supports("rust.fieldless-enum-values")
+    {
+        return Err("Fieldless enum requires its registered capability".into());
+    }
     if text.contains("\"kind\":\"enum\"") && !profile.supports("rust.scalar-enum-values") {
         return Err("Enum type requires its registered scalar payload capability".into());
     }
@@ -188,6 +204,27 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
             Ok(())
         }
         TypeToken::Str => Ok(()),
+        TypeToken::FieldlessEnum { nominal, variants }
+            if nominal
+                .source_identity
+                .as_ref()
+                .is_some_and(|id| !id.is_empty())
+                && !variants.is_empty()
+                && variants.len() <= crate::concrete_types::MAX_FIELDS =>
+        {
+            let names: std::collections::BTreeSet<_> =
+                variants.iter().map(|(name, _)| name).collect();
+            let values: std::collections::BTreeSet<_> =
+                variants.iter().map(|(_, value)| value).collect();
+            if names.len() == variants.len()
+                && values.len() == variants.len()
+                && names.iter().all(|name| !name.is_empty())
+            {
+                Ok(())
+            } else {
+                Err("Fieldless enum repeats or lacks a variant".into())
+            }
+        }
         TypeToken::IntConversionResult(value) if matches!(value.as_str(), "usize" | "u16") => {
             Ok(())
         }
