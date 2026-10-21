@@ -9,6 +9,7 @@ mod cfg_if_modules;
 mod character_escapes;
 mod character_leaf;
 mod character_ranges;
+mod checked_lengths;
 mod classifiers;
 mod corruption;
 mod end_of_input;

@@ -83,6 +83,8 @@
     "core::iter::Iterator::position": "DefPathHash(Fingerprint(2625310331494506890, 2237989957492606980))",
     "core::slice::Iter::position": "DefPathHash(Fingerprint(2625310331494506890, 2176535122761103783))",
     "core::slice::<impl [T]>::iter": "DefPathHash(Fingerprint(2625310331494506890, 17476794486011104584))",
-    "std::char::methods::<impl char>::is_ascii": "DefPathHash(Fingerprint(2625310331494506890, 16256494501121032715))"
+    "std::char::methods::<impl char>::is_ascii": "DefPathHash(Fingerprint(2625310331494506890, 16256494501121032715))",
+    "core::num::<impl usize>::checked_add": "DefPathHash(Fingerprint(2625310331494506890, 17584838823673411799))",
+    "core::num::<impl usize>::checked_mul": "DefPathHash(Fingerprint(2625310331494506890, 7728428590953190211))"
   }
 }

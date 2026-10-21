@@ -79,6 +79,9 @@ pub fn resolve_for(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<Summary>, String> {
+    if crate::checked_lengths::kind(node, facts).is_some() {
+        return crate::checked_lengths::resolve(node, facts);
+    }
     if crate::character_ascii::candidate(node, facts) {
         return crate::character_ascii::resolve(node, facts);
     }

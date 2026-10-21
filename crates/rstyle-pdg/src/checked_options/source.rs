@@ -28,7 +28,7 @@ pub(super) fn constructor(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(
     Ok(())
 }
 
-fn corresponding(
+pub(super) fn corresponding(
     expression: &impl Spanned,
     child: &HirNode,
     parent: &HirNode,
@@ -84,7 +84,7 @@ pub(super) fn matched(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), S
     Ok(())
 }
 
-fn pattern_syntax(
+pub(super) fn pattern_syntax(
     syntax: &syn::Pat,
     pattern: &HirNode,
     node: &HirNode,

@@ -5,7 +5,7 @@ use crate::{
     HirNode, PdgNode, checked_options as options, producer::PairView, unit_store::EvidenceFacts,
 };
 
-const CONSTRUCTS: [&str; 7] = [
+const CONSTRUCTS: [&str; 8] = [
     "data.option-get",
     "data.option-payload",
     "match.option-some",
@@ -13,6 +13,7 @@ const CONSTRUCTS: [&str; 7] = [
     "data.option-some",
     "data.option-none",
     "data.option-value-payload",
+    "if.option-some",
 ];
 
 pub(super) fn install(
@@ -48,16 +49,7 @@ pub(super) fn verify(
     let matches = options::matches(facts);
 
     let constructors = options::constructors(facts);
-    inventory(
-        pair,
-        expected_counts(
-            &gets,
-            &matches,
-            &constructors,
-            crate::option_callbacks::invocations(facts, crate::option_callbacks::Kind::Closure)
-                .len(),
-        ),
-    )?;
+    inventory(pair, expected_counts(&gets, &matches, &constructors, facts))?;
     for source in constructors {
         verify_constructor(pair, source, facts)?;
     }
@@ -75,8 +67,12 @@ fn expected_counts(
     gets: &[&HirNode],
     matches: &[&HirNode],
     constructors: &[&HirNode],
-    callbacks: usize,
-) -> [usize; 7] {
+    facts: &dyn EvidenceFacts,
+) -> [usize; 8] {
+    let callbacks =
+        crate::option_callbacks::invocations(facts, crate::option_callbacks::Kind::Closure).len();
+    let if_lets = options::if_lets(facts).len();
+
     let scalar = matches
         .iter()
         .filter(|source| options::owned(&source.children[0]))
@@ -92,7 +88,8 @@ fn expected_counts(
         matches.len(),
         some,
         constructors.len() - some,
-        scalar + callbacks,
+        scalar + callbacks + if_lets,
+        if_lets,
     ]
 }
 
@@ -159,7 +156,7 @@ fn verify_match(
     Ok(entries)
 }
 
-fn inventory(pair: PairView<'_>, expected_counts: [usize; 7]) -> Result<(), String> {
+fn inventory(pair: PairView<'_>, expected_counts: [usize; 8]) -> Result<(), String> {
     super::verify_construct_inventory(pair, CONSTRUCTS, expected_counts)?;
     if pair.pdg.nodes.iter().any(|node| {
         node.annotations.contains_key(options::KEY)

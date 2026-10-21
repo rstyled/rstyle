@@ -9,6 +9,7 @@ mod byte_calls;
 mod byte_scalars;
 mod callbacks;
 mod character_ascii;
+mod checked_lengths;
 mod checked_options;
 mod conditional_payloads;
 mod fieldless_enums;
@@ -19,6 +20,7 @@ mod iterator_position;
 mod locals;
 mod locations;
 pub(crate) mod named_callbacks;
+mod option_if_let;
 mod origins;
 mod read_accesses;
 mod scalar_enums;
@@ -51,6 +53,12 @@ pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result
         size_calls::sources(facts),
         crate::size_calls::KEY,
         |source| crate::size_calls::semantics(source, facts),
+    )?;
+    let pair = install_annotations(
+        pair,
+        checked_lengths::sources(facts),
+        crate::checked_lengths::KEY,
+        |source| checked_lengths::semantics(source, facts),
     )?;
     install_annotations(
         pair,
@@ -262,6 +270,24 @@ fn location(
     )
 }
 
+fn verify_call_operations(
+    pair: PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    calls: &[&crate::HirNode],
+) -> Result<(), String> {
+    scalar_from::verify(pair, facts, calls)?;
+    character_ascii::verify(pair, facts, calls)?;
+    float_scalars::verify(pair, facts)?;
+    bitset_cardinality::verify(pair, facts, calls)?;
+    checked_lengths::verify(pair, facts)?;
+
+    option_if_let::verify(pair, facts)?;
+    assertions::verify(pair, facts)?;
+    size_calls::verify(pair, facts)?;
+    crate::data_library::verify_calls(pair, facts, calls)?;
+    Ok(())
+}
+
 /// Check semantic locations directly against independently verified source
 /// operations, without calling the lowerer or document emitter.
 pub fn verify<'a>(
@@ -271,13 +297,7 @@ pub fn verify<'a>(
     let pair = pair.into();
     verify_source_boundary(pair, facts)?;
     let calls = crate::field_locations::operations(&facts.body, &["expr_call", "expr_method_call"]);
-    scalar_from::verify(pair, facts, &calls)?;
-    character_ascii::verify(pair, facts, &calls)?;
-    float_scalars::verify(pair, facts)?;
-    bitset_cardinality::verify(pair, facts, &calls)?;
-    assertions::verify(pair, facts)?;
-    size_calls::verify(pair, facts)?;
-    crate::data_library::verify_calls(pair, facts, &calls)?;
+    verify_call_operations(pair, facts, &calls)?;
     crate::data_frontend::verify(facts)?;
     verify_registration(pair, facts)?;
     aggregates::verify(pair, facts)?;

@@ -225,54 +225,25 @@ impl Inventory<'_> {
     }
 
     fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
-        if matches!(expression, syn::Expr::Closure(_))
-            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
-                .is_ok_and(|profile| profile.supports("rust.immediate-option-callbacks"))
+        let (capability, kind) = match expression {
+            syn::Expr::Let(_) => ("rust.scalar-option-if-let", "expr_let"),
+            syn::Expr::Closure(_) => ("rust.immediate-option-callbacks", "expr_closure"),
+            syn::Expr::Range(_) => ("rust.shared-subslice-views", "expr_struct"),
+            syn::Expr::Struct(_) => ("rust.named-struct-values", "expr_struct"),
+            syn::Expr::Repeat(_) => ("rust.repeat-array-values", "expr_repeat"),
+            syn::Expr::Array(_) => ("rust.aggregate-literal-values", "expr_array"),
+            syn::Expr::Index(_) => ("rust.scalar-index-reads", "expr_index"),
+            syn::Expr::Field(_) => ("rust.concrete-read-only-data", "expr_field"),
+            syn::Expr::Reference(_) => ("rust.concrete-read-only-data", "expr_addr_of"),
+            _ => return expression_kind(expression),
+        };
+        if crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+            .is_ok_and(|profile| profile.supports(capability))
         {
-            return Some("expr_closure");
+            Some(kind)
+        } else {
+            expression_kind(expression)
         }
-        if matches!(expression, syn::Expr::Range(_))
-            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
-                .is_ok_and(|profile| profile.supports("rust.shared-subslice-views"))
-        {
-            return Some("expr_struct");
-        }
-        if matches!(expression, syn::Expr::Struct(_))
-            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
-                .is_ok_and(|profile| profile.supports("rust.named-struct-values"))
-        {
-            return Some("expr_struct");
-        }
-        if matches!(expression, syn::Expr::Repeat(_))
-            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
-                .is_ok_and(|profile| profile.supports("rust.repeat-array-values"))
-        {
-            return Some("expr_repeat");
-        }
-        if matches!(expression, syn::Expr::Array(_))
-            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
-                .is_ok_and(|profile| profile.supports("rust.aggregate-literal-values"))
-        {
-            return Some("expr_array");
-        }
-
-        if matches!(expression, syn::Expr::Index(_))
-            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
-                .is_ok_and(|profile| profile.supports("rust.scalar-index-reads"))
-        {
-            return Some("expr_index");
-        }
-        if matches!(expression, syn::Expr::Field(_) | syn::Expr::Reference(_))
-            && crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
-                .is_ok_and(|profile| profile.supports("rust.concrete-read-only-data"))
-        {
-            return Some(if matches!(expression, syn::Expr::Reference(_)) {
-                "expr_addr_of"
-            } else {
-                "expr_field"
-            });
-        }
-        expression_kind(expression)
     }
 
     fn add(&mut self, kind: &str, span: proc_macro2::Span) -> bool {

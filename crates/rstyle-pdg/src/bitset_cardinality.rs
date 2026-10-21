@@ -1,7 +1,7 @@
 //! Bounded primitive integer conversions and checked scalar operations.
 mod authority;
 mod source;
-mod types;
+use crate::concrete_calls::ConcreteCall;
 use crate::{
     HirNode, call_summaries::Summary, concrete_types::TypeTree, unit_store::EvidenceFacts,
 };
@@ -54,30 +54,7 @@ impl Kind {
             _ => None,
         }
     }
-    fn trees(self) -> (Vec<TypeTree>, TypeTree) {
-        let scalar = |name: &str| TypeTree::Scalar(name.into());
-        let result = |name: &str| TypeTree::IntConversionResult(name.into());
-        let option = || TypeTree::Option(Box::new(scalar("usize")));
-        match self {
-            Self::Count => (vec![scalar("u32")], scalar("u32")),
-            Self::Convert => (vec![scalar("u32")], result("usize")),
-            Self::Unwrap => (vec![result("usize")], scalar("usize")),
-            Self::Narrow => (vec![scalar("usize")], result("u16")),
-            Self::UnwrapNarrow => (vec![result("u16")], scalar("u16")),
-            Self::CheckedSub => (vec![scalar("usize"), scalar("usize")], option()),
-            Self::UnwrapOption => (vec![option()], scalar("usize")),
-        }
-    }
-    pub fn signature(self) -> Result<(Vec<String>, String), String> {
-        let (inputs, result) = self.trees();
-        Ok((
-            inputs
-                .iter()
-                .map(crate::data_types::token)
-                .collect::<Result<_, _>>()?,
-            crate::data_types::token(&result)?,
-        ))
-    }
+
     fn producer(self) -> Option<Self> {
         match self {
             Self::Unwrap => Some(Self::Convert),
@@ -91,6 +68,23 @@ impl Kind {
             Self::Narrow | Self::UnwrapNarrow => "checked-usize-to-u16-err-above-u16-max",
             Self::CheckedSub | Self::UnwrapOption => "checked-usize-sub-none-on-underflow",
             _ => "exact-u32-population-or-lossless-64-bit-conversion",
+        }
+    }
+}
+
+impl ConcreteCall for Kind {
+    fn trees(self) -> (Vec<TypeTree>, TypeTree) {
+        let scalar = |name: &str| TypeTree::Scalar(name.into());
+        let result = |name: &str| TypeTree::IntConversionResult(name.into());
+        let option = || TypeTree::Option(Box::new(scalar("usize")));
+        match self {
+            Self::Count => (vec![scalar("u32")], scalar("u32")),
+            Self::Convert => (vec![scalar("u32")], result("usize")),
+            Self::Unwrap => (vec![result("usize")], scalar("usize")),
+            Self::Narrow => (vec![scalar("usize")], result("u16")),
+            Self::UnwrapNarrow => (vec![result("u16")], scalar("u16")),
+            Self::CheckedSub => (vec![scalar("usize"), scalar("usize")], option()),
+            Self::UnwrapOption => (vec![option()], scalar("usize")),
         }
     }
 }
@@ -153,7 +147,7 @@ pub(crate) fn resolve(
     let Some(kind) = kind(node, facts) else {
         return Ok(None);
     };
-    types::verify(node, kind, facts)?;
+    kind.verify_types(node, facts, kind.implementation().is_some())?;
     authority::verify(node, kind, facts)?;
     source::verify(node, kind, facts)?;
     if let Some(producer) = kind.producer() {

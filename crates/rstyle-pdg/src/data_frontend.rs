@@ -448,6 +448,9 @@ fn verify_value_operations(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::checked_options::if_let_candidate(node, facts) {
+        crate::checked_options::verify_if_let(node, facts)?;
+    }
     if crate::data_aggregates::constructor(node)
         && crate::extraction_profile::ExtractionProfile::from_facts(facts)?
             .supports("rust.aggregate-literal-values")

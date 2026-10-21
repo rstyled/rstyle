@@ -431,18 +431,20 @@ impl<'tcx> Context<'tcx> {
         })
     }
 
+    fn while_children(&self, block: &hir::Block<'tcx>) -> Vec<HirNode> {
+        match block.expr.map(|expression| &expression.kind) {
+            Some(ExprKind::If(condition, body, _)) => {
+                vec![self.expression(condition), self.expression(body)]
+            }
+            _ => Vec::new(),
+        }
+    }
+
     fn children(&self, expr: &Expr<'tcx>) -> Vec<HirNode> {
         match expr.kind {
             ExprKind::Closure(_) => self.callback_children(expr).unwrap_or_default(),
             ExprKind::Loop(block, None, hir::LoopSource::Loop, _) => vec![self.loop_block(block)],
-            ExprKind::Loop(block, None, hir::LoopSource::While, _) => {
-                match block.expr.map(|e| &e.kind) {
-                    Some(ExprKind::If(condition, body, _)) => {
-                        vec![self.expression(condition), self.expression(body)]
-                    }
-                    _ => Vec::new(),
-                }
-            }
+            ExprKind::Loop(block, None, hir::LoopSource::While, _) => self.while_children(block),
             ExprKind::Break(_, value) => value.into_iter().map(|e| self.expression(e)).collect(),
             ExprKind::Block(block, _) => self.block_children(block),
             ExprKind::Binary(_, left, right)
@@ -459,6 +461,9 @@ impl<'tcx> Context<'tcx> {
                 .flatten()
                 .map(|e| self.expression(e))
                 .collect(),
+            ExprKind::Let(condition) if self.profile.supports("rust.scalar-option-if-let") => {
+                vec![self.pattern(condition.pat), self.expression(condition.init)]
+            }
             ExprKind::Match(value, arms, source)
                 if source == hir::MatchSource::Normal
                     || matches!(source, hir::MatchSource::TryDesugar(_))

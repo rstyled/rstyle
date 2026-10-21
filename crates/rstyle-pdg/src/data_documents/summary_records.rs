@@ -8,6 +8,34 @@ pub(super) struct Record<'a> {
 }
 
 impl Record<'_> {
+    pub fn verify_pure(
+        self,
+        pair: PairView<'_>,
+        facts: &dyn crate::unit_store::EvidenceFacts,
+        construct: &str,
+    ) -> Result<(), String> {
+        if self.node.attributes.construct.as_deref() != Some(construct)
+            || self.node.original_kind.known_value() != Some(self.source.kind.as_str())
+            || self
+                .node
+                .annotations
+                .get("compat.rust.hir-r0:type")
+                .and_then(|value| value.get("value"))
+                .and_then(serde_json::Value::as_str)
+                != Some(self.summary.result_type.as_str())
+            || self.node.attributes.call_form != Some(crate::CallForm::Direct)
+            || !self.node.attributes.reads.is_empty()
+            || !self.node.attributes.writes.is_empty()
+            || !self.node.attributes.defines.is_empty()
+            || !self.node.attributes.symbol_ids.is_empty()
+            || self.node.attributes.literal.is_some()
+            || self.node.annotations.contains_key(crate::data_places::KEY)
+        {
+            return Err("Integer operation loses exact type, value semantics or effects".into());
+        }
+        self.verify(pair, facts)
+    }
+
     pub fn verify(
         self,
         pair: PairView<'_>,

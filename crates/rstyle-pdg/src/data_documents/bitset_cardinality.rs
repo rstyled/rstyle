@@ -50,28 +50,10 @@ fn verify_call(
         node.category == crate::NodeCategory::Call
     })?;
 
-    if node.attributes.construct.as_deref() != Some(kind.construct())
-        || node.original_kind.known_value() != Some(source.kind.as_str())
-        || node
-            .annotations
-            .get("compat.rust.hir-r0:type")
-            .and_then(|value| value.get("value"))
-            .and_then(serde_json::Value::as_str)
-            != Some(summary.result_type.as_str())
-        || node.attributes.call_form != Some(crate::CallForm::Direct)
-        || !node.attributes.reads.is_empty()
-        || !node.attributes.writes.is_empty()
-        || !node.attributes.defines.is_empty()
-        || !node.attributes.symbol_ids.is_empty()
-        || node.attributes.literal.is_some()
-        || node.annotations.contains_key(crate::data_places::KEY)
-    {
-        return Err("Integer operation loses exact type, value semantics or effects".into());
-    }
     super::summary_records::Record {
         source,
         node,
         summary,
     }
-    .verify(pair, facts)
+    .verify_pure(pair, facts, kind.construct())
 }

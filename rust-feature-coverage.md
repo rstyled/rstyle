@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.68.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.70.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -20,8 +20,9 @@ Data-v3 3.62 connects literal character ranges and the pinned ASCII predicate;
 arithmetic/narrowing, bounded i32-controlled float alternatives and independently
 checked cfg-if module/dependency proof. Data-v3 3.67 adds complete borrowed
 mixed-owner type and lifetime-only callable evidence; 3.68 adds exact passive
-Copy dependency proof, connecting five original Input getters. Stored-reference
-helper-result composition remains pending.
+Copy dependency proof, connecting five original Input getters. Data-v3 3.69
+connects stored-slice results to checked consumers; 3.70 connects checked usize
+addition/multiplication and guarded Option if-let through original base64 lengths.
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -94,7 +95,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
 | F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.10.0 supports integer/bool literal/constant/range/wildcard leaves in nested grouped OR patterns, guards and independently exhaustive matches; see [nested contract](docs/extraction-profiles/nested-scalar-or-patterns-v1.md). Data-v3 3.55 adds byte ranges/OR patterns and decoded u8 exhaustiveness through the [ASCII classifier family](docs/extraction-profiles/word-byte-classifiers-v1.md). Data-v3 3.62 adds literal character ranges; nonlocal/generic/trait constants remain missing. |
 | F07 | Destructuring, reference, slice, and enum patterns | Partial | `Some(x) => x`, `[a, ..] => a` | Data-v3 3.36.0 supports exhaustive checked-access `Some(&scalar)`/`None` patterns with verified guarded loads and bindings. Data-v3 3.42.0 adds immutable owned scalar `Some(value)`/`None` bindings with guarded value projection. Data-v3 3.47.0 adds exhaustive immutable scalar tuple-variant bindings for checked Copy local enums through the [tagged-unit family](docs/extraction-profiles/tagged-units-v1.md). General payload/field/element patterns and ownership/borrow effects remain missing. |
-| F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
+| F08 | `if let`, `while let`, let chains, `let else` | Partial | `if let Some(x) = v { ... }` | Data-v3 3.70 connects immutable owned `Option<usize>` Some binding with explicit else, saved initialization and early return through [original base64 lengths](eval/coverage-development/base64-encoded-len-selection.json). Other payloads/patterns, while-let, chains and let-else remain deferred. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
 | F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Data-v3 3.41.0 additionally supports [bounded cyclic prefix scans](docs/extraction-profiles/cyclic-prefix-scans-v1.md): reducible loop-body/condition merges with finite iteration-local availability. General iterator/value-carrying exit and broader caller compositions remain open. |
 | F11 | Labelled and value-carrying exits | Missing | `'outer: loop { break 'outer; }`, `break x` | Exact target resolution and value/frontier dependencies; also labelled block expressions. |
@@ -4127,3 +4128,34 @@ package admissions strict-verify; six selected comparisons complete. Evidence:
 `/tmp/rstyle-borrowed-result-*`. Full-library matching remains incomplete; libm was
 not recaptured. Remaining adjacent gaps: aggregate/nested-reference helper results,
 mixed-enum value operations and generic/mutable Input APIs. Broad roadmap active.
+
+### Data-v3 3.70: original checked encoded lengths
+
+Original base64 0.23.1 `encode::encoded_len` now composes exact 64-bit
+`usize::checked_add/checked_mul`, immutable Some if-let with explicit else,
+early None returns and nested scalar/Option results through strict admission and
+matching. [Fixed source selection and expectations](eval/coverage-development/base64-encoded-len-selection.json).
+Default context: **7→8/167, one gain /zero losses**, unchanged source/build
+identities. Three targets × default/no-default retain **36 strict admissions and
+102 complete comparisons**; encoded_len rejects every predeclared incompatible
+peer. Independent execution of the unchanged original library: **16,552 cases**.
+Exact impl-token-to-brace spans also repair cfg-attributed getter ownership;
+independent attribute/activity and neighboring-item checks remain required.
+
+Frozen `run-jis8b7db` versus 3.69 `run-hgf65atp`: **23 admitted /30 excluded /7
+inactive**, unchanged identities/denominators. Complete lz4_flex 8/150,
+syntax 39/956 and time-core 11/226 rosters have zero gains/losses; all 58 admissions
+strict-verify and six selected comparisons complete. Historical compiler facts
+recertified separately under 3.70 preserve base64's 7/167 and automata's 134/2582
+admissions and source/build identities; all 134 automata admissions strict-verify
+and three selected comparisons complete. Older policy artifacts remain unchanged;
+this does not claim their serialized 3.69 labels are 3.70 certificates.
+
+**1014 tests /5 existing skips**, doctests/fmt/Clippy pass; **rstyle 0/3278,
+patterns 0 unignored**, existing 15 ignores unchanged. The accompanying immutable
+proof reuse cuts the unchanged slowest CLI test 187.29→50.35s and the full suite
+380.827→225.250s. Evidence: `/tmp/rstyle-base64-encoded-*`,
+`/tmp/rstyle-checked-length-*`, `/tmp/rstyle-perf-*`. Libm was not recaptured.
+Next blocker combinations remain borrowed Option payload/closure/helper-result
+composition for Transition, and opaque field/drop proof for PatternSet; broader
+Rust, rewrite safety and detector-quality claims remain separate.

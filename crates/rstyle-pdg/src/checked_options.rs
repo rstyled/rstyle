@@ -4,11 +4,15 @@
 //! guarded loads must still be independently established by document checking.
 
 mod constructors;
+mod if_let;
 mod operations;
 mod patterns;
 mod source;
 mod types;
 pub(crate) use constructors::{constructor_candidate, constructors, verify_constructor};
+pub(crate) use if_let::{
+    IfLet, candidate as if_let_candidate, sources as if_lets, verify as verify_if_let,
+};
 pub(crate) use operations::*;
 
 use crate::{HirNode, data_library::Callee, unit_store::EvidenceFacts};

@@ -6,10 +6,10 @@ remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; current validated checkpoint is Data3.69:
-original stored-slice getter/checked-consumer composition. The root roadmap records
-measured gains, full gates and unchanged frozen selections. Broader Rust coverage
-remains active; historical milestones below retain their original evidence.
+Branch `feature/rust-feature-coverage`; current implementation is Data3.70:
+original base64 checked-length/Option if-let composition, following Data3.69's
+stored-slice consumer chain. The root roadmap records validated checkpoints;
+broader coverage remains active and historical evidence stays unchanged.
 
 Compiler nightly-2026-09-30, commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`; native aarch64 Linux,
@@ -78,7 +78,7 @@ Follow-up controls finished: copy/cyclic 0.62→0.62s; ASCII 0.84→0.88s; flags
 | --- | --- |
 | P01 character / A + lead integration | Shared integration validated: six development functions admit, seven neighboring cases exclude; literal/OR/dispatch tampering and unused-char 3.60 policy downgrade reject. 939 tests pass (five existing skips); fmt/Clippy/doctests pass; rstyle 0/3051, patterns 0. Original syntax36→38/956, no losses;57 original admissions strict-verify, three comparisons complete. Frozen60 unchanged. Original `regex-syntax::is_meta_character`; dedicated char domain and historical gating, no global widening of `scalar()`. Original numeric-set oracle passes all 1112064 valid Unicode scalars. |
 | P01 escape caller / A+C+lead | Range and exact ASCII receiver leaves integrated. Complete original-copy fixture admits five/rejects five across three targets × std/no_std, strict tampering included; independent original oracle1112064 scalars/64 positives. Final focused tests pass; rstyle0/3070. Full gates pass:945 tests/5 skips, fmt/Clippy/doctests, rstyle0/3070, patterns0. Original syntax38→39/956, no losses;58 admissions strict-verify, six comparisons complete. Frozen60 unchanged. Native CI passes all three platforms. Equal-work3.60→3.62 medians: Copy0.65→0.64s, cyclic0.63→0.64s, ASCII0.87→0.87s, flags7.96→8.01s; admissions/matching unchanged. |
-| P08 saved checked / B | Source audit blocked: smallest located natural chain requires generics, let-else, Result/?, closures and borrowed aggregates. Scalar Result alternative additionally requires char/tables and binary-search protocol. No isolated vocabulary activation. |
+| P08 checked values / B + lead integration | Data3.70 connects original base64 encoded_len through checked usize add/mul, immutable Some if-let, early None return and nested result flow. Default7→8/167, no losses; six target/feature contexts strict-verify. The separate zerovec chain still needs generics/let-else/Result/?/closures/borrowed aggregates. |
 | P06 borrowed result / C | Data3.69 completes original haystack → is_char_boundary → utf8::is_boundary with distinct slot reads/referent origins, saved receiver substitution and conditional checked reads. Two original gains, zero losses; all134 strict. Broader aggregate/nested-reference results remain closed; next family needs its own original source audit. |
 | P05 ownership / D | Data3.68 proves selected passive Copy dependencies beside original PatternID/SmallIndex index_type_impls! invocations. All fields/source/Copy and owning-scope checks remain; direct dependency operations gain no permission. Complete automata120→132/2582, zero losses; all132 strict-verify. No census redesign justified. |
 | P02 floats / lead | Data3.66 completes original k_sin with exact immutable i32 equality and complete float alternatives; libm6→7/1131, zero losses, all7 strict-verify/six selected comparisons complete. Independent original oracle5384 inputs; three-target × std/no_std composition and resealed guard/merge/source attacks pass. |
@@ -92,18 +92,17 @@ Contracts: [character](extraction-profiles/character-leaf-v1.md),
 
 ## Resume order
 
-Data3.68 connects original Input get_earliest/get_span/start/end/is_done on the
-complete unmodified library. Fresh3.67 capture recertified under3.68:120→132/2582,
-12 gains/0 losses, all132 strict-verify; native oracle1128 states/11280 observations.
-All10 selected comparisons complete, but get_span/get_earliest violates its
-predeclared detector negative (7/8 hold); scoring/admission unchanged. Native3.67
-CI passes Linux x86/ARM/macOS (run39660188327). Current1002 tests/5 skips,
-doctests/fmt/Clippy pass; rstyle0/3223, patterns0 unignored. Frozen60 and three
-package rosters are unchanged (`run-kxk6hkj_`); all58 admissions strict-verify,
-six selected comparisons complete.
+Data3.70 connects complete original base64 `encode::encoded_len`; see the
+[fixed selection and expectations](../eval/coverage-development/base64-encoded-len-selection.json).
+The default167-function source/build selection gains only this function. Exact
+inherent implementation spans now agree with rustc beside checked outer cfg
+attributes; this repairs strict replay of two existing base64 getters.
 
-Next audit existing stored-slice origins before adding vocabulary, then connect
-haystack's stored-slot read, referent result and helper substitution through
-is_char_boundary. Preserve complete owners and saved receiver/actual origins.
-P08 remains blocked by its connected generics/let-else/Result/?/closure chain.
-Fold brief evidence into semantic commits; the broader P01–P22 roadmap stays active.
+Next source-selected read-only candidate: regex-automata
+`nfa::thompson::nfa::Transition::{matches,matches_unit}`. Its blocker chain includes
+exact builtin closure-capture projection/storage, borrowed Option payload reads,
+callback helper summaries and passive source dependency proof. A projection count
+alone supplies no permission. `PatternSet::{len,is_empty}` separately needs complete
+opaque Box-field/drop evidence; zerovec still needs its connected generic,
+let-else/Result/?/closure chain. Broader scalar/enum payloads and cyclic caller
+composition remain open. Fold brief evidence into semantic commits; P01–P22 stays active.

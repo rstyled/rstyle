@@ -95,7 +95,7 @@ pub(crate) fn semantics(construct: &str) -> serde_json::Value {
             ("option_operand", 0.into()),
             ("requires", "some".into()),
         ]),
-        "match.option-some" => interpretation([
+        "match.option-some" | "if.option-some" => interpretation([
             ("rule", "option-is-some".into()),
             ("option_operand", 0.into()),
         ]),

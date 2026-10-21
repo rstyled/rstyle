@@ -170,6 +170,9 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_expr(&mut self, expression: &'a ast::Expr) {
+        if self.conditional_let(expression) {
+            return;
+        }
         if let Some((capability, construct)) = deferred(&expression.kind)
             && !selected_expression(&expression.kind, self.profile)
         {
@@ -178,6 +181,28 @@ impl<'a> Visitor<'a> for Owned {
         }
 
         visit::walk_expr(self, expression);
+    }
+}
+
+impl Owned {
+    fn conditional_let(&mut self, expression: &ast::Expr) -> bool {
+        if !self.profile.supports("rust.scalar-option-if-let") {
+            return false;
+        }
+        let ast::ExprKind::Let(pattern, initializer, ..) = &expression.kind else {
+            return false;
+        };
+
+        self.conditional_pattern(pattern);
+        self.visit_expr(initializer);
+        true
+    }
+
+    fn conditional_pattern(&mut self, pattern: &ast::Pat) {
+        let previous = self.match_pattern;
+        self.match_pattern = true;
+        self.visit_pat(pattern);
+        self.match_pattern = previous;
     }
 }
 
@@ -215,6 +240,7 @@ fn selected_expression(
         ast::ExprKind::Call(..) => profile.supports("rust.verified-helper-calls"),
         ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
         ast::ExprKind::Closure(_) => profile.supports("rust.immediate-option-callbacks"),
+        ast::ExprKind::Let(..) => profile.supports("rust.scalar-option-if-let"),
         ast::ExprKind::While(..)
         | ast::ExprKind::Loop(..)
         | ast::ExprKind::Break(..)

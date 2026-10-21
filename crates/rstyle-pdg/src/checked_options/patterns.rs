@@ -2,14 +2,18 @@
 
 use super::*;
 
-fn variant<'a>(
-    arm: &'a HirNode,
-    name: &str,
-    facts: &dyn EvidenceFacts,
-) -> Result<&'a HirNode, String> {
+fn arm_pattern(arm: &HirNode) -> Result<&HirNode, String> {
     let [pattern, _] = arm.children.as_slice() else {
         return Err("Checked Option requires an unguarded pattern/body arm".into());
     };
+    Ok(pattern)
+}
+
+fn variant_pattern<'a>(
+    pattern: &'a HirNode,
+    name: &str,
+    facts: &dyn EvidenceFacts,
+) -> Result<&'a HirNode, String> {
     let expected = if name == "Some" {
         "pat_option_some"
     } else {
@@ -36,7 +40,7 @@ pub(super) fn none(
     owned: bool,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
-    let pattern = variant(arm, "None", facts)?;
+    let pattern = variant_pattern(arm_pattern(arm)?, "None", facts)?;
     if types::payload(pattern)? != scalar
         || types::owned(pattern) != owned
         || !pattern.children.is_empty()
@@ -52,7 +56,25 @@ pub(super) fn some<'a>(
     owned: bool,
     facts: &dyn EvidenceFacts,
 ) -> Result<&'a HirNode, String> {
-    let pattern = variant(arm, "Some", facts)?;
+    some_pattern(arm_pattern(arm)?, scalar, owned, facts)
+}
+
+pub(super) fn some_pattern<'a>(
+    pattern: &'a HirNode,
+    scalar: &str,
+    owned: bool,
+    facts: &dyn EvidenceFacts,
+) -> Result<&'a HirNode, String> {
+    let pattern = variant_pattern(pattern, "Some", facts)?;
+    some_payload(pattern, scalar, owned, facts)
+}
+
+fn some_payload<'a>(
+    pattern: &'a HirNode,
+    scalar: &str,
+    owned: bool,
+    facts: &dyn EvidenceFacts,
+) -> Result<&'a HirNode, String> {
     if types::payload(pattern)? != scalar || types::owned(pattern) != owned {
         return Err("Option variant type disagrees with scrutinee".into());
     }

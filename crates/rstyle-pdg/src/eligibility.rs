@@ -603,6 +603,9 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
 }
 
 fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if crate::checked_options::if_let_candidate(node, ctx.facts) {
+        return Some(check_option_if_let(node, ctx));
+    }
     if crate::bool_constants::candidate(node) {
         return Some(match crate::bool_constants::verify_node(node, ctx.facts) {
             Ok(()) => Outcome::ok(),
@@ -1702,6 +1705,19 @@ fn check_assign_op(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     check_expr_ty(node, "compound_assignment")
+}
+
+fn check_option_if_let(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::checked_options::verify_if_let(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(vec![
+            check_node(checked.scrutinee, false, ctx),
+            check_node(checked.binding, false, ctx),
+            check_node(checked.then_branch, false, ctx),
+            check_node(checked.else_branch, false, ctx),
+            check_kind(node, ctx),
+        ]),
+        Err(reason) => error("rust.scalar-option-if-let", "if_let", node, &reason),
+    }
 }
 
 fn check_if(node: &HirNode) -> Outcome {

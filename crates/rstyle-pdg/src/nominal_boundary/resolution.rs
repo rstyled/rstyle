@@ -740,7 +740,7 @@ fn check_implementation(
         let bytes = resolution.environment.source(&module.path)?.bytes();
         for item in &module.items {
             if let syn::Item::Impl(item) = item
-                && source_span(bytes, item.span()) == *implementation
+                && implementation_source_span(bytes, item) == *implementation
                 && supported_inherent_member(item, bytes, facts)
             {
                 owners += 1;
@@ -753,6 +753,16 @@ fn check_implementation(
     }
 
     Ok(())
+}
+
+// rustc's implementation span excludes outer attributes; syn's item span
+// includes them. Attribute activity and semantics are checked by the closed
+// lexical environment before this exact implementation/member comparison.
+fn implementation_source_span(bytes: &str, item: &syn::ItemImpl) -> ByteSpan {
+    ByteSpan {
+        start: source_span(bytes, item.impl_token.span()).start,
+        end: source_span(bytes, item.brace_token.span.close()).end,
+    }
 }
 
 fn supports(facts: &HirFnFacts, capability: &str) -> Result<bool, String> {

@@ -5,6 +5,7 @@ mod enums;
 mod iterator_position;
 mod loops;
 mod named_callbacks;
+mod option_if_let;
 mod options;
 
 use super::graph::*;
@@ -104,6 +105,7 @@ fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
             count == 2
         }
         "expr_if" => (2..=3).contains(&count),
+        "expr_let" => count == 2,
         "expr_ret" => count <= 1,
         "expr_path" | "expr_lit" | "pat_binding" | "ty_annotation" => count == 0,
         "expr_tup" | "expr_array" | "expr_repeat" | "expr_struct" => true,
@@ -704,6 +706,8 @@ impl Builder<'_> {
                 Some(crate::size_calls::CONSTRUCT.into())
             } else if let Some(kind) = crate::bitset_cardinality::kind(node, self.facts) {
                 Some(kind.construct().into())
+            } else if let Some(kind) = crate::checked_lengths::kind(node, self.facts) {
+                Some(kind.construct().into())
             } else if crate::scalar_from::candidate(node, self.facts) {
                 Some(crate::scalar_from::CONSTRUCT.into())
             } else if crate::checked_options::get_candidate(node, self.facts) {
@@ -893,6 +897,15 @@ impl Builder<'_> {
     }
 
     fn branch(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::checked_options::if_let_candidate(node, self.facts) {
+            let checked = crate::checked_options::verify_if_let(node, self.facts)
+                .expect("eligible scalar Option if-let");
+            return self.option_if_let(node, checked, flow);
+        }
+        self.boolean_branch(node, flow)
+    }
+
+    fn boolean_branch(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let predicate = self.condition(node, flow).flow;
         let controller = predicate.value.clone().expect("predicate");
         let arms = self.branch_arms(node, &predicate);
