@@ -36,6 +36,19 @@ mod sealed {
 pub trait EvidenceFacts: sealed::Sealed {
     fn facts(&self) -> &HirFnFacts;
 
+    /// Verify facts only; mutable graph documents never share this result.
+    fn verify_data_frontend(&self) -> Result<(), String> {
+        crate::data_frontend::check(self.facts())
+    }
+
+    /// Immutable receiver proofs are local to the owner, source mode and policy.
+    fn receiver_inventory(
+        &self,
+        original_source: bool,
+    ) -> Result<std::borrow::Cow<'_, crate::data_receivers::Capture>, String> {
+        crate::data_receivers::check(self.facts(), original_source).map(std::borrow::Cow::Owned)
+    }
+
     /// Check original scalar Option spelling in the exact lexical function
     /// owner. This supplies no semantic type or nominal ownership permission.
     fn verify_option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
@@ -78,6 +91,17 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn verify_data_frontend(&self) -> Result<(), String> {
+        T::verify_data_frontend(*self)
+    }
+
+    fn receiver_inventory(
+        &self,
+        original_source: bool,
+    ) -> Result<std::borrow::Cow<'_, crate::data_receivers::Capture>, String> {
+        T::receiver_inventory(*self, original_source)
+    }
+
     fn verify_option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
         T::verify_option_type(*self, path, scalar)
     }
@@ -198,6 +222,17 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn verify_data_frontend(&self) -> Result<(), String> {
+        self.data_boundary()
+    }
+
+    fn receiver_inventory(
+        &self,
+        original_source: bool,
+    ) -> Result<std::borrow::Cow<'_, crate::data_receivers::Capture>, String> {
+        self.receivers(original_source)
+    }
+
     fn verify_option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
         self.option_type(path, scalar)
     }

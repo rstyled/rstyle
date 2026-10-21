@@ -3,6 +3,7 @@
 mod dispatch;
 mod verify;
 pub(crate) use dispatch::{InvocationSyntax, candidate, verify_dispatch};
+pub(crate) use verify::check;
 pub use verify::{verify, verify_capture};
 
 use crate::{ByteSpan, HirRef, concrete_types::Observation};

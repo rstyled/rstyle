@@ -11,6 +11,12 @@ impl PathResolution for Unresolved {
 }
 
 pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+    facts.verify_data_frontend()
+}
+
+pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+    let observation =
+        crate::diagnostics::Stage::new("source.data_frontend", &facts.name, None).enter();
     crate::character_scalars::verify_function(facts)?;
     crate::float_scalars::verify_function(facts)?;
     let interface = interface(facts)?;
@@ -28,7 +34,7 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
 
     verify_fields(facts)?;
     let places = crate::data_places::Places::verify(facts)?;
-    verify_nodes(&facts.body, facts, &places)
+    observation.finish(verify_nodes(&facts.body, facts, &places))
 }
 
 pub(crate) fn verify_document_policy(

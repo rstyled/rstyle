@@ -219,7 +219,8 @@ pub(crate) fn from_facts(facts: &HirFnFacts) -> Result<Resolution, String> {
         .build
         .frontend_options
         .data::<InterfaceObservations>()?;
-    verify(facts, &interface)
+    crate::diagnostics::Stage::new("source.nominal_standalone", &facts.name, None)
+        .observe(|| verify(facts, &interface))
 }
 
 struct Declaration {

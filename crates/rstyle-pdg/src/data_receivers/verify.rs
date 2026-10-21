@@ -2,23 +2,25 @@
 
 use super::*;
 use crate::{
-    HirFnFacts, HirNode,
+    HirNode,
     concrete_types::{InterfaceObservations, Observation, TypeTree},
     extraction_profile::ExtractionProfile,
+    unit_store::EvidenceFacts,
 };
 use std::collections::BTreeSet;
 
-pub fn verify(facts: &HirFnFacts) -> Result<Capture, String> {
-    check(facts, true)
+pub fn verify(facts: &dyn EvidenceFacts) -> Result<std::borrow::Cow<'_, Capture>, String> {
+    facts.receiver_inventory(true)
 }
 
 /// Validate observations without claiming original-source correspondence.
 /// Expanded functions remain subject to the full verifier before admission.
-pub fn verify_capture(facts: &HirFnFacts) -> Result<Capture, String> {
-    check(facts, false)
+pub fn verify_capture(facts: &dyn EvidenceFacts) -> Result<std::borrow::Cow<'_, Capture>, String> {
+    facts.receiver_inventory(false)
 }
 
-fn check(facts: &HirFnFacts, original_source: bool) -> Result<Capture, String> {
+pub(crate) fn check(facts: &dyn EvidenceFacts, original_source: bool) -> Result<Capture, String> {
+    let observation = crate::diagnostics::Stage::new("source.receivers", &facts.name, None).enter();
     let value = facts.build.frontend_options.get(KEY);
     if !ExtractionProfile::from_facts(facts)?.is_data() {
         return if value.is_none() {
@@ -57,7 +59,7 @@ fn check(facts: &HirFnFacts, original_source: bool) -> Result<Capture, String> {
         check_adjustments(record)?;
     }
 
-    Ok(capture)
+    observation.finish(Ok(capture))
 }
 
 fn empty() -> Capture {

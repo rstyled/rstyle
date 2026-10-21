@@ -320,7 +320,7 @@ fn check_owned_adjustments(function: &Value) {
     let (unit, index) = data_unit(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
-    let original = data_receivers::verify(&facts).unwrap();
+    let original = data_receivers::verify(&facts).unwrap().into_owned();
     for mutation in ["missing", "extra", "mutable", "target"] {
         let mut capture = original.clone();
         let record = &mut capture.methods[0];
@@ -445,7 +445,7 @@ fn check_value_adjustment(function: &Value) {
     let (unit, index) = data_unit(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
-    let mut capture = data_receivers::verify(&facts).unwrap();
+    let mut capture = data_receivers::verify(&facts).unwrap().into_owned();
     assert_eq!(capture.methods.len(), 2);
     assert!(
         capture
@@ -564,7 +564,7 @@ fn value_self_calls_bind_observed_signature_to_the_actual_callee() {
     let (unit, index) = data_unit(function);
     let mut functions = unit.functions().to_vec();
     let changed = &mut functions[index];
-    let mut capture = data_receivers::verify(changed).unwrap();
+    let mut capture = data_receivers::verify(changed).unwrap().into_owned();
     let record = &mut capture.methods[0];
     let Observation::Captured { ty } = &record.receiver_type else {
         panic!("missing type")

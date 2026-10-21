@@ -112,7 +112,7 @@ fn check_initializer_receivers(function: &Value, facts: &rstyle_pdg::HirFnFacts)
     assert!(!captured.methods.is_empty());
     assert!(rstyle_pdg::data_receivers::verify(facts).is_err());
     let mut corrupted = facts.clone();
-    let mut capture = captured;
+    let mut capture = captured.into_owned();
     capture.methods[0].receiver.local += 1;
     corrupted.build.frontend_options.insert(
         rstyle_pdg::data_receivers::KEY.into(),

@@ -12,6 +12,8 @@ use std::{borrow::Cow, cell::OnceCell, rc::Rc, sync::Arc};
 #[derive(Default)]
 pub(super) struct Derived {
     nominal: Checked<Resolution>,
+    data_frontend: Checked<()>,
+    receivers: [Checked<crate::data_receivers::Capture>; 2],
     inherent: Checked<Option<Definition>>,
 }
 
@@ -151,6 +153,22 @@ pub(super) fn contexts(count: usize) -> Box<[Derived]> {
 }
 
 impl FunctionView<'_> {
+    pub(super) fn data_boundary(&self) -> Result<(), String> {
+        self.derived()
+            .data_frontend
+            .get(|| crate::data_frontend::check(self))
+            .copied()
+    }
+
+    pub(super) fn receivers(
+        &self,
+        original_source: bool,
+    ) -> Result<Cow<'_, crate::data_receivers::Capture>, String> {
+        self.derived().receivers[usize::from(original_source)]
+            .get(|| crate::data_receivers::check(self, original_source))
+            .map(Cow::Borrowed)
+    }
+
     pub(super) fn option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
         self.resolver
             .sources()

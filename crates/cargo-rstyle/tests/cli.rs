@@ -5599,7 +5599,7 @@ fn check_length_receiver_capture(function: &Value) {
     )
     .unwrap();
     let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
-    assert_eq!(data_receivers::verify(&facts).unwrap(), capture);
+    assert_eq!(data_receivers::verify(&facts).unwrap().as_ref(), &capture);
     if facts.name == "str_len" {
         check_receiver_evidence_tampering(&facts);
     }
@@ -5707,7 +5707,7 @@ fn check_receiver_evidence_tampering(facts: &rstyle_pdg::HirFnFacts) {
         "mutable",
     ] {
         let mut changed = facts.clone();
-        let mut capture = verify(facts).unwrap();
+        let mut capture = verify(facts).unwrap().into_owned();
         match change {
             "identity" => capture.identity = "unregistered".into(),
             "missing" => capture.methods.clear(),

@@ -7,7 +7,7 @@ use crate::{
     extraction_profile::ExtractionProfile,
 };
 
-pub fn verify_evidence(facts: &HirFnFacts) -> Result<Libraries, String> {
+pub fn verify_evidence(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Libraries, String> {
     if !ExtractionProfile::from_facts(facts)?.is_data() {
         return if facts.build.frontend_options.contains_key(KEY) {
             Err("Library resolution evidence is restricted to Data".into())
