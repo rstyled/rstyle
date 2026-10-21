@@ -603,6 +603,18 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
 }
 
 fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if crate::bool_constants::candidate(node) {
+        return Some(match crate::bool_constants::verify_node(node, ctx.facts) {
+            Ok(()) => Outcome::ok(),
+            Err(reason) => error(
+                crate::bool_constants::CAPABILITY,
+                "const_table",
+                node,
+                &reason,
+            ),
+        });
+    }
+
     if crate::iterator_position::candidate(node, ctx.facts) {
         return Some(match crate::iterator_position::verify(node, ctx.facts) {
             Ok(checked) => check_node(checked.receiver, false, ctx),

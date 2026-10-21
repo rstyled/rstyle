@@ -326,7 +326,27 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
             crate::conditional_source::item_attributes(item),
             item.span(),
         ) {
-            let kind = if crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
+            let table = crate::extraction_profile::facts_support(
+                self.facts,
+                crate::bool_constants::CAPABILITY,
+            );
+            let source = &self.facts.source.bytes;
+            let bytes = source
+                .get(
+                    offset(source, item.span().start()) as usize
+                        ..offset(source, item.span().end()) as usize,
+                )
+                .unwrap_or_default();
+            let kind = if table
+                && matches!(item, syn::Item::Fn(_) if crate::bool_constants::function_declaration(bytes).is_ok())
+            {
+                "stmt_const_array_fn"
+            } else if table
+                && matches!(item, syn::Item::Const(_))
+                && crate::bool_constants::array_declaration(bytes).is_ok()
+            {
+                "stmt_bool_array"
+            } else if crate::extraction_profile::ExtractionProfile::from_facts(self.facts)
                 .is_ok_and(|profile| profile.supports("rust.native-borrowed-byte-readers"))
                 && matches!(item, syn::Item::Const(_))
             {

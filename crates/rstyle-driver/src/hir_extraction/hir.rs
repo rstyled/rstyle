@@ -355,22 +355,24 @@ impl<'tcx> Context<'tcx> {
 
     fn path_resolution(&self, expr: &Expr<'tcx>, path: &hir::QPath<'tcx>) -> Option<PathRes> {
         let res = self.typeck.qpath_res(path, expr.hir_id);
-        self.constant_resolution(res).or_else(|| {
-            Some(PathRes {
-                kind: if matches!(res, Res::Local(_)) {
-                    "local"
-                } else {
-                    "other"
-                }
-                .into(),
-                target: if let Res::Local(id) = res {
-                    Some(reference(id))
-                } else {
-                    None
-                },
-                description: format!("{res:?}"),
+        self.bool_array_resolution(res)
+            .or_else(|| self.constant_resolution(res))
+            .or_else(|| {
+                Some(PathRes {
+                    kind: if matches!(res, Res::Local(_)) {
+                        "local"
+                    } else {
+                        "other"
+                    }
+                    .into(),
+                    target: if let Res::Local(id) = res {
+                        Some(reference(id))
+                    } else {
+                        None
+                    },
+                    description: format!("{res:?}"),
+                })
             })
-        })
     }
 
     fn field_resolution(&self, expr: &Expr<'tcx>, base: &Expr<'tcx>) -> Option<PathRes> {
@@ -533,12 +535,19 @@ impl<'tcx> Context<'tcx> {
             }
             StmtKind::Item(id) => {
                 let item = self.tcx.hir_item(id);
-                let mut node = self.node(stmt.hir_id, item.span, "stmt_item");
-                if let Some(resolution) = self.native_size_constant(item) {
-                    node.kind = "stmt_size_const".into();
-                    node.res = Some(resolution);
+                let declaration = self.const_array_item(item).or_else(|| {
+                    self.native_size_constant(item)
+                        .map(|res| ("stmt_size_const", res))
+                });
+                let node = self.node(stmt.hir_id, item.span, "stmt_item");
+                match declaration {
+                    Some((kind, res)) => HirNode {
+                        kind: kind.into(),
+                        res: Some(res),
+                        ..node
+                    },
+                    None => node,
                 }
-                node
             }
         }
     }

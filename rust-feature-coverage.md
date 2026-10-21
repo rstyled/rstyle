@@ -3782,3 +3782,22 @@ ownership and lossless `u8 as usize` range proof through helper admission; then
 named map_or callback transport. Unit::is_word_byte and the five LookMatcher
 callers remain incomplete. No new census/cache, weaker admission/scoring or
 abstraction/rewrite-quality claim.
+
+### Data-v3 3.56: connected compile-time bool tables
+
+Original regex-automata utf8::is_word_byte now admits with complete evaluated
+contents, owned compile-time declarations and saved lossless unsigned cast bounds.
+Its runtime table builder still excludes for memory writes. Natural admissions
+**83 → 84 /2582**; table/callback development **4 → 6 /20**. Other selections
+are unchanged, zero losses; frozen **23 admitted /30 excluded /7 inactive /60**
+retain their identities and denominators.
+
+All **141 admissions** independently strict-verify; **15 selected comparisons**
+complete. **921 tests pass /5 skipped**, including reported regressions and six
+cross-target/std contexts; oracles, Clippy/doctests/fmt pass, **rstyle 0 /2983
+functions**, **patterns 0**. See the compact
+[contract/results](docs/extraction-profiles/word-byte-classifiers-v1.md) for bounded
+performance observations and validation limits. Next connect exact named map_or
+callbacks to finish Unit::is_word_byte and its selected callers; five LookMatcher
+callers still need separate owner/arithmetic work. No new census/cache or weaker
+admission/scoring.

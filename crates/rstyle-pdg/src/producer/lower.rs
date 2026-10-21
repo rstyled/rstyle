@@ -248,6 +248,14 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
+    fn path(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        match node.res.as_ref().map(|res| res.kind.as_str()) {
+            Some(crate::bool_constants::RESOLUTION) => self.bool_array_constant(node, flow),
+            Some(crate::scalar_constants::RESOLUTION) => self.constant(node, flow),
+            _ => self.read(node, flow),
+        }
+    }
+
     fn constant(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let constant = crate::scalar_constants::ScalarConstant::decode(
             node.res.as_ref().expect("constant resolution"),
@@ -259,6 +267,18 @@ impl Builder<'_> {
             ..template(node, NodeCategory::Computation)
         };
 
+        self.emit(operation, flow)
+    }
+
+    fn bool_array_constant(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let record =
+            crate::bool_constants::BoolArray::decode(node.res.as_ref().expect("table resolution"))
+                .expect("verified bool table");
+        let operation = Operation {
+            literal: Some(record.literal()),
+            construct: Some("constant.bool-array".into()),
+            ..template(node, NodeCategory::Computation)
+        };
         self.emit(operation, flow)
     }
 
@@ -1267,16 +1287,8 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_assert" => Builder::assertion,
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,
-        "stmt_size_const" => Builder::compile_time_item,
-        "expr_path"
-            if node
-                .res
-                .as_ref()
-                .is_some_and(|res| res.kind == crate::scalar_constants::RESOLUTION) =>
-        {
-            Builder::constant
-        }
-        "expr_path" => Builder::read,
+        "stmt_size_const" | "stmt_bool_array" | "stmt_const_array_fn" => Builder::compile_time_item,
+        "expr_path" => Builder::path,
         "expr_field" => Builder::field_read,
         "expr_index" => Builder::index_read,
         "expr_unary" => Builder::unary,

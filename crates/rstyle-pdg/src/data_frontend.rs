@@ -16,6 +16,7 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
     verify_lifetimes(&source)?;
     crate::size_constants::verify_function(facts)?;
+    crate::bool_constants::verify_function(facts)?;
     let resolution = nominal_resolution(facts, &interface)?;
     verify_interface(facts, &source, &interface, resolution.as_deref())?;
 
@@ -444,6 +445,13 @@ fn verify_path(
     if node
         .res
         .as_ref()
+        .is_some_and(|res| res.kind == crate::bool_constants::RESOLUTION)
+    {
+        return crate::bool_constants::verify_use(node, facts).map(|_| ());
+    }
+    if node
+        .res
+        .as_ref()
         .is_some_and(|resolution| resolution.kind == crate::scalar_constants::RESOLUTION)
     {
         if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
@@ -457,6 +465,14 @@ fn verify_path(
         )
         .map(|_| ());
     }
+    verify_binding_path(node, facts, token)
+}
+
+fn verify_binding_path(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    token: &str,
+) -> Result<(), String> {
     let target = node
         .res
         .as_ref()

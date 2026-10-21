@@ -115,3 +115,56 @@ Byte corpus **0.28 [0.26–0.31] → 0.36 [0.33–0.38]** does 0 → 9 admission
 and 0 → 36 comparisons; median peak RSS 106.3 → 107.8 MiB. These are bounded
 controls. Text output keeps the complete natural report on disk without a second
 JSON rendering; that run peaks at 6.1 GiB. No general performance claim.
+
+## Const-table support contract (3.56)
+
+Connect the original utf8 table helper and direct development caller before named
+callbacks. Support original function-local `[bool; 1..=4096]` constants initialized
+by a safe, nongeneric, zero-argument sibling const fn with the same result type.
+Retain complete declaration source/identity; reject attributes, macros, unsafe,
+nested declarations and indirect initializers. Rustc owns compile-time execution:
+read every evaluated byte with bounds, layout, initialization and pointer-provenance
+checks; accept only bool representations. Declarations have no runtime operation;
+the separately captured runtime builder still excludes for memory writes.
+
+A value path must agree with exactly one owned declaration and all evaluated
+entries. Documents retain the full value, exact type and zero runtime effects or
+operands. Unsigned casts carry saved upper bounds only when the concrete source
+and result are unsigned and the saved bound fits the result on the captured
+target. Signed/widened/rebound indices and the 255-versus-256 edge retain possible
+panic and cannot certify helpers. Expected unchanged development gain: table
+helper plus word_byte; named callback and Unit callers remain excluded. Validate
+all 256 entries against the independent ASCII bitset and reject forged contents,
+length, effects, operand edges, ownership, initializer and historical policy.
+
+### 3.56 measured result
+
+Original regex-automata utf8::is_word_byte now admits through real Cargo capture,
+independent verification, strict admission and matching. Unchanged selections:
+**regex-automata 83 → 84 /2582**, table/callback development **4 → 6 /20**;
+byte development **9/11**, regex-syntax **23/956**, lz4_flex **8/150**, time-core
+**11/226** unchanged. Zero losses; identities/build contexts agree. Frozen sixty
+retain **23 admitted /30 excluded /7 inactive**, identical denominators.
+
+All **141 admissions across these selections** independently strict-verify;
+**15 comparisons among six unique function keys** complete without diagnostics.
+The verbatim development table verifies separately from the original matching
+selection. Full natural matching remains explicitly budget-limited. **921 tests
+pass /5 skipped**, including the reported assertion/subslice regressions and six
+target/std contexts; original-crate oracles, Clippy/doctests/fmt pass.
+**Rstyle 0 violations /2983 functions; patterns 0 candidates**. Native macOS
+execution was not performed here.
+
+Clean ba2a7ae controls, seven alternating measured samples: copy median
+**0.65 → 0.64s**; table **0.55 → 0.60s**, doing **6 → 15 comparisons**.
+Cyclic initially **0.63 → 0.66s**; a fifteen-sample repeat gives **0.63 → 0.62s**.
+RSS remains stable. The single full natural capture takes **884s /6.1 GiB**
+(previous 874s /6.1 GiB); these bounded observations make no general performance
+claim. Text capture retains complete reports without a second JSON rendering.
+
+Remaining chain: exact named map_or function-item identity, checked helper
+summary, eager arguments, Some-only invocation and result merge. Unit::is_word_byte
+and seven intended development positives await that composition. Five LookMatcher
+callers retain separate owner/arithmetic blockers. Runtime mutation, function
+pointers and effectful callbacks remain excluded; no scoring/admission relaxation,
+new census/cache, abstraction activation or rewrite-quality claim.

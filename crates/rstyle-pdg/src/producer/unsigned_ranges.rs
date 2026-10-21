@@ -20,6 +20,7 @@ pub(super) struct Ranges<'a> {
     graph: &'a Graph,
     analysis: &'a Analysis,
     width: Option<u32>,
+    casts: bool,
     bounds: BTreeMap<String, u128>,
 }
 
@@ -37,6 +38,10 @@ impl<'a> Ranges<'a> {
                 .pointer_width
                 .value
                 .and_then(|width| u32::try_from(width).ok()),
+            casts: crate::extraction_profile::facts_support(
+                facts,
+                crate::bool_constants::CAPABILITY,
+            ),
             bounds: BTreeMap::new(),
         }
     }
@@ -59,9 +64,27 @@ impl<'a> Ranges<'a> {
         let inferred = if node.category == NodeCategory::Read {
             read(node, self.graph, self.analysis, &self.bounds)
         } else {
-            expression(node, constants, &self.bounds)
+            self.cast(node)
+                .or_else(|| expression(node, constants, &self.bounds))
         };
         Some(inferred.unwrap_or(full).min(full))
+    }
+
+    fn cast(&self, node: &Operation) -> Option<u128> {
+        if !self.casts
+            || node.original_kind != "expr_cast"
+            || node.operator.as_deref() != Some("as")
+        {
+            return None;
+        }
+        let [operand] = node.operands.as_slice() else {
+            return None;
+        };
+
+        let input = self.graph.nodes.iter().find(|input| &input.id == operand)?;
+        type_maximum(&input.ty, self.width)?;
+        let bound = *self.bounds.get(operand)?;
+        (bound <= type_maximum(&node.ty, self.width)?).then_some(bound)
     }
 
     pub(super) fn safe(&self, node: &Operation) -> bool {

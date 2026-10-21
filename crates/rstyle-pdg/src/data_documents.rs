@@ -3,6 +3,7 @@
 mod aggregates;
 mod assertions;
 mod bitset_cardinality;
+mod bool_constants;
 mod borrows;
 mod byte_calls;
 mod byte_scalars;
@@ -253,6 +254,7 @@ pub fn verify<'a>(
     verify_registration(pair, facts)?;
     aggregates::verify(pair, facts)?;
     byte_scalars::verify(pair, facts)?;
+    bool_constants::verify(pair, facts)?;
     scalar_enums::verify(pair, facts)?;
     locals::verify(pair, facts)?;
     verify_interface(pair, facts)?;

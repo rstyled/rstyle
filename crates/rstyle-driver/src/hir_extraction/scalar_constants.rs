@@ -93,7 +93,7 @@ impl Context<'_> {
         })
     }
 
-    fn local_constant(&self, kind: DefKind, definition: DefId) -> bool {
+    pub(super) fn local_constant(&self, kind: DefKind, definition: DefId) -> bool {
         matches!(kind, DefKind::Const | DefKind::AssocConst)
             && definition.is_local()
             && self.tcx.generics_of(definition).count() == 0
@@ -107,7 +107,7 @@ impl Context<'_> {
             }
     }
 
-    fn constant_declaration(&self, definition: DefId) -> Option<String> {
+    pub(super) fn constant_declaration(&self, definition: DefId) -> Option<String> {
         let span = match self.tcx.hir_node_by_def_id(definition.expect_local()) {
             Node::Item(item) => item.span,
             Node::ImplItem(item) => item.span,
