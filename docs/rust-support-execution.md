@@ -91,3 +91,14 @@ frontier after every family; broader P01–P22 coverage remains active.
 - Contract/frontier commit `cde2959` pushed to the feature branch. B is auditing
   a concrete scalar/unit Result or scalar Option if-let replacement; no production
   work is authorized while the current integrated baseline runs.
+
+### Refined next frontier
+
+The bounded B replacement audit is also
+[blocked](extraction-profiles/scalar-result-frontier-audit-v1.md): the smallest
+located scalar Result original needs character/table origins, closure destructuring
+and binary-search protocol proof. Do not activate isolated Result vocabulary.
+A's shared-interface review found that globally widening `scalar()` would also
+activate unsupported aggregate/Option cases and invalidate an enum-cast integer
+guard. Use a dedicated capability-gated char primitive path; retain existing
+integer gates. Original char spelling already survives producer serialization.
