@@ -3,7 +3,11 @@ use super::*;
 
 pub fn fieldless_variants(source: &str) -> Result<Vec<(String, i64)>, String> {
     let item: syn::ItemEnum = syn::parse_str(source).map_err(|error| error.to_string())?;
-    if source.len() > MAX_SOURCE_BYTES
+    variants(&item, source.len())
+}
+
+fn variants(item: &syn::ItemEnum, source_len: usize) -> Result<Vec<(String, i64)>, String> {
+    if source_len > MAX_SOURCE_BYTES
         || item.variants.is_empty()
         || item.variants.len() > MAX_FIELDS
         || !item.generics.params.is_empty()
@@ -14,7 +18,7 @@ pub fn fieldless_variants(source: &str) -> Result<Vec<(String, i64)>, String> {
     }
 
     let mut result = Vec::new();
-    for variant in item.variants {
+    for variant in &item.variants {
         if !matches!(variant.fields, syn::Fields::Unit)
             || variant
                 .attrs
@@ -26,8 +30,8 @@ pub fn fieldless_variants(source: &str) -> Result<Vec<(String, i64)>, String> {
             );
         }
 
-        let value = match variant.discriminant {
-            Some((_, expression)) => discriminant(&expression, 0)?,
+        let value = match &variant.discriminant {
+            Some((_, expression)) => discriminant(expression, 0)?,
             None => result.last().map_or(Ok(0), |(_, value): &(String, i64)| {
                 value
                     .checked_add(1)
@@ -98,7 +102,7 @@ pub(super) fn check(
     check_identity(nominal, source)?;
     let item: syn::ItemEnum = syn::parse_str(source).map_err(|error| error.to_string())?;
     if nominal.definition_path.rsplit("::").next() != Some(item.ident.to_string().as_str())
-        || fieldless_variants(source)? != variants
+        || self::variants(&item, source.len())? != variants
     {
         return Err("Fieldless enum source, identity or discriminants disagree".into());
     }

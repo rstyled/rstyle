@@ -3,7 +3,7 @@
 use super::*;
 use crate::{
     HirNode,
-    concrete_types::{InterfaceObservations, Observation, TypeTree},
+    concrete_types::{Observation, TypeTree},
     extraction_profile::ExtractionProfile,
     unit_store::EvidenceFacts,
 };
@@ -137,23 +137,18 @@ fn check_types(record: &Method, node: &HirNode) -> Result<(), String> {
     check_value_type(&record.signature_result, node)?;
     check_registered_signature(record, node)?;
 
-    let observations = std::iter::once(&record.receiver_type)
-        .chain([&record.adjusted_type])
-        .chain(
-            record
-                .adjustments
-                .iter()
-                .map(|adjustment| &adjustment.target),
-        )
-        .chain(&record.signature_inputs)
-        .cloned()
-        .collect();
-    InterfaceObservations {
-        identity: crate::concrete_types::IDENTITY.into(),
-        parameters: observations,
-        result: record.signature_result.clone(),
-    }
-    .validate()
+    crate::concrete_types::validate_observations(
+        std::iter::once(&record.receiver_type)
+            .chain([&record.adjusted_type])
+            .chain(
+                record
+                    .adjustments
+                    .iter()
+                    .map(|adjustment| &adjustment.target),
+            )
+            .chain(&record.signature_inputs)
+            .chain([&record.signature_result]),
+    )
 }
 
 fn check_registered_signature(record: &Method, node: &HirNode) -> Result<(), String> {

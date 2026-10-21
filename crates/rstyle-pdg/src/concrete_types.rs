@@ -7,6 +7,7 @@ pub mod lifetimes;
 mod mixed_enums;
 mod option_spelling;
 mod scalar_enums;
+mod validation;
 pub(crate) use mixed_enums::closed_payload;
 pub use mixed_enums::mixed_variant_declarations;
 pub use scalar_enums::variant_declarations;
@@ -197,18 +198,7 @@ impl InterfaceObservations {
         if self.identity != IDENTITY {
             return Err("Unregistered concrete type observation identity".into());
         }
-        let mut entries = 0;
-        for observation in self.parameters.iter().chain([&self.result]) {
-            match observation {
-                Observation::Captured { ty } => check(ty, 0, &mut entries)?,
-                Observation::Unsupported { reason } if reason.is_empty() => {
-                    return Err("Unsupported concrete type lacks a reason".into());
-                }
-                Observation::Unsupported { .. } => {}
-            }
-        }
-
-        Ok(())
+        validation::observations(self.parameters.iter().chain([&self.result]))
     }
 }
 
@@ -237,20 +227,13 @@ pub fn scalar(token: &str) -> bool {
 }
 
 pub fn validate(tree: &TypeTree) -> Result<(), String> {
-    check(tree, 0, &mut 0)
+    validation::tree(tree)
 }
 
-fn check(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), String> {
-    *entries += 1;
-    if depth > MAX_DEPTH || *entries > MAX_ENTRIES {
-        return Err("Concrete type observation exceeds depth/entry budget".into());
-    }
-    if !(depth == 0
-        && matches!(tree, TypeTree::Scalar(token) if matches!(token.as_str(), "char" | "f32" | "f64")))
-    {
-        check_shape(tree)?;
-    }
-    check_children(tree, depth + 1, entries)
+pub(crate) fn validate_observations<'a>(
+    observations: impl Iterator<Item = &'a Observation>,
+) -> Result<(), String> {
+    validation::observations(observations)
 }
 
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
@@ -298,32 +281,6 @@ fn option_payload(tree: &TypeTree) -> bool {
         }
         _ => false,
     }
-}
-
-fn check_children(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), String> {
-    if tree.nominal_parts().is_some() {
-        return check_many(tree.nominal_fields().map(|field| &field.ty), depth, entries);
-    }
-    match tree {
-        TypeTree::Tuple(elements) => check_many(elements.iter(), depth, entries),
-        TypeTree::Array { element, .. }
-        | TypeTree::Shared(element)
-        | TypeTree::Slice(element)
-        | TypeTree::Option(element) => check(element, depth, entries),
-        _ => Ok(()),
-    }
-}
-
-fn check_many<'a>(
-    types: impl Iterator<Item = &'a TypeTree>,
-    depth: usize,
-    entries: &mut usize,
-) -> Result<(), String> {
-    for ty in types {
-        check(ty, depth, entries)?;
-    }
-
-    Ok(())
 }
 
 pub(crate) fn check_declaration_budget(source: &str, fields: &[Field]) -> Result<(), String> {

@@ -4182,3 +4182,13 @@ warmup, alternating equal-work samples: flags 36.00–36.24→34.51–34.69s, sl
 **152.076s, 1022 passing tests /5 existing skips**; doctests/fmt/Clippy pass,
 rstyle **0/3327**, patterns **0 unignored**, existing 15 ignores unchanged.
 Evidence: `/tmp/rstyle-perf4-*`; extraction contracts and selections unchanged.
+
+Receiver validation follow-up: borrow observations, reuse exact nominal shapes
+within one inventory, and parse fieldless declarations once. Every occurrence
+still traverses children and counts toward unchanged depth/entry limits; unfinished
+or changed evidence cannot reuse a proof. Four regression tests cover these bounds.
+Equal-work flags test: approximately **35→24s**; stored slices remain approximately
+33s. Development worktree: **1027 passing tests /5 existing skips, 143.152s**;
+doctests/fmt/Clippy pass, **rstyle 0/3337, patterns 0 unignored**, existing 15 ignores
+unchanged. Evidence: `/tmp/rstyle-perf6-*`. No new extraction capability or natural
+admission measurement; the pending callback slice remains separate.
