@@ -22,7 +22,10 @@ feature debug Cargo libraries. Preserve the frozen sixty and earlier corpora.
 2. **Compile-time table:** rustc scalar-constant capture omits aggregate values;
    original utf8::is_word_byte contains a nested const fn and local array const.
    Prove declaration/source ownership, complete evaluated immutable bool-array
-   contents and indexed value/bounds. Retain the nested runtime function as its
+   contents and indexed value/bounds. Existing unsigned-range inference does not
+   propagate `u8 as usize`; preserve that lossless bound for complete helper
+   certification (the current helper boundary rejects unproved value indexing).
+   Retain the nested runtime function as its
    own outcome: its memory writes remain unsupported. Do not silently erase its
    declaration, replace the table or authorize runtime mutation.
 3. **Named callback:** current map_or contract requires a closure/environment.
@@ -34,7 +37,7 @@ feature debug Cargo libraries. Preserve the frozen sixty and earlier corpora.
 Unit's owner/import/as_u8 chain already passes S09. Five natural LookMatcher
 ASCII boundary callers also depend on the table, but separately reject their
 non-Copy owner and some primitive arithmetic. They are follow-up candidates,
-not promised gains. Unknowns: completed constant-index helper certification,
+not promised gains. Unknowns: evaluated-array declaration transport,
 named-callback summary transport and those callers' complete owner/effect chain.
 Reuse existing compiler/type/callee/source evidence; no new census/cache is justified.
 
@@ -70,3 +73,45 @@ std/no_std target contexts. Capture, assessment and selected matching complete;
 admitted constructor/projection documents independently verify. Both original
 crate oracles pass (four tests). Rstyle: **0 violations /2937 functions**;
 patterns: **0 candidates**. Production policy and frozen outcomes are unchanged.
+
+
+## Data-v3 3.55 delivery
+
+Byte expressions and literal/range/OR selectors retain their exact source
+spelling and concrete u8 type; escape decoding proves values and exhaustive
+coverage. Independent document checks reject changed values, bounds, types,
+operand dependencies, effects and policy. Existing checked-access, saved-value
+and helper contracts compose without source replacement or new provenance/cache.
+
+| Unchanged selection | 3.54 admitted | 3.55 admitted |
+| --- | ---: | ---: |
+| Byte development /11 | 0 | 9 |
+| Table/callback development /20 | 3 | 4 |
+| regex-syntax /956 | 22 | 23 |
+| regex-automata /2582 | 83 | 83 |
+| lz4_flex /150 | 8 | 8 |
+| time-core /226 | 11 | 11 |
+| Frozen /60 | 23 | 23 |
+
+Zero losses; all identities/build contexts and frozen denominators agree.
+Frozen outcomes remain 23 admitted /30 excluded /7 inactive. The sole natural
+gain is the complete original regex-syntax classifier. Unit::is_word_byte still
+needs evaluated-array/declaration proof, lossless cast bounds and named-callback
+transport; its broader family is not complete. Characters, byte strings,
+unsupported callbacks and runtime memory writes remain excluded.
+
+Validation: **918 tests pass /5 skipped**, six target/std contexts, original-crate
+and exhaustive composition oracles, Clippy/doctests/fmt, **rstyle 0 /2952 functions**
+and **patterns 0**. All **138 admissions** independently strict-verify. Matching
+checks both copies of the original classifier, then compares nine unique
+function keys: all **36 comparisons complete**. Full natural matching remains
+explicitly budget-limited.
+
+
+Quiescent controls against clean 06946bc, seven alternating samples after warmup
+(seconds, median [range]): copy **0.64 [0.60–0.67] → 0.63 [0.61–0.66]**;
+cyclic **0.63 [0.60–0.63] → 0.63 [0.61–0.65]**, identical matching/admissions.
+Byte corpus **0.28 [0.26–0.31] → 0.36 [0.33–0.38]** does 0 → 9 admissions
+and 0 → 36 comparisons; median peak RSS 106.3 → 107.8 MiB. These are bounded
+controls. Text output keeps the complete natural report on disk without a second
+JSON rendering; that run peaks at 6.1 GiB. No general performance claim.

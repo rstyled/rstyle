@@ -13,6 +13,12 @@ pub struct IntegerRange {
     pub inclusive: bool,
 }
 
+struct RangePolicy {
+    width: Option<u64>,
+    constants: bool,
+    bytes: bool,
+}
+
 impl IntegerRange {
     pub fn text(&self) -> String {
         serde_json::to_string(self).expect("integer range strings")
@@ -42,6 +48,39 @@ impl IntegerRange {
         width: Option<u64>,
         constants: bool,
     ) -> Result<Self, String> {
+        Self::resolve_pattern(
+            source,
+            pattern,
+            RangePolicy {
+                width,
+                constants,
+                bytes: false,
+            },
+        )
+    }
+
+    pub fn from_byte_pattern(
+        source: &str,
+        pattern: &HirNode,
+        width: Option<u64>,
+        constants: bool,
+    ) -> Result<Self, String> {
+        Self::resolve_pattern(
+            source,
+            pattern,
+            RangePolicy {
+                width,
+                constants,
+                bytes: true,
+            },
+        )
+    }
+
+    fn resolve_pattern(
+        source: &str,
+        pattern: &HirNode,
+        policy: RangePolicy,
+    ) -> Result<Self, String> {
         let mut syntax = syn::Pat::parse_single
             .parse_str(source)
             .map_err(|error| error.to_string())?;
@@ -51,10 +90,10 @@ impl IntegerRange {
         let syn::Pat::Range(range) = syntax else {
             return Err("Expected an integer range pattern".into());
         };
-        if !scalar_range(&range, constants) {
+        if !scalar_range_for(&range, policy.constants, policy.bytes) {
             return Err("Unsupported integer range bounds".into());
         }
-        let records = constant_bounds(pattern, width)?;
+        let records = constant_bounds(pattern, policy.width)?;
         let paths = range
             .start
             .iter()
@@ -86,10 +125,16 @@ pub fn integer_range(range: &syn::PatRange) -> bool {
 }
 
 pub fn scalar_range(range: &syn::PatRange, constants: bool) -> bool {
+    scalar_range_for(range, constants, false)
+}
+
+pub fn scalar_range_for(range: &syn::PatRange, constants: bool, bytes: bool) -> bool {
     (range.start.is_some() || range.end.is_some())
         && (!matches!(range.limits, syn::RangeLimits::Closed(_)) || range.end.is_some())
         && range.start.iter().chain(&range.end).all(|value| {
-            integer_bound(value) || (constants && matches!(&**value, syn::Expr::Path(_)))
+            integer_bound(value)
+                || (bytes && matches!(&**value, syn::Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Byte(_))))
+                || (constants && matches!(&**value, syn::Expr::Path(_)))
         })
 }
 
@@ -116,7 +161,9 @@ fn resolved_bound(
     offset: u32,
     records: &[(ByteSpan, String)],
 ) -> Result<String, String> {
-    if integer_bound(value) {
+    if integer_bound(value)
+        || matches!(value, syn::Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Byte(_)))
+    {
         return Ok(spelling(source, value));
     }
     let span = value.span();

@@ -1342,6 +1342,10 @@ fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) ->
             .is_ok();
     }
 
+    scalar_range_evidence(pattern, ctx)
+}
+
+fn scalar_range_evidence(pattern: &HirNode, ctx: &Ctx<'_>) -> bool {
     ctx.profile.supports("rust.scalar-range-patterns")
         && pattern.kind == "pat_range"
         && node_norm(pattern)
@@ -1352,7 +1356,12 @@ fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) ->
             .bytes
             .get(pattern.span.start as usize..pattern.span.end as usize)
             .and_then(|source| {
-                crate::scalar_patterns::IntegerRange::from_pattern(
+                let resolve = if ctx.profile.supports(crate::byte_literals::CAPABILITY) {
+                    crate::scalar_patterns::IntegerRange::from_byte_pattern
+                } else {
+                    crate::scalar_patterns::IntegerRange::from_pattern
+                };
+                resolve(
                     source,
                     pattern,
                     ctx.facts.build.pointer_width.value,

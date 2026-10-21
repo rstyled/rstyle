@@ -7,9 +7,9 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.54.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
-Data-v3 3.54 connects fresh shared byte-iterator position and Option/helper
-composition; the continuation log records measured family boundaries.
+`rstyle.rust.hir-data/3.55.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+Data-v3 3.55 connects byte expressions/range/OR patterns through complete ASCII
+classifier and checked-access/helper composition; the continuation log records results.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -50,7 +50,7 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | --- | --- | --- | --- | --- |
 | V01 | Integer, bool, and unit interfaces | Covered | `fn f(x: i32, b: bool) -> i32` | Resolved scalar types; includes unused inputs and unit results. |
 | V02 | Fixed-width and native-width integers | Covered | `u128`, `isize`, `usize` | Native-width compatibility requires known equal pointer widths where relevant; exhaustive operator/type/target testing remains outstanding. |
-| V03 | Scalar literals and built-in operators | Covered | `x + 1`, `x < y`, `!flag` | Admitted integer/bool dispatch only; not overloaded operators. Arithmetic hazards can retain partial-flow evidence. |
+| V03 | Scalar literals and built-in operators | Covered | `x + 1`, `x < y`, `!flag` | Admitted integer/bool dispatch only; Data-v3 3.55 adds [source-checked byte literals and escapes](docs/extraction-profiles/word-byte-classifiers-v1.md) as concrete u8 values. Overloaded operators remain excluded; arithmetic hazards can retain partial-flow evidence. |
 | V04 | Initialized scalar locals, shadowing, and reads | Covered | `let x = n; let x = x + 1;` | Exact binding identity, saved values, and reaching definitions. |
 | V05 | Local scalar assignment and compound update | Covered | `x = y; x += 1;` | Lexical scalar bindings; Data-v3 3.34.0 adds [flat simultaneous scalar tuple assignment](docs/extraction-profiles/scalar-tuple-assignment-v1.md) to distinct mutable locals. Field/index/dereference memory writes remain excluded. |
 | V06 | Scalar blocks and expression tails | Covered | `{ let y = x; y }` | Normal-flow evaluation and saved operands are retained. |
@@ -79,7 +79,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F03 | Short-circuit boolean evaluation | Covered | `a && b`, `a \|\| b` | Saved left values and conditional right evaluation; restricted in loop-containing functions. |
 | F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee and 1–16 arms; Data-v3 3.9.0 independently proves coverage of supported unguarded patterns without requiring a wildcard. See [exhaustive scalar contract](docs/extraction-profiles/exhaustive-scalar-matches-v1.md); broader pattern domains remain missing. |
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
-| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.10.0 supports integer/bool literal/constant/range/wildcard leaves in nested grouped OR patterns, guards and independently exhaustive matches; see [nested contract](docs/extraction-profiles/nested-scalar-or-patterns-v1.md). Character ranges and nonlocal/generic/trait constants remain missing. |
+| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.10.0 supports integer/bool literal/constant/range/wildcard leaves in nested grouped OR patterns, guards and independently exhaustive matches; see [nested contract](docs/extraction-profiles/nested-scalar-or-patterns-v1.md). Data-v3 3.55 adds byte ranges/OR patterns and decoded u8 exhaustiveness through the [ASCII classifier family](docs/extraction-profiles/word-byte-classifiers-v1.md). Character ranges and nonlocal/generic/trait constants remain missing. |
 | F07 | Destructuring, reference, slice, and enum patterns | Partial | `Some(x) => x`, `[a, ..] => a` | Data-v3 3.36.0 supports exhaustive checked-access `Some(&scalar)`/`None` patterns with verified guarded loads and bindings. Data-v3 3.42.0 adds immutable owned scalar `Some(value)`/`None` bindings with guarded value projection. Data-v3 3.47.0 adds exhaustive immutable scalar tuple-variant bindings for checked Copy local enums through the [tagged-unit family](docs/extraction-profiles/tagged-units-v1.md). General payload/field/element patterns and ownership/borrow effects remain missing. |
 | F08 | `if let`, `while let`, let chains, `let else` | Missing | `if let Some(x) = v { ... }` | Pattern decision/binding flow and divergence requirements; not ordinary boolean branching. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
@@ -3757,3 +3757,28 @@ const-table and named map_or chain. Unit::is_word_byte remains unsupported until
 all dependencies compose; five LookMatcher callers have additional owner and
 arithmetic blockers. No source replacement, new census/cache or admission gain
 is claimed by this source-first selection.
+
+
+### Data-v3 3.55: connected byte-scalar classifiers
+
+Original regex-syntax is_word_byte now passes complete Cargo capture, independent
+verification, strict admission and matching. Its unchanged package gains
+**22 → 23 /956**; byte development **0 → 9 /11**, table/callback development
+**3 → 4 /20**. Other natural rosters and the frozen sixty are unchanged;
+**zero losses**, frozen **23 admitted /30 excluded /7 inactive**.
+
+All **138 admissions** independently strict-verify. All **36 selected comparisons**
+among nine unique function keys complete; both contexts of the verbatim classifier
+copy verify, and development matching completes separately. **918 tests pass /5
+skipped**, six target/std contexts, original/runtime composition oracles,
+Clippy/doctests/fmt; **rstyle 0 /2952 functions**, **patterns 0**. The
+[compact contract/results](docs/extraction-profiles/word-byte-classifiers-v1.md)
+retains identities, negative expectations and validation limits. Clean-baseline
+copy/cyclic control medians and matching remain stable; the byte corpus does
+additional admission/matching work (0.28 → 0.36s).
+
+Next connect the original immutable const-built bool table, its nested declaration
+ownership and lossless `u8 as usize` range proof through helper admission; then
+named map_or callback transport. Unit::is_word_byte and the five LookMatcher
+callers remain incomplete. No new census/cache, weaker admission/scoring or
+abstraction/rewrite-quality claim.

@@ -244,6 +244,10 @@ fn constant(
 }
 
 fn integer_literal(literal: &str) -> Option<i128> {
+    if let Some(byte) = crate::byte_literals::value(literal) {
+        return Some(i128::from(byte));
+    }
+
     let digits = literal.replace('_', "");
     // Decimal suffixes start with `i`/`u`; bases have their own digit alphabet.
     let end = digits.rfind(['i', 'u']).unwrap_or(digits.len());

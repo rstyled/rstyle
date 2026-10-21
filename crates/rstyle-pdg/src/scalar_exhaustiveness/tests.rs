@@ -1,6 +1,36 @@
 use super::*;
 
 #[test]
+fn decoded_byte_ranges_prove_exhaustiveness_only_for_the_complete_u8_domain() {
+    let domain = Domain::new("u8", None).unwrap();
+    for split in 1..=255u16 {
+        let first = IntegerRange {
+            start: Some("b'\\0'".into()),
+            end: Some(format!("b'\\x{split:02x}'")),
+            inclusive: false,
+        };
+        let second = IntegerRange {
+            start: Some(format!("b'\\x{split:02x}'")),
+            end: Some("b'\\xff'".into()),
+            inclusive: true,
+        };
+        let low = domain.range(&first).unwrap();
+        let high = domain.range(&second).unwrap();
+        assert!(
+            (0..=255).all(|byte| {
+                (low.0..=low.1).contains(&byte) || (high.0..=high.1).contains(&byte)
+            })
+        );
+        assert!(covers(&mut [low, high], domain.limits));
+        assert!(!covers(&mut [low, (high.0 + 1, high.1)], domain.limits));
+    }
+    assert_eq!(domain.value("(b'\\xff')"), Some(255));
+    for ty in ["bool", "i8", "u16", "usize"] {
+        assert!(Domain::new(ty, Some(64)).unwrap().value("b'a'").is_none());
+    }
+}
+
+#[test]
 fn domain_boundaries_keep_all_128_bits_and_actual_pointer_width() {
     for (ty, width, low, high) in [
         ("bool", None, "false", "true"),

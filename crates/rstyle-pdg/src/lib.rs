@@ -8,6 +8,7 @@
 //! here.
 
 pub(crate) mod bitset_cardinality;
+pub mod byte_literals;
 pub mod call_summaries;
 pub mod cfg;
 pub mod checked_options;

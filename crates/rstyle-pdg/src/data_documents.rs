@@ -5,6 +5,7 @@ mod assertions;
 mod bitset_cardinality;
 mod borrows;
 mod byte_calls;
+mod byte_scalars;
 mod callbacks;
 mod checked_options;
 mod conditional_payloads;
@@ -251,6 +252,7 @@ pub fn verify<'a>(
     crate::data_frontend::verify(facts)?;
     verify_registration(pair, facts)?;
     aggregates::verify(pair, facts)?;
+    byte_scalars::verify(pair, facts)?;
     scalar_enums::verify(pair, facts)?;
     locals::verify(pair, facts)?;
     verify_interface(pair, facts)?;

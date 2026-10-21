@@ -95,6 +95,12 @@ impl Domain {
             };
         }
 
+        if let syn::Expr::Lit(literal) = &expression
+            && let syn::Lit::Byte(byte) = &literal.lit
+        {
+            return (!self.signed && self.limits == (0, 255)).then_some(u128::from(byte.value()));
+        }
+
         let (negative, magnitude) = integer(&expression)?;
         let value = if self.signed {
             let midpoint = 1u128 << 127;

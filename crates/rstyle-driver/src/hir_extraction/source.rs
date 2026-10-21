@@ -182,6 +182,9 @@ fn selected_expression(
 ) -> bool {
     match kind {
         ast::ExprKind::MacCall(mac) => selected_assertion(mac, profile),
+        ast::ExprKind::Lit(literal) if literal.kind == ast::token::LitKind::Byte => {
+            profile.supports(rstyle_pdg::byte_literals::CAPABILITY) && literal.suffix.is_none()
+        }
         ast::ExprKind::Struct(..) => profile.supports("rust.named-struct-values"),
         ast::ExprKind::Repeat(..) => profile.supports("rust.repeat-array-values"),
         ast::ExprKind::Tup(..) | ast::ExprKind::Array(..) => {
@@ -337,13 +340,13 @@ fn source_match_leaf(
         ast::PatKind::Path(..) => profile.supports("rust.scalar-constant-patterns"),
         ast::PatKind::Range(start, end, _) if profile.supports("rust.scalar-range-patterns") => {
             start.iter().chain(end).all(|value| {
-                source_pattern_literal(value)
+                source_pattern_literal(value, profile)
                     || (profile.supports("rust.scalar-constant-range-bounds")
                         && matches!(value.kind, ast::ExprKind::Path(..)))
             })
         }
         ast::PatKind::Expr(expression) => {
-            source_pattern_literal(expression)
+            source_pattern_literal(expression, profile)
                 || (profile.supports("rust.scalar-constant-patterns")
                     && matches!(expression.kind, ast::ExprKind::Path(..)))
         }
@@ -354,9 +357,14 @@ fn source_match_leaf(
     }
 }
 
-fn source_pattern_literal(expression: &ast::Expr) -> bool {
+fn source_pattern_literal(
+    expression: &ast::Expr,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> bool {
     match &expression.kind {
-        ast::ExprKind::Lit(literal) => supported_literal(literal),
+        ast::ExprKind::Lit(literal) => {
+            supported_literal(literal) || selected_expression(&expression.kind, profile)
+        }
         ast::ExprKind::Unary(ast::UnOp::Neg, value) => {
             matches!(&value.kind, ast::ExprKind::Lit(literal) if supported_literal(literal))
         }

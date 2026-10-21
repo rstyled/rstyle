@@ -1236,3 +1236,25 @@ chain and separates unsupported neighbors. `tagged-units-oracle.py
 tests in a disposable complete original crate: all bytes, all u16 sentinel
 payloads and the public sentinel constructor's checked domain. These runtime
 expectations do not activate enum extraction or modify the frozen inventory.
+
+
+## ASCII word classifier expectations
+
+The [compact contract](../../docs/extraction-profiles/word-byte-classifiers-v1.md)
+fixes the separate byte-scalar and const-table/named-callback selections. Run
+`tagged-units-oracle.py /path/to/regex-syntax-0.8.11 --family syntax-word-byte`
+and `tagged-units-oracle.py /path/to/regex-automata-0.4.18 --family word-byte-classifiers`
+to verify original identities and test the complete disposable crates.
+
+For exhaustive development composition checks with the pinned toolchain:
+
+```sh
+cat eval/coverage-development/byte-scalar-{classifiers,classifiers-oracle,composition-oracle}.rs > /tmp/rstyle-byte-oracle.rs
+rustc --edition 2021 --test /tmp/rstyle-byte-oracle.rs -o /tmp/rstyle-byte-oracle
+/tmp/rstyle-byte-oracle
+```
+
+Membership bitsets and numeric boundary expectations are independent of captured
+facts and graph lowering. All 256 bytes exercise saved values, checked access,
+absent elements, range coverage and casts. These tests establish runtime
+expectations; strict extraction and matching require separate validation.

@@ -761,7 +761,13 @@ impl<'ast> Inventory<'_> {
             {
                 Some("pat_name")
             }
-            syn::Pat::Range(range) if crate::scalar_patterns::scalar_range(range, constants) => {
+            syn::Pat::Range(range)
+                if crate::scalar_patterns::scalar_range_for(
+                    range,
+                    constants,
+                    profile.is_some_and(|p| p.supports(crate::byte_literals::CAPABILITY)),
+                ) =>
+            {
                 Some("pat_range")
             }
             syn::Pat::Or(pattern) if (nested || scalar_alternatives(pattern, constants)) => {

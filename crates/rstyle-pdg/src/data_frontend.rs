@@ -374,6 +374,7 @@ fn verify_value_operations(
         crate::data_aggregates::verify(node, facts)?;
     }
 
+    crate::byte_literals::verify_node(node, facts)?;
     verify_enum_node(node, facts)?;
     crate::data_locals::verify_node(node, facts)?;
     if crate::checked_options::constructor_candidate(node, facts) {
