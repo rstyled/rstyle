@@ -3744,3 +3744,16 @@ Do not substitute a passing closure or replacement classifier. Stored iterator
 state, arbitrary predicates, implicit array-field iterator places, saved checked
 payloads and general Result/if-let/`?` composition remain separate blockers.
 No abstraction activation, rewrite-safety or held-out quality claim is made.
+
+
+### Next connected family: ASCII word classifiers
+
+The [compact source-first contract](docs/extraction-profiles/word-byte-classifiers-v1.md)
+fixes original regex-automata Unit/utf8 dependencies and regex-syntax's complete
+classifier, plus independent positive/negative development selections. The audit
+found a shared scalar gap: byte literal/range/OR source rejection and byte-bound
+exhaustiveness. Resolve that complete syntax classifier first, then the original
+const-table and named map_or chain. Unit::is_word_byte remains unsupported until
+all dependencies compose; five LookMatcher callers have additional owner and
+arithmetic blockers. No source replacement, new census/cache or admission gain
+is claimed by this source-first selection.

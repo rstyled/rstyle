@@ -42,9 +42,15 @@ SYNTAX_BITSET_IDENTITIES = ((106740, 106954, '8c28b6c9656796472b49e0ad77a5b8e44f
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("crate", type=Path)
-    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality", "end-of-input", "calendar-callers", "accelerator-packing", "iterator-byte-position"], default="tagged-units")
+    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality", "end-of-input", "calendar-callers", "accelerator-packing", "iterator-byte-position", "word-byte-classifiers", "syntax-word-byte"], default="tagged-units")
     args = parser.parse_args()
     families = {
+        "syntax-word-byte": ("src/lib.rs", (
+            (15436, 15578, "ff3e3442df02adf3fff09830d8440166026f641d5b705f13aa1febb560ca163d"),),
+            Path(__file__).with_name("byte-scalar-classifiers-oracle.rs"), "rstyle_byte_scalar_classifiers_oracle"),
+        "word-byte-classifiers": ("src/util/alphabet.rs", (IDENTITIES[0], IDENTITIES[2],
+            (7464, 7573, "a05491861eabe0175122984fad387ad80c6cdf2f81772c5afccd728a58b735e3")),
+            Path(__file__).with_name("word-byte-classifiers-oracle.rs"), "rstyle_word_byte_classifiers_oracle"),
         "iterator-byte-position": ("src/dfa/accel.rs", (*ACCEL_IDENTITIES,
             (19207, 19316, "adbe93883fc3aab3b6a79d41284c676d620fa9b73c78526ba923dad80ade759a")),
             Path(__file__).with_name("iterator-byte-position-oracle.rs"), "rstyle_iterator_byte_position_oracle"),
@@ -73,10 +79,12 @@ def main():
                                       "rstyle_bitset_cardinality_oracle"),
     }
     relative, identities, oracle_path, test_filter = families[args.family]
-    source = (args.crate / relative).read_bytes()
-    for start, end, digest in identities:
-        if hashlib.sha256(source[start:end]).hexdigest() != digest:
-            raise ValueError(f"Original source identity changed at {start}..{end}")
+    if args.family == "word-byte-classifiers":
+        checked_source(args.crate, "src/util/utf8.rs", (
+            (549, 1240, "7ecb732d59ed12c899a2751079b468495fcbeb77b88f5fb6ff3740c434029ed0"),
+            (597, 1174, "5925bf5644910d68ae3444334f20a0e11006e91fa13e5593282224123d115cbf"),
+        ))
+    source = checked_source(args.crate, relative, identities)
     oracle = oracle_path.read_bytes()
     with tempfile.TemporaryDirectory(prefix="rstyle-tagged-units-oracle-") as temp:
         destination = Path(temp) / "original"
@@ -86,6 +94,14 @@ def main():
             "cargo", "test", "--locked", "--manifest-path", str(destination / "Cargo.toml"),
             "--target-dir", str(Path(temp) / "target"), "--lib", test_filter,
         ], cwd=ROOT, check=True)
+
+
+def checked_source(crate, relative, identities):
+    source = (crate / relative).read_bytes()
+    for start, end, digest in identities:
+        if hashlib.sha256(source[start:end]).hexdigest() != digest:
+            raise ValueError(f"Original source identity changed at {start}..{end}")
+    return source
 
 
 if __name__ == "__main__":
