@@ -3,6 +3,7 @@
 use super::*;
 use crate::{HirFnFacts, HirNode, data_types::TypeToken};
 use std::borrow::Cow;
+mod mixed;
 
 /// A temporary declaration inventory; added observations are never callable parameters.
 /// Existing interface capture and serialized records remain unchanged.
@@ -44,7 +45,8 @@ fn nodes(node: &HirNode, tokens: &mut BTreeMap<String, TypeToken>) -> Result<(),
     if let Some(text) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref())
         && (text.contains("\"kind\":\"struct\"")
             || text.contains("\"kind\":\"enum\"")
-            || text.contains("\"kind\":\"fieldless_enum\""))
+            || text.contains("\"kind\":\"fieldless_enum\"")
+            || text.contains("\"kind\":\"mixed_enum\""))
     {
         collect_tokens(&crate::data_types::parse(text)?, tokens)?;
     }
@@ -59,9 +61,10 @@ fn collect_tokens(
     tokens: &mut BTreeMap<String, TypeToken>,
 ) -> Result<(), String> {
     match token {
-        TypeToken::Struct { .. } | TypeToken::Enum { .. } | TypeToken::FieldlessEnum { .. } => {
-            nominal_tokens(token, tokens)?
-        }
+        TypeToken::Struct { .. }
+        | TypeToken::Enum { .. }
+        | TypeToken::FieldlessEnum { .. }
+        | TypeToken::MixedEnum { .. } => nominal_tokens(token, tokens)?,
         TypeToken::Tuple(elements) => {
             for element in elements {
                 collect_tokens(element, tokens)?;
@@ -79,6 +82,9 @@ fn nominal_tokens(
     token: &TypeToken,
     tokens: &mut BTreeMap<String, TypeToken>,
 ) -> Result<(), String> {
+    if let TypeToken::MixedEnum { nominal, variants } = token {
+        return mixed::collect(nominal, variants, token, tokens);
+    }
     let (nominal, fields) = match token {
         TypeToken::Struct { nominal, fields }
         | TypeToken::Enum {
@@ -133,6 +139,7 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
             source: origin_source(nominal, origins)?.into(),
             variants: variants.clone(),
         },
+        TypeToken::MixedEnum { nominal, variants } => mixed::tree(nominal, variants, origins)?,
         TypeToken::Enum { nominal, variants } => {
             nominal_tree(nominal, variants, origins, NominalKind::Enumeration)?
         }

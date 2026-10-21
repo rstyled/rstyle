@@ -4,8 +4,11 @@ mod declarations;
 mod fieldless_enums;
 pub use fieldless_enums::fieldless_variants;
 pub mod lifetimes;
+mod mixed_enums;
 mod option_spelling;
 mod scalar_enums;
+pub(crate) use mixed_enums::closed_payload;
+pub use mixed_enums::mixed_variant_declarations;
 pub use scalar_enums::variant_declarations;
 pub mod source_proof;
 
@@ -54,6 +57,11 @@ pub enum TypeTree {
         source: crate::SourceText,
         variants: Vec<Variant>,
     },
+    MixedEnum {
+        nominal: Nominal,
+        source: crate::SourceText,
+        variants: Vec<MixedVariant>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -62,6 +70,40 @@ pub struct Variant {
     pub position: usize,
     pub name: String,
     pub payload: Field,
+}
+
+/// A mandatory tagged shape; missing payload evidence never denotes a unit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", deny_unknown_fields)]
+pub enum VariantShape<T> {
+    Unit {},
+    SingleTuple { field: T },
+}
+
+impl<T> VariantShape<T> {
+    pub fn field(&self) -> Option<&T> {
+        match self {
+            Self::Unit {} => None,
+            Self::SingleTuple { field } => Some(field),
+        }
+    }
+
+    pub fn map<U>(&self, transform: impl FnOnce(&T) -> U) -> VariantShape<U> {
+        match self {
+            Self::Unit {} => VariantShape::Unit {},
+            Self::SingleTuple { field } => VariantShape::SingleTuple {
+                field: transform(field),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MixedVariant {
+    pub position: usize,
+    pub name: String,
+    pub shape: VariantShape<Field>,
 }
 
 impl TypeTree {
@@ -74,6 +116,9 @@ impl TypeTree {
                 nominal, source, ..
             }
             | Self::Enum {
+                nominal, source, ..
+            }
+            | Self::MixedEnum {
                 nominal, source, ..
             } => Some((nominal, source)),
             _ => None,
@@ -89,12 +134,25 @@ impl TypeTree {
             Self::Enum { variants, .. } => Some(variants),
             _ => None,
         };
-        fields.into_iter().flatten().chain(
-            variants
-                .into_iter()
-                .flatten()
-                .map(|variant| &variant.payload),
-        )
+        let mixed = match self {
+            Self::MixedEnum { variants, .. } => Some(variants),
+            _ => None,
+        };
+        fields
+            .into_iter()
+            .flatten()
+            .chain(
+                variants
+                    .into_iter()
+                    .flatten()
+                    .map(|variant| &variant.payload),
+            )
+            .chain(
+                mixed
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|variant| variant.shape.field()),
+            )
     }
 }
 
@@ -218,6 +276,11 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
             source,
             variants,
         } => scalar_enums::check(nominal, source, variants),
+        TypeTree::MixedEnum {
+            nominal,
+            source,
+            variants,
+        } => mixed_enums::check(nominal, source, variants),
         TypeTree::FieldlessEnum {
             nominal,
             source,

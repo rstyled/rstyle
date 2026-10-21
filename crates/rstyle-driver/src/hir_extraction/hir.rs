@@ -676,7 +676,7 @@ impl<'tcx> Context<'tcx> {
 impl Context<'_> {
     fn method_callee(&self, expression: &Expr<'_>) -> Option<PathRes> {
         let callee = self.typeck.type_dependent_def_id(expression.hir_id)?;
-        if let Some(owner) = super::inherent::implementation(self.tcx, callee, self.profile) {
+        if let Some(owner) = self.inherent_callee(expression, callee) {
             return Some(self.helper_callee(callee, "resolved_inherent_callee", Some(owner)));
         }
         let capture = self.profile.supports("rust.byte-iterator-position")
@@ -847,15 +847,33 @@ impl Context<'_> {
         {
             return Some(resolution);
         }
-        if self.tcx.generics_of(callee).count() != 0 {
+        let inherent = self.inherent_callee(expression, callee);
+        if self.tcx.generics_of(callee).count() != 0 && inherent.is_none() {
             return None;
         }
-        let inherent = super::inherent::implementation(self.tcx, callee, self.profile);
         if kind != rustc_hir::def::DefKind::Fn && inherent.is_none() {
             return None;
         }
 
         Some(self.helper_callee(callee, "resolved_direct_callee", inherent))
+    }
+
+    fn inherent_callee(
+        &self,
+        expression: &Expr<'_>,
+        callee: rustc_hir::def_id::DefId,
+    ) -> Option<rustc_hir::def_id::DefId> {
+        let owner = super::inherent::implementation(self.tcx, callee, self.profile)?;
+        self.typeck
+            .node_args(expression.hir_id)
+            .iter()
+            .all(|argument| {
+                matches!(
+                    argument.kind(),
+                    rustc_middle::ty::GenericArgKind::Lifetime(_)
+                )
+            })
+            .then_some(owner)
     }
 
     pub(super) fn helper_callee(

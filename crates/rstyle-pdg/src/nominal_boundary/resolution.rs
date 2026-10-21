@@ -21,6 +21,13 @@ use syn::spanned::Spanned;
 
 type Namespace = Vec<String>;
 
+#[derive(Clone, Copy)]
+enum EnumShape {
+    Fieldless,
+    ScalarTuple,
+    Mixed,
+}
+
 pub(crate) fn verify_option_type(
     facts: &HirFnFacts,
     path: &syn::TypePath,
@@ -40,7 +47,46 @@ pub struct Resolution {
     scalar_aliases: bool,
 }
 
+fn requires_mixed_owner(tree: &TypeTree) -> bool {
+    match tree {
+        TypeTree::MixedEnum { .. } => true,
+        TypeTree::Struct { source, fields, .. } => {
+            concrete_types::lifetimes::declaration_count(source).is_ok_and(|count| count > 0)
+                || syn::parse_str::<syn::ItemStruct>(source).is_ok_and(|item| {
+                    item.attrs
+                        .iter()
+                        .any(|attribute| attribute.path().is_ident("repr"))
+                })
+                || fields.iter().any(|field| {
+                    matches!(&field.ty,
+                    TypeTree::Shared(inner) if matches!(inner.as_ref(), TypeTree::Slice(_)))
+                })
+        }
+        _ => false,
+    }
+}
+
 impl Resolution {
+    pub(crate) fn requires_borrowed_mixed_owners(&self) -> bool {
+        self.has_mixed_owners()
+            || self.environment.copy_boundary && self.trees.values().any(requires_mixed_owner)
+    }
+
+    pub(crate) fn has_mixed_owners(&self) -> bool {
+        self.has_enum_shape(EnumShape::Mixed)
+    }
+
+    fn has_enum_shape(&self, shape: EnumShape) -> bool {
+        self.trees.values().any(|tree| {
+            matches!(
+                (tree, shape),
+                (TypeTree::FieldlessEnum { .. }, EnumShape::Fieldless)
+                    | (TypeTree::Enum { .. }, EnumShape::ScalarTuple)
+                    | (TypeTree::MixedEnum { .. }, EnumShape::Mixed)
+            )
+        })
+    }
+
     pub(crate) fn requires_borrowed_copy_child_fields(&self) -> bool {
         self.environment.copy_boundary
             && self.trees.iter().any(|(key, tree)| {
@@ -63,10 +109,10 @@ impl Resolution {
     }
 
     pub(crate) fn requires_enum_values(&self, fieldless: bool) -> bool {
-        self.trees.values().any(|tree| match tree {
-            TypeTree::FieldlessEnum { .. } => fieldless,
-            TypeTree::Enum { .. } => !fieldless,
-            _ => false,
+        self.has_enum_shape(if fieldless {
+            EnumShape::Fieldless
+        } else {
+            EnumShape::ScalarTuple
         })
     }
 
@@ -477,9 +523,10 @@ fn anchored(path: Namespace, namespace: &Namespace, import: bool) -> Result<Name
 
 fn collect(tree: &TypeTree, trees: &mut BTreeMap<Namespace, TypeTree>) -> Result<(), String> {
     match tree {
-        TypeTree::Struct { .. } | TypeTree::Enum { .. } | TypeTree::FieldlessEnum { .. } => {
-            collect_nominal(tree, trees)?
-        }
+        TypeTree::Struct { .. }
+        | TypeTree::Enum { .. }
+        | TypeTree::FieldlessEnum { .. }
+        | TypeTree::MixedEnum { .. } => collect_nominal(tree, trees)?,
         TypeTree::Tuple(elements) => {
             for element in elements {
                 collect(element, trees)?;
@@ -717,8 +764,11 @@ pub fn static_owner(
 fn supported_inherent_member(item: &syn::ItemImpl, bytes: &str, facts: &HirFnFacts) -> bool {
     if item.trait_.is_some()
         || item.unsafety.is_some()
-        || !item.generics.params.is_empty()
-        || item.generics.where_clause.is_some()
+        || !(if supports(facts, "rust.borrowed-mixed-owners").unwrap_or(false) {
+            crate::inherent_calls::lifetimes::implementation(item)
+        } else {
+            item.generics.params.is_empty() && item.generics.where_clause.is_none()
+        })
     {
         return false;
     }
@@ -733,6 +783,7 @@ fn supported_inherent_member(item: &syn::ItemImpl, bytes: &str, facts: &HirFnFac
         })
         .exact(bytes, facts)
             && crate::concrete_types::lifetimes::parameter_count(&method.sig.generics).is_ok()
+            && (item.generics.params.is_empty() || method.sig.generics.params.is_empty())
             && supported_receiver(&method.sig, facts)
     })
 }
@@ -787,6 +838,8 @@ fn module_functions(
                         .exact(bytes, facts)
                         && (!selected
                             || selected::function_attributes(facts, &method.attrs).is_ok())
+                        && (item.generics.params.is_empty()
+                            || method.sig.generics.params.is_empty())
                     {
                         candidates.push((module.namespace.clone(), Some(item.self_ty.clone())));
                     }

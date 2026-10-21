@@ -1,4 +1,5 @@
 //! Resolved concrete inherent ownership and shared receiver correspondence.
+pub(crate) mod lifetimes;
 
 use crate::{ByteSpan, HirFnFacts, HirNode, data_types::TypeToken};
 use serde::{Deserialize, Serialize};

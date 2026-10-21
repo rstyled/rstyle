@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.66.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.67.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -18,7 +18,9 @@ adds standalone Unicode scalar literals, comparisons and literal/OR matching.
 Data-v3 3.62 connects literal character ranges and the pinned ASCII predicate;
 3.63–3.66 connects original float kernels through exact bits/constants, ordered
 arithmetic/narrowing, bounded i32-controlled float alternatives and independently
-checked cfg-if module/dependency proof.
+checked cfg-if module/dependency proof. Data-v3 3.67 adds complete borrowed
+mixed-owner type and lifetime-only callable evidence; original Input source
+closure and stored-reference result composition remain pending.
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -4047,10 +4049,35 @@ patterns0 unignored**, ignores unchanged. Frozen run `run-008n2qyy` versus3.65
 `run-6qkc6ea9` retains23 admitted /30 excluded /7 inactive and unchanged package
 rosters. All **65 original admissions** strict-verify; **12 selected comparisons**
 complete across the package replays. Identity comparison and replay logs are retained under
-`/tmp/rstyle-float-sin-tail-*`. Native3.65 CI passes all three runners;3.66 is
-pending. Full-library matching remains budget-limited; automata was not remeasured.
+`/tmp/rstyle-float-sin-tail-*`. Native3.66 CI passes Linux x86, Linux ARM and macOS
+([run39651876248](https://github.com/rstyled/rstyle/actions/runs/39651876248)).
+Full-library matching remains budget-limited; automata was not remeasured.
 
 Next shared blocker: complete borrowed `Input` ownership, starting with original
 `get_earliest`. Its mixed `Anchored` child needs explicit unit/single-tuple shapes
 and nested Copy `repr(transparent)` wrappers before lifetime-only callable proof.
 Stored-reference results and caller substitution follow that coherent owner boundary.
+
+### Data-v3 3.67: complete borrowed mixed-owner foundation
+
+[Contract](docs/extraction-profiles/borrowed-result-chain-v1.md): complete mixed
+unit/tuple enum children, nested Copy transparent wrappers and exact lifetime-only
+impl/callee proof connect a diagnostic Input owner, bool getter and two callers
+through capture, strict verification and matching on three targets × std/no_std.
+Unsupported ownership, payload operations and unknown effects remain closed;
+historical stored-slice owners retain their existing support. Independent native
+execution of original `Input::get_earliest`: **1128 states /5640 observations**.
+
+**997 tests /5 existing skips**, doctests/fmt/Clippy pass; **rstyle0/3215,
+patterns0 unignored**, ignores unchanged. Frozen `run-jgt43t72` versus3.66
+`run-008n2qyy`: **23 admitted /30 excluded /7 inactive**, unchanged identities.
+Complete lz4_flex8/150, regex-syntax39/956 and time-core11/226 rosters have **zero
+new/lost admissions**; all58 admissions strict-verify and six selected comparisons
+complete. Logs: `/tmp/rstyle-input-owner-*`. Libm was not recaptured this increment.
+
+**No original Input gain claimed:** the3.66 complete automata baseline timed out
+during assessment after compilation; no complete roster/delta exists. Next prove
+selected Copy dependencies beside `index_type_impls!` without omitting hidden
+effects, then measure the original getter/callers. Stored-slot versus referent
+origins and helper-result substitution follow. This foundation advances that
+concrete blocker chain; the broader roadmap remains active.

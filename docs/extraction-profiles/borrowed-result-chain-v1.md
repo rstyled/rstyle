@@ -107,3 +107,28 @@ No production patch is ready until those prerequisites and exact stored-referenc
 path semantics are agreed. No sequence-location, payload or 3.59 indexed-helper
 scope changes. Estimated uncertainty is high in owner proof, moderate in the
 bounded helper leaf; the natural capture costs the existing full owning-unit run.
+
+## Data-v3 3.67 owner foundation
+
+The separate [Input selection](../../eval/coverage-development/input-owner-selection.json)
+targets original `get_earliest` before borrowed results. Mandatory mixed-enum
+`Unit | SingleTuple` shapes retain all Anchored variants and nested Copy wrappers;
+their exact transparent repr, source, derives and fields are checked. Complete
+borrowed owners retain stored scalar slices. Lifetime-only impl/callee ownership
+requires exact lifetime mapping, no method generics and shared receivers.
+
+The complete diagnostic owner admits its bool getter and both inferred call
+forms across three targets × std/no_std, with strict verification and matching.
+Owned use, mixed-enum operations, specialized lifetimes, unknown effects and
+stored-slice reads in these new mixed owners remain closed. Historical Holder
+reads and lifetime families remain supported. The diagnostic substitutes a builtin
+Debug derive for PatternID's generated Debug impl; it is not original acceptance.
+The independent original-library oracle passes 1128 states /5640 observations.
+
+Original admission remains pending. The 3.66 full-package baseline compiled, then
+hit its 1200-second wall-clock limit during assessment; no complete roster or delta
+was produced. Retain `/tmp/rstyle-input-owner-baseline-target/rstyle/clones/run-KZh2xL`
+as incomplete evidence. The source audit identifies neighboring `index_type_impls!`
+invocations in the selected Copy wrapper's module as a remaining lexical boundary.
+Next establish precise dependency/effect proof there, then measure the complete
+original getter and callers before extending stored-slot/result-origin composition.

@@ -81,8 +81,8 @@ Follow-up controls finished: copy/cyclic 0.62→0.62s; ASCII 0.84→0.88s; flags
 | P01 character / A + lead integration | Shared integration validated: six development functions admit, seven neighboring cases exclude; literal/OR/dispatch tampering and unused-char 3.60 policy downgrade reject. 939 tests pass (five existing skips); fmt/Clippy/doctests pass; rstyle 0/3051, patterns 0. Original syntax36→38/956, no losses;57 original admissions strict-verify, three comparisons complete. Frozen60 unchanged. Original `regex-syntax::is_meta_character`; dedicated char domain and historical gating, no global widening of `scalar()`. Original numeric-set oracle passes all 1112064 valid Unicode scalars. |
 | P01 escape caller / A+C+lead | Range and exact ASCII receiver leaves integrated. Complete original-copy fixture admits five/rejects five across three targets × std/no_std, strict tampering included; independent original oracle1112064 scalars/64 positives. Final focused tests pass; rstyle0/3070. Full gates pass:945 tests/5 skips, fmt/Clippy/doctests, rstyle0/3070, patterns0. Original syntax38→39/956, no losses;58 admissions strict-verify, six comparisons complete. Frozen60 unchanged. Native CI passes all three platforms. Equal-work3.60→3.62 medians: Copy0.65→0.64s, cyclic0.63→0.64s, ASCII0.87→0.87s, flags7.96→8.01s; admissions/matching unchanged. |
 | P08 saved checked / B | Source audit blocked: smallest located natural chain requires generics, let-else, Result/?, closures and borrowed aggregates. Scalar Result alternative additionally requires char/tables and binary-search protocol. No isolated vocabulary activation. |
-| P06 borrowed result / C | Input::haystack → is_char_boundary → utf8::is_boundary needs lifetime-only callable ownership, stored-reference fields, complete mixed Anchored child and distinct slot reads/result origins. |
-| P05 ownership / D | No tractable residual path/cfg positive found; no census redesign justified. Callable lifetime proof needs driver implementation/direct-callee and independent selected-impl/member gates together. Nominal lifetime capture exists; stored-reference/mixed-child/result-origin proof remains separate. |
+| P06 borrowed result / C | Data3.67 proves complete diagnostic Input owner/getter/callers, including mixed Anchored children and lifetime-only calls. Original source closure remains pending; haystack → is_char_boundary → utf8::is_boundary still needs distinct stored-slot/referent origins and result substitution. |
+| P05 ownership / D | Data3.67 connects complete borrowed mixed owners, nested Copy transparent wrappers and exact lifetime-only impl/callee proof. Next establish precise selected dependency/effect proof beside original PatternID/SmallIndex index_type_impls! invocations; retain owning-scope checks and all fields. No census redesign justified. |
 | P02 floats / lead | Data3.66 completes original k_sin with exact immutable i32 equality and complete float alternatives; libm6→7/1131, zero losses, all7 strict-verify/six selected comparisons complete. Independent original oracle5384 inputs; three-target × std/no_std composition and resealed guard/merge/source attacks pass. |
 
 Contracts: [character](extraction-profiles/character-leaf-v1.md),
@@ -94,21 +94,18 @@ Contracts: [character](extraction-profiles/character-leaf-v1.md),
 
 ## Resume order
 
-Data3.66 passes986 tests/5 existing skips, doctests/fmt/Clippy,
-rstyle0/3186 and patterns0 unignored. Complete libm7/1131, zero losses against3.65;
-all7 strict-verify/six selected comparisons complete. Frozen replay is recorded
-in the root roadmap. Native3.65 passes Linux x86/ARM/macOS (run39646408115).
+Data3.67 passes997 tests/5 existing skips, doctests/fmt/Clippy,
+rstyle0/3215 and patterns0 unignored. Frozen60 and three complete package rosters
+have zero new/lost admissions; all58 measured admissions strict-verify, six selected
+comparisons complete. Native3.66 CI passes Linux x86/ARM/macOS (run39651876248).
 
-Next complete original target: `Input::get_earliest`, a bool read from the borrowed
-Clone-only owner, independent of haystack/span/anchored values. First prove the
-complete mixed `Anchored` child and nested Copy wrappers, including their exact
-`repr(transparent)` attributes. Preserve the historical enum wire; any new mixed
-form needs a mandatory explicit `Unit | SingleTuple` shape, with no absent-payload
-inference. Then connect stored-slice owner and lifetime-only callable proofs.
-Do not activate enum construction/matching or owned Input consumption incidentally.
-After that boundary, `haystack` needs distinct stored-slot reads and referent/result
-origins before `is_char_boundary` can compose. C's source audit names these concrete
-prerequisites; lead owns shared type/source/policy integration. A/D may own bounded
-oracle/test leaves after interfaces settle; B remains at the checked-value audit
-frontier. Fold concise evidence into implementation commits, without separate
-documentation checkpoints. The broader P01–P22 roadmap remains active.
+Next complete original target remains `Input::get_earliest`. Complete diagnostic
+owner/getter/callers now pass across three targets × std/no_std; the original
+native oracle passes1128 states/5640 observations. Prove the selected Copy wrapper
+source closure beside `index_type_impls!`, preserving hidden effects and owning
+namespace checks, then measure original strict admission/matching. The3.66 full
+original baseline timed out during assessment; no complete automata delta exists.
+After original getter acceptance, connect `haystack` stored-slot reads, referent
+origins and helper substitution before `is_char_boundary`. P08 remains blocked by
+its connected generics/let-else/Result/?/closure chain. Fold brief evidence into
+semantic commits; the broader P01–P22 roadmap remains active.

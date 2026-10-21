@@ -3,6 +3,7 @@
 mod callbacks;
 mod copy;
 mod fieldless_enums;
+mod mixed_enums;
 mod receivers;
 mod scalar_enums;
 
@@ -282,18 +283,35 @@ impl<'tcx> Capture<'_, 'tcx> {
         arguments: ty::GenericArgsRef<'tcx>,
         depth: usize,
     ) -> Result<TypeTree, Failure> {
+        if definition.is_enum() && self.ctx.profile.supports("rust.scalar-enum-values") {
+            self.enumeration(definition, arguments, depth)
+        } else {
+            self.structure(definition, arguments, depth)
+        }
+    }
+
+    fn enumeration(
+        &mut self,
+        definition: ty::AdtDef<'tcx>,
+        arguments: ty::GenericArgsRef<'tcx>,
+        depth: usize,
+    ) -> Result<TypeTree, Failure> {
         if self.ctx.profile.supports("rust.fieldless-enum-values")
-            && definition.is_enum()
             && definition
                 .variants()
                 .iter()
                 .all(|variant| variant.fields.is_empty())
         {
             self.fieldless_enum(definition, arguments)
-        } else if self.ctx.profile.supports("rust.scalar-enum-values") && definition.is_enum() {
-            self.scalar_enum(definition, arguments, depth)
+        } else if self.ctx.profile.supports("rust.borrowed-mixed-owners")
+            && definition
+                .variants()
+                .iter()
+                .any(|variant| variant.fields.is_empty())
+        {
+            self.mixed_enum(definition, arguments, depth)
         } else {
-            self.structure(definition, arguments, depth)
+            self.scalar_enum(definition, arguments, depth)
         }
     }
 

@@ -43,6 +43,22 @@ fn field_type(
             supports(facts, "rust.borrowed-array-views").unwrap_or(false)
                 && matches!(element.as_ref(), TypeTree::Scalar(_))
         }
+        TypeTree::Shared(referent)
+            if supports(facts, "rust.borrowed-mixed-owners").unwrap_or(false) =>
+        {
+            matches!(referent.as_ref(), TypeTree::Slice(element) if matches!(element.as_ref(), TypeTree::Scalar(value) if concrete_types::scalar(value) && value != "unit"))
+        }
+        TypeTree::MixedEnum { nominal, .. }
+            if supports(facts, "rust.borrowed-mixed-owners").unwrap_or(false) =>
+        {
+            copies.contains(
+                &nominal
+                    .definition_path
+                    .split("::")
+                    .map(str::to_string)
+                    .collect::<Namespace>(),
+            )
+        }
         TypeTree::Struct { nominal, .. } => {
             supports(facts, "rust.borrowed-copy-child-fields").unwrap_or(false)
                 && copies.contains(

@@ -26,7 +26,12 @@ pub(super) fn verify(
         let attributes = match item {
             syn::Item::Struct(item) => &item.attrs,
             syn::Item::Enum(item)
-                if matches!(tree, TypeTree::Enum { .. } | TypeTree::FieldlessEnum { .. }) =>
+                if matches!(
+                    tree,
+                    TypeTree::Enum { .. }
+                        | TypeTree::FieldlessEnum { .. }
+                        | TypeTree::MixedEnum { .. }
+                ) =>
             {
                 &item.attrs
             }
@@ -37,7 +42,7 @@ pub(super) fn verify(
         }
         check_namespace(facts, environment, &declaration.namespace)?;
         match item {
-            syn::Item::Struct(item) => structure(facts, item)?,
+            syn::Item::Struct(item) => structure(facts, item, copies.contains(key))?,
             syn::Item::Enum(item) => scalar_enum(facts, item)?,
             _ => unreachable!(),
         }
@@ -52,6 +57,10 @@ pub(super) fn verify(
 }
 
 fn verify_type(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> {
+    if matches!(tree, TypeTree::MixedEnum { .. }) && !supports(facts, "rust.borrowed-mixed-owners")?
+    {
+        return Err("Mixed enum child requires its registered borrowed-owner capability".into());
+    }
     if matches!(tree, TypeTree::Enum { .. }) && !supports(facts, "rust.scalar-enum-values")? {
         return Err("Scalar enum ownership requires its registered capability".into());
     }
@@ -61,6 +70,7 @@ fn verify_type(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> {
     {
         return Err("Fieldless enum requires its registered ownership capability".into());
     }
+
     if tree
         .nominal_fields()
         .any(|field| !supported_field(facts, &field.ty))
@@ -99,6 +109,14 @@ fn supported_field(facts: &HirFnFacts, tree: &TypeTree) -> bool {
             supports(facts, "rust.fieldless-enum-values").unwrap_or(false)
         }
         TypeTree::Enum { .. } => supports(facts, "rust.scalar-enum-values").unwrap_or(false),
+        TypeTree::MixedEnum { .. } => {
+            supports(facts, "rust.borrowed-mixed-owners").unwrap_or(false)
+        }
+        TypeTree::Shared(referent)
+            if supports(facts, "rust.borrowed-mixed-owners").unwrap_or(false) =>
+        {
+            matches!(referent.as_ref(), TypeTree::Slice(element) if matches!(element.as_ref(), TypeTree::Scalar(value) if concrete_types::scalar(value) && value != "unit"))
+        }
         TypeTree::Array { element, .. } => {
             supports(facts, "rust.copy-array-fields").unwrap_or(false)
                 && matches!(element.as_ref(), TypeTree::Scalar(_))
@@ -107,8 +125,12 @@ fn supported_field(facts: &HirFnFacts, tree: &TypeTree) -> bool {
     }
 }
 
-fn structure(facts: &HirFnFacts, item: &syn::ItemStruct) -> Result<(), String> {
-    nominal_attributes(facts, &item.generics, &item.attrs)?;
+fn structure(facts: &HirFnFacts, item: &syn::ItemStruct, copy: bool) -> Result<(), String> {
+    let transparent = copy
+        && item.fields.len() == 1
+        && item.generics.params.is_empty()
+        && supports(facts, "rust.borrowed-mixed-owners")?;
+    nominal_attributes(facts, &item.generics, &item.attrs, transparent)?;
     for field in &item.fields {
         function_attributes(facts, &field.attrs)?;
     }
@@ -116,7 +138,7 @@ fn structure(facts: &HirFnFacts, item: &syn::ItemStruct) -> Result<(), String> {
 }
 
 fn scalar_enum(facts: &HirFnFacts, item: &syn::ItemEnum) -> Result<(), String> {
-    nominal_attributes(facts, &item.generics, &item.attrs)?;
+    nominal_attributes(facts, &item.generics, &item.attrs, false)?;
     for variant in &item.variants {
         function_attributes(facts, &variant.attrs)?;
         for field in &variant.fields {
@@ -130,15 +152,25 @@ fn nominal_attributes(
     facts: &HirFnFacts,
     generics: &syn::Generics,
     attributes: &[syn::Attribute],
+    transparent: bool,
 ) -> Result<(), String> {
-    if !generics.params.is_empty() || generics.where_clause.is_some() {
-        return Err("Selected Copy struct must be nongeneric".into());
+    if !generics.params.is_empty() && !supports(facts, "rust.borrowed-mixed-owners")?
+        || crate::concrete_types::lifetimes::parameter_count(generics).is_err()
+    {
+        return Err("Selected declaration requires its bounded nominal lifetime contract".into());
     }
     let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
 
     for attribute in configuration.effective_attributes(attributes)? {
         if attribute.path().is_ident("derive") {
             derive(&attribute)?;
+            continue;
+        }
+        if transparent
+            && attribute.path().is_ident("repr")
+            && matches!(&attribute, syn::Meta::List(list)
+                if list.parse_args::<syn::Ident>().is_ok_and(|ident| ident == "transparent"))
+        {
             continue;
         }
         ordinary(&attribute)?;
@@ -297,8 +329,11 @@ pub(super) fn check_namespace(
 pub(super) fn implementation(facts: &HirFnFacts, item: &syn::ItemImpl) -> bool {
     item.trait_.is_none()
         && item.unsafety.is_none()
-        && item.generics.params.is_empty()
-        && item.generics.where_clause.is_none()
+        && (if supports(facts, "rust.borrowed-mixed-owners").unwrap_or(false) {
+            crate::inherent_calls::lifetimes::implementation(item)
+        } else {
+            item.generics.params.is_empty() && item.generics.where_clause.is_none()
+        })
         && function_attributes(facts, &item.attrs).is_ok()
 }
 

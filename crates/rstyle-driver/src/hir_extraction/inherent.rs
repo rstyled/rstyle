@@ -7,7 +7,7 @@ use rstyle_pdg::{
     inherent_calls::{CallOwner, Definition},
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{self, TyCtxt};
 
 pub fn implementation(
     tcx: TyCtxt<'_>,
@@ -17,12 +17,30 @@ pub fn implementation(
     if !profile.supports("rust.verified-inherent-helper-calls")
         || !id.is_local()
         || tcx.def_kind(id) != rustc_hir::def::DefKind::AssocFn
-        || tcx.generics_of(id).count() != 0
     {
         return None;
     }
     let owner = tcx.inherent_impl_of_assoc(id)?;
-    (tcx.generics_of(owner).count() == 0).then_some(owner)
+    let nongeneric = tcx.generics_of(id).count() == 0 && tcx.generics_of(owner).count() == 0;
+    (nongeneric || profile.supports("rust.borrowed-mixed-owners") && lifetime_owner(tcx, id, owner))
+        .then_some(owner)
+}
+
+fn lifetime_owner(tcx: TyCtxt<'_>, id: DefId, owner: DefId) -> bool {
+    let method = tcx.generics_of(id);
+    let implementation = tcx.generics_of(owner);
+    method.own_params.is_empty()
+        && tcx.associated_item(id).is_method()
+        && method.parent == Some(owner)
+        && implementation.parent.is_none()
+        && !implementation.own_params.is_empty()
+        && implementation.own_params.len() <= rstyle_pdg::concrete_types::MAX_FIELDS
+        && implementation
+            .own_params
+            .iter()
+            .all(|parameter| matches!(parameter.kind, ty::GenericParamDefKind::Lifetime))
+        && matches!(tcx.fn_sig(id).instantiate_identity().skip_binder().inputs().first(),
+            Some(receiver) if matches!(receiver.kind(), ty::Ref(_, _, rustc_hir::Mutability::Not)))
 }
 
 pub fn call_owner(tcx: TyCtxt<'_>, owner: DefId) -> CallOwner {

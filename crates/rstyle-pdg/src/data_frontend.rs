@@ -36,6 +36,7 @@ pub(crate) fn verify_document_policy(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     let capabilities = [
+        "rust.borrowed-mixed-owners",
         "rust.scoped-nominal-imports",
         "rust.copy-array-fields",
         "rust.scalar-enum-values",
@@ -89,6 +90,11 @@ fn verify_nominal_policy(
     resolution: &crate::nominal_boundary::resolution::Resolution,
 ) -> Result<(), String> {
     for (capability, required, message) in [
+        (
+            "rust.borrowed-mixed-owners",
+            resolution.requires_borrowed_mixed_owners(),
+            "Borrowed mixed owners require their registered document policy",
+        ),
         (
             crate::fieldless_enums::CAPABILITY,
             resolution.requires_enum_values(true),
@@ -285,9 +291,19 @@ fn verify_fields(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), Str
     let nodes = field_locations::fields(&facts.body);
 
     for field in &fields.operations {
-        let field_locations::Location::Captured { value, .. } = &field.location else {
+        let field_locations::Location::Captured { value, path, .. } = &field.location else {
             continue; // The independent field verifier checked the aggregate value projection.
         };
+        if matches!(value, TypeTree::Shared(inner) if matches!(inner.as_ref(), TypeTree::Slice(_)))
+            && path.iter().any(|projection| {
+                matches!(projection, field_locations::Projection::StructField { .. })
+            })
+            && facts.nominal_resolution()?.has_mixed_owners()
+        {
+            return Err(
+                "Stored slice reference reads require distinct slot/referent evidence".into(),
+            );
+        }
         let token = data_types::token(value)?;
         let matched: Vec<_> = nodes.iter().filter(|node| node.hir == field.hir).collect();
         let [node] = matched.as_slice() else {

@@ -2,6 +2,8 @@
 
 use crate::concrete_types::{Nominal, TypeTree, scalar};
 use serde::{Deserialize, Serialize};
+mod mixed_owners;
+use crate::concrete_types::VariantShape;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
@@ -38,6 +40,10 @@ pub enum TypeToken {
         nominal: Nominal,
         variants: Vec<(String, TypeToken)>,
     },
+    MixedEnum {
+        nominal: Nominal,
+        variants: Vec<(String, VariantShape<TypeToken>)>,
+    },
 }
 
 impl TypeToken {
@@ -73,6 +79,9 @@ impl TypeToken {
                 nominal: nominal.clone(),
                 variants: variants.clone(),
             },
+            TypeTree::MixedEnum {
+                nominal, variants, ..
+            } => mixed_owners::token(nominal, variants),
             TypeTree::Enum {
                 nominal, variants, ..
             } => Self::Enum {
@@ -107,6 +116,10 @@ impl TypeToken {
             Self::Enum { variants, .. } => {
                 variants.iter().any(|(_, payload)| payload.native_width())
             }
+            Self::MixedEnum { variants, .. } => variants
+                .iter()
+                .filter_map(|(_, shape)| shape.field())
+                .any(Self::native_width),
             _ => false,
         }
     }
@@ -142,6 +155,14 @@ pub(crate) fn parse_for(
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
+    if text.contains("\"kind\":\"mixed_enum\"")
+        && (!profile.supports("rust.borrowed-mixed-owners") || !mixed_owners::borrowed_use(&ty))
+    {
+        return Err(
+            "Mixed enums require complete borrowed owners, without direct enum value operations"
+                .into(),
+        );
+    }
     if matches!(text, "f32" | "f64") && !profile.supports(crate::float_scalars::CAPABILITY) {
         return Err("Float scalars require their registered capability".into());
     }
@@ -232,11 +253,23 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         {
             Ok(())
         }
+        TypeToken::MixedEnum { .. } | TypeToken::Struct { .. } | TypeToken::Enum { .. } => {
+            check_nominal(token, depth, entries)
+        }
+        // Admission additionally requires independently verified nominal source/effects.
+        _ => Err("Data type token lacks a registered concrete proof".into()),
+    }
+}
+
+fn check_nominal(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {
+    match token {
+        TypeToken::MixedEnum { nominal, variants } => {
+            mixed_owners::check(nominal, variants, depth, entries)
+        }
         TypeToken::Struct { fields, .. }
         | TypeToken::Enum {
             variants: fields, ..
         } if valid_nominal(token) => check_nominal_fields(fields, depth, entries),
-        // Admission additionally requires independently verified nominal source/effects.
         _ => Err("Data type token lacks a registered concrete proof".into()),
     }
 }
