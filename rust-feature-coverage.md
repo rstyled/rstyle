@@ -4173,3 +4173,12 @@ Final development-worktree suite, including the pending callback slice:
 slices 43.520→34.448s, passive owners 29.801→13.857s include duplicate-import
 removal. Doctests/fmt/Clippy pass; rstyle 0/3327, patterns 0 unignored, existing
 15 ignores unchanged. Evidence: `/tmp/rstyle-slow-*`; no new coverage milestone.
+
+Follow-up: exact-ID documents compare directly against regenerated typed evidence
+before JSON normalization; reordered/renamed documents retain the full comparison.
+Conformance profiles/inventories and all semantic fields remain checked. After
+warmup, alternating equal-work samples: flags 36.00–36.24→34.51–34.69s, slices
+33.98–34.00→32.83–32.90s; peak RSS remains comparable. Development-worktree suite:
+**152.076s, 1022 passing tests /5 existing skips**; doctests/fmt/Clippy pass,
+rstyle **0/3327**, patterns **0 unignored**, existing 15 ignores unchanged.
+Evidence: `/tmp/rstyle-perf4-*`; extraction contracts and selections unchanged.

@@ -2,6 +2,8 @@
 //! interchange boundary. Producer conformance flags are never an input proof.
 
 mod normalization;
+#[cfg(test)]
+mod tests;
 use normalization::normalize;
 
 use super::{Pair, PairView, analyze_facts, emit, lower};
@@ -47,9 +49,9 @@ fn verify_pair(
         .producer_revision
         .known_value()
         .ok_or_else(|| vec!["Missing captured producer revision".to_string()])?;
-    let expected = emit(facts, &graph, &analysis, revision).map_err(|e| vec![e])?;
+    let mut expected = emit(facts, &graph, &analysis, revision).map_err(|e| vec![e])?;
     let renaming = correspondence(pair, expected.as_view())?;
-    compare_documents(pair, expected.as_view(), &renaming)?;
+    compare_documents(pair, &mut expected, &renaming)?;
 
     if crate::extraction_profile::ExtractionProfile::from_facts(facts)
         .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
@@ -314,18 +316,36 @@ fn add_cfg_names(
 
 fn compare_documents(
     actual: PairView<'_>,
-    expected: PairView<'_>,
+    expected: &mut Pair,
     renaming: &BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
-    compare_document(actual.pdg, expected.pdg, renaming)?;
-    compare_document(actual.cfg, expected.cfg, renaming)
+    // Current deterministic emission usually preserves IDs and record order.
+    // Align only the historical informational conformance exception; profiles,
+    // inventories and all semantic fields still participate in typed equality.
+    if renaming.iter().all(|(actual, expected)| actual == expected) {
+        for (actual, expected) in actual
+            .pdg
+            .extraction_evidence
+            .conformance
+            .iter()
+            .zip(&mut expected.pdg.extraction_evidence.conformance)
+        {
+            expected.status = actual.status;
+            expected.reasons.clone_from(&actual.reasons);
+        }
+    }
+    compare_document(actual.pdg, &expected.pdg, renaming)?;
+    compare_document(actual.cfg, &expected.cfg, renaming)
 }
 
-fn compare_document<T: serde::Serialize>(
+fn compare_document<T: serde::Serialize + PartialEq>(
     actual: &T,
     expected: &T,
     renaming: &BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
+    if renaming.iter().all(|(actual, expected)| actual == expected) && actual == expected {
+        return Ok(());
+    }
     let actual = normalize(
         serde_json::to_value(actual).map_err(|e| vec![e.to_string()])?,
         "",
