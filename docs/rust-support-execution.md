@@ -83,7 +83,7 @@ Follow-up controls finished: copy/cyclic 0.62→0.62s; ASCII 0.84→0.88s; flags
 | P08 saved checked / B | Source audit blocked: smallest located natural chain requires generics, let-else, Result/?, closures and borrowed aggregates. Scalar Result alternative additionally requires char/tables and binary-search protocol. No isolated vocabulary activation. |
 | P06 borrowed result / C | Input::haystack → is_char_boundary → utf8::is_boundary needs lifetime-only callable ownership, stored-reference fields, complete mixed Anchored child and distinct slot reads/result origins. |
 | P05 ownership / D | No tractable residual path/cfg positive found; no census redesign justified. Callable lifetime proof needs driver implementation/direct-callee and independent selected-impl/member gates together. Nominal lifetime capture exists; stored-reference/mixed-child/result-origin proof remains separate. |
-| P02 floats / D design | Source contract ready for libm k_sinf/k_cosf; explicit float bits/NaN/target semantics, constants and f64→f32 conversions required. Production vocabulary follows char integration. |
+| P02 floats / D design | Source contract/oracle and full Cargo context ready for libm k_sinf/k_cosf; baseline1/1131 admits, both targets exclude. Actual arch_enabled present/assert_no_panic absent. Exact float bits/constants, ordered arithmetic and f64→f32 narrowing remain one connected activation. |
 
 Contracts: [character](extraction-profiles/character-leaf-v1.md),
 [checked consumption](extraction-profiles/saved-checked-consumption-v1.md),
@@ -98,6 +98,7 @@ Escape caller full gates/original capture/strict replay pass; retained run
 `run-15rr9we7` against char3.61 `run-8osa6f3z`. Equal-work controls pass with unchanged admissions/matching. Preserve frozen60.
 Source-only contract/oracle/selection for float kernels is ready; native original
 harness passes4202 cases and pinned NaN authority is documented; actual Cargo
-context remains unobserved. Integrate that complete
+context is captured (arch_enabled present, assert_no_panic absent). Both selected
+kernels remain excluded; no additional source-boundary rejection was observed. Integrate that complete
 constant/arithmetic/narrowing chain next when ready, without isolated vocabulary
 activation. The full P01–P22 frontier stays active.

@@ -55,13 +55,201 @@
       "ENSURE_NO_PANIC": null
     },
     "observed": {
-      "package_id": null,
-      "compilation_unit": null,
-      "invocation": null,
-      "cfgs": null,
-      "definition_identities": null
+      "package_id": "path+file:///tmp/rstyle-float-kernels-original/libm-0.2.16#libm@0.2.16",
+      "compilation_unit": "path+file:///tmp/rstyle-float-kernels-original/libm-0.2.16#libm@0.2.16:libm:test=false",
+      "invocation": [
+        "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/bin/rustc",
+        "--crate-name",
+        "libm",
+        "--edition=2021",
+        "src/lib.rs",
+        "--error-format=json",
+        "--json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent",
+        "--crate-type",
+        "lib",
+        "--emit=dep-info,metadata",
+        "-C",
+        "embed-bitcode=no",
+        "-C",
+        "debuginfo=2",
+        "--warn=unexpected_cfgs",
+        "--check-cfg",
+        "cfg(feature, values(\"compiler-builtins\"))",
+        "--cfg",
+        "feature=\"arch\"",
+        "--cfg",
+        "feature=\"default\"",
+        "--check-cfg",
+        "cfg(docsrs,test)",
+        "--check-cfg",
+        "cfg(feature, values(\"arch\", \"default\", \"force-soft-floats\", \"unstable\", \"unstable-float\", \"unstable-intrinsics\", \"unstable-public-internals\"))",
+        "-C",
+        "metadata=70fc8a4f4f482499",
+        "-C",
+        "extra-filename=-50c2cc61510db5d9",
+        "--out-dir",
+        "/tmp/rstyle-float-kernels-original-target/rstyle/clones/run-pGfzZS/build/debug/build/libm/50c2cc61510db5d9/out",
+        "--force-warn=unused_crate_dependencies",
+        "--cfg",
+        "arch_enabled",
+        "--check-cfg",
+        "cfg(assert_no_panic)",
+        "--check-cfg",
+        "cfg(intrinsics_enabled)",
+        "--check-cfg",
+        "cfg(arch_enabled)",
+        "--check-cfg",
+        "cfg(optimizations_enabled)",
+        "--check-cfg",
+        "cfg(x86_no_sse)",
+        "--check-cfg",
+        "cfg(f16_enabled)",
+        "--check-cfg",
+        "cfg(f128_enabled)",
+        "--sysroot",
+        "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu"
+      ],
+      "cfgs": [
+        "arch_enabled",
+        "debug_assertions",
+        "feature=\"arch\"",
+        "feature=\"default\"",
+        "fmt_debug=\"full\"",
+        "overflow_checks",
+        "panic=\"unwind\"",
+        "relocation_model=\"pic\"",
+        "target_abi=\"\"",
+        "target_arch=\"aarch64\"",
+        "target_endian=\"little\"",
+        "target_env=\"gnu\"",
+        "target_family=\"unix\"",
+        "target_feature=\"neon\"",
+        "target_feature=\"outline-atomics\"",
+        "target_has_atomic",
+        "target_has_atomic=\"128\"",
+        "target_has_atomic=\"16\"",
+        "target_has_atomic=\"32\"",
+        "target_has_atomic=\"64\"",
+        "target_has_atomic=\"8\"",
+        "target_has_atomic=\"ptr\"",
+        "target_has_atomic_load_store",
+        "target_has_atomic_load_store=\"128\"",
+        "target_has_atomic_load_store=\"16\"",
+        "target_has_atomic_load_store=\"32\"",
+        "target_has_atomic_load_store=\"64\"",
+        "target_has_atomic_load_store=\"8\"",
+        "target_has_atomic_load_store=\"ptr\"",
+        "target_has_atomic_primitive_alignment=\"128\"",
+        "target_has_atomic_primitive_alignment=\"16\"",
+        "target_has_atomic_primitive_alignment=\"32\"",
+        "target_has_atomic_primitive_alignment=\"64\"",
+        "target_has_atomic_primitive_alignment=\"8\"",
+        "target_has_atomic_primitive_alignment=\"ptr\"",
+        "target_has_reliable_f128",
+        "target_has_reliable_f128_math",
+        "target_has_reliable_f16",
+        "target_has_reliable_f16_math",
+        "target_has_reliable_f16b",
+        "target_has_threads",
+        "target_object_format=\"elf\"",
+        "target_os=\"linux\"",
+        "target_pointer_width=\"64\"",
+        "target_thread_local",
+        "target_vendor=\"unknown\"",
+        "ub_checks",
+        "unix"
+      ],
+      "features": [
+        "arch",
+        "default"
+      ],
+      "definition_identities": {
+        "math::k_cosf::k_cosf": "DefPathHash(Fingerprint(8084451329844287767, 16805133330389098615))",
+        "math::k_sinf::k_sinf": "DefPathHash(Fingerprint(8084451329844287767, 5523826033278937765))"
+      },
+      "compiler": {
+        "rustc_commit": {
+          "status": "known",
+          "value": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
+        },
+        "rustc_version": {
+          "status": "known",
+          "value": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)"
+        },
+        "target_triple": {
+          "status": "known",
+          "value": "aarch64-unknown-linux-gnu"
+        },
+        "data_layout": {
+          "status": "known",
+          "value": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"
+        },
+        "overflow_checks": {
+          "status": "known",
+          "value": true
+        },
+        "debug_assertions": {
+          "status": "known",
+          "value": true
+        },
+        "opt_level": {
+          "status": "known",
+          "value": "No"
+        },
+        "panic_strategy": {
+          "status": "known",
+          "value": "unwind"
+        },
+        "pointer_width": {
+          "status": "known",
+          "value": 64,
+          "policy": {
+            "id": "compat.rust.hir-r0",
+            "version": "0.1.0"
+          }
+        }
+      },
+      "report": "/tmp/rstyle-float-kernels-original-capture.json",
+      "audit": "/tmp/rstyle-float-kernels-original-audit.json",
+      "baseline": {
+        "capture_complete": true,
+        "assessment_complete": true,
+        "pair_enumeration_complete": true,
+        "pair_evaluation_complete": true,
+        "roster": {
+          "admitted": 1,
+          "excluded": 1130
+        },
+        "selected": {
+          "math::k_cosf::k_cosf": "excluded",
+          "math::k_sinf::k_sinf": "excluded"
+        }
+      },
+      "inactive_attribute": "assert_no_panic absent from actual cfgs; arch_enabled present",
+      "unit_evidence": {
+        "math::k_cosf::k_cosf": {
+          "report_unit": 0,
+          "namespace": {
+            "process": 3029096,
+            "epoch_nanos": 1792596624609914140,
+            "ordinal": 0
+          },
+          "bundle": "/tmp/rstyle-float-kernels-original-target/rstyle/clones/run-pGfzZS/invocation-PjYLJI/unit.evidence.json",
+          "function": 962
+        },
+        "math::k_sinf::k_sinf": {
+          "report_unit": 0,
+          "namespace": {
+            "process": 3029096,
+            "epoch_nanos": 1792596624609914140,
+            "ordinal": 0
+          },
+          "bundle": "/tmp/rstyle-float-kernels-original-target/rstyle/clones/run-pGfzZS/invocation-PjYLJI/unit.evidence.json",
+          "function": 966
+        }
+      }
     },
-    "status": "unobserved; requires real Cargo capture"
+    "status": "observed; unchanged full original Cargo capture, selected kernels excluded before activation"
   },
   "expectation": "both unchanged complete originals become strictly admitted; no semantic-equivalence claim from matching",
   "sample": {

@@ -1,7 +1,8 @@
 # Original float kernels: acceptance contract v1
 
 Status: source-selected P02 family; independent native oracle validated, production
-not activated. Full original Cargo capture/build identity remains unobserved.
+not activated. Full original Cargo context is now captured; both kernels remain
+excluded before activation.
 
 ## Original selection and context
 
@@ -17,12 +18,12 @@ delegates replace these private kernels.
 | `src/math/k_sinf.rs` | 955..1125 | `b95e9206a4193b0c1744468ff26cee36d160c48152bec1432074aee9b36551e9` |
 | `src/math/k_cosf.rs` | 965..1120 | `9303ddcf967269bb7bfc8a4cabb99ec0e7d23461c55cd837602f472104731621` |
 
-First proposed context: complete original no_std lib/non-test, edition2021,
+Observed context: complete original no_std lib/non-test, edition2021,
 default/arch features, native aarch64 Linux, nightly-2026-09-30 commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`, debug/unoptimized, overflow checks,
-unwind, `ENSURE_NO_PANIC` absent. Actual cfgs, package/unit/definition identities,
-invocation and inactive `no_panic` ownership must be captured; proposed settings
-are not observations. Later no-default/x86 Linux/ARM macOS contexts need their
+unwind, `ENSURE_NO_PANIC` absent. Actual cfgs, package/unit/definition identities and invocation are retained in
+the selection: `arch_enabled` present, `assert_no_panic` absent. The conditional
+attribute is inactive; no general macro exception is needed. Later no-default/x86 Linux/ARM macOS contexts need their
 own evidence. Frozen sixty identities/denominators remain unchanged.
 
 ## Complete known blocker chain and bounded semantics
@@ -53,7 +54,7 @@ activation. Constant declaration name/type checks do not prove value equality;
 independently parse original decimal/unary-minus source and compare width-specific
 bits. Existing ordered operand flow can be reused without a new inventory.
 
-Known remaining capture questions: actual build-script cfgs and inactive
+Original capture confirms the expected build-script cfgs and inactive
 conditional-attribute ownership. `ENSURE_NO_PANIC` presence, even empty, enables
 `assert_no_panic`; capture cfgs rather than assuming environment defaults. No new cache,
 analysis substrate or generalized source exception is justified by this contract.
@@ -96,6 +97,13 @@ Run `python3 eval/coverage-development/float-kernels-oracle.py --native PATH`.
 The native JSONL protocol is documented in the script. Parent harness
 `/tmp/rstyle-float-kernels-oracle/main.rs` includes the unchanged original whole
 files; no copied polynomial or std sin/cos supplies expected results.
+
+Baseline full-original capture completes all assessment/enumeration/evaluation
+ledgers: **1 admitted /1130 excluded**, both selected kernels excluded. Rejections
+confirm float types, arithmetic, unresolved constant reads and integer-only casts;
+no additional source-boundary rejection was observed. Raw report and compact
+audit paths are retained in the selection. Literal/constant HIR bit transport
+still needs the declared implementation and independent checks.
 
 Delivery still requires connected constants/arithmetic/narrowing activation,
 adversarial source/type/bits/operand/order/policy cases, full-original capture,

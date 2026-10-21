@@ -3945,5 +3945,6 @@ no equivalence, rewrite-safety or held-out quality claim follows.
 
 Next source-selected family: original libm `k_sinf`/`k_cosf`, joining exact float
 bits/constants, ordered arithmetic and f64→f32 narrowing. Its independent4202-input
-oracle passes; actual Cargo context and production activation remain open. The
+oracle passes; actual full Cargo context is captured, with both kernels excluded
+before production activation. The
 broader P01–P22 roadmap and borrowed-result/Result/ownership blockers remain active.
