@@ -330,6 +330,11 @@ fn verify_nodes(
     if crate::data_discards::candidate(node, facts) {
         return crate::data_discards::verify(node, facts);
     }
+    if crate::iterator_position::candidate(node, facts) {
+        let checked = crate::iterator_position::verify(node, facts)?;
+        verify_nodes(checked.receiver, facts, places)?;
+        return verify_nodes(checked.predicate.captured_value, facts, places);
+    }
     if crate::data_subslices::candidate(node, facts) {
         let checked = crate::data_subslices::verify(node, facts)?;
         for operand in checked.operands() {
@@ -337,23 +342,7 @@ fn verify_nodes(
         }
         return Ok(());
     }
-    if crate::data_aggregates::constructor(node)
-        && crate::extraction_profile::ExtractionProfile::from_facts(facts)?
-            .supports("rust.aggregate-literal-values")
-    {
-        crate::data_aggregates::verify(node, facts)?;
-    }
-    verify_enum_node(node, facts)?;
-    crate::data_locals::verify_node(node, facts)?;
-    if crate::checked_options::constructor_candidate(node, facts) {
-        crate::checked_options::verify_constructor(node, facts)?;
-    }
-    if crate::data_index_reads::candidate(node, facts) {
-        crate::data_index_reads::verify(node, facts)?.locations(facts)?;
-    }
-    if crate::data_dereferences::candidate(node, facts) {
-        crate::field_locations::derived::locations(node, facts)?;
-    }
+    verify_value_operations(node, facts)?;
     if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
         if token.contains("\"kind\":\"option\"") && !crate::checked_options::enabled(facts) {
             return Err("Checked Option types require their registered capability".into());
@@ -370,6 +359,31 @@ fn verify_nodes(
 
     for child in &node.children {
         verify_nodes(child, facts, places)?;
+    }
+    Ok(())
+}
+
+fn verify_value_operations(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    if crate::data_aggregates::constructor(node)
+        && crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.aggregate-literal-values")
+    {
+        crate::data_aggregates::verify(node, facts)?;
+    }
+
+    verify_enum_node(node, facts)?;
+    crate::data_locals::verify_node(node, facts)?;
+    if crate::checked_options::constructor_candidate(node, facts) {
+        crate::checked_options::verify_constructor(node, facts)?;
+    }
+    if crate::data_index_reads::candidate(node, facts) {
+        crate::data_index_reads::verify(node, facts)?.locations(facts)?;
+    }
+    if crate::data_dereferences::candidate(node, facts) {
+        crate::field_locations::derived::locations(node, facts)?;
     }
     Ok(())
 }

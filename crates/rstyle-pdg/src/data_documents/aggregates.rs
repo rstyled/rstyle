@@ -154,6 +154,9 @@ fn collect_subslice<'a>(
 }
 
 pub(super) fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), String> {
+    if value.attributes.construct.as_deref() == Some(crate::iterator_position::PREFIX) {
+        return Err("Prefix summary is not the completed iterator result".into());
+    }
     let token = child
         .ty
         .as_ref()
@@ -187,7 +190,10 @@ pub(super) fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), St
         || (value.category == NodeCategory::Merge
             && !matches!(child.kind.as_str(), "expr_if" | "expr_match")
             && !(child.kind == "expr_method_call"
-                && value.attributes.construct.as_deref() == Some("callback.option-result")))
+                && matches!(
+                    value.attributes.construct.as_deref(),
+                    Some("callback.option-result" | "iterator.position-result")
+                )))
         || (value.category != NodeCategory::Merge
             && value.original_kind.known_value() != Some(child.kind.as_str()))
     {

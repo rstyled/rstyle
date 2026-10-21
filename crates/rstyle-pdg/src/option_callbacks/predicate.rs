@@ -7,6 +7,7 @@ pub struct Predicate<'a> {
     pub binding: &'a HirNode,
     pub body: &'a HirNode,
     pub capture: &'a crate::BindingFact,
+    pub captured_value: &'a HirNode,
 }
 
 /// Checks the predicate itself, without authorizing a callable value, a library
@@ -22,8 +23,23 @@ pub fn verify_predicate<'a>(
         return Err("Callback requires an original synchronous closure".into());
     }
 
-    parameter(node, binding, facts)?;
-    let captured = equality(binding, body)?;
+    let parameter = if binding.kind == "pat_shared_copy"
+        && crate::extraction_profile::facts_support(facts, "rust.byte-iterator-position")
+    {
+        let [inner] = binding.children.as_slice() else {
+            return Err("Shared callback pattern requires one complete binding".into());
+        };
+        if crate::data_aggregates::token(binding)?
+            != crate::data_types::token(&TypeTree::Shared(Box::new(TypeTree::Scalar("u8".into()))))?
+        {
+            return Err("Shared callback pattern requires a shared byte".into());
+        }
+        inner
+    } else {
+        binding
+    };
+    parameter_check(node, parameter, facts)?;
+    let captured = equality(parameter, body)?;
     let capture = facts
         .bindings
         .iter()
@@ -31,20 +47,25 @@ pub fn verify_predicate<'a>(
             Some(&record.hir) == captured.res.as_ref().and_then(|res| res.target.as_ref())
         })
         .ok_or("Callback capture has no enclosing binding")?;
-    if capture.hir == binding.hir || capture.ty.normalized.as_deref() != Some("u8") {
+    if capture.hir == parameter.hir || capture.ty.normalized.as_deref() != Some("u8") {
         return Err("Callback requires a distinct primitive byte capture".into());
     }
     environment(node, capture)?;
     source::verify(node, binding, body, facts)?;
 
     Ok(Predicate {
-        binding,
+        binding: parameter,
         body,
         capture,
+        captured_value: captured,
     })
 }
 
-fn parameter(closure: &HirNode, node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
+fn parameter_check(
+    closure: &HirNode,
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
     let record = facts.bindings.iter().find(|record| record.hir == node.hir);
     let scope = format!(
         "scope:source:callback:{}:{}",

@@ -722,6 +722,7 @@ fn resolved_summary(
         && (crate::inherent_calls::source_resolved(node, facts).unwrap_or(false)
             || crate::option_callbacks::candidate(node, facts)
                 && crate::option_callbacks::verify_map_or(node, facts).is_ok()
+            || crate::iterator_position::source_resolved(node, hir, facts)
             || crate::data_library::source_resolved(node, facts).unwrap_or(false)
             || crate::call_summaries::resolve_for(node, facts)
                 .is_ok_and(|summary| summary.is_some())))
@@ -742,6 +743,13 @@ impl<'ast> Inventory<'_> {
         let nested =
             profile.is_some_and(|profile| profile.supports("rust.nested-scalar-or-patterns"));
         let kind = match pattern {
+            syn::Pat::Reference(_)
+                if profile.is_some_and(|profile| {
+                    profile.supports(crate::iterator_position::CAPABILITY)
+                }) =>
+            {
+                Some("pat_shared_copy")
+            }
             syn::Pat::Lit(_) => Some("pat_literal"),
             syn::Pat::Wild(_) => Some("pat_wild"),
             syn::Pat::Path(_) if constants => Some("pat_constant"),
@@ -761,7 +769,23 @@ impl<'ast> Inventory<'_> {
             }
             _ => None,
         };
+
         let matched = kind.is_some_and(|kind| self.add(kind, pattern.span()));
+        self.pattern_children(pattern, matched, profile);
+    }
+
+    fn pattern_children(
+        &mut self,
+        pattern: &'ast syn::Pat,
+        matched: bool,
+        profile: Option<crate::extraction_profile::ExtractionProfile>,
+    ) {
+        let constants = profile.is_some_and(|p| p.supports("rust.scalar-constant-patterns"));
+        let nested = profile.is_some_and(|p| p.supports("rust.nested-scalar-or-patterns"));
+
+        if matched && let syn::Pat::Reference(reference) = pattern {
+            self.visit_pat(&reference.pat);
+        }
 
         if let syn::Pat::Or(pattern) = pattern
             && ((nested && matched) || (!nested && scalar_alternatives(pattern, constants)))

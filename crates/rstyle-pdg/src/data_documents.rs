@@ -10,6 +10,7 @@ mod checked_options;
 mod conditional_payloads;
 mod index_reads;
 mod indirect_reads;
+mod iterator_position;
 mod locals;
 mod locations;
 mod origins;
@@ -71,12 +72,13 @@ fn install_derived_reads(
     pair: &mut Pair,
     context: &mut LocationContext<'_>,
 ) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
-    let installers: [ReadInstaller; 5] = [
+    let installers: [ReadInstaller; 6] = [
         indirect_reads::install,
         index_reads::install,
         crate::helper_reads::install,
         byte_calls::install,
         checked_options::install,
+        iterator_position::install,
     ];
 
     installers
@@ -180,7 +182,11 @@ pub fn read_keys(node: &crate::PdgNode, locations: &[crate::MemoryLocation]) -> 
                 .map(|id| {
                     if matches!(
                         node.attributes.construct.as_deref(),
-                        Some("data.index" | "data.bytes.copy-result")
+                        Some(
+                            "data.index"
+                                | "data.bytes.copy-result"
+                                | crate::iterator_position::PREFIX
+                        )
                     ) || node.attributes.construct.as_deref() == Some("data.indirect-deref")
                         && locations.iter().any(|location| {
                             location.id == *id
@@ -349,8 +355,12 @@ fn verify_call_reads(
     callbacks::verify(pair, context.facts)?;
     let bytes = byte_calls::verify(pair, context, calls)?;
     let options = checked_options::verify(pair, context, calls)?;
+    let iterators = iterator_position::verify(pair, context)?;
 
-    crate::helper_reads::merge_locations(bytes, options)
+    crate::helper_reads::merge_locations(
+        crate::helper_reads::merge_locations(bytes, options)?,
+        iterators,
+    )
 }
 
 fn verify_projection_reads(
@@ -527,6 +537,11 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<
             &pair.pdg.profile,
             "rust.checked-slice-option",
         );
+    let iterator = node.attributes.construct.as_deref() == Some(crate::iterator_position::PREFIX)
+        && crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            crate::iterator_position::CAPABILITY,
+        );
 
     node.attributes
         .writes
@@ -534,6 +549,7 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<
         .any(|access| access.location_id.is_some())
         || !field
             && !payload
+            && !iterator
             && !indexed
             && !call
             && node

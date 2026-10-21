@@ -3,7 +3,7 @@
 
 mod invocation;
 mod predicate;
-mod source;
+pub(crate) mod source;
 pub use invocation::{Invocation, verify_map_or};
 pub use predicate::{Predicate, verify_predicate};
 

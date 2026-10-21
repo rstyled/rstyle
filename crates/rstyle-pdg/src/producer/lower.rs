@@ -2,6 +2,7 @@
 
 mod callbacks;
 mod enums;
+mod iterator_position;
 mod loops;
 mod options;
 
@@ -608,7 +609,13 @@ impl Builder<'_> {
         evaluated
     }
 
-    fn computation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+    fn invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::iterator_position::candidate(node, self.facts) {
+            return self.byte_position(
+                crate::iterator_position::verify(node, self.facts).expect("eligible byte position"),
+                flow,
+            );
+        }
         if node.kind == "expr_method_call"
             && crate::extraction_profile::facts_support(
                 self.facts,
@@ -618,6 +625,10 @@ impl Builder<'_> {
         {
             return self.option_callback(node, checked, flow);
         }
+        self.computation(node, flow)
+    }
+
+    fn computation(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let evaluated = self.evaluate_operands(node, flow);
         let category = if matches!(node.kind.as_str(), "expr_method_call" | "expr_call") {
             NodeCategory::Call
@@ -937,11 +948,17 @@ impl Builder<'_> {
         } = selection;
         let id = format!("n{}", self.nodes.len());
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
-        let mut merge = template(node, NodeCategory::Merge);
-        merge.id = id.clone();
-        if crate::option_callbacks::candidate(node, self.facts) {
-            merge.construct = Some("callback.option-result".into());
-        }
+        let mut merge = Operation {
+            id: id.clone(),
+            construct: if crate::option_callbacks::candidate(node, self.facts) {
+                Some("callback.option-result".into())
+            } else if crate::iterator_position::candidate(node, self.facts) {
+                Some("iterator.position-result".into())
+            } else {
+                None
+            },
+            ..template(node, NodeCategory::Merge)
+        };
         merge.original_kind = if selection_kind.is_some() {
             "rstyle.hir-coverage.match_merge"
         } else {
@@ -1276,7 +1293,8 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         {
             Builder::short_circuit
         }
-        "expr_binary" | "expr_cast" | "expr_method_call" | "expr_call" => Builder::computation,
+        "expr_binary" | "expr_cast" => Builder::computation,
+        "expr_method_call" | "expr_call" => Builder::invocation,
         "expr_assign" => Builder::assignment,
         "expr_tuple_assign" => Builder::tuple_assignment,
         "expr_assign_op" => Builder::compound,

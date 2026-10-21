@@ -1,6 +1,6 @@
 //! Independent source-to-serialized checks for immediate Option callbacks.
 
-mod order;
+pub(super) mod order;
 
 use super::*;
 use crate::{HirNode, option_callbacks, unit_store::EvidenceFacts};

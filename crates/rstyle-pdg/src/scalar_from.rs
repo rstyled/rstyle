@@ -61,12 +61,15 @@ fn conversion(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Conversion, S
 }
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::facts_support(facts, CAPABILITY)
-        && node.kind == "expr_call"
-        && node
-            .dispatch
-            .as_ref()
-            .is_some_and(|dispatch| matches!(dispatch.op.as_str(), TRAIT | CORE_TRAIT))
+    crate::data_receivers::candidate(
+        node,
+        facts,
+        crate::data_receivers::InvocationSyntax {
+            capability: CAPABILITY,
+            kind: "expr_call",
+            paths: &[TRAIT, CORE_TRAIT],
+        },
+    )
 }
 
 pub(crate) fn resolve(

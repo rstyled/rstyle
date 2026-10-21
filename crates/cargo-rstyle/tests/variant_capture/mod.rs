@@ -8,6 +8,7 @@ mod classifiers;
 mod corruption;
 mod end_of_input;
 mod iterator_position;
+mod iterator_position_corruption;
 
 fn descendants<'a>(node: &'a rstyle_pdg::HirNode, output: &mut Vec<&'a rstyle_pdg::HirNode>) {
     output.push(node);

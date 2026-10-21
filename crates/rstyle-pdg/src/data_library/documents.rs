@@ -112,6 +112,9 @@ fn check_method_inventory(
     for method in calls.iter().filter(|node| node.kind == "expr_method_call") {
         if crate::option_callbacks::candidate(method, facts) {
             crate::option_callbacks::verify_map_or(method, facts)?;
+        } else if crate::iterator_position::source_resolved(method, &method.hir, facts) {
+            // The complete fresh-iterator contract verifies these two calls
+            // as semantic operations, including the selected implementation.
         } else {
             expected += 1;
         }

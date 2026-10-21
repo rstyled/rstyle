@@ -67,7 +67,10 @@ pub(super) fn result(
     Ok(())
 }
 
-fn site<'a>(pair: PairView<'a>, id: &str) -> Result<&'a Value, String> {
+pub(in crate::data_documents) fn site<'a>(
+    pair: PairView<'a>,
+    id: &str,
+) -> Result<&'a Value, String> {
     let candidates = pair
         .pdg
         .extensions
@@ -96,7 +99,10 @@ fn operation(pair: PairView<'_>, node: &PdgNode) -> Result<String, String> {
     Ok(found.cfg_node_id.clone())
 }
 
-fn completion(pair: PairView<'_>, node: &PdgNode) -> Result<BTreeSet<String>, String> {
+pub(in crate::data_documents) fn completion(
+    pair: PairView<'_>,
+    node: &PdgNode,
+) -> Result<BTreeSet<String>, String> {
     if node.category != NodeCategory::Merge {
         return Ok(BTreeSet::from([operation(pair, node)?]));
     }
@@ -124,7 +130,11 @@ fn completion(pair: PairView<'_>, node: &PdgNode) -> Result<BTreeSet<String>, St
     Ok(completed)
 }
 
-fn before(pair: PairView<'_>, earlier: &BTreeSet<String>, later: &PdgNode) -> Result<(), String> {
+pub(in crate::data_documents) fn before(
+    pair: PairView<'_>,
+    earlier: &BTreeSet<String>,
+    later: &PdgNode,
+) -> Result<(), String> {
     let target = operation(pair, later)?;
     let mut pending = vec![pair.cfg.entry_node_id.as_str()];
     let mut seen = BTreeSet::new();

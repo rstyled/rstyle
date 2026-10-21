@@ -135,7 +135,10 @@ pub(crate) fn derive(
 fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String> {
     if !matches!(
         location.abstraction.as_str(),
-        "rstyle.formal-field/2" | "rstyle.formal-checked-element/1" | "rstyle.formal-byte-window/1"
+        "rstyle.formal-field/2"
+            | "rstyle.formal-checked-element/1"
+            | "rstyle.formal-byte-window/1"
+            | "rstyle.formal-iterator-prefix/1"
     ) {
         return Err("Helper read lacks registered formal location interpretation".into());
     }
@@ -157,6 +160,7 @@ fn indirect_read(
         Some("data.indirect-field") => "rust.indirect-field-reads",
         Some("data.indirect-deref") => "rust.shared-dereference-reads",
         Some("data.bytes.copy-result") => "rust.accelerator-packing",
+        Some(crate::iterator_position::PREFIX) => crate::iterator_position::CAPABILITY,
         Some("data.option-payload") => "rust.checked-slice-option",
         _ => return Ok(false),
     };
@@ -213,6 +217,14 @@ pub(crate) fn type_at(
 
 fn project(value: TypeToken, projection: &Projection) -> Result<TypeToken, String> {
     match (value, projection) {
+        (
+            TypeToken::Slice(element) | TypeToken::Array { element, .. },
+            Projection::IteratorPrefix {
+                operand_position: 0,
+            },
+        ) if matches!(element.as_ref(), TypeToken::Scalar(scalar) if scalar == "u8") => {
+            Ok(TypeToken::Slice(element))
+        }
         (TypeToken::Shared(value), Projection::SharedReferent) => Ok(*value),
         (TypeToken::Slice(value), Projection::CheckedElement)
             if matches!(value.as_ref(), TypeToken::Scalar(_)) =>

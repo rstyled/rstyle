@@ -46,10 +46,34 @@ pub(super) fn verify(
         return Err("Callback modifiers and callable annotations remain unsupported".into());
     }
 
+    parameter(closure, binding, node, facts)?;
+    corresponding(&*closure.body, body, node, facts)?;
+    comparison(&closure.body, body, node, facts)
+}
+
+fn parameter(
+    closure: &syn::ExprClosure,
+    binding: &HirNode,
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
     if closure.inputs.len() != 1 {
         return Err("Callback requires exactly one original parameter".into());
     }
-    let Some(syn::Pat::Ident(parameter)) = closure.inputs.first() else {
+    let original = closure.inputs.first().expect("one parameter");
+    let original = if binding.kind == "pat_shared_copy" {
+        let syn::Pat::Reference(reference) = original else {
+            return Err("Shared callback loses its original reference pattern".into());
+        };
+        if reference.mutability.is_some() || !reference.attrs.is_empty() {
+            return Err("Shared callback requires an unmodified shared pattern".into());
+        }
+        corresponding(reference, binding, node, facts)?;
+        &*reference.pat
+    } else {
+        original
+    };
+    let syn::Pat::Ident(parameter) = original else {
         return Err("Callback requires one original name parameter".into());
     };
     if parameter.by_ref.is_some()
@@ -60,9 +84,13 @@ pub(super) fn verify(
         return Err("Callback parameter requires a plain immutable binding".into());
     }
 
-    corresponding(parameter, binding, node, facts)?;
-    corresponding(&*closure.body, body, node, facts)?;
-    comparison(&closure.body, body, node, facts)
+    let value = if binding.kind == "pat_shared_copy" {
+        &binding.children[0]
+    } else {
+        binding
+    };
+    corresponding(parameter, value, node, facts)?;
+    Ok(())
 }
 
 fn comparison(
@@ -92,7 +120,7 @@ fn comparison(
     Ok(())
 }
 
-fn corresponding(
+pub(crate) fn corresponding(
     syntax: &impl Spanned,
     child: &HirNode,
     node: &HirNode,

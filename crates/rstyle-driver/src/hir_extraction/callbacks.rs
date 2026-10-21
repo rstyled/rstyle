@@ -33,10 +33,22 @@ impl<'tcx> Context<'tcx> {
                 .iter()
                 // These bindings belong to the callback, not the outer
                 // function interface. In particular, leave param_index unset.
-                .map(|parameter| self.pattern(parameter.pat))
+                .map(|parameter| self.callback_pattern(parameter.pat))
                 .chain(std::iter::once(self.expression(body.value)))
                 .collect(),
         )
+    }
+
+    fn callback_pattern(&self, pattern: &hir::Pat<'tcx>) -> HirNode {
+        let mut node = self.pattern(pattern);
+        if self.profile.supports("rust.byte-iterator-position")
+            && let hir::PatKind::Ref(inner, hir::Pinnedness::Not, hir::Mutability::Not) =
+                pattern.kind
+        {
+            node.kind = "pat_shared_copy".into();
+            node.children = vec![self.pattern(inner)];
+        }
+        node
     }
 
     fn immediate_option_callback(&self, expression: &Expr<'tcx>) -> bool {
@@ -46,18 +58,30 @@ impl<'tcx> Context<'tcx> {
         let ExprKind::MethodCall(_, _, arguments, _) = parent.kind else {
             return false;
         };
-        if arguments.len() != 2 || arguments[1].hir_id != expression.hir_id {
+        if arguments
+            .last()
+            .is_none_or(|argument| argument.hir_id != expression.hir_id)
+        {
             return false;
         }
         let Some(definition) = self.typeck.type_dependent_def_id(parent.hir_id) else {
             return false;
         };
 
+        let path = self.tcx.def_path_str(definition);
+        let option = arguments.len() == 2
+            && matches!(
+                path.as_str(),
+                "core::option::Option::<T>::map_or" | "std::option::Option::<T>::map_or"
+            );
+        let position = self.profile.supports("rust.byte-iterator-position")
+            && arguments.len() == 1
+            && matches!(
+                path.as_str(),
+                "core::iter::Iterator::position" | "std::iter::Iterator::position"
+            );
         !definition.is_local()
             && self.tcx.crate_name(definition.krate).as_str() == "core"
-            && matches!(
-                self.tcx.def_path_str(definition).as_str(),
-                "core::option::Option::<T>::map_or" | "std::option::Option::<T>::map_or"
-            )
+            && (option || position)
     }
 }

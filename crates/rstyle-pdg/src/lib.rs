@@ -47,6 +47,7 @@ pub mod helper_reads;
 mod helper_references;
 mod helper_views;
 pub mod inherent_calls;
+pub mod iterator_position;
 pub mod model;
 pub mod nominal_binding;
 pub mod nominal_boundary;

@@ -40,7 +40,7 @@ pub fn verify_map_or<'a>(
             mismatch: "Immediate map_or lacks the exact pinned core definition",
         },
     )?;
-    dispatch(node, &callee.path)?;
+    crate::data_receivers::verify_dispatch(node, &callee.path, &["bool"])?;
     signature(node, facts)?;
     super::source::invocation(node, facts)?;
     let predicate = verify_predicate(callback, facts)?;
@@ -52,31 +52,6 @@ pub fn verify_map_or<'a>(
         callback,
         predicate,
     })
-}
-
-fn dispatch(node: &HirNode, path: &str) -> Result<(), String> {
-    let observed = node
-        .children
-        .iter()
-        .map(|child| {
-            child
-                .ty
-                .as_ref()
-                .map(|ty| ty.observed.as_str())
-                .ok_or("Missing callback operand observation")
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if !node.dispatch.as_ref().is_some_and(|dispatch| {
-        dispatch.kind == "resolved_method"
-            && dispatch.op == path
-            && dispatch.result_ty == "bool"
-            && dispatch.operand_tys == observed
-    }) {
-        return Err("Immediate map_or loses resolved dispatch/operand observations".into());
-    }
-    // The closure's observed string is a consistency check only. It supplies
-    // neither an ordinary supported type nor callable effects/result evidence.
-    Ok(())
 }
 
 fn signature(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {

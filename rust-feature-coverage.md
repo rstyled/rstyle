@@ -7,9 +7,9 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.49.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
-Data-v3 3.49 connects the bounded tagged byte comparison family; the continuation
-log records its natural/frozen/performance measurements.
+`rstyle.rust.hir-data/3.54.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+Data-v3 3.54 connects fresh shared byte-iterator position and Option/helper
+composition; the continuation log records measured family boundaries.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -150,8 +150,8 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C13 | Cross-unit/package helper linking | Missing | `library_crate::helper(x)` | Capture/resolve selected units before summary derivation, preserve build contexts/transitive dependencies; modules inside one unit already work. |
 | C14 | Looping, recursive, panicking or nonreturning callees | Missing | `recursive(x)`, `helper_with_loop(x)` | Existing caller scalar loops do not authorize these summaries; need interprocedural fixed points/flow/effect contracts. |
 | C15 | Function items as values, pointers and indirect calls | Missing | `let f: fn(u32) -> u32 = helper; f(x)` | Callable identity/possible targets, concrete signatures, effects and indirect-call dependencies. |
-| C16 | Closures and captured environments | Partial | `move \|x\| x + offset` | Data-v3 3.49 supports [immediate Option<u8>::map_or equality callbacks](docs/extraction-profiles/tagged-byte-comparisons-v1.md): one by-value u8 payload and one shared u8 capture, eager default, Some-only body and independently checked result merge. General bodies, captures, escape/lifetime and drop remain open. Legacy patterns behavior is not strict-pipeline support. |
-| C17 | Iterator adapters and higher-order functions | Missing | `xs.iter().map(f).collect()` | Protocol/call composition, closures, state, short-circuiting, yielded values and cleanup; separate from plain scalar loops. |
+| C16 | Closures and captured environments | Partial | `move \|x\| x + offset` | Data-v3 3.49 supports [immediate Option<u8>::map_or equality callbacks](docs/extraction-profiles/tagged-byte-comparisons-v1.md): one by-value u8 payload and one shared u8 capture, eager default, Some-only body and independently checked result merge. Data-v3 3.54 also verifies the [immediate shared-byte position callback](docs/extraction-profiles/iterator-byte-position-v1.md), including `\|&b\|` and stable shared capture storage. General bodies, captures, escape/lifetime and drop remain open. |
+| C17 | Iterator adapters and higher-order functions | Partial | `xs.iter().position(\|&b\| b == byte)` | Data-v3 3.54 connects one [fresh shared byte iterator](docs/extraction-profiles/iterator-byte-position-v1.md), exact equality callback, first-match prefix reads and Option/helper composition. Stored iterators, arbitrary predicates, adapters, other element types and general protocols/cleanup remain excluded. |
 | C18 | Side-effecting calls | Missing | `std::fs::write(path, bytes)`, `println!("x")` | IO/global effects, ordering and failure behavior; distinguish macro provenance from the underlying call effects. |
 
 Evidence: [helper contract](docs/extraction-profiles/helpers-v1.md),
@@ -3719,3 +3719,28 @@ assessment and matching. Three independent original-crate runtime tests pass,
 covering every queried byte, active payload/padding, invalid-header panic and
 first-index/short-circuit visits. No production/policy change or new natural gain
 is claimed; the next implementation must connect the nine blocked positives.
+
+### Data-v3 3.54: connected fresh byte-iterator position
+
+Original Accel::contains now admits through its unchanged len/needles chain,
+with exact slice-implementation authority, shared capture proof, conditional
+first-match prefix reads, scalar Option and checked helper transport. Development
+improves **2 → 11 /17**; regex-automata **82 → 83 /2582**, zero losses.
+The three other package rosters and frozen sixty remain unchanged:
+**23 admitted /30 excluded /7 inactive**, identical identities/denominators.
+
+All **135 admissions** pass independent strict verification; all **91 selected
+comparisons** complete. **914 tests pass /5 skipped**, including six target/std
+contexts and adversarial imports; original runtime oracles, Clippy, doctests and
+formatting pass. Rstyle **0 violations /2937 functions**, patterns **0 candidates**.
+Unchanged control medians/matching remain stable; position does additional work
+(1 → 55 comparisons, 0.68 → 1.09s). See the compact
+[contract/results](docs/extraction-profiles/iterator-byte-position-v1.md).
+
+Next audit the complete original Unit::is_word_byte chain: its as_u8 dependency
+already admits, but the named callback and utf8 helper's const-built 256-entry
+table, nested declaration/source boundary and constant-index read all need proof.
+Do not substitute a passing closure or replacement classifier. Stored iterator
+state, arbitrary predicates, implicit array-field iterator places, saved checked
+payloads and general Result/if-let/`?` composition remain separate blockers.
+No abstraction activation, rewrite-safety or held-out quality claim is made.

@@ -6,8 +6,8 @@ mod rstyle_iterator_byte_position_oracle {
     fn membership(bytes: [u8; 8]) {
         let accel = Accel { bytes };
         let mut expected = [0u128; 2];
-        for index in 1..=usize::from(bytes[0]) {
-            let byte = usize::from(bytes[index]);
+        for &value in &bytes[1..1 + usize::from(bytes[0])] {
+            let byte = usize::from(value);
             expected[byte / 128] |= 1u128 << (byte % 128);
         }
         for query in 0..=u8::MAX {

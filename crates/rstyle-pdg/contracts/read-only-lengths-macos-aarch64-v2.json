@@ -79,6 +79,9 @@
     "core::num::<impl u32>::count_ones": "DefPathHash(Fingerprint(9963928104983068931, 10599701351396961623))",
     "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<usize> for u16>::try_from": "DefPathHash(Fingerprint(9963928104983068931, 5992858690863587375))",
     "std::option::Option::<T>::unwrap": "DefPathHash(Fingerprint(9963928104983068931, 17584606634209314539))",
-    "core::num::<impl usize>::checked_sub": "DefPathHash(Fingerprint(9963928104983068931, 850544721119292256))"
+    "core::num::<impl usize>::checked_sub": "DefPathHash(Fingerprint(9963928104983068931, 850544721119292256))",
+    "core::iter::Iterator::position": "DefPathHash(Fingerprint(9963928104983068931, 17031853664229132225))",
+    "core::slice::Iter::position": "DefPathHash(Fingerprint(9963928104983068931, 6024077544439610172))",
+    "core::slice::<impl [T]>::iter": "DefPathHash(Fingerprint(9963928104983068931, 12005577662950895974))"
   }
 }

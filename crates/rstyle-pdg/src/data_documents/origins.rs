@@ -542,15 +542,12 @@ fn source_type<'a>(
     node: &PdgNode,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<&'a str>, String> {
+    if let Some(ty) = iterator_type(node) {
+        return Ok(Some(ty));
+    }
+
     Ok(match node.category {
-        NodeCategory::FormalInput => {
-            let position = node.attributes.position.ok_or("Missing input position")? as usize;
-            facts
-                .signature
-                .params
-                .get(position)
-                .and_then(|parameter| parameter.ty.normalized.as_deref())
-        }
+        NodeCategory::FormalInput => input_type(node, facts)?,
         NodeCategory::Return => facts.signature.return_ty.normalized.as_deref(),
         NodeCategory::Declaration | NodeCategory::Assignment => Some("unit"),
         NodeCategory::Control
@@ -587,20 +584,65 @@ fn source_type<'a>(
     })
 }
 
+fn input_type<'a>(
+    node: &PdgNode,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<&'a str>, String> {
+    let position = node.attributes.position.ok_or("Missing input position")? as usize;
+    Ok(facts
+        .signature
+        .params
+        .get(position)
+        .and_then(|parameter| parameter.ty.normalized.as_deref()))
+}
+
+fn iterator_type(node: &PdgNode) -> Option<&'static str> {
+    match node.category {
+        NodeCategory::Read
+            if node.attributes.construct.as_deref() == Some(crate::iterator_position::PREFIX) =>
+        {
+            Some(crate::iterator_position::RESULT_TOKEN)
+        }
+        NodeCategory::Computation
+            if matches!(
+                node.attributes.construct.as_deref(),
+                Some("iterator.fresh-shared-bytes" | "iterator.shared-byte-environment")
+            ) =>
+        {
+            Some("unit")
+        }
+        NodeCategory::Computation
+            if node.attributes.construct.as_deref() == Some("iterator.empty-position") =>
+        {
+            Some(crate::iterator_position::RESULT_TOKEN)
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn source_node<'a>(
     node: &PdgNode,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<&'a HirNode, String> {
     let kind = if node.category == NodeCategory::Merge {
-        if node.attributes.construct.as_deref() == Some("callback.option-result") {
+        if matches!(
+            node.attributes.construct.as_deref(),
+            Some("callback.option-result" | "iterator.position-result")
+        ) {
             "expr_method_call"
         } else {
             ""
         }
     } else {
-        node.original_kind
+        let kind = node
+            .original_kind
             .known_value()
-            .ok_or("Unknown data source kind")?
+            .ok_or("Unknown data source kind")?;
+        if kind == "rstyle.iterator-prefix" {
+            "expr_method_call"
+        } else {
+            kind
+        }
     };
     let span: crate::Span = if let Some(span) = &node.source_span {
         span.clone()
@@ -619,7 +661,10 @@ pub(super) fn source_node<'a>(
     let mut matches = Vec::new();
     find(&facts.body, kind, &span, &mut matches);
     let [source] = matches.as_slice() else {
-        return Err("No unique source value operation".into());
+        return Err(format!(
+            "No unique source value operation for {kind} at {}..{}",
+            span.start, span.end
+        ));
     };
     Ok(source)
 }

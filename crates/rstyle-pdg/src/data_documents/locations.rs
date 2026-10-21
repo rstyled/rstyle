@@ -9,6 +9,7 @@ fn abstraction(path: &[Projection]) -> &'static str {
     path.iter()
         .rev()
         .find_map(|step| match step {
+            Projection::IteratorPrefix { .. } => Some("rstyle.formal-iterator-prefix/1"),
             Projection::ByteWindow { .. } => Some("rstyle.formal-byte-window/1"),
             Projection::IndexedElement { .. } => Some("rstyle.formal-indexed-element/1"),
             Projection::CheckedElement => Some("rstyle.formal-checked-element/1"),

@@ -630,11 +630,16 @@ impl Context<'_> {
         if let Some(owner) = super::inherent::implementation(self.tcx, callee, self.profile) {
             return Some(self.helper_callee(callee, "resolved_inherent_callee", Some(owner)));
         }
-        let capture = self.profile.supports("rust.slice-array-byte-calls")
-            && self
-                .tcx
-                .def_path_str(callee)
-                .ends_with("::convert::TryInto::try_into");
+        let capture = self.profile.supports("rust.byte-iterator-position")
+            && matches!(
+                self.tcx.def_path_str(callee).as_str(),
+                "core::iter::Iterator::position" | "std::iter::Iterator::position"
+            )
+            || self.profile.supports("rust.slice-array-byte-calls")
+                && self
+                    .tcx
+                    .def_path_str(callee)
+                    .ends_with("::convert::TryInto::try_into");
         Some(self.instantiated_callee(expression, callee, capture))
     }
 

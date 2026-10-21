@@ -126,6 +126,20 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_pat(&mut self, pattern: &'a ast::Pat) {
+        if self.profile.supports("rust.byte-iterator-position")
+            && let ast::PatKind::Ref(binding, ast::Pinnedness::Not, ast::Mutability::Not) =
+                &pattern.kind
+            && matches!(
+                binding.kind,
+                ast::PatKind::Ident(
+                    ast::BindingMode(ast::ByRef::No, ast::Mutability::Not),
+                    _,
+                    None
+                )
+            )
+        {
+            return;
+        }
         if self.match_pattern && source_match_pattern(&pattern.kind, self.profile) {
             return;
         }

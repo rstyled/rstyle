@@ -3,6 +3,15 @@ use super::*;
 use crate::HirNode;
 
 pub(super) fn verify(pair: PairView<'_>, selector: &PdgNode, load: &PdgNode) -> Result<(), String> {
+    guarded(pair, selector, load, crate::CfgEdgeKind::True)
+}
+
+pub(super) fn guarded(
+    pair: PairView<'_>,
+    selector: &PdgNode,
+    load: &PdgNode,
+    outcome: crate::CfgEdgeKind,
+) -> Result<(), String> {
     let map = crate::read_operation_map(&pair.pdg.extensions)?;
     let cfg = |id: &str| -> Result<String, String> {
         let candidates: Vec<_> = map.iter().filter(|entry| entry.pdg_node_id == id).collect();
@@ -17,7 +26,7 @@ pub(super) fn verify(pair: PairView<'_>, selector: &PdgNode, load: &PdgNode) -> 
         .cfg
         .edges
         .iter()
-        .any(|edge| edge.source == controller && edge.kind == crate::CfgEdgeKind::True)
+        .any(|edge| edge.source == controller && edge.kind == outcome)
     {
         return Err("Variant selector lacks its successful payload branch".into());
     }
@@ -36,8 +45,7 @@ pub(super) fn verify(pair: PairView<'_>, selector: &PdgNode, load: &PdgNode) -> 
                 .edges
                 .iter()
                 .filter(|edge| {
-                    edge.source == node
-                        && !(edge.source == controller && edge.kind == crate::CfgEdgeKind::True)
+                    edge.source == node && !(edge.source == controller && edge.kind == outcome)
                 })
                 .map(|edge| edge.target.as_str()),
         );

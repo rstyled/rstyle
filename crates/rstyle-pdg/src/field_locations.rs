@@ -32,6 +32,9 @@ pub enum Projection {
         operand_position: u64,
         length: u64,
     },
+    IteratorPrefix {
+        operand_position: u64,
+    },
     StructField {
         nominal: Nominal,
         position: usize,
