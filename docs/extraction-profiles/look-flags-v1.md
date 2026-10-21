@@ -13,7 +13,10 @@ variant represents its explicit single bit; membership tests that bit, grouped
 queries test the documented masks, and insertion/removal return changed values
 without modifying the input. A separate fixed development copy is
 `eval/coverage-development/look-flags.rs`; the complete original crate and frozen
-sixty retain their identities and denominators.
+sixty retain their identities and denominators. Exact original source/build
+identities and six negative controls are frozen in
+[`look-flags-selection.json`](../../eval/coverage-development/look-flags-selection.json)
+before fresh admission measurement.
 
 Known blocker chain: complete fieldless nominal observation → independent
 source/discriminant and builtin Copy proof in the existing mixed unit → original
