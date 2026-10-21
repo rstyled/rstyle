@@ -1,6 +1,6 @@
 # Character escape classification
 
-Connected development implementation validating, 2026-10-21; complete-original
+Connected implementation passes integrated gates, 2026-10-21; complete-original
 acceptance pending. This separate development selection preserves the frozen 60.
 
 Original: regex-syntax **0.8.11**, `src/lib.rs::is_escapeable_character(char)`
@@ -15,8 +15,8 @@ Complete known chain: existing char scalar and metacharacter helper proof →
 helper call and early return → exact core `char::is_ascii` with shared-autoref
 scalar receiver → negation and early return → inclusive char literal ranges,
 OR/literal/wildcard matching. No Result, Unicode tables, general traits or
-ownership extension is required by this source. Current character proof rejects
-`pat_range`; the ASCII call needs a bounded registered operation contract.
+ownership extension is required by this source. Both blockers are implemented
+under the bounded contracts below.
 
 The pinned core implementation (`char/methods.rs`, line 1860) is
 `pub const fn is_ascii(&self) -> bool { *self as u32 <= 0x7F }`, diagnostic item
@@ -56,11 +56,13 @@ fixed separately, all applicable target/settings checks and quality gates. No ne
 oracle passes all1112064 valid scalars with64 positives; log
 `/tmp/rstyle-character-escapes-original-oracle.log`.
 
-Development evidence: five positives/five unavailable neighbors across three
-installed targets × std/no_std; all ten comparisons complete. Independent runtime
-and resealed receiver/authority/type/saved-operand corruptions reject; old3.61
-policy rejects. Four range functions add six comparisons and exhaustive numeric
-boundary laws. Focused character tests pass; rstyle0/3070, patterns pending final
-completion. Full checkpoint and original acceptance are pending. The first full
-run passed944 tests with only the known spacing gate failing; corrected before
-final validation. Logs `/tmp/rstyle-character-escapes-{final-focus.log,final-style.json}`.
+Development: five positives/five unavailable neighbors across three installed
+targets × std/no_std; ten comparisons complete. Four range functions add six
+comparisons. Exhaustive runtime oracles and resealed receiver/authority/type/
+saved-operand corruptions pass; historical3.61 rejects new capabilities.
+
+Integrated gates: **945 tests pass /5 existing skips**, doctests/fmt/Clippy pass;
+**rstyle0 /3070 functions, patterns0 unignored**, no new ignores. Logs
+`/tmp/rstyle-character-escapes-delivery-{tests.log,clippy.log,style.json,patterns.log}`.
+Complete original capture, strict retained-unit replay and measured admission
+changes remain pending; fixture results alone do not establish original support.

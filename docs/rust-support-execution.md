@@ -78,7 +78,7 @@ Follow-up controls finished: copy/cyclic 0.62→0.62s; ASCII 0.84→0.88s; flags
 | Package / owner | State and next concrete step |
 | --- | --- |
 | P01 character / A + lead integration | Shared integration validated: six development functions admit, seven neighboring cases exclude; literal/OR/dispatch tampering and unused-char 3.60 policy downgrade reject. 939 tests pass (five existing skips); fmt/Clippy/doctests pass; rstyle 0/3051, patterns 0. Original syntax36→38/956, no losses;57 original admissions strict-verify, three comparisons complete. Frozen60 unchanged. Original `regex-syntax::is_meta_character`; dedicated char domain and historical gating, no global widening of `scalar()`. Original numeric-set oracle passes all 1112064 valid Unicode scalars. |
-| P01 escape caller / A+C+lead | Range and exact ASCII receiver leaves integrated. Complete original-copy fixture admits five/rejects five across three targets × std/no_std, strict tampering included; independent original oracle1112064 scalars/64 positives. Final focused tests pass; rstyle0/3070. Full gates/original capture/strict replay/performance pending. |
+| P01 escape caller / A+C+lead | Range and exact ASCII receiver leaves integrated. Complete original-copy fixture admits five/rejects five across three targets × std/no_std, strict tampering included; independent original oracle1112064 scalars/64 positives. Final focused tests pass; rstyle0/3070. Full gates pass:945 tests/5 skips, fmt/Clippy/doctests, rstyle0/3070, patterns0. Original capture/strict replay/performance pending. |
 | P08 saved checked / B | Source audit blocked: smallest located natural chain requires generics, let-else, Result/?, closures and borrowed aggregates. Scalar Result alternative additionally requires char/tables and binary-search protocol. No isolated vocabulary activation. |
 | P06 borrowed result / C | Input::haystack → is_char_boundary → utf8::is_boundary needs lifetime-only callable ownership, stored-reference fields, complete mixed Anchored child and distinct slot reads/result origins. |
 | P05 ownership / D | No tractable residual path/cfg positive found; no census redesign justified. Callable lifetime proof needs driver implementation/direct-callee and independent selected-impl/member gates together. Nominal lifetime capture exists; stored-reference/mixed-child/result-origin proof remains separate. |
@@ -96,6 +96,7 @@ Contracts: [character](extraction-profiles/character-leaf-v1.md),
 Finish escape caller full gates, then unchanged complete-original capture and
 strict replay/matching against char3.61 `run-8osa6f3z`. Preserve frozen60.
 Source-only contract/oracle/selection for float kernels is ready; native original
-harness, Cargo context and NaN authority remain unverified. Integrate that complete
+harness passes4202 cases and pinned NaN authority is documented; actual Cargo
+context remains unobserved. Integrate that complete
 constant/arithmetic/narrowing chain next when ready, without isolated vocabulary
 activation. The full P01–P22 frontier stays active.
