@@ -150,13 +150,7 @@ fn method(node: &rstyle_pdg::HirNode) -> &rstyle_pdg::HirNode {
     }
     node.children
         .iter()
-        .find_map(|child| {
-            if child.kind == "expr_method_call" {
-                Some(child)
-            } else {
-                None
-            }
-        })
+        .find(|child| child.kind == "expr_method_call")
         .unwrap()
 }
 
