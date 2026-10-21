@@ -42,9 +42,12 @@ SYNTAX_BITSET_IDENTITIES = ((106740, 106954, '8c28b6c9656796472b49e0ad77a5b8e44f
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("crate", type=Path)
-    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality", "end-of-input", "calendar-callers"], default="tagged-units")
+    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality", "end-of-input", "calendar-callers", "accelerator-packing"], default="tagged-units")
     args = parser.parse_args()
     families = {
+        "accelerator-packing": ("src/dfa/accel.rs", (
+            (19419, 19773, "487f6cae717b28c4b77d15ccd4957f9d85586d734fea683c532a3583d4652c44"),),
+            Path(__file__).with_name("accelerator-packing-oracle.rs"), "rstyle_accelerator_packing_oracle"),
         "calendar-callers": ("src/util.rs", (
             (1440, 1709, "09c7491939a31b2c32e0d2259bd41983ea391f6b6f92ece92bd8ae4cd70018c7"),
             (1974, 2272, "e719a57e4e7625a71c9ca9995544ccc69783c57b5d141183dc6403e74b6deb8f"),

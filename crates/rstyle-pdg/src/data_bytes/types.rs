@@ -56,7 +56,31 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
         return Ok(());
     }
 
-    verify_receiver(node, kind, facts, Signature { input, output })
+    verify_receiver(node, kind, facts, Signature { input, output })?;
+    verify_copy_location(operand, kind, facts)
+}
+
+fn verify_copy_location(
+    operand: &HirNode,
+    kind: Kind,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    // Array-place windows need their own physical copy location. Reject before
+    // emission while that receiver form is outside the byte-copy contract.
+    if matches!(kind, Kind::Copy(_))
+        && crate::data_subslices::candidate(operand, facts)
+        && operand.children.first().is_some_and(|base| {
+            matches!(
+                crate::data_aggregates::parsed_type(base),
+                Ok(crate::data_types::TypeToken::Array { .. })
+            )
+        })
+    {
+        return Err(
+            "Implicit array-place byte copies require complete physical read evidence".into(),
+        );
+    }
+    Ok(())
 }
 
 struct Signature {

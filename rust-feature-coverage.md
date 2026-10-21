@@ -3664,3 +3664,16 @@ actual iter().position callback; Unit::is_word_byte needs a function callback
 and const-built indexed table. Saved checked Results/Options, general payload
 binding and `?` remain connected follow-up work. Do not substitute passing
 constructs for these original bodies or treat a partial chain as coverage.
+
+### Next connected target: accelerator packing
+
+The [source-first contract](docs/extraction-profiles/accelerator-packing-v1.md)
+selects original Accel::as_accel_tys and its callers, retaining the Clone-only
+owner and all stored bytes. Its complete chain needs scalar-alias proof,
+comparison assertions, implicit array-field byte-copy reads and checked helper
+transport. Fixed development expectations are thirteen positives /six negatives;
+the complete baseline admits two controls and excludes seventeen in six build
+contexts. An unsupported receiver exposed a whole-unit capture abort; it now
+excludes before emission. This repair adds no capability or measured admission.
+All 898 tests pass /five skipped, with zero rstyle violations/pattern candidates.
+Continue the connected implementation; frozen identities/history remain intact.
