@@ -4,8 +4,11 @@ use crate::{data_types::TypeToken, producer::PairView, unit_store::EvidenceFacts
 pub(crate) const SUMMARY: &str = "rstyle.helper.checked-normal-body/1";
 
 pub(crate) fn supported(facts: &dyn EvidenceFacts, pair: PairView<'_>) -> bool {
-    pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial
-        && copy_result(facts)
+    pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial && copy_context(facts)
+}
+
+pub(crate) fn copy_context(facts: &dyn EvidenceFacts) -> bool {
+    copy_result(facts)
         && facts
             .signature
             .params

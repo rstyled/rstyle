@@ -48,15 +48,12 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<()
 
 fn inventory(pair: PairView<'_>, expected: [usize; 3]) -> Result<(), String> {
     super::verify_construct_inventory(pair, CONSTRUCTS, expected)?;
-    if expected.iter().any(|count| *count != 0)
-        && !crate::extraction_profile::policy_supports(
-            &pair.pdg.profile,
-            crate::data_enums::CAPABILITY,
-        )
-    {
-        return Err("Scalar enum document requires its registered policy".into());
-    }
-    Ok(())
+    crate::extraction_profile::require_document(
+        &pair.pdg.profile,
+        crate::data_enums::CAPABILITY,
+        || expected.iter().any(|count| *count != 0),
+        "Scalar enum document requires its registered policy",
+    )
 }
 
 fn operation<'a>(

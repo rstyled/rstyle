@@ -86,6 +86,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.local-const-bool-tables",
     "rust.named-option-callbacks",
     "rust.borrowed-copy-child-fields",
+    "rust.indexed-read-helper-calls",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -226,7 +227,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.58.0", 73)),
+            Self::DataV3 => Some(("3.59.0", 74)),
         }
     }
 
@@ -337,6 +338,18 @@ pub fn policy_supports(policy: &ProfileId, capability: &str) -> bool {
     registered_profiles()
         .iter()
         .any(|profile| profile.policy() == *policy && profile.supports(capability))
+}
+
+pub(crate) fn require_document(
+    policy: &ProfileId,
+    capability: &str,
+    required: impl FnOnce() -> bool,
+    message: &str,
+) -> Result<(), String> {
+    if !policy_supports(policy, capability) && required() {
+        return Err(message.into());
+    }
+    Ok(())
 }
 
 impl std::str::FromStr for ExtractionProfile {

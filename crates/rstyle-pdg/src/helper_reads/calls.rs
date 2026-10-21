@@ -81,7 +81,7 @@ fn visit_reads(
             if count == crate::concrete_types::MAX_ENTRIES {
                 return Err(BUDGET_ERROR.into());
             }
-            let occurrence = checked_read(read, origin, facts)?;
+            let occurrence = checked_read(read, origin, call, facts)?;
             visit(occurrence)?;
             count += 1;
         }
@@ -122,9 +122,10 @@ fn copied_input(
 fn checked_read<'a>(
     read: &'a Read,
     origin: crate::data_origins::Origin,
+    call: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<ReadOccurrence<'a>, String> {
-    let path = substituted_path(&read.path, &origin.path)?;
+    let path = indexed::substitute(read, &origin.path, call, facts)?;
     if type_at(facts, origin.parameter, &path)? != read.value {
         return Err("Substituted helper location disagrees with actual referent type".into());
     }
@@ -187,7 +188,7 @@ fn install_read(
     insert_location(&mut effects.locations, id, location)
 }
 
-fn substituted_path(
+pub(super) fn substituted_path(
     callee: &[Projection],
     actual: &[Projection],
 ) -> Result<Vec<Projection>, String> {
@@ -289,6 +290,7 @@ fn verify_snapshot_policy(
     pair: crate::producer::PairView<'_>,
     effects: &Effects,
 ) -> Result<(), String> {
+    indexed::verify_policy(pair, effects.locations.values())?;
     if crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.copy-value-helper-reads")
     {
         return Ok(());

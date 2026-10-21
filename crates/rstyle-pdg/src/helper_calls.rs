@@ -320,19 +320,18 @@ fn check_boundary(
         || pair.pdg.nodes.iter().any(|node| {
             matches!(
                 node.attributes.construct.as_deref(),
-                Some(
-                    "loop"
-                        | "while"
-                        | "data.index"
-                        | "data.bytes.borrow-result"
-                        | "data.bytes.unwrap-borrow"
-                )
+                Some("loop" | "while" | "data.bytes.borrow-result" | "data.bytes.unwrap-borrow")
             ) || matches!(
                 node.attributes.construct.as_deref(),
                 Some("data.bytes.copy-result" | "data.bytes.unwrap")
             ) && !byte_reads
                 || node.attributes.construct.as_deref() == Some("data.subslice-place")
                     && !(byte_reads || view && crate::helper_views::array_operation(node))
+                || node.attributes.construct.as_deref() == Some("data.index")
+                    && !(crate::extraction_profile::facts_support(
+                        facts,
+                        "rust.indexed-read-helper-calls",
+                    ) && crate::helper_normal_flow::copy_context(facts))
                 || node.attributes.construct.as_deref() == Some("data.value-index")
                     && !crate::producer::bounded_value_index(pair.as_view(), node, facts)
         })

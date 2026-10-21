@@ -24,10 +24,12 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<()
 }
 
 fn policy(pair: PairView<'_>) -> Result<(), String> {
-    if !crate::extraction_profile::policy_supports(&pair.pdg.profile, byte_literals::CAPABILITY) {
-        return Err("Byte scalars require their registered document policy".into());
-    }
-    Ok(())
+    crate::extraction_profile::require_document(
+        &pair.pdg.profile,
+        byte_literals::CAPABILITY,
+        || true,
+        "Byte scalars require their registered document policy",
+    )
 }
 
 fn verify_match(

@@ -8,6 +8,7 @@ mod byte_comparisons;
 mod classifiers;
 mod corruption;
 mod end_of_input;
+mod indexed_helpers;
 mod iterator_position;
 mod iterator_position_corruption;
 mod named_callbacks;

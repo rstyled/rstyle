@@ -20,7 +20,7 @@ fn captured(target: &str, no_std: bool) -> (tempfile::TempDir, Value) {
 }
 
 #[test]
-fn ascii_boundary_selection_keeps_connected_gains_and_open_indexed_callers() {
+fn ascii_boundary_selection_completes_nested_indexed_callers() {
     for target in [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
@@ -51,6 +51,8 @@ fn check_outcomes(report: &Value) {
             name,
             "Matcher::get_line_terminator"
                 | "Matcher::is_word_ascii"
+                | "Matcher::is_word_ascii_negate"
+                | "repeated"
                 | "Matcher::is_word_start_ascii"
                 | "Matcher::is_word_end_ascii"
                 | "Matcher::is_word_start_half_ascii"
@@ -77,7 +79,7 @@ fn check_outcomes(report: &Value) {
             report["matching"]["diagnostics"]
         );
     }
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 28);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 45);
     assert!(
         report["matching"]["diagnostics"]
             .as_array()

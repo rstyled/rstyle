@@ -113,6 +113,9 @@ fn proof(node: &Operation, operands: &[Option<i128>], ordinary: bool, bounded: b
 }
 
 fn proof_method(node: &Operation) -> &'static str {
+    if node.construct.as_deref() == Some("data.index") {
+        return "shared scalar indexing requires an in-bounds evaluated index; exceptional transfer and cleanup omitted";
+    }
     if node.construct.as_deref() == Some("data.subslice-place") {
         return "checked array place and saved endpoints; normal completion requires ordered bounds within the resolved array length";
     }
@@ -158,6 +161,12 @@ fn limitation(facts: &dyn crate::unit_store::EvidenceFacts, node: &Operation) ->
     {
         return format!(
             "Verified helper call at bytes {}..{} may panic; exceptional transfer and cleanup omitted.",
+            node.span.start, node.span.end
+        );
+    }
+    if node.construct.as_deref() == Some("data.index") {
+        return format!(
+            "Shared index at bytes {}..{} may panic; exceptional transfer and cleanup omitted.",
             node.span.start, node.span.end
         );
     }

@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) struct Views {
     enabled: bool,
+    indexed: bool,
     calls: Vec<crate::ByteSpan>,
 }
 
@@ -24,13 +25,21 @@ impl Views {
                 }
             }
         }
-        Ok(Self { enabled, calls })
+
+        let indexed =
+            crate::extraction_profile::facts_support(facts, "rust.indexed-read-helper-calls");
+        Ok(Self {
+            enabled,
+            indexed,
+            calls,
+        })
     }
 
     pub(super) fn relevant(&self, node: &Operation, graph: &Graph) -> bool {
-        self.enabled
-            && (array_length(node, graph).is_some()
-                || node.category == NodeCategory::Call && self.calls.contains(&node.span))
+        self.indexed && node.construct.as_deref() == Some("data.index")
+            || self.enabled
+                && (array_length(node, graph).is_some()
+                    || node.category == NodeCategory::Call && self.calls.contains(&node.span))
     }
 
     pub(super) fn safe(&self, node: &Operation, graph: &Graph, operands: &[Option<i128>]) -> bool {

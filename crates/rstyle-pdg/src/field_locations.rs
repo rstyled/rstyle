@@ -28,6 +28,13 @@ pub enum Projection {
     IndexedElement {
         operand_position: u64,
     },
+    /// A read selector interpreted in this CALL's verified callee graph.
+    HelperIndex {
+        call_span: [u32; 2],
+        operation: String,
+        access: usize,
+        path: Vec<Projection>,
+    },
     ByteWindow {
         operand_position: u64,
         length: u64,

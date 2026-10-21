@@ -1,6 +1,7 @@
 //! Exact read occurrences derived from independently verified callee documents.
 
 mod calls;
+mod indexed;
 pub(crate) use calls::{
     check_budgets, install, merge_locations, verify_arguments, verify_effects, verify_locations,
 };
@@ -52,7 +53,9 @@ pub(crate) fn supported(
             })
         && pair.pdg.memory_locations.iter().all(|location| {
             captured(location).is_ok_and(|location| {
-                formal_type(facts, location.parameter)
+                (!indexed::contains(&location.path)
+                    || crate::extraction_profile::facts_support(facts, indexed::CAPABILITY))
+                && (formal_type(facts, location.parameter)
                     .is_ok_and(|ty| matches!(ty, TypeToken::Shared(_)))
                     && location.path.first() == Some(&Projection::SharedReferent)
                     || copied_formal(facts, location.parameter).unwrap_or(false)
@@ -60,7 +63,7 @@ pub(crate) fn supported(
                         && location
                             .path
                             .iter()
-                            .all(|part| matches!(part, Projection::StructField { .. }))
+                            .all(|part| matches!(part, Projection::StructField { .. })))
             })
         })
 }
@@ -139,6 +142,8 @@ fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String
             | "rstyle.formal-checked-element/1"
             | "rstyle.formal-byte-window/1"
             | "rstyle.formal-iterator-prefix/1"
+            | "rstyle.formal-indexed-element/1"
+            | indexed::ABSTRACTION
     ) {
         return Err("Helper read lacks registered formal location interpretation".into());
     }
@@ -161,6 +166,7 @@ fn indirect_read(
         Some("data.indirect-deref") => "rust.shared-dereference-reads",
         Some("data.bytes.copy-result") => "rust.accelerator-packing",
         Some(crate::iterator_position::PREFIX) => crate::iterator_position::CAPABILITY,
+        Some("data.index") => indexed::CAPABILITY,
         Some("data.option-payload") => "rust.checked-slice-option",
         _ => return Ok(false),
     };
@@ -218,32 +224,17 @@ pub(crate) fn type_at(
 fn project(value: TypeToken, projection: &Projection) -> Result<TypeToken, String> {
     match (value, projection) {
         (
-            TypeToken::Slice(element) | TypeToken::Array { element, .. },
-            Projection::IteratorPrefix {
-                operand_position: 0,
-            },
-        ) if matches!(element.as_ref(), TypeToken::Scalar(scalar) if scalar == "u8") => {
-            Ok(TypeToken::Slice(element))
-        }
+            value,
+            selector @ (Projection::HelperIndex { .. }
+            | Projection::IndexedElement { .. }
+            | Projection::IteratorPrefix { .. }
+            | Projection::ByteWindow { .. }),
+        ) => indexed::project(value, selector),
         (TypeToken::Shared(value), Projection::SharedReferent) => Ok(*value),
         (TypeToken::Slice(value), Projection::CheckedElement)
             if matches!(value.as_ref(), TypeToken::Scalar(_)) =>
         {
             Ok(*value)
-        }
-        (
-            TypeToken::Slice(element) | TypeToken::Array { element, .. },
-            Projection::ByteWindow {
-                operand_position: 0,
-                length,
-            },
-        ) if matches!(element.as_ref(), TypeToken::Scalar(scalar) if scalar == "u8")
-            && matches!(length, 2 | 4 | 16) =>
-        {
-            Ok(TypeToken::Array {
-                element,
-                length: *length,
-            })
         }
         (TypeToken::Tuple(fields), Projection::TupleField { position }) => fields
             .get(*position)

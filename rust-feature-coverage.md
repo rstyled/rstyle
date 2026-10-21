@@ -7,10 +7,11 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.58.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.59.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
-with independently checked Copy child fields; the continuation log records results.
+with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
+reads through verified helpers, retaining saved inputs and possible panic.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -113,7 +114,7 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](docs/extraction-profiles/reference-value-fields-v1.md). Data-v3 3.27.0 adds [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md), snapshot copies and branch/loop origin flow. Data-v3 3.28.0 adds [indirect shared-reference field reads](docs/extraction-profiles/indirect-field-reads-v1.md) through multiple origins, mutable bindings, snapshots and shared helper results. Aggregate helper-result field bases remain unfinished. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
 | D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
-| D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Data-v3 3.46.0 connects [nested fixed-array byte membership](docs/extraction-profiles/byte-membership-v1.md): unsigned bounds, Copy array owners and nonpanicking value-index helpers. Shared dynamic index helpers, aggregate/reference elements and general exceptional flow remain unfinished. |
+| D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Data-v3 3.46.0 connects [nested fixed-array byte membership](docs/extraction-profiles/byte-membership-v1.md): unsigned bounds, Copy array owners and nonpanicking value-index helpers. Data-v3 3.59 connects [shared indexed-read helpers](docs/extraction-profiles/indexed-read-helpers-v1.md), including nested/repeated calls, saved inputs and possible panic. Aggregate/reference elements and general exceptional flow remain unfinished. |
 | D16 | Slice ranges and borrowed subslices | Partial | `&xs[start..end]` | Data-v3 3.31.0 supports [bounded shared subslice views](docs/extraction-profiles/shared-subslice-views-v1.md) with scalar elements, exact base/start/end snapshots and normal-completion bounds. Data-v3 3.44.0 adds leading `..end` views through the complete [native prefix-reader family](docs/extraction-profiles/native-prefix-readers-v1.md). Data-v3 3.50 adds checked shared array-field views and helper-return transport; 3.53 connects implicit array-field byte copies and read-only callers. Suffix/inclusive ranges, mutable views and str/UTF-8 rules remain unfinished. |
 | D17 | Checked access and concrete Option | Partial | `xs.get(i)`, `Some(x)`, `None` | Data-v3 3.36.0 connects immutable scalar-slice get, exhaustive Some(&scalar)/None, saved Option flow and scalar helper composition through [strict graph verification](docs/extraction-profiles/checked-slice-option-v1.md). Data-v3 3.42.0 adds [owned bool/integer Option construction and consumption](docs/extraction-profiles/scalar-option-byte-widths-v1.md). Data-v3 3.48.0 adds exact core is_some on owned bool/integer Options with checked shared-autoref evidence, composing through tagged-unit helpers. General payloads/construction, reference bindings, guards, mutable/array/range access, Result and `?` remain open. |
 | D18 | Reference-bearing array element origins | Missing | `refs: [&S; 2]` | Type observation alone lacks the per-element origin evidence needed for by-value reference-bearing arrays. |
@@ -3851,3 +3852,33 @@ then complete the unchanged negating/repeated ASCII callers. Reuse the existing
 unit links and verified graphs; copying an access-relative index projection onto
 a CALL operand would be unsound. Broader ownership/Unicode/loop/Result work stays
 outside this bounded family until a complete source-selected chain needs it.
+
+
+### Data-v3 3.59: complete ASCII indexed-helper composition
+
+The [compact contract](docs/extraction-profiles/indexed-read-helpers-v1.md) connects
+shared scalar reads through nested/repeated verified helpers, retaining each
+callee selector, execution guard and saved actual origin. Bounds requirements now
+retain possible panic through all caller levels. The unchanged seven original
+ASCII methods complete, including negation; development reaches all ten intended
+positives. Ownership, recursive/looping helpers and reference-bearing results
+remain outside this contract.
+
+Natural **97 → 98 /2582**, development **8 → 10 /19**, zero losses on unchanged
+identities/build contexts. Word/byte selections remain **13/20 and 9/11**; other
+packages remain **8/150, 23/956 and 11/226**. Frozen **23 admitted /30 excluded
+/7 inactive /60** preserves every identity/denominator.
+
+All **172 admissions** independently strict-verify; all **276 selected comparisons**
+complete. **929 workspace tests pass /5 skipped**, six target/std contexts,
+original runtime oracles, adversarial scope/totality/historical-policy checks,
+Clippy/doctests/fmt; **rstyle 0 /3014 functions; patterns 0**. Full natural matching
+remains explicitly budget-limited. No new census/cache or weaker scoring/admission.
+
+The declared ASCII family is complete. Before the next increment, select a new
+small natural family from source and audit its full blocker chain. Adjacent
+Unicode methods retain concrete-type and source-correspondence blockers; do not
+expand into general Unicode merely by proximity. Prioritize shared S09/import
+restrictions and F10/checked-Option composition where the selected family needs
+them. General ownership/drop, Result/if-let/?, cross-unit helpers and broader
+loop/value composition remain open.
