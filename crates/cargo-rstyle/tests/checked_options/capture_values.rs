@@ -60,7 +60,6 @@ fn check_target(target: &str, no_std: bool) {
                 .as_str()
                 .unwrap()
                 .starts_with("user::")
-                || function["facts"]["name"] == "functions::call"
             {
                 "excluded"
             } else {
@@ -68,6 +67,9 @@ fn check_target(target: &str, no_std: bool) {
             },
             "{function}"
         );
+        if function["facts"]["name"] == "functions::call" {
+            shared_evidence::check_partial_helper(function);
+        }
         let facts: rstyle_pdg::HirFnFacts =
             serde_json::from_value(function["facts"].clone()).unwrap();
         let value = facts.body.children.last().unwrap();

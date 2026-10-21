@@ -12,14 +12,14 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
 
     let callee = crate::data_library::callee(node)?;
     definition(&callee, kind.path(), registry)?;
-    match (kind, &callee.implementation) {
-        (Kind::Convert, Some(implementation)) => {
-            definition(implementation, IMPLEMENTATION, registry)?;
+    match (kind.implementation(), &callee.implementation) {
+        (Some(path), Some(implementation)) => {
+            definition(implementation, path, registry)?;
             if implementation.implementation.is_some() {
                 return Err("Unexpected nested integer implementation".into());
             }
         }
-        (Kind::Convert, None) => {
+        (Some(_), None) => {
             return Err("Missing selected integer TryFrom implementation".into());
         }
         (_, Some(_)) => return Err("Unexpected integer operation implementation".into()),

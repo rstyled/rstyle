@@ -31,6 +31,7 @@ mod rstyle_end_of_input_oracle {
                     panic!("wrong tag");
                 };
                 assert_eq!(payload, last + 1);
+                assert_eq!(ByteClasses(map).is_singleton(), last == 255);
             }
             let mut map = core::array::from_fn(|index| index as u8);
             map[255] = last as u8;
@@ -38,6 +39,7 @@ mod rstyle_end_of_input_oracle {
                 panic!("wrong tag");
             };
             assert_eq!(payload, last + 1);
+            assert_eq!(ByteClasses(map).is_singleton(), last == 255);
         }
     }
 }

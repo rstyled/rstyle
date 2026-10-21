@@ -268,21 +268,26 @@ impl Builder<'_> {
                 ..flow
             };
         }
-        let flow = self.expression(&node.children[0], flow);
+        let evaluated = self.evaluate_sequence(&node.children, flow);
+        let assertion =
+            crate::assertions::Assertion::parse(&node.snippet).expect("verified assertion source");
+        let (construct, literal) = if let Some(diagnostic) = assertion.diagnostic {
+            (
+                format!("{}.scalar-format", node.res.as_ref().unwrap().description),
+                Some(diagnostic.message),
+            )
+        } else {
+            (node.res.as_ref().unwrap().description.clone(), None)
+        };
         let operation = Operation {
             operator: Some("assert".into()),
-            construct: Some(
-                node.res
-                    .as_ref()
-                    .expect("verified assertion")
-                    .description
-                    .clone(),
-            ),
-            operands: self.operand(&flow.value),
+            construct: Some(construct),
+            literal,
+            operands: evaluated.values,
             ..template(node, NodeCategory::Computation)
         };
 
-        self.emit(operation, flow)
+        self.emit(operation, evaluated.flow)
     }
 
     fn read(&mut self, node: &HirNode, flow: Flow) -> Flow {

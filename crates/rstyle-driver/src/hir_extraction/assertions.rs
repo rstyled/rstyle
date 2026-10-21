@@ -2,7 +2,10 @@
 
 use super::hir::{Context, resolved};
 use rstyle_pdg::{ExpansionSite, HirNode, PathRes, assertions::Assertion};
-use rustc_hir::{Expr, ExprKind, StmtKind, UnOp};
+use rustc_hir::{
+    Expr, ExprKind, StmtKind, UnOp,
+    intravisit::{self, Visitor},
+};
 
 impl<'tcx> Context<'tcx> {
     pub(super) fn assertion(&self, expression: &Expr<'tcx>) -> Option<HirNode> {
@@ -28,6 +31,12 @@ impl<'tcx> Context<'tcx> {
             assert_condition(expression)?
         };
         let condition = self.expression(condition);
+        let mut children = vec![condition];
+        children.extend(self.diagnostic_captures(
+            expression,
+            &source,
+            assertion.diagnostic.as_ref(),
+        )?);
         let node = self.node(expression.hir_id, expression.span, "expr_assert");
 
         Some(HirNode {
@@ -42,9 +51,74 @@ impl<'tcx> Context<'tcx> {
                 callsite: node.span,
                 snippet: source,
             }),
-            children: vec![condition],
+            children,
             ..node
         })
+    }
+
+    fn diagnostic_captures(
+        &self,
+        expression: &Expr<'tcx>,
+        source: &str,
+        diagnostic: Option<&rstyle_pdg::assertions::formatting::Diagnostic>,
+    ) -> Option<Vec<HirNode>> {
+        let Some(diagnostic) = diagnostic else {
+            return Some(Vec::new());
+        };
+        if !self.profile.supports("rust.end-of-input") {
+            return None;
+        }
+
+        diagnostic
+            .captures
+            .iter()
+            .map(|capture| {
+                let expected = rstyle_pdg::assertions::formatting::span(
+                    source,
+                    self.span(expression.span).start,
+                    capture,
+                );
+                self.diagnostic_capture(expression, expected)
+            })
+            .collect()
+    }
+
+    fn diagnostic_capture(
+        &self,
+        expression: &Expr<'tcx>,
+        expected: rstyle_pdg::ByteSpan,
+    ) -> Option<HirNode> {
+        let mut scan = DiagnosticScan {
+            context: self,
+            expected,
+            found: Vec::new(),
+        };
+        scan.visit_expr(expression);
+
+        let [id] = scan.found.as_slice() else {
+            return None;
+        };
+        let rustc_hir::Node::Expr(expression) = self.tcx.hir_node(*id) else {
+            return None;
+        };
+        Some(self.expression(expression))
+    }
+}
+
+struct DiagnosticScan<'a, 'tcx> {
+    context: &'a Context<'tcx>,
+    expected: rstyle_pdg::ByteSpan,
+    found: Vec<rustc_hir::HirId>,
+}
+
+impl<'v> Visitor<'v> for DiagnosticScan<'_, '_> {
+    fn visit_expr(&mut self, expression: &'v Expr<'v>) {
+        if matches!(expression.kind, ExprKind::Path(_))
+            && self.context.span(expression.span) == self.expected
+        {
+            self.found.push(expression.hir_id);
+        }
+        intravisit::walk_expr(self, expression);
     }
 }
 

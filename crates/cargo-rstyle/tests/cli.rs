@@ -2180,6 +2180,7 @@ fn clones_data_assertions_preserve_condition_order_panic_scope_and_debug_setting
 }
 
 fn check_assertion_admissions(functions: &[Value]) {
+    shared_evidence::check_partial_helper(function_named(functions, "wrapper"));
     for name in [
         "check",
         "once",
@@ -2188,6 +2189,8 @@ fn check_assertion_admissions(functions: &[Value]) {
         "certain",
         "certain_wrapper",
         "falsehood",
+        "wrapper",
+        "formatted",
     ] {
         assert_eq!(
             function_named(functions, name)["outcome"],
@@ -2196,7 +2199,7 @@ fn check_assertion_admissions(functions: &[Value]) {
             function_named(functions, name)
         );
     }
-    for name in ["wrapper", "formatted", "equal", "custom::counterfeit"] {
+    for name in ["equal", "custom::counterfeit"] {
         assert_ne!(
             function_named(functions, name)["outcome"],
             "admitted",
@@ -2613,7 +2616,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.51.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.52.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6172,7 +6175,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.51.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.52.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -6333,13 +6336,13 @@ pub fn generic_call(v: &Data) -> u8 { v.generic(0u8) }
 }
 
 fn check_unproved_inherent_calls(report: &Value) {
+    shared_evidence::check_partial_helper(read_call_function(report, "panicking"));
     for name in [
         "consumes",
         "autoref",
         "additional",
         "mutable_receiver",
         "borrowed_call",
-        "panicking",
         "recursive_call",
         "divergent_call",
         "generic_call",

@@ -77,6 +77,24 @@ impl Resolution {
         })
     }
 
+    pub(crate) fn checked_copy_token(&self, token: &crate::data_types::TypeToken) -> bool {
+        let nominal = match token {
+            crate::data_types::TypeToken::Struct { nominal, .. }
+            | crate::data_types::TypeToken::Enum { nominal, .. } => nominal,
+            _ => return false,
+        };
+        let key: Vec<_> = nominal
+            .definition_path
+            .split("::")
+            .map(str::to_string)
+            .collect();
+        self.copy_trees.contains(&key)
+            && self
+                .trees
+                .get(&key)
+                .is_some_and(|tree| crate::data_types::TypeToken::from_tree(tree) == *token)
+    }
+
     pub(crate) fn checked_owned_copy(&self, tree: &TypeTree) -> bool {
         let Some((nominal, _)) = tree.nominal_parts() else {
             return false;

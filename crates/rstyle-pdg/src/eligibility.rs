@@ -652,7 +652,12 @@ fn check_assertion(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         .get(node.span.start as usize..node.span.end as usize)
         .ok_or_else(|| "Missing original assertion source".to_string())
         .and_then(|source| {
-            crate::assertions::verify(node, source, ctx.facts.build.debug_assertions.value)
+            crate::assertions::verify(
+                node,
+                source,
+                ctx.facts.build.debug_assertions.value,
+                ctx.profile.supports("rust.end-of-input"),
+            )
         });
     let own = match verified {
         Ok(()) => Outcome::ok(),

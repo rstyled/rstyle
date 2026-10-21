@@ -146,6 +146,11 @@ pub(crate) fn parse_for(
     {
         return Err("Integer Result requires its registered capability".into());
     }
+    if text.contains("\"kind\":\"int_conversion_result\",\"value\":\"u16\"")
+        && !profile.supports("rust.end-of-input")
+    {
+        return Err("Narrowing Result requires its registered capability".into());
+    }
     Ok(ty)
 }
 
@@ -183,7 +188,9 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
             Ok(())
         }
         TypeToken::Str => Ok(()),
-        TypeToken::IntConversionResult(value) if value == "usize" => Ok(()),
+        TypeToken::IntConversionResult(value) if matches!(value.as_str(), "usize" | "u16") => {
+            Ok(())
+        }
         TypeToken::SliceArrayResult { length, .. }
             if *length <= crate::concrete_types::MAX_FIELDS as u64 =>
         {

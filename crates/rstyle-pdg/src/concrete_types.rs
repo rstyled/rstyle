@@ -183,7 +183,7 @@ fn check(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), Strin
 
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
-        TypeTree::IntConversionResult(value) if value != "usize" => {
+        TypeTree::IntConversionResult(value) if !matches!(value.as_str(), "usize" | "u16") => {
             Err("Integer conversion Result requires a registered scalar payload".into())
         }
         TypeTree::Option(payload) if !option_payload(payload) => {

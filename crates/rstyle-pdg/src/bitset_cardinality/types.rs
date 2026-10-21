@@ -1,36 +1,37 @@
 use super::*;
-use crate::concrete_types::{Observation, TypeTree};
+use crate::concrete_types::Observation;
 
-pub(super) fn verify(
-    node: &HirNode,
-    operand: &HirNode,
-    kind: Kind,
-    facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
-    let (input, output) = kind.signature()?;
+pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    let (inputs, output) = kind.signature()?;
     let dispatch = node.dispatch.as_ref().ok_or("Missing integer dispatch")?;
+    let direct = kind.implementation().is_some();
+    let operands = node
+        .children
+        .iter()
+        .map(crate::data_aggregates::token)
+        .collect::<Result<Vec<_>, _>>()?;
 
     if node.expansion.is_some()
         || dispatch.kind
-            != if kind == Kind::Convert {
+            != if direct {
                 "resolved_direct"
             } else {
                 "resolved_method"
             }
         || node.kind
-            != if kind == Kind::Convert {
+            != if direct {
                 "expr_call"
             } else {
                 "expr_method_call"
             }
-        || dispatch.operand_tys != [input.clone()]
+        || dispatch.operand_tys != inputs
         || dispatch.result_ty != output
         || crate::data_aggregates::token(node)? != output
-        || crate::data_aggregates::token(operand)? != input
+        || operands != inputs
     {
         return Err("Integer call loses its exact builtin signature".into());
     }
-    if kind != Kind::Convert {
+    if !direct {
         receiver(node, kind, facts)?;
     }
     Ok(())
@@ -43,22 +44,13 @@ fn receiver(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<(),
         .iter()
         .find(|method| method.call == node.hir)
         .ok_or("Missing captured integer method receiver")?;
-    let (input, output) = if kind == Kind::Count {
-        (
-            TypeTree::Scalar("u32".into()),
-            TypeTree::Scalar("u32".into()),
-        )
-    } else {
-        (
-            TypeTree::IntConversionResult("usize".into()),
-            TypeTree::Scalar("usize".into()),
-        )
-    };
+    let (inputs, output) = kind.trees();
     let observed = |ty| Observation::Captured { ty };
+    let receiver = observed(inputs[0].clone());
 
-    if method.receiver_type != observed(input.clone())
-        || method.adjusted_type != observed(input.clone())
-        || method.signature_inputs != [observed(input)]
+    if method.receiver_type != receiver
+        || method.adjusted_type != receiver
+        || method.signature_inputs != inputs.into_iter().map(observed).collect::<Vec<_>>()
         || method.signature_result != observed(output)
         || !method.adjustments.is_empty()
     {

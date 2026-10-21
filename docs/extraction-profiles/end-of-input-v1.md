@@ -83,3 +83,64 @@ workspace Clippy, formatting and Python parsing pass; rstyle checks 2865 functio
 with zero violations and patterns finds zero candidates. The preceding production
 milestone's native CI is green on all three runners; no new full-suite run is
 claimed for this source/test-only audit.
+
+## Connected 3.52 contract
+
+Reuse the integer-operation checker for selected usize→u16 TryFrom,
+usize::checked_sub and their immediate unwraps. Pin the core definitions,
+selected conversion implementation, receiver/signature, source operands and
+known 64-bit build. Narrowing and subtraction unwraps retain possible panic;
+no range proof, saved Result/Option or general payload matching is assumed.
+
+Standard assertions additionally accept a literal message with distinct implicit
+builtin scalar Display captures. Preserve the exact decoded message, local
+identities and condition-before-diagnostic snapshots. Explicit arguments,
+format flags, repeated/escaped captures and custom Display remain excluded.
+
+The shared helper boundary accepts verified acyclic normal flow with a
+reference-free checked-Copy result, checked-Copy parameters/locals, and existing
+verified read-only locations. Nominal Copy comes from the closed original source
+environment. Propagate may_panic=true/always_returns=false; reject forged
+summaries. Existing loop, unknown-index, mutation, source and drop restrictions
+remain. This connects the complete constructor/getter/caller family without a
+new provenance inventory or cache. Strict admission remains a bounded
+normal-flow claim; exceptional cleanup and rewrite safety are separate.
+
+## Measured result
+
+Against 3.51, unchanged selections and build contexts:
+
+| Selection | Before → after admitted | Losses |
+| --- | --- | --- |
+| regex-automata, 2582 functions | 78 → 81 | 0 |
+| frozen sixty | 20 → 23 | 0 |
+| fixed thirteen-function development corpus | 3 → 9 | 0 |
+
+Natural gains are Unit::eoi, ByteClasses::eoi and the incidental
+ByteClasses::is_singleton caller. Frozen gains are time-core's
+range_validated::days_in_year/days_in_month and util::days_in_month. Every frozen
+identity, denominator and build context is retained; outcomes are 23 admitted /
+30 excluded /seven inactive. Full package rosters: lz4_flex 7/150 and regex-syntax
+22/956 unchanged; time-core 8→11/226. Historical reports remain unchanged.
+
+The original-crate oracle additionally checks is_singleton against last-byte
+255 under all neighbor configurations. A separate pinned original time-core
+oracle checks all years -9999..=9999, all valid months, extreme full-range years
+and invalid month/year panic boundaries against independent Gregorian rules.
+Neither oracle replaces a selected body or declaration.
+
+Validation: 897 nextest tests pass /five skipped; std/no_std development capture
+passes on all three installed targets. Graph/message/operand/panic-policy and
+compiler/width/definition mutations reject. Original runtime oracles, numeric
+boundary laws, existing regressions, Clippy, doctests and formatting pass.
+Rstyle checks 2884 functions with zero violations; patterns finds zero candidates.
+All 81 natural and nine development admissions pass independent document,
+producer and strict import checks; all 55 selected comparisons complete.
+Frozen replay verifies 80 schema documents; all 40 package admissions additionally
+pass independent producer/document verification and strict import.
+
+Quiescent warmup plus seven alternating runs against exact 29100a2 give Copy
+medians 0.89/0.89s (ranges 0.86–0.93/0.87–0.90), cyclic 0.64/0.62s
+(0.59–0.66/0.60–0.64), development 0.50/0.59s (0.47–0.53/0.56–0.62).
+The development corpus performs proof/matching for three versus nine admissions;
+these controls do not establish a general performance or detector-quality claim.

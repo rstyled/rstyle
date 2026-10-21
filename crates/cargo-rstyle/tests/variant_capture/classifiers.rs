@@ -28,7 +28,11 @@ fn classifiers_connect_complete_constructor_projection_and_caller_chains() {
                 | "end_code"
                 | "byte_is_end"
                 | "end_is_end"
+                | "narrowing"
         );
+        if function["facts"]["name"] == "narrowing" {
+            assert_eq!(function["extraction_evidence"]["cfg"]["status"], "partial");
+        }
         assert_eq!(
             function["outcome"],
             if expected_positive {

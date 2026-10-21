@@ -137,8 +137,9 @@ fn byte_membership_family_keeps_partial_and_unsupported_compositions_distinct() 
         let complete = match name {
             "ByteSet::empty" | "ByteSet::contains" | "empty_contains" | "contains_words"
             | "contains_saved" => Some(true),
-            "ByteSet::unbounded" | "rebound" | "merged" | "narrower" | "remainder" => Some(false),
-            "unbounded_caller" | "narrower_caller" | "remainder_caller" => None,
+            "ByteSet::unbounded" | "rebound" | "merged" | "narrower" | "remainder"
+            | "narrower_caller" | "remainder_caller" => Some(false),
+            "unbounded_caller" => None,
             name if name.contains(" as ") && name.ends_with("::clone") => None,
             name => panic!("unexpected function {name}"),
         };
@@ -151,6 +152,9 @@ fn byte_membership_family_keeps_partial_and_unsupported_compositions_distinct() 
             );
         } else {
             assert_eq!(function["outcome"], "excluded", "{function}");
+        }
+        if matches!(name, "narrower_caller" | "remainder_caller") {
+            shared_evidence::check_partial_helper(function);
         }
         if name == "contains_words" {
             reject_membership_read_changes(function);

@@ -42,6 +42,7 @@ pub mod extraction_profile;
 pub mod field_locations;
 pub mod frontend;
 pub mod helper_calls;
+mod helper_normal_flow;
 pub mod helper_reads;
 mod helper_references;
 mod helper_views;

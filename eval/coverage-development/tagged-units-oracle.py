@@ -42,11 +42,17 @@ SYNTAX_BITSET_IDENTITIES = ((106740, 106954, '8c28b6c9656796472b49e0ad77a5b8e44f
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("crate", type=Path)
-    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality", "end-of-input"], default="tagged-units")
+    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality", "end-of-input", "calendar-callers"], default="tagged-units")
     args = parser.parse_args()
     families = {
+        "calendar-callers": ("src/util.rs", (
+            (1440, 1709, "09c7491939a31b2c32e0d2259bd41983ea391f6b6f92ece92bd8ae4cd70018c7"),
+            (1974, 2272, "e719a57e4e7625a71c9ca9995544ccc69783c57b5d141183dc6403e74b6deb8f"),
+            (5072, 5180, "6577e15fcbf972f3f2a236d01c51f793c401ff25a9f74039ca53522e3ccced1e")),
+            Path(__file__).with_name("calendar-callers-oracle.rs"), "rstyle_calendar_callers_oracle"),
         "end-of-input": ("src/util/alphabet.rs", (IDENTITIES[1],
-            (12328, 12526, "acaf1984025154fcb1aba0cc52af823cda7b142ecfeb86404360e3329b1f62e8")),
+            (12328, 12526, "acaf1984025154fcb1aba0cc52af823cda7b142ecfeb86404360e3329b1f62e8"),
+            (13992, 14069, "4b0e9546a6fd14ae1b83b963c7202c5f72ee7e3a3f7db4c4217db8b726b1320a")),
             Path(__file__).with_name("end-of-input-oracle.rs"), "rstyle_end_of_input_oracle"),
         "tagged-units": ("src/util/alphabet.rs", IDENTITIES,
                          Path(__file__).with_suffix(".rs"), "rstyle_tagged_units_oracle"),

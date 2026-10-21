@@ -223,3 +223,26 @@ fn tamper_read_summary(summary: &mut Value, change: &str) {
         _ => panic!("unknown read corruption {change}"),
     }
 }
+
+/// A checked normal-flow helper retains possible panic, never a totality claim.
+pub fn check_partial_helper(function: &Value) {
+    assert_eq!(
+        function["outcome"], "admitted",
+        "{}",
+        function["facts"]["name"]
+    );
+    assert_eq!(function["extraction_evidence"]["cfg"]["status"], "partial");
+    let bundle = wire(function);
+    let (_, helper) = callee(&bundle, index(function));
+    let summary = &bundle["helpers"][helper]["summary"];
+    assert_eq!(summary["identity"], "rstyle.helper.checked-normal-body/1");
+    assert_eq!(summary["may_panic"], true);
+    assert_eq!(summary["always_returns"], false);
+    assert_eq!(summary["mutates_arguments"], false);
+    for field in ["may_panic", "always_returns"] {
+        reject_edit(function, |bundle, caller| {
+            let (_, helper) = callee(bundle, caller);
+            bundle["helpers"][helper]["summary"][field] = (field == "always_returns").into();
+        });
+    }
+}

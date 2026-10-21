@@ -118,9 +118,18 @@ fn proof_method(node: &Operation) -> &'static str {
     }
     if matches!(
         node.construct.as_deref(),
-        Some("data.bytes.unwrap" | "data.bytes.unwrap-borrow")
+        Some(
+            "data.bytes.unwrap"
+                | "data.bytes.unwrap-borrow"
+                | "data.integer.unwrap-u16"
+                | "data.integer.unwrap-option-usize"
+        )
     ) {
-        return "concrete Result unwrap requires Ok; exceptional transfer and cleanup omitted";
+        return if node.construct.as_deref() == Some("data.integer.unwrap-option-usize") {
+            "concrete Option unwrap requires Some; exceptional transfer and cleanup omitted"
+        } else {
+            "concrete Result unwrap requires Ok; exceptional transfer and cleanup omitted"
+        };
     }
     if node.category == NodeCategory::Call {
         return "independently verified callee may panic; exceptional transfer and cleanup omitted";
@@ -174,7 +183,12 @@ fn limitation(facts: &dyn crate::unit_store::EvidenceFacts, node: &Operation) ->
 fn relevant(node: &Operation) -> bool {
     matches!(
         node.construct.as_deref(),
-        Some("data.bytes.unwrap" | "data.bytes.unwrap-borrow")
+        Some(
+            "data.bytes.unwrap"
+                | "data.bytes.unwrap-borrow"
+                | "data.integer.unwrap-u16"
+                | "data.integer.unwrap-option-usize"
+        )
     ) || node.category == NodeCategory::Computation
         && node.ty != "bool"
         && matches!(

@@ -59,10 +59,14 @@ fn summary(
     let memory_reads = crate::helper_reads::derive(facts, pair.as_view())?;
     let reads = memory_reads.is_some();
     let view = crate::helper_views::projected(facts, &reference_outputs);
-    let may_panic = view && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial;
+    let normal = crate::helper_normal_flow::supported(facts, pair.as_view());
+    let may_panic =
+        (view || normal) && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial;
     Ok(Summary {
         identity: if view {
             crate::helper_views::SUMMARY
+        } else if normal {
+            crate::helper_normal_flow::SUMMARY
         } else if reads {
             "rstyle.helper.read-only-body/1"
         } else if references {
@@ -296,7 +300,8 @@ fn check_boundary(
     let outputs = crate::helper_references::returned(facts, pair).map_err(|error| vec![error])?;
     let view = crate::helper_views::projected(facts, &outputs);
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
-        && !(view && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial)
+        && !(pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial
+            && (view || crate::helper_normal_flow::supported(facts, pair.as_view())))
         || !pair.pdg.memory_locations.is_empty()
             && !crate::helper_reads::supported(facts, pair.as_view())
         || pair.pdg.nodes.iter().any(|node| {
@@ -318,7 +323,7 @@ fn check_boundary(
         })
     {
         return Err(vec![
-            "Helper summary requires verified memory-free or registered shared read-only effects, nonpanicking acyclic returning flow"
+            "Helper summary requires verified memory-free or registered read-only effects and acyclic normal flow with checked panic/drop boundaries"
                 .into(),
         ]);
     }
@@ -520,6 +525,7 @@ fn serialized_helper_count(pair: producer::PairView<'_>, records: &[Value]) -> u
                                 | "data.scalar-from"
                                 | "data.scalar-size"
                                 | "data.integer.try-u32-usize"
+                                | "data.integer.try-usize-u16"
                         )
                     )
                     || records.iter().any(|record| {
@@ -636,7 +642,7 @@ pub(crate) fn verify_call_operands(
     Ok(())
 }
 
-fn verify_operand(
+pub(crate) fn verify_operand(
     pair: producer::PairView<'_>,
     operand: &str,
     argument: &HirNode,

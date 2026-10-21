@@ -288,7 +288,9 @@ impl<'tcx> Capture<'_, 'tcx> {
         let tcx = self.ctx.tcx;
 
         if !tcx.is_diagnostic_item(rustc_span::sym::Result, definition.did())
-            || arguments.type_at(0) != tcx.types.usize
+            || !(arguments.type_at(0) == tcx.types.usize
+                || self.ctx.profile.supports("rust.end-of-input")
+                    && arguments.type_at(0) == tcx.types.u16)
         {
             return None;
         }
@@ -303,7 +305,7 @@ impl<'tcx> Capture<'_, 'tcx> {
                     | "core::num::TryFromIntError"
                     | "std::num::TryFromIntError"
             ))
-        .then(|| TypeTree::IntConversionResult("usize".into()))
+        .then(|| TypeTree::IntConversionResult(arguments.type_at(0).to_string()))
     }
 
     fn slice_array_result(&self, value: Ty<'tcx>) -> Option<TypeTree> {

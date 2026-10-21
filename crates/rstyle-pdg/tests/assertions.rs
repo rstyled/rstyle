@@ -19,9 +19,8 @@ fn assertion_syntax_preserves_original_condition_positions() {
 }
 
 #[test]
-fn assertion_formatting_comparison_macros_and_unregistered_paths_are_deferred() {
+fn assertion_comparison_macros_and_unregistered_paths_are_deferred() {
     for source in [
-        "assert!(b, \"bad\")",
         "assert_eq!(x, y)",
         "custom::assert!(b)",
         "assert!()",

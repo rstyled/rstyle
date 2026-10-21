@@ -1,4 +1,5 @@
-//! Standard, unformatted assertion invocations and their source correspondence.
+//! Standard assertion invocations with independently checked source correspondence.
+pub mod formatting;
 
 use crate::{ByteSpan, HirNode, source_evidence::byte_offset};
 use syn::{parse::Parser, punctuated::Punctuated, spanned::Spanned};
@@ -6,6 +7,7 @@ use syn::{parse::Parser, punctuated::Punctuated, spanned::Spanned};
 pub struct Assertion {
     pub name: &'static str,
     pub condition: syn::Expr,
+    pub diagnostic: Option<formatting::Diagnostic>,
 }
 
 pub fn macro_name(path: &str) -> Option<&'static str> {
@@ -35,13 +37,20 @@ impl Assertion {
         let arguments = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
             .parse2(mac.tokens.clone())
             .map_err(|error| error.to_string())?;
-        if arguments.len() != 1 {
+        if arguments.is_empty() || arguments.len() > 2 {
             return Err("Assertion formatting arguments are deferred".into());
         }
 
+        let mut arguments = arguments.into_iter();
+        let condition = arguments.next().expect("condition");
+        let diagnostic = arguments
+            .next()
+            .map(|argument| formatting::parse(&argument))
+            .transpose()?;
         Ok(Self {
             name,
-            condition: arguments.into_iter().next().expect("one argument"),
+            condition,
+            diagnostic,
         })
     }
 
@@ -54,11 +63,22 @@ impl Assertion {
     }
 }
 
-pub fn verify(node: &HirNode, source: &str, debug: Option<bool>) -> Result<(), String> {
+pub fn verify(
+    node: &HirNode,
+    source: &str,
+    debug: Option<bool>,
+    formatted: bool,
+) -> Result<(), String> {
     let assertion = Assertion::parse(source)?;
-    let [condition] = node.children.as_slice() else {
-        return Err("Assertion requires exactly one condition".into());
-    };
+    let condition = node.children.first().ok_or("Missing assertion condition")?;
+    if let Some(diagnostic) = &assertion.diagnostic {
+        if !formatted {
+            return Err("Formatted assertion requires its registered capability".into());
+        }
+        formatting::verify(node, source, diagnostic)?;
+    } else if node.children.len() != 1 {
+        return Err("Unformatted assertion requires exactly one condition".into());
+    }
     let active = if assertion.name == "debug_assert" {
         debug.ok_or("Missing debug-assertions setting")?
     } else {

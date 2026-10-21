@@ -703,8 +703,11 @@ impl Context<'_> {
 
         self.tcx
             .is_diagnostic_item(rustc_span::sym::Result, definition.did())
-            && signature.inputs() == [self.tcx.types.u32]
-            && arguments.type_at(0) == self.tcx.types.usize
+            && (signature.inputs() == [self.tcx.types.u32]
+                && arguments.type_at(0) == self.tcx.types.usize
+                || self.profile.supports("rust.end-of-input")
+                    && signature.inputs() == [self.tcx.types.usize]
+                    && arguments.type_at(0) == self.tcx.types.u16)
     }
 
     fn selected_implementation(

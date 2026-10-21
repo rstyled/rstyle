@@ -1,6 +1,7 @@
 //! Data location transport and independent serialized semantic checks.
 
 mod aggregates;
+mod assertions;
 mod bitset_cardinality;
 mod borrows;
 mod byte_calls;
@@ -238,6 +239,7 @@ pub fn verify<'a>(
     let calls = crate::field_locations::operations(&facts.body, &["expr_call", "expr_method_call"]);
     scalar_from::verify(pair, facts, &calls)?;
     bitset_cardinality::verify(pair, facts, &calls)?;
+    assertions::verify(pair, facts)?;
     size_calls::verify(pair, facts)?;
     crate::data_library::verify_calls(pair, facts, &calls)?;
     crate::data_frontend::verify(facts)?;

@@ -139,8 +139,18 @@ impl Inventory<'_> {
             return false;
         };
 
+        if assertion.diagnostic.is_some()
+            && !crate::extraction_profile::facts_support(self.facts, "rust.end-of-input")
+        {
+            return false;
+        }
         self.add("expr_assert", mac.span());
         self.visit_expr(&assertion.condition);
+        if let Some(diagnostic) = assertion.diagnostic {
+            for capture in diagnostic.captures {
+                self.add("expr_path", capture.span);
+            }
+        }
         true
     }
 

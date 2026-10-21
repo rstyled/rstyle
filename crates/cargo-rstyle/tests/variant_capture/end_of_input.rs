@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn end_of_input_source_first_baseline_preserves_controls_and_complete_inventory() {
+fn end_of_input_family_composes_with_checked_panic_evidence() {
     for target in [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
@@ -25,18 +25,26 @@ fn end_of_input_source_first_baseline_preserves_controls_and_complete_inventory(
                 &["--extraction-profile", "hir-data-v3", "--target", target],
             );
             assert!(output.status.success(), "{report}");
-            check_baseline(&report);
+            check_family(&report);
         }
     }
 }
 
-fn check_baseline(report: &Value) {
+fn check_family(report: &Value) {
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 13, "{report}");
     for function in functions {
         let admitted = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "Unit::as_usize" | "ByteClasses::empty" | "ByteClasses::alphabet_len"
+            "Unit::eoi"
+                | "Unit::as_usize"
+                | "ByteClasses::empty"
+                | "ByteClasses::alphabet_len"
+                | "ByteClasses::eoi"
+                | "direct"
+                | "saved"
+                | "mapped"
+                | "checked"
         );
         assert_eq!(
             function["outcome"],
@@ -54,3 +62,6 @@ fn check_baseline(report: &Value) {
     }
     check_aggregate_documents(report);
 }
+
+mod boundaries;
+mod corruption;
