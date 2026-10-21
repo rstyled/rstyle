@@ -1,8 +1,8 @@
 # Borrowed-result chain: source audit v1
 
-Status: **blocked; not activated**. Audit 2026-10-21 against the retained Data-v3
-3.59 roster and current implementation. P06.C depends on bounded P05 nominal and
-callable ownership proof; this document does not promise an immediate gain.
+Current: **Data3.69 connects the original borrowed-result chain**; integrated
+validation is recorded in the root roadmap. The3.59 audit below is historical;
+its nominal/callable prerequisites were delivered in3.67–3.68.
 
 ## Original selection and build
 
@@ -160,3 +160,20 @@ separate from extraction support; no scoring/threshold changes.
 Retained paths and exact build/source identities are in the selection; the root
 roadmap records the frozen replay and integrated gates.
 Stored-reference helper-result composition remains the next target.
+
+
+## Data-v3 3.69: stored-slice helper composition
+
+`rust.stored-slice-helper-results` verifies a shared slice of supported integer/bool
+scalars from exact formal struct fields. Slot reads retain `[SharedReferent, fields...]`;
+returned referents append a distinct final `SharedReferent`. Every finite result
+alternative requires an independently derived exact slot read. Existing saved
+actual-argument substitution preserves interior referents. No array-view panic
+or partial-flow permission is inherited; owner, lifetime, drop and effect checks
+remain required. Missing reads and historical-policy downgrades reject.
+
+The [source selection](../../eval/coverage-development/borrowed-result-selection.json)
+fixes the complete original `haystack → is_char_boundary → utf8::is_boundary`
+chain, source/build identities and independent expectations. All three strictly
+admit. The root roadmap records measured gains and validation; broader borrowed
+aggregates and nested-reference helper results remain outside this slice.

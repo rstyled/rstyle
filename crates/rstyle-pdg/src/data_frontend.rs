@@ -36,6 +36,7 @@ pub(crate) fn verify_document_policy(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     let capabilities = [
+        crate::helper_stored_slices::CAPABILITY,
         "rust.passive-copy-dependencies",
         "rust.borrowed-mixed-owners",
         "rust.scoped-nominal-imports",
@@ -53,6 +54,7 @@ pub(crate) fn verify_document_policy(
         return Ok(());
     }
 
+    crate::helper_stored_slices::verify_document_policy(profile, facts)?;
     verify_copy_receiver_policy(profile, facts)?;
     if !crate::extraction_profile::policy_supports(profile, "rust.accelerator-packing")
         && crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
@@ -297,19 +299,10 @@ fn verify_fields(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), Str
     let nodes = field_locations::fields(&facts.body);
 
     for field in &fields.operations {
-        let field_locations::Location::Captured { value, path, .. } = &field.location else {
+        let field_locations::Location::Captured { value, .. } = &field.location else {
             continue; // The independent field verifier checked the aggregate value projection.
         };
-        if matches!(value, TypeTree::Shared(inner) if matches!(inner.as_ref(), TypeTree::Slice(_)))
-            && path.iter().any(|projection| {
-                matches!(projection, field_locations::Projection::StructField { .. })
-            })
-            && facts.nominal_resolution()?.has_mixed_owners()
-        {
-            return Err(
-                "Stored slice reference reads require distinct slot/referent evidence".into(),
-            );
-        }
+        crate::helper_stored_slices::verify_field(facts, &field.location)?;
         let token = data_types::token(value)?;
         let matched: Vec<_> = nodes.iter().filter(|node| node.hir == field.hir).collect();
         let [node] = matched.as_slice() else {

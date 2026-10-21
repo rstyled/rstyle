@@ -36,21 +36,7 @@ pub(crate) fn verify_origin(
 }
 
 pub(crate) fn projected(facts: &dyn EvidenceFacts, outputs: &Option<Vec<Origin>>) -> bool {
-    let Some(outputs) = outputs.as_ref().filter(|outputs| !outputs.is_empty()) else {
-        return false;
-    };
-    let Some(result) = facts
-        .signature
-        .return_ty
-        .normalized
-        .as_deref()
-        .and_then(|text| crate::data_types::parse(text).ok())
-    else {
-        return false;
-    };
-    outputs
-        .iter()
-        .all(|origin| verify_origin(origin, facts, &result).is_ok())
+    crate::helper_references::projected_fields(facts, outputs, verify_origin)
 }
 
 pub(crate) fn array_operation(node: &crate::PdgNode) -> bool {

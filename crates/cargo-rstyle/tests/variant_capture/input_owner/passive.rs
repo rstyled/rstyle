@@ -1,7 +1,7 @@
 //! A separate macro-bearing type-dependency scope; the getter scope stays closed.
 use super::*;
 
-fn source() -> String {
+pub(super) fn source() -> String {
     let (wrappers, owner) = SOURCE.split_once("#[derive(Clone, Copy, Eq").unwrap();
     let owner = owner.replace(
         "    pub fn get_anchored",
@@ -61,6 +61,7 @@ fn check_passive_context(target: &str) {
         let (_directory, report) = capture_context(&source(), no_std, Some(target));
         for name in [
             "Input::get_earliest",
+            "Input::get_haystack",
             "Input::get_span",
             "Input::start",
             "Input::end",
@@ -72,13 +73,7 @@ fn check_passive_context(target: &str) {
             assert_eq!(entry["outcome"], "admitted", "{name}: {}", entry["reasons"]);
             reject_previous(entry);
         }
-        for name in [
-            "exposed",
-            "invoked",
-            "Input::get_haystack",
-            "owned",
-            "construct",
-        ] {
+        for name in ["exposed", "invoked", "owned", "construct"] {
             let entry = function(&report, name);
             assert_eq!(entry["outcome"], "excluded", "{name}: {}", entry["reasons"]);
         }
@@ -97,7 +92,7 @@ fn check_getter_matching(report: &Value) {
         assert_eq!(report[flag], true, "{flag}");
     }
     let pairs = report["matching"]["pairs"].as_array().unwrap();
-    assert_eq!(pairs.len(), 21);
+    assert_eq!(pairs.len(), 28);
     let left = &function(report, "caller")["key"];
     let right = &function(report, "same")["key"];
     assert!(

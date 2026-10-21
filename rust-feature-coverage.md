@@ -4109,3 +4109,21 @@ strict-verify; six selected comparisons complete. Libm was not recaptured.
 
 Next: stored-reference slot/referent origins and helper-result substitution for
 `haystack → is_char_boundary → utf8::is_boundary`. Broader roadmap remains active.
+
+
+### Data-v3 3.69: original stored-slice getter and checked consumer
+
+[Contract](docs/extraction-profiles/borrowed-result-chain-v1.md): exact slot reads
+and returned referents compose through original `Input::haystack →
+Input::is_char_boundary → utf8::is_boundary`, including checked conditional reads.
+Complete3.67 Cargo context recertified: **132→134/2582, two gains /zero losses**;
+all source/build identities match, all134 roots strictly verify. All three selected
+comparisons reject as predeclared; independent original native oracle:39168 cases.
+**1006 tests /5 existing skips**, doctests/fmt/Clippy pass; **rstyle0/3233,
+patterns0 unignored**, existing15 ignores unchanged. Frozen `run-hgf65atp` versus
+`run-kxk6hkj_`: **23 admitted /30 excluded /7 inactive**; identities/denominators
+and complete lz4_flex8/150, syntax39/956, time-core11/226 rosters unchanged. All58
+package admissions strict-verify; six selected comparisons complete. Evidence:
+`/tmp/rstyle-borrowed-result-*`. Full-library matching remains incomplete; libm was
+not recaptured. Remaining adjacent gaps: aggregate/nested-reference helper results,
+mixed-enum value operations and generic/mutable Input APIs. Broad roadmap active.

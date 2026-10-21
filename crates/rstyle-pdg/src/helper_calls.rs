@@ -47,7 +47,6 @@ fn summary(
     pair: &producer::Pair,
     reference_outputs: ReferenceOutputs,
 ) -> Result<Summary, String> {
-    let argument_types = argument_types(facts)?;
     let result_type = facts
         .signature
         .return_ty
@@ -65,6 +64,8 @@ fn summary(
     Ok(Summary {
         identity: if view {
             crate::helper_views::SUMMARY
+        } else if crate::helper_stored_slices::projected(facts, &reference_outputs) {
+            crate::helper_stored_slices::SUMMARY
         } else if normal {
             crate::helper_normal_flow::SUMMARY
         } else if reads {
@@ -75,7 +76,7 @@ fn summary(
             "rstyle.helper.source-body/1"
         }
         .into(),
-        argument_types,
+        argument_types: argument_types(facts)?,
         result_type,
         mutates_arguments: false,
         memory_effects: reads,

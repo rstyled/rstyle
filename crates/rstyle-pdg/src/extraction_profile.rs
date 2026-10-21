@@ -98,6 +98,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.closed-scalar-control-dependencies",
     "rust.borrowed-mixed-owners",
     "rust.passive-copy-dependencies",
+    "rust.stored-slice-helper-results",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -131,6 +132,7 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.data.integer.unwrap-option-usize/1",
     "rstyle.helper.checked-normal-body/1",
     "rstyle.data.char.is-ascii/1",
+    "rstyle.helper.stored-slice-result/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -239,7 +241,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.68.0", 85)),
+            Self::DataV3 => Some(("3.69.0", 86)),
         }
     }
 

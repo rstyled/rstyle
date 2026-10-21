@@ -47,7 +47,8 @@ pub(crate) fn supported(
             .is_some_and(|ty| {
                 matches!(ty, TypeToken::Scalar(_))
                     || crate::helper_normal_flow::copy_result(facts)
-                    || crate::extraction_profile::facts_support(facts, crate::data_subslices::ARRAY_CAPABILITY)
+                    || (crate::extraction_profile::facts_support(facts, crate::data_subslices::ARRAY_CAPABILITY)
+                        || crate::extraction_profile::facts_support(facts, crate::helper_stored_slices::CAPABILITY))
                         && matches!(&ty, TypeToken::Shared(referent) if matches!(referent.as_ref(), TypeToken::Slice(element) if matches!(element.as_ref(), TypeToken::Scalar(_))))
                     || crate::extraction_profile::facts_support(facts, "rust.scalar-enum-values")
                         && matches!(ty, TypeToken::Option(payload) if matches!(*payload, TypeToken::Scalar(_)))
@@ -100,7 +101,8 @@ pub(crate) fn derive(
     }
     if !supported(facts, pair) {
         return Err(
-            "Read-only helper requires shared or checked Copy formal fields and scalar/unit results".into(),
+            "Read-only helper requires shared or checked Copy formal fields and a supported result"
+                .into(),
         );
     }
 

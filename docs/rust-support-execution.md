@@ -6,12 +6,10 @@ remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; char3.61 delivery `9b4b83f` is the
-validation baseline (939 tests/5 skips, rstyle0/3051, patterns0). Only the three
-listed unrelated untracked inputs were present before caller integration.
-Data-v3 3.60 flags and3.61 char leaves are delivered. Source-frozen escape caller
-contract `47f221e` passes its independent exhaustive oracle. Data-v3 3.62 connects the unchanged escape classifier; original acceptance
-passes. No broad completion claim.
+Branch `feature/rust-feature-coverage`; current validated checkpoint is Data3.69:
+original stored-slice getter/checked-consumer composition. The root roadmap records
+measured gains, full gates and unchanged frozen selections. Broader Rust coverage
+remains active; historical milestones below retain their original evidence.
 
 Compiler nightly-2026-09-30, commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`; native aarch64 Linux,
@@ -81,7 +79,7 @@ Follow-up controls finished: copy/cyclic 0.62→0.62s; ASCII 0.84→0.88s; flags
 | P01 character / A + lead integration | Shared integration validated: six development functions admit, seven neighboring cases exclude; literal/OR/dispatch tampering and unused-char 3.60 policy downgrade reject. 939 tests pass (five existing skips); fmt/Clippy/doctests pass; rstyle 0/3051, patterns 0. Original syntax36→38/956, no losses;57 original admissions strict-verify, three comparisons complete. Frozen60 unchanged. Original `regex-syntax::is_meta_character`; dedicated char domain and historical gating, no global widening of `scalar()`. Original numeric-set oracle passes all 1112064 valid Unicode scalars. |
 | P01 escape caller / A+C+lead | Range and exact ASCII receiver leaves integrated. Complete original-copy fixture admits five/rejects five across three targets × std/no_std, strict tampering included; independent original oracle1112064 scalars/64 positives. Final focused tests pass; rstyle0/3070. Full gates pass:945 tests/5 skips, fmt/Clippy/doctests, rstyle0/3070, patterns0. Original syntax38→39/956, no losses;58 admissions strict-verify, six comparisons complete. Frozen60 unchanged. Native CI passes all three platforms. Equal-work3.60→3.62 medians: Copy0.65→0.64s, cyclic0.63→0.64s, ASCII0.87→0.87s, flags7.96→8.01s; admissions/matching unchanged. |
 | P08 saved checked / B | Source audit blocked: smallest located natural chain requires generics, let-else, Result/?, closures and borrowed aggregates. Scalar Result alternative additionally requires char/tables and binary-search protocol. No isolated vocabulary activation. |
-| P06 borrowed result / C | Data3.68 strictly admits five original Input scalar/Span getters, including repeated helper calls. Next haystack → is_char_boundary → utf8::is_boundary needs distinct stored-slot/referent origins and result substitution; existing individual stored-slice readers do not establish that composition. |
+| P06 borrowed result / C | Data3.69 completes original haystack → is_char_boundary → utf8::is_boundary with distinct slot reads/referent origins, saved receiver substitution and conditional checked reads. Two original gains, zero losses; all134 strict. Broader aggregate/nested-reference results remain closed; next family needs its own original source audit. |
 | P05 ownership / D | Data3.68 proves selected passive Copy dependencies beside original PatternID/SmallIndex index_type_impls! invocations. All fields/source/Copy and owning-scope checks remain; direct dependency operations gain no permission. Complete automata120→132/2582, zero losses; all132 strict-verify. No census redesign justified. |
 | P02 floats / lead | Data3.66 completes original k_sin with exact immutable i32 equality and complete float alternatives; libm6→7/1131, zero losses, all7 strict-verify/six selected comparisons complete. Independent original oracle5384 inputs; three-target × std/no_std composition and resealed guard/merge/source attacks pass. |
 

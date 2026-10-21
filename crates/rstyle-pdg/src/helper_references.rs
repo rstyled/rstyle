@@ -1,4 +1,4 @@
-//! Whole-formal shared results derived from independently verified callee returns.
+//! Shared formal and field results derived from independently verified callee returns.
 
 use crate::{
     HirNode, NodeCategory,
@@ -77,10 +77,25 @@ fn returned_view(
         return Err("Shared helper result has no returning evidence".into());
     }
     let outputs = Some(origins.into_iter().collect());
-    if !pair.pdg.memory_locations.is_empty() && !crate::helper_views::projected(facts, &outputs) {
-        return Err("Memory-reading shared result requires a checked array-field view".into());
-    }
+    verify_returned_reads(facts, pair, &outputs)?;
     Ok(outputs)
+}
+
+fn verify_returned_reads(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    pair: crate::producer::PairView<'_>,
+    outputs: &Option<Vec<Origin>>,
+) -> Result<(), String> {
+    if crate::helper_stored_slices::projected(facts, outputs) {
+        crate::helper_stored_slices::verify_reads(facts, pair, outputs)?;
+    } else if !pair.pdg.memory_locations.is_empty()
+        && !crate::helper_views::projected(facts, outputs)
+    {
+        return Err(
+            "Memory-reading shared result requires a checked field view or stored slice".into(),
+        );
+    }
+    Ok(())
 }
 
 fn verify_formal(
@@ -102,9 +117,34 @@ fn verify_formal(
             .ok_or("Missing returned helper formal type")?,
     )?;
     if token != *result || origin.path != [Projection::SharedReferent] {
+        if crate::helper_stored_slices::verify_origin(origin, facts, result).is_ok() {
+            return Ok(());
+        }
         return crate::helper_views::verify_origin(origin, facts, result);
     }
     Ok(())
+}
+
+pub(crate) fn projected_fields(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    outputs: &Option<Vec<Origin>>,
+    verify: fn(&Origin, &dyn crate::unit_store::EvidenceFacts, &TypeToken) -> Result<(), String>,
+) -> bool {
+    let Some(outputs) = outputs.as_ref().filter(|outputs| !outputs.is_empty()) else {
+        return false;
+    };
+    let Some(result) = facts
+        .signature
+        .return_ty
+        .normalized
+        .as_deref()
+        .and_then(|text| crate::data_types::parse(text).ok())
+    else {
+        return false;
+    };
+    outputs
+        .iter()
+        .all(|origin| verify(origin, facts, &result).is_ok())
 }
 
 pub fn parameters(

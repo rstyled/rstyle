@@ -53,6 +53,7 @@ pub mod helper_calls;
 mod helper_normal_flow;
 pub mod helper_reads;
 mod helper_references;
+mod helper_stored_slices;
 mod helper_views;
 pub mod inherent_calls;
 pub mod iterator_position;

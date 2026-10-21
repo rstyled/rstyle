@@ -1,6 +1,7 @@
 //! Source-first Input-shaped diagnostic. Every original owner field and every
 //! mixed Anchored variant is retained; useful acceptance is a bool-field getter.
 //! Original-package acceptance is measured separately from this development case.
+mod borrowed;
 mod passive;
 use super::float_kernels::function as exact_function;
 use super::*;
@@ -101,12 +102,16 @@ fn complete_input_owner_retains_unused_slice_span_mixed_enum_and_wrapper_evidenc
 fn check_owner_context(target: &str) {
     for no_std in [false, true] {
         let (_directory, report) = capture_context(SOURCE, no_std, Some(target));
-        for name in ["Input::get_earliest", "caller", "same"] {
+        for name in [
+            "Input::get_earliest",
+            "Input::get_haystack",
+            "caller",
+            "same",
+        ] {
             let entry = function(&report, name);
             assert_eq!(entry["outcome"], "admitted", "{name}: {}", entry["reasons"]);
         }
         for name in [
-            "Input::get_haystack",
             "Input::get_anchored",
             "Input::inspect",
             "owned",
@@ -149,7 +154,7 @@ fn check_matching(report: &Value) {
     let left = &function(report, "caller")["key"];
     let right = &function(report, "same")["key"];
     let pairs = report["matching"]["pairs"].as_array().unwrap();
-    assert_eq!(pairs.len(), 3);
+    assert_eq!(pairs.len(), 6);
     assert!(
         pairs
             .iter()
