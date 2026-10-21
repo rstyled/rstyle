@@ -210,6 +210,9 @@ impl<'tcx> Capture<'_, 'tcx> {
         }
         match ty.kind() {
             ty::Int(_) | ty::Uint(_) | ty::Bool => Ok(TypeTree::Scalar(ty.to_string())),
+            ty::Char if depth == 0 && self.ctx.profile.supports("rust.character-scalars") => {
+                Ok(TypeTree::Scalar("char".into()))
+            }
             ty::Tuple(elements) if elements.is_empty() => Ok(TypeTree::Scalar("unit".into())),
             ty::Str => Ok(TypeTree::Str),
             _ => self.composite(ty, depth),

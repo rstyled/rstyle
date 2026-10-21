@@ -5,6 +5,7 @@ mod bitset_cardinality;
 mod borrowed_accel;
 mod boundaries;
 mod byte_comparisons;
+mod character_leaf;
 mod classifiers;
 mod corruption;
 mod end_of_input;

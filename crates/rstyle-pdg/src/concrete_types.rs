@@ -187,7 +187,9 @@ fn check(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), Strin
     if depth > MAX_DEPTH || *entries > MAX_ENTRIES {
         return Err("Concrete type observation exceeds depth/entry budget".into());
     }
-    check_shape(tree)?;
+    if !(depth == 0 && matches!(tree, TypeTree::Scalar(token) if token == "char")) {
+        check_shape(tree)?;
+    }
     check_children(tree, depth + 1, entries)
 }
 

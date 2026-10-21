@@ -187,6 +187,9 @@ fn selected_expression(
 ) -> bool {
     match kind {
         ast::ExprKind::MacCall(mac) => selected_assertion(mac, profile),
+        ast::ExprKind::Lit(literal) if literal.kind == ast::token::LitKind::Char => {
+            profile.supports(rstyle_pdg::character_scalars::CAPABILITY) && literal.suffix.is_none()
+        }
         ast::ExprKind::Lit(literal) if literal.kind == ast::token::LitKind::Byte => {
             profile.supports(rstyle_pdg::byte_literals::CAPABILITY) && literal.suffix.is_none()
         }

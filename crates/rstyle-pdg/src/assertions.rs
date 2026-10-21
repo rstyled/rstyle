@@ -2,6 +2,7 @@
 mod comparison;
 pub mod formatting;
 
+use crate::frontend::normalized;
 use crate::{ByteSpan, HirNode, source_evidence::byte_offset};
 use syn::{parse::Parser, punctuated::Punctuated, spanned::Spanned};
 
@@ -119,8 +120,4 @@ pub fn verify(
         return Err("Assertion source, resolution, condition or build setting disagrees".into());
     }
     Ok(())
-}
-
-fn normalized(node: &HirNode) -> Option<&str> {
-    node.ty.as_ref()?.normalized.as_deref()
 }

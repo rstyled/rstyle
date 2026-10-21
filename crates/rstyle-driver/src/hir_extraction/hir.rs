@@ -34,7 +34,7 @@ pub fn symbol(id: HirId) -> String {
 
 pub fn resolved(ty: Ty<'_>, spelling: String) -> ResolvedTy {
     let normalized = match ty.kind() {
-        ty::Int(_) | ty::Uint(_) | ty::Bool => Some(ty.to_string()),
+        ty::Int(_) | ty::Uint(_) | ty::Bool | ty::Char => Some(ty.to_string()),
         ty::Tuple(types) if types.is_empty() => Some("unit".to_string()),
         _ => None,
     };
@@ -164,10 +164,11 @@ impl<'tcx> Context<'tcx> {
 
     fn scalar_or_pattern(&self, pattern: &hir::Pat<'tcx>) -> bool {
         self.profile.supports("rust.scalar-or-patterns")
-            && self
-                .typeck
-                .node_type_opt(pattern.hir_id)
-                .is_some_and(|ty| matches!(ty.kind(), ty::Int(_) | ty::Uint(_) | ty::Bool))
+            && self.typeck.node_type_opt(pattern.hir_id).is_some_and(|ty| {
+                matches!(ty.kind(), ty::Int(_) | ty::Uint(_) | ty::Bool)
+                    || matches!(ty.kind(), ty::Char)
+                        && self.profile.supports("rust.character-scalars")
+            })
     }
 
     fn scalar_range_pattern(&self, pattern: &hir::Pat<'tcx>) -> bool {

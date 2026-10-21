@@ -57,7 +57,7 @@ fn check_context(target: &str, no_std: bool, source: &str) {
                     | "aliased"
             )
         } else {
-            !matches!(name, "characters" | "byte_string")
+            name != "byte_string"
         };
         assert_eq!(
             function["outcome"],

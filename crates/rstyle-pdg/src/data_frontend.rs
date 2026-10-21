@@ -11,6 +11,7 @@ impl PathResolution for Unresolved {
 }
 
 pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+    crate::character_scalars::verify_function(facts)?;
     let interface = interface(facts)?;
     let source: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
@@ -433,6 +434,15 @@ fn verify_value_operations(
     }
 
     crate::byte_literals::verify_node(node, facts)?;
+    crate::character_scalars::verify_node(node, facts)?;
+    if node.kind == "expr_binary"
+        && node
+            .children
+            .iter()
+            .any(|child| child.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) == Some("char"))
+    {
+        crate::character_scalars::comparison(node)?;
+    }
     verify_enum_node(node, facts)?;
     crate::data_locals::verify_node(node, facts)?;
     if crate::checked_options::constructor_candidate(node, facts) {
@@ -557,6 +567,7 @@ fn verify_binding_path(
     }
 
     if !scalar(token)
+        && token != "char"
         && !binding.is_param
         && !crate::data_locals::supported(
             token,

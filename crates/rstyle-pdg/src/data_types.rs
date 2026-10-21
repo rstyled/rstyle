@@ -122,7 +122,7 @@ pub fn token(tree: &TypeTree) -> Result<String, String> {
 }
 
 pub fn parse(text: &str) -> Result<TypeToken, String> {
-    if scalar(text) {
+    if scalar(text) || text == "char" {
         return Ok(TypeToken::Scalar(text.into()));
     }
     if text.len() > crate::concrete_types::MAX_SOURCE_BYTES {
@@ -142,6 +142,9 @@ pub(crate) fn parse_for(
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
+    if text == "char" && !profile.supports(crate::character_scalars::CAPABILITY) {
+        return Err("Character scalars require their registered capability".into());
+    }
     if text.contains("\"kind\":\"fieldless_enum\"")
         && !profile.supports("rust.fieldless-enum-values")
     {
@@ -196,7 +199,7 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
     }
 
     match token {
-        TypeToken::Scalar(value) if scalar(value) => Ok(()),
+        TypeToken::Scalar(value) if scalar(value) || depth == 0 && value == "char" => Ok(()),
         TypeToken::Tuple(values) => {
             for value in values {
                 check(value, depth + 1, entries)?;

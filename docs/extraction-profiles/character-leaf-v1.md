@@ -1,6 +1,6 @@
 # Character leaf v1 — acceptance contract
 
-Status: source audit ready; activation pending. Roadmap P01/V10; V11 casts remain
+Status: connected development implementation validated; original acceptance pending. Roadmap P01/V10; V11 casts remain
 outside this increment.
 
 ## Original and context
@@ -21,6 +21,10 @@ features, aarch64-unknown-linux-gnu, rustc commit
 panic=unwind. New evidence must retain the unchanged original and exact build
 context; cross-target/std/no_std checks are additional contexts.
 
+The source-only [selection](../../eval/coverage-development/character-leaf-selection.json)
+freezes the positive and three neighboring negative controls before fresh original
+admission measurement. The frozen sixty remain unchanged.
+
 ## Bounded support and blockers
 
 Support concrete Unicode scalar interfaces/local values, original char literals,
@@ -34,9 +38,10 @@ and OR capture → independent spelling/type/value correspondence → char inter
 comparison and match eligibility → producer/document policy checks → strict
 admission and selected matching. Existing final-wildcard exhaustiveness needs no
 Unicode interval redesign. No module/import/helper blocker was observed.
-Unknowns to resolve before activation: graph literal representation, builtin
-comparison dispatch proof, and integer-only assumptions behind broad `scalar()`
-checks. Preserve historical policy rejection; do not expand those policies.
+Development capture retains exact literal spelling, independently checks builtin
+comparison dispatch, and keeps `scalar()` unchanged. Standalone char vocabulary
+requires its own capability; structured char types remain rejected at observation
+and token validation. Full-original gains/losses remain to be measured. Preserve historical policy rejection; do not expand those policies.
 
 ## Independent expectations
 
@@ -57,4 +62,9 @@ policy downgrade and unsupported casts/ranges/APIs remain negative controls.
 
 Delivery requires fresh complete-original capture, independent strict replay,
 complete selected matching, unchanged-selection gain/loss measurement, integrated
-quality gates and bounded performance controls. No activation/results claimed yet.
+quality gates and bounded performance controls. Development checks admit six functions and reject seven neighboring cases; all
+fifteen selected comparisons complete and strict import passes. The exhaustive
+original numeric-set oracle checks all 1112064 valid Unicode scalars. Workspace validation passes: 939 tests (five existing skips), doctests, formatting,
+Clippy, zero rstyle violations across 3051 functions and zero unignored patterns.
+Complete-original capture, strict replay and performance remain pending; no
+delivered original support is claimed yet.

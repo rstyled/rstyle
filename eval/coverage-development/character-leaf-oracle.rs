@@ -1,5 +1,5 @@
 //! Standalone oracle linked against the unchanged regex-syntax 0.8.11 library.
-//! Compile with --extern regex_syntax=<original-library.rlib>; no copied target body.
+//! Run as a Cargo binary with regex-syntax = "=0.8.11"; no copied target body.
 
 const META_CODE_POINTS: [u32; 18] = [
     0x23, 0x24, 0x26, 0x28, 0x29, 0x2A, 0x2B, 0x2D, 0x2E, 0x3F, 0x5B, 0x5C,

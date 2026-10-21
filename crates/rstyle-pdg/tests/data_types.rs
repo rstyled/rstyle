@@ -75,12 +75,12 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.60.0");
+    assert_eq!(profile.policy().version, "3.61.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 75);
+    assert_eq!(profile.capabilities().len(), 76);
     assert!(profile.supports("rust.verified-inherent-helper-calls"));
     for earlier in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
         assert!(!earlier.supports("rust.verified-inherent-helper-calls"));
@@ -119,4 +119,29 @@ fn nominal_tokens_preserve_namespace_fields_and_native_width_requirements() {
     );
     assert!(data_types::parse(&expected.replace("package-a", "")).is_err());
     assert!(data_types::parse(&expected.replace("\"flag\"", "\"length\"")).is_err());
+}
+
+#[test]
+fn character_vocabulary_preserves_a_distinct_standalone_domain() {
+    let character = TypeTree::Scalar("char".into());
+    assert!(!rstyle_pdg::concrete_types::scalar("char"));
+    assert_eq!(data_types::token(&character).unwrap(), "char");
+    assert_eq!(
+        data_types::parse("char").unwrap(),
+        TypeToken::Scalar("char".into())
+    );
+    for structured in [
+        TypeTree::Shared(Box::new(character.clone())),
+        TypeTree::Slice(Box::new(character.clone())),
+        TypeTree::Tuple(vec![character.clone()]),
+        TypeTree::Array {
+            element: Box::new(character.clone()),
+            length: 1,
+        },
+        TypeTree::Option(Box::new(character)),
+    ] {
+        assert!(rstyle_pdg::concrete_types::validate(&structured).is_err());
+        let serialized = serde_json::to_string(&TypeToken::from_tree(&structured)).unwrap();
+        assert!(data_types::parse(&serialized).is_err(), "{serialized}");
+    }
 }

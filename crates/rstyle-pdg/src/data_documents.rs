@@ -243,9 +243,7 @@ pub fn verify<'a>(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     let pair = pair.into();
-    verify_scalar_option_policy(pair)?;
-    crate::inherent_calls::definition(facts)?;
-    crate::data_receivers::verify_documents(pair, facts)?;
+    verify_source_boundary(pair, facts)?;
     let calls = crate::field_locations::operations(&facts.body, &["expr_call", "expr_method_call"]);
     scalar_from::verify(pair, facts, &calls)?;
     bitset_cardinality::verify(pair, facts, &calls)?;
@@ -839,4 +837,14 @@ fn verify_construct_inventory<const N: usize>(
         }
     }
     Ok(())
+}
+
+fn verify_source_boundary(
+    pair: PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    crate::character_scalars::verify_document_policy(&pair.pdg.profile, facts)?;
+    verify_scalar_option_policy(pair)?;
+    crate::inherent_calls::definition(facts)?;
+    crate::data_receivers::verify_documents(pair, facts)
 }

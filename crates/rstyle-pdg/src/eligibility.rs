@@ -840,6 +840,7 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         _ => check_expr_ty(node, "data_value"),
     };
     match node.kind.as_str() {
+        "expr_lit" if node_norm(node) == Some("char") => Some(ty()),
         "expr_tup" | "expr_array" if ctx.profile.supports("rust.aggregate-literal-values") => {
             Some(ty())
         }
@@ -912,6 +913,23 @@ fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         "expr_path" => check_path(node, ctx),
         "expr_lit" => check_expr_ty(node, "literal"),
         "expr_tup" => check_tup(node),
+        "expr_binary"
+            if ctx.profile.supports(crate::character_scalars::CAPABILITY)
+                && node
+                    .children
+                    .iter()
+                    .any(|child| node_norm(child) == Some("char")) =>
+        {
+            match crate::character_scalars::comparison(node) {
+                Ok(()) => Outcome::ok(),
+                Err(reason) => error(
+                    crate::character_scalars::CAPABILITY,
+                    "comparison",
+                    node,
+                    &reason,
+                ),
+            }
+        }
         "expr_binary" => check_binary(node),
         "expr_unary" => check_unary(node),
         "expr_assign" => check_assign(node, ctx),
@@ -1139,9 +1157,10 @@ fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
                 .bindings
                 .contains_key(&(target.krate, target.owner, target.local)) =>
         {
-            if node_norm(node)
-                .is_some_and(|token| crate::data_locals::supported(token, ctx.profile))
-            {
+            if node_norm(node).is_some_and(|token| {
+                crate::data_locals::supported(token, ctx.profile)
+                    || token == "char" && ctx.profile.supports(crate::character_scalars::CAPABILITY)
+            }) {
                 Outcome::ok()
             } else {
                 check_expr_ty(node, "read")
@@ -1264,7 +1283,11 @@ fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         check_option_result(node, ctx, "match_result"),
         check_node(scrutinee, false, ctx),
     ];
-    if !node_norm(scrutinee).is_some_and(|ty| is_int(ty) || ty == "bool") {
+    if !node_norm(scrutinee).is_some_and(|ty| {
+        is_int(ty)
+            || ty == "bool"
+            || ty == "char" && ctx.profile.supports(crate::character_scalars::CAPABILITY)
+    }) {
         checks.push(error(
             "rust.scalar-match",
             "scrutinee",

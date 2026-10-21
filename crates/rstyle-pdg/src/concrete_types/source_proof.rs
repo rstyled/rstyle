@@ -129,6 +129,13 @@ fn path_proof(
         && path.path.segments.len() == 1
     {
         let token = path.path.segments[0].ident.to_string();
+        if token == "char" {
+            return if *tree == TypeTree::Scalar(token) {
+                Ok(())
+            } else {
+                Err("Character spelling contradicts its Unicode scalar observation".into())
+            };
+        }
         if (super::scalar(&token) && token != "unit") || token == "str" {
             return Ok(());
         }
