@@ -783,6 +783,7 @@ impl<'ast> Inventory<'_> {
             {
                 Some("pat_name")
             }
+            syn::Pat::Range(range) if self.character_range(range, profile) => Some("pat_range"),
             syn::Pat::Range(range)
                 if crate::scalar_patterns::scalar_range_for(
                     range,
@@ -800,6 +801,21 @@ impl<'ast> Inventory<'_> {
 
         let matched = kind.is_some_and(|kind| self.add(kind, pattern.span()));
         self.pattern_children(pattern, matched, profile);
+    }
+
+    fn character_range(
+        &self,
+        range: &syn::PatRange,
+        profile: Option<crate::extraction_profile::ExtractionProfile>,
+    ) -> bool {
+        let source = &self.facts.source.bytes;
+        profile.is_some_and(|p| p.supports(crate::character_ranges::CAPABILITY))
+            && source
+                .get(
+                    byte_offset(source, range.span().start())
+                        ..byte_offset(source, range.span().end()),
+                )
+                .is_some_and(|text| crate::character_ranges::from_source(text).is_ok())
     }
 
     fn pattern_children(

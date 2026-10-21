@@ -2504,14 +2504,14 @@ fn clones_data_integer_ranges_compose_with_alternatives_guards_and_open_bounds()
             .iter()
             .filter(|function| function["outcome"] == "admitted")
             .count(),
-        4,
+        5,
         "{:?}",
         functions
             .iter()
             .map(|function| (&function["facts"]["name"], &function["reasons"]))
             .collect::<Vec<_>>()
     );
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 6);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
     let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
         functions
             .iter()
@@ -2614,7 +2614,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.61.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.62.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6173,7 +6173,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.61.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.62.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"

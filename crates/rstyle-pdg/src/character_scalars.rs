@@ -29,7 +29,7 @@ pub(crate) fn verify_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(
         verify_literal(node, source.ok_or("Missing original character literal")?)?;
     }
     if node.kind == "pat_range" {
-        return Err("Character ranges require a separate domain contract".into());
+        crate::character_ranges::verify_node(node, facts)?;
     }
     Ok(())
 }

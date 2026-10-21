@@ -177,10 +177,11 @@ impl<'tcx> Context<'tcx> {
         };
 
         self.profile.supports("rust.scalar-range-patterns")
-            && self
-                .typeck
-                .node_type_opt(pattern.hir_id)
-                .is_some_and(|ty| matches!(ty.kind(), ty::Int(_) | ty::Uint(_)))
+            && self.typeck.node_type_opt(pattern.hir_id).is_some_and(|ty| {
+                matches!(ty.kind(), ty::Int(_) | ty::Uint(_))
+                    || matches!(ty.kind(), ty::Char)
+                        && self.profile.supports("rust.character-literal-ranges")
+            })
             && start.into_iter().chain(end).all(|bound| {
                 matches!(
                     bound.kind,

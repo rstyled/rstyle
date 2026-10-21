@@ -49,6 +49,9 @@ fn check(facts: &HirFnFacts, original_source: bool) -> Result<Capture, String> {
             check_correspondence(node, source.as_ref())
                 .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
         }
+        if crate::character_ascii::verify_receiver(record, node, facts)? {
+            continue;
+        }
         check_types(record, node)
             .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
         check_adjustments(record)?;

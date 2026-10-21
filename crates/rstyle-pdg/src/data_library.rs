@@ -178,7 +178,7 @@ mod tests {
             assert_eq!(arm.rustc_commit, other.rustc_commit);
             assert_eq!(arm.source_digests, other.source_digests);
             assert_eq!(arm.operations.len(), other.operations.len());
-            assert_eq!(arm.definitions.len(), 30);
+            assert_eq!(arm.definitions.len(), 31);
             assert_eq!(
                 arm.definitions.keys().collect::<Vec<_>>(),
                 other.definitions.keys().collect::<Vec<_>>()

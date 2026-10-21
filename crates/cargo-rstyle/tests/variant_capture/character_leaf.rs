@@ -33,7 +33,10 @@ fn character_leaf_preserves_scalar_domain_and_closed_neighboring_features() {
     assert_eq!(functions.len(), 13);
     for function in functions {
         let name = function["facts"]["name"].as_str().unwrap();
-        let expected = if ["meta", "same", "escaped", "ordered", "saved", "unused"].contains(&name)
+        let expected = if [
+            "meta", "same", "escaped", "ordered", "saved", "unused", "range",
+        ]
+        .contains(&name)
         {
             "admitted"
         } else {
@@ -56,7 +59,7 @@ fn character_leaf_preserves_scalar_domain_and_closed_neighboring_features() {
     }
     super::word_classifiers::verify_admissions(&report);
     assert_eq!(report["pair_evaluation_complete"], true);
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 15);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 21);
 }
 
 fn reject_literal_mutations(function: &Value) {

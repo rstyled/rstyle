@@ -8,6 +8,7 @@ mod borrows;
 mod byte_calls;
 mod byte_scalars;
 mod callbacks;
+mod character_ascii;
 mod checked_options;
 mod conditional_payloads;
 mod fieldless_enums;
@@ -246,6 +247,7 @@ pub fn verify<'a>(
     verify_source_boundary(pair, facts)?;
     let calls = crate::field_locations::operations(&facts.body, &["expr_call", "expr_method_call"]);
     scalar_from::verify(pair, facts, &calls)?;
+    character_ascii::verify(pair, facts, &calls)?;
     bitset_cardinality::verify(pair, facts, &calls)?;
     assertions::verify(pair, facts)?;
     size_calls::verify(pair, facts)?;
@@ -844,7 +846,9 @@ fn verify_source_boundary(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     crate::character_scalars::verify_document_policy(&pair.pdg.profile, facts)?;
+    crate::character_ascii::verify_document_policy(&pair.pdg.profile, facts)?;
     verify_scalar_option_policy(pair)?;
+
     crate::inherent_calls::definition(facts)?;
     crate::data_receivers::verify_documents(pair, facts)
 }

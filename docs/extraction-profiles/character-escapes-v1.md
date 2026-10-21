@@ -1,7 +1,7 @@
 # Character escape classification
 
-Source-selected ready contract, 2026-10-21; production activation and acceptance
-validation pending. This separate development selection preserves the frozen 60.
+Connected development implementation validating, 2026-10-21; complete-original
+acceptance pending. This separate development selection preserves the frozen 60.
 
 Original: regex-syntax **0.8.11**, `src/lib.rs::is_escapeable_character(char)`
 with required helper `is_meta_character`. The adjacent selection JSON freezes
@@ -31,7 +31,8 @@ Linux ARM `(5614226571623188065,6519353580426412939)`, Linux x86
 `(2625310331494506890,16256494501121032715)`, macOS ARM
 `(9963928104983068931,12767430517691631255)`; existing registry pins compiler,
 target and core crate hash. Probe evidence `/tmp/rstyle-character-ascii-probe*.json`.
-Complete-caller source correspondence and original admission remain to be measured.
+Complete-caller development source correspondence and strict tests pass; original
+admission remains to be measured.
 
 Independent expectation: true on precisely 64 ASCII scalar values, false on
 all other valid Unicode scalars. The standalone oracle encodes the disjoint
@@ -54,3 +55,12 @@ verification/import, complete selected comparison evaluation with expectations
 fixed separately, all applicable target/settings checks and quality gates. No new transport inventory or cache is proposed. Independent original-library
 oracle passes all1112064 valid scalars with64 positives; log
 `/tmp/rstyle-character-escapes-original-oracle.log`.
+
+Development evidence: five positives/five unavailable neighbors across three
+installed targets × std/no_std; all ten comparisons complete. Independent runtime
+and resealed receiver/authority/type/saved-operand corruptions reject; old3.61
+policy rejects. Four range functions add six comparisons and exhaustive numeric
+boundary laws. Focused character tests pass; rstyle0/3070, patterns pending final
+completion. Full checkpoint and original acceptance are pending. The first full
+run passed944 tests with only the known spacing gate failing; corrected before
+final validation. Logs `/tmp/rstyle-character-escapes-{final-focus.log,final-style.json}`.

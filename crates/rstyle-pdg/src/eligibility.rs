@@ -1419,6 +1419,9 @@ fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) ->
 }
 
 fn scalar_range_evidence(pattern: &HirNode, ctx: &Ctx<'_>) -> bool {
+    if pattern.kind == "pat_range" && node_norm(pattern) == Some("char") {
+        return crate::character_ranges::verify_node(pattern, ctx.facts).is_ok();
+    }
     ctx.profile.supports("rust.scalar-range-patterns")
         && pattern.kind == "pat_range"
         && node_norm(pattern)

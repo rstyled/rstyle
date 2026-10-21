@@ -12,6 +12,8 @@ pub mod bool_constants;
 pub mod byte_literals;
 pub mod call_summaries;
 pub mod cfg;
+mod character_ascii;
+pub mod character_ranges;
 pub mod character_scalars;
 pub mod checked_options;
 pub mod collection;

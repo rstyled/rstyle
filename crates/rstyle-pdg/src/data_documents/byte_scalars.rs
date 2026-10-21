@@ -41,13 +41,24 @@ fn verify_match(
         return Err("Byte match loses its scrutinee".into());
     };
     for pattern in arms.iter().filter_map(|arm| arm.children.first()) {
-        if !byte_literals::uses(pattern, facts) {
+        let character_range = crate::character_ranges::uses(pattern);
+        if !byte_literals::uses(pattern, facts) && !character_range {
             continue;
         }
-        policy(pair)?;
-        let mut leaves = Vec::new();
-        collect(pattern, facts, &mut leaves)?;
-        let (construct, expected) = selector(pattern, &leaves)?;
+        let (construct, expected) = if character_range {
+            crate::extraction_profile::require_document(
+                &pair.pdg.profile,
+                crate::character_ranges::CAPABILITY,
+                || true,
+                "Character ranges require their registered document policy",
+            )?;
+            crate::character_ranges::selector(pattern, facts)?
+        } else {
+            policy(pair)?;
+            let mut leaves = Vec::new();
+            collect(pattern, facts, &mut leaves)?;
+            selector(pattern, &leaves)?
+        };
         let node = super::typed_operation(pair, pattern, construct, "bool")?;
         effects(node, NodeCategory::Control)?;
         literal(node, expected.as_deref())?;

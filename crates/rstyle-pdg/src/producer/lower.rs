@@ -683,7 +683,9 @@ impl Builder<'_> {
         };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
-            construct: if crate::fieldless_enums::cast_candidate(node, self.facts) {
+            construct: if crate::character_ascii::candidate(node, self.facts) {
+                Some(crate::character_ascii::CONSTRUCT.into())
+            } else if crate::fieldless_enums::cast_candidate(node, self.facts) {
                 Some(crate::fieldless_enums::CAST.into())
             } else if crate::size_calls::candidate(node, self.facts) {
                 Some(crate::size_calls::CONSTRUCT.into())
