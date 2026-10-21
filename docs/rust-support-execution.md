@@ -47,7 +47,7 @@ No new branches/worktrees. Existing clean baseline checkout is retained.
 | ID / owner | State | Target / hard prerequisite | Exclusive initial write set |
 | --- | --- | --- | --- |
 | Existing 3.60 / lead | validating | 13 original Look/LookSet flag functions plus empty; complete source/Copy → variant/cast → receiver load → helper chain; full original measurement pending | Existing dirty flag modules, their tests/oracles/contract; shared seams remain lead-owned |
-| P01.A / A | implementing (exclusive leaves only) | regex-syntax 0.8.11 `is_meta_character(char)`; freeze source/build and truth table, then propose vocabulary | Audit only initially; dedicated char leaf modules/oracle/tests after approval |
+| P01.A / A | awaiting integration (unbuilt leaves) | regex-syntax 0.8.11 `is_meta_character(char)`; freeze source/build and truth table, then propose vocabulary | Audit only initially; dedicated char leaf modules/oracle/tests after approval |
 | P08.B / B | blocked (source audit complete) | Natural saved checked-sub Option caller; complete blockers before activation | Audit only; proposed bitset_cardinality subtree and dedicated saved tests |
 | P06.C / C | blocked (source audit complete) | Single borrowed-result getter → wrapper → consumer; reject unsuitable Input chain with named dependencies | Audit only; proposed helper_references/helper_views and dedicated tests |
 | P05.D / D | blocked (source audit complete) | Natural residual in-package module ownership family; existing path tests are controls | Audit only; proposed census/selected-module proof and dedicated source tests |
@@ -130,3 +130,24 @@ implementation checkpoint, not yet completed natural-family delivery.
   or shared source edits. Shared integration follows the current family's evidence.
 - Lead retains shared seams, binaries, captures, strict replay, staging and commits.
   B/C/D audits establish named prerequisites; no unsupported activation granted.
+
+
+### Resume commands and integration boundary
+
+A returned its unregistered leaves: `crates/rstyle-pdg/src/character_scalars.rs`
+and `crates/cargo-rstyle/tests/variant_capture/character_leaf.rs`. No shared files
+changed and no builds were run. Review original-literal/source coverage and
+historical document gating before registration; no char support is claimed yet.
+D is preparing the plan-authorized libm float acceptance contract/oracle design,
+without activation. B's replacement Result audit remains blocked as recorded.
+
+Next: poll session 62733 (confirmed live after 3m); obtain the `Report:` path from
+`/tmp/rstyle-look-flags-natural-capture.log`, then run
+`/tmp/rstyle-coverage-python/bin/python /tmp/rstyle-look-flags-natural-audit.py REPORT`.
+That script streams the large report, checks all 2582 source/build identities,
+all declared positives/negatives and every gain/loss. Do not load the whole report
+with json.load. Follow with one owning-unit strict replay, all selected matching,
+frozen sixty/other package deltas and bounded performance controls, serially.
+The current complete-original capture uses stable 3.60 binaries; do not rebuild
+or replace them. Character shared integration waits for this coherent family
+boundary. Root roadmap remains at delivered 3.59 until evidence warrants updating.
