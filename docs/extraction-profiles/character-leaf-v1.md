@@ -1,6 +1,6 @@
 # Character leaf v1 — acceptance contract
 
-Status: connected development implementation validated; original acceptance pending. Roadmap P01/V10; V11 casts remain
+Status: Data-v3 3.61 delivered; native multi-host CI pending. Roadmap P01/V10; V11 casts remain
 outside this increment.
 
 ## Original and context
@@ -60,11 +60,36 @@ with spelling/value/type, OR children, wildcard, source span or builtin dispatch
 must fail independent verification after ordinary integrity resealing. Historical
 policy downgrade and unsupported casts/ranges/APIs remain negative controls.
 
-Delivery requires fresh complete-original capture, independent strict replay,
-complete selected matching, unchanged-selection gain/loss measurement, integrated
-quality gates and bounded performance controls. Development checks admit six functions and reject seven neighboring cases; all
-fifteen selected comparisons complete and strict import passes. The exhaustive
-original numeric-set oracle checks all 1112064 valid Unicode scalars. Workspace validation passes: 939 tests (five existing skips), doctests, formatting,
-Clippy, zero rstyle violations across 3051 functions and zero unignored patterns.
-Complete-original capture, strict replay and performance remain pending; no
-delivered original support is claimed yet.
+## Results
+
+Fresh complete capture `target/hir-coverage/run-8osa6f3z` retains every source/build
+identity against Data-v3 3.60 `run-bo_05z1o`. Regex-syntax admits **36→38 /956**:
+selected `is_meta_character` plus incidental `ast::parse::is_hex` (three short-circuit
+ASCII digit/hex comparisons). No losses; lz4_flex **8/150**, time-core **11/226**,
+and frozen **23 admitted /30 excluded /7 inactive /60** stay unchanged. All three
+source-selected negative controls remain excluded. Automata was not recaptured
+for this increment; its prior114/2582 result remains historical evidence.
+
+Independent original-library oracle passes all **1112064 valid Unicode scalars**,
+with exactly18 positives. Strict retained-unit replay verifies all **57 original
+admissions**; all three selected comparisons complete. Both hex-classifier
+comparisons reject. The existing matcher accepts structural similarity between
+metacharacter and byte classifiers; this is neither semantic equivalence nor
+rewrite safety, and no scoring/admission thresholds changed.
+
+Development admits six functions and excludes seven, with15 complete comparisons;
+literal/OR/wildcard/dispatch/span and historical-policy tampering reject. The
+unchanged byte development selection now admits its pre-existing char equality
+function (9→10/11) across three targets × std/no_std. Workspace validation passes:
+**939 tests /5 existing skips**, doctests/fmt/Clippy, **rstyle0 /3051 functions**,
+**patterns0 unignored**, existing ignores unchanged.
+
+Evidence: `/tmp/rstyle-character-{full-frozen-delta.json,original-controls.json,strict.log,original-matching.json}`;
+strict replay53.87s /758424KiB. Final gates: `/tmp/rstyle-character-final-*`.
+Warmup plus seven alternating equal-work samples preserve admissions and exact
+matching on all controls. Median seconds baseline3.60→3.61: Copy0.62→0.64,
+cyclic0.63→0.64, ASCII0.86→0.88, flags7.95→7.97; all ranges overlap. No speedup
+claimed. Evidence: `/tmp/rstyle-character-performance-results.json`.
+Next source-required chain is
+`is_escapeable_character`: exact `char::is_ascii` receiver/identity proof plus
+literal ranges and the admitted helper; broader Unicode/Result remains open.

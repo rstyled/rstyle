@@ -7,15 +7,15 @@ remain active in the plan; this record contains current decisions and evidence.
 ## Current boundary
 
 Branch `feature/rust-feature-coverage`; baseline `f71eff3` (Data-v3 3.59), implementation checkpoint
-`e12652d` follows `49c7ec7`. Data-v3 3.60 flags are delivered. Character shared integration is
-under validation in the working tree; full original acceptance is pending. No broad coverage completion claim.
+`e12652d` follows `49c7ec7`. Data-v3 3.60 flags are delivered. Character implementation `f61065d` passes full gates and original strict replay;
+performance controls pass; Data-v3 3.61 delivered. No broad coverage completion claim.
 
 Compiler nightly-2026-09-30, commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`; native aarch64 Linux,
 installed x86 Linux and ARM macOS targets. Original captures use debug/default
 features, lib/non-test, edition 2021 unless their family contract states otherwise.
-GitHub check-runs for `49c7ec7` are successful on Linux x86, Linux ARM and macOS;
-new optimization CI remains pending for the delivery checkpoint.
+GitHub check-runs for flags delivery `98e084c` pass Linux x86, Linux ARM and macOS;
+character implementation CI is tracked separately.
 
 Preserve unrelated `crates/rstyle-pdg/src/slice_access/`, `docs/pdg-and-clones.md`
 and `ferrante_toplas_87.pdf`. Lead owns shared seams, registration, staging and
@@ -74,7 +74,7 @@ Follow-up controls finished: copy/cyclic 0.62→0.62s; ASCII 0.84→0.88s; flags
 
 | Package / owner | State and next concrete step |
 | --- | --- |
-| P01 character / A + lead integration | Shared integration validated: six development functions admit, seven neighboring cases exclude; literal/OR/dispatch tampering and unused-char 3.60 policy downgrade reject. 939 tests pass (five existing skips); fmt/Clippy/doctests pass; rstyle 0/3051, patterns 0. Original capture pending. Original `regex-syntax::is_meta_character`; dedicated char domain and historical gating, no global widening of `scalar()`. Original numeric-set oracle passes all 1112064 valid Unicode scalars. |
+| P01 character / A + lead integration | Shared integration validated: six development functions admit, seven neighboring cases exclude; literal/OR/dispatch tampering and unused-char 3.60 policy downgrade reject. 939 tests pass (five existing skips); fmt/Clippy/doctests pass; rstyle 0/3051, patterns 0. Original syntax36→38/956, no losses;57 original admissions strict-verify, three comparisons complete. Frozen60 unchanged. Original `regex-syntax::is_meta_character`; dedicated char domain and historical gating, no global widening of `scalar()`. Original numeric-set oracle passes all 1112064 valid Unicode scalars. |
 | P08 saved checked / B | Source audit blocked: smallest located natural chain requires generics, let-else, Result/?, closures and borrowed aggregates. Scalar Result alternative additionally requires char/tables and binary-search protocol. No isolated vocabulary activation. |
 | P06 borrowed result / C | Input::haystack → is_char_boundary → utf8::is_boundary needs lifetime-only callable ownership, stored-reference fields, complete mixed Anchored child and distinct slot reads/result origins. |
 | P05 ownership / D | No tractable residual path/cfg positive found; no census redesign justified. Callable lifetime proof needs driver implementation/direct-callee and independent selected-impl/member gates together. Nominal lifetime capture exists; stored-reference/mixed-child/result-origin proof remains separate. |
@@ -90,9 +90,8 @@ Contracts: [character](extraction-profiles/character-leaf-v1.md),
 ## Resume order
 
 Flags gates, strict replay and selected matching are complete. Verify delivery
-CI and measure character original acceptance. Exact char builtin path proof and structural
+Character delivery CI. Exact char builtin path proof and structural
 nested-char rejection are integrated; a shared normalized-type reader removes
-the only new pattern candidate without ignores. Complete
-original capture/strict matching before claiming char support; follow with its
+the only new pattern candidate without ignores. Original capture/strict matching/performance pass; follow with its
 escapable-character caller using source-required ASCII/range proof. Retain the
 full P01–P22 frontier. Source audits are prerequisites, not support.

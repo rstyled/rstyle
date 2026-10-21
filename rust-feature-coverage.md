@@ -7,13 +7,15 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.60.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.61.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
 reads through verified helpers, retaining saved inputs and possible panic.
 Data-v3 3.60 adds complete fieldless flag values and verified shared Copy
-receivers through their original constructor/query helper chains.
+receivers through their original constructor/query helper chains. Data-v3 3.61
+adds standalone Unicode scalar literals, comparisons and literal/OR matching;
+character APIs, ranges, casts and structured character types remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
 
@@ -61,7 +63,7 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | V07 | Integer-to-integer casts | Covered | `x as u64` | Resolved built-in integer casts only. |
 | V08 | Ordinary const-function bodies | Covered | `const fn f(x: u32) -> u32 { x }` | Function qualification is supported; this is not general compile-time evaluation. |
 | V09 | Floats and floating-point operations | Missing | `x: f64`, `x / 2.0` | Type, literal, operation, and comparison semantics; NaNs, signed zero, and casts must not be treated as integer semantics. |
-| V10 | Character values and operations | Missing | `c: char`, `'a'` | Unicode scalar types/literals and relevant calls/conversions. |
+| V10 | Character values and operations | Partial | `c: char`, `'a'` | Data-v3 3.61 supports standalone Unicode scalar interfaces/locals, exact literals, builtin comparisons and literal/OR/wildcard matching through verified helpers; see [character contract](docs/extraction-profiles/character-leaf-v1.md). Ranges, casts, APIs and structured character types remain deferred. |
 | V11 | Additional built-in casts/coercions | Missing | `flag as u8`, `x as f32` | Bool/char/float conversions are outside the current integer-cast boundary; pointer casts belong to unsafe work. |
 | V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Data-v3 3.33.0 additionally verifies the original top-level local `const usize = core::mem::size_of::<usize>()` for [native byte readers](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.56 adds [owned local const-built bool arrays](docs/extraction-profiles/word-byte-classifiers-v1.md) with complete evaluated contents and lossless unsigned index bounds. Other aggregates and nonlocal/generic/trait constants remain missing. |
 | V13 | General const expressions and const blocks | Missing | `[u8; N + 1]`, `const { 1 + 2 }` | General array expressions remain missing. Data-v3 3.33.0 permits one verified local native-size constant as a byte-array annotation length; arithmetic lengths and const blocks remain unsupported. Const fn support does not authorize these. |
@@ -3906,3 +3908,21 @@ character scalar domain for original `is_meta_character`, then its escapable
 character caller (exact ASCII predicate plus literal ranges). Stored-reference
 results, lifetime-only callable owners, mixed enum children, Result/?, broader
 loops, cross-unit linking and the full P01–P22 roadmap remain active.
+
+### Data-v3 3.61: connected Unicode scalar classifiers
+
+[Character contract](docs/extraction-profiles/character-leaf-v1.md): standalone
+char values, exact literals, comparisons and literal/OR matching support original
+`regex-syntax::is_meta_character` and incidental `ast::parse::is_hex` end to end.
+Unchanged syntax selection **36→38 /956**, no losses; lz4_flex **8/150**,
+time-core **11/226**, frozen **23 admitted /30 excluded /7 inactive /60** unchanged.
+All three source-selected neighboring negatives remain excluded. Automata's prior
+114/2582 result was not remeasured in this increment.
+
+**57 original admissions** independently strict-verify; all **three original and
+15 development comparisons** complete. Exhaustive original-library oracle passes
+all1112064 valid Unicode scalars. **939 tests /5 existing skips**, doctests/fmt/Clippy
+pass; **rstyle0 /3051 functions, patterns0 unignored**, existing ignores unchanged.
+The contract records structural matching limits and performance evidence. Next
+complete the escapable-character chain (ASCII predicate plus ranges); the broader
+P01–P22 roadmap remains active.
