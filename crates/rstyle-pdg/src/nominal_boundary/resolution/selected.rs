@@ -45,6 +45,12 @@ pub(super) fn verify(
             _ => unreachable!(),
         }
     }
+
+    for (key, tree) in trees {
+        if !copies.contains(key) {
+            borrowed::verify(facts, tree, &copies)?;
+        }
+    }
     Ok(copies)
 }
 
@@ -64,7 +70,6 @@ fn checked_copy(
         crate::declaration_origins::copy::verify(facts, origin, copy, attributes)?;
         Ok(true)
     } else if matches!(tree, TypeTree::Struct { .. }) {
-        borrowed::verify(facts, tree)?;
         Ok(false)
     } else {
         Err("Scalar enum requires positive builtin Copy evidence".into())

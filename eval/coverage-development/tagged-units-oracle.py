@@ -42,9 +42,24 @@ SYNTAX_BITSET_IDENTITIES = ((106740, 106954, '8c28b6c9656796472b49e0ad77a5b8e44f
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("crate", type=Path)
-    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality", "end-of-input", "calendar-callers", "accelerator-packing", "iterator-byte-position", "word-byte-classifiers", "syntax-word-byte"], default="tagged-units")
+    parser.add_argument("--family", choices=["tagged-units", "borrowed-accel", "bitset-cardinality", "syntax-bitset-cardinality", "end-of-input", "calendar-callers", "accelerator-packing", "iterator-byte-position", "word-byte-classifiers", "syntax-word-byte", "ascii-boundaries"], default="tagged-units")
     args = parser.parse_args()
     families = {
+        "ascii-boundaries": ("src/util/look.rs", (
+            (24311, 24382, 'fb6da09fd327816a191b526ef823ca4d715695c280eb9d591b9aa692aac178f7'),
+            (38428, 38701, 'e14c1fbab652c20864e89019a44cc9f4716876cb9f1d6438410fda2053f9a996'),
+            (38996, 39116, '8a5b54102973980f2cc534eabc68c85252d2ffcd03d7a17f29c4e28d645452c4'),
+            (43513, 43793, 'ee6d36ded6c11471ca05001f1fef4a3a62c8fbe6acf10854a2030ce0cc661dda'),
+            (44085, 44363, '0b7e4a9097abab95f8ca16a3c27dbda6c6ab2f6b9c5a418642c6d46aca0b2746'),
+            (46293, 46501, '1064e2a8e64db3ed482be4f5732da73b5d3c897d75fa612ffd03ca446536e9e1'),
+            (46797, 46991, '5a18a1123cb58d80ab255a1672874259a6ffe6a2c1e2e4a95d0b6c0591339681'),
+            (35757, 35840, '8332dc906798c8ce3ef00c54e3411b5fad0acaa98749529d03bcdf658554f6b8'),
+            (36123, 36216, '2f3d4dcfdb31df28f2b663f173b646da85e808d9040ed349c6c0f8059dd73ffb'),
+            (36503, 36647, 'fabc0d02b4a7a042f76b4afe71370d4bcea2eed7781f1cf0ccab1c898090cc1b'),
+            (36932, 37068, '15b1e008ac8f138343346d573368a77a519438049a29548644939abd72bb5882'),
+            (37357, 37615, 'd05cbaaca99a72ddba1fb50d3381a401cb717fa9b92dc24b23840fae6f88de66'),
+            (37902, 38139, 'd10351e599a4e320ec12357a20d9cd8b3aa63d60e1a45568bf105205c3521958'),
+        ), Path(__file__).with_name("ascii-boundaries-oracle.rs"), "rstyle_ascii_boundaries_oracle"),
         "syntax-word-byte": ("src/lib.rs", (
             (15436, 15578, "ff3e3442df02adf3fff09830d8440166026f641d5b705f13aa1febb560ca163d"),),
             Path(__file__).with_name("byte-scalar-classifiers-oracle.rs"), "rstyle_byte_scalar_classifiers_oracle"),

@@ -40,6 +40,16 @@ pub struct Resolution {
 }
 
 impl Resolution {
+    pub(crate) fn requires_borrowed_copy_child_fields(&self) -> bool {
+        self.environment.copy_boundary
+            && self.trees.iter().any(|(key, tree)| {
+                !self.copy_trees.contains(key)
+                    && tree
+                        .nominal_fields()
+                        .any(|field| matches!(field.ty, TypeTree::Struct { .. }))
+            })
+    }
+
     pub(crate) fn requires_borrowed_array_views(&self) -> bool {
         self.trees.iter().any(|(key, tree)| {
             tree.nominal_fields().any(|field| {

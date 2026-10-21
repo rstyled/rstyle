@@ -2,7 +2,11 @@
 use super::*;
 use crate::{HirNode, data_types::TypeToken};
 
-pub(super) fn verify(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> {
+pub(super) fn verify(
+    facts: &HirFnFacts,
+    tree: &TypeTree,
+    copies: &std::collections::BTreeSet<Namespace>,
+) -> Result<(), String> {
     let TypeTree::Struct {
         nominal, fields, ..
     } = tree
@@ -10,7 +14,9 @@ pub(super) fn verify(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> 
         return Err("Borrowed owner requires a concrete struct".into());
     };
     if !supports(facts, "rust.borrowed-scalar-owners")?
-        || fields.iter().any(|field| !field_type(facts, &field.ty))
+        || fields
+            .iter()
+            .any(|field| !field_type(facts, &field.ty, copies))
     {
         return Err("Mixed-unit declaration lacks builtin Copy evidence".into());
     }
@@ -26,12 +32,26 @@ pub(super) fn verify(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> 
     check_body(&facts.body, nominal)
 }
 
-fn field_type(facts: &HirFnFacts, tree: &TypeTree) -> bool {
+fn field_type(
+    facts: &HirFnFacts,
+    tree: &TypeTree,
+    copies: &std::collections::BTreeSet<Namespace>,
+) -> bool {
     match tree {
         TypeTree::Scalar(_) => true,
         TypeTree::Array { element, .. } => {
             supports(facts, "rust.borrowed-array-views").unwrap_or(false)
                 && matches!(element.as_ref(), TypeTree::Scalar(_))
+        }
+        TypeTree::Struct { nominal, .. } => {
+            supports(facts, "rust.borrowed-copy-child-fields").unwrap_or(false)
+                && copies.contains(
+                    &nominal
+                        .definition_path
+                        .split("::")
+                        .map(str::to_string)
+                        .collect::<Namespace>(),
+                )
         }
         _ => false,
     }

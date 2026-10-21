@@ -39,7 +39,9 @@ pub(crate) fn verify_document_policy(
     let enums = crate::extraction_profile::policy_supports(profile, "rust.scalar-enum-values");
     let views = crate::extraction_profile::policy_supports(profile, "rust.borrowed-array-views");
     let packing = crate::extraction_profile::policy_supports(profile, "rust.accelerator-packing");
-    if imports && arrays && enums && views && packing {
+    let children =
+        crate::extraction_profile::policy_supports(profile, "rust.borrowed-copy-child-fields");
+    if imports && arrays && enums && views && packing && children {
         return Ok(());
     }
 
@@ -53,6 +55,11 @@ pub(crate) fn verify_document_policy(
         return Err("Scalar alias proof requires its registered document policy".into());
     }
     if let Some(resolution) = nominal_resolution(facts, &interface)? {
+        if !children && resolution.requires_borrowed_copy_child_fields() {
+            return Err(
+                "Borrowed Copy child fields require their registered document policy".into(),
+            );
+        }
         if !views && resolution.requires_borrowed_array_views() {
             return Err("Borrowed array views require their registered document policy".into());
         }
