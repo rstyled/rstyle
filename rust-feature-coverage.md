@@ -3702,3 +3702,20 @@ position/Option composition for `Accel::contains` and named callback/const-table
 proof for `Unit::is_word_byte`; saved payload control flow and `?` remain open.
 Alternating performance controls retain unchanged matching/timing ranges;
 packing grows from 2 to 13 admissions and 1 to 78 comparisons (0.56 → 0.75 s).
+
+### Next connected family: fresh shared byte-iterator position
+
+Select original regex-automata `Accel::contains` and its unchanged len/needles
+dependencies. The [contract](docs/extraction-profiles/iterator-byte-position-v1.md)
+fixes the full chain: fresh iterator authority/state, `|&b|` callback observations,
+short-circuit read occurrences, existing scalar Option/is_some and helper
+transport. The slice implementation overrides the generic position default;
+current capture lacks that implementation identity and complete callback/type
+evidence. S09 already supports the owner/getters and needs no new census.
+
+The source-first development corpus fixes eleven positives /six negatives;
+baseline **2/17 admit** in six std/no_std target contexts, with complete capture,
+assessment and matching. Three independent original-crate runtime tests pass,
+covering every queried byte, active payload/padding, invalid-header panic and
+first-index/short-circuit visits. No production/policy change or new natural gain
+is claimed; the next implementation must connect the nine blocked positives.
