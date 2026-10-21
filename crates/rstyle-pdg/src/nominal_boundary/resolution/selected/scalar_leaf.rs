@@ -1,4 +1,4 @@
-//! Exhaustive source proof for call-free primitive float leaves.
+//! Exhaustive source proof for call-free primitive leaves with float results.
 //!
 //! This proves the dependency boundary only. Callers must still verify the exact
 //! owner's items/imports/attributes and run every ordinary HIR/float verifier.
@@ -47,14 +47,17 @@ pub(super) fn verify(
         function,
         &module.items,
         supports(facts, crate::float_scalars::SUBTRACTION)?,
+        supports(facts, crate::float_scalars::control::CAPABILITY)?,
     )
-    .is_ok())
+    .is_ok()
+        && crate::float_scalars::control::verify(facts).is_ok())
 }
 
 fn source_leaf(
     function: &syn::ItemFn,
     items: &[syn::Item],
     subtraction: bool,
+    control: bool,
 ) -> Result<(), String> {
     let signature = &function.sig;
     if signature.constness.is_some()
@@ -75,15 +78,10 @@ fn source_leaf(
         values: BTreeMap::new(),
         items,
         subtraction,
+        control,
     };
     for input in &signature.inputs {
-        let syn::FnArg::Typed(input) = input else {
-            return Err("Scalar leaf cannot have a receiver".into());
-        };
-        let name = binding(&input.pat)?;
-        if !input.attrs.is_empty() || scope.values.insert(name, primitive(&input.ty)?).is_some() {
-            return Err("Scalar leaf parameter attributes or duplicate binding".into());
-        }
+        scope.parameter(input)?;
     }
 
     if scope.block(&function.block)? != result {
@@ -119,9 +117,29 @@ struct Scope<'a> {
     values: BTreeMap<String, &'static str>,
     items: &'a [syn::Item],
     subtraction: bool,
+    control: bool,
 }
 
 impl Scope<'_> {
+    fn parameter(&mut self, input: &syn::FnArg) -> Result<(), String> {
+        let syn::FnArg::Typed(input) = input else {
+            return Err("Scalar leaf cannot have a receiver".into());
+        };
+        let name = binding(&input.pat)?;
+        let ty = if self.control
+            && matches!(&*input.ty, syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("i32"))
+        {
+            "i32"
+        } else {
+            primitive(&input.ty)?
+        };
+
+        if !input.attrs.is_empty() || self.values.insert(name, ty).is_some() {
+            return Err("Scalar leaf parameter attributes or duplicate binding".into());
+        }
+        Ok(())
+    }
+
     fn block(&self, block: &syn::Block) -> Result<&'static str, String> {
         let mut scope = self.clone();
         let Some((tail, statements)) = block.stmts.split_last() else {
@@ -163,7 +181,13 @@ impl Scope<'_> {
                     .path
                     .get_ident()
                     .ok_or("Scalar leaf value path is not bare")?;
-                self.value(&name.to_string())
+                let ty = self.value(&name.to_string())?;
+                if !matches!(ty, "f32" | "f64") {
+                    return Err(
+                        "Scalar control formal is usable only in its checked condition".into(),
+                    );
+                }
+                Ok(ty)
             }
             syn::Expr::Paren(value) if value.attrs.is_empty() => self.expression(&value.expr),
             syn::Expr::Group(value) if value.attrs.is_empty() => self.expression(&value.expr),
@@ -176,6 +200,9 @@ impl Scope<'_> {
                 self.expression(&value.expr)
             }
             syn::Expr::Binary(value) if value.attrs.is_empty() => self.binary(value),
+            syn::Expr::If(value) if self.control && value.attrs.is_empty() => {
+                self.conditional(value)
+            }
             syn::Expr::Cast(value) if value.attrs.is_empty() => {
                 if self.expression(&value.expr)? != "f64" || primitive(&value.ty)? != "f32" {
                     return Err("Scalar leaf supports only binary64 to binary32 casts".into());
@@ -184,6 +211,27 @@ impl Scope<'_> {
             }
             _ => Err("Scalar leaf has an uncovered source expression or effect".into()),
         }
+    }
+
+    fn conditional(&self, value: &syn::ExprIf) -> Result<&'static str, String> {
+        let (formal, _) = crate::float_scalars::control::guard(&value.cond)?;
+        if self
+            .values
+            .get(&formal.path.get_ident().unwrap().to_string())
+            != Some(&"i32")
+        {
+            return Err("Scalar branch guard requires a declared primitive i32 formal".into());
+        }
+
+        let (_, alternative) = value
+            .else_branch
+            .as_ref()
+            .ok_or("Scalar branch requires a complete else alternative")?;
+        let ty = self.block(&value.then_branch)?;
+        if !matches!(ty, "f32" | "f64") || self.expression(alternative)? != ty {
+            return Err("Scalar branch alternatives require equal primitive float types".into());
+        }
+        Ok(ty)
     }
 
     fn binary(&self, value: &syn::ExprBinary) -> Result<&'static str, String> {
@@ -259,6 +307,10 @@ mod tests {
     }
 
     fn checked_with_subtraction(source: &str, subtraction: bool) -> bool {
+        checked_with_control(source, subtraction, false)
+    }
+
+    fn checked_with_control(source: &str, subtraction: bool, control: bool) -> bool {
         let file = syn::parse_file(source).unwrap();
         let function = file
             .items
@@ -268,7 +320,34 @@ mod tests {
                 _ => None,
             })
             .unwrap();
-        source_leaf(function, &file.items, subtraction).is_ok()
+        source_leaf(function, &file.items, subtraction, control).is_ok()
+    }
+
+    #[test]
+    fn complete_control_dependencies_require_both_checked_float_alternatives() {
+        for body in [
+            "if iy==0{x}else{x+x}",
+            "if 1==iy{let y=x*x; y+x}else{if iy==2{x}else{-x}}",
+        ] {
+            let source = format!("fn kernel(x:f64,iy:i32)->f64 {{{body}}}");
+            assert!(!checked(&source));
+            assert!(checked_with_control(&source, false, true), "{source}");
+        }
+        for body in [
+            "if iy==0{x}else{helper(x)}",
+            "if iy==0{let r=&x; *r}else{x}",
+            "if iy==0{x}else{let _guard=Noise; x}",
+            "if iy==0{if false{x/1.0}else{x}}else{x}",
+            "if iy!=0{x}else{x}",
+            "if iy==2147483648{x}else{x}",
+            "if iy==0u32{x}else{x}",
+            "if -iy==0{x}else{x}",
+            "let saved=iy; if saved==0{x}else{x}",
+            "if iy==0{x}else{unknown!()}",
+        ] {
+            let source = format!("fn kernel(x:f64,iy:i32)->f64 {{{body}}}");
+            assert!(!checked_with_control(&source, true, true), "{source}");
+        }
     }
 
     #[test]

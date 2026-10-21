@@ -1,9 +1,9 @@
 # Original float kernels: acceptance contract v1
 
-Status: Data-v3 3.64 completes `k_sinf`/`k_cosf`; 3.65 adds ordered binary64
-subtraction for original `k_cos`. Its complete-libm capture measures **5→6/1131**,
-zero losses on unchanged source/build identities. All six libm admissions
-strict-verify; three selected comparisons complete (all structurally rejected).
+Status: Data-v3 3.64 completes `k_sinf`/`k_cosf`; 3.65 adds original `k_cos`;
+3.66 adds original `k_sin` with exact i32-controlled float alternatives.
+Complete-libm admission rises **6→7/1131**, zero losses on unchanged source/build
+identities. Strict replay and validation evidence appear at each milestone below.
 
 ## Original selection and context
 
@@ -190,4 +190,47 @@ complete syntax39/956, lz4_flex8/150 and time-core11/226 have no gains/losses.
 Run `run-6qkc6ea9` versus3.64 `run-qqq32cfl`; exact source/build identities and
 all denominators match. All64 original admissions strict-verify; nine selected
 comparisons complete. Fresh replay logs: `/tmp/rstyle-float-cos-tail-frozen-strict.log`.
-Native3.65 CI pending;3.64 passes all three runners.
+Native3.65 CI passes all three runners (run39646408115).
+
+## Original sine tail (Data-v3 3.66)
+
+[Selection](../../eval/coverage-development/float-sin-tail-selection.json): unchanged
+libm0.2.16 `math::k_sin::k_sin(f64,f64,i32)->f64`, bytes2170..2458, SHA-256
+`7f326ba8cb49bfb91a3a261892f34325a8c92550c2e3ab685362b40aa0d4e1df`.
+The 3.65 ancestor-boundary rejection concealed the complete dependency chain:
+i32 formal/literal equality, six coefficients, ordered arithmetic and two float
+alternatives. Capability `rust.closed-scalar-control-dependencies` closes that chain.
+
+The call-free source proof permits an immutable bare i32 formal compared by `==`
+to an in-range nonnegative integer literal, either operand order. Independent HIR
+checks bind its exact operator, operand types/spans, literal spelling and formal
+identity through the signature pattern. Both equal-width float alternatives and
+nested guards must pass the existing complete source/value/return verification.
+Calls, hidden Drop, unsupported operations even in unreachable branches, primitive
+shadowing and missing alternatives stay closed. Earlier source-proof grammars do
+not gain this permission. Resealed guard/binding/source/merge/return attacks reject.
+
+Complete original Cargo capture: **6→7/1131**, exactly `k_sin`, zero losses;
+all source/build identities match. All seven libm admissions strict-verify and six
+selected original comparisons complete (structurally rejected). Identical diagnostic
+helper callers match; three-target × std/no_std composition passes. Full-library
+matching remains explicitly incomplete under the zero-pair budget.
+
+The [independent rational oracle](../../eval/coverage-development/float-sin-tail-oracle.py)
+passes **5384 original native inputs**:1288 directed +4096 frozen random triples.
+When iy==0, y is never evaluated and cannot contribute a NaN payload. Otherwise
+raw x/y unchanged or quieted fractions, either sign, or preferred NaN are permitted
+by this specific DAG and pinned authority. Signed zeros are checked independently;
+no mathematical sine approximation or valid-input precondition is assumed.
+
+Retained evidence: `/tmp/rstyle-float-sin-tail-{natural-delta.json,oracle.log,
+original-strict.log,original-matching.json,tests.log,style.json,patterns.log}`.
+
+3.66 gates: **986 tests /5 existing skips**, doctests/fmt/Clippy pass;
+**rstyle0/3186, patterns0 unignored**, existing15 ignores unchanged. Frozen60
+stays23/30/7; complete syntax39/956, lz4_flex8/150 and time-core11/226 retain
+exact source/build identities and denominators, zero gains/losses. Run
+`run-008n2qyy` versus3.65 `run-6qkc6ea9`. All **65 original admissions**
+strict-verify; **12 selected comparisons** complete across the package replays.
+Native3.66 CI pending;3.65 passes all three runners. Next shared ownership frontier
+is recorded in [the execution record](../rust-support-execution.md#resume-order).

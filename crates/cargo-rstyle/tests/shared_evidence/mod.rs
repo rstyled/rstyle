@@ -60,7 +60,7 @@ pub fn reject_facts(function: &Value, changed: &HirFnFacts) {
     });
 }
 
-fn replace_source(bundle: &mut Value, index: usize, bytes: &str, digest: &str) -> Value {
+pub fn replace_source(bundle: &mut Value, index: usize, bytes: &str, digest: &str) -> Value {
     let previous = bundle["functions"][index]["source"]["snapshot"]
         .as_u64()
         .unwrap();

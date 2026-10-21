@@ -46,6 +46,14 @@ fn float_leaf_dependencies_survive_unrelated_parent_imports_macros_traits_and_dr
     }
 }
 
+#[test]
+fn float_leaf_without_integer_controls_retains_unrelated_integer_named_items() {
+    let directory = workspace(&format!("pub struct i32;\n{SIN}"));
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{}", report["capture_failures"]);
+    check_selected(&report);
+}
+
 fn check_selected(report: &Value) {
     let functions = report["functions"].as_array().unwrap();
     let admitted: Vec<_> = functions

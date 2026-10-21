@@ -1,0 +1,358 @@
+{
+  "identity": "rstyle.development.float-sin-tail/1",
+  "package": {
+    "name": "libm",
+    "version": "0.2.16",
+    "source_root": "/tmp/rstyle-float-kernels-original/libm-0.2.16",
+    "file_sha256": {
+      "Cargo.toml": "a2d94f9cbaa4a177bacde9737bfcc7b2ed9de5bddadafe507923a5b5748f9bd7",
+      "Cargo.toml.orig": "5cef83cc9b297dcf1b6853237371d839a8c3ece4adb0e7fe9f7ba8958f319b0e",
+      "build.rs": "85dfa93693f40e282ecf2d9a3115280d8f508f056063862add9e529b8143b71b",
+      "configure.rs": "884fa9c05c600d03450b15651665848e88b09cf602f86c843e55e5e1ee0a4772",
+      "src/lib.rs": "d565c5f29ae9f502edca78d536436e85bbc4b955595328a6cfd4a97c1dbbac9b",
+      "src/math/mod.rs": "c4ae2e62996ac9d7d6fdc0f7cb57ac0a815e639374b24068516ae3f092b0c59e",
+      "src/math/k_sinf.rs": "cf0e8bbe8d73a6704b7f1f710f5b9d31f190f1c633e894d4f69c4e3bc359eba3",
+      "src/math/k_cosf.rs": "8f76089d014e217b96c9eca520271e64d467dc0d6542bf313dd70eb96c040f7f",
+      "src/math/k_cos.rs": "d4867527877c846aa8e2a0b43cf06f03e2d94c321a548acaf8d5171c09ff4057",
+      "src/math/k_sin.rs": "dfe6524cb2d530ec51eb1a2ab233aeb65b3f12177c1fb2f50f044ea41170f5d8"
+    }
+  },
+  "function": {
+    "path": "math::k_sin::k_sin",
+    "source": "src/math/k_sin.rs",
+    "file_sha256": "dfe6524cb2d530ec51eb1a2ab233aeb65b3f12177c1fb2f50f044ea41170f5d8",
+    "span": {
+      "start": 2170,
+      "end": 2458
+    },
+    "sha256": "7f326ba8cb49bfb91a3a261892f34325a8c92550c2e3ab685362b40aa0d4e1df",
+    "expected": "admitted",
+    "matching": "complete selected enumeration; unlike originals need not match"
+  },
+  "constants": {
+    "S1": {
+      "decimal": "-1.66666666666666324348e-01",
+      "bits": "0xbfc5555555555549"
+    },
+    "S2": {
+      "decimal": "8.33333333332248946124e-03",
+      "bits": "0x3f8111111110f8a6"
+    },
+    "S3": {
+      "decimal": "-1.98412698298579493134e-04",
+      "bits": "0xbf2a01a019c161d5"
+    },
+    "S4": {
+      "decimal": "2.75573137070700676789e-06",
+      "bits": "0x3ec71de357b1fe7d"
+    },
+    "S5": {
+      "decimal": "-2.50507602534068634195e-08",
+      "bits": "0xbe5ae5e68a2b9ceb"
+    },
+    "S6": {
+      "decimal": "1.58969099521155010221e-10",
+      "bits": "0x3de5d93a5acfd57c"
+    }
+  },
+  "nan_authority": {
+    "path": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/primitive_docs.rs",
+    "sha256": "7f2255abc6cd81d0186c4d9bbc9bb5dfa97be5e6b000f28bc7b9ba14bec484c5",
+    "scope": "pinned aarch64/x86_64 without extra payloads",
+    "proof": "iy==0 never evaluates y: output candidates only preferred or unchanged/quieted x fraction. iy!=0: raw x enters final subtraction; raw y enters late correction subtraction; each candidate propagates independently of stable shared intermediates. Final arithmetic permits preferred/either sign. No other fraction arises."
+  },
+  "sample": {
+    "seed": "0x3c6ef372fe94f82b",
+    "directed_values": [
+      "0000000000000000",
+      "8000000000000000",
+      "0000000000000001",
+      "8000000000000001",
+      "000fffffffffffff",
+      "0010000000000000",
+      "3fe0000000000000",
+      "3fefffffffffffff",
+      "3ff0000000000000",
+      "7fefffffffffffff",
+      "7ff0000000000000",
+      "fff0000000000000",
+      "7ff0000000000001",
+      "7ff8000000000002",
+      "fff0000000000003",
+      "ffffffffffffffff"
+    ],
+    "directed_iy": [
+      0,
+      1,
+      -1,
+      -2147483648,
+      2147483647
+    ],
+    "directed_rule": "ordered x,y,iy Cartesian product plus listed extra triples",
+    "extra_triples": [
+      [
+        "3e40000000000000",
+        "3ae0000000000000",
+        0
+      ],
+      [
+        "3e40000000000000",
+        "3ae0000000000000",
+        1
+      ],
+      [
+        "3e40000000000000",
+        "bae0000000000000",
+        0
+      ],
+      [
+        "3e40000000000000",
+        "bae0000000000000",
+        1
+      ],
+      [
+        "be40000000000000",
+        "3ae0000000000000",
+        0
+      ],
+      [
+        "be40000000000000",
+        "3ae0000000000000",
+        1
+      ],
+      [
+        "be40000000000000",
+        "bae0000000000000",
+        0
+      ],
+      [
+        "be40000000000000",
+        "bae0000000000000",
+        1
+      ]
+    ],
+    "directed_count": 1288,
+    "directed_sha256": "16b7511e606eb51067fb82f24f298f75c3c62eb451377687a293d6906b9b0c2f",
+    "random_count": 4096,
+    "random_sha256": "3103f3a23b20eefa3646b9c54c667e4dffd87de07c14cbdb290b10ba1f5e6670"
+  },
+  "status": "delivered locally: unchanged original Cargo capture, exact native oracle and strict selected matching pass; native 3.66 CI pending",
+  "build": {
+    "proposed": {
+      "target": "aarch64-unknown-linux-gnu",
+      "toolchain": "nightly-2026-09-30",
+      "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+      "features": [
+        "arch",
+        "default"
+      ],
+      "edition": "2021",
+      "profile": "debug",
+      "test": false,
+      "no_std": true,
+      "ENSURE_NO_PANIC": null
+    },
+    "observed": {
+      "producer_revision": {
+        "status": "known",
+        "value": "73bba7f8e45c51a32dd91554c7e83c8d01e07619+dirty"
+      },
+      "rustc_version": {
+        "status": "known",
+        "value": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)"
+      },
+      "rustc_commit": {
+        "status": "known",
+        "value": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
+      },
+      "edition": {
+        "status": "known",
+        "value": "2021"
+      },
+      "target_triple": {
+        "status": "known",
+        "value": "aarch64-unknown-linux-gnu"
+      },
+      "pointer_width": {
+        "status": "known",
+        "value": 64,
+        "policy": {
+          "id": "compat.rust.hir-r0",
+          "version": "0.1.0"
+        }
+      },
+      "data_layout": {
+        "status": "known",
+        "value": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"
+      },
+      "cfgs": [
+        "arch_enabled",
+        "debug_assertions",
+        "feature=\"arch\"",
+        "feature=\"default\"",
+        "fmt_debug=\"full\"",
+        "overflow_checks",
+        "panic=\"unwind\"",
+        "relocation_model=\"pic\"",
+        "target_abi=\"\"",
+        "target_arch=\"aarch64\"",
+        "target_endian=\"little\"",
+        "target_env=\"gnu\"",
+        "target_family=\"unix\"",
+        "target_feature=\"neon\"",
+        "target_feature=\"outline-atomics\"",
+        "target_has_atomic",
+        "target_has_atomic=\"128\"",
+        "target_has_atomic=\"16\"",
+        "target_has_atomic=\"32\"",
+        "target_has_atomic=\"64\"",
+        "target_has_atomic=\"8\"",
+        "target_has_atomic=\"ptr\"",
+        "target_has_atomic_load_store",
+        "target_has_atomic_load_store=\"128\"",
+        "target_has_atomic_load_store=\"16\"",
+        "target_has_atomic_load_store=\"32\"",
+        "target_has_atomic_load_store=\"64\"",
+        "target_has_atomic_load_store=\"8\"",
+        "target_has_atomic_load_store=\"ptr\"",
+        "target_has_atomic_primitive_alignment=\"128\"",
+        "target_has_atomic_primitive_alignment=\"16\"",
+        "target_has_atomic_primitive_alignment=\"32\"",
+        "target_has_atomic_primitive_alignment=\"64\"",
+        "target_has_atomic_primitive_alignment=\"8\"",
+        "target_has_atomic_primitive_alignment=\"ptr\"",
+        "target_has_reliable_f128",
+        "target_has_reliable_f128_math",
+        "target_has_reliable_f16",
+        "target_has_reliable_f16_math",
+        "target_has_reliable_f16b",
+        "target_has_threads",
+        "target_object_format=\"elf\"",
+        "target_os=\"linux\"",
+        "target_pointer_width=\"64\"",
+        "target_thread_local",
+        "target_vendor=\"unknown\"",
+        "ub_checks",
+        "unix"
+      ],
+      "features": [
+        "arch",
+        "default"
+      ],
+      "overflow_checks": {
+        "status": "known",
+        "value": true
+      },
+      "debug_assertions": {
+        "status": "known",
+        "value": true
+      },
+      "panic_strategy": {
+        "status": "known",
+        "value": "unwind"
+      },
+      "opt_level": {
+        "status": "known",
+        "value": "No"
+      },
+      "package_id": "path+file:///tmp/rstyle-float-kernels-original/libm-0.2.16#libm@0.2.16",
+      "compilation_unit": "path+file:///tmp/rstyle-float-kernels-original/libm-0.2.16#libm@0.2.16:libm:test=false",
+      "definition_identity": "DefPathHash(Fingerprint(8084451329844287767, 1601057060174617792))",
+      "source_file": "/tmp/rstyle-float-kernels-original/libm-0.2.16/src/math/k_sin.rs",
+      "source_identifier": "k_sin",
+      "invocation": [
+        "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/bin/rustc",
+        "--crate-name",
+        "libm",
+        "--edition=2021",
+        "src/lib.rs",
+        "--error-format=json",
+        "--json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent",
+        "--crate-type",
+        "lib",
+        "--emit=dep-info,metadata",
+        "-C",
+        "embed-bitcode=no",
+        "-C",
+        "debuginfo=2",
+        "--warn=unexpected_cfgs",
+        "--check-cfg",
+        "cfg(feature, values(\"compiler-builtins\"))",
+        "--cfg",
+        "feature=\"arch\"",
+        "--cfg",
+        "feature=\"default\"",
+        "--check-cfg",
+        "cfg(docsrs,test)",
+        "--check-cfg",
+        "cfg(feature, values(\"arch\", \"default\", \"force-soft-floats\", \"unstable\", \"unstable-float\", \"unstable-intrinsics\", \"unstable-public-internals\"))",
+        "-C",
+        "metadata=70fc8a4f4f482499",
+        "-C",
+        "extra-filename=-50c2cc61510db5d9",
+        "--out-dir",
+        "/tmp/rstyle-float-cos-tail-natural-target/rstyle/clones/run-xENWNB/build/debug/build/libm/50c2cc61510db5d9/out",
+        "--force-warn=unused_crate_dependencies",
+        "--cfg",
+        "arch_enabled",
+        "--check-cfg",
+        "cfg(assert_no_panic)",
+        "--check-cfg",
+        "cfg(intrinsics_enabled)",
+        "--check-cfg",
+        "cfg(arch_enabled)",
+        "--check-cfg",
+        "cfg(optimizations_enabled)",
+        "--check-cfg",
+        "cfg(x86_no_sse)",
+        "--check-cfg",
+        "cfg(f16_enabled)",
+        "--check-cfg",
+        "cfg(f128_enabled)",
+        "--sysroot",
+        "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu"
+      ],
+      "unit_evidence": {
+        "report_unit": 0,
+        "namespace": {
+          "process": 3409220,
+          "epoch_nanos": 1792603686202919464,
+          "ordinal": 0
+        },
+        "bundle": "/tmp/rstyle-float-cos-tail-natural-target/rstyle/clones/run-xENWNB/invocation-gmiaX6/unit.evidence.json",
+        "function": 965
+      }
+    },
+    "status": "observed baseline context; unchanged complete original Cargo capture, k_cos excluded before activation"
+  },
+  "baseline": {
+    "revision": "c425f25",
+    "profile": "hir-data-v3 3.65",
+    "report": "/tmp/rstyle-float-cos-tail-natural-capture.json",
+    "selected_key": "function:u0:f965",
+    "selected_outcome": "excluded",
+    "selected_reasons": [
+      "Selected source has unresolved lexical expansion/import effects: Selected source item has unsupported attributes"
+    ],
+    "package_admitted": 6,
+    "package_functions": 1131,
+    "matching": "incomplete: explicit max_pairs=0; roster evidence only"
+  },
+  "current": {
+    "profile": "hir-data-v3",
+    "version": "3.66.0",
+    "outcome": "admitted",
+    "package_admitted": 7,
+    "package_functions": 1131,
+    "gains": 1,
+    "losses": 0,
+    "source_and_build_identities_unchanged": true,
+    "delta": "/tmp/rstyle-float-sin-tail-natural-delta.json",
+    "report": "/tmp/rstyle-float-sin-tail-natural-capture.json",
+    "native_oracle": "/tmp/rstyle-float-sin-tail-oracle.log",
+    "matching": "all 7 admitted libm functions strict-verified; 6 selected comparisons complete; full-library incomplete under explicit max_pairs=0",
+    "strict_log": "/tmp/rstyle-float-sin-tail-original-strict.log",
+    "matching_report": "/tmp/rstyle-float-sin-tail-original-matching.json",
+    "frozen_run": "run-008n2qyy"
+  }
+}

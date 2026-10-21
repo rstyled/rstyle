@@ -15,6 +15,7 @@ mod end_of_input;
 mod float_cos_tail;
 mod float_kernels;
 mod float_scope;
+mod float_sin_tail;
 mod indexed_helpers;
 mod iterator_position;
 mod iterator_position_corruption;

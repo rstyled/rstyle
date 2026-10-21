@@ -28,6 +28,29 @@ pub(crate) fn original_expression(
     syn::parse_str(source).map_err(|error| error.to_string())
 }
 
+/// Bind a parsed child span to the same original parent slice used by the HIR.
+pub(crate) fn verify_child_span(
+    parent: &HirNode,
+    child: &HirNode,
+    span: proc_macro2::Span,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    let source = facts
+        .source
+        .bytes
+        .get(parent.span.start as usize..parent.span.end as usize)
+        .ok_or("Missing original parent source")?;
+    let expected = ByteSpan {
+        start: parent.span.start + byte_offset(source, span.start()) as u32,
+        end: parent.span.start + byte_offset(source, span.end()) as u32,
+    };
+
+    if !corresponding_span(&facts.source.bytes, expected, child.span) {
+        return Err("Child source correspondence disagrees with its original parent".into());
+    }
+    Ok(())
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {

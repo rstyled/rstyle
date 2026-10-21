@@ -1,4 +1,5 @@
 //! Bounded IEEE scalar kernels: exact values, ordered binary64 work and narrowing.
+pub(crate) mod control;
 mod invocation;
 mod syntax;
 mod values;

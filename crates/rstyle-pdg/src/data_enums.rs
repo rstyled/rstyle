@@ -50,11 +50,7 @@ pub(crate) fn constructor(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<S
     }
 
     let source = source(node, facts)?;
-    let context = SourceContext {
-        node,
-        source,
-        facts,
-    };
+    let context = SourceContext { node, facts };
     let syntax: syn::Expr = syn::parse_str(source).map_err(|error| error.to_string())?;
     let syn::Expr::Call(call) = crate::data_aggregates::ungroup(&syntax) else {
         return Err("Enum constructor requires original call syntax".into());
@@ -107,11 +103,7 @@ pub(crate) fn matched<'a>(
     }
 
     let source = source(node, facts)?;
-    let context = SourceContext {
-        node,
-        source,
-        facts,
-    };
+    let context = SourceContext { node, facts };
     let syntax: syn::ExprMatch = syn::parse_str(source).map_err(|error| error.to_string())?;
     let scrutinee = node.children.first().ok_or("Missing enum scrutinee")?;
     let TypeToken::Enum { variants, .. } =
@@ -321,25 +313,11 @@ fn source<'a>(node: &HirNode, facts: &'a dyn EvidenceFacts) -> Result<&'a str, S
 
 struct SourceContext<'a> {
     node: &'a HirNode,
-    source: &'a str,
     facts: &'a dyn EvidenceFacts,
 }
 
 impl SourceContext<'_> {
     fn correspondence(&self, span: proc_macro2::Span, child: &HirNode) -> Result<(), String> {
-        let expected = crate::ByteSpan {
-            start: self.node.span.start
-                + crate::source_evidence::byte_offset(self.source, span.start()) as u32,
-            end: self.node.span.start
-                + crate::source_evidence::byte_offset(self.source, span.end()) as u32,
-        };
-        if !crate::source_evidence::corresponding_span(
-            &self.facts.source.bytes,
-            expected,
-            child.span,
-        ) {
-            return Err("Enum operand/pattern source correspondence disagrees".into());
-        }
-        Ok(())
+        crate::source_evidence::verify_child_span(self.node, child, span, self.facts)
     }
 }

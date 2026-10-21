@@ -24,13 +24,19 @@ fn verify_in(
     ancestors: bool,
 ) -> Result<(), String> {
     let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
+    let control = facts
+        .signature
+        .params
+        .iter()
+        .any(|parameter| parameter.ty.normalized.as_deref() == Some("i32"));
+
     for module in environment
         .modules
         .iter()
         .filter(|m| relevant(namespace, &m.namespace, ancestors))
     {
         for item in &module.items {
-            if !ancestors && shadows_float(item) {
+            if !ancestors && shadows_float(item, control) {
                 return Err("Scalar leaf primitive name has a local declaration".into());
             }
             module_item_in(item, &configuration, true)?;
@@ -61,7 +67,7 @@ fn relevant(namespace: &[String], scope: &[String], ancestors: bool) -> bool {
     namespace == scope || ancestors && namespace.starts_with(scope)
 }
 
-fn shadows_float(item: &syn::Item) -> bool {
+fn shadows_float(item: &syn::Item, control: bool) -> bool {
     let name = match item {
         syn::Item::Type(item) => &item.ident,
         syn::Item::Struct(item) => &item.ident,
@@ -72,7 +78,7 @@ fn shadows_float(item: &syn::Item) -> bool {
         syn::Item::ExternCrate(item) => item.rename.as_ref().map_or(&item.ident, |(_, name)| name),
         _ => return false,
     };
-    name == "f32" || name == "f64"
+    name == "f32" || name == "f64" || control && name == "i32"
 }
 
 fn verified_macro_import(item: &syn::Item, owner: &census::Module) -> bool {

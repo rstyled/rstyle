@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.65.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.66.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -16,8 +16,9 @@ Data-v3 3.60 adds complete fieldless flag values and verified shared Copy
 receivers through their original constructor/query helper chains. Data-v3 3.61
 adds standalone Unicode scalar literals, comparisons and literal/OR matching.
 Data-v3 3.62 connects literal character ranges and the pinned ASCII predicate;
-3.63–3.65 connects original float kernels through exact bits/constants, ordered
-arithmetic/narrowing and independently checked cfg-if module/dependency proof.
+3.63–3.66 connects original float kernels through exact bits/constants, ordered
+arithmetic/narrowing, bounded i32-controlled float alternatives and independently
+checked cfg-if module/dependency proof.
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -65,7 +66,7 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | V06 | Scalar blocks and expression tails | Covered | `{ let y = x; y }` | Normal-flow evaluation and saved operands are retained. |
 | V07 | Integer-to-integer casts | Covered | `x as u64` | Resolved built-in integer casts only. |
 | V08 | Ordinary const-function bodies | Covered | `const fn f(x: u32) -> u32 { x }` | Function qualification is supported; this is not general compile-time evaluation. |
-| V09 | Floats and floating-point operations | Partial | `x: f64`, `x / 2.0` | Standalone f32/f64, exact bits/constants, ordered f64 +/*/−, sign negation and f64→f32 narrowing connect the [original float kernels](docs/extraction-profiles/float-kernels-v1.md) through Data-v3 3.65; comparisons, division, f32 binary arithmetic and nested floats remain unsupported. |
+| V09 | Floats and floating-point operations | Partial | `x: f64`, `x / 2.0` | Standalone f32/f64, exact bits/constants, ordered f64 +/*/−, sign negation and f64→f32 narrowing connect the [original float kernels](docs/extraction-profiles/float-kernels-v1.md) through Data-v3 3.66, including exhaustive float alternatives under checked i32 equality; comparisons, division, f32 binary arithmetic and nested floats remain unsupported. |
 | V10 | Character values and operations | Partial | `c: char`, `'a'` | Data-v3 3.61 supports standalone Unicode scalar interfaces/locals, exact literals, builtin comparisons and literal/OR/wildcard matching through verified helpers; see [character contract](docs/extraction-profiles/character-leaf-v1.md). Data-v3 3.62 adds literal ranges and the pinned ASCII predicate through the [escape classifier](docs/extraction-profiles/character-escapes-v1.md); other casts/APIs and structured character types remain deferred. |
 | V11 | Additional built-in casts/coercions | Partial | `flag as u8`, `x as f32` | Builtin f64→f32 narrowing has a bounded contract; bool/char and other float conversions remain unsupported; pointer casts belong to unsafe work. |
 | V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Data-v3 3.33.0 additionally verifies the original top-level local `const usize = core::mem::size_of::<usize>()` for [native byte readers](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.56 adds [owned local const-built bool arrays](docs/extraction-profiles/word-byte-classifiers-v1.md) with complete evaluated contents and lossless unsigned index bounds. Other aggregates and nonlocal/generic/trait constants remain missing. |
@@ -206,7 +207,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Standard assertions have a bounded dedicated contract (F14); general expansion support remains missing. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Data-v3 3.45.0 adds [closed local import scopes](docs/extraction-profiles/scoped-import-flag-owners-v1.md) and checked Copy value helper reads, connecting original Epsilons constructor/getter methods in the complete regex-automata library. Data-v3 3.47.0 reuses those source/Copy proofs for complete finite scalar enum declarations, admitting original Unit constructors/projections beside their unchanged derives and custom Debug impl. Data-v3 3.58 adds borrowed-only owners with independently checked Copy child structs; see [ASCII boundaries](docs/extraction-profiles/ascii-boundaries-v1.md). Data-v3 3.64 narrows ancestor namespace checks only for exhaustively proved call-free float leaves; general nominal import restrictions remain unchanged. Non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Data-v3 3.45.0 adds [closed local import scopes](docs/extraction-profiles/scoped-import-flag-owners-v1.md) and checked Copy value helper reads, connecting original Epsilons constructor/getter methods in the complete regex-automata library. Data-v3 3.47.0 reuses those source/Copy proofs for complete finite scalar enum declarations, admitting original Unit constructors/projections beside their unchanged derives and custom Debug impl. Data-v3 3.58 adds borrowed-only owners with independently checked Copy child structs; see [ASCII boundaries](docs/extraction-profiles/ascii-boundaries-v1.md). Data-v3 3.64–3.66 narrows ancestor namespace checks only for exhaustively proved call-free float leaves, including bounded i32 control dependencies; general nominal import restrictions remain unchanged. Non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
@@ -4023,10 +4024,33 @@ lz4_flex8/150 and time-core11/226 remain unchanged. Run `run-6qkc6ea9` versus
 **rstyle0/3175, patterns0 unignored**, ignores unchanged. Three-target × std/no_std
 composition, resealed semantic attacks and historical-policy rejection pass.
 All **64 original admissions** strict-verify; **nine selected comparisons** complete.
-Native CI for3.65 is pending;3.64 passes all three runners. Automata was not
+Native CI for3.65 passes Linux x86, Linux ARM and macOS (run39646408115). Automata was not
 remeasured; full-library matching remains budget-limited.
 
 Next: original `k_sin` needs exact i32 equality and exhaustive float-result
 branches. Borrowed `Input` getters still need complete mixed-enum owner proof,
 lifetime-only callable ownership and stored-slot/referent origin distinction.
 The broader P01–P22 roadmap remains active; evidence stays in implementation commits.
+
+### Data-v3 3.66: original sine tail with checked scalar guards
+
+[Contract](docs/extraction-profiles/float-kernels-v1.md): exact i32 formal/literal
+equality and complete float-valued alternatives connect original `k_sin`'s six
+coefficients and ordered arithmetic. Libm **6→7/1131**, exactly one gain, zero
+losses; all source/build identities match. All7 admissions strict-verify; six
+selected comparisons complete. Independent original native oracle: **5384 inputs**.
+Three-target × std/no_std composition and resealed guard/source/binding/merge
+attacks pass; unsupported effects in either branch remain closed.
+
+**986 tests /5 existing skips**, doctests/fmt/Clippy pass; **rstyle0/3186,
+patterns0 unignored**, ignores unchanged. Frozen run `run-008n2qyy` versus3.65
+`run-6qkc6ea9` retains23 admitted /30 excluded /7 inactive and unchanged package
+rosters. All **65 original admissions** strict-verify; **12 selected comparisons**
+complete across the package replays. Identity comparison and replay logs are retained under
+`/tmp/rstyle-float-sin-tail-*`. Native3.65 CI passes all three runners;3.66 is
+pending. Full-library matching remains budget-limited; automata was not remeasured.
+
+Next shared blocker: complete borrowed `Input` ownership, starting with original
+`get_earliest`. Its mixed `Anchored` child needs explicit unit/single-tuple shapes
+and nested Copy `repr(transparent)` wrappers before lifetime-only callable proof.
+Stored-reference results and caller substitution follow that coherent owner boundary.

@@ -83,7 +83,7 @@ Follow-up controls finished: copy/cyclic 0.62→0.62s; ASCII 0.84→0.88s; flags
 | P08 saved checked / B | Source audit blocked: smallest located natural chain requires generics, let-else, Result/?, closures and borrowed aggregates. Scalar Result alternative additionally requires char/tables and binary-search protocol. No isolated vocabulary activation. |
 | P06 borrowed result / C | Input::haystack → is_char_boundary → utf8::is_boundary needs lifetime-only callable ownership, stored-reference fields, complete mixed Anchored child and distinct slot reads/result origins. |
 | P05 ownership / D | No tractable residual path/cfg positive found; no census redesign justified. Callable lifetime proof needs driver implementation/direct-callee and independent selected-impl/member gates together. Nominal lifetime capture exists; stored-reference/mixed-child/result-origin proof remains separate. |
-| P02 floats / lead | Data3.65 adds original k_cos through capability-gated ordered f64 subtraction; libm5→6/1131, zero losses, all6 strict-verify/three comparisons complete. Independent oracle4352 inputs. Next k_sin needs exact i32 equality and exhaustive float-result branches; existing merge/return plumbing appears reusable, pending full capture. |
+| P02 floats / lead | Data3.66 completes original k_sin with exact immutable i32 equality and complete float alternatives; libm6→7/1131, zero losses, all7 strict-verify/six selected comparisons complete. Independent original oracle5384 inputs; three-target × std/no_std composition and resealed guard/merge/source attacks pass. |
 
 Contracts: [character](extraction-profiles/character-leaf-v1.md),
 [checked consumption](extraction-profiles/saved-checked-consumption-v1.md),
@@ -94,19 +94,21 @@ Contracts: [character](extraction-profiles/character-leaf-v1.md),
 
 ## Resume order
 
-Data3.65 local gates pass:980 tests/5 skips, fmt/Clippy/doctests,
-rstyle0/3175 and patterns0 unignored. Frozen run `run-6qkc6ea9` versus3.64
-`run-qqq32cfl` preserves every source/build identity and denominator; zero package
-gains/losses. All64 original admissions strict-verify; nine selected comparisons
-complete. Native3.64 passes Linux x86/ARM/macOS;3.65 CI pending.
+Data3.66 passes986 tests/5 existing skips, doctests/fmt/Clippy,
+rstyle0/3186 and patterns0 unignored. Complete libm7/1131, zero losses against3.65;
+all7 strict-verify/six selected comparisons complete. Frozen replay is recorded
+in the root roadmap. Native3.65 passes Linux x86/ARM/macOS (run39646408115).
 
-Next ready audit: complete original `k_sin`. Bound source proof to checked i32
-control-only input/equality and exhaustive equal-float-type alternatives. Test
-condition/guard/merge/return corruption and branch-local poison. Its oracle must
-exclude y entirely when iy==0; the other branch permits either raw NaN payload.
-No new float comparison, call or ownership transport is justified. Independent
-read-only audits A/C agree on this dependency chain; lead owns production/shared
-integration, A may own oracle/selection and D focused Cargo tests at activation.
-B remains at the checked-value source-audit frontier. Borrowed-result and complete
-mixed-owner prerequisites above remain open. Fold concise evidence into semantic
-implementation commits; no standalone documentation checkpoint.
+Next complete original target: `Input::get_earliest`, a bool read from the borrowed
+Clone-only owner, independent of haystack/span/anchored values. First prove the
+complete mixed `Anchored` child and nested Copy wrappers, including their exact
+`repr(transparent)` attributes. Preserve the historical enum wire; any new mixed
+form needs a mandatory explicit `Unit | SingleTuple` shape, with no absent-payload
+inference. Then connect stored-slice owner and lifetime-only callable proofs.
+Do not activate enum construction/matching or owned Input consumption incidentally.
+After that boundary, `haystack` needs distinct stored-slot reads and referent/result
+origins before `is_char_boundary` can compose. C's source audit names these concrete
+prerequisites; lead owns shared type/source/policy integration. A/D may own bounded
+oracle/test leaves after interfaces settle; B remains at the checked-value audit
+frontier. Fold concise evidence into implementation commits, without separate
+documentation checkpoints. The broader P01–P22 roadmap remains active.
