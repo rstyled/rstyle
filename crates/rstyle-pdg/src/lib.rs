@@ -9,6 +9,7 @@
 
 pub(crate) mod bitset_cardinality;
 pub mod bool_constants;
+mod builtin_scalars;
 pub mod byte_literals;
 pub mod call_summaries;
 pub mod cfg;
@@ -46,6 +47,7 @@ mod evidence_budget;
 pub mod extraction_profile;
 pub mod field_locations;
 mod fieldless_enums;
+pub mod float_scalars;
 pub mod frontend;
 pub mod helper_calls;
 mod helper_normal_flow;

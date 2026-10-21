@@ -2,18 +2,7 @@
 use super::*;
 use crate::{producer::PairView, size_calls, unit_store::EvidenceFacts};
 
-pub(super) fn install(mut pair: Pair, facts: &dyn EvidenceFacts) -> Result<Pair, String> {
-    for source in sources(facts) {
-        let node = super::serialized_operation_mut(&mut pair, source)?;
-        node.annotations.insert(
-            size_calls::KEY.into(),
-            size_calls::semantics(source, facts)?,
-        );
-    }
-    Ok(pair)
-}
-
-fn sources(facts: &dyn EvidenceFacts) -> Vec<&crate::HirNode> {
+pub(super) fn sources(facts: &dyn EvidenceFacts) -> Vec<&crate::HirNode> {
     crate::field_locations::selected_operations(facts, &["expr_call"], size_calls::candidate)
 }
 

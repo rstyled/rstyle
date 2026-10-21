@@ -35,6 +35,7 @@ pub fn symbol(id: HirId) -> String {
 pub fn resolved(ty: Ty<'_>, spelling: String) -> ResolvedTy {
     let normalized = match ty.kind() {
         ty::Int(_) | ty::Uint(_) | ty::Bool | ty::Char => Some(ty.to_string()),
+        ty::Float(ty::FloatTy::F32 | ty::FloatTy::F64) => Some(ty.to_string()),
         ty::Tuple(types) if types.is_empty() => Some("unit".to_string()),
         _ => None,
     };
@@ -311,37 +312,42 @@ impl<'tcx> Context<'tcx> {
 
     fn expression_fields(&self, expr: &Expr<'tcx>, node: HirNode) -> HirNode {
         let children = self.children(expr);
-        let res = self.option_expression(expr).or_else(|| match expr.kind {
-            ExprKind::Call(callee, _) => self.direct_callee(callee),
-            ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => {
-                self.field_resolution(expr, base)
-            }
-            ExprKind::Path(_) if node.kind == "expr_struct" => None,
-            ExprKind::Path(ref path) => self.path_resolution(expr, path),
-            ExprKind::MethodCall(..) => self.method_callee(expr),
-            ExprKind::Index(..) if self.profile.is_data() => self.method_callee(expr),
-            ExprKind::Struct(path, ..) if self.range_desugaring(expr) => {
-                match self.typeck.qpath_res(path, expr.hir_id) {
-                    Res::Def(_, definition) => {
-                        let mut resolution = self.library_callee(definition);
-                        resolution.kind = "resolved_range_type".into();
-                        Some(resolution)
+        let res = self
+            .float_literal(expr)
+            .or_else(|| self.option_expression(expr))
+            .or_else(|| match expr.kind {
+                ExprKind::Call(callee, _) => self.direct_callee(callee),
+                ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => {
+                    self.field_resolution(expr, base)
+                }
+                ExprKind::Path(_) if node.kind == "expr_struct" => None,
+                ExprKind::Path(ref path) => self.path_resolution(expr, path),
+                ExprKind::MethodCall(..) => self.method_callee(expr),
+                ExprKind::Index(..) if self.profile.is_data() => self.method_callee(expr),
+                ExprKind::Struct(path, ..) if self.range_desugaring(expr) => {
+                    match self.typeck.qpath_res(path, expr.hir_id) {
+                        Res::Def(_, definition) => {
+                            let mut resolution = self.library_callee(definition);
+                            resolution.kind = "resolved_range_type".into();
+                            Some(resolution)
+                        }
+                        _ => None,
                     }
-                    _ => None,
                 }
-            }
-            ExprKind::Break(destination, _) | ExprKind::Continue(destination) => Some(PathRes {
-                kind: if destination.label.is_none() {
-                    "innermost_loop"
-                } else {
-                    "labelled_loop"
+                ExprKind::Break(destination, _) | ExprKind::Continue(destination) => {
+                    Some(PathRes {
+                        kind: if destination.label.is_none() {
+                            "innermost_loop"
+                        } else {
+                            "labelled_loop"
+                        }
+                        .into(),
+                        target: destination.target_id.ok().map(reference),
+                        description: "Compiler-resolved loop exit destination".into(),
+                    })
                 }
-                .into(),
-                target: destination.target_id.ok().map(reference),
-                description: "Compiler-resolved loop exit destination".into(),
-            }),
-            _ => None,
-        });
+                _ => None,
+            });
         let lit = matches!(expr.kind, ExprKind::Lit(_)).then(|| self.snippet(expr.span));
         let is_unsafe_block = matches!(expr.kind, ExprKind::Block(block, _) if matches!(block.rules, hir::BlockCheckMode::UnsafeBlock(_)));
 

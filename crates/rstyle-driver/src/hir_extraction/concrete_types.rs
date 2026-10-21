@@ -213,6 +213,11 @@ impl<'tcx> Capture<'_, 'tcx> {
             ty::Char if depth == 0 && self.ctx.profile.supports("rust.character-scalars") => {
                 Ok(TypeTree::Scalar("char".into()))
             }
+            ty::Float(ty::FloatTy::F32 | ty::FloatTy::F64)
+                if depth == 0 && self.ctx.profile.supports("rust.float-kernel-scalars") =>
+            {
+                Ok(TypeTree::Scalar(ty.to_string()))
+            }
             ty::Tuple(elements) if elements.is_empty() => Ok(TypeTree::Scalar("unit".into())),
             ty::Str => Ok(TypeTree::Str),
             _ => self.composite(ty, depth),

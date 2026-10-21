@@ -15,7 +15,9 @@ pub fn evidence(
         .value
         .ok_or("Missing cast target width")?;
     let casts = graph.nodes.iter().filter(|node| {
-        node.original_kind == "expr_cast" && node.category == crate::NodeCategory::Computation
+        node.original_kind == "expr_cast"
+            && node.category == crate::NodeCategory::Computation
+            && !matches!(node.ty.as_str(), "f32" | "f64")
     });
     let records: Result<Vec<_>, String> = casts
         .map(|node| {

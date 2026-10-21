@@ -62,9 +62,9 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | V06 | Scalar blocks and expression tails | Covered | `{ let y = x; y }` | Normal-flow evaluation and saved operands are retained. |
 | V07 | Integer-to-integer casts | Covered | `x as u64` | Resolved built-in integer casts only. |
 | V08 | Ordinary const-function bodies | Covered | `const fn f(x: u32) -> u32 { x }` | Function qualification is supported; this is not general compile-time evaluation. |
-| V09 | Floats and floating-point operations | Missing | `x: f64`, `x / 2.0` | Type, literal, operation, and comparison semantics; NaNs, signed zero, and casts must not be treated as integer semantics. |
+| V09 | Floats and floating-point operations | Partial | `x: f64`, `x / 2.0` | Standalone f32/f64, exact bits, f64 +/* and sign negation have a bounded contract; comparisons, other arithmetic and nested floats remain unsupported. |
 | V10 | Character values and operations | Partial | `c: char`, `'a'` | Data-v3 3.61 supports standalone Unicode scalar interfaces/locals, exact literals, builtin comparisons and literal/OR/wildcard matching through verified helpers; see [character contract](docs/extraction-profiles/character-leaf-v1.md). Ranges, casts, APIs and structured character types remain deferred. |
-| V11 | Additional built-in casts/coercions | Missing | `flag as u8`, `x as f32` | Bool/char/float conversions are outside the current integer-cast boundary; pointer casts belong to unsafe work. |
+| V11 | Additional built-in casts/coercions | Partial | `flag as u8`, `x as f32` | Builtin f64→f32 narrowing has a bounded contract; bool/char and other float conversions remain unsupported; pointer casts belong to unsafe work. |
 | V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Data-v3 3.33.0 additionally verifies the original top-level local `const usize = core::mem::size_of::<usize>()` for [native byte readers](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.56 adds [owned local const-built bool arrays](docs/extraction-profiles/word-byte-classifiers-v1.md) with complete evaluated contents and lossless unsigned index bounds. Other aggregates and nonlocal/generic/trait constants remain missing. |
 | V13 | General const expressions and const blocks | Missing | `[u8; N + 1]`, `const { 1 + 2 }` | General array expressions remain missing. Data-v3 3.33.0 permits one verified local native-size constant as a byte-array annotation length; arithmetic lengths and const blocks remain unsupported. Const fn support does not authorize these. |
 | V14 | Uninitialized locals / definite assignment | Missing | `let x; x = 1; x` | Declaration without initializer is currently rejected. |
@@ -3948,3 +3948,33 @@ bits/constants, ordered arithmetic and f64→f32 narrowing. Its independent4202-
 oracle passes; actual full Cargo context is captured, with both kernels excluded
 before production activation. The
 broader P01–P22 roadmap and borrowed-result/Result/ownership blockers remain active.
+
+
+### Data-v3 3.63: bounded float foundation; original activation pending
+
+[Contract](docs/extraction-profiles/float-kernels-v1.md): standalone f32/f64,
+exact literal/same-module constant bits, ordered f64 +/*, sign negation and
+f64→f32 narrowing. Diagnostic composition spans three targets × std/no_std,
+strict verification, historical-policy and resealed semantic attacks. General
+float arithmetic/comparisons, nested floats and integer conversions remain closed.
+
+Full unchanged original libm selection: **1/1131 admitted → unchanged**, zero
+losses. Both selected kernels reach a previously hidden source-boundary blocker:
+local `cfg_if!` invocations own21 module files that the closed census cannot yet
+prove. No file is omitted or macro authorized. Next: bounded module-only cfg-if
+ownership evidence (P22/P05), then repeat original strict admission/matching.
+The independent4202-input oracle passes; diagnostic admission does not complete
+the original family. This is the first foundational increment for this chain.
+
+Validation: **955 tests passed /5 existing skips**, doctests, formatting and
+workspace all-target Clippy (`-D warnings`) pass. **Rstyle0 /3119 functions;
+patterns0 unignored**, existing ignore ledger unchanged. Frozen60 remains
+**23 admitted /30 excluded /7 inactive**; complete package comparisons preserve
+syntax39/956, lz4_flex8/150 and time-core11/226 with zero gains/losses. Automata
+was not remeasured. Retained frozen run: `run-bgyl78v2` versus3.62 `run-15rr9we7`.
+
+Equal-work3.60→3.63 controls (warmup +7 alternating samples): medians Copy
+0.63→0.63s, cyclic0.62→0.62s, ASCII0.85→0.88s, flags8.00→7.97s. Admissions and
+matching are unchanged. This combines3.61–3.63; it does not isolate float cost.
+Ranges/RSS: `/tmp/rstyle-float-performance.log` and
+`/tmp/rstyle-float-foundation-performance-results.json`.

@@ -190,6 +190,12 @@ fn selected_expression(
         ast::ExprKind::Lit(literal) if literal.kind == ast::token::LitKind::Char => {
             profile.supports(rstyle_pdg::character_scalars::CAPABILITY) && literal.suffix.is_none()
         }
+        ast::ExprKind::Lit(literal) if literal.kind == ast::token::LitKind::Float => {
+            profile.supports("rust.float-kernel-scalars")
+                && literal
+                    .suffix
+                    .is_none_or(|suffix| matches!(suffix.as_str(), "f32" | "f64"))
+        }
         ast::ExprKind::Lit(literal) if literal.kind == ast::token::LitKind::Byte => {
             profile.supports(rstyle_pdg::byte_literals::CAPABILITY) && literal.suffix.is_none()
         }

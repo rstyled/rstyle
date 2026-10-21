@@ -12,6 +12,7 @@ mod character_ascii;
 mod checked_options;
 mod conditional_payloads;
 mod fieldless_enums;
+mod float_scalars;
 mod index_reads;
 mod indirect_reads;
 mod iterator_position;
@@ -45,7 +46,31 @@ pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result
     install_evidence(&mut pair.pdg, facts)?;
     origins::install(&mut pair, facts)?;
 
-    size_calls::install(pair, facts)
+    let pair = install_annotations(
+        pair,
+        size_calls::sources(facts),
+        crate::size_calls::KEY,
+        |source| crate::size_calls::semantics(source, facts),
+    )?;
+    install_annotations(
+        pair,
+        float_scalars::sources(facts),
+        crate::float_scalars::KEY,
+        |source| crate::float_scalars::semantics(source, facts),
+    )
+}
+
+fn install_annotations<'a>(
+    mut pair: Pair,
+    sources: impl IntoIterator<Item = &'a crate::HirNode>,
+    key: &str,
+    semantics: impl Fn(&crate::HirNode) -> Result<serde_json::Value, String>,
+) -> Result<Pair, String> {
+    for source in sources {
+        let node = serialized_operation_mut(&mut pair, source)?;
+        node.annotations.insert(key.into(), semantics(source)?);
+    }
+    Ok(pair)
 }
 
 fn install_locations(
@@ -248,6 +273,7 @@ pub fn verify<'a>(
     let calls = crate::field_locations::operations(&facts.body, &["expr_call", "expr_method_call"]);
     scalar_from::verify(pair, facts, &calls)?;
     character_ascii::verify(pair, facts, &calls)?;
+    float_scalars::verify(pair, facts)?;
     bitset_cardinality::verify(pair, facts, &calls)?;
     assertions::verify(pair, facts)?;
     size_calls::verify(pair, facts)?;

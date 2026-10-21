@@ -46,19 +46,16 @@ fn verify_literal(node: &HirNode, source: &str) -> Result<(), String> {
 }
 
 pub(crate) fn comparison(node: &HirNode) -> Result<(), String> {
-    let [left, right] = node.children.as_slice() else {
+    let [_, _] = node.children.as_slice() else {
         return Err("Character comparison requires two saved operands".into());
     };
-    if normalized(left) != Some("char")
-        || normalized(right) != Some("char")
-        || normalized(node) != Some("bool")
-        || node.kind != "expr_binary"
-        || !node.dispatch.as_ref().is_some_and(|dispatch| {
-            dispatch.kind == "builtin"
-                && ["==", "!=", "<", "<=", ">", ">="].contains(&dispatch.op.as_str())
-                && dispatch.operand_tys == ["char", "char"]
-                && dispatch.result_ty == "bool"
-        })
+    if node.kind != "expr_binary"
+        || !crate::builtin_scalars::matches(
+            node,
+            &["char", "char"],
+            "bool",
+            &["==", "!=", "<", "<=", ">", ">="],
+        )
     {
         return Err(
             "Character comparison requires exact builtin char operands and bool result".into(),

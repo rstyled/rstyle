@@ -3,7 +3,7 @@
 use crate::{HirNode, extraction_profile::ExtractionProfile, unit_store::EvidenceFacts};
 
 pub(crate) fn supported(token: &str, profile: ExtractionProfile) -> bool {
-    token != "char"
+    !matches!(token, "char" | "f32" | "f64")
         && !crate::concrete_types::scalar(token)
         && (profile.supports("rust.local-aggregate-values")
             || profile.supports("rust.shared-reference-locals")

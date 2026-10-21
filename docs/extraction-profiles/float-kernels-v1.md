@@ -1,8 +1,8 @@
 # Original float kernels: acceptance contract v1
 
-Status: source-selected P02 family; independent native oracle validated, production
-not activated. Full original Cargo context is now captured; both kernels remain
-excluded before activation.
+Status: Data-v3 3.63 implements the bounded float foundation. Diagnostic
+composition admits; the selected original family remains blocked by module
+ownership proof. Full-original capture has zero gains and zero losses (1/1131).
 
 ## Original selection and context
 
@@ -23,18 +23,18 @@ default/arch features, native aarch64 Linux, nightly-2026-09-30 commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`, debug/unoptimized, overflow checks,
 unwind, `ENSURE_NO_PANIC` absent. Actual cfgs, package/unit/definition identities and invocation are retained in
 the selection: `arch_enabled` present, `assert_no_panic` absent. The conditional
-attribute is inactive; no general macro exception is needed. Later no-default/x86 Linux/ARM macOS contexts need their
+attribute is inactive. Separate module-owning `cfg_if!` invocations remain a blocker. Later no-default/x86 Linux/ARM macOS contexts need their
 own evidence. Frozen sixty identities/denominators remain unchanged.
 
 ## Complete known blocker chain and bounded semantics
 
 1. Independently prove width-distinct standalone f32/f64 interfaces/locals and
    original literals. Driver `supported_literal`, HIR normalization and concrete
-   observation all exclude floats today. Preserve exact bit strings, negative
+   observation excluded floats at the baseline. Preserve exact bit strings, negative
    zero and spelling; no JSON floating numbers, nested floats or scalar() widening.
 2. Prove all eight same-module f64 constants S1..S4/C0..C3 from original literal
    and unary-minus declarations, rustc evaluation and independently rounded bits.
-   Current `ScalarConstant::value_valid` is integer/bool-only. Reuse exact source
+   The baseline constant validator was integer/bool-only. Reuse exact source
    and unit authority; no general const expressions, imports or familiar names.
 3. Preserve source-ordered binary64 multiplication/addition and saved operands:
    k_sinf has eight multiplications/four additions, k_cosf seven/four. Round at
@@ -47,10 +47,9 @@ own evidence. Frozen sixty identities/denominators remain unchanged.
    Historical policies must reject. Matching stays structural under unchanged
    scoring; neither numerical equivalence nor rewrite safety follows.
 
-Integration audit: `producer/casts.rs` currently classifies every cast as integer;
-float narrowing needs separate evidence. `producer/hazards.rs` treats non-bool
-`+/*` as integer arithmetic; restrict this to exact integer domains before float
-activation. Constant declaration name/type checks do not prove value equality;
+Implementation separates float narrowing from integer casts and restricts
+arithmetic hazard propagation to exact integer types. Assertion hazard handling
+remains independent of the unit result type. Constant declaration name/type checks do not prove value equality;
 independently parse original decimal/unary-minus source and compare width-specific
 bits. Existing ordered operand flow can be reused without a new inventory.
 
@@ -102,11 +101,30 @@ Baseline full-original capture completes all assessment/enumeration/evaluation
 ledgers: **1 admitted /1130 excluded**, both selected kernels excluded. Rejections
 confirm float types, arithmetic, unresolved constant reads and integer-only casts;
 no additional source-boundary rejection was observed. Raw report and compact
-audit paths are retained in the selection. Literal/constant HIR bit transport
-still needs the declared implementation and independent checks.
+audit paths are retained in the selection. This baseline predates literal/constant HIR bit transport and its independent checks.
 
-Delivery still requires connected constants/arithmetic/narrowing activation,
-adversarial source/type/bits/operand/order/policy cases, full-original capture,
-strict retained-unit replay, complete selected matching, unchanged-selection
-measurements and all integrated quality/performance gates. Source and oracle
-readiness alone are not support.
+The implementation connects standalone float interfaces/literals, exact owned
+constants, binary64 addition/multiplication, f32/f64 sign negation and f64→f32
+narrowing. It checks source order, saved values, bit widths, NaN interpretation,
+policy and ordinary codegen; historical 3.62 and backend overrides reject.
+Diagnostic selection: 14 admitted /14 excluded, 91 complete comparisons across
+three targets × std/no_std; these are composition tests, not original acceptance.
+
+Full-original measurement preserves all 1131 identities/build contexts:
+**1 admitted /1130 excluded → unchanged**, both selected kernels excluded with
+`Orphan source file prevents closed selected-unit proof`. The existing census
+retains140 files, including20 generic files and the aarch64 architecture module
+owned through local `cfg_if!` invocations. The ordinary module walker cannot prove
+these declarations. No buffer is omitted and no macro permission is invented.
+Next prerequisite: bounded first-match cfg-if module ownership, exact local macro
+definition/invocation linkage and inactive/unknown evidence (P22/P05). Until then,
+this foundation advances the float blocker chain without completing the family.
+Evidence: `/tmp/rstyle-float-kernels-delivery-capture.json`,
+`/tmp/rstyle-float-natural-delta.json` (zero changes). Strict original matching
+remains pending admission; diagnostic strict verification is a separate result.
+
+Integrated validation: 955 tests pass /5 existing skips; doctests, fmt and
+workspace all-target Clippy pass; rstyle0/3119, patterns0 unignored. Frozen60 and
+all three reproduced package selections have zero admission changes against
+3.62 (`run-bgyl78v2` versus `run-15rr9we7`). Native three-platform CI is separate
+from the local three-target capture/composition checks and remains pending push.

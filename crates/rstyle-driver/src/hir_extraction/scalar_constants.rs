@@ -79,11 +79,17 @@ impl Context<'_> {
             )
             .ok()?;
         let token = resolved(ty, String::new()).normalized?;
+        let evaluated = self.tcx.const_eval_poly(definition).ok()?;
+        let value = if matches!(ty.kind(), ty::Float(_)) {
+            self.float_constant_value(definition, ty, evaluated)?
+        } else {
+            constant_value(evaluated, ty)?
+        };
         let constant = ScalarConstant {
             definition: self.tcx.def_path_str(definition),
             declaration: self.constant_declaration(definition)?,
             ty: token,
-            value: constant_value(self.tcx.const_eval_poly(definition).ok()?, ty)?,
+            value,
         };
 
         Some(PathRes {

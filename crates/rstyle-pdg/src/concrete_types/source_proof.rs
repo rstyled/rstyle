@@ -129,11 +129,11 @@ fn path_proof(
         && path.path.segments.len() == 1
     {
         let token = path.path.segments[0].ident.to_string();
-        if token == "char" {
+        if matches!(token.as_str(), "char" | "f32" | "f64") {
             return if *tree == TypeTree::Scalar(token) {
                 Ok(())
             } else {
-                Err("Character spelling contradicts its Unicode scalar observation".into())
+                Err("Standalone scalar spelling contradicts its resolved observation".into())
             };
         }
         if (super::scalar(&token) && token != "unit") || token == "str" {

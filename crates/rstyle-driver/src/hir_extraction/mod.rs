@@ -6,6 +6,7 @@ mod callbacks;
 mod concrete_types;
 pub mod diagnostics;
 mod evidence;
+mod float_scalars;
 mod hir;
 mod inherent;
 mod library_resolution;

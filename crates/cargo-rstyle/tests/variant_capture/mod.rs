@@ -11,6 +11,7 @@ mod character_ranges;
 mod classifiers;
 mod corruption;
 mod end_of_input;
+mod float_kernels;
 mod indexed_helpers;
 mod iterator_position;
 mod iterator_position_corruption;

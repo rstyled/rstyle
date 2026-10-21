@@ -122,7 +122,7 @@ pub fn token(tree: &TypeTree) -> Result<String, String> {
 }
 
 pub fn parse(text: &str) -> Result<TypeToken, String> {
-    if scalar(text) || text == "char" {
+    if scalar(text) || matches!(text, "char" | "f32" | "f64") {
         return Ok(TypeToken::Scalar(text.into()));
     }
     if text.len() > crate::concrete_types::MAX_SOURCE_BYTES {
@@ -142,6 +142,9 @@ pub(crate) fn parse_for(
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
+    if matches!(text, "f32" | "f64") && !profile.supports(crate::float_scalars::CAPABILITY) {
+        return Err("Float scalars require their registered capability".into());
+    }
     if text == "char" && !profile.supports(crate::character_scalars::CAPABILITY) {
         return Err("Character scalars require their registered capability".into());
     }
@@ -199,7 +202,11 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
     }
 
     match token {
-        TypeToken::Scalar(value) if scalar(value) || depth == 0 && value == "char" => Ok(()),
+        TypeToken::Scalar(value)
+            if scalar(value) || depth == 0 && matches!(value.as_str(), "char" | "f32" | "f64") =>
+        {
+            Ok(())
+        }
         TypeToken::Tuple(values) => {
             for value in values {
                 check(value, depth + 1, entries)?;
@@ -215,18 +222,7 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
                 && !variants.is_empty()
                 && variants.len() <= crate::concrete_types::MAX_FIELDS =>
         {
-            let names: std::collections::BTreeSet<_> =
-                variants.iter().map(|(name, _)| name).collect();
-            let values: std::collections::BTreeSet<_> =
-                variants.iter().map(|(_, value)| value).collect();
-            if names.len() == variants.len()
-                && values.len() == variants.len()
-                && names.iter().all(|name| !name.is_empty())
-            {
-                Ok(())
-            } else {
-                Err("Fieldless enum repeats or lacks a variant".into())
-            }
+            check_fieldless_variants(variants)
         }
         TypeToken::IntConversionResult(value) if matches!(value.as_str(), "usize" | "u16") => {
             Ok(())
@@ -242,6 +238,19 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         } if valid_nominal(token) => check_nominal_fields(fields, depth, entries),
         // Admission additionally requires independently verified nominal source/effects.
         _ => Err("Data type token lacks a registered concrete proof".into()),
+    }
+}
+
+fn check_fieldless_variants(variants: &[(String, i64)]) -> Result<(), String> {
+    let names: std::collections::BTreeSet<_> = variants.iter().map(|(name, _)| name).collect();
+    let values: std::collections::BTreeSet<_> = variants.iter().map(|(_, value)| value).collect();
+    if names.len() == variants.len()
+        && values.len() == variants.len()
+        && names.iter().all(|name| !name.is_empty())
+    {
+        Ok(())
+    } else {
+        Err("Fieldless enum repeats or lacks a variant".into())
     }
 }
 

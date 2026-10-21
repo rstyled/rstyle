@@ -244,7 +244,14 @@ impl Builder<'_> {
 
     fn literal(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let mut operation = template(node, NodeCategory::Computation);
-        operation.literal = Some(node.lit.clone().unwrap_or_else(|| "()".to_string()));
+        operation.literal = Some(if crate::float_scalars::computation(node) {
+            operation.construct = crate::float_scalars::construct(node).map(str::to_string);
+            crate::float_scalars::literal(node, self.facts)
+                .expect("verified float literal")
+                .bits
+        } else {
+            node.lit.clone().unwrap_or_else(|| "()".to_string())
+        });
 
         self.emit(operation, flow)
     }
@@ -279,7 +286,11 @@ impl Builder<'_> {
         .expect("verified scalar constant");
         let operation = Operation {
             literal: Some(constant.value),
-            construct: Some("constant.value".into()),
+            construct: Some(if crate::float_scalars::is_float(&constant.ty) {
+                crate::float_scalars::CONSTANT.into()
+            } else {
+                "constant.value".into()
+            }),
             ..template(node, NodeCategory::Computation)
         };
 
@@ -683,7 +694,9 @@ impl Builder<'_> {
         };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
-            construct: if crate::character_ascii::candidate(node, self.facts) {
+            construct: if let Some(construct) = crate::float_scalars::construct(node) {
+                Some(construct.into())
+            } else if crate::character_ascii::candidate(node, self.facts) {
                 Some(crate::character_ascii::CONSTRUCT.into())
             } else if crate::fieldless_enums::cast_candidate(node, self.facts) {
                 Some(crate::fieldless_enums::CAST.into())

@@ -12,6 +12,7 @@ impl PathResolution for Unresolved {
 
 pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     crate::character_scalars::verify_function(facts)?;
+    crate::float_scalars::verify_function(facts)?;
     let interface = interface(facts)?;
     let source: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
@@ -435,6 +436,7 @@ fn verify_value_operations(
 
     crate::byte_literals::verify_node(node, facts)?;
     crate::character_scalars::verify_node(node, facts)?;
+    crate::float_scalars::verify_node(node, facts)?;
     if node.kind == "expr_binary"
         && node
             .children
@@ -534,11 +536,14 @@ fn verify_path(
         {
             return Err("Resolved scalar constants require their registered capability".into());
         }
-        return crate::scalar_constants::ScalarConstant::verify(
-            node,
-            facts.build.pointer_width.value,
-        )
-        .map(|_| ());
+        let constant =
+            crate::scalar_constants::ScalarConstant::verify(node, facts.build.pointer_width.value)?;
+        if crate::float_scalars::is_float(&constant.ty) {
+            facts
+                .nominal_resolution()?
+                .verify_float_constant(node, &constant, facts)?;
+        }
+        return Ok(());
     }
     if crate::fieldless_enums::value_candidate(node, facts) {
         return crate::fieldless_enums::value(node, facts).map(|_| ());
@@ -567,7 +572,7 @@ fn verify_binding_path(
     }
 
     if !scalar(token)
-        && token != "char"
+        && !matches!(token, "char" | "f32" | "f64")
         && !binding.is_param
         && !crate::data_locals::supported(
             token,

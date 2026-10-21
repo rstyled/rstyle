@@ -64,6 +64,7 @@ impl ScalarConstant {
 
     pub fn value_valid(&self, pointer_width: Option<u64>) -> bool {
         match self.ty.as_str() {
+            "f32" | "f64" => crate::float_scalars::verify_constant(self).is_ok(),
             "bool" => matches!(self.value.as_str(), "true" | "false"),
             "unit" => self.value == "()",
             ty => {

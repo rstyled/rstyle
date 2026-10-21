@@ -730,6 +730,13 @@ fn macro_diagnostic(node: &HirNode, site: &ExpansionSite) -> Outcome {
 }
 
 fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if matches!(
+        node.kind.as_str(),
+        "expr_binary" | "expr_unary" | "expr_cast"
+    ) && crate::float_scalars::uses(node)
+    {
+        return check_float_operation(node, ctx);
+    }
     if ctx.profile.supports("rust.concrete-read-only-data")
         && let Some(outcome) = data_kind(node, ctx)
     {
@@ -771,6 +778,18 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_tuple_assign"
         | "expr_assign_op" | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
         _ => check_deferred(node),
+    }
+}
+
+fn check_float_operation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::float_scalars::verify_node(node, ctx.facts) {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error(
+            crate::float_scalars::CAPABILITY,
+            "float_operation",
+            node,
+            &reason,
+        ),
     }
 }
 
@@ -840,7 +859,9 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         _ => check_expr_ty(node, "data_value"),
     };
     match node.kind.as_str() {
-        "expr_lit" if node_norm(node) == Some("char") => Some(ty()),
+        "expr_lit" if node_norm(node).is_some_and(|ty| matches!(ty, "char" | "f32" | "f64")) => {
+            Some(ty())
+        }
         "expr_tup" | "expr_array" if ctx.profile.supports("rust.aggregate-literal-values") => {
             Some(ty())
         }
@@ -1160,6 +1181,8 @@ fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
             if node_norm(node).is_some_and(|token| {
                 crate::data_locals::supported(token, ctx.profile)
                     || token == "char" && ctx.profile.supports(crate::character_scalars::CAPABILITY)
+                    || crate::float_scalars::is_float(token)
+                        && ctx.profile.supports(crate::float_scalars::CAPABILITY)
             }) {
                 Outcome::ok()
             } else {

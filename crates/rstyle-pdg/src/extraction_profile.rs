@@ -91,6 +91,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.character-scalars",
     "rust.character-literal-ranges",
     "rust.character-ascii-predicate",
+    "rust.float-kernel-scalars",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -232,7 +233,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.62.0", 78)),
+            Self::DataV3 => Some(("3.63.0", 79)),
         }
     }
 

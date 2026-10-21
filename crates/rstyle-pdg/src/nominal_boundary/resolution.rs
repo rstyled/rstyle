@@ -13,6 +13,7 @@ use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
 mod array_lengths;
 mod builtin_options;
 pub(crate) mod environment;
+mod float_constants;
 mod scalar_aliases;
 mod selected;
 pub(crate) use environment::Environment;

@@ -193,6 +193,10 @@ fn limitation(facts: &dyn crate::unit_store::EvidenceFacts, node: &Operation) ->
     )
 }
 
+fn integer_type(ty: &str) -> bool {
+    crate::concrete_types::scalar(ty) && !matches!(ty, "bool" | "unit")
+}
+
 fn relevant(node: &Operation) -> bool {
     matches!(
         node.construct.as_deref(),
@@ -203,11 +207,12 @@ fn relevant(node: &Operation) -> bool {
                 | "data.integer.unwrap-option-usize"
         )
     ) || node.category == NodeCategory::Computation
-        && node.ty != "bool"
-        && matches!(
-            node.operator.as_deref(),
-            Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "assert" | "assert-eq")
-        )
+        && (matches!(node.operator.as_deref(), Some("assert" | "assert-eq"))
+            || integer_type(&node.ty)
+                && matches!(
+                    node.operator.as_deref(),
+                    Some("+" | "-" | "*" | "/" | "%" | "<<" | ">>")
+                ))
 }
 
 fn constant(
@@ -216,6 +221,9 @@ fn constant(
     analysis: &Analysis,
     values: &BTreeMap<String, Option<i128>>,
 ) -> Option<i128> {
+    if !integer_type(&node.ty) {
+        return None;
+    }
     if node.category == NodeCategory::Read {
         let definition_set = analysis
             .definition_in

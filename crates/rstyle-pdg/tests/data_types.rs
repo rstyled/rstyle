@@ -21,7 +21,8 @@ fn concrete_data_interface_vocabulary_is_exact_and_bounded() {
         r#"{"kind":"mutable","value":{"kind":"scalar","value":"i32"}}"#,
         r#"{"kind":"array","value":{"element":{"kind":"scalar","value":"u8"},"length":18446744073709551616}}"#,
         r#"{"kind":"scalar","value":"i32"}"#,
-        "f32",
+        "f16",
+        "f128",
         "&i32",
     ] {
         assert!(data_types::parse(token).is_err(), "{token}");
@@ -75,12 +76,12 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.62.0");
+    assert_eq!(profile.policy().version, "3.63.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 78);
+    assert_eq!(profile.capabilities().len(), 79);
     assert!(profile.supports("rust.verified-inherent-helper-calls"));
     for earlier in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
         assert!(!earlier.supports("rust.verified-inherent-helper-calls"));
@@ -143,5 +144,36 @@ fn character_vocabulary_preserves_a_distinct_standalone_domain() {
         assert!(rstyle_pdg::concrete_types::validate(&structured).is_err());
         let serialized = serde_json::to_string(&TypeToken::from_tree(&structured)).unwrap();
         assert!(data_types::parse(&serialized).is_err(), "{serialized}");
+    }
+}
+
+#[test]
+fn float_vocabulary_requires_standalone_widths_and_current_policy() {
+    use rstyle_pdg::extraction_profile::ExtractionProfile;
+    for width in ["f32", "f64"] {
+        let tree = TypeTree::Scalar(width.into());
+        assert!(!rstyle_pdg::concrete_types::scalar(width));
+        assert_eq!(data_types::token(&tree).unwrap(), width);
+        assert_eq!(
+            data_types::parse(width).unwrap(),
+            TypeToken::Scalar(width.into())
+        );
+        for earlier in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
+            assert!(!earlier.supports("rust.float-kernel-scalars"));
+        }
+        for structured in [
+            TypeTree::Shared(Box::new(tree.clone())),
+            TypeTree::Slice(Box::new(tree.clone())),
+            TypeTree::Tuple(vec![tree.clone()]),
+            TypeTree::Array {
+                element: Box::new(tree.clone()),
+                length: 1,
+            },
+            TypeTree::Option(Box::new(tree)),
+        ] {
+            assert!(rstyle_pdg::concrete_types::validate(&structured).is_err());
+            let serialized = serde_json::to_string(&TypeToken::from_tree(&structured)).unwrap();
+            assert!(data_types::parse(&serialized).is_err(), "{serialized}");
+        }
     }
 }
