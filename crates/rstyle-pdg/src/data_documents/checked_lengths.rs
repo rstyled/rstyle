@@ -19,7 +19,11 @@ pub(super) fn semantics(
 
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let sources = sources(facts);
-    let kinds = [lengths::Kind::Add, lengths::Kind::Mul];
+    let kinds = [
+        lengths::Kind::Add,
+        lengths::Kind::Mul,
+        lengths::Kind::SaturatingSub,
+    ];
 
     super::verify_construct_inventory(
         pair,
@@ -31,11 +35,6 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<()
                 .count()
         }),
     )?;
-    if !sources.is_empty()
-        && !crate::extraction_profile::policy_supports(&pair.pdg.profile, lengths::CAPABILITY)
-    {
-        return Err("Checked length operations require their serialized document policy".into());
-    }
     if pair
         .pdg
         .nodes
@@ -48,6 +47,9 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<()
     }
     for source in sources {
         let kind = lengths::kind(source, facts).ok_or("Missing checked length kind")?;
+        if !crate::extraction_profile::policy_supports(&pair.pdg.profile, kind.capability()) {
+            return Err("Length operation requires its serialized document policy".into());
+        }
         let summary = lengths::resolve(source, facts)?.ok_or("Unverified checked length")?;
         let node = super::typed_operation(pair, source, kind.construct(), &summary.result_type)?;
         if node.annotations.get(lengths::KEY) != Some(&lengths::semantics(kind)) {

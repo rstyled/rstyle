@@ -1,4 +1,4 @@
-//! Exact checked usize arithmetic for complete length-computation families.
+//! Exact checked and saturating usize arithmetic for complete length families.
 mod authority;
 mod source;
 
@@ -10,18 +10,28 @@ use crate::{
 pub(crate) const KEY: &str = "rstyle.data:checked-length";
 
 pub(crate) const CAPABILITY: &str = "rust.checked-usize-lengths";
+pub(crate) const SATURATING: &str = "rust.saturating-usize-lengths";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
     Add,
     Mul,
+    SaturatingSub,
 }
 
 impl Kind {
+    pub fn capability(self) -> &'static str {
+        match self {
+            Self::SaturatingSub => SATURATING,
+            _ => CAPABILITY,
+        }
+    }
+
     pub fn construct(self) -> &'static str {
         match self {
             Self::Add => "data.length.checked-add-usize",
             Self::Mul => "data.length.checked-mul-usize",
+            Self::SaturatingSub => "data.length.saturating-sub-usize",
         }
     }
 
@@ -29,6 +39,7 @@ impl Kind {
         match self {
             Self::Add => "core::num::<impl usize>::checked_add",
             Self::Mul => "core::num::<impl usize>::checked_mul",
+            Self::SaturatingSub => "core::num::<impl usize>::saturating_sub",
         }
     }
 
@@ -36,6 +47,7 @@ impl Kind {
         match self {
             Self::Add => "checked_add",
             Self::Mul => "checked_mul",
+            Self::SaturatingSub => "saturating_sub",
         }
     }
 }
@@ -45,20 +57,23 @@ impl ConcreteCall for Kind {
         let scalar = TypeTree::Scalar("usize".into());
         (
             vec![scalar.clone(), scalar.clone()],
-            TypeTree::Option(Box::new(scalar)),
+            if self == Self::SaturatingSub {
+                scalar
+            } else {
+                TypeTree::Option(Box::new(scalar))
+            },
         )
     }
 }
 
 pub(crate) fn kind(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Kind> {
-    if !crate::extraction_profile::facts_support(facts, CAPABILITY) {
-        return None;
-    }
-    match node.dispatch.as_ref()?.op.as_str() {
-        "core::num::<impl usize>::checked_add" => Some(Kind::Add),
-        "core::num::<impl usize>::checked_mul" => Some(Kind::Mul),
-        _ => None,
-    }
+    let kind = match node.dispatch.as_ref()?.op.as_str() {
+        "core::num::<impl usize>::checked_add" => Kind::Add,
+        "core::num::<impl usize>::checked_mul" => Kind::Mul,
+        "core::num::<impl usize>::saturating_sub" => Kind::SaturatingSub,
+        _ => return None,
+    };
+    crate::extraction_profile::facts_support(facts, kind.capability()).then_some(kind)
 }
 
 pub(crate) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<(), String> {
@@ -93,6 +108,7 @@ pub(crate) fn resolve(
         overflow_behavior: match kind {
             Kind::Add => "checked-usize-add-none-on-overflow",
             Kind::Mul => "checked-usize-mul-none-on-overflow",
+            Kind::SaturatingSub => "saturating-usize-sub-clamp-at-zero",
         }
         .into(),
     }))
@@ -102,6 +118,7 @@ pub(crate) fn semantics(kind: Kind) -> serde_json::Value {
     let arithmetic = match kind {
         Kind::Add => "addition",
         Kind::Mul => "multiplication",
+        Kind::SaturatingSub => "subtraction",
     };
 
     serde_json::Value::Object(
@@ -116,8 +133,24 @@ pub(crate) fn semantics(kind: Kind) -> serde_json::Value {
             ("evaluation_count", "once-each".into()),
             ("arithmetic", arithmetic.into()),
             ("domain", "unsigned-64-bit".into()),
-            ("success", "some-exact-mathematical-value".into()),
-            ("overflow", "none".into()),
+            (
+                "success",
+                if kind == Kind::SaturatingSub {
+                    "max(receiver-argument,0)"
+                } else {
+                    "some-exact-mathematical-value"
+                }
+                .into(),
+            ),
+            (
+                "overflow",
+                if kind == Kind::SaturatingSub {
+                    "clamp-at-zero"
+                } else {
+                    "none"
+                }
+                .into(),
+            ),
             ("content_read", false.into()),
             ("may_panic", false.into()),
         ]
@@ -140,6 +173,10 @@ mod tests {
         let source =
             std::path::Path::new(sysroot.trim()).join("lib/rustlib/src/rust/library/core/src");
         for (file, expected) in [
+            (
+                "intrinsics/mod.rs",
+                "sha256:7e8969e782a13a99eb82bcb7237c2212bbf8069a35c438b92c56bd1f8baaf01e",
+            ),
             (
                 "num/uint_macros.rs",
                 "sha256:5525546f81f07f28c0d3bc475edf2f86770fe659b35dd4bae55c0a3b890ab12b",

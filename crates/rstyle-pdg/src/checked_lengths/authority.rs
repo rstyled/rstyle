@@ -12,6 +12,7 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
     let paths: &[&str] = match kind {
         Kind::Add => &["core::num::<impl usize>::checked_add"],
         Kind::Mul => &["core::num::<impl usize>::checked_mul"],
+        Kind::SaturatingSub => &["core::num::<impl usize>::saturating_sub"],
     };
     crate::data_library::verify_core_definition(
         &crate::data_library::callee(node)?,

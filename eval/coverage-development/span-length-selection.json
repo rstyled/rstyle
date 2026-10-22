@@ -1,0 +1,391 @@
+{
+  "identity": "rstyle.development.span-length/1",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18",
+    "upstream_revision": "e6ad938198e68339a593f85d228f2d44cb54718f",
+    "file_sha256": {
+      "Cargo.toml": "25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+      "src/lib.rs": "47d562a98f5f50f7cbbffb1f103e277871c7419da05dbb2b0db78dee6e7b4c2e",
+      "src/util/search.rs": "74157bd77eb6f80e8ab5952ef21e8fb2d3452c1817ec671a7a3574fbddae1ae7",
+      "src/util/primitives.rs": "8a9cc19ef2e1ab183943cdc2d2f095b02252476e32b7e9fff4a06a251749b068"
+    }
+  },
+  "functions": [
+    {
+      "name": "util::search::Span::len",
+      "file": "src/util/search.rs",
+      "span": {
+        "end": 31447,
+        "start": 31369
+      },
+      "sha256": "fe62cdc5ab2133c77ad36d9c2d0ac2abae692a37105556510a357212b16ddc66",
+      "role": "target",
+      "baseline_outcome": "excluded",
+      "baseline_reasons": [
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary."
+      ]
+    },
+    {
+      "name": "util::search::Match::len",
+      "file": "src/util/search.rs",
+      "span": {
+        "end": 39928,
+        "start": 39868
+      },
+      "sha256": "dd691db83c8268a89164a30e509aefd0bc8a60a209ddd781e0b6dc1088b5e8ca",
+      "role": "target",
+      "baseline_outcome": "excluded",
+      "baseline_reasons": [
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+        "Unit helper is unsupported, recursive or not yet certified"
+      ]
+    },
+    {
+      "name": "util::search::Match::is_empty",
+      "file": "src/util/search.rs",
+      "span": {
+        "end": 39718,
+        "start": 39649
+      },
+      "sha256": "0f6d51e44ae5208da37ac61b93e110cb23139c237f30651a5b48efe8997277aa",
+      "role": "target",
+      "baseline_outcome": "excluded",
+      "baseline_reasons": [
+        "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder."
+      ]
+    },
+    {
+      "name": "util::search::Match::span",
+      "file": "src/util/search.rs",
+      "span": {
+        "end": 39460,
+        "start": 39408
+      },
+      "sha256": "3637425bc9d59c656cd10543df30e1c1a2f3d2acdd33689375e8b0ca037f4926",
+      "role": "existing anchor or negative comparator",
+      "baseline_outcome": "admitted",
+      "baseline_reasons": []
+    },
+    {
+      "name": "util::search::Span::is_empty",
+      "file": "src/util/search.rs",
+      "span": {
+        "end": 31220,
+        "start": 31151
+      },
+      "sha256": "72416d762565becca1fff7094bff39b0f1d89c0872cba705a99f4528f170aa51",
+      "role": "existing anchor or negative comparator",
+      "baseline_outcome": "admitted",
+      "baseline_reasons": []
+    },
+    {
+      "name": "util::search::Match::start",
+      "file": "src/util/search.rs",
+      "span": {
+        "end": 38936,
+        "start": 38874
+      },
+      "sha256": "a91004c87fbbd93d94f26cdd2cc45e19b078708d55e6b32a0624a379de8b0194",
+      "role": "existing anchor or negative comparator",
+      "baseline_outcome": "admitted",
+      "baseline_reasons": []
+    },
+    {
+      "name": "util::search::Match::end",
+      "file": "src/util/search.rs",
+      "span": {
+        "end": 39127,
+        "start": 39069
+      },
+      "sha256": "4fe4633c08ca9087639ac2a3ce9c34abf3c2df57ef47298f94ae9f6b49c60bc1",
+      "role": "existing anchor or negative comparator",
+      "baseline_outcome": "admitted",
+      "baseline_reasons": []
+    }
+  ],
+  "build_selection": {
+    "target": "regex-automata library; test=false",
+    "edition": "2021",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "pointer_width": 64,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic_strategy": "unwind",
+    "opt_level": "No",
+    "contexts": [
+      {
+        "cargo_arguments": [],
+        "features": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ]
+      },
+      {
+        "cargo_arguments": [
+          "--no-default-features"
+        ],
+        "features": []
+      }
+    ],
+    "baseline_evidence": "/tmp/rstyle-borrowed-result.unit.json, roster retained under Data-v3 3.69; historical recertification remains distinct from fresh current captures"
+  },
+  "expected_classification": {
+    "targets": "complete strict admission only after pinned saturating arithmetic and full owned-result/shared-receiver helper composition are independently verified",
+    "anchors": "retain existing admissions in unchanged contexts",
+    "inactive": "none of these methods has an alloc feature guard",
+    "unproved": "unknown remains excluded; no supported-prefix certificate"
+  },
+  "blocker_chain": {
+    "Span::len": [
+      "Missing pinned usize::saturating_sub source authority/signature and library summary.",
+      "Exact scalar field reads/order and full complete Span owner must remain verified."
+    ],
+    "Match::len": [
+      "Depends on complete existing Match::span owned Copy result.",
+      "Outer Span::len receiver is an owned temporary with exactly one SharedBorrow adjustment. Existing owned_receiver::from_record appears structurally applicable, but retained original source still rejects call summary: diagnosis required before promising admission.",
+      "Depends on new Span::len summary and complete source-to-helper-result argument snapshot substitution.",
+      "Retain complete Match owner including passive PatternID -> SmallIndex fields and all declaration/Copy/source proofs."
+    ],
+    "Match::is_empty": [
+      "Same owned temporary source-to-inherent-call blocker, despite existing admitted Span::is_empty and Match::span.",
+      "Independent sentinel against claiming arithmetic-only changes complete the family.",
+      "Retained source diagnostic is exactly outer span41..63: self.span().is_empty(); inner self.span() has no diagnostic. All four nominal origins carry positive builtin Copy evidence.",
+      "Static owned_receiver::from_record conditions match retained receiver observations; actual failure may be source-early nominal_resolution error or historical source diagnostic timing. resolved_summary swallows source_resolved errors as false. Expose/check this precise result under fresh current facts before redesigning."
+    ]
+  },
+  "contract": {
+    "positive": [
+      "Pinned native-width usize saturating subtraction returns max(receiver-argument,0) without panic.",
+      "Receiver then argument evaluated once in original order.",
+      "Complete original Match::span result is snapshotted and borrowed for outer scalar helper call; no invented reference origin.",
+      "Complete helper call/effect/source and nominal Copy evidence is independently verified."
+    ],
+    "negative": [
+      "Different primitive method, compiler/core/definition identity or instantiated signature.",
+      "Ordinary or wrapping subtraction substituted for saturation.",
+      "Reversed or repeated receiver/argument evaluation; changed helper result snapshot.",
+      "Missing/changed shared borrow adjustment or forged nominal Copy proof.",
+      "Omitted PatternID/SmallIndex owner dependencies, hidden Drop or interior effects.",
+      "Historical policy certifying newly introduced arithmetic/composition."
+    ],
+    "deferred": [
+      "General opaque/drop-bearing owners including PatternSet Box storage.",
+      "General ownership, mutable helper receivers and trait-call support.",
+      "Range-valued Span::range and Match::range APIs."
+    ]
+  },
+  "semantic_expectations": {
+    "Span::len": "max(end-start,0), using unbounded integer subtraction before clamping",
+    "Span::is_empty": "start>=end, including inverted spans",
+    "Match::len": "end-start for public ordered Match inputs, independent of valid pattern identifier",
+    "Match::is_empty": "start==end for public ordered Match inputs",
+    "Match::span": "exact start/end unchanged; independent of pattern identifier",
+    "domain": "Cartesian endpoints 0..32 plus +/-2 at integer/byte boundaries and usize maximum; PatternIDs 0,1,2147483646. Inverted spans remain valid Span cases and skip invalid public Match construction.",
+    "native": "links unchanged complete original package; prints native pointer width; contains no copied length implementation",
+    "32bit_scope": "Oracle input protocol is defined at32bits; current admission activation remains64bit only.",
+    "source_identity_verification": "Oracle validates full manifest/lib/search/primitives hashes and every selected original function span before comparing native output."
+  },
+  "sample": {
+    "32": {
+      "cases": 8748,
+      "request_sha256": "e105aeec92d19b8ea56aaf06e10d53027f904ca3351bd9510557cc80662a57ca"
+    },
+    "64": {
+      "cases": 8748,
+      "request_sha256": "9a200f23066853424e76ce3ebfe1436dfe9cf8eb1b2cbf8e0d6b2156f7ce37da"
+    }
+  },
+  "matching_expectations": {
+    "positive": [
+      {
+        "left": "util::search::Span::len",
+        "right": "util::search::Span::len",
+        "contexts": "self-comparison separately within each of the six declared target/feature contexts; no cross-target compatibility assumption",
+        "expected": "complete matching"
+      },
+      {
+        "left": "util::search::Match::len",
+        "right": "util::search::Match::len",
+        "contexts": "self-comparison separately within each of the six declared target/feature contexts; no cross-target compatibility assumption",
+        "expected": "complete matching"
+      },
+      {
+        "left": "util::search::Match::is_empty",
+        "right": "util::search::Match::is_empty",
+        "contexts": "self-comparison separately within each of the six declared target/feature contexts; no cross-target compatibility assumption",
+        "expected": "complete matching"
+      }
+    ],
+    "negative": [
+      {
+        "left": "util::search::Match::len",
+        "right": "util::search::Match::start",
+        "reason": "2..5 has length3, start2,end5; dependencies differ",
+        "expected": "complete comparison rejects match"
+      },
+      {
+        "left": "util::search::Match::len",
+        "right": "util::search::Match::end",
+        "reason": "2..5 has length3, start2,end5; dependencies differ",
+        "expected": "complete comparison rejects match"
+      }
+    ],
+    "separate_claim": "Matching results do not establish equivalence, rewrite safety or held-out detector quality."
+  },
+  "frozen_inventory": "Existing frozen60 identities and denominators remain unchanged; this is a separate source-selected development family.",
+  "fresh_baseline": {
+    "policy": "3.71.0",
+    "evidence": "/tmp/rstyle-transition-native-default-audit-roster.json",
+    "functions": 2582,
+    "admitted": 137,
+    "selected": {
+      "util::search::Span::is_empty": "admitted",
+      "util::search::Span::len": "excluded",
+      "util::search::Match::start": "admitted",
+      "util::search::Match::end": "admitted",
+      "util::search::Match::span": "admitted",
+      "util::search::Match::is_empty": "admitted",
+      "util::search::Match::len": "excluded"
+    },
+    "blocker_update": "Fresh Match::is_empty admission demonstrates existing owned Copy result and shared temporary receiver composition. Span::len still needs exact saturating subtraction; Match::len depends on that summary. No new receiver grammar is justified. Earlier baseline and blocker observations above remain historical."
+  },
+  "activation_evidence": {
+    "policy": "3.72.0",
+    "contexts": [
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "features": "default",
+        "functions": 2582,
+        "admitted": 139,
+        "new": 2,
+        "lost": 0,
+        "summary": "/tmp/rstyle-span-current-aarch64-unknown-linux-gnu-default-audit-summary.json"
+      },
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "features": "no-features",
+        "functions": 590,
+        "admitted": 85,
+        "new": 2,
+        "lost": 0,
+        "summary": "/tmp/rstyle-span-current-aarch64-unknown-linux-gnu-no-features-audit-summary.json"
+      },
+      {
+        "target": "x86_64-unknown-linux-gnu",
+        "features": "default",
+        "functions": 2582,
+        "admitted": 139,
+        "new": 2,
+        "lost": 0,
+        "summary": "/tmp/rstyle-span-current-x86_64-unknown-linux-gnu-default-audit-summary.json"
+      },
+      {
+        "target": "x86_64-unknown-linux-gnu",
+        "features": "no-features",
+        "functions": 590,
+        "admitted": 85,
+        "new": 2,
+        "lost": 0,
+        "summary": "/tmp/rstyle-span-current-x86_64-unknown-linux-gnu-no-features-audit-summary.json"
+      },
+      {
+        "target": "aarch64-apple-darwin",
+        "features": "default",
+        "functions": 2582,
+        "admitted": 139,
+        "new": 2,
+        "lost": 0,
+        "summary": "/tmp/rstyle-span-current-aarch64-apple-darwin-default-audit-summary.json"
+      },
+      {
+        "target": "aarch64-apple-darwin",
+        "features": "no-features",
+        "functions": 590,
+        "admitted": 85,
+        "new": 2,
+        "lost": 0,
+        "summary": "/tmp/rstyle-span-current-aarch64-apple-darwin-no-features-audit-summary.json"
+      }
+    ],
+    "strict_contextual_admissions": 672,
+    "selected_function_admissions": 42,
+    "independent_selected_comparisons": 30,
+    "native_oracles": {
+      "default": {
+        "cases": 8748,
+        "log": "/tmp/rstyle-span-native-default.log"
+      },
+      "no-default/no-features": {
+        "cases": 8748,
+        "log": "/tmp/rstyle-span-native-no-features.log"
+      }
+    },
+    "remaining_boundaries": [
+      "Other integer saturation widths and operations require their own exact contracts.",
+      "General owned/drop-sensitive, mutable or trait receivers remain unavailable.",
+      "Span/Match range-valued APIs remain outside this family."
+    ],
+    "full_library_matching": "incomplete under max-pairs0; only the five predeclared pairs per context were completely evaluated",
+    "frozen_replay": {
+      "baseline": "target/hir-coverage/run-t14bfxdk",
+      "current": "target/hir-coverage/run-72emt3ji",
+      "counts": {
+        "admitted": 23,
+        "excluded": 30,
+        "inactive": 7
+      },
+      "membership_and_build_contexts": "unchanged",
+      "full_rosters": {
+        "lz4_flex": "8/150",
+        "regex-syntax": "39/956",
+        "time-core": "11/226"
+      },
+      "strict_admissions": 58,
+      "selected_comparisons": 6,
+      "delta": "/tmp/rstyle-span-frozen-delta.json",
+      "strict_log": "/tmp/rstyle-span-frozen-strict.log"
+    },
+    "quality_gates": {
+      "full_suite": "1039 passed, 5 existing skips; /tmp/rstyle-perf8-tests.log",
+      "doctests": "passed",
+      "fmt": "passed",
+      "warnings_denied_clippy": "passed",
+      "rstyle": "0/3353",
+      "patterns": "0 unignored; existing15 ignores unchanged"
+    }
+  }
+}

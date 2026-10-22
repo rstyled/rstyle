@@ -93,18 +93,23 @@ Contracts: [character](extraction-profiles/character-leaf-v1.md),
 
 ## Resume order
 
-Data3.71 completes the [original Transition chain](../eval/coverage-development/transition-callback-selection.json):
-134→137/2582, zero losses (two intended predicates plus an audited incidental
-`Match::is_empty` regain). Six target/feature contexts strictly admit669 functions
-and complete36 selected comparisons. Frozen sixty and full package rosters remain
-unchanged; all58 frozen-package admissions and six comparisons replay. Full-library
-matching remains incomplete. Performance fixes retain all evidence and assertions;
-flags approximately35→24s, slices32.47→30.37s, sampled JSON34% smaller.
+Data3.72 completes [original Span/Match lengths](../eval/coverage-development/span-length-selection.json)
+through pinned usize saturation and existing shared temporary receivers. Default
+137→139/2582; no features83→85/590, two gains/no losses in each of six contexts.
+672 strict contextual admissions,42 selected admissions/30 comparisons pass;
+unchanged-library oracle8748 cases per native feature context. Frozen sixty and
+full package rosters remain unchanged;58 strict admissions/six comparisons pass.
+1039 tests/5 existing skips, doctests/fmt/Clippy pass; rstyle0/3353, patterns0.
+Full-library matching remains incomplete. Evidence: `/tmp/rstyle-span-*`.
 
-Next source-selected chain: `Span::len → Match::len`, requiring pinned usize
-saturating subtraction and a fresh helper-result audit. Fresh `Match::is_empty`
-admission rules out a universal new receiver-grammar prerequisite; retain the
-older selection's blocker history and re-evaluate it. `PatternSet::{len,is_empty}` separately needs complete
-opaque Box-field/drop evidence; zerovec still needs its connected generic,
-let-else/Result/?/closure chain. Broader scalar/enum payloads and cyclic caller
-composition remain open. Fold brief evidence into semantic commits; P01–P22 stays active.
+Next bounded assignments (original first-wave workers are already integrated):
+
+| Frontier | Readiness gate and exclusive leaf work |
+| --- | --- |
+| P01/P10 bool conversion | Audit fresh original base64ct1.7.3 `encoding::encoded_len_inner` against the frozen source/oracle selection; confirm every checked-Option/cast blocker before activation. Dedicated bool-cast leaf and tests; shared driver/eligibility/policy edits remain with lead. |
+| P07 range/view composition | Source-audit original `Span::range → Match::range` and `Input::get_range`; require complete pinned Range<usize> value/result proof and identify actual view consumers before any activation. Dedicated range/value checks; preserve existing sequence locations/origins. |
+| P08 concrete Result frontier | Retain the zerovec audit's connected generic/let-else/Result/?/closure blockers; select a smaller complete natural Result chain before vocabulary edits. Dedicated payload/control tests; no speculative generic permission. |
+| P09 loop/callee frontier | Locate a source-required bounded scalar looping-callee chain and freeze divergence/return/read expectations before changing summaries. Dedicated flow/summary proof; no acyclic-gate relaxation. |
+
+PatternSet separately requires complete opaque Box-field/drop proof. Fold brief
+evidence into semantic commits; the full P01–P22 routing remains active.

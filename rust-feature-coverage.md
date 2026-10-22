@@ -158,7 +158,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C05 | Direct memory-reading shared-input helpers | Covered | `read_field(s)` | Data-v2/v3: exact per-occurrence reads and actual-origin substitution, preserving alias uncertainty. Data-v3 3.52–3.53 connect reference-free checked-Copy results and copied-byte reads while retaining possible panic and callee read conditions. |
 | C06 | Concrete inherent method calls and UFCS | Partial | `s.value()`, `S::value(s)` | Data-v3: same-unit nongeneric inherent impl/method, shared receiver or [static associated calls](docs/extraction-profiles/static-inherent-helper-calls-v1.md), exact owner/source proof and supported summary. Shared receivers require adjustment proof. Data-v3 3.38.0 adds [owned Copy receiver snapshots](docs/extraction-profiles/owned-copy-receiver-v1.md) for scalar-returning read-only helpers. Data-v3 3.39.0 adds [checked Copy value-self updates](docs/extraction-profiles/owned-copy-self-v1.md) under the existing body/summary restrictions. Data-v3 3.46.0 extends checked Copy owners to fixed scalar-array fields and connects bounded array-value reads through existing whole-value snapshots. Data-v3 3.47.0 connects checked-Copy enum owners and scalar Option helper results through the tagged-unit constructors/projections. No general trait dispatch. Data-v3 3.60 proves builtin shared dereference into a checked Copy value receiver, retaining the complete implicit load and saved origins; see [flags](docs/extraction-profiles/look-flags-v1.md). |
 | C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. Data-v3 3.38.0 also supports exactly one shared borrow of a checked scalar-struct Copy value for a scalar-returning read-only helper. Data-v3 3.39.0 accepts an empty adjustment chain for checked Copy immutable untyped value-self receivers. General autoref, repeated/overloaded deref, unsizing and mutable inherent receivers remain unavailable. |
-| C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Four instantiations only: i32/i64 unsigned_abs and u32/u64 wrapping_mul. Not general primitive-method support. |
+| C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Pinned i32/i64 unsigned_abs and u32/u64 wrapping_mul; Data-v3 3.70 adds 64-bit usize checked_add/checked_mul, and 3.72 adds usize saturating_sub. Other primitive operations and widths remain unavailable without their own contracts. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
 | C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.43.0 connects [u16-to-u32 From and checksum-state roundtrips](docs/extraction-profiles/checksum-state-roundtrips-v1.md) with pinned trait/implementation identities. Data-v3 3.44.0 connects [native prefix readers](docs/extraction-profiles/native-prefix-readers-v1.md): shared prefixes, exact scalar size calls, copied 2/4/16-byte Results/unwrap and native u16/u32/u128 conversion. Data-v3 3.46.0 additionally registers exact lossless u8-to-usize From on the three pinned 64-bit CI targets for the [byte-membership family](docs/extraction-profiles/byte-membership-v1.md). Data-v3 3.48.0 connects exact u16-to-usize From and owned scalar Option::is_some through the [tagged-unit classifiers](docs/extraction-profiles/tagged-unit-classifiers-v1.md), including the original byte-class lookup composition. Data-v3 3.51–3.52 add [population counts](docs/extraction-profiles/bitset-cardinality-v1.md), pinned widening/narrowing TryFrom and checked-sub/unwrap composition. Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
 | C11 | By-value memory-reading helper arguments/results | Missing | `inspect_value(s)`, `make_value(x)` | Pure reference-free construction results compose in the D11 fixture; by-value memory-reading substitution, reference-bearing helper results and ownership remain unavailable. Supported interface types do not establish that call boundary. |
@@ -4244,3 +4244,25 @@ checkpoint; evidence: `/tmp/rstyle-transition-*`. Next source-selected chain:
 `Span::len → Match::len` needs the exact usize saturating-subtraction summary and
 fresh helper-result audit. PatternSet still needs opaque Box/drop proof; broader
 Result/?/generic and cyclic composition remains open.
+
+### Data-v3 3.72: original Span/Match length family
+
+[Selection, contract and independent expectations](eval/coverage-development/span-length-selection.json).
+Pinned 64-bit usize saturating subtraction completes original `Span::len →
+Match::len`, including full Copy owners and existing owned-result/shared-receiver
+composition. No new receiver grammar or general primitive-method permission.
+Three targets × default/no-feature contexts gain exactly these two functions:
+**137→139/2582** default, **83→85/590** without features; zero losses and unchanged
+source/build identities. **672 strict contextual admissions, 42 selected admissions,
+30 predeclared comparisons** pass. Native unchanged-library oracle: **8748 cases
+per feature context**, including inverted Spans and integer boundaries. x86 Linux
+and ARM macOS results are cross-target capture/replay, not native execution.
+
+Frozen `run-72emt3ji` versus `run-t14bfxdk`: **23 admitted /30 excluded /7 inactive**;
+full package rosters remain lz4_flex8/150, syntax39/956, time-core11/226. All58
+strictly replay; six selected comparisons complete. **1039 tests /5 existing
+skips**, doctests/fmt/Clippy pass; **rstyle0/3353, patterns0 unignored**, existing15
+ignores unchanged. Evidence: `/tmp/rstyle-span-*`; full-library matching remains
+incomplete under max-pairs0. Next source audit: base64ct's bool-to-usize encoded
+length chain. Range-valued helpers, opaque Box/drop owners, Result/?/generics and
+looping-callee composition remain separate blockers; P01–P22 stays active.

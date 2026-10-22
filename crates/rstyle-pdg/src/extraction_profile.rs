@@ -102,6 +102,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.checked-usize-lengths",
     "rust.scalar-option-if-let",
     "rust.shared-helper-option-callbacks",
+    "rust.saturating-usize-lengths",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -246,7 +247,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.71.0", 89)),
+            Self::DataV3 => Some(("3.72.0", 90)),
         }
     }
 

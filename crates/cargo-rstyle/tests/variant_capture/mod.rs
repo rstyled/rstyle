@@ -24,6 +24,7 @@ mod iterator_position;
 mod iterator_position_corruption;
 mod look_flags;
 mod named_callbacks;
+mod span_lengths;
 mod transition_callbacks;
 mod word_classifiers;
 
