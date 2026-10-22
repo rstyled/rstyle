@@ -315,7 +315,14 @@ impl EvidenceFacts for FunctionView<'_> {
         let tables = self.resolver.tables();
         let target = tables.links[self.id.0 as usize]
             .get(&site(node))
-            .ok_or("Missing resolved unit helper link")?;
+            .ok_or_else(|| {
+                format!(
+                    "Missing resolved unit helper link for {} at {:?} in {}",
+                    node.snippet,
+                    site(node),
+                    self.facts().name
+                )
+            })?;
         let id = tables.certified[target.0 as usize]
             .ok_or("Unit helper is unsupported, recursive or not yet certified")?;
         Ok(Some(HelperView {

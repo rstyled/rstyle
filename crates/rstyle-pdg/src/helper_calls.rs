@@ -187,6 +187,11 @@ fn node_native_width(
     data: bool,
     facts: &dyn EvidenceFacts,
 ) -> Result<bool, String> {
+    if crate::result_propagation::candidate(node, facts) {
+        let checked = crate::result_propagation::verify(node, facts)?;
+        return node_native_width(checked.operand, data, facts);
+    }
+
     let own = node
         .ty
         .as_ref()
@@ -231,9 +236,9 @@ pub fn direct_resolution(node: &HirNode) -> Option<Value> {
     serde_json::from_str(&node.res.as_ref()?.description).ok()
 }
 
-pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
+pub(crate) fn call_nodes(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
     let mut calls = Vec::new();
-    crate::frontend::collect_kind(&facts.body, "expr_call", &mut calls);
+    collect_source_kind(&facts.body, "expr_call", facts, &mut calls);
     calls.retain(|node| {
         !crate::call_summaries::static_intrinsic(node, facts)
             && !crate::checked_options::constructor_candidate(node, facts)
@@ -242,7 +247,7 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
     });
 
     let mut methods = Vec::new();
-    crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
+    collect_source_kind(&facts.body, "expr_method_call", facts, &mut methods);
     calls
         .into_iter()
         .chain(
@@ -259,6 +264,28 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
             .filter_map(|call| call.children.last()),
         )
         .collect()
+}
+
+/// Generated Try calls are represented by their independently verified contract;
+/// original operand calls still require ordinary helper links and summaries.
+fn collect_source_kind<'a>(
+    node: &'a HirNode,
+    kind: &str,
+    facts: &dyn EvidenceFacts,
+    calls: &mut Vec<&'a HirNode>,
+) {
+    if crate::result_propagation::candidate(node, facts)
+        && let Ok(checked) = crate::result_propagation::verify(node, facts)
+    {
+        collect_source_kind(checked.operand, kind, facts, calls);
+        return;
+    }
+    if node.kind == kind {
+        calls.push(node);
+    }
+    for child in &node.children {
+        collect_source_kind(child, kind, facts, calls);
+    }
 }
 
 pub(crate) fn certify_view(

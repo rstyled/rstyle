@@ -550,9 +550,24 @@ fn binding_node(binding: &BindingFact) -> HirNode {
     }
 }
 
+fn check_result_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::result_propagation::verify(node, ctx.facts) {
+        Ok(checked) => check_node(checked.operand, false, ctx),
+        Err(reason) => error(
+            crate::result_propagation::CAPABILITY,
+            "result_propagation",
+            node,
+            &reason,
+        ),
+    }
+}
+
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if crate::result_propagation::candidate(node, ctx.facts) {
+        return check_result_propagation(node, ctx);
+    }
     if let Some(outcome) = check_data_contract(node, ctx) {
         return outcome;
     }

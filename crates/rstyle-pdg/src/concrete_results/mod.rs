@@ -17,6 +17,7 @@ pub(crate) const SOURCE_DIGEST: &str =
 
 pub use constructors::{Constructor, verify_constructor};
 pub(crate) use constructors::{constructor_candidate, constructors};
+pub(crate) use types::payload;
 
 /// Verify the exact fresh return boundary, including non-Copy error constructors.
 pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {
@@ -79,6 +80,11 @@ fn fresh(
     error: &TypeToken,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::result_propagation::candidate(node, facts) {
+        let checked = crate::result_propagation::verify(node, facts)?;
+        return fresh(checked.operand, true, error, facts);
+    }
+
     let token = node
         .ty
         .as_ref()
@@ -90,10 +96,14 @@ fn fresh(
         .as_ref()
         .is_some_and(|ty| types::contains_owned(ty, error))
         && (!returning
-            || !matches!(
+            || !(matches!(
                 node.kind.as_str(),
                 "expr_call" | "expr_struct" | "expr_block" | "expr_ret"
-            ))
+            ) || method_result(node)
+                && crate::extraction_profile::facts_support(
+                    facts,
+                    crate::result_propagation::CAPABILITY,
+                )))
     {
         return Err(
             "Result/error value is not a fresh constructor/helper result forwarded whole".into(),
@@ -117,6 +127,12 @@ fn fresh(
     Ok(())
 }
 
+fn method_result(node: &HirNode) -> bool {
+    node.kind == "expr_method_call"
+        && crate::data_aggregates::parsed_type(node)
+            .is_ok_and(|token| matches!(token, TypeToken::Result { .. }))
+}
+
 pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn EvidenceFacts,
@@ -125,6 +141,16 @@ pub(crate) fn verify_document_policy(
         crate::extraction_profile::policy_supports(profile, CAPABILITY),
         || types::used(facts),
         "Fresh concrete Results require their registered document capability",
+    )?;
+    crate::extraction_profile::require_document(
+        profile,
+        crate::result_propagation::CAPABILITY,
+        || {
+            crate::field_locations::operations(&facts.body, &["expr_method_call"])
+                .into_iter()
+                .any(method_result)
+        },
+        "Fresh Result method forwarding requires its registered document capability",
     )
 }
 

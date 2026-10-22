@@ -70,6 +70,7 @@ pub mod option_callbacks;
 pub mod primitive_constants;
 pub mod producer;
 pub mod range_values;
+pub mod result_propagation;
 pub mod scalar_constants;
 mod scalar_exhaustiveness;
 pub(crate) mod scalar_from;

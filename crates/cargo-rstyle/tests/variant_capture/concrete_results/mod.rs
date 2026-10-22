@@ -4,6 +4,7 @@ use super::*;
 use rstyle_pdg::unit_store::{BundleManifest, UnitStore, transport_checksum};
 mod attacks;
 mod negatives;
+mod propagation;
 
 const SELECTION: &str =
     include_str!("../../../../../eval/coverage-development/scalar-result-next-selection.json");

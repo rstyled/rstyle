@@ -1,6 +1,6 @@
 {
   "identity": "rstyle.development.result-propagation/1",
-  "status": "source-selected before admission evaluation; readiness artifact only",
+  "status": "delivered in Data-v3 3.79; source selection and independent expectations preceded admission evaluation",
   "selection_basis": "Complete original LookSet::available plus its acyclic flag and nominal-error helper chain; advances payload binding then bounded same-error ?.",
   "package": {
     "name": "regex-automata",
@@ -91,7 +91,7 @@
       "aarch64-apple-darwin"
     ],
     "context_product": "Each of three feature contexts on each of three targets: nine separately selected contexts.",
-    "actual_cargo_unit_evidence": "pending capture for this available selection; previous Result chain evidence is separate"
+    "actual_cargo_unit_evidence": "/tmp/rstyle-propagation-current-results.json: nine unchanged complete original library contexts, with exact source identities, denominators and build settings checked against Data3.78"
   },
   "functions": [
     {
@@ -287,9 +287,8 @@
     "Historical policies must reject new payload extraction and ?; pin all compiler, target, library and source authority."
   ],
   "unknowns": [
-    "Fresh all-nine-context admission outcomes and any additional blockers from exact captured original HIR/desugaring, residual conversion and helper summaries are not measured by this artifact.",
-    "Exact existing receiver/result eligibility seam and complete Try/FromResidual/identity-conversion source evidence need implementation audit before activation.",
-    "Cross-target native execution availability; native oracle is distinct from cross-target Cargo capture, strict verification, admission and matching."
+    "Native x86/macOS execution is not measured; cross-target Cargo capture, strict verification and matching are separate evidence.",
+    "General payload matching, stored Results, other success types, Option propagation, nonidentity conversions and cleanup remain outside this contract."
   ],
   "bounded_contract": {
     "positive": [
@@ -317,7 +316,7 @@
     "semantic": "For every u32 bits, LookSet { bits }.available() is Err iff unicode-word-boundary is disabled and (bits & 0x33300) != 0; otherwise Ok(()). The selected chain terminates without panic.",
     "classification": [
       "available and three flag prerequisites active in all9 contexts; exactly one check helper active per context; new active only in3 disabled contexts.",
-      "available is expected in scope after the complete bounded chain is implemented, regardless of preactivation rejection; no gain is claimed now."
+      "available was expected in scope before admission evaluation; measured gains are recorded separately in validation."
     ],
     "negative_cases": [
       "Disabled context + no Unicode bits must be Ok although Error::check itself is Err.",
@@ -330,17 +329,19 @@
   },
   "readiness": {
     "source_ready": true,
-    "extraction_ready": false,
-    "activation": false,
-    "next_gate": "Implement guarded exact payload binding then bounded same-error ?; evaluate complete original chain in nine contexts with independent semantics and strict matching."
+    "extraction_ready": true,
+    "activation": true,
+    "next_gate": "Select and freeze the next complete Option/payload caller family; preserve this chain and its exact source/build identities."
   },
   "validation": {
     "source_hashes_and_spans": "verified against unchanged registry bytes",
-    "builds": "not run",
-    "captures": "not run",
-    "admission": "not evaluated for this selection",
-    "matching": "not run",
+    "builds": "Nine complete unchanged Cargo library contexts: default/no-default/unicode-word-boundary across the three pinned targets.",
+    "captures": "Complete capture/assessment in all nine contexts; /tmp/rstyle-propagation-current-results.json.",
+    "admission": "All57 selected contextual chain instances admit; complete rosters gain9 and lose0. Per target148->149/2582,92->93/590,91->92/590. All1002 current contextual admissions strictly replay; /tmp/rstyle-propagation-current-{deltas.json,strict.log}.",
+    "matching": "57 same-context original mirror comparisons complete and Accepted; Cargo composition tests separately compare distinct alpha/transitive peers. Full-library matching under max-pairs0 remains incomplete.",
     "native_oracle": "Passed unchanged original public API on native ARM Linux: 4,719,096 cases across three feature contexts; zero mismatches. /tmp/rstyle-result-propagation-oracle.json",
-    "frozen_inventory": "unchanged identities/denominators; separate development corpus"
-  }
+    "frozen_inventory": "run-rpku9v_n versus run-yaapzru3: identical60 selections, identities, denominators and build contexts;23 admitted/30 excluded/7 inactive. Complete package rosters unchanged; all58 retained contextual admissions strictly replay.",
+    "quality_gates": "1135 tests pass/5 existing skips in111.617s; doctests/fmt/Clippy pass. rstyle0 violations/3712 functions; patterns0 unignored,15 existing ignores unchanged."
+  },
+  "known_blocker_state": "Resolved for this bounded chain by source-proved no-drop error ownership, exact selected core authority, saved whole-Result forwarding and guarded early return. The original blocker list above is retained; no general payload-binding permission is implied."
 }

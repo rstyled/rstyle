@@ -34,7 +34,7 @@ pub(super) fn checked_error(tree: &TypeTree, facts: &dyn EvidenceFacts) -> Resul
     Ok(())
 }
 
-pub(super) fn payload(
+pub(crate) fn payload(
     node: &HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Result<(TypeToken, TypeToken), String> {

@@ -35,7 +35,8 @@ order, effects and policy. Native unchanged-library execution supplies an oracle
 independent of producer/verifier agreement. Cross-target capture and strict
 replay are distinct from native execution.
 
-Next caller: the [source-selected LookSet::available chain](../../eval/coverage-development/result-propagation-selection.json).
-Its independent native oracle covers 4,719,096 cases across three feature
-contexts. Extraction still requires guarded payload ownership, conditional
-Result returns and exact Try/FromResidual/identity conversion evidence.
+Data-v3 3.79 extends this boundary through the original
+[LookSet::available chain](../../eval/coverage-development/result-propagation-selection.json)
+with [same-error propagation](same-error-result-propagation-v1.md). Its independent
+native oracle covers 4,719,096 cases across three feature contexts. The 3.78
+contract above remains the historical construction/whole-forwarding boundary.

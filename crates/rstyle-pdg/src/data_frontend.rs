@@ -47,6 +47,7 @@ pub(crate) fn verify_document_policy(
     crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
     crate::primitive_constants::verify_document_policy(profile, facts)?;
     crate::concrete_results::verify_document_policy(profile, facts)?;
+    crate::data_documents::result_propagation::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,
         crate::range_values::CAPABILITY,
@@ -426,6 +427,10 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if crate::result_propagation::candidate(node, facts) {
+        let checked = crate::result_propagation::verify(node, facts)?;
+        return verify_nodes(checked.operand, facts, places);
+    }
     if crate::helper_option_callbacks::candidate(node, facts) {
         return verify_helper_callback(node, facts, places);
     }
@@ -450,6 +455,19 @@ fn verify_nodes(
         return Ok(());
     }
     verify_value_operations(node, facts)?;
+    verify_node_type(node, facts)?;
+    verify_reference_origins(node, facts, places)?;
+
+    for child in &node.children {
+        verify_nodes(child, facts, places)?;
+    }
+    Ok(())
+}
+
+fn verify_node_type(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
         if token.contains("\"kind\":\"option\"") && !crate::checked_options::enabled(facts) {
             return Err("Checked Option types require their registered capability".into());
@@ -461,11 +479,6 @@ fn verify_nodes(
         if node.kind == "expr_path" && !crate::checked_options::constructor_candidate(node, facts) {
             verify_path(node, facts, token)?;
         }
-    }
-    verify_reference_origins(node, facts, places)?;
-
-    for child in &node.children {
-        verify_nodes(child, facts, places)?;
     }
     Ok(())
 }

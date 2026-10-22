@@ -115,8 +115,10 @@ fn admit_checked(
     } else {
         check_local_producer(pdg, cfg)?
     };
+    // Only the produced handoff owns these exact immutable source bytes.
+    // Imported documents must still check the caller-supplied byte map.
+    check_pdg_eligibility(pdg, ctx, *source_bytes, frontend)?;
     let frontend = frontend.or_else(|| imported.as_ref().map(|facts| facts as &dyn EvidenceFacts));
-    check_pdg_eligibility(pdg, ctx, *source_bytes)?;
 
     let admitted = AdmittedPair { pdg, cfg };
     admitted.check_cfg()?;
@@ -189,8 +191,12 @@ fn check_pdg_eligibility(
     pdg: &PdgDocument,
     ctx: &ValidationContext,
     source_bytes: &dyn rstyle_pdg::validate::SourceBytes,
+    produced: Option<&dyn EvidenceFacts>,
 ) -> Result<(), Vec<String>> {
-    let report = rstyle_pdg::validate::validate_sources(pdg, ctx, source_bytes);
+    let report = match produced {
+        Some(facts) => rstyle_pdg::validate::validate_source_text(pdg, ctx, &facts.source.bytes),
+        None => rstyle_pdg::validate::validate_sources(pdg, ctx, source_bytes),
+    };
 
     if report.matching == rstyle_pdg::Eligibility::Eligible {
         return Ok(());
@@ -298,7 +304,7 @@ fn imported_matching_profile(pdg: &PdgDocument) -> crate::graph::MatchingProfile
             | "3.50.0" | "3.51.0" | "3.52.0" | "3.53.0" | "3.54.0" | "3.55.0" | "3.56.0" | "3.57.0"
             | "3.58.0" | "3.59.0" | "3.60.0" | "3.61.0" | "3.62.0" | "3.63.0" | "3.64.0" | "3.65.0"
             | "3.66.0" | "3.67.0" | "3.68.0" | "3.69.0" | "3.70.0" | "3.71.0" | "3.72.0" | "3.73.0"
-            | "3.74.0" | "3.75.0" | "3.76.0" | "3.77.0" | "3.78.0",
+            | "3.74.0" | "3.75.0" | "3.76.0" | "3.77.0" | "3.78.0" | "3.79.0",
         ) => MatchingProfile::DataCallsV1,
         (rstyle_pdg::extraction_profile::DATA_ID, _) => MatchingProfile::DataV1,
         _ => MatchingProfile::ScalarV1,

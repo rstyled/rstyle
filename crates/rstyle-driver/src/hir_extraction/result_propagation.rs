@@ -1,0 +1,250 @@
+//! Exact Try-desugaring observations, without extraction permission.
+use super::{
+    hir::{Context, reference},
+    library_resolution::definition,
+    results::payloads,
+};
+use rstyle_pdg::{PathRes, result_propagation::capture::*};
+use rustc_hir::{
+    self as hir, Expr, ExprKind,
+    def::{DefKind, Res},
+    def_id::DefId,
+};
+use rustc_middle::ty::{self, Ty};
+
+impl<'tcx> Context<'tcx> {
+    pub(super) fn result_propagation(&self, root: &Expr<'tcx>) -> Option<PathRes> {
+        if !self.profile.supports("rust.same-error-result-propagation") {
+            return None;
+        }
+        let witness = self.propagation_witness(root)?;
+        Some(PathRes {
+            kind: RESOLUTION.into(),
+            target: None,
+            description: serde_json::to_string(&witness).expect("Try desugaring witness"),
+        })
+    }
+
+    fn propagation_witness(&self, root: &Expr<'tcx>) -> Option<Witness> {
+        let ExprKind::Match(branch, arms, hir::MatchSource::TryDesugar(_)) = root.kind else {
+            return None;
+        };
+        let [first, second] = arms else {
+            return None;
+        };
+        let [operand] = call_arguments(branch)? else {
+            return None;
+        };
+        let shape = self.propagation_shape(operand, branch)?;
+        let (break_arm, continue_arm) = self.propagation_arms(first, second)?;
+        let ExprKind::Ret(Some(residual)) = break_arm.body.kind else {
+            return None;
+        };
+        let [usage] = call_arguments(residual)? else {
+            return None;
+        };
+        let mut broken = self.propagation_arm(break_arm)?;
+        broken.usage = reference(usage.hir_id);
+        let continued = self.propagation_arm(continue_arm)?;
+        self.propagation_use(usage, &broken)?;
+        self.propagation_use(continue_arm.body, &continued)?;
+
+        Some(Witness {
+            identity: IDENTITY.into(),
+            root: reference(root.hir_id),
+            operand: reference(operand.hir_id),
+            try_span: self.span(root.span),
+            operand_span: self.span(operand.span),
+            branch_call: reference(branch.hir_id),
+            residual_call: reference(residual.hir_id),
+            early_return: reference(break_arm.body.hir_id),
+            shape,
+            branch: self.propagation_call(branch)?,
+            residual: self.propagation_call(residual)?,
+            conversion: self.propagation_conversion(root, operand)?,
+            break_arm: broken,
+            continue_arm: continued,
+        })
+    }
+
+    fn propagation_arms(
+        &self,
+        first: &'tcx hir::Arm<'tcx>,
+        second: &'tcx hir::Arm<'tcx>,
+    ) -> Option<(&'tcx hir::Arm<'tcx>, &'tcx hir::Arm<'tcx>)> {
+        match self
+            .propagation_arm(first)?
+            .variant
+            .path
+            .rsplit("::")
+            .next()?
+        {
+            "Break" => Some((first, second)),
+            "Continue" => Some((second, first)),
+            _ => None,
+        }
+    }
+
+    fn propagation_shape(&self, operand: &Expr<'tcx>, branch: &Expr<'tcx>) -> Option<Shape> {
+        let input = self.typeck.expr_ty(operand);
+        let (ok, error) = payloads(self.tcx, input)?;
+        if !ok.is_unit() || input != self.result {
+            return None;
+        }
+
+        let control_flow = self.typeck.expr_ty(branch);
+        let ty::Adt(_, args) = control_flow.kind() else {
+            return None;
+        };
+        if args.len() != 2 || !args.type_at(1).is_unit() {
+            return None;
+        }
+
+        let residual = args.type_at(0);
+        let (never, same_error) = payloads(self.tcx, residual)?;
+        if !never.is_never() || error != same_error {
+            return None;
+        }
+
+        Some(Shape {
+            result: input.to_string(),
+            error: error.to_string(),
+            residual: residual.to_string(),
+            control_flow: control_flow.to_string(),
+        })
+    }
+
+    fn propagation_arm(&self, arm: &hir::Arm<'tcx>) -> Option<Arm> {
+        if arm.guard.is_some() {
+            return None;
+        }
+        let hir::PatKind::Struct(ref path, fields, rest) = arm.pat.kind else {
+            return None;
+        };
+        let [field] = fields else {
+            return None;
+        };
+        if rest.is_some() || field.ident.name.as_str() != "0" || field.is_shorthand {
+            return None;
+        }
+
+        let binding = field.pat;
+        let hir::PatKind::Binding(
+            hir::BindingMode(hir::ByRef::No, hir::Mutability::Not),
+            id,
+            _,
+            None,
+        ) = binding.kind
+        else {
+            return None;
+        };
+
+        let Res::Def(DefKind::Variant, variant) = self.typeck.qpath_res(path, arm.pat.hir_id)
+        else {
+            return None;
+        };
+        let ty::Adt(owner, _) = self.typeck.node_type(arm.pat.hir_id).kind() else {
+            return None;
+        };
+        if self.tcx.parent(variant) != owner.did() {
+            return None;
+        }
+
+        Some(Arm {
+            arm: reference(arm.hir_id),
+            pattern: reference(arm.pat.hir_id),
+            binding: reference(id),
+            usage: reference(arm.body.hir_id),
+            variant: definition(self.tcx, variant),
+        })
+    }
+
+    fn propagation_use(&self, expression: &Expr<'tcx>, arm: &Arm) -> Option<()> {
+        let ExprKind::Path(ref path) = expression.kind else {
+            return None;
+        };
+        let Res::Local(target) = self.typeck.qpath_res(path, expression.hir_id) else {
+            return None;
+        };
+        (reference(target) == arm.binding).then_some(())
+    }
+
+    fn propagation_call(&self, expression: &Expr<'tcx>) -> Option<Selection> {
+        let ExprKind::Call(callee, _) = expression.kind else {
+            return None;
+        };
+        let ExprKind::Path(ref path) = callee.kind else {
+            return None;
+        };
+        let Res::Def(_, method) = self.typeck.qpath_res(path, callee.hir_id) else {
+            return None;
+        };
+
+        let callee_ty = self.typeck.expr_ty(callee);
+        let ty::FnDef(typed_method, arguments) = callee_ty.kind() else {
+            return None;
+        };
+        if *typed_method != method || !arguments.bound_vars().is_empty() {
+            return None;
+        }
+        self.propagation_selection(expression, method, arguments.skip_binder())
+    }
+
+    fn propagation_selection(
+        &self,
+        root: &Expr<'tcx>,
+        method: DefId,
+        args: ty::GenericArgsRef<'tcx>,
+    ) -> Option<Selection> {
+        if self.tcx.def_kind(method) != DefKind::AssocFn
+            || args.len() != self.tcx.generics_of(method).count()
+            || args
+                .iter()
+                .any(|arg| !matches!(arg.kind(), ty::GenericArgKind::Type(_)))
+        {
+            return None;
+        }
+
+        let environment = ty::TypingEnv::post_analysis(self.tcx, root.hir_id.owner.def_id);
+        let selected = ty::Instance::try_resolve(self.tcx, environment, method, args);
+        let instance = selected.ok()??;
+
+        let signature = self
+            .tcx
+            .fn_sig(method)
+            .instantiate(self.tcx, args)
+            .map(|signature| signature.skip_binder());
+        let normalized = self
+            .tcx
+            .try_normalize_erasing_regions(environment, signature);
+        let signature = normalized.ok()?;
+        let [input] = signature.inputs() else {
+            return None;
+        };
+
+        Some(Selection {
+            method: definition(self.tcx, method),
+            implementation: definition(self.tcx, instance.def_id()),
+            arguments: args.iter().map(|arg| arg.to_string()).collect(),
+            implementation_arguments: instance.args.iter().map(|arg| arg.to_string()).collect(),
+            input: input.to_string(),
+            output: signature.output().to_string(),
+        })
+    }
+
+    fn propagation_conversion(&self, root: &Expr<'tcx>, operand: &Expr<'tcx>) -> Option<Selection> {
+        let (_, error): (Ty<'tcx>, Ty<'tcx>) = payloads(self.tcx, self.typeck.expr_ty(operand))?;
+        let method = self
+            .tcx
+            .get_diagnostic_item(rustc_span::Symbol::intern("from_fn"))?;
+        let args = self.tcx.mk_args(&[error.into(), error.into()]);
+        self.propagation_selection(root, method, args)
+    }
+}
+
+fn call_arguments<'tcx>(expression: &Expr<'tcx>) -> Option<&'tcx [Expr<'tcx>]> {
+    let ExprKind::Call(_, arguments) = expression.kind else {
+        return None;
+    };
+    Some(arguments)
+}

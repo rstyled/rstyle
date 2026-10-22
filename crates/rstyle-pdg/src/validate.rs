@@ -133,7 +133,7 @@ pub fn validate_sources(
 
 /// Reuse only the actual identity cached by an immutable byte owner. Claimed
 /// document identities are still compared; no serialized claim installs a cache.
-pub(crate) fn validate_source_text(
+pub fn validate_source_text(
     doc: &PdgDocument,
     ctx: &ValidationContext,
     text: &crate::SourceText,

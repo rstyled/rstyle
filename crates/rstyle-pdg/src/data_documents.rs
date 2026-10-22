@@ -25,6 +25,7 @@ pub(crate) mod named_callbacks;
 mod option_if_let;
 mod origins;
 mod read_accesses;
+pub(crate) mod result_propagation;
 mod scalar_enums;
 mod scalar_from;
 mod size_calls;
@@ -82,6 +83,7 @@ fn install_value_contracts(
 ) -> Result<Pair, String> {
     install_policy(&mut pair, facts)?;
     crate::concrete_results::documents::install(&mut pair);
+    result_propagation::install(&mut pair);
 
     Ok(pair)
 }
@@ -301,6 +303,7 @@ fn verify_call_operations(
     checked_lengths::verify(pair, facts)?;
 
     option_if_let::verify(pair, facts)?;
+    result_propagation::verify(pair, facts)?;
     assertions::verify(pair, facts)?;
     size_calls::verify(pair, facts)?;
     crate::data_library::verify_calls(pair, facts, calls)?;

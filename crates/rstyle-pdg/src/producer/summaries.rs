@@ -33,6 +33,10 @@ impl SummaryCapture<'_> {
             let checked = crate::iterator_position::verify(node, self.facts)?;
             return self.visit(checked.receiver);
         }
+        if crate::result_propagation::candidate(node, self.facts) {
+            let checked = crate::result_propagation::verify(node, self.facts)?;
+            return self.visit(checked.operand);
+        }
         let mut records = node
             .children
             .iter()

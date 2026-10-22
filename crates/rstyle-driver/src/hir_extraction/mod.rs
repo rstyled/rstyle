@@ -17,6 +17,7 @@ mod nominal_census;
 mod options;
 pub mod output;
 mod primitive_constants;
+mod result_propagation;
 mod results;
 mod scalar_constants;
 mod size_calls;

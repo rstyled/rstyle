@@ -50,6 +50,8 @@ pub struct Registry {
     pub pointer_width: u64,
     pub core_hash: String,
     pub source_digests: BTreeMap<String, String>,
+    #[serde(default)]
+    pub result_propagation_source_digests: BTreeMap<String, String>,
     pub operations: Vec<Operation>,
     #[serde(default)]
     pub definitions: BTreeMap<String, String>,
@@ -183,8 +185,12 @@ mod tests {
             assert_ne!(arm.core_hash, other.core_hash);
             assert_eq!(arm.rustc_commit, other.rustc_commit);
             assert_eq!(arm.source_digests, other.source_digests);
+            assert_eq!(
+                arm.result_propagation_source_digests,
+                other.result_propagation_source_digests
+            );
             assert_eq!(arm.operations.len(), other.operations.len());
-            assert_eq!(arm.definitions.len(), 39);
+            assert_eq!(arm.definitions.len(), 47);
             assert_eq!(
                 arm.definitions.keys().collect::<Vec<_>>(),
                 other.definitions.keys().collect::<Vec<_>>()
@@ -220,7 +226,11 @@ mod tests {
                     expected
                 );
             }
-            for (module, expected) in &registry.source_digests {
+            for (module, expected) in registry
+                .source_digests
+                .iter()
+                .chain(&registry.result_propagation_source_digests)
+            {
                 let relative = if module.ends_with(".rs") {
                     module.clone()
                 } else {

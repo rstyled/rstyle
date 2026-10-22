@@ -270,6 +270,7 @@ impl Inventory<'_> {
 
     fn expression_kind(&self, expression: &syn::Expr) -> Option<&'static str> {
         let (capability, kind) = match expression {
+            syn::Expr::Try(_) => ("rust.same-error-result-propagation", "expr_try_desugar"),
             syn::Expr::Let(_) => ("rust.scalar-option-if-let", "expr_let"),
             syn::Expr::Closure(_) => ("rust.immediate-option-callbacks", "expr_closure"),
             syn::Expr::Range(_) => ("rust.shared-subslice-views", "expr_struct"),

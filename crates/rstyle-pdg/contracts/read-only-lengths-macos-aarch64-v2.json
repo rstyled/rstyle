@@ -94,7 +94,15 @@
     "core::num::u32::MAX": "DefPathHash(Fingerprint(9963928104983068931, 7080129744475684409))",
     "std::result::Result": "DefPathHash(Fingerprint(9963928104983068931, 1136792353740930600))",
     "std::prelude::v1::Ok": "DefPathHash(Fingerprint(9963928104983068931, 6980135458098430493))",
-    "std::prelude::v1::Err": "DefPathHash(Fingerprint(9963928104983068931, 6765264364005294788))"
+    "std::prelude::v1::Err": "DefPathHash(Fingerprint(9963928104983068931, 6765264364005294788))",
+    "rstyle.result-propagation.try-branch.method": "DefPathHash(Fingerprint(9963928104983068931, 17262310836178012393))",
+    "rstyle.result-propagation.try-branch.implementation": "DefPathHash(Fingerprint(9963928104983068931, 3565562182610728533))",
+    "rstyle.result-propagation.from-residual.method": "DefPathHash(Fingerprint(9963928104983068931, 3971763738738451780))",
+    "rstyle.result-propagation.from-residual.implementation": "DefPathHash(Fingerprint(9963928104983068931, 12691128739732534233))",
+    "rstyle.result-propagation.identity-from.method": "DefPathHash(Fingerprint(9963928104983068931, 13583065962744827038))",
+    "rstyle.result-propagation.identity-from.implementation": "DefPathHash(Fingerprint(9963928104983068931, 18245141720523614982))",
+    "rstyle.result-propagation.ControlFlow::Break": "DefPathHash(Fingerprint(9963928104983068931, 8288336137317479132))",
+    "rstyle.result-propagation.ControlFlow::Continue": "DefPathHash(Fingerprint(9963928104983068931, 16487429325092438639))"
   },
   "alloc_macro_exports": {
     "library": {
@@ -133,5 +141,10 @@
     "std/src/thread/local.rs": "sha256:e3ab1f6bc155548843ec942bc409aecf2d812e6a4088680a4647df1848b5b1f1",
     "std/src/sys/thread_local/mod.rs": "sha256:b8e407313093a89008fd0fbdd4805f2da8c7bb7711f0d36c03d858d6f0de5e4a",
     "std/src/sys/thread_local/native/mod.rs": "sha256:258d21c8714e9e51ab4bba15b086dd5a83acad4573ac597887e5196c30adbeec"
+  },
+  "result_propagation_source_digests": {
+    "ops/try_trait.rs": "sha256:5ccb79ee2c633935620932253924f4b8b09d71905db4f5c117a4a25cf3b7cd00",
+    "ops/control_flow.rs": "sha256:503a4cbd71a8825e62538a976dc8d81ad1c86c8d5203b42be3749dd6d29c9be2",
+    "convert/mod.rs": "sha256:ec1dfed5b8eef22496fc85eeb0b26a5600944fb8d2f6d6e9aaf81fb45af06de5"
   }
 }

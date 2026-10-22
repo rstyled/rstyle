@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.73.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.79.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -27,6 +27,10 @@ Data-v3 3.71 connects immediate shared-helper Option callbacks through original
 Transition predicates, including copied borrowed byte payloads. Data-v3 3.72
 connects original Span/Match lengths; 3.73 connects builtin bool-to-usize and
 literal crate documentation inputs through original base64ct lengths.
+Data-v3 3.74–3.75 connects pinned alloc imports and fresh Range helper results;
+3.76–3.77 connects bounded scalar-loop helpers and pinned primitive constants.
+Data-v3 3.78–3.79 connects source-proved no-drop unit errors, fresh Results and
+exact same-error `?` through original Unicode capability checks.
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -104,7 +108,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Data-v3 3.41.0 additionally supports [bounded cyclic prefix scans](docs/extraction-profiles/cyclic-prefix-scans-v1.md): reducible loop-body/condition merges with finite iteration-local availability. General iterator/value-carrying exit and broader caller compositions remain open. |
 | F11 | Labelled and value-carrying exits | Missing | `'outer: loop { break 'outer; }`, `break x` | Exact target resolution and value/frontier dependencies; also labelled block expressions. |
 | F12 | Iterator `for` loops | Missing | `for x in xs { ... }` | Iterator protocol, yielded values, effects, drop, and source/desugaring correspondence; not covered by scalar `while`. |
-| F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. Data-v3 3.42.0 adds [owned bool/integer Option values](docs/extraction-profiles/scalar-option-byte-widths-v1.md), exact Some/None construction, early returns, saved local values and supported helper transport. Data-v3 3.51–3.52 connect [pinned integer Results and immediate checked-sub Option unwrap](docs/extraction-profiles/end-of-input-v1.md). General Result payload binding, saved checked unwraps, cleanup and `?` remain missing. |
+| F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. Data-v3 3.42.0 adds [owned bool/integer Option values](docs/extraction-profiles/scalar-option-byte-widths-v1.md), exact Some/None construction, early returns, saved local values and supported helper transport. Data-v3 3.51–3.52 connect [pinned integer Results and immediate checked-sub Option unwrap](docs/extraction-profiles/end-of-input-v1.md). Data-v3 3.78–3.79 adds fresh `Result<(), E>` for independently proved no-drop unit-field errors and [exact same-error `?`](docs/extraction-profiles/same-error-result-propagation-v1.md), including method forwarding and nested/sequential composition. General Result payload binding, saved Results/checked unwraps, other residual conversions and cleanup remain missing. |
 | F14 | Assertion macros | Partial | `assert!(b);`, `debug_assert!(b);` | Data-v3 3.6.0 supports unformatted standard assertions, original invocation/condition correspondence, one condition evaluation, debug settings and disclosed omitted panic flow; see [assertion contract](docs/extraction-profiles/scalar-assertions-v1.md). Data-v3 3.52.0 adds [literal scalar diagnostics](docs/extraction-profiles/end-of-input-v1.md); Data-v3 3.53 adds standard two-operand bool/integer assert_eq!/debug_assert_eq! with ordered snapshots. Explicit messages on comparisons, custom comparisons/formatting and general exceptional flow remain missing. |
 | F15 | General panic/unwind/cleanup flow | Missing | `panic!("bad")`, `catch_unwind(f)` | Current extraction is bounded normal flow; omitted applicable exceptional flow is disclosed, not represented as complete. |
 
@@ -4514,3 +4518,38 @@ Next: guarded payload ownership and exact same-error `?` for original
 Its independent native oracle passes4,719,096 cases; extraction remains pending.
 P01–P22 remains active; full-library matching is incomplete under max-pairs0.
 Evidence: `/tmp/rstyle-result-{evidence.log,current-*,oracle.json,final-*,frozen-*}`.
+
+### Data-v3 3.79: original same-error Result caller
+
+[Contract](docs/extraction-profiles/same-error-result-propagation-v1.md) and
+[unchanged selection](eval/coverage-development/result-propagation-selection.json).
+Original LookSet::available now connects conditional flag queries to the complete
+UnicodeWordBoundaryError check chain through exact same-error `?`. The operand
+is evaluated once; Err forwards the saved whole Result to exit and Ok yields
+unit. Exact selected core implementations/substitutions and independent no-drop
+source proof remain required. Fresh Result method forwarding and nested/sequential
+composition are included; general payload binding, stored Results, Option `?`,
+other success types/conversions and cleanup remain excluded.
+All57 selected contextual chain instances admit across9 contexts: **9 gains,
+zero losses**. Per target **148→149/2582,92→93/590,91→92/590**; all1002
+current admissions strictly replay and57 selected mirror comparisons complete.
+Distinct alpha/transitive Cargo peers and resealed semantic attacks also pass.
+Native unchanged-library oracle: **4,719,096 cases, zero mismatches**.
+Cross-target capture/replay does not claim native x86/macOS execution. Historical
+3.78 artifacts retain their exact policy and pinned verifier; they are not
+relabeled for the current3.79-only DataV3 registration.
+Frozen `run-rpku9v_n` versus `run-yaapzru3`: identical60 identities/contexts and
+**23/30/7** outcomes; full package rosters unchanged, all58 strict admissions.
+Gates: **1135 tests/5 existing skips in111.617s**, doctests/fmt/Clippy pass;
+**rstyle0/3712, patterns0 unignored**, existing15 ignores unchanged.
+The composition test now takes5.4–5.6s in observed runs, down from about22s after
+removing repeated unit serialization/source proofs and reusing immutable evidence.
+Transport remains streamed xxh3; persistent source identities are cached. Guard
+verification shares adjacency/operation indexes rather than rescanning all edges.
+These observations are not a general scaling or whole-suite speedup claim.
+Next source-selected family: the three original Memchr prefilter prefix methods,
+connecting Option reference extraction, Copy aggregate results and exact local
+trait-member ownership. The parent core::fmt::Debug import is a demonstrated
+source blocker; preserve namespace/derive proof rather than exempting its name.
+P01–P22 remains active; full-library matching and held-out quality remain separate.
+Evidence: `/tmp/rstyle-propagation-{current-*,green-*,final-*,frozen-*}`.

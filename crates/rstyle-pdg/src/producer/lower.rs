@@ -8,6 +8,7 @@ mod loops;
 mod named_callbacks;
 mod option_if_let;
 mod options;
+mod result_propagation;
 
 use super::graph::*;
 use crate::{NodeCategory, frontend::*};
@@ -1369,6 +1370,7 @@ fn arm(predicate: &Flow, outcome: &str) -> Flow {
 fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
     match node.kind.as_str() {
         "expr_block" => Builder::block,
+        "expr_try_desugar" => Builder::result_propagation,
         "expr_assert" => Builder::assertion,
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,

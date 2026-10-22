@@ -12,45 +12,81 @@ pub(super) fn guarded(
     load: &PdgNode,
     outcome: crate::CfgEdgeKind,
 ) -> Result<(), String> {
-    let map = crate::read_operation_map(&pair.pdg.extensions)?;
-    let cfg = |id: &str| -> Result<String, String> {
-        let candidates: Vec<_> = map.iter().filter(|entry| entry.pdg_node_id == id).collect();
-        let [entry] = candidates.as_slice() else {
-            return Err("Conditional payload requires unique operation mapping".into());
-        };
-        Ok(entry.cfg_node_id.clone())
-    };
-    let controller = cfg(&selector.id)?;
-    let target = cfg(&load.id)?;
-    if !pair
-        .cfg
-        .edges
-        .iter()
-        .any(|edge| edge.source == controller && edge.kind == outcome)
-    {
-        return Err("Variant selector lacks its successful payload branch".into());
+    Guards::new(pair)?.guarded(selector, load, outcome)
+}
+
+pub(super) struct Guards<'a> {
+    pair: PairView<'a>,
+    operations: BTreeMap<String, Vec<String>>,
+    outgoing: BTreeMap<&'a str, Vec<&'a crate::CfgEdge>>,
+}
+
+impl<'a> Guards<'a> {
+    pub(super) fn new(pair: PairView<'a>) -> Result<Self, String> {
+        let mut operations = BTreeMap::<_, Vec<_>>::new();
+        for entry in crate::read_operation_map(&pair.pdg.extensions)? {
+            operations
+                .entry(entry.pdg_node_id)
+                .or_default()
+                .push(entry.cfg_node_id);
+        }
+        let mut outgoing = BTreeMap::<_, Vec<_>>::new();
+        for edge in &pair.cfg.edges {
+            outgoing.entry(edge.source.as_str()).or_default().push(edge);
+        }
+
+        Ok(Self {
+            pair,
+            operations,
+            outgoing,
+        })
     }
 
-    let mut pending = vec![pair.cfg.entry_node_id.as_str()];
-    let mut seen = BTreeSet::new();
-    while let Some(node) = pending.pop() {
-        if !seen.insert(node) {
-            continue;
+    fn operation(&self, id: &str) -> Result<&str, String> {
+        match self.operations.get(id).map(Vec::as_slice) {
+            Some([operation]) => Ok(operation),
+            _ => Err("Conditional payload requires unique operation mapping".into()),
         }
-        if node == target {
-            return Err("Payload is reachable without its successful variant guard".into());
-        }
-        pending.extend(
-            pair.cfg
-                .edges
-                .iter()
-                .filter(|edge| {
-                    edge.source == node && !(edge.source == controller && edge.kind == outcome)
-                })
-                .map(|edge| edge.target.as_str()),
-        );
     }
-    Ok(())
+
+    pub(super) fn guarded(
+        &self,
+        selector: &PdgNode,
+        load: &PdgNode,
+        outcome: crate::CfgEdgeKind,
+    ) -> Result<(), String> {
+        let controller = self.operation(&selector.id)?;
+        let target = self.operation(&load.id)?;
+        if !self
+            .outgoing
+            .get(controller)
+            .into_iter()
+            .flatten()
+            .any(|edge| edge.kind == outcome)
+        {
+            return Err("Variant selector lacks its successful payload branch".into());
+        }
+
+        let mut pending = vec![self.pair.cfg.entry_node_id.as_str()];
+        let mut seen = BTreeSet::new();
+        while let Some(node) = pending.pop() {
+            if !seen.insert(node) {
+                continue;
+            }
+            if node == target {
+                return Err("Payload is reachable without its successful variant guard".into());
+            }
+            pending.extend(
+                self.outgoing
+                    .get(node)
+                    .into_iter()
+                    .flatten()
+                    .filter(|edge| !(node == controller && edge.kind == outcome))
+                    .map(|edge| edge.target.as_str()),
+            );
+        }
+        Ok(())
+    }
 }
 
 pub(super) fn binding(pair: PairView<'_>, binding: &HirNode, load: &PdgNode) -> Result<(), String> {
