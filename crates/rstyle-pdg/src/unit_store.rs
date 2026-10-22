@@ -41,6 +41,15 @@ pub trait EvidenceFacts: sealed::Sealed {
         crate::data_frontend::check(self.facts())
     }
 
+    /// Origin results concern immutable source nodes, never graph documents.
+    fn reference_origins(
+        &self,
+        node: &HirNode,
+        selectors: &[usize],
+    ) -> Result<Vec<crate::data_origins::Origin>, String> {
+        crate::data_reference_locals::compute_origins(node, selectors, self.facts())
+    }
+
     /// Immutable receiver proofs are local to the owner, source mode and policy.
     fn receiver_inventory(
         &self,
@@ -93,6 +102,14 @@ impl EvidenceFacts for HirFnFacts {
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
     fn verify_data_frontend(&self) -> Result<(), String> {
         T::verify_data_frontend(*self)
+    }
+
+    fn reference_origins(
+        &self,
+        node: &HirNode,
+        selectors: &[usize],
+    ) -> Result<Vec<crate::data_origins::Origin>, String> {
+        T::reference_origins(*self, node, selectors)
     }
 
     fn receiver_inventory(
@@ -224,6 +241,14 @@ pub struct HelperView<'a> {
 impl EvidenceFacts for FunctionView<'_> {
     fn verify_data_frontend(&self) -> Result<(), String> {
         self.data_boundary()
+    }
+
+    fn reference_origins(
+        &self,
+        node: &HirNode,
+        selectors: &[usize],
+    ) -> Result<Vec<crate::data_origins::Origin>, String> {
+        self.selected_origins(node, selectors)
     }
 
     fn receiver_inventory(

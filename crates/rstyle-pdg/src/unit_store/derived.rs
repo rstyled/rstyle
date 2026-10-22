@@ -1,4 +1,6 @@
 //! Function evidence and unit construction results are immutable and policy-local.
+mod reference_origins;
+
 use super::*;
 use crate::{
     inherent_calls::Definition,
@@ -15,6 +17,7 @@ pub(super) struct Derived {
     data_frontend: Checked<()>,
     receivers: [Checked<crate::data_receivers::Capture>; 2],
     inherent: Checked<Option<Definition>>,
+    reference_origins: reference_origins::Queries,
 }
 
 struct Checked<T>([OnceCell<T>; 2]);
@@ -153,6 +156,16 @@ pub(super) fn contexts(count: usize) -> Box<[Derived]> {
 }
 
 impl FunctionView<'_> {
+    pub(super) fn selected_origins(
+        &self,
+        node: &HirNode,
+        selectors: &[usize],
+    ) -> Result<Vec<crate::data_origins::Origin>, String> {
+        self.derived()
+            .reference_origins
+            .select(node, selectors, self)
+    }
+
     pub(super) fn data_boundary(&self) -> Result<(), String> {
         self.derived()
             .data_frontend

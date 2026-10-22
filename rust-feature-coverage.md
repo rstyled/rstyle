@@ -4192,3 +4192,13 @@ Equal-work flags test: approximately **35→24s**; stored slices remain approxim
 doctests/fmt/Clippy pass, **rstyle 0/3337, patterns 0 unignored**, existing 15 ignores
 unchanged. Evidence: `/tmp/rstyle-perf6-*`. No new extraction capability or natural
 admission measurement; the pending callback slice remains separate.
+
+Origin-query follow-up: successful results are reused only for exact immutable
+source nodes, component selectors, owning analysis and verification policy; failed,
+edited and over-budget queries recompute. Equal-work slices: **32.47→30.37s**;
+flags remain approximately24s. Compact JSON retains every report field and cuts
+the flags report **2,290,482→1,507,677 bytes (34%)**, with identical parsed matching
+and outcomes. Development worktree: 1029 full-run passes plus the corrected new
+origin regression passing separately; five existing skips. Doctests/fmt/Clippy
+pass; **rstyle 0/3346, patterns 0 unignored**, existing15 ignores unchanged.
+Evidence: `/tmp/rstyle-perf7-*`; no extraction capability or admission change.

@@ -93,5 +93,13 @@ pub(crate) fn selected(
     selectors: &[usize],
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<crate::data_origins::Origin>, String> {
+    facts.reference_origins(node, selectors)
+}
+
+pub(crate) fn compute_origins(
+    node: &HirNode,
+    selectors: &[usize],
+    facts: &dyn EvidenceFacts,
+) -> Result<Vec<crate::data_origins::Origin>, String> {
     origins::selected(node, selectors, facts)
 }

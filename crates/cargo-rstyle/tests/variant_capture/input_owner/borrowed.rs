@@ -35,6 +35,41 @@ fn source() -> String {
 }
 
 #[test]
+fn origin_reuse_preserves_saved_sources_and_rejects_edited_node_queries() {
+    use rstyle_pdg::unit_store::EvidenceFacts;
+    let source = r#"
+        pub fn saved<'a>(a: &'a [u8], b: &'a [u8]) -> &'a [u8] {
+            let mut selected = a; let saved = selected; selected = b; saved
+        }
+    "#;
+    let (_directory, report) = capture(source, false);
+    let entry = function(&report, "saved");
+    assert_eq!(entry["outcome"], "admitted", "{}", entry["reasons"]);
+    let (unit, index) = data_unit(entry);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let saved = facts.body.children.last().unwrap();
+    let expected = vec![rstyle_pdg::data_origins::Origin {
+        parameter: 0,
+        path: vec![rstyle_pdg::field_locations::Projection::SharedReferent],
+    }];
+
+    for _ in 0..2 {
+        assert_eq!(facts.reference_origins(saved, &[]).unwrap(), expected);
+    }
+    let mut changed = saved.clone();
+    changed.kind = "expr_lit".into();
+    assert!(facts.reference_origins(&changed, &[]).is_err());
+    assert!(facts.reference_origins(saved, &[0]).is_err());
+    assert_eq!(facts.reference_origins(saved, &[]).unwrap(), expected);
+    rstyle_pdg::verification_policy::generated(|| {
+        assert_eq!(facts.reference_origins(saved, &[]).unwrap(), expected);
+        assert!(facts.reference_origins(&changed, &[]).is_err());
+    });
+    rstyle_ccgraph::admit_produced(unit.pair(index).unwrap(), &facts).unwrap();
+}
+
+#[test]
 fn stored_slices_compose_with_checked_consumers_saved_receivers_and_finite_alternatives() {
     for target in [
         "aarch64-unknown-linux-gnu",

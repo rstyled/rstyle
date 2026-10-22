@@ -162,7 +162,7 @@ pub fn render(
     directory: &Path,
 ) -> Result<String, String> {
     match format {
-        Format::Json => serde_json::to_string_pretty(report).map_err(|e| e.to_string()),
+        Format::Json => serde_json::to_string(report).map_err(|e| e.to_string()),
         Format::Text => Ok(format!(
             "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
             report.observed_units.len(),
@@ -207,7 +207,7 @@ impl Report<'_> {
 }
 
 fn write_to(mut writer: impl std::io::Write, report: &impl Serialize) -> Result<(), String> {
-    serde_json::to_writer_pretty(&mut writer, report).map_err(|error| error.to_string())?;
+    serde_json::to_writer(&mut writer, report).map_err(|error| error.to_string())?;
     writer.flush().map_err(|error| error.to_string())
 }
 
