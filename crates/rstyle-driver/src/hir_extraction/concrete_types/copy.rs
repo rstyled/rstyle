@@ -1,8 +1,7 @@
 //! Positive builtin Copy observations attached to existing declaration ownership.
 use super::super::hir::Context;
-use rstyle_pdg::{data_library::Callee, declaration_origins::BuiltinCopy};
+use rstyle_pdg::declaration_origins::BuiltinCopy;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::TyCtxt;
 
 pub(super) fn observe(ctx: &Context<'_>, owner: DefId) -> Option<BuiltinCopy> {
     if ctx.profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV3 {
@@ -32,18 +31,8 @@ pub(super) fn observe(ctx: &Context<'_>, owner: DefId) -> Option<BuiltinCopy> {
         .range(tcx, expansion.call_site.source_callsite())?;
 
     Some(BuiltinCopy {
-        trait_definition: identity(tcx, copy),
-        derive_definition: identity(tcx, definition),
+        trait_definition: super::super::library_resolution::definition(tcx, copy),
+        derive_definition: super::super::library_resolution::definition(tcx, definition),
         derive_span,
     })
-}
-
-fn identity(tcx: TyCtxt<'_>, definition: DefId) -> Callee {
-    Callee {
-        path: tcx.def_path_str(definition),
-        crate_name: tcx.crate_name(definition.krate).to_string(),
-        crate_hash: tcx.crate_hash(definition.krate).to_string(),
-        definition_hash: format!("{:?}", tcx.def_path_hash(definition)),
-        implementation: None,
-    }
 }

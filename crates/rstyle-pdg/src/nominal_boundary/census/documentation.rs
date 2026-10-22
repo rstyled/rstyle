@@ -23,30 +23,7 @@ pub struct Input {
     pub expanded_digest: String,
 }
 
-pub(crate) fn verify_document_policy(
-    profile: &crate::ProfileId,
-    facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
-    if !crate::extraction_profile::policy_supports(profile, CAPABILITY)
-        && facts.build.frontend_options.get(super::KEY).is_some()
-        && !facts
-            .build
-            .frontend_options
-            .data::<std::sync::Arc<Census>>()?
-            .documentation
-            .is_empty()
-    {
-        return Err("Documentation inputs require their registered document policy".into());
-    }
-
-    Ok(())
-}
-
-pub(crate) fn authority(facts: &dyn EvidenceFacts) -> Result<(), String> {
-    let census = facts
-        .build
-        .frontend_options
-        .data::<std::sync::Arc<Census>>()?;
+pub(super) fn authority(facts: &dyn EvidenceFacts, census: &Census) -> Result<(), String> {
     if census.documentation.is_empty() {
         return Ok(());
     }

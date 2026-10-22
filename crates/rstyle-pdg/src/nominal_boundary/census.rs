@@ -4,8 +4,10 @@ use super::UnitContext;
 mod cfg_if;
 pub mod documentation;
 pub mod expansions;
+pub mod external_imports;
 mod macro_scope;
 mod module_proof;
+pub(crate) mod policy;
 #[cfg(test)]
 use crate::concrete_types::digest;
 use serde::{Deserialize, Serialize};
@@ -37,6 +39,8 @@ pub struct Census {
     pub expansions: Vec<expansions::ModuleExpansion>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub documentation: Vec<documentation::Input>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub external_imports: Vec<external_imports::Import>,
 }
 
 pub struct Module {
@@ -44,6 +48,7 @@ pub struct Module {
     pub namespace: Vec<String>,
     pub items: Vec<syn::Item>,
     pub verified_macro_imports: BTreeSet<String>,
+    pub verified_external_imports: BTreeSet<String>,
 }
 
 pub fn verify(census: &Census) -> Result<Vec<Module>, String> {
@@ -69,6 +74,7 @@ pub(crate) fn verify_expanded(census: &Census, cfgs: &[String]) -> Result<Vec<Mo
         InputMode {
             expansions: true,
             documentation: false,
+            external_imports: false,
         },
     )
 }
@@ -85,6 +91,24 @@ pub(crate) fn verify_documented(
         InputMode {
             expansions,
             documentation: true,
+            external_imports: false,
+        },
+    )
+}
+
+pub(crate) fn verify_imported(
+    census: &Census,
+    cfgs: &[String],
+    expansions: bool,
+) -> Result<Vec<Module>, String> {
+    verify_mode(
+        census,
+        true,
+        Some(cfgs),
+        InputMode {
+            expansions,
+            documentation: !census.documentation.is_empty(),
+            external_imports: true,
         },
     )
 }
@@ -93,6 +117,28 @@ pub(crate) fn verify_documented(
 struct InputMode {
     expansions: bool,
     documentation: bool,
+    external_imports: bool,
+}
+
+impl InputMode {
+    fn inputs(
+        &self,
+        census: &Census,
+        cfgs: Option<&[String]>,
+    ) -> Result<BTreeSet<PathBuf>, String> {
+        let inputs = if self.documentation {
+            documentation::verify(census, cfgs.ok_or("Missing documentation configuration")?)?
+        } else {
+            if !census.documentation.is_empty() {
+                return Err("Documentation inputs require independent source ownership".into());
+            }
+            BTreeSet::new()
+        };
+        if !self.external_imports && !census.external_imports.is_empty() {
+            return Err("External macro imports require independent imported closure".into());
+        }
+        Ok(inputs)
+    }
 }
 
 fn verify_mode(
@@ -103,17 +149,11 @@ fn verify_mode(
 ) -> Result<Vec<Module>, String> {
     let InputMode {
         expansions,
-        documentation,
+        external_imports,
+        ..
     } = mode;
     check_budget(census)?;
-    let inputs = if documentation {
-        documentation::verify(census, cfgs.ok_or("Missing documentation configuration")?)?
-    } else {
-        if !census.documentation.is_empty() {
-            return Err("Documentation inputs require independent source ownership".into());
-        }
-        BTreeSet::new()
-    };
+    let inputs = mode.inputs(census, cfgs)?;
     let files = checked_files(census, &inputs)?;
     let mut closure = Closure {
         files,
@@ -123,6 +163,8 @@ fn verify_mode(
         selected: cfgs.map(crate::conditional_source::Configuration::new),
         expansions: expansions.then_some(census.expansions.as_slice()),
         used_expansions: BTreeSet::new(),
+        external_imports: external_imports.then_some(census.external_imports.as_slice()),
+        used_external_imports: BTreeSet::new(),
     };
     let root = &census.context.root_source;
     let directory = root.parent().ok_or("Missing root module directory")?;
@@ -141,6 +183,9 @@ fn verify_mode(
     if expansions && closure.used_expansions.len() != census.expansions.len() {
         return Err("Module expansion inventory has an unproved or duplicate output".into());
     }
+    if external_imports && closure.used_external_imports.len() != census.external_imports.len() {
+        return Err("External macro import inventory has unproved or duplicate records".into());
+    }
     Ok(closure.modules)
 }
 
@@ -150,7 +195,12 @@ pub fn check_budget(census: &Census) -> Result<(), String> {
             .checked_add(file.bytes.len())
             .ok_or("Source census byte overflow")
     })?;
-    if census.documentation.len() > MAX_FILES
+    if census.external_imports.len() > MAX_FILES
+        || census
+            .external_imports
+            .iter()
+            .any(|import| import.exports.macros.len() > MAX_FILES)
+        || census.documentation.len() > MAX_FILES
         || census.expansions.len() > MAX_FILES
         || census
             .expansions
@@ -217,18 +267,24 @@ struct Closure<'a> {
     selected: Option<crate::conditional_source::Configuration<'a>>,
     expansions: Option<&'a [expansions::ModuleExpansion]>,
     used_expansions: BTreeSet<usize>,
+    external_imports: Option<&'a [external_imports::Import]>,
+    used_external_imports: BTreeSet<usize>,
 }
 
 struct ModuleItems {
     scope: macro_scope::Scope,
     items: Vec<syn::Item>,
     macro_imports: BTreeSet<String>,
+    external_imports: BTreeSet<String>,
 }
 
 impl ModuleItems {
     fn record(&mut self, item: syn::Item, imported: bool) {
         if imported && let syn::Item::Mod(module) = &item {
             self.macro_imports.insert(module.ident.to_string());
+        }
+        if imported && let syn::Item::ExternCrate(import) = &item {
+            self.external_imports.insert(import.ident.to_string());
         }
         self.items.push(item);
     }
@@ -268,6 +324,7 @@ impl Closure<'_> {
             scope,
             items: Vec::new(),
             macro_imports: BTreeSet::new(),
+            external_imports: BTreeSet::new(),
         };
 
         for item in items {
@@ -292,6 +349,7 @@ impl Closure<'_> {
             namespace: site.namespace,
             items: state.items,
             verified_macro_imports: state.macro_imports,
+            verified_external_imports: state.external_imports,
         });
         Ok(state.scope)
     }
@@ -304,6 +362,10 @@ impl Closure<'_> {
     ) -> Result<bool, String> {
         if self.selected.is_none() {
             verify_nested_items(item, self.constants)?;
+        }
+        if let Some(names) = self.external_import(site, item)? {
+            scope.import_external(names);
+            return Ok(true);
         }
         if self.expansions.is_some() {
             self.observe(site, item, scope)?;
@@ -471,6 +533,7 @@ mod tests {
         Census {
             expansions: Vec::new(),
             documentation: Vec::new(),
+            external_imports: Vec::new(),
             identity: IDENTITY.into(),
             context: crate::nominal_boundary::tests::context(),
             files: files

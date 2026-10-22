@@ -41,7 +41,7 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
-    crate::nominal_boundary::census::documentation::verify_document_policy(profile, facts)?;
+    crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
     let capabilities = [
         crate::helper_stored_slices::CAPABILITY,
         "rust.passive-copy-dependencies",

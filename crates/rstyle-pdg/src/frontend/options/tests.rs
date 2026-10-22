@@ -218,6 +218,7 @@ fn source_census_is_shared_lossless_and_rejects_conflicting_snapshots() {
     let census = Arc::new(Census {
         expansions: Vec::new(),
         documentation: Vec::new(),
+        external_imports: Vec::new(),
         identity: IDENTITY.into(),
         context: crate::nominal_boundary::tests::context(),
         files: Vec::new(),
@@ -402,6 +403,7 @@ fn reordered_census_files_preserve_meaning_and_readable_order() {
     let first = Arc::new(Census {
         expansions: Vec::new(),
         documentation: Vec::new(),
+        external_imports: Vec::new(),
         identity: IDENTITY.into(),
         context,
         files: vec![file(root, "mod child;"), file(child, "pub struct Child;")],

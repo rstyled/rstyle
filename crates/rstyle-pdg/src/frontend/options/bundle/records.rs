@@ -28,6 +28,10 @@ pub(super) struct CensusExport<'a> {
         skip_serializing_if = "<[crate::nominal_boundary::census::documentation::Input]>::is_empty"
     )]
     documentation: &'a [crate::nominal_boundary::census::documentation::Input],
+    #[serde(
+        skip_serializing_if = "<[crate::nominal_boundary::census::external_imports::Import]>::is_empty"
+    )]
+    external_imports: &'a [crate::nominal_boundary::census::external_imports::Import],
 }
 #[derive(Serialize)]
 struct FileExport<'a> {
@@ -45,6 +49,8 @@ pub(super) struct CensusImport {
     expansions: Vec<crate::nominal_boundary::census::expansions::ModuleExpansion>,
     #[serde(default)]
     documentation: Vec<crate::nominal_boundary::census::documentation::Input>,
+    #[serde(default)]
+    external_imports: Vec<crate::nominal_boundary::census::external_imports::Import>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,6 +78,7 @@ impl<'a> CensusExport<'a> {
             context: &census.context,
             expansions: &census.expansions,
             documentation: &census.documentation,
+            external_imports: &census.external_imports,
             files,
         })
     }
@@ -98,6 +105,7 @@ impl SourceRecord for CensusImport {
             context: self.context,
             expansions: self.expansions,
             documentation: self.documentation,
+            external_imports: self.external_imports,
             files,
         };
         Ok(Entry::Census(Record::new(Arc::new(census), Vec::new())))

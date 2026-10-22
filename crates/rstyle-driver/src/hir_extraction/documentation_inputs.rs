@@ -1,8 +1,6 @@
 //! Observe direct builtin crate documentation expansion and its complete buffer.
 use super::{module_expansions::file_span, sources::Sources};
-use rstyle_pdg::{
-    concrete_types::digest, data_library::Callee, nominal_boundary::census::documentation::Input,
-};
+use rstyle_pdg::{concrete_types::digest, nominal_boundary::census::documentation::Input};
 use rustc_ast::token::DocFragmentKind;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
@@ -42,13 +40,7 @@ pub(super) fn capture(tcx: TyCtxt<'_>, sources: &Sources) -> Result<Vec<Input>, 
             invocation: file_span(tcx, sources, data.call_site)?,
             input,
             physical_path,
-            builtin: Callee {
-                path: tcx.def_path_str(definition),
-                crate_name: tcx.crate_name(definition.krate).to_string(),
-                crate_hash: tcx.crate_hash(definition.krate).to_string(),
-                definition_hash: format!("{:?}", tcx.def_path_hash(definition)),
-                implementation: None,
-            },
+            builtin: super::library_resolution::definition(tcx, definition),
             expanded_digest: digest(comment.as_str().as_bytes()),
         });
     }

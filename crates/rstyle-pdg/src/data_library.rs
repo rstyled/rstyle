@@ -2,6 +2,8 @@
 
 mod documents;
 mod resolve;
+mod roots;
+pub(crate) use roots::verify as verify_sysroot_roots;
 mod verify;
 pub(crate) use documents::verify_calls;
 pub use documents::{evidence, verify_documents};
@@ -51,6 +53,8 @@ pub struct Registry {
     pub operations: Vec<Operation>,
     #[serde(default)]
     pub definitions: BTreeMap<String, String>,
+    #[serde(default)]
+    pub alloc_macro_exports: Option<crate::nominal_boundary::census::external_imports::Exports>,
 }
 
 impl Registry {

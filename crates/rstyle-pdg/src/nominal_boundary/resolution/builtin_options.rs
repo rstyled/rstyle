@@ -12,7 +12,7 @@ impl Environment {
         scalar: &str,
     ) -> Result<(), String> {
         self.check_context(facts)?;
-        library_roots(facts)?;
+        crate::data_library::verify_sysroot_roots(facts, &["core", "std"], "Option")?;
         let file = facts
             .build
             .frontend_options
@@ -57,53 +57,11 @@ impl Environment {
             .filter(|module| namespace.starts_with(&module.namespace))
         {
             for item in &module.items {
-                selected::module_item_in(item, configuration, true)?;
+                selected::module_item_with_imports(item, module, configuration)?;
             }
         }
         Ok(())
     }
-}
-
-fn library_roots(facts: &HirFnFacts) -> Result<(), String> {
-    let invocation = facts
-        .build
-        .frontend_options
-        .get("invocation")
-        .and_then(serde_json::Value::as_array)
-        .ok_or("Missing Option compiler invocation")?;
-    let mut extern_value = false;
-
-    for argument in invocation {
-        let argument = argument
-            .as_str()
-            .ok_or("Invalid Option compiler argument")?;
-        if argument.starts_with('@') {
-            return Err("Option roots require expanded compiler arguments".into());
-        }
-        let value = if extern_value {
-            Some(argument)
-        } else {
-            argument.strip_prefix("--extern=")
-        };
-        if let Some(value) = value {
-            let name = value
-                .split('=')
-                .next()
-                .unwrap_or(value)
-                .rsplit(':')
-                .next()
-                .unwrap_or(value);
-            if matches!(name, "core" | "std") {
-                return Err("Option library root is overridden by an extern dependency".into());
-            }
-        }
-        extern_value = argument == "--extern";
-    }
-
-    if extern_value {
-        return Err("Incomplete Option extern argument".into());
-    }
-    Ok(())
 }
 
 fn owners<'a>(

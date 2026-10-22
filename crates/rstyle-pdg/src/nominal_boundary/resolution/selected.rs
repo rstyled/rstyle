@@ -272,6 +272,22 @@ pub(super) fn module_item(
     module_item_in(item, configuration, false)
 }
 
+/// Reuse only the exact external declaration already proved by census closure.
+pub(super) fn module_item_with_imports(
+    item: &syn::Item,
+    owner: &census::Module,
+    configuration: &crate::conditional_source::Configuration<'_>,
+) -> Result<(), String> {
+    if let syn::Item::ExternCrate(import) = item
+        && owner
+            .verified_external_imports
+            .contains(&import.ident.to_string())
+    {
+        return Ok(());
+    }
+    module_item_in(item, configuration, true)
+}
+
 pub(super) fn module_item_in(
     item: &syn::Item,
     configuration: &crate::conditional_source::Configuration<'_>,

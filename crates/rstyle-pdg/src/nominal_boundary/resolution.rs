@@ -235,8 +235,12 @@ pub fn verify(facts: &HirFnFacts, interface: &InterfaceObservations) -> Result<R
     verify_in(facts, interface, standalone_environment(facts)?)
 }
 
+pub(crate) fn verify_source_inputs(facts: &HirFnFacts) -> Result<(), String> {
+    standalone_environment(facts)?.check_input_owner(facts)
+}
+
 fn standalone_environment(facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
-    crate::nominal_boundary::census::documentation::authority(facts)?;
+    crate::nominal_boundary::census::policy::authority(facts)?;
     let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
     Environment::with_options(
         Arc::clone(&census),

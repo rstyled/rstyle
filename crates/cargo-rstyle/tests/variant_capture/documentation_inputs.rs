@@ -109,17 +109,11 @@ fn documentation_symlink_redirects_outside_package_remain_excluded() {
 }
 
 #[test]
-fn documentation_does_not_authorize_external_macro_imports_for_length_family() {
+fn documentation_and_pinned_imports_compose_with_original_length_helper() {
     let original = include_str!("../../../../eval/coverage-development/base64ct-length.rs");
     let source = format!("{SOURCE}\n#[macro_use] extern crate alloc;\n{original}");
     let (_directory, report) = capture(&source, "# Documentation\n");
     let selected = function(&report, "encoded_len_inner");
-    assert_eq!(selected["outcome"], "excluded");
-    assert!(
-        selected["reasons"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|reason| { reason.as_str().unwrap().contains("unsupported attributes") })
-    );
+    assert_eq!(selected["outcome"], "admitted", "{}", selected["reasons"]);
+    super::word_classifiers::verify_admissions(&report);
 }

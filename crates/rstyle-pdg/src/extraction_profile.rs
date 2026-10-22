@@ -105,6 +105,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.saturating-usize-lengths",
     "rust.literal-documentation-inputs",
     "rust.bool-to-usize",
+    "rust.pinned-alloc-macro-imports",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -249,7 +250,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.73.0", 92)),
+            Self::DataV3 => Some(("3.74.0", 93)),
         }
     }
 

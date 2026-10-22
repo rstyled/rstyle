@@ -124,13 +124,7 @@ impl<'tcx> Context<'tcx> {
     }
 
     fn variant_resolution(&self, definition: DefId) -> PathRes {
-        let callee = rstyle_pdg::data_library::Callee {
-            path: self.tcx.def_path_str(definition),
-            crate_name: self.tcx.crate_name(definition.krate).to_string(),
-            crate_hash: self.tcx.crate_hash(definition.krate).to_string(),
-            definition_hash: format!("{:?}", self.tcx.def_path_hash(definition)),
-            implementation: None,
-        };
+        let callee = super::library_resolution::definition(self.tcx, definition);
         PathRes {
             kind: "resolved_option_variant".into(),
             target: None,

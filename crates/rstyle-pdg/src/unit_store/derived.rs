@@ -62,7 +62,7 @@ struct SourcePolicy<'a> {
 
 impl Sources {
     fn environment(&self, facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
-        crate::nominal_boundary::census::documentation::authority(facts)?;
+        crate::nominal_boundary::census::policy::authority(facts)?;
         let census = facts.build.frontend_options.data::<Arc<Census>>()?;
         self.for_census(
             &census,
@@ -167,6 +167,13 @@ pub(super) fn receivers<'a>(
 }
 
 impl FunctionView<'_> {
+    pub(super) fn source_inputs(&self) -> Result<(), String> {
+        self.resolver
+            .sources()
+            .environment(self.facts())?
+            .check_input_owner(self.facts())
+    }
+
     pub(super) fn selected_origins(
         &self,
         node: &HirNode,

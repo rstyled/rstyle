@@ -74,3 +74,14 @@ fn library(tcx: TyCtxt<'_>, callee: DefId) -> Library {
         crate_hash: tcx.crate_hash(callee.krate).to_string(),
     }
 }
+
+/// One exact compiler definition identity, without granting operation support.
+pub(super) fn definition(tcx: TyCtxt<'_>, definition: DefId) -> Callee {
+    Callee {
+        path: tcx.def_path_str(definition),
+        crate_name: tcx.crate_name(definition.krate).to_string(),
+        crate_hash: tcx.crate_hash(definition.krate).to_string(),
+        definition_hash: format!("{:?}", tcx.def_path_hash(definition)),
+        implementation: None,
+    }
+}

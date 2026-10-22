@@ -1,7 +1,7 @@
 //! Original textual macro scope; unknown expansion never proves an empty scope.
 use super::expansions::FileSpan;
 use crate::conditional_source::Configuration;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct DefinitionBinding {
@@ -15,6 +15,7 @@ pub(super) struct Scope {
     bindings: BTreeMap<String, DefinitionBinding>,
     introduced: BTreeMap<String, DefinitionBinding>,
     poisoned: bool,
+    external: BTreeSet<String>,
 }
 
 impl Scope {
@@ -25,6 +26,7 @@ impl Scope {
             bindings: self.bindings.clone(),
             introduced: BTreeMap::new(),
             poisoned: self.poisoned,
+            external: self.external.clone(),
         }
     }
 
@@ -32,7 +34,15 @@ impl Scope {
         if self.poisoned {
             return Err("Unknown expansion prevents exact textual macro lookup".into());
         }
+        if !self.bindings.contains_key(name) && self.external.contains(name) {
+            return Err("External macro has no local expansion ownership permission".into());
+        }
         Ok(self.bindings.get(name))
+    }
+
+    /// Retain every proven imported name; imports supply no local macro body.
+    pub fn import_external(&mut self, names: Vec<String>) {
+        self.external.extend(names);
     }
 
     /// The caller supplies an original, checked full-item binding only for a
@@ -241,6 +251,28 @@ fn known_attribute(attribute: &syn::Meta) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn imported_names_remain_external_and_do_not_erase_unrelated_local_bindings() {
+        let mut scope = Scope::default();
+        scope.import_external(vec!["format".into(), "vec".into()]);
+        assert!(scope.lookup("format").is_err());
+        assert!(scope.lookup("vec").is_err());
+        assert!(scope.lookup("cfg_if").unwrap().is_none());
+        let item: syn::Item = syn::parse_str("macro_rules! cfg_if { () => {} }").unwrap();
+        scope
+            .observe(
+                &item,
+                &Configuration::new(&[]),
+                Some(binding("local:cfg_if")),
+            )
+            .unwrap();
+        assert_eq!(
+            scope.lookup("cfg_if").unwrap().unwrap().identity,
+            "local:cfg_if"
+        );
+        assert!(scope.child().lookup("format").is_err());
+    }
 
     fn binding(identity: &str) -> DefinitionBinding {
         DefinitionBinding {

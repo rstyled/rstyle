@@ -88,5 +88,37 @@
     "core::num::<impl usize>::checked_mul": "DefPathHash(Fingerprint(9963928104983068931, 245544603516886408))",
     "core::num::<impl usize>::saturating_sub": "DefPathHash(Fingerprint(9963928104983068931, 9835066682288662601))",
     "core::include_str#macro": "DefPathHash(Fingerprint(9963928104983068931, 6048061757705668393))"
+  },
+  "alloc_macro_exports": {
+    "library": {
+      "path": "alloc",
+      "crate": "alloc",
+      "crate_hash": "f29e9e3a7a699db029b71aba51d37324",
+      "definition_hash": "DefPathHash(Fingerprint(11744585795891658938, 11744585795891658938))"
+    },
+    "macros": [
+      {
+        "name": "format",
+        "kind": "bang",
+        "public": true,
+        "definition": {
+          "path": "alloc::format",
+          "crate": "alloc",
+          "crate_hash": "f29e9e3a7a699db029b71aba51d37324",
+          "definition_hash": "DefPathHash(Fingerprint(11744585795891658938, 11190200031265432430))"
+        }
+      },
+      {
+        "name": "vec",
+        "kind": "bang",
+        "public": true,
+        "definition": {
+          "path": "alloc::vec",
+          "crate": "alloc",
+          "crate_hash": "f29e9e3a7a699db029b71aba51d37324",
+          "definition_hash": "DefPathHash(Fingerprint(11744585795891658938, 587792046114505792))"
+        }
+      }
+    ]
   }
 }

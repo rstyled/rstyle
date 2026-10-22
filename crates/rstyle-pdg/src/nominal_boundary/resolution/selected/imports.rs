@@ -39,7 +39,7 @@ fn verify_in(
             if !ancestors && shadows_float(item, control) {
                 return Err("Scalar leaf primitive name has a local declaration".into());
             }
-            module_item_in(item, &configuration, true)?;
+            module_item_with_imports(item, module, &configuration)?;
             if ancestors || !verified_macro_import(item, module) {
                 macro_import(item, module, environment, &configuration)?;
             }

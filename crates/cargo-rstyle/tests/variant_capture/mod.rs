@@ -1,5 +1,6 @@
 use super::*;
 mod accelerator_packing;
+mod alloc_imports;
 mod ascii_boundaries;
 mod bitset_cardinality;
 mod bool_lengths;

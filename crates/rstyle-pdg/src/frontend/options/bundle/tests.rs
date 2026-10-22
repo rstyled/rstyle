@@ -14,6 +14,7 @@ fn options() -> FrontendOptions {
     let census = Census {
         expansions: Vec::new(),
         documentation: Vec::new(),
+        external_imports: Vec::new(),
         identity: crate::nominal_boundary::census::IDENTITY.into(),
         context,
         files: vec![UnitFile {

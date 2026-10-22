@@ -51,18 +51,22 @@ impl Environment {
         cfgs: Option<&[String]>,
         expansions: bool,
     ) -> Result<Self, String> {
-        let closed =
-            if !census.documentation.is_empty() || expansions && !census.expansions.is_empty() {
-                Err("Module expansion records require independent expanded closure".into())
-            } else {
-                census::verify_with_constants(&census, constants)
-            }
-            .and_then(|modules| build_index(&modules, &census, None).map(|index| (modules, index)));
+        let closed = if !census.external_imports.is_empty()
+            || !census.documentation.is_empty()
+            || expansions && !census.expansions.is_empty()
+        {
+            Err("Module expansion records require independent expanded closure".into())
+        } else {
+            census::verify_with_constants(&census, constants)
+        }
+        .and_then(|modules| build_index(&modules, &census, None).map(|index| (modules, index)));
         let (modules, index, copy_boundary) = match closed {
             Ok((modules, index)) => (modules, index, false),
             Err(error) => {
                 let Some(cfgs) = cfgs else { return Err(error) };
-                let modules = if !census.documentation.is_empty() {
+                let modules = if !census.external_imports.is_empty() {
+                    census::verify_imported(&census, cfgs, expansions)?
+                } else if !census.documentation.is_empty() {
                     census::verify_documented(&census, cfgs, expansions)?
                 } else if expansions {
                     census::verify_expanded(&census, cfgs)?
@@ -118,6 +122,20 @@ impl Environment {
         Ok(())
     }
 
+    pub(crate) fn check_input_owner(&self, facts: &HirFnFacts) -> Result<(), String> {
+        self.check_context(facts)?;
+        let path = facts
+            .build
+            .frontend_options
+            .get("source_file")
+            .and_then(serde_json::Value::as_str)
+            .ok_or("Missing source-input function owner")?;
+        if self.source(Path::new(path))?.range(facts.fn_span)? != &facts.source.bytes[..] {
+            return Err("Source inputs disagree with the exact captured function range".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn check_origin(
         &self,
         origin: &declaration_origins::Origin,
@@ -153,6 +171,7 @@ pub(crate) mod tests {
         Arc::new(census::Census {
             expansions: Vec::new(),
             documentation: Vec::new(),
+            external_imports: Vec::new(),
             identity: census::IDENTITY.into(),
             context: crate::nominal_boundary::tests::context(),
             files: vec![census::UnitFile {

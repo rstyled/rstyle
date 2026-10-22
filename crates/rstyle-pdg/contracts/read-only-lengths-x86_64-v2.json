@@ -88,5 +88,37 @@
     "core::num::<impl usize>::checked_mul": "DefPathHash(Fingerprint(2625310331494506890, 7728428590953190211))",
     "core::num::<impl usize>::saturating_sub": "DefPathHash(Fingerprint(2625310331494506890, 1019439101396897879))",
     "core::include_str#macro": "DefPathHash(Fingerprint(2625310331494506890, 8958481524699003480))"
+  },
+  "alloc_macro_exports": {
+    "library": {
+      "path": "alloc",
+      "crate": "alloc",
+      "crate_hash": "ff64c73e704917d2221c65219e8023de",
+      "definition_hash": "DefPathHash(Fingerprint(998851496068166567, 998851496068166567))"
+    },
+    "macros": [
+      {
+        "name": "format",
+        "kind": "bang",
+        "public": true,
+        "definition": {
+          "path": "alloc::format",
+          "crate": "alloc",
+          "crate_hash": "ff64c73e704917d2221c65219e8023de",
+          "definition_hash": "DefPathHash(Fingerprint(998851496068166567, 5608121214651359077))"
+        }
+      },
+      {
+        "name": "vec",
+        "kind": "bang",
+        "public": true,
+        "definition": {
+          "path": "alloc::vec",
+          "crate": "alloc",
+          "crate_hash": "ff64c73e704917d2221c65219e8023de",
+          "definition_hash": "DefPathHash(Fingerprint(998851496068166567, 863880933080931103))"
+        }
+      }
+    ]
   }
 }

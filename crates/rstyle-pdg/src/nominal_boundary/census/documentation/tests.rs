@@ -29,6 +29,7 @@ fn fixture() -> Census {
             },
         ],
         expansions: Vec::new(),
+        external_imports: Vec::new(),
         documentation: vec![Input {
             invocation: FileSpan {
                 path: "/sample/src/lib.rs".into(),

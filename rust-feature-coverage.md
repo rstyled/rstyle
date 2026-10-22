@@ -4326,3 +4326,26 @@ and final overflow (52 incompatible peer outcomes). This private-source witness
 is not execution of the private helper inside the full package.
 **1053 tests /5 existing skips, 127.079s**, doctests/fmt/Clippy pass;
 **rstyle0/3371, patterns0 unignored**, existing15 ignores unchanged.
+
+### Data-v3 3.74: original std length/getter family
+
+[Selection and bounded contract](eval/coverage-development/base64ct-std-import-selection.json).
+Exact compiler/target/library identities and the complete public alloc macro
+inventory (`format`, `vec`) prove the original root import. No macro invocation
+permission is added. Source-input closure checks exact owning bytes separately
+from nominal type permission, preserving existing nested scalar helpers.
+Three targets: std **3→6/150**, default **6/141 unchanged**, zero losses;
+encoded_len_inner, Line::len and Line::is_empty now complete both contexts.
+All36 base64ct plus12 contextual peer admissions strictly replay; **30 predeclared
+comparisons** complete, including rejection of the incompatible length helpers.
+Native unchanged-library oracle:131074 cases per feature context; separate
+private-source witnesses exercise overflow and getter behavior. Native execution
+is ARM Linux; x86 Linux and ARM macOS are cross-target capture/replay.
+Frozen `run-pk54tszf` versus `run-gn15_b0l`: **23 admitted /30 excluded /7 inactive**;
+complete package rosters remain lz4_flex8/150, syntax39/956, time-core11/226;
+all58 strictly replay. Full-library matching remains incomplete under max-pairs0.
+**1067 tests /5 existing skips**, doctests/fmt/Clippy pass;
+**rstyle0/3398, patterns0 unignored**, existing15 ignores unchanged.
+Evidence: `/tmp/rstyle-alloc-*`. Range getters additionally require exact local
+From dispatch and non-Copy Range/move/drop proof; Result/?/generic and looping
+callee families remain separate active frontier work.

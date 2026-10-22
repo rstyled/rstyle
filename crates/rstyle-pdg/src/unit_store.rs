@@ -38,6 +38,11 @@ mod sealed {
 pub trait EvidenceFacts: sealed::Sealed {
     fn facts(&self) -> &HirFnFacts;
 
+    /// Check retained source inputs and their unit closure, without nominal type permission.
+    fn verify_source_inputs(&self) -> Result<(), String> {
+        crate::nominal_boundary::resolution::verify_source_inputs(self.facts())
+    }
+
     /// Verify facts only; mutable graph documents never share this result.
     fn verify_data_frontend(&self) -> Result<(), String> {
         crate::data_frontend::check(self.facts())
@@ -102,6 +107,10 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn verify_source_inputs(&self) -> Result<(), String> {
+        T::verify_source_inputs(*self)
+    }
+
     fn verify_data_frontend(&self) -> Result<(), String> {
         T::verify_data_frontend(*self)
     }
@@ -241,6 +250,10 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn verify_source_inputs(&self) -> Result<(), String> {
+        self.source_inputs()
+    }
+
     fn verify_data_frontend(&self) -> Result<(), String> {
         self.data_boundary()
     }

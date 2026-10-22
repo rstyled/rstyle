@@ -7,6 +7,7 @@ mod concrete_types;
 pub mod diagnostics;
 mod documentation_inputs;
 mod evidence;
+mod external_imports;
 mod float_scalars;
 mod hir;
 mod inherent;

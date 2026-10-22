@@ -22,6 +22,14 @@ pub fn capture(
         identity: census::IDENTITY.into(),
         context: context.clone(),
         files: captured,
+        external_imports: if options
+            .selected()
+            .supports(census::external_imports::CAPABILITY)
+        {
+            super::external_imports::capture(tcx, &options.sources)?
+        } else {
+            Vec::new()
+        },
         documentation: if options
             .selected()
             .supports(census::documentation::CAPABILITY)
