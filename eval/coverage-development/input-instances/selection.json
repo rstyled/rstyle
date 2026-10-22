@@ -1,0 +1,112 @@
+{
+  "identity": "rstyle.development.input-instances/1",
+  "status": "source-selected before instance admission evaluation; requires concrete body and ownership proof",
+  "inventory_policy": "Separate four-instance development selection. Existing generic definitions, historical selections and denominators are unchanged. Missing instance representation is not an excluded captured instance.",
+  "source_identity": {
+    "existing_selection": "../input-owner-selection.json",
+    "package": "regex-automata",
+    "version": "0.4.18",
+    "file": "src/util/search.rs",
+    "existing_file_identity": "74157bd77eb6f80e8ab5952ef21e8fb2d3452c1817ec671a7a3574fbddae1ae7",
+    "verification": "Reuse the historical source-pin verifier once; compare the selected original byte ranges exactly. No new checksum algorithm or identity contract."
+  },
+  "functions": [
+    {
+      "name": "Input::new",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 5136,
+        "end": 5727
+      },
+      "source": "pub fn new<H: ?Sized + AsRef<[u8]>>(haystack: &'h H) -> Input<'h> {\n        // Perform only one call to `haystack.as_ref()` to protect from incorrect\n        // implementations that return different values from multiple calls.\n        // This is important because there's code that relies on `span` not being\n        // out of bounds with respect to the stored `haystack`.\n        let haystack = haystack.as_ref();\n        Input {\n            haystack,\n            span: Span { start: 0, end: haystack.len() },\n            anchored: Anchored::No,\n            earliest: false,\n        }\n    }"
+    },
+    {
+      "name": "From<&H>::from",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 29808,
+        "end": 29882
+      },
+      "source": "fn from(haystack: &'h H) -> Input<'h> {\n        Input::new(haystack)\n    }"
+    }
+  ],
+  "instances": [
+    {
+      "function": "Input::new",
+      "type_argument": "[u8]",
+      "expected": "in scope after complete concrete specialization, dispatch, source, cleanup and component-origin proof"
+    },
+    {
+      "function": "Input::new",
+      "type_argument": "str",
+      "expected": "in scope after complete concrete specialization, dispatch, source, cleanup and component-origin proof"
+    },
+    {
+      "function": "From<&H>::from",
+      "type_argument": "[u8]",
+      "expected": "in scope after complete concrete specialization, dispatch, source, cleanup and component-origin proof"
+    },
+    {
+      "function": "From<&H>::from",
+      "type_argument": "str",
+      "expected": "in scope after complete concrete specialization, dispatch, source, cleanup and component-origin proof"
+    }
+  ],
+  "build": {
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "consumer_edition": "2021",
+    "package_edition": "2021",
+    "contexts": [
+      {
+        "name": "default",
+        "default_features": true,
+        "features": []
+      },
+      {
+        "name": "no-default",
+        "default_features": false,
+        "features": []
+      }
+    ],
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "profile": "debug; overflow_checks=true; debug_assertions=true; panic=unwind; opt_level=No; pointer_width64",
+    "runtime_scope": "Native host execution only; cross-target instance capture/replay remains separate and pending."
+  },
+  "positive_expectations": [
+    "Exact returned byte-slice pointer, length and contents, including distinct buffers with equal contents and nonzero-offset subslices.",
+    "Start=0, end=byte length, Anchored::No, earliest=false, not done; no field omitted.",
+    "Input::new and From use the same concrete H without erasing instance distinctions.",
+    "One AsRef invocation; stored slice and span length refer to that single result.",
+    "Input is non-Copy but needs no drop glue in the original compiled layout; this observation does not authorize arbitrary non-Copy values."
+  ],
+  "negative_expectations": [
+    "Custom/stateful/static-storage/panicking AsRef implementations stay unsupported without independently proved effects and returned origins; runtime oracle demonstrates the danger.",
+    "Unresolved generic caller, requested/selected substitution swaps, wrong AsRef implementation/body, or mixed-unit artifacts cannot certify a concrete instance.",
+    "Never relabel generic HIR as a specialized body or treat region erasure as lifetime proof.",
+    "Complete Anchored::Pattern(PatternID) and neighboring source/macro/derive/drop obligations cannot be omitted because this constructor chooses No.",
+    "A changed nested default, repeated conversion, wrong byte length or mixed saved origin must fail semantic verification."
+  ],
+  "known_blockers": [
+    "Concrete call-instance observation and stable owner/argument association.",
+    "Substituted generic node, binding, adjustment and result evidence tied to original body; dependency metadata alone lacks local HIR/typeck.",
+    "Exact core AsRef trait/impl selection and str::as_bytes effects/origins.",
+    "Generic static inherent and blanket From source ownership.",
+    "Complete non-Copy Input no-drop proof and owned reference-bearing result transport.",
+    "Complete mixed Anchored construction/value transport, including PatternID/SmallIndex and lexical macro closure.",
+    "Foreign reference/aggregate summaries exceed current scalar linker boundary."
+  ],
+  "unknowns": [
+    "Actual native/cross-target selected implementation identities and normalization outcomes until instance capture runs.",
+    "Full original-owner source proof and practical admission gain until complete composition is connected."
+  ],
+  "oracle": {
+    "source": "oracle.rs",
+    "checks": "All contiguous subslices of two distinct 256-byte buffers, every Unicode-boundary substring of seven fixed strings, two stateful and two panicking conversions; constructor and From separately.",
+    "limitations": "Original runtime behavior only. Does not certify capture, strict admission, matching, general traits, drop/cleanup or rewrite safety."
+  }
+}

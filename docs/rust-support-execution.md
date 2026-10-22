@@ -173,21 +173,30 @@ assessment per context. [Contract](extraction-profiles/cross-unit-scalar-helpers
 Frozen source identities/denominators and23/30/7 remain unchanged; all58 contextual
 frozen admissions strictly replay. Final quality gates are recorded in the roadmap.
 
-Next source-selected family is regex-automata0.4.18 `Input::new<H>` and its
-blanket `From<&H>::from`, initially concrete `[u8]` and `str`. **Not production
-ready:** capture currently enumerates generic HIR owners once and discards
-selected instance arguments. Generic HIR cannot be relabeled as a concrete body.
-The original `search.rs` identity is
-`74157bd77eb6f80e8ab5952ef21e8fb2d3452c1817ec671a7a3574fbddae1ae7`;
-constructor span5136..5727, From body29808..29882. A separate frozen instance
-selection must precede admission measurements; historical definitions stay intact.
+The [Input instance selection](../eval/coverage-development/input-instances/README.md)
+freezes original regex-automata0.4.18 `Input::new<H>` and blanket `From<&H>::from`
+for `[u8]`/`str`. Data-v3 now observes concrete requested/selected call arguments,
+structural type/definition identities and source anchors, without altering generic
+bodies, policy capabilities or admission. Six-context Cargo captures record24
+observations with zero admission gains/losses; all six owning bundles strictly
+import. The native oracle passes132,736 constructor observations per feature
+context plus stateful/static-origin/panic controls. Region erasure is not lifetime
+proof; foreign metadata is not the owner's original HIR/typeck.
+
+Audit found a smaller connected next delivery: original num-traits0.2.19
+`clamp`, `clamp_min`, `clamp_max`, each at i32/u32. Its separate
+[source-first selection](../eval/coverage-development/clamp-instances/README.md)
+passes272,852 scalar native calls in each of four feature/assertion contexts,
+including4921 expected panics in each assertion-enabled context and custom trait
+order controls. This avoids Input's owned-reference/mixed-enum/cleanup blockers;
+it does not replace the Input selection or establish instance admissions.
 
 | Next assignment | Readiness gate / exclusive leaf focus |
 | --- | --- |
-| Instance evidence | Prove analysis-phase concrete Instance identity/arguments, original generic body ownership and substituted node/binding/result types; no activation first |
-| Concrete dispatch | Source-audit exact `[u8]` and `str` AsRef implementations and independently prove effects/origins; no familiar-name/bound permission |
-| Constructor composition | Audit whole owned Input result, stored haystack, nested Span/default flags and caller-origin substitution; existing getters alone are insufficient |
-| Source ownership/oracle | Audit generic static impl and blanket From ownership; freeze unchanged originals/contexts and pointer identity, byte-length, Unicode, exactly-once conversion and instance/impl/origin-swap negatives |
+| Scalar body projection | Substitute original owner arguments through compiler types for params, locals, expressions, adjustments/results and assertion children; preserve source/HIR and distinguish instances from definitions |
+| Primitive trait operations | Prove exact i32/u32 PartialOrd/PartialEq method/impl selection and macro-defined core bodies; retain overloaded dispatch until independently checked |
+| Instance linking/replay | Join caller observations to a separately captured owning-library body using exact artifact/build/structural arguments; current scalar linker requires empty substitutions |
+| Source ownership/oracles | Prove original T declaration/bound correspondence, imports and debug_assert/clippy metadata; keep custom/stateful traits, wrong substitutions, missing comparison proof and debug-mode swaps closed |
 
 These are dependency-gated assignments, not four concurrent production edits.
 Shared registrations, instance keys, origins and summaries remain lead-owned.

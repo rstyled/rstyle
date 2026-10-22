@@ -12,6 +12,7 @@ mod external_imports;
 mod float_scalars;
 mod hir;
 mod inherent;
+mod instances;
 mod library_resolution;
 mod module_expansions;
 mod nominal_census;
@@ -103,7 +104,7 @@ fn function(
     inherent::capture(&ctx, id, &mut facts)?;
     rstyle_pdg::field_locations::capture(&mut facts)?;
 
-    Ok(Some(facts))
+    instances::capture(&ctx, id, facts).map(Some)
 }
 
 fn function_source<'tcx>(

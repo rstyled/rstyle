@@ -4731,3 +4731,26 @@ Next source-selected gate: original regex-automata `Input::new<H>` and blanket
 `From<&H>::from` for `[u8]`/`str`; audit recorded in
 [the execution frontier](docs/rust-support-execution.md). No concrete-instance
 admission forecast or broad P01–P22 completion claim.
+
+### Concrete instance observation gate
+
+Data-v3 now records requested/selected compiler instances with bounded structural
+argument identities and original call-site anchors. Display strings supply no
+identity; unresolved, unsupported and compiler-error outcomes remain distinct.
+This is observation only: generic definitions, capabilities and admission rules
+are unchanged. No new hashing or serialized lookup key is introduced.
+
+The separate [Input selection](eval/coverage-development/input-instances/README.md)
+records24 call observations across six unchanged contexts; all owning bundles
+strictly import, with **zero admission gains/losses**. The native oracle passes
+132,736 constructor observations per feature context and custom effect/origin/
+panic controls. Complete constructor ownership and body substitution remain open.
+
+Source audit identifies the smaller [num-traits clamp family](eval/coverage-development/clamp-instances/README.md)
+as the next connected generic/trait target, retaining the Input selection.
+Its native oracle passes272,852 scalar calls per feature/assertion context;
+instance extraction/admission remains pending. Next gates: faithful scalar body
+projection, exact primitive comparison proof, generic source correspondence and
+instance-aware dependency replay. See [the execution frontier](docs/rust-support-execution.md).
+Validation: **1279 tests/5 existing skips**, doctests/fmt/Clippy pass;
+rstyle **0/4109**, patterns **0 unignored**, with15 existing ignores unchanged.
