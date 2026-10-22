@@ -4287,6 +4287,15 @@ strict/generated policies. Alternating repeats reduce the six-context flags test
 All existing admission/matching expectations remain exercised; no capability,
 scoring or budget change. Evidence: `/tmp/rstyle-perf10-final-results.json`.
 
+Receiver follow-up: retain immutable typed method inventories instead of repeatedly
+cloning/decoding their nominal trees. Alternating unchanged six-context tests:
+stored slices **16.33–16.36→14.11–14.16s (~14%)**; flags
+**10.41–10.47→9.84s (~6%)**, with slightly lower peak RSS. Full receiver/source
+checks remain mandatory; mutation invalidates typed ownership, and malformed
+records and explicit nulls stay lossless. Evidence: `/tmp/rstyle-perf11-*`.
+Validation: **1067 tests /5 existing skips**, doctests/fmt/Clippy pass;
+**rstyle0/3398, patterns0 unignored**, existing15 ignores unchanged.
+
 
 ### Data-v3 3.73: original base64ct length helper
 

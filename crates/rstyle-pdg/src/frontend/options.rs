@@ -23,6 +23,7 @@ enum Entry {
     Invalid { value: Value, error: String },
     Interface(Record<InterfaceObservations>),
     Fields(Record<FieldObservations>),
+    Receivers(Record<crate::data_receivers::Capture>),
     Origins(Record<crate::declaration_origins::Origins>),
     Census(Record<Arc<crate::nominal_boundary::census::Census>>),
 }
@@ -70,6 +71,7 @@ impl Entry {
         match key {
             crate::concrete_types::KEY => Self::decode(json, Self::Interface),
             crate::field_locations::KEY => Self::decode(json, Self::Fields),
+            crate::data_receivers::KEY => Self::decode(json, Self::Receivers),
             crate::nominal_boundary::census::KEY => Self::decode(json, Self::Census),
             crate::declaration_origins::KEY => Self::decode(json, Self::Origins),
             _ => Self::Json(json),
@@ -95,6 +97,7 @@ impl Entry {
             Self::Json(value) | Self::Invalid { value, .. } => value,
             Self::Interface(record) => record.json(),
             Self::Fields(record) => record.json(),
+            Self::Receivers(record) => record.json(),
             Self::Census(record) => record.json(),
             Self::Origins(record) => record.json(),
         }
@@ -106,6 +109,9 @@ impl Entry {
                 left.value == right.value && left.nulls == right.nulls
             }
             (Self::Interface(left), Self::Interface(right)) => {
+                left.value == right.value && left.nulls == right.nulls
+            }
+            (Self::Receivers(left), Self::Receivers(right)) => {
                 left.value == right.value && left.nulls == right.nulls
             }
             (Self::Origins(left), Self::Origins(right)) => {
@@ -123,6 +129,7 @@ impl Entry {
             Self::Json(value) | Self::Invalid { value, .. } => value,
             Self::Interface(record) => record.into_json(),
             Self::Fields(record) => record.into_json(),
+            Self::Receivers(record) => record.into_json(),
             Self::Census(record) => record.into_json(),
             Self::Origins(record) => record.into_json(),
         }
@@ -135,6 +142,7 @@ impl Serialize for Entry {
             Self::Json(value) | Self::Invalid { value, .. } => value.serialize(serializer),
             Self::Interface(record) => record.render().serialize(serializer),
             Self::Fields(record) => record.render().serialize(serializer),
+            Self::Receivers(record) => record.render().serialize(serializer),
             Self::Census(record) => record.render().serialize(serializer),
             Self::Origins(record) => record.render().serialize(serializer),
         }
@@ -193,6 +201,7 @@ impl FrontendOptions {
         for key in [
             crate::concrete_types::KEY,
             crate::field_locations::KEY,
+            crate::data_receivers::KEY,
             crate::nominal_boundary::census::KEY,
             crate::declaration_origins::KEY,
         ] {
@@ -380,12 +389,15 @@ fn collect_nulls(value: &Value, path: &str, found: &mut Vec<String>) {
 }
 
 #[cfg(test)]
+mod receivers_tests;
+#[cfg(test)]
 mod tests;
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::InterfaceObservations {}
     impl Sealed for super::FieldObservations {}
+    impl Sealed for crate::data_receivers::Capture {}
     impl Sealed for crate::declaration_origins::Origins {}
     impl Sealed for std::sync::Arc<crate::nominal_boundary::census::Census> {}
 }
@@ -458,6 +470,22 @@ impl DataEvidence for crate::declaration_origins::Origins {
         options.0.insert(
             Self::KEY.into(),
             Entry::Origins(Record::new(self, Vec::new())),
+        );
+    }
+}
+
+impl DataEvidence for crate::data_receivers::Capture {
+    const KEY: &'static str = crate::data_receivers::KEY;
+    fn borrow(options: &FrontendOptions) -> Option<&Self> {
+        match options.0.get(Self::KEY) {
+            Some(Entry::Receivers(record)) => Some(&record.value),
+            _ => None,
+        }
+    }
+    fn install(self, options: &mut FrontendOptions) {
+        options.0.insert(
+            Self::KEY.into(),
+            Entry::Receivers(Record::new(self, Vec::new())),
         );
     }
 }

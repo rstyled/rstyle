@@ -21,10 +21,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             identity: records::IDENTITY.into(),
             methods,
         };
-        facts.build.frontend_options.insert(
-            records::KEY.into(),
-            serde_json::to_value(capture).map_err(|error| error.to_string())?,
-        );
+        facts.build.frontend_options.insert_data(capture);
 
         Ok(())
     }

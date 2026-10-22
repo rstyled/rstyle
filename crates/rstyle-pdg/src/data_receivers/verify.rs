@@ -21,9 +21,9 @@ pub fn verify_capture(facts: &dyn EvidenceFacts) -> Result<std::borrow::Cow<'_, 
 
 pub(crate) fn check(facts: &dyn EvidenceFacts, original_source: bool) -> Result<Capture, String> {
     let observation = crate::diagnostics::Stage::new("source.receivers", &facts.name, None).enter();
-    let value = facts.build.frontend_options.get(KEY);
+    let present = facts.build.frontend_options.contains_key(KEY);
     if !ExtractionProfile::from_facts(facts)?.is_data() {
-        return if value.is_none() {
+        return if !present {
             Ok(empty())
         } else {
             Err("Receiver inventory is restricted to the Data profile".into())
@@ -31,10 +31,12 @@ pub(crate) fn check(facts: &dyn EvidenceFacts, original_source: bool) -> Result<
     }
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
-    let capture: Capture = match value {
-        Some(value) => serde_json::from_value(value.clone()).map_err(|error| error.to_string())?,
-        None if methods.is_empty() => empty(),
-        None => return Err("Missing Data method receiver inventory".into()),
+    let capture = if present {
+        facts.build.frontend_options.data::<Capture>()?
+    } else if methods.is_empty() {
+        std::borrow::Cow::Owned(empty())
+    } else {
+        return Err("Missing Data method receiver inventory".into());
     };
     check_inventory(&capture, &methods)?;
     let source = (original_source && methods.iter().any(|node| node.expansion.is_none()))
@@ -59,7 +61,7 @@ pub(crate) fn check(facts: &dyn EvidenceFacts, original_source: bool) -> Result<
         check_adjustments(record)?;
     }
 
-    observation.finish(Ok(capture))
+    observation.finish(Ok(capture.into_owned()))
 }
 
 fn empty() -> Capture {

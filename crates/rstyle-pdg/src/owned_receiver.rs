@@ -100,22 +100,17 @@ pub(crate) fn shared_copy(call: &HirNode, facts: &dyn EvidenceFacts) -> Result<b
 /// Rejection only: ordinary shared methods cannot consume an implicit Copy value.
 /// Admission still verifies the complete receiver inventory independently.
 fn shared_signature(call: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    let Some(methods) = facts
+    let Ok(capture) = facts
         .build
         .frontend_options
-        .get(crate::data_receivers::KEY)
-        .and_then(|value| value.get("methods"))
-        .and_then(serde_json::Value::as_array)
+        .data::<crate::data_receivers::Capture>()
     else {
         return false;
     };
-    let Ok(identity) = serde_json::to_value(&call.hir) else {
-        return false;
-    };
-    methods
+    capture
+        .methods
         .iter()
-        .find(|value| value.get("call") == Some(&identity))
-        .and_then(|value| serde_json::from_value::<Method>(value.clone()).ok())
+        .find(|record| record.call == call.hir)
         .is_some_and(|record| {
             matches!(
                 record.signature_inputs.first(),
