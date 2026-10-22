@@ -112,7 +112,7 @@ Next bounded assignments (original first-wave workers are already integrated):
 | P05 external macro imports | Delivered3.74: pinned complete alloc import inventory unlocks the three original std length/getter functions. Macro bodies, allocation/drop and other import grammars remain independently closed. Lead owns source-boundary/shared policy edits. |
 | P07 range/view composition | Delivered3.75 [selection](../eval/coverage-development/range-getters-selection.json): complete `Input::get_range` and `Match::range → Span::range → local From<Span>` chain. Three targets × default/no-default:139→143/2582 and85→89/590, four declared gains each, zero losses. All696 original admissions strictly replay/24 selected comparisons complete; native original4704 cases per feature context. Exact pinned non-Copy Range/no-drop authority and local trait-owner selection; only fresh whole results. No general moves/traits/storage permission. Shared-inventory performance fix adb3f5f removes repeated unit inventories; unchanged default capture182→105s, RSS6.1→1.0GiB. Full gates1090tests, style0/3470, patterns0. Broader views/element-origin work remains queued. |
 | P08 concrete Result frontier | [Frozen next selection](../eval/coverage-development/scalar-result-next-selection.json): UnicodeWordBoundaryError::check and cfg-selected helper/new; default/no-default/word-boundary contexts have independent Ok/Err expectations. Needs exact non-Copy nominal-error owner/drop proof plus Result construction/tag/forwarding. Cargo evidence remains pending; zerovec's broader blockers remain separate. |
-| P09 loop/callee frontier | [Frozen next selection](../eval/coverage-development/scalar-loop-callee-selection.json): ryu::pow5factor_32 → multiple_of_power_of_5_32. Positive values permit at most13 backedges; selected debug assertions make zero panic before division. Source proof leaf implementing an alpha-renamable bounded factor-of-five grammar, exact loop/exit/value graph and positive-input rank; lead owns helper boundary/summary gating. Needs fresh original Cargo diagnostics before activation. No acyclic-gate relaxation. |
+| P09 loop/callee frontier | Delivered3.76 [selection](../eval/coverage-development/scalar-loop-callee-selection.json): original ryu::pow5factor_32 → multiple_of_power_of_5_32. Three targets14→15/40, exactly caller gains, zero losses; all45 contextual admissions strictly replay/6 selected comparisons Accepted. Complete alpha/transitive composition and resealed attacks pass; native private-source oracle42810 cases. Full gates1096tests/5skips, fmt/Clippy/doctests, rstyle0/3496, patterns0. General loops/recursion remain closed. |
 
 PatternSet separately requires complete opaque Box-field/drop proof. Fold brief
 evidence into semantic commits; the full P01–P22 routing remains active.
@@ -122,5 +122,9 @@ Range3.75 final frozen gate: `run-tk89n2fv` versus `run-pk54tszf`, unchanged
 `/tmp/rstyle-range-frozen-{delta.json,strict.log}`. Independent semantic review
 found no Range authority/freshness/historical-policy defect. Next P08 readiness
 gate is independent local-owner Drop exclusion: selected census proves ownership,
-not absence of destructor effects. P09 original Cargo diagnostics follow the
-completed serialized replay; no blanket cyclic helper permission is authorized.
+not absence of destructor effects. P09 original Cargo diagnostics and strict replay are now complete under3.76;
+no blanket cyclic helper permission is authorized. Next P03 target: original ryu
+`mul_shift_32`, whose remaining observed blocker is external `u32::MAX`. It needs
+a dedicated pinned primitive-constant authority, preserving local-constant proof.
+Unsafe table callers retain separate blockers; fresh strict capture must confirm
+the complete chain before any admission gain is claimed.

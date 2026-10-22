@@ -35,9 +35,28 @@ pub struct Summary {
     pub argument_evaluation: String,
     pub result_dependence: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounded_loop: Option<LoopTermination>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference_outputs: Option<Vec<crate::data_origins::Origin>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_reads: Option<Vec<crate::helper_reads::Read>>,
+}
+
+/// Normal execution is bounded independently of the preserved panic outcome.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LoopTermination {
+    pub may_diverge: bool,
+    pub positive_max_backedges: u32,
+}
+
+impl From<crate::scalar_loop_helpers::Checked> for LoopTermination {
+    fn from(proof: crate::scalar_loop_helpers::Checked) -> Self {
+        Self {
+            may_diverge: proof.may_diverge,
+            positive_max_backedges: proof.positive_max_backedges,
+        }
+    }
 }
 
 type ReferenceOutputs = Option<Vec<crate::data_origins::Origin>>;
@@ -47,22 +66,25 @@ fn summary(
     pair: &producer::Pair,
     reference_outputs: ReferenceOutputs,
 ) -> Result<Summary, String> {
-    let result_type = facts
-        .signature
-        .return_ty
-        .normalized
-        .clone()
-        .ok_or("Missing verified helper result type")?;
+    let result_type = result_type(facts)?;
 
+    let loop_proof = crate::scalar_loop_helpers::verify_if_loop(facts, pair.as_view())?;
     let references = reference_outputs.is_some();
     let memory_reads = crate::helper_reads::derive(facts, pair.as_view())?;
     let reads = memory_reads.is_some();
     let view = crate::helper_views::projected(facts, &reference_outputs);
     let normal = crate::helper_normal_flow::supported(facts, pair.as_view());
-    let may_panic =
-        (view || normal) && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial;
+    let may_panic = loop_proof.as_ref().map_or_else(
+        || {
+            (view || normal)
+                && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial
+        },
+        |proof| proof.may_panic,
+    );
     Ok(Summary {
-        identity: if view {
+        identity: if loop_proof.is_some() {
+            crate::scalar_loop_helpers::SUMMARY
+        } else if view {
             crate::helper_views::SUMMARY
         } else if crate::helper_stored_slices::projected(facts, &reference_outputs) {
             crate::helper_stored_slices::SUMMARY
@@ -81,17 +103,30 @@ fn summary(
         mutates_arguments: false,
         memory_effects: reads,
         may_panic,
-        always_returns: !may_panic,
+        always_returns: !may_panic && loop_proof.as_ref().is_none_or(|proof| !proof.may_diverge),
+        bounded_loop: loop_proof.map(Into::into),
         argument_evaluation: "source-order-once/1".into(),
-        result_dependence: if references {
-            "verified-formal-referent-substitution/1"
-        } else {
-            "call-input-snapshots-with-verified-callee-return-graph/1"
-        }
-        .into(),
+        result_dependence: result_dependence(references).into(),
         reference_outputs,
         memory_reads,
     })
+}
+
+fn result_type(facts: &dyn EvidenceFacts) -> Result<String, String> {
+    facts
+        .signature
+        .return_ty
+        .normalized
+        .clone()
+        .ok_or_else(|| "Missing verified helper result type".into())
+}
+
+fn result_dependence(references: bool) -> &'static str {
+    if references {
+        "verified-formal-referent-substitution/1"
+    } else {
+        "call-input-snapshots-with-verified-callee-return-graph/1"
+    }
 }
 
 fn argument_types(facts: &dyn EvidenceFacts) -> Result<Vec<String>, String> {
@@ -297,7 +332,8 @@ pub(crate) fn verify_shared_callee(
 ) -> Result<(), String> {
     producer::verify(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
     let outputs = check_boundary(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
-    if !crate::verification_policy::is_generated()
+    if (!crate::verification_policy::is_generated()
+        || crate::scalar_loop_helpers::has_loop(helper.pair().as_view()))
         && helper.summary() != &summary(callee, helper.pair(), outputs)?
     {
         return Err("Helper summary disagrees with verified callee evidence".into());
@@ -309,6 +345,8 @@ fn check_boundary(
     pair: &producer::Pair,
     facts: &dyn EvidenceFacts,
 ) -> Result<ReferenceOutputs, Vec<String>> {
+    let loop_proof = crate::scalar_loop_helpers::verify_if_loop(facts, pair.as_view())
+        .map_err(|error| vec![error])?;
     let outputs = crate::helper_references::returned(facts, pair).map_err(|error| vec![error])?;
     let view = crate::helper_views::projected(facts, &outputs);
     let byte_reads = crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
@@ -319,13 +357,16 @@ fn check_boundary(
         || !pair.pdg.memory_locations.is_empty()
             && !crate::helper_reads::supported(facts, pair.as_view())
         || pair.pdg.nodes.iter().any(|node| {
-            matches!(
-                node.attributes.construct.as_deref(),
-                Some("loop" | "while" | "data.bytes.borrow-result" | "data.bytes.unwrap-borrow")
-            ) || matches!(
-                node.attributes.construct.as_deref(),
-                Some("data.bytes.copy-result" | "data.bytes.unwrap")
-            ) && !byte_reads
+            matches!(node.attributes.construct.as_deref(), Some("loop" | "while"))
+                && loop_proof.is_none()
+                || matches!(
+                    node.attributes.construct.as_deref(),
+                    Some("data.bytes.borrow-result" | "data.bytes.unwrap-borrow")
+                )
+                || matches!(
+                    node.attributes.construct.as_deref(),
+                    Some("data.bytes.copy-result" | "data.bytes.unwrap")
+                ) && !byte_reads
                 || node.attributes.construct.as_deref() == Some("data.subslice-place")
                     && !(byte_reads || view && crate::helper_views::array_operation(node))
                 || node.attributes.construct.as_deref() == Some("data.index")
@@ -392,7 +433,8 @@ fn verify_callee(dependency: &Dependency) -> Result<(), String> {
         .map_err(|errors| errors.join("; "))?;
     let outputs =
         check_boundary(&pair, &dependency.frontend).map_err(|errors| errors.join("; "))?;
-    if !crate::verification_policy::is_generated()
+    if (!crate::verification_policy::is_generated()
+        || crate::scalar_loop_helpers::has_loop(pair.as_view()))
         && dependency.summary != summary(&dependency.frontend, &pair, outputs)?
     {
         return Err("Helper summary signature, effects or returning behavior contradict verified callee evidence".into());

@@ -4433,3 +4433,31 @@ Broader P07 sequences, P08 Result and P09 looping helpers remain active frontier
 Frozen `run-tk89n2fv` versus `run-pk54tszf`: **23 admitted /30 excluded /7 inactive**,
 no identity/context/outcome changes; complete package rosters remain8/150,
 39/956 and11/226. All58 retained admissions independently strictly replay.
+
+### Data-v3 3.76: bounded scalar loop helper composition
+
+[Contract](docs/extraction-profiles/bounded-scalar-loop-helpers-v1.md) and
+[source selection](eval/coverage-development/scalar-loop-callee-selection.json).
+The unchanged ryu1.0.23 `pow5factor_32 → multiple_of_power_of_5_32` chain now
+admits through a complete source/graph rank proof. Positive inputs execute at
+most13 backedges; zero panics before arithmetic under the selected checked-debug
+settings. Summaries preserve possible panic separately from proven absence of
+divergence. General loops, recursion and disabled/unknown settings remain closed.
+All three selected targets: **14→15 admitted /40**, exactly the original caller
+gains, zero losses. All45 contextual admissions strictly replay;6 selected
+comparisons Accepted, plus distinct alpha-peer/transitive-wrapper matching tests.
+Independent native private-source witness: **42810 cases**, including5 expected
+panics; this is not unchanged full-library execution. Frozen `run-8f3w87gy`
+versus `run-tk89n2fv`: unchanged **23/30/7**, package8/150,39/956,11/226;
+all58 retained admissions strictly replay. Cross-target capture/replay does not
+claim native x86/macOS execution; full-library matching remains incomplete.
+Gates: **1096 tests /5 existing skips in110.561s**, doctests/fmt/Clippy pass;
+**rstyle0/3496, patterns0 unignored**, existing15 ignores unchanged.
+Evidence: `/tmp/rstyle-loop-{gates.log,evidence.log,current-*,oracle.json,frozen-*}`.
+P01–P22 remains active. Next audited P03 blocker is pinned primitive associated
+constant proof for `u32::MAX` in original ryu::mul_shift_32; P08 separately needs
+independent local-owner Drop exclusion before concrete Result activation.
+Equal-work control (warmup then alternating samples): unchanged512 admissions,
+baseline2.44–2.57s/current2.44–2.48s, RSS about164MiB in both. Shared-host
+measurements show no slowdown in this control; they are not a general scaling
+proof. Evidence: `/tmp/rstyle-loop-perf/results.json`.

@@ -71,6 +71,7 @@ pub mod range_values;
 pub mod scalar_constants;
 mod scalar_exhaustiveness;
 pub(crate) mod scalar_from;
+mod scalar_loop_helpers;
 pub mod scalar_patterns;
 pub mod size_calls;
 pub mod size_constants;

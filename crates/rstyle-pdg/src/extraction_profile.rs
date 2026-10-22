@@ -107,6 +107,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.bool-to-usize",
     "rust.pinned-alloc-macro-imports",
     "rust.fresh-range-results",
+    "rust.bounded-scalar-loop-helpers",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -143,6 +144,7 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.helper.stored-slice-result/1",
     "rstyle.data.length.checked-add-usize/1",
     "rstyle.data.length.checked-mul-usize/1",
+    "rstyle.helper.bounded-factor-loop/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -251,7 +253,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.75.0", 94)),
+            Self::DataV3 => Some(("3.76.0", 95)),
         }
     }
 

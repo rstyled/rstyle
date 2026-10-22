@@ -43,6 +43,7 @@ pub(crate) fn verify_document_policy(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
+    crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,
         crate::range_values::CAPABILITY,

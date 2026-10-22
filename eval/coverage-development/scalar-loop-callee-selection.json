@@ -1,6 +1,6 @@
 {
   "identity": "rstyle.development.scalar-loop-callee/1",
-  "status": "source-selected; original capture/admission baseline not evaluated",
+  "status": "delivered Data3.76; original family and integrated checkpoint validated",
   "package": {
     "name": "ryu",
     "version": "1.0.23",
@@ -67,28 +67,28 @@
   },
   "blocker_chain": [
     {
-      "kind": "confirmed",
-      "blocker": "helper_calls::check_boundary rejects all loop/while constructs even if scalar extraction succeeds."
+      "original_blocker": "helper_calls::check_boundary rejects all loop/while constructs even if scalar extraction succeeds.",
+      "status": "resolved for the bounded Data3.76 contract"
     },
     {
-      "kind": "confirmed",
-      "blocker": "Summary.always_returns currently derives !may_panic; loop activation needs independent normal-exit/divergence evidence, not removal of the acyclic guard."
+      "original_blocker": "Summary.always_returns currently derives !may_panic; loop activation needs independent normal-exit/divergence evidence, not removal of the acyclic guard.",
+      "status": "resolved for the bounded Data3.76 contract"
     },
     {
-      "kind": "requires_original_capture",
-      "blocker": "Complete loop value merges for mutable parameter value, count, break exit and final return; branch-local q/r must remain per-iteration snapshots."
+      "original_blocker": "Complete loop value merges for mutable parameter value, count, break exit and final return; branch-local q/r must remain per-iteration snapshots.",
+      "status": "resolved for the bounded Data3.76 contract"
     },
     {
-      "kind": "requires_original_capture",
-      "blocker": "Exact debug_assert builtin expansion with zero panic and no supported-prefix certification; checked count-add panic must be retained unless bounded proof discharges it."
+      "original_blocker": "Exact debug_assert builtin expansion with zero panic and no supported-prefix certification; checked count-add panic must be retained unless bounded proof discharges it.",
+      "status": "resolved for the bounded Data3.76 contract"
     },
     {
-      "kind": "requires_original_capture",
-      "blocker": "Complete source boundary under no_std module tree and local use crate::d2s; neighboring cfg-selected unsafe lookup functions and root raw reexports must remain inventoried and cannot be ignored."
+      "original_blocker": "Complete source boundary under no_std module tree and local use crate::d2s; neighboring cfg-selected unsafe lookup functions and root raw reexports must remain inventoried and cannot be ignored.",
+      "status": "resolved for the bounded Data3.76 contract"
     },
     {
-      "kind": "requires_original_capture",
-      "blocker": "Actual helper identity/resolution and input/result dependence through original module-private caller; scalar div/rem literal5 classification and full source correspondence need capture confirmation."
+      "original_blocker": "Actual helper identity/resolution and input/result dependence through original module-private caller; scalar div/rem literal5 classification and full source correspondence need capture confirmation.",
+      "status": "resolved for the bounded Data3.76 contract"
     }
   ],
   "independent_expectations": {
@@ -139,5 +139,61 @@
       "reason_deferred": "Cleaner total shift-rank helper but natural caller is trait impl; unit contains impl_varint macro invocations. Signed free caller adds zigzag cast/shift chain."
     }
   ],
-  "measurement_policy": "Frozen inventory identities/denominators unchanged. No baseline or gain claimed before original capture. All three target contexts must report full roster, new/lost admissions and unsupported/unknown/inactive/incomplete separately."
+  "measurement_policy": "Frozen inventory identities/denominators unchanged. No baseline or gain claimed before original capture. All three target contexts must report full roster, new/lost admissions and unsupported/unknown/inactive/incomplete separately.",
+  "validation": {
+    "baseline_admissions": {
+      "admitted": 14,
+      "excluded": 26,
+      "functions": 40
+    },
+    "current_admissions": {
+      "admitted": 15,
+      "excluded": 25,
+      "functions": 40
+    },
+    "contexts": "all three originally selected targets; identical original function identities and build contexts; only declared caller gains; zero losses",
+    "strict_original_admissions": 45,
+    "selected_comparisons": {
+      "count": 6,
+      "decision": "Accepted",
+      "kind": "complete original self/mirror comparisons; distinct captured alpha peers and transitive wrappers tested separately"
+    },
+    "oracle": {
+      "cases": 42810,
+      "helper_normal": 42805,
+      "helper_panic": 5,
+      "caller_normal": 42805,
+      "caller_panic": 5,
+      "kind": "source-hashed private-source native witness; arbitrary precision power divisibility expectations"
+    },
+    "frozen_run": "run-8f3w87gy versus run-tk89n2fv; unchanged23admitted/30excluded/7inactive; all58packageadmissions strictly replay",
+    "evidence": "/tmp/rstyle-loop-{evidence,current-*,oracle.json,frozen-*}",
+    "integrated_gates": {
+      "tests_passed": 1096,
+      "existing_skips": 5,
+      "seconds": 110.561,
+      "fmt": "passed",
+      "clippy": "passed with warnings denied",
+      "doctests": "passed",
+      "rstyle_violations": 0,
+      "rstyle_functions": 3496,
+      "patterns_unignored": 0,
+      "existing_ignores_unchanged": 15,
+      "log": "/tmp/rstyle-loop-gates.log"
+    },
+    "equal_work_performance": {
+      "functions": 512,
+      "baseline_seconds": [
+        2.57,
+        2.44
+      ],
+      "current_seconds": [
+        2.48,
+        2.44
+      ],
+      "roster": "identical 512 admissions",
+      "method": "16-function warmup then two alternating 512-function samples; shared-host timing control, not general scaling proof",
+      "evidence": "/tmp/rstyle-loop-perf/results.json"
+    }
+  }
 }

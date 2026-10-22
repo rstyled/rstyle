@@ -1,4 +1,5 @@
 mod range_getters;
+mod scalar_loop_helpers;
 use super::*;
 mod accelerator_packing;
 mod alloc_imports;
