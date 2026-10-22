@@ -1,0 +1,175 @@
+{
+  "identity": "rstyle.development.primitive-constant/1",
+  "status": "delivered Data3.77; unchanged original contexts captured and independently strictly replayed",
+  "package": {
+    "name": "ryu",
+    "version": "1.0.23",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ryu-1.0.23",
+    "upstream_revision": "f0b52bb194befe6fd242154f2182fafd43a819b8",
+    "file_sha256": {
+      "Cargo.toml": "410de3eae58a75b9d2558d0a4e3ed43c2c8317781ffbd30a7cbe4aebaa833e1a",
+      "src/lib.rs": "ec6dc1b2b40fa14a9af5185991c1bebab3b6dc1f0947a81020a376eade8dae1c",
+      "src/f2s_intrinsics.rs": "4667c34aab7637f2330df7bbd4c178c0ba1dd5854ff15b9a36a96fd5f527fb66",
+      "src/d2s_intrinsics.rs": "bbf15472f4299942312e80a992cbc2f47f85f17ed193f24084534434dbfb26e7"
+    }
+  },
+  "build_selection": {
+    "target": "ryu library; test=false",
+    "edition": "2021",
+    "cargo_arguments": [],
+    "features": [],
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "pointer_width": 64,
+    "debug_assertions": true,
+    "overflow_checks": true,
+    "panic_strategy": "unwind",
+    "opt_level": "No"
+  },
+  "functions": [
+    {
+      "name": "mul_shift_32",
+      "file": "src/f2s_intrinsics.rs",
+      "role": "acceptance target",
+      "span": {
+        "start": 1870,
+        "end": 2372
+      },
+      "sha256": "fc3cc8500aa86d2b8cc8ffa91b8315481d8ee9ac5dd8ee4ae0307557e36ed822",
+      "source": "fn mul_shift_32(m: u32, factor: u64, shift: i32) -> u32 {\n    debug_assert!(shift > 32);\n\n    // The casts here help MSVC to avoid calls to the __allmul library\n    // function.\n    let factor_lo = factor as u32;\n    let factor_hi = (factor >> 32) as u32;\n    let bits0 = m as u64 * factor_lo as u64;\n    let bits1 = m as u64 * factor_hi as u64;\n\n    let sum = (bits0 >> 32) + bits1;\n    let shifted_sum = sum >> (shift - 32);\n    debug_assert!(shifted_sum <= u32::MAX as u64);\n    shifted_sum as u32\n}"
+    },
+    {
+      "name": "mul_shift_64",
+      "file": "src/d2s_intrinsics.rs",
+      "role": "unchanged admitted anchor",
+      "span": {
+        "start": 2140,
+        "end": 2327
+      },
+      "sha256": "9a75377e58b978e26ea0d16a1ef8186ecee560af02696ccd90cc2d1fed1793e8",
+      "source": "pub fn mul_shift_64(m: u64, mul: &(u64, u64), j: u32) -> u64 {\n    let b0 = m as u128 * mul.0 as u128;\n    let b2 = m as u128 * mul.1 as u128;\n    (((b0 >> 64) + b2) >> (j - 64)) as u64\n}"
+    }
+  ],
+  "bounded_contract": {
+    "normal": "For 33<=shift<=95, let q=floor(m*factor/2^shift) using mathematical integers. Return q iff q<=u32::MAX; otherwise final debug assertion panics.",
+    "initial_panic": "Every i32 shift<=32 panics at initial debug assertion.",
+    "shift_panic": "Every i32 shift>=96 panics at checked u64 shift. No invented valid-shift precondition.",
+    "anchor": "mul_shift_64: j<64 panics at checked subtraction; j>=192 panics at checked u128 shift; otherwise return floor(m*(lo+2^64*hi)/2^j) modulo2^64.",
+    "effects": "Copy scalars and borrowed scalar tuple; no allocation, unsafe operation, drop or new alias permission.",
+    "outside_scope": [
+      "Unsafe table wrappers mul_pow5_inv_div_pow2 and mul_pow5_div_pow2 remain excluded.",
+      "No small/no-panic feature activation; debug-disabled behavior is not selected or claimed by this mathematical/panic contract. Primitive constant authority itself is independent of debug settings.",
+      "Not complete float formatting coverage."
+    ],
+    "anchor_sum_bound": "For m>0, floor(m*lo/2^64)<=m-1 and m*hi<=m*(2^64-1), so their sum is <=m*2^64-1<2^128; m=0 gives0. Thus anchor multiplication/addition cannot overflow and only checked j-64/shift create the stated panic partitions."
+  },
+  "known_blockers": [
+    "Exact original u32::MAX authority delivered under Data3.77. Arithmetic/cast/assertion order and hazards retained; unsafe table wrappers remain excluded."
+  ],
+  "unknowns": [
+    "Native execution on x86 Linux and macOS remains unmeasured; cross capture/replay is separately validated."
+  ],
+  "independent_expectations": {
+    "oracle": "primitive-constant/oracle.py uses Python unbounded product and shift, not target split arithmetic.",
+    "witness": "PRIVATE-SOURCE exact original function spans; not unchanged full-library execution.",
+    "shift_partitions": [
+      -2147483648,
+      -1,
+      0,
+      31,
+      32,
+      33,
+      63,
+      64,
+      95,
+      96,
+      127,
+      2147483647
+    ],
+    "m_boundary": "Includes u32::MAX; shift is i32, so u32::MAX is not a representable shift. Its bit-pattern reinterpretation is -1, separately tested.",
+    "coverage": "Powers of two and adjacent values, m/factor extrema, final-result boundary factors, deterministic and seeded random samples."
+  },
+  "measurement_policy": "Preserve frozen60 and previous baseline until fresh complete unchanged natural capture; include anchor and excluded unsafe wrappers in roster delta.",
+  "negative_controls": [
+    {
+      "name": "mul_pow5_inv_div_pow2",
+      "file": "src/f2s_intrinsics.rs",
+      "span": {
+        "start": 2416,
+        "end": 3257
+      },
+      "sha256": "c13331d75978287de93d1407d140e243172a2bd630cd0626be4e9cb4b14f470b",
+      "source": "pub fn mul_pow5_inv_div_pow2(m: u32, q: u32, j: i32) -> u32 {\n    #[cfg(feature = \"small\")]\n    {\n        // The inverse multipliers are defined as [2^x / 5^y] + 1; the upper 64\n        // bits from the double lookup table are the correct bits for [2^x /\n        // 5^y], so we have to add 1 here. Note that we rely on the fact that\n        // the added 1 that's already stored in the table never overflows into\n        // the upper 64 bits.\n        let pow5 = unsafe { d2s::compute_inv_pow5(q) };\n        mul_shift_32(m, pow5.1 + 1, j)\n    }\n\n    #[cfg(not(feature = \"small\"))]\n    {\n        debug_assert!(q < d2s::DOUBLE_POW5_INV_SPLIT.len() as u32);\n        unsafe {\n            mul_shift_32(\n                m,\n                d2s::DOUBLE_POW5_INV_SPLIT.get_unchecked(q as usize).1 + 1,\n                j,\n            )\n        }\n    }\n}",
+      "expected": "excluded",
+      "blockers": [
+        "unsafe table get_unchecked and table authority; not activated by primitive constant support"
+      ]
+    },
+    {
+      "name": "mul_pow5_div_pow2",
+      "file": "src/f2s_intrinsics.rs",
+      "span": {
+        "start": 3301,
+        "end": 3691
+      },
+      "sha256": "6c3b9e2f64386cc24517cb52e7a8005b295df527295f2f890e72f207cbad5853",
+      "source": "pub fn mul_pow5_div_pow2(m: u32, i: u32, j: i32) -> u32 {\n    #[cfg(feature = \"small\")]\n    {\n        let pow5 = unsafe { d2s::compute_pow5(i) };\n        mul_shift_32(m, pow5.1, j)\n    }\n\n    #[cfg(not(feature = \"small\"))]\n    {\n        debug_assert!(i < d2s::DOUBLE_POW5_SPLIT.len() as u32);\n        unsafe { mul_shift_32(m, d2s::DOUBLE_POW5_SPLIT.get_unchecked(i as usize).1, j) }\n    }\n}",
+      "expected": "excluded",
+      "blockers": [
+        "unsafe table get_unchecked and table authority; not activated by primitive constant support"
+      ]
+    }
+  ],
+  "validation": {
+    "baseline": "8eb0cf0; Data3.76",
+    "natural_contexts": 3,
+    "admitted_before": 15,
+    "admitted_after": 16,
+    "unchanged_roster": 40,
+    "gain": "f2s_intrinsics::mul_shift_32 only",
+    "lost_admissions": 0,
+    "strict_admissions": 48,
+    "selected_original_comparisons": 3,
+    "native_private_source_oracle_cases": 45668,
+    "workspace_tests": 1106,
+    "existing_skips": 5,
+    "rstyle_violations": 0,
+    "rstyle_functions": 3513,
+    "unignored_pattern_candidates": 0,
+    "existing_ignores": 15,
+    "evidence": "/tmp/rstyle-primitive-{evidence.log,current-*,oracle.json,final-*}",
+    "frozen": {
+      "run": "run-yaapzru3",
+      "baseline": "run-8f3w87gy",
+      "admitted": 23,
+      "excluded": 30,
+      "inactive": 7,
+      "new": 0,
+      "lost": 0,
+      "strict_admissions": 58
+    },
+    "performance": {
+      "workloads": [
+        128,
+        256,
+        512
+      ],
+      "policy": "warmup + alternating repeated baseline/current with identical admitted rosters",
+      "functions_512_baseline_seconds": [
+        2.99,
+        3.01
+      ],
+      "functions_512_current_seconds": [
+        2.98,
+        3.04
+      ],
+      "peak_rss_mib_approx": 174,
+      "claim": "namespace scan amortized per checked unit; no measurable speedup claimed",
+      "evidence": "/tmp/rstyle-primitive-scaling-final/results.json"
+    }
+  }
+}

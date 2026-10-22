@@ -907,7 +907,10 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         }
         "expr_path"
             if node.res.as_ref().is_some_and(|resolution| {
-                resolution.kind == crate::scalar_constants::RESOLUTION
+                matches!(
+                    resolution.kind.as_str(),
+                    crate::scalar_constants::RESOLUTION | crate::primitive_constants::RESOLUTION
+                )
             }) =>
         {
             Some(check_path(node, ctx))
@@ -1171,21 +1174,8 @@ fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         Some(res) => res,
     };
 
-    if ctx.profile.supports("rust.resolved-scalar-constants")
-        && resolution.kind == crate::scalar_constants::RESOLUTION
-    {
-        return match crate::scalar_constants::ScalarConstant::verify(
-            node,
-            ctx.facts.build.pointer_width.value,
-        ) {
-            Ok(_) => Outcome::ok(),
-            Err(reason) => error(
-                "rust.resolved-scalar-constants",
-                "constant_evidence",
-                node,
-                &reason,
-            ),
-        };
+    if let Some(outcome) = constant_path(node, ctx) {
+        return outcome;
     }
 
     if resolution.kind != "local" {
@@ -1216,6 +1206,34 @@ fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         }
         _ => evidence_gap(node, "binding target"),
     }
+}
+
+fn constant_path(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    let resolution = node.res.as_ref()?;
+    let (capability, result) = match resolution.kind.as_str() {
+        crate::primitive_constants::RESOLUTION => (
+            crate::primitive_constants::CAPABILITY,
+            crate::primitive_constants::verify(node, ctx.facts).map(|_| ()),
+        ),
+        crate::scalar_constants::RESOLUTION
+            if ctx.profile.supports("rust.resolved-scalar-constants") =>
+        {
+            (
+                "rust.resolved-scalar-constants",
+                crate::scalar_constants::ScalarConstant::verify(
+                    node,
+                    ctx.facts.build.pointer_width.value,
+                )
+                .map(|_| ()),
+            )
+        }
+        _ => return None,
+    };
+
+    Some(match result {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error(capability, "constant_evidence", node, &reason),
+    })
 }
 
 fn builtin_or_reject(node: &HirNode, what: &str) -> Outcome {

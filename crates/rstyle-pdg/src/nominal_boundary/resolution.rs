@@ -14,6 +14,7 @@ mod array_lengths;
 mod builtin_options;
 pub(crate) mod environment;
 mod float_constants;
+mod primitive_constants;
 mod range_from;
 mod scalar_aliases;
 mod selected;
@@ -324,6 +325,7 @@ fn source_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
 }
 
 struct Index {
+    unshadowed_u32: BTreeMap<Namespace, bool>,
     declarations: BTreeMap<Namespace, Declaration>,
     imports: BTreeMap<(Namespace, String), Namespace>,
     unresolved_expansions: std::collections::BTreeSet<Namespace>,
@@ -334,6 +336,7 @@ fn build_index(
     cfgs: Option<&[String]>,
 ) -> Result<Index, String> {
     let mut index = Index {
+        unshadowed_u32: BTreeMap::new(),
         declarations: BTreeMap::new(),
         imports: BTreeMap::new(),
         unresolved_expansions: Default::default(),
@@ -380,6 +383,16 @@ struct IndexSite<'a> {
 
 impl Index {
     fn items(&mut self, site: &IndexSite<'_>) -> Result<(), String> {
+        let unshadowed = !site
+            .module
+            .items
+            .iter()
+            .any(primitive_constants::shadowing_item);
+        self.unshadowed_u32
+            .entry(site.module.namespace.clone())
+            .and_modify(|previous| *previous &= unshadowed)
+            .or_insert(unshadowed);
+
         for (item_index, item) in site.module.items.iter().enumerate() {
             match item {
                 syn::Item::Struct(_) | syn::Item::Enum(_) => {

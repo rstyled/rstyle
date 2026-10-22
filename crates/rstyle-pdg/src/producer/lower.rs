@@ -262,7 +262,9 @@ impl Builder<'_> {
     fn path(&mut self, node: &HirNode, flow: Flow) -> Flow {
         match node.res.as_ref().map(|res| res.kind.as_str()) {
             Some(crate::bool_constants::RESOLUTION) => self.bool_array_constant(node, flow),
-            Some(crate::scalar_constants::RESOLUTION) => self.constant(node, flow),
+            Some(crate::scalar_constants::RESOLUTION | crate::primitive_constants::RESOLUTION) => {
+                self.constant(node, flow)
+            }
             _ => self.read(node, flow),
         }
     }
@@ -283,17 +285,24 @@ impl Builder<'_> {
     }
 
     fn constant(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        let constant = crate::scalar_constants::ScalarConstant::decode(
-            node.res.as_ref().expect("constant resolution"),
-        )
-        .expect("verified scalar constant");
-        let operation = Operation {
-            literal: Some(constant.value),
-            construct: Some(if crate::float_scalars::is_float(&constant.ty) {
-                crate::float_scalars::CONSTANT.into()
+        let resolution = node.res.as_ref().expect("constant resolution");
+        let (value, construct) = if resolution.kind == crate::primitive_constants::RESOLUTION {
+            let constant = crate::primitive_constants::decode(resolution)
+                .expect("verified primitive constant");
+            (constant.value, "constant.primitive")
+        } else {
+            let constant = crate::scalar_constants::ScalarConstant::decode(resolution)
+                .expect("verified scalar constant");
+            let construct = if crate::float_scalars::is_float(&constant.ty) {
+                crate::float_scalars::CONSTANT
             } else {
-                "constant.value".into()
-            }),
+                "constant.value"
+            };
+            (constant.value, construct)
+        };
+        let operation = Operation {
+            literal: Some(value),
+            construct: Some(construct.into()),
             ..template(node, NodeCategory::Computation)
         };
 

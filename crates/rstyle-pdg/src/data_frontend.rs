@@ -44,6 +44,7 @@ pub(crate) fn verify_document_policy(
 ) -> Result<(), String> {
     crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
     crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
+    crate::primitive_constants::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,
         crate::range_values::CAPABILITY,
@@ -558,6 +559,14 @@ fn verify_path(
     facts: &dyn crate::unit_store::EvidenceFacts,
     token: &str,
 ) -> Result<(), String> {
+    if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::primitive_constants::RESOLUTION)
+    {
+        return crate::primitive_constants::verify(node, facts).map(|_| ());
+    }
+
     if node
         .res
         .as_ref()

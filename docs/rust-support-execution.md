@@ -123,8 +123,31 @@ Range3.75 final frozen gate: `run-tk89n2fv` versus `run-pk54tszf`, unchanged
 found no Range authority/freshness/historical-policy defect. Next P08 readiness
 gate is independent local-owner Drop exclusion: selected census proves ownership,
 not absence of destructor effects. P09 original Cargo diagnostics and strict replay are now complete under3.76;
-no blanket cyclic helper permission is authorized. Next P03 target: original ryu
-`mul_shift_32`, whose remaining observed blocker is external `u32::MAX`. It needs
-a dedicated pinned primitive-constant authority, preserving local-constant proof.
-Unsafe table callers retain separate blockers; fresh strict capture must confirm
-the complete chain before any admission gain is claimed.
+no blanket cyclic helper permission is authorized. Data3.77 completes original
+ryu::mul_shift_32 via pinned u32::MAX authority: three targets15→16/40, zero
+losses;48 strict admissions/3 original comparisons,45668 private-source oracle
+cases. Gates1106tests/5skips, fmt/Clippy/doctests, rstyle0/3513, patterns0;
+frozen run-yaapzru3 unchanged23/30/7, all58 strict. Unsafe table wrappers remain
+excluded. Evidence: `/tmp/rstyle-primitive-{evidence.log,final-*,current-*}`.
+
+## Reprioritized frontier (2026-10-22)
+
+Finish the pending Data3.77 change, then prioritize useful subsystems over more
+numeric leaves. This order supersedes the earlier resume order; P01–P22 scope
+and evidence gates remain. Rankings are source-audit judgments, not predicted
+admission counts. Keep the frozen sixty and all existing development selections.
+
+| Lane | Next connected delivery and dependency order |
+| --- | --- |
+| Error flow | **First:** all nine selected UnicodeWordBoundaryError contexts: independently prove the exact non-Copy unit-field owner has no drop, then connect constructor → Result<(), Error> → helper → public check. Reuse existing ownership/census proof; no general destructor model required. Next: payload binding/destructuring (match/if-let/let-else), then exact Result/Option `?` and required conversion proof; audited LookSet::available is a caller candidate. |
+| Interprocedural | Bounded scalar looping-callee seed delivered3.76. Next select dependency closure for cross-package helpers or component-specific aggregate/reference arguments/results according to complete callers. Preserve panic, return and divergence independently. Further narrow numeric kernels are deferred. |
+| Resolution | Address demonstrated module/import/alias/source-owner barriers, then concrete trait dispatch/selected bodies, generic instance identity/substitution, and associated types/constants/bounds. The local From<Span> delivery is a bounded precedent, not general trait support. |
+| Memory/data | Select a complete common slice/view family; retain bounds, saved operands and per-element origins. Establish initialized nonescaping local storage/borrowing → alias-sensitive mutable reborrows/writes and move/initialization/normal cleanup → bounded Box/Vec/String contracts. |
+
+Stored closures/callback environments, stateful iterator protocols/adapters/for,
+relevant macro/derive/generated-source ownership, source-required standard-library
+summaries and explicit observable effects remain subsequent shared frontiers.
+Async/concurrency/general unsafe remain later work. Independent oracles and
+resealed adversarial tests belong in every lane. Shared types/origins/summaries
+remain lead-owned; serialize heavy validation. Fold concise evidence/frontier
+updates into semantic commits, with no separate documentation-only milestone.

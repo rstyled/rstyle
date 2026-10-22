@@ -66,6 +66,7 @@ pub(crate) mod named_callbacks;
 pub mod nominal_binding;
 pub mod nominal_boundary;
 pub mod option_callbacks;
+pub mod primitive_constants;
 pub mod producer;
 pub mod range_values;
 pub mod scalar_constants;

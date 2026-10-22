@@ -368,6 +368,7 @@ impl<'tcx> Context<'tcx> {
             .or_else(|| self.fieldless_variant(res))
             .or_else(|| self.bool_array_resolution(res))
             .or_else(|| self.constant_resolution(res))
+            .or_else(|| self.primitive_constant_resolution(res))
             .or_else(|| {
                 Some(PathRes {
                     kind: if matches!(res, Res::Local(_)) {

@@ -4461,3 +4461,27 @@ Equal-work control (warmup then alternating samples): unchanged512 admissions,
 baseline2.44–2.57s/current2.44–2.48s, RSS about164MiB in both. Shared-host
 measurements show no slowdown in this control; they are not a general scaling
 proof. Evidence: `/tmp/rstyle-loop-perf/results.json`.
+
+### Data-v3 3.77: primitive constant authority
+
+[Contract](docs/extraction-profiles/primitive-constants-v1.md) and
+[selection](eval/coverage-development/primitive-constant-selection.json).
+Original ryu1.0.23 `mul_shift_32` now admits with exact pinned `u32::MAX`
+authority and independent lexical shadow checks; local constants retain their
+existing proof. Three unchanged targets: **15→16/40**, only that target gains,
+zero losses; all48 contextual admissions strictly replay,3 original comparisons
+Accepted, distinct alpha/transitive peers covered in Cargo tests. Native
+private-source bigint oracle: **45668 cases**; unsafe table wrappers remain
+excluded. Cross capture/replay does not claim native x86/macOS execution.
+Frozen `run-yaapzru3` versus `run-8f3w87gy`: unchanged **23/30/7**, package
+8/150,39/956,11/226; all58 retained admissions strictly replay.
+Gates: **1106 tests /5 existing skips in115.626s**, doctests/fmt/Clippy pass;
+**rstyle0/3513, patterns0 unignored**, existing15 ignores unchanged.
+Evidence: `/tmp/rstyle-primitive-{evidence.log,current-*,oracle.json,final-*}`.
+Full-library matching remains incomplete. Next priority is the complete selected
+UnicodeWordBoundaryError Result chain, then payload binding and propagation;
+[replanned lanes](docs/rust-support-execution.md) supersede numeric-leaf ordering.
+Equal-work scaling (warmup + alternating repeats,128/256/512 admissions):
+512-function baseline2.99–3.01s/current2.98–3.04s, peak RSS about174MiB.
+The source namespace scan is computed once per checked unit environment;
+no measurable speedup is claimed. Evidence: `/tmp/rstyle-primitive-scaling-final/`.

@@ -7,7 +7,8 @@
   "source_digests": {
     "ops/range.rs": "sha256:5d791bd2ee8997e93ac72c35db831815d9acbb7aed05cd1539799b7677a13d20",
     "slice": "sha256:062320a86dc6a3d20718bc8fca824bd1f3df0bb8bb0c3d72e101be989cf576bf",
-    "str": "sha256:bb2e4e174e8db5c79f6c602565c1f97f049f10ca600540bfb1d3c7f382de9bc5"
+    "str": "sha256:bb2e4e174e8db5c79f6c602565c1f97f049f10ca600540bfb1d3c7f382de9bc5",
+    "num/uint_macros.rs": "sha256:5525546f81f07f28c0d3bc475edf2f86770fe659b35dd4bae55c0a3b890ab12b"
   },
   "operations": [
     {
@@ -88,7 +89,8 @@
     "core::num::<impl usize>::checked_add": "DefPathHash(Fingerprint(2625310331494506890, 17584838823673411799))",
     "core::num::<impl usize>::checked_mul": "DefPathHash(Fingerprint(2625310331494506890, 7728428590953190211))",
     "core::num::<impl usize>::saturating_sub": "DefPathHash(Fingerprint(2625310331494506890, 1019439101396897879))",
-    "core::include_str#macro": "DefPathHash(Fingerprint(2625310331494506890, 8958481524699003480))"
+    "core::include_str#macro": "DefPathHash(Fingerprint(2625310331494506890, 8958481524699003480))",
+    "core::num::u32::MAX": "DefPathHash(Fingerprint(2625310331494506890, 15291854468438188004))"
   },
   "alloc_macro_exports": {
     "library": {
