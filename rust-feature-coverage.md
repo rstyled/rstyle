@@ -4637,3 +4637,24 @@ cross-package summaries, generic/trait resolution and memory/cleanup remain open
 P01–P22 remains active; full-library matching and held-out quality remain separate.
 Evidence: `/tmp/rstyle-parser-{green-*,final-*,frozen-*}` and
 `/tmp/rstyle-uncompressed-{current-*,native.*}`.
+
+### Calendar source-first checkpoint (not activated)
+
+[Selection and oracle](eval/coverage-development/calendar-helpers/README.md);
+[complete known blocker chain](eval/coverage-development/calendar-helpers/readiness.md).
+Three original `time0.3.47` callers plus five `time-core0.1.8` dependencies are
+frozen in six contexts. Native unchanged-library oracle passes **240,216
+month/year cases +9 expected debug panics per feature context**, zero mismatches.
+Capture/admission are **unmeasured**, with no claimed gain or loss. Frozen
+inventories and historical results are unchanged. Next: exact dependency
+capture-only checkpoint before cross-unit linking, integer operation contracts,
+selected attributes and complete Month repr/Copy/cast/namespace proof.
+The three reported CI regressions and the three-target authority regression
+pass again on the current implementation; this checkpoint changes no semantics.
+Source identities and staged diff checks pass; rstyle **0/3975**, patterns
+**0 unignored** with the existing15 ignores unchanged. Full workspace tests were
+not rerun for this corpus/documentation checkpoint.
+
+Future milestone reports should state supported complete families, unchanged
+selection gains/losses, remaining combined blockers and validation briefly;
+keep detailed evidence in linked contracts/artifacts instead of repeating it.
