@@ -469,7 +469,7 @@ fn inventory_file(
             return Ok(vec![
                 serde_json::to_value(UnknownInventory {
                     source_file: path,
-                    source_digest: evidence::digest(source.as_bytes()),
+                    source_digest: source.identity().to_owned(),
                     inventory_status: "unknown",
                     reason,
                 })

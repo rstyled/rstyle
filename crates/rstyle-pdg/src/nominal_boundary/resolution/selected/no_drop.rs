@@ -78,10 +78,7 @@ fn original_declaration(
     {
         return Err("Cleanup declaration requires an original nongeneric unit tuple".into());
     }
-    let source = environment
-        .source(&declaration.path)?
-        .range(declaration.span)?;
-    if concrete_types::digest(source.as_bytes()) != nominal.declaration_digest {
+    if environment.declaration_identity(declaration)? != nominal.declaration_digest {
         return Err("Cleanup declaration source identity disagrees".into());
     }
     Ok(key)

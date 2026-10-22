@@ -262,6 +262,7 @@ pub(crate) fn from_facts(facts: &HirFnFacts) -> Result<Resolution, String> {
 }
 
 struct Declaration {
+    identity: std::cell::OnceCell<String>,
     path: PathBuf,
     span: ByteSpan,
     namespace: Namespace,
@@ -480,6 +481,7 @@ impl Index {
         }
 
         let declaration = Declaration {
+            identity: Default::default(),
             path: site.module.path.clone(),
             span: if site.selected {
                 nominal_span(site.bytes, item)?
@@ -1111,7 +1113,6 @@ impl Resolution {
             .declarations
             .get(names)
             .ok_or("Missing lexical nominal owner declaration")?;
-        let source = self.environment.source(&declaration.path)?;
         let package = &self.environment.census().context.package;
 
         if nominal.definition_path != names.join("::")
@@ -1119,8 +1120,7 @@ impl Resolution {
             || nominal.package_name != package.name
             || nominal.package_version != package.version
             || nominal.manifest_digest != package.manifest_digest
-            || nominal.declaration_digest
-                != concrete_types::digest(source.range(declaration.span)?.as_bytes())
+            || nominal.declaration_digest != self.environment.declaration_identity(declaration)?
         {
             return Err("Nominal owner contradicts the exact lexical declaration/package".into());
         }

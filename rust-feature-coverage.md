@@ -4590,3 +4590,11 @@ conversion, suffix views and reference-bearing tuple origins. Cross-package
 calendar helpers separately require captured exact dependency/instance closure.
 P01–P22 remains active; full-library matching/held-out quality remain separate.
 Evidence: `/tmp/rstyle-prefix-{evidence.log,current-*,matching.json,native-*,frozen-*}`.
+
+Follow-on identity work reuses immutable file identities during module/import
+proof and memoizes each lexical declaration's exact identity for nominal/cleanup
+checks. Published identities and evidence rules are unchanged; no admission gain
+or measured speedup is claimed for this increment. Bundle transport remains XXH3.
+Validation:1154 tests/5 existing skips, doctests/fmt/Clippy pass; rstyle0/3793,
+patterns0 unignored with the existing15 ignores unchanged. Changed source gets a
+fresh identity cache; serialized claims cannot populate the memo.

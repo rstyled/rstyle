@@ -148,7 +148,7 @@ impl Closure<'_> {
         let prefix = source.len() - text.len();
         Ok(expansions::FileSpan {
             path: path.into(),
-            digest: crate::concrete_types::digest(source.as_bytes()),
+            digest: source.identity().to_owned(),
             span: crate::ByteSpan {
                 start: (crate::source_evidence::byte_offset(text, span.start()) + prefix)
                     .try_into()

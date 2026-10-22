@@ -137,6 +137,22 @@ impl Environment {
         Ok(SnapshotView { record })
     }
 
+    /// The lexical index and its checked source snapshots are immutable together.
+    /// Memoize actual bytes, never the caller's nominal digest claim.
+    pub(super) fn declaration_identity<'a>(
+        &self,
+        declaration: &'a Declaration,
+    ) -> Result<&'a str, String> {
+        if let Some(identity) = declaration.identity.get() {
+            return Ok(identity);
+        }
+        let source = self.source(&declaration.path)?;
+        let bytes = source.range(declaration.span)?;
+        Ok(declaration
+            .identity
+            .get_or_init(|| concrete_types::digest(bytes.as_bytes())))
+    }
+
     pub(crate) fn check_context(&self, facts: &HirFnFacts) -> Result<(), String> {
         let context: UnitContext = evidence(facts, CONTEXT_KEY)?;
         if context != self.census.context {
@@ -216,6 +232,37 @@ pub(crate) mod tests {
                 digest: crate::concrete_types::digest(bytes.as_bytes()),
             }],
         })
+    }
+
+    #[test]
+    fn declaration_identity_is_memoized_only_for_its_immutable_index() {
+        let original = census();
+        let environment = Environment::new(Arc::clone(&original)).unwrap();
+        let declaration = environment.index.declarations.values().next().unwrap();
+        assert!(declaration.identity.get().is_none());
+        let identity = environment.declaration_identity(declaration).unwrap();
+        assert_eq!(
+            identity,
+            concrete_types::digest(b"pub struct Data { pub value: i32 }")
+        );
+        assert!(std::ptr::eq(
+            identity,
+            environment.declaration_identity(declaration).unwrap()
+        ));
+
+        let mut changed = (*original).clone();
+        changed.files[0].bytes = changed.files[0].bytes.replace("i32", "u32").into();
+        changed.files[0].digest = changed.files[0].bytes.identity().to_owned();
+        let other = Environment::new(Arc::new(changed)).unwrap();
+        let declaration = other.index.declarations.values().next().unwrap();
+        assert!(declaration.identity.get().is_none());
+        assert_ne!(identity, other.declaration_identity(declaration).unwrap());
+        assert_eq!(
+            identity,
+            environment
+                .declaration_identity(environment.index.declarations.values().next().unwrap())
+                .unwrap()
+        );
     }
 
     #[test]

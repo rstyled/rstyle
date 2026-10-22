@@ -152,7 +152,7 @@ impl super::Closure<'_> {
         let [(index, record)] = matching.as_slice() else {
             return Err("Missing or duplicate original external macro import observation".into());
         };
-        if record.declaration.digest != crate::concrete_types::digest(source.as_bytes())
+        if record.declaration.digest != source.identity()
             || !self.used_external_imports.insert(*index)
         {
             return Err("External macro import source or unique ownership disagrees".into());

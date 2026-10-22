@@ -218,7 +218,7 @@ pub fn check_budget(census: &Census) -> Result<(), String> {
 fn checked_files<'a>(
     census: &'a Census,
     documentation: &BTreeSet<PathBuf>,
-) -> Result<BTreeMap<PathBuf, &'a str>, String> {
+) -> Result<BTreeMap<PathBuf, &'a crate::SourceSnapshot>, String> {
     census.context.transport()?;
     check_budget(census)?;
     if census.identity != IDENTITY || census.files.len() > MAX_FILES {
@@ -243,9 +243,7 @@ fn checked_files<'a>(
                     .any(|c| matches!(c, std::path::Component::ParentDir)))
             || !locations.insert(documentation::in_package(root, &file.path)?)
             || file.digest != file.bytes.identity()
-            || files
-                .insert(file.path.clone(), file.bytes.as_ref())
-                .is_some()
+            || files.insert(file.path.clone(), &file.bytes).is_some()
         {
             return Err("Invalid, duplicate, escaping or over-budget census file".into());
         }
@@ -260,7 +258,7 @@ struct Site<'a> {
 }
 
 struct Closure<'a> {
-    files: BTreeMap<PathBuf, &'a str>,
+    files: BTreeMap<PathBuf, &'a crate::SourceSnapshot>,
     visited: BTreeSet<PathBuf>,
     modules: Vec<Module>,
     constants: bool,
