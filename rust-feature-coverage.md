@@ -4205,6 +4205,17 @@ origin regression passing separately; five existing skips. Doctests/fmt/Clippy
 pass; **rstyle 0/3346, patterns 0 unignored**, existing15 ignores unchanged.
 Evidence: `/tmp/rstyle-perf7-*`; no extraction capability or admission change.
 
+Type-conversion performance follow-up: bounded process-local caches retain only
+successful canonical type parses and exact complete concrete observations.
+Capability, source and document verification still run; declaration ranges are
+detached to avoid retaining whole source snapshots. Equal-work isolated tests:
+slices **29.72→21.98s**, flags **23.84→15.73s**, all six build contexts retained.
+Adversarial checks cover changed declaration/field evidence, noncanonical tokens,
+policy checks, independent returned values and retention limits. Evidence:
+`/tmp/rstyle-perf8-*`; no extraction-policy or admission claim is added.
+**1039 tests pass /5 existing skips**, doctests/fmt/Clippy pass;
+**rstyle 0/3353, patterns 0 unignored**, existing15 ignores unchanged.
+
 ### Data-v3 3.71: original Transition callback family
 
 [Source selection, bounded contract and independent expectations](eval/coverage-development/transition-callback-selection.json).

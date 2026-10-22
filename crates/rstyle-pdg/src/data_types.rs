@@ -2,7 +2,9 @@
 
 use crate::concrete_types::{Nominal, TypeTree, scalar};
 use serde::{Deserialize, Serialize};
+mod converted;
 mod mixed_owners;
+mod parsed;
 use crate::concrete_types::VariantShape;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,6 +128,10 @@ impl TypeToken {
 }
 
 pub fn token(tree: &TypeTree) -> Result<String, String> {
+    converted::get(tree, || checked_token(tree))
+}
+
+fn checked_token(tree: &TypeTree) -> Result<String, String> {
     crate::concrete_types::validate(tree)?;
     let text = TypeToken::from_tree(tree).text()?;
     if text.len() > crate::concrete_types::MAX_SOURCE_BYTES {
@@ -142,6 +148,10 @@ pub fn parse(text: &str) -> Result<TypeToken, String> {
         return Err("Data interface token exceeds byte budget".into());
     }
 
+    parsed::get(text, || parse_canonical(text))
+}
+
+fn parse_canonical(text: &str) -> Result<TypeToken, String> {
     let token: TypeToken = serde_json::from_str(text).map_err(|error| error.to_string())?;
     check(&token, 0, &mut 0)?;
     if token.text()? != text {
