@@ -1,7 +1,6 @@
 //! Original closure syntax and complete parameter/body correspondence.
 
 use crate::{HirNode, unit_store::EvidenceFacts};
-use syn::spanned::Spanned;
 
 pub(super) fn invocation(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let syntax = crate::source_evidence::original_expression(node, facts)?;
@@ -120,25 +119,4 @@ fn comparison(
     Ok(())
 }
 
-pub(crate) fn corresponding(
-    syntax: &impl Spanned,
-    child: &HirNode,
-    node: &HirNode,
-    facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
-    let bytes = facts
-        .source
-        .bytes
-        .get(node.span.start as usize..node.span.end as usize)
-        .ok_or("Callback source lies outside its owning function")?;
-    let expected = crate::ByteSpan {
-        start: node.span.start
-            + crate::source_evidence::byte_offset(bytes, syntax.span().start()) as u32,
-        end: node.span.start
-            + crate::source_evidence::byte_offset(bytes, syntax.span().end()) as u32,
-    };
-    if !crate::source_evidence::corresponding_span(&facts.source.bytes, expected, child.span) {
-        return Err("Callback loses original source/body correspondence".into());
-    }
-    Ok(())
-}
+pub(crate) use crate::source_evidence::verify_child_source as corresponding;

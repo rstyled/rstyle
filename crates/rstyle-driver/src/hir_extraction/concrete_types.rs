@@ -294,6 +294,31 @@ impl<'tcx> Capture<'_, 'tcx> {
         if let Some(result) = self.slice_array_result(ty) {
             return Ok(result);
         }
+        if self.ctx.profile.supports("rust.fresh-concrete-results")
+            && self.visiting.is_empty()
+            && let Some((ok, err)) = super::results::payloads(self.ctx.tcx, ty)
+        {
+            return self.result_type(ok, err, depth);
+        }
+        self.storage_container(ty, depth)
+    }
+
+    fn result_type(
+        &mut self,
+        ok: Ty<'tcx>,
+        err: Ty<'tcx>,
+        depth: usize,
+    ) -> Result<TypeTree, Failure> {
+        let result = TypeTree::Result {
+            ok: Box::new(self.tree(ok, depth + 1)?),
+            err: Box::new(self.tree(err, depth + 1)?),
+        };
+        rstyle_pdg::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
+
+        Ok(result)
+    }
+
+    fn storage_container(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
         match ty.kind() {
             ty::Array(element, length) => self.array(*element, *length, depth),
             ty::Adt(definition, arguments) => self.nominal_type(*definition, arguments, depth),

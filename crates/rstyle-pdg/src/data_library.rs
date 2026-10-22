@@ -55,6 +55,8 @@ pub struct Registry {
     pub definitions: BTreeMap<String, String>,
     #[serde(default)]
     pub alloc_macro_exports: Option<crate::nominal_boundary::census::external_imports::Exports>,
+    #[serde(default)]
+    pub cleanup_macro_source_digests: BTreeMap<String, String>,
 }
 
 impl Registry {
@@ -182,7 +184,7 @@ mod tests {
             assert_eq!(arm.rustc_commit, other.rustc_commit);
             assert_eq!(arm.source_digests, other.source_digests);
             assert_eq!(arm.operations.len(), other.operations.len());
-            assert_eq!(arm.definitions.len(), 36);
+            assert_eq!(arm.definitions.len(), 39);
             assert_eq!(
                 arm.definitions.keys().collect::<Vec<_>>(),
                 other.definitions.keys().collect::<Vec<_>>()
@@ -209,6 +211,15 @@ mod tests {
         assert!(output.status.success());
         let sysroot = String::from_utf8(output.stdout).unwrap();
         for registry in registries() {
+            for (module, expected) in &registry.cleanup_macro_source_digests {
+                let path = std::path::Path::new(sysroot.trim())
+                    .join("lib/rustlib/src/rust/library")
+                    .join(module);
+                assert_eq!(
+                    &crate::concrete_types::digest(&std::fs::read(path).unwrap()),
+                    expected
+                );
+            }
             for (module, expected) in &registry.source_digests {
                 let relative = if module.ends_with(".rs") {
                     module.clone()

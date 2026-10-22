@@ -8,7 +8,8 @@
     "ops/range.rs": "sha256:5d791bd2ee8997e93ac72c35db831815d9acbb7aed05cd1539799b7677a13d20",
     "slice": "sha256:062320a86dc6a3d20718bc8fca824bd1f3df0bb8bb0c3d72e101be989cf576bf",
     "str": "sha256:bb2e4e174e8db5c79f6c602565c1f97f049f10ca600540bfb1d3c7f382de9bc5",
-    "num/uint_macros.rs": "sha256:5525546f81f07f28c0d3bc475edf2f86770fe659b35dd4bae55c0a3b890ab12b"
+    "num/uint_macros.rs": "sha256:5525546f81f07f28c0d3bc475edf2f86770fe659b35dd4bae55c0a3b890ab12b",
+    "result.rs": "sha256:777e0f516deba3899c8f16c5511da3ebe7debe23f4bcf6a6353c98a927c0f7d1"
   },
   "operations": [
     {
@@ -90,7 +91,10 @@
     "core::num::<impl usize>::checked_mul": "DefPathHash(Fingerprint(5614226571623188065, 13363475033406942184))",
     "core::num::<impl usize>::saturating_sub": "DefPathHash(Fingerprint(5614226571623188065, 7955482148693232259))",
     "core::include_str#macro": "DefPathHash(Fingerprint(5614226571623188065, 17458292155618696287))",
-    "core::num::u32::MAX": "DefPathHash(Fingerprint(5614226571623188065, 6997376141831280760))"
+    "core::num::u32::MAX": "DefPathHash(Fingerprint(5614226571623188065, 6997376141831280760))",
+    "std::result::Result": "DefPathHash(Fingerprint(5614226571623188065, 3152661021953596119))",
+    "std::prelude::v1::Ok": "DefPathHash(Fingerprint(5614226571623188065, 16300166489178515888))",
+    "std::prelude::v1::Err": "DefPathHash(Fingerprint(5614226571623188065, 10285609500971227091))"
   },
   "alloc_macro_exports": {
     "library": {
@@ -123,5 +127,11 @@
         }
       }
     ]
+  },
+  "cleanup_macro_source_digests": {
+    "core/src/fmt/mod.rs": "sha256:ab918e40543739be20757973f0d4abefcd9624d3759a64fc4147f1d8fc4bc035",
+    "std/src/thread/local.rs": "sha256:e3ab1f6bc155548843ec942bc409aecf2d812e6a4088680a4647df1848b5b1f1",
+    "std/src/sys/thread_local/mod.rs": "sha256:b8e407313093a89008fd0fbdd4805f2da8c7bb7711f0d36c03d858d6f0de5e4a",
+    "std/src/sys/thread_local/native/mod.rs": "sha256:258d21c8714e9e51ab4bba15b086dd5a83acad4573ac597887e5196c30adbeec"
   }
 }

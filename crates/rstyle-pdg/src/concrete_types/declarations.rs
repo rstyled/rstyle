@@ -40,6 +40,11 @@ fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String>
     {
         return check(super::option_spelling::payload(source, payload)?, payload);
     }
+    if let TypeTree::Result { ok, err } = resolved {
+        let [source_ok, source_err] = super::result_arguments(source)?;
+        check(source_ok, ok)?;
+        return check(source_err, err);
+    }
     // A named path may be a resolved alias. Spelling alone proves neither
     // nominal identity nor the alias referent; this observation cannot admit it.
     if source.qself.is_some()

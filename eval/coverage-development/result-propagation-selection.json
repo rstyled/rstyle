@@ -1,0 +1,346 @@
+{
+  "identity": "rstyle.development.result-propagation/1",
+  "status": "source-selected before admission evaluation; readiness artifact only",
+  "selection_basis": "Complete original LookSet::available plus its acyclic flag and nominal-error helper chain; advances payload binding then bounded same-error ?.",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18",
+    "upstream_revision": "e6ad938198e68339a593f85d228f2d44cb54718f",
+    "file_sha256": {
+      "Cargo.toml": "25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+      "src/lib.rs": "47d562a98f5f50f7cbbffb1f103e277871c7419da05dbb2b0db78dee6e7b4c2e",
+      "src/macros.rs": "3e4b39252bfa471fad384160a43f113ebfec7bec46a85d16f006622881dd2081",
+      "src/util/mod.rs": "6c828a493f0f88c8b515aee4f8faf91ba653eb07e8fc3c23c0524553410803f9",
+      "src/util/look.rs": "49026d8bcb6f9229b2d462e363eb6c6dc9d1e17de6acb190105b2d71ca5a9490",
+      "src/util/unicode_data/mod.rs": "54c3e10bbc393e9881bfac3295815b160f59e69e2056bc29ee7cf0addd8e3cf7"
+    }
+  },
+  "build_selection": {
+    "target": "regex_automata library; test=false; doctest=false",
+    "edition": "2021",
+    "profile": "Cargo debug; no custom rustflags or extern replacements",
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "pointer_width": 64,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic_strategy": "unwind",
+    "opt_level": "No",
+    "contexts": [
+      {
+        "cargo_arguments": [],
+        "expected_feature_closure_from_manifest": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ],
+        "expected_active_branch": "syntax-tables",
+        "expected_public_check_result": "Ok(())"
+      },
+      {
+        "cargo_arguments": [
+          "--no-default-features"
+        ],
+        "expected_feature_closure_from_manifest": [],
+        "expected_active_branch": "unavailable",
+        "expected_public_check_result": "Err(UnicodeWordBoundaryError(()))"
+      },
+      {
+        "cargo_arguments": [
+          "--no-default-features",
+          "--features",
+          "unicode-word-boundary"
+        ],
+        "expected_feature_closure_from_manifest": [
+          "unicode-word-boundary"
+        ],
+        "expected_active_branch": "local-tables",
+        "expected_public_check_result": "Ok(())"
+      }
+    ],
+    "context_source": "Manifest source and span-length-selection.json; these are requested selections, not new captured contexts.",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "context_product": "Each of three feature contexts on each of three targets: nine separately selected contexts.",
+    "actual_cargo_unit_evidence": "pending capture for this available selection; previous Result chain evidence is separate"
+  },
+  "functions": [
+    {
+      "name": "util::look::LookSet::available",
+      "file": "src/util/look.rs",
+      "line": 493,
+      "span": {
+        "start": 20750,
+        "end": 20935
+      },
+      "sha256": "d469507a2532e43fdbd697ca884e76afa1f86b2e468beacc4e800878632c44b6",
+      "source": "pub fn available(self) -> Result<(), UnicodeWordBoundaryError> {\n        if self.contains_word_unicode() {\n            UnicodeWordBoundaryError::check()?;\n        }\n        Ok(())\n    }",
+      "role": "target",
+      "active_when": "true"
+    },
+    {
+      "name": "util::look::Look::as_repr",
+      "file": "src/util/look.rs",
+      "line": 172,
+      "span": {
+        "start": 8626,
+        "end": 8788
+      },
+      "sha256": "c7ddf00cd280c9ef362699194b91c27e9f380b3653ff44b259c5a65ee0894bd7",
+      "source": "pub const fn as_repr(self) -> u32 {\n        // AFAIK, 'as' is the only way to zero-cost convert an int enum to an\n        // actual int.\n        self as u32\n    }",
+      "role": "required existing flag prerequisite",
+      "active_when": "true"
+    },
+    {
+      "name": "util::look::LookSet::contains",
+      "file": "src/util/look.rs",
+      "line": 298,
+      "span": {
+        "start": 13576,
+        "end": 13665
+      },
+      "sha256": "ca00c2c41b484a9d0ded828705c32824e24cfadc1a603b4896af334c21bcb038",
+      "source": "pub fn contains(self, look: Look) -> bool {\n        self.bits & look.as_repr() != 0\n    }",
+      "role": "required existing flag prerequisite",
+      "active_when": "true"
+    },
+    {
+      "name": "util::look::LookSet::contains_word_unicode",
+      "file": "src/util/look.rs",
+      "line": 354,
+      "span": {
+        "start": 15863,
+        "end": 16224
+      },
+      "sha256": "504e2db72c941346b3f1643878800b19e55a32d2b046bb20c0ab11d6e96f638d",
+      "source": "pub fn contains_word_unicode(self) -> bool {\n        self.contains(Look::WordUnicode)\n            || self.contains(Look::WordUnicodeNegate)\n            || self.contains(Look::WordStartUnicode)\n            || self.contains(Look::WordEndUnicode)\n            || self.contains(Look::WordStartHalfUnicode)\n            || self.contains(Look::WordEndHalfUnicode)\n    }",
+      "role": "required existing flag prerequisite",
+      "active_when": "true"
+    },
+    {
+      "name": "util::look::UnicodeWordBoundaryError::new",
+      "file": "src/util/look.rs",
+      "line": 1284,
+      "signature": "pub(crate) fn new() -> UnicodeWordBoundaryError",
+      "role": "required unavailable-branch constructor",
+      "active_when": "not(feature=\"unicode-word-boundary\")",
+      "span": {
+        "start": 50134,
+        "end": 50226
+      },
+      "sha256": "1043108994a218cb762b46528c66ce1e991809c472bebf12a1a370f0439ef71f",
+      "source": "pub(crate) fn new() -> UnicodeWordBoundaryError {\n        UnicodeWordBoundaryError(())\n    }"
+    },
+    {
+      "name": "util::look::UnicodeWordBoundaryError::check",
+      "file": "src/util/look.rs",
+      "line": 1290,
+      "signature": "pub fn check() -> Result<(), UnicodeWordBoundaryError>",
+      "role": "public target",
+      "active_when": "true",
+      "span": {
+        "start": 50323,
+        "end": 50415
+      },
+      "sha256": "d2da7070c2f3cffd8694ec5502b064303ba84a555e2e6b5b2dbf746c5a7e9819",
+      "source": "pub fn check() -> Result<(), UnicodeWordBoundaryError> {\n        is_word_char::check()\n    }"
+    },
+    {
+      "name": "util::look::is_word_char::check@syntax-tables",
+      "file": "src/util/look.rs",
+      "line": 1575,
+      "signature": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError>",
+      "role": "required success helper",
+      "active_when": "all(feature=\"unicode-word-boundary\",feature=\"syntax\",feature=\"unicode-perl\")",
+      "span": {
+        "start": 61011,
+        "end": 61102
+      },
+      "sha256": "5cb6f899d71454f338950fa636e05e5bb29b4b2fb137220ede259c867e3ad2bf",
+      "source": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError> {\n        Ok(())\n    }"
+    },
+    {
+      "name": "util::look::is_word_char::check@local-tables",
+      "file": "src/util/look.rs",
+      "line": 1623,
+      "signature": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError>",
+      "role": "required success helper",
+      "active_when": "all(feature=\"unicode-word-boundary\",not(all(feature=\"syntax\",feature=\"unicode-perl\")))",
+      "span": {
+        "start": 62551,
+        "end": 62642
+      },
+      "sha256": "5cb6f899d71454f338950fa636e05e5bb29b4b2fb137220ede259c867e3ad2bf",
+      "source": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError> {\n        Ok(())\n    }"
+    },
+    {
+      "name": "util::look::is_word_char::check@unavailable",
+      "file": "src/util/look.rs",
+      "line": 1677,
+      "signature": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError>",
+      "role": "required error helper",
+      "active_when": "not(feature=\"unicode-word-boundary\")",
+      "span": {
+        "start": 64270,
+        "end": 64398
+      },
+      "sha256": "8f0f43d5d8b5f6d9c97c39679883fd290cf0bbe8caede4791a32d4131ba39f58",
+      "source": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError> {\n        Err(super::UnicodeWordBoundaryError::new())\n    }"
+    }
+  ],
+  "owners": [
+    {
+      "name": "util::look::Look",
+      "file": "src/util/look.rs",
+      "line": 61,
+      "span": {
+        "start": 2861,
+        "end": 6927
+      },
+      "sha256": "b879e7086fee68709e259acda000d1579a7aad70eb7b686bcd9ccf442d678cce",
+      "source": "#[derive(Clone, Copy, Debug, Eq, PartialEq)]\npub enum Look {\n    /// Match the beginning of text. Specifically, this matches at the starting\n    /// position of the input.\n    Start = 1 << 0,\n    /// Match the end of text. Specifically, this matches at the ending\n    /// position of the input.\n    End = 1 << 1,\n    /// Match the beginning of a line or the beginning of text. Specifically,\n    /// this matches at the starting position of the input, or at the position\n    /// immediately following a `\\n` character.\n    StartLF = 1 << 2,\n    /// Match the end of a line or the end of text. Specifically, this matches\n    /// at the end position of the input, or at the position immediately\n    /// preceding a `\\n` character.\n    EndLF = 1 << 3,\n    /// Match the beginning of a line or the beginning of text. Specifically,\n    /// this matches at the starting position of the input, or at the position\n    /// immediately following either a `\\r` or `\\n` character, but never after\n    /// a `\\r` when a `\\n` follows.\n    StartCRLF = 1 << 4,\n    /// Match the end of a line or the end of text. Specifically, this matches\n    /// at the end position of the input, or at the position immediately\n    /// preceding a `\\r` or `\\n` character, but never before a `\\n` when a `\\r`\n    /// precedes it.\n    EndCRLF = 1 << 5,\n    /// Match an ASCII-only word boundary. That is, this matches a position\n    /// where the left adjacent character and right adjacent character\n    /// correspond to a word and non-word or a non-word and word character.\n    WordAscii = 1 << 6,\n    /// Match an ASCII-only negation of a word boundary.\n    WordAsciiNegate = 1 << 7,\n    /// Match a Unicode-aware word boundary. That is, this matches a position\n    /// where the left adjacent character and right adjacent character\n    /// correspond to a word and non-word or a non-word and word character.\n    WordUnicode = 1 << 8,\n    /// Match a Unicode-aware negation of a word boundary.\n    WordUnicodeNegate = 1 << 9,\n    /// Match the start of an ASCII-only word boundary. That is, this matches a\n    /// position at either the beginning of the haystack or where the previous\n    /// character is not a word character and the following character is a word\n    /// character.\n    WordStartAscii = 1 << 10,\n    /// Match the end of an ASCII-only word boundary. That is, this matches\n    /// a position at either the end of the haystack or where the previous\n    /// character is a word character and the following character is not a word\n    /// character.\n    WordEndAscii = 1 << 11,\n    /// Match the start of a Unicode word boundary. That is, this matches a\n    /// position at either the beginning of the haystack or where the previous\n    /// character is not a word character and the following character is a word\n    /// character.\n    WordStartUnicode = 1 << 12,\n    /// Match the end of a Unicode word boundary. That is, this matches a\n    /// position at either the end of the haystack or where the previous\n    /// character is a word character and the following character is not a word\n    /// character.\n    WordEndUnicode = 1 << 13,\n    /// Match the start half of an ASCII-only word boundary. That is, this\n    /// matches a position at either the beginning of the haystack or where the\n    /// previous character is not a word character.\n    WordStartHalfAscii = 1 << 14,\n    /// Match the end half of an ASCII-only word boundary. That is, this\n    /// matches a position at either the end of the haystack or where the\n    /// following character is not a word character.\n    WordEndHalfAscii = 1 << 15,\n    /// Match the start half of a Unicode word boundary. That is, this matches\n    /// a position at either the beginning of the haystack or where the\n    /// previous character is not a word character.\n    WordStartHalfUnicode = 1 << 16,\n    /// Match the end half of a Unicode word boundary. That is, this matches\n    /// a position at either the end of the haystack or where the following\n    /// character is not a word character.\n    WordEndHalfUnicode = 1 << 17,\n}",
+      "role": "complete owner declaration",
+      "active_when": "true"
+    },
+    {
+      "name": "util::look::LookSet",
+      "file": "src/util/look.rs",
+      "line": 243,
+      "span": {
+        "start": 11723,
+        "end": 12362
+      },
+      "sha256": "88fcddeffb0e3f70aa8a8b667afe60ec5155865bf857aceec6fd3c9f8c74636f",
+      "source": "#[derive(Clone, Copy, Default, Eq, PartialEq)]\npub struct LookSet {\n    /// The underlying representation this set is exposed to make it possible\n    /// to store it somewhere efficiently. The representation is that\n    /// of a bitset, where each assertion occupies bit `i` where\n    /// `i = Look::as_repr()`.\n    ///\n    /// Note that users of this internal representation must permit the full\n    /// range of `u16` values to be represented. For example, even if the\n    /// current implementation only makes use of the 10 least significant bits,\n    /// it may use more bits in a future semver compatible release.\n    pub bits: u32,\n}",
+      "role": "complete owner declaration",
+      "active_when": "true"
+    }
+  ],
+  "error_owner": {
+    "name": "util::look::UnicodeWordBoundaryError",
+    "file": "src/util/look.rs",
+    "declaration": {
+      "span": {
+        "start": 49981,
+        "end": 50045
+      },
+      "sha256": "b371d4bf5ccf5c59df5d818349e80eab3555fc832cd2092b0202a19c15ba832d",
+      "source": "#[derive(Clone, Debug)]\npub struct UnicodeWordBoundaryError(());"
+    },
+    "complete_inherent_impl": {
+      "span": {
+        "start": 50047,
+        "end": 50417
+      },
+      "sha256": "f46b799a03860d1ed9bc604cf9e6b719a0040acd3f348ea74d46969d95a6a948",
+      "source": "impl UnicodeWordBoundaryError {\n    #[cfg(not(feature = \"unicode-word-boundary\"))]\n    pub(crate) fn new() -> UnicodeWordBoundaryError {\n        UnicodeWordBoundaryError(())\n    }\n\n    /// Returns an error if and only if Unicode word boundary data is\n    /// unavailable.\n    pub fn check() -> Result<(), UnicodeWordBoundaryError> {\n        is_word_char::check()\n    }\n}"
+    },
+    "source_properties": [
+      "Private single tuple field of unit type (); no type/lifetime parameters.",
+      "Derives Clone and Debug, deliberately not Copy.",
+      "No source-written Drop implementation for this nominal found across package src; this search alone is not compiler drop/ownership proof.",
+      "Trait neighbors: always core::fmt::Display with write! body; std::error::Error only under std. Neither trait method is called by this selected chain."
+    ]
+  },
+  "source_dependencies": [
+    "Retain complete original Cargo/root/module/import/cfg census, including derives, Display and optional std::error::Error neighbors and all three is_word_char modules.",
+    "Existing look-flags-selection.json identifies flag prerequisites; their previous default-context support does not establish evidence in the other eight contexts.",
+    "available -> contains_word_unicode -> six short-circuit contains calls -> Look::as_repr; conditionally Error::check -> active is_word_char::check -> Error::new only in unavailable branch.",
+    "No loop or iterator occurs in this chain. Neighboring Debug formatting loops and macros are uncalled and remain in source census; no permission to execute them is implied."
+  ],
+  "known_blockers": [
+    "Owned Copy LookSet receiver must compose with fresh non-Copy Result<(), exact E> output under independent receiver/field/drop proofs; no blanket receiver bypass.",
+    "Preserve short-circuit flag dependencies and conditional helper evaluation: when condition is false check is not called, including contexts where check always returns Err.",
+    "Introduce exact Result discriminant and guarded Err payload binding; consume and forward exact non-Copy E once without reconstruction, duplicate move, Copy assumption or erase-to-unit.",
+    "Prove original ExprTry correspondence and pinned core Try::branch and Result FromResidual identity, residual Result<!,E>, ControlFlow shape and same-error From<E> for E identity. No arbitrary conversion or FromResidual purity assumption.",
+    "One saved operand evaluation; Err exits function while success reaches final Ok. Preserve branch guards, return origins, supported complete-body evidence and no invented fallthrough/panic.",
+    "Exact local helper summaries, cfg alternatives, nominal noDrop source/compiler closure and constructor evidence from scalar-result-next chain remain prerequisite obligations.",
+    "Historical policies must reject new payload extraction and ?; pin all compiler, target, library and source authority."
+  ],
+  "unknowns": [
+    "Fresh all-nine-context admission outcomes and any additional blockers from exact captured original HIR/desugaring, residual conversion and helper summaries are not measured by this artifact.",
+    "Exact existing receiver/result eligibility seam and complete Try/FromResidual/identity-conversion source evidence need implementation audit before activation.",
+    "Cross-target native execution availability; native oracle is distinct from cross-target Cargo capture, strict verification, admission and matching."
+  ],
+  "bounded_contract": {
+    "positive": [
+      "Only original selected acyclic chain, Result<(), UnicodeWordBoundaryError> and bounded same-error ? after exact payload/identity proof.",
+      "Concrete unit success and noDrop nominal error values; source-owned Copy flag receiver and fieldless discriminants; no input or stored Result ownership permission inferred."
+    ],
+    "negative": [
+      "Unknown/inactive/unsupported/incomplete remain distinct; no missing evidence defaults, neighbor omission, supported prefix or weaker admission.",
+      "No general payload types, residual conversions, Try implementors, destructor/cleanup semantics, loop support or macro purity."
+    ],
+    "deferred": [
+      "Unicode fwd/rev/LookMatcher decoder/table chains: enabled branches require UTF8/char/Option payloads, calls, closures, indexing and bounds; disabled-only Result fixtures do not complete them."
+    ]
+  },
+  "independent_expectations": {
+    "unicode_variants": {
+      "WordUnicode": 8,
+      "WordUnicodeNegate": 9,
+      "WordStartUnicode": 12,
+      "WordEndUnicode": 13,
+      "WordStartHalfUnicode": 16,
+      "WordEndHalfUnicode": 17
+    },
+    "unicode_mask_hex": "0x33300",
+    "semantic": "For every u32 bits, LookSet { bits }.available() is Err iff unicode-word-boundary is disabled and (bits & 0x33300) != 0; otherwise Ok(()). The selected chain terminates without panic.",
+    "classification": [
+      "available and three flag prerequisites active in all9 contexts; exactly one check helper active per context; new active only in3 disabled contexts.",
+      "available is expected in scope after the complete bounded chain is implemented, regardless of preactivation rejection; no gain is claimed now."
+    ],
+    "negative_cases": [
+      "Disabled context + no Unicode bits must be Ok although Error::check itself is Err.",
+      "Each Unicode singleton and any mix must be Err only when disabled; ASCII-only, empty and unknown high bits alone remain Ok.",
+      "Changed variant discriminants/guard polarity, unconditional check, swapped Result tag, duplicated payload/operand or early return falling through must fail independent semantics/evidence.",
+      "Forged Try/FromResidual/From identity, changed E, custom conversion, dropped source neighbors, unknown drop proof, changed target/compiler or historical downgrade must reject."
+    ],
+    "matching": "Same-context strict original self-comparisons must complete after activation; no cross-feature/target compatibility or enabled/disabled equivalence is assumed.",
+    "oracle": "Full unchanged original public API, exhaustive 262144 low18bit values with six high-bit overlays, plus each high singleton against boundary bases; independently specified numeric mask. Native only; no extractor-derived expectation."
+  },
+  "readiness": {
+    "source_ready": true,
+    "extraction_ready": false,
+    "activation": false,
+    "next_gate": "Implement guarded exact payload binding then bounded same-error ?; evaluate complete original chain in nine contexts with independent semantics and strict matching."
+  },
+  "validation": {
+    "source_hashes_and_spans": "verified against unchanged registry bytes",
+    "builds": "not run",
+    "captures": "not run",
+    "admission": "not evaluated for this selection",
+    "matching": "not run",
+    "native_oracle": "Passed unchanged original public API on native ARM Linux: 4,719,096 cases across three feature contexts; zero mismatches. /tmp/rstyle-result-propagation-oracle.json",
+    "frozen_inventory": "unchanged identities/denominators; separate development corpus"
+  }
+}

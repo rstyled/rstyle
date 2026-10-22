@@ -20,6 +20,7 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
     crate::character_scalars::verify_function(facts)?;
     crate::float_scalars::verify_function(facts)?;
     crate::range_values::verify_function(facts)?;
+    crate::concrete_results::verify_function(facts)?;
     let interface = interface(facts)?;
     let source: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
@@ -45,6 +46,7 @@ pub(crate) fn verify_document_policy(
     crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
     crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
     crate::primitive_constants::verify_document_policy(profile, facts)?;
+    crate::concrete_results::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,
         crate::range_values::CAPABILITY,
@@ -182,6 +184,17 @@ impl PathResolution for Resolver<'_> {
             },
             |resolution| resolution.resolve(path),
         )
+    }
+
+    fn concrete_result(
+        &self,
+        path: &syn::TypePath,
+        _ok: &TypeTree,
+        _err: &TypeTree,
+    ) -> Result<(), String> {
+        self.facts
+            .nominal_resolution()?
+            .verify_result_type_source(self.facts.facts(), path)
     }
 
     fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
@@ -489,6 +502,9 @@ fn verify_value_operations(
     crate::data_locals::verify_node(node, facts)?;
     if crate::checked_options::constructor_candidate(node, facts) {
         crate::checked_options::verify_constructor(node, facts)?;
+    }
+    if crate::concrete_results::constructor_candidate(node, facts) {
+        crate::concrete_results::verify_constructor(node, facts)?;
     }
     if crate::data_index_reads::candidate(node, facts) {
         crate::data_index_reads::verify(node, facts)?.locations(facts)?;

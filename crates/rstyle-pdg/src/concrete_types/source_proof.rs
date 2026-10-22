@@ -11,6 +11,23 @@ pub trait PathResolution {
         literal_length(source, expected)
     }
 
+    /// Default equality still requires independently scoped whole-path resolution.
+    fn concrete_result(
+        &self,
+        path: &syn::TypePath,
+        ok: &TypeTree,
+        err: &TypeTree,
+    ) -> Result<(), String> {
+        let expected = TypeTree::Result {
+            ok: Box::new(ok.clone()),
+            err: Box::new(err.clone()),
+        };
+        if self.resolve(path)? != expected {
+            return Err("Source path resolution disagrees with concrete Result".into());
+        }
+        Ok(())
+    }
+
     fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
         if self.resolve(path)? != TypeTree::Option(Box::new(payload.clone())) {
             return Err("Source path resolution disagrees with concrete Option".into());
@@ -35,6 +52,10 @@ fn fields(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), Strin
                 correspondence(&source, &member.ty, resolution)?;
                 fields(&member.ty, resolution)?;
             }
+        }
+        TypeTree::Result { ok, err } => {
+            fields(ok, resolution)?;
+            fields(err, resolution)?;
         }
         TypeTree::Tuple(elements) => {
             for element in elements {
@@ -115,6 +136,12 @@ fn path_proof(
     tree: &TypeTree,
     resolution: &impl PathResolution,
 ) -> Result<(), String> {
+    if let TypeTree::Result { ok, err } = tree {
+        let [ok_source, err_source] = super::result_arguments(path)?;
+        correspondence(ok_source, ok, resolution)?;
+        correspondence(err_source, err, resolution)?;
+        return resolution.concrete_result(path, ok, err);
+    }
     if matches!(tree, TypeTree::RangeUsize { .. }) {
         return if resolution.resolve(path)? == *tree {
             Ok(())
@@ -134,6 +161,18 @@ fn path_proof(
     } else {
         super::lifetimes::verify_path(path, tree)?;
     }
+
+    if primitive_path(path, tree)? {
+        return Ok(());
+    }
+    if resolution.resolve(path)? != *tree {
+        return Err("Source path resolution disagrees with concrete type".into());
+    }
+
+    Ok(())
+}
+
+fn primitive_path(path: &syn::TypePath, tree: &TypeTree) -> Result<bool, String> {
     if !matches!(tree, TypeTree::Option(_))
         && path.path.leading_colon.is_none()
         && path.path.segments.len() == 1
@@ -141,20 +180,16 @@ fn path_proof(
         let token = path.path.segments[0].ident.to_string();
         if matches!(token.as_str(), "char" | "f32" | "f64") {
             return if *tree == TypeTree::Scalar(token) {
-                Ok(())
+                Ok(true)
             } else {
                 Err("Standalone scalar spelling contradicts its resolved observation".into())
             };
         }
         if (super::scalar(&token) && token != "unit") || token == "str" {
-            return Ok(());
+            return Ok(true);
         }
     }
-    if resolution.resolve(path)? != *tree {
-        return Err("Source path resolution disagrees with concrete type".into());
-    }
-
-    Ok(())
+    Ok(false)
 }
 
 pub(crate) fn literal_length(source: &syn::Expr, expected: u64) -> Result<(), String> {

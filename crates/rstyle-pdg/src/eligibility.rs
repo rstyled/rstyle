@@ -879,6 +879,10 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
     if crate::checked_options::constructor_candidate(node, ctx.facts) {
         return Some(check_option_constructor(node, ctx));
     }
+    if crate::concrete_results::constructor_candidate(node, ctx.facts) {
+        return Some(check_result_constructor(node, ctx));
+    }
+
     let ty = || match node_norm(node) {
         Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
         _ => check_expr_ty(node, "data_value"),
@@ -917,6 +921,18 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         }
         "expr_path" => Some(check_data_path(node, ctx)),
         _ => None,
+    }
+}
+
+fn check_result_constructor(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::concrete_results::verify_constructor(node, ctx.facts) {
+        Ok(_) => Outcome::ok(),
+        Err(reason) => error(
+            crate::concrete_results::CAPABILITY,
+            "result_constructor",
+            node,
+            &reason,
+        ),
     }
 }
 

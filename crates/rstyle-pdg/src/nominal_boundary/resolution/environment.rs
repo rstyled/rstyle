@@ -15,6 +15,7 @@ pub(crate) struct Environment {
     functions: functions::Index,
     pub(super) index: Index,
     pub(super) copy_boundary: bool,
+    cleanup_sources: std::cell::RefCell<std::collections::BTreeSet<(Vec<String>, Namespace)>>,
 }
 
 pub(super) struct SnapshotView<'a> {
@@ -89,7 +90,21 @@ impl Environment {
             functions,
             index,
             copy_boundary,
+            cleanup_sources: Default::default(),
         })
+    }
+
+    pub(super) fn checked_cleanup_source(&self, cfgs: &[String], target: &Namespace) -> bool {
+        self.cleanup_sources
+            .borrow()
+            .contains(&(cfgs.to_vec(), target.clone()))
+    }
+
+    pub(super) fn cache_cleanup_source(&self, cfgs: &[String], target: &Namespace) {
+        let mut cache = self.cleanup_sources.borrow_mut();
+        if cache.len() < 256 {
+            cache.insert((cfgs.to_vec(), target.clone()));
+        }
     }
 
     pub(super) fn function_candidates(
@@ -302,5 +317,18 @@ pub(crate) mod tests {
                 .unwrap(),
             "\u{feff}"
         );
+    }
+    #[test]
+    fn cleanup_cache_does_not_cross_source_target_or_cfg() {
+        let first = Environment::new(census()).unwrap();
+        let second = Environment::new(census()).unwrap();
+        let target = vec!["sample".into(), "Data".into()];
+        let cfgs = vec!["feature=one".into()];
+        assert!(!first.checked_cleanup_source(&cfgs, &target));
+        first.cache_cleanup_source(&cfgs, &target);
+        assert!(first.checked_cleanup_source(&cfgs, &target));
+        assert!(!first.checked_cleanup_source(&[], &target));
+        assert!(!first.checked_cleanup_source(&cfgs, &vec!["sample".into(), "Other".into()]));
+        assert!(!second.checked_cleanup_source(&cfgs, &target));
     }
 }

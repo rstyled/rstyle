@@ -233,6 +233,16 @@ fn unit_component(
     profile: &crate::ProfileId,
 ) -> bool {
     match ty {
+        TypeToken::Result { ok, .. }
+            if node.attributes.construct.as_deref() == Some("data.result-ok")
+                && node.original_kind.known_value() == Some("expr_call")
+                && crate::extraction_profile::policy_supports(
+                    profile,
+                    crate::concrete_results::CAPABILITY,
+                ) =>
+        {
+            position == 0 && *ok == TypeToken::Scalar("unit".into())
+        }
         TypeToken::Tuple(elements) if node.original_kind.known_value() == Some("expr_tup") => {
             usize::try_from(position)
                 .ok()

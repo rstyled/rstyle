@@ -1,7 +1,6 @@
 //! Original syntax and operand/pattern correspondence, independent of spellings.
 
 use super::*;
-use syn::spanned::Spanned;
 
 pub(super) fn constructor(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let syntax = crate::source_evidence::original_expression(node, facts)?;
@@ -28,24 +27,7 @@ pub(super) fn constructor(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(
     Ok(())
 }
 
-pub(super) fn corresponding(
-    expression: &impl Spanned,
-    child: &HirNode,
-    parent: &HirNode,
-    facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
-    let bytes = &facts.source.bytes[parent.span.start as usize..parent.span.end as usize];
-    let span = expression.span();
-    let expected = crate::ByteSpan {
-        start: parent.span.start + crate::source_evidence::byte_offset(bytes, span.start()) as u32,
-        end: parent.span.start + crate::source_evidence::byte_offset(bytes, span.end()) as u32,
-    };
-
-    if !crate::source_evidence::corresponding_span(&facts.source.bytes, expected, child.span) {
-        return Err("Checked Option loses original child source correspondence".into());
-    }
-    Ok(())
-}
+pub(super) use crate::source_evidence::verify_child_source as corresponding;
 
 pub(super) fn get(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let syntax = crate::source_evidence::original_expression(node, facts)?;

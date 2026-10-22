@@ -137,8 +137,8 @@ fn collect<'a>(
         | TypeTree::Enum { .. }
         | TypeTree::FieldlessEnum { .. }
         | TypeTree::MixedEnum { .. } => collect_nominal(tree, entries)?,
-        TypeTree::Tuple(elements) => {
-            for element in elements {
+        TypeTree::Tuple(_) | TypeTree::Result { .. } => {
+            for element in tree.components() {
                 collect(element, entries)?;
             }
         }

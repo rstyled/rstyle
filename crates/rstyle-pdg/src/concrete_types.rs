@@ -6,6 +6,7 @@ pub use fieldless_enums::fieldless_variants;
 pub mod lifetimes;
 mod mixed_enums;
 mod option_spelling;
+pub(crate) use option_spelling::result_arguments;
 mod scalar_enums;
 mod validation;
 pub(crate) use mixed_enums::closed_payload;
@@ -37,6 +38,11 @@ pub enum TypeTree {
     Slice(Box<TypeTree>),
     Str,
     Option(Box<TypeTree>),
+    /// Observed core Result shape; contextual source/drop/effect proof is separate.
+    Result {
+        ok: Box<TypeTree>,
+        err: Box<TypeTree>,
+    },
     /// Core Result<T, TryFromIntError>; no error layout is inferred.
     IntConversionResult(String),
     /// Pinned non-Copy Range<usize>; fresh result use is checked separately.
@@ -128,6 +134,21 @@ impl TypeTree {
             } => Some((nominal, source)),
             _ => None,
         }
+    }
+
+    /// Ordered children of the two supported multi-component container forms.
+    pub(crate) fn components(&self) -> impl Iterator<Item = &Self> {
+        let tuple = match self {
+            Self::Tuple(values) => values.as_slice(),
+            _ => &[],
+        };
+        let result = match self {
+            Self::Result { ok, err } => Some((ok.as_ref(), err.as_ref())),
+            _ => None,
+        };
+        tuple
+            .iter()
+            .chain(result.into_iter().flat_map(|(ok, err)| [ok, err]))
     }
 
     pub(crate) fn nominal_fields(&self) -> impl Iterator<Item = &Field> {
@@ -243,6 +264,7 @@ pub(crate) fn validate_observations<'a>(
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
         TypeTree::RangeUsize { observation } => crate::range_values::authority::shape(observation),
+        TypeTree::Result { ok, err } => result_shape(ok, err),
         TypeTree::IntConversionResult(value) if !matches!(value.as_str(), "usize" | "u16") => {
             Err("Integer conversion Result requires a registered scalar payload".into())
         }
@@ -276,6 +298,40 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
         } => fieldless_enums::check(nominal, source, variants),
         _ => Ok(()),
     }
+}
+
+/// This bounded shape grants neither Copy, drop freedom nor value permission.
+fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
+    let TypeTree::Struct {
+        nominal,
+        source,
+        fields,
+    } = err
+    else {
+        return Err("Concrete Result requires a complete local error struct".into());
+    };
+    if !matches!(ok, TypeTree::Scalar(value) if value == "unit")
+        || !matches!(fields.as_slice(), [Field { position: 0, name, ty: TypeTree::Scalar(value), .. }] if name == "0" && value == "unit")
+        || !nominal
+            .source_identity
+            .as_ref()
+            .is_some_and(|identity| !identity.is_empty())
+    {
+        return Err(
+            "Concrete Result requires unit success and a single unit tuple error field".into(),
+        );
+    }
+
+    check_declaration(nominal, source, fields)?;
+    let syntax: syn::ItemStruct = syn::parse_str(source).map_err(|error| error.to_string())?;
+    if !syntax.generics.params.is_empty()
+        || syntax.generics.where_clause.is_some()
+        || !matches!(syntax.fields, syn::Fields::Unnamed(_))
+    {
+        return Err("Concrete Result error requires a nongeneric tuple struct declaration".into());
+    }
+
+    Ok(())
 }
 
 fn option_payload(tree: &TypeTree) -> bool {

@@ -10,6 +10,19 @@ pub(super) fn payload<'a>(
     if !matches!(tree, TypeTree::Scalar(token) if super::scalar(token) && token != "unit") {
         return Err("Option source construction requires one bool/integer payload".into());
     }
+    type_arguments(path, 1)?
+        .first()
+        .copied()
+        .ok_or_else(|| "Option source requires a type argument".into())
+}
+
+/// Syntax alone provides no authority for the Result path or either payload.
+pub(crate) fn result_arguments(path: &syn::TypePath) -> Result<[&syn::Type; 2], String> {
+    let arguments = type_arguments(path, 2)?;
+    Ok([arguments[0], arguments[1]])
+}
+
+fn type_arguments(path: &syn::TypePath, count: usize) -> Result<Vec<&syn::Type>, String> {
     if path.qself.is_some()
         || path.path.segments.is_empty()
         || path
@@ -19,24 +32,28 @@ pub(super) fn payload<'a>(
             .take(path.path.segments.len().saturating_sub(1))
             .any(|segment| !matches!(segment.arguments, syn::PathArguments::None))
     {
-        return Err("Option source requires an unqualified-self type path".into());
+        return Err("Core sum source requires an unqualified-self type path".into());
     }
-
-    let last = path.path.segments.last().ok_or("Empty Option type path")?;
+    let last = path
+        .path
+        .segments
+        .last()
+        .ok_or("Empty core sum type path")?;
     let syn::PathArguments::AngleBracketed(arguments) = &last.arguments else {
-        return Err("Option source requires one explicit scalar argument".into());
+        return Err("Core sum source requires explicit type arguments".into());
     };
-    if arguments.args.len() != 1 {
-        return Err("Option source requires exactly one type argument".into());
-    }
-    let Some(syn::GenericArgument::Type(payload)) = arguments.args.first() else {
-        return Err("Option source requires a type argument".into());
-    };
-    if arguments.colon2_token.is_some() {
-        return Err("Option source type cannot use expression turbofish".into());
+    if arguments.args.len() != count || arguments.colon2_token.is_some() {
+        return Err("Core sum source type argument count or turbofish disagrees".into());
     }
 
-    Ok(payload)
+    arguments
+        .args
+        .iter()
+        .map(|argument| match argument {
+            syn::GenericArgument::Type(ty) => Ok(ty),
+            _ => Err("Core sum source requires only type arguments".into()),
+        })
+        .collect()
 }
 
 #[cfg(test)]

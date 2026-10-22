@@ -12,12 +12,13 @@ pub(crate) fn candidate(
     facts: &dyn EvidenceFacts,
     syntax: InvocationSyntax,
 ) -> bool {
-    crate::extraction_profile::facts_support(facts, syntax.capability)
-        && node.kind == syntax.kind
-        && node
-            .dispatch
-            .as_ref()
-            .is_some_and(|dispatch| syntax.paths.contains(&dispatch.op.as_str()))
+    crate::extraction_profile::gated_node(node, facts, syntax.capability, |node| {
+        node.kind == syntax.kind
+            && node
+                .dispatch
+                .as_ref()
+                .is_some_and(|dispatch| syntax.paths.contains(&dispatch.op.as_str()))
+    })
 }
 
 pub(crate) fn verify_dispatch(node: &HirNode, path: &str, results: &[&str]) -> Result<(), String> {

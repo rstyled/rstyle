@@ -4485,3 +4485,32 @@ Equal-work scaling (warmup + alternating repeats,128/256/512 admissions):
 512-function baseline2.99–3.01s/current2.98–3.04s, peak RSS about174MiB.
 The source namespace scan is computed once per checked unit environment;
 no measurable speedup is claimed. Evidence: `/tmp/rstyle-primitive-scaling-final/`.
+
+### Data-v3 3.78: fresh Results with independently proved no-drop errors
+
+[Contract](docs/extraction-profiles/fresh-concrete-results-v1.md) and
+[unchanged selection](eval/coverage-development/scalar-result-next-selection.json).
+The original UnicodeWordBoundaryError constructor → cfg-selected check → public
+check chain now admits across three feature contexts and three targets. Exact
+core Result authority, once-evaluated payloads and whole helper forwarding connect
+to independent source proof for the non-Copy unit-field error. Relevant imports,
+local traits, standard derives, macros and nested items remain checked; unknown
+source stays closed. No general moves, payload extraction or `?` permission.
+All21 selected instances admit; complete rosters per target **143→148/2582**,
+**89→92/590**, **89→91/590**, zero losses. The three extra default-context gains
+are source-reviewed CacheError/RetryQuadraticError unit constructors within the
+same boundary. All993 contextual admissions strictly replay;21 selected mirror
+comparisons complete, with distinct alpha/transitive peers in Cargo tests.
+Native unchanged-library oracle passes all three Ok/Err/Ok expectations.
+Cross-target capture/replay does not claim native x86/macOS execution.
+Frozen `run-tmmfv8_2` versus `run-yaapzru3`: unchanged **23/30/7**;
+package8/150,39/956,11/226; all58 retained admissions strictly replay.
+Gates: **1132 tests /5 existing skips in113.003s**, doctests/fmt/Clippy pass;
+**rstyle0/3666, patterns0 unignored**, existing15 ignores unchanged.
+Default native capture108.42s versus recorded115.69s baseline; peak RSS about
+1GiB. This single comparison is not a speedup or general scaling claim.
+Next: guarded payload ownership and exact same-error `?` for original
+[LookSet::available](eval/coverage-development/result-propagation-selection.json).
+Its independent native oracle passes4,719,096 cases; extraction remains pending.
+P01–P22 remains active; full-library matching is incomplete under max-pairs0.
+Evidence: `/tmp/rstyle-result-{evidence.log,current-*,oracle.json,final-*,frozen-*}`.

@@ -237,6 +237,7 @@ pub(crate) fn call_nodes(facts: &HirFnFacts) -> Vec<&HirNode> {
     calls.retain(|node| {
         !crate::call_summaries::static_intrinsic(node, facts)
             && !crate::checked_options::constructor_candidate(node, facts)
+            && !crate::concrete_results::constructor_candidate(node, facts)
             && !crate::data_enums::constructor_candidate(node, facts)
     });
 

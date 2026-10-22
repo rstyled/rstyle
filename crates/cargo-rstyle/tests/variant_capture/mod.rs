@@ -189,3 +189,5 @@ fn variant_observation_does_not_certify_rest_struct_or_reference_patterns() {
         assert!(rstyle_pdg::producer::produce(&facts).is_err());
     }
 }
+
+mod concrete_results;

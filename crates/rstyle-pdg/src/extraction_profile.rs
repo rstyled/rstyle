@@ -109,6 +109,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.fresh-range-results",
     "rust.bounded-scalar-loop-helpers",
     "rust.pinned-primitive-constants",
+    "rust.fresh-concrete-results",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -254,7 +255,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.77.0", 96)),
+            Self::DataV3 => Some(("3.78.0", 97)),
         }
     }
 
@@ -373,10 +374,11 @@ pub(crate) fn require_document(
     required: impl FnOnce() -> bool,
     message: &str,
 ) -> Result<(), String> {
-    if !policy_supports(policy, capability) && required() {
-        return Err(message.into());
-    }
-    Ok(())
+    require_capability(
+        policy_supports(policy, capability),
+        || Ok(required()),
+        message,
+    )
 }
 
 impl std::str::FromStr for ExtractionProfile {
@@ -390,4 +392,26 @@ impl std::str::FromStr for ExtractionProfile {
 /// A missing or unrecognized extraction profile never grants a capability.
 pub(crate) fn facts_support(facts: &crate::HirFnFacts, capability: &str) -> bool {
     ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports(capability))
+}
+
+/// Apply a syntax predicate only under its registered extraction capability.
+pub(crate) fn gated_node(
+    node: &crate::HirNode,
+    facts: &crate::HirFnFacts,
+    capability: &str,
+    predicate: impl FnOnce(&crate::HirNode) -> bool,
+) -> bool {
+    facts_support(facts, capability) && predicate(node)
+}
+
+/// Check a capability without evaluating a potentially fallible usage scan when supported.
+pub(crate) fn require_capability(
+    supported: bool,
+    required: impl FnOnce() -> Result<bool, String>,
+    message: &str,
+) -> Result<(), String> {
+    if !supported && required()? {
+        return Err(message.into());
+    }
+    Ok(())
 }

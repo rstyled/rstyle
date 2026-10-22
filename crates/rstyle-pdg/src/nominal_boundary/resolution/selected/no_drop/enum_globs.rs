@@ -1,0 +1,217 @@
+//! Source-owned enum wildcards import variants, never macros or trait aliases.
+use super::*;
+use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Default)]
+pub(super) struct Scope {
+    pub namespace: Namespace,
+    pub unindexed: bool,
+    declarations: BTreeSet<Namespace>,
+    functions: BTreeSet<Namespace>,
+    traits: BTreeSet<Namespace>,
+}
+
+impl Scope {
+    pub fn new(modules: &[census::Module], cfgs: &[String]) -> Result<Self, String> {
+        let configuration = crate::conditional_source::Configuration::new(cfgs);
+        let mut scope = Self::default();
+        for module in modules {
+            scope.collect(
+                &module.items.iter().collect::<Vec<_>>(),
+                &module.namespace,
+                &configuration,
+            )?;
+        }
+        Ok(scope)
+    }
+    fn collect(
+        &mut self,
+        items: &[&syn::Item],
+        namespace: &Namespace,
+        configuration: &crate::conditional_source::Configuration<'_>,
+    ) -> Result<(), String> {
+        for name in function_imports::names(items, configuration)? {
+            self.functions
+                .insert(namespace.iter().cloned().chain([name]).collect());
+        }
+        for item in items {
+            if !configuration.active(crate::conditional_source::item_attributes(item))? {
+                continue;
+            }
+            self.collect_item(item, namespace, configuration)?;
+        }
+        Ok(())
+    }
+    fn collect_item(
+        &mut self,
+        item: &syn::Item,
+        namespace: &Namespace,
+        configuration: &crate::conditional_source::Configuration<'_>,
+    ) -> Result<(), String> {
+        match item {
+            syn::Item::Trait(item) => {
+                self.traits.insert(
+                    namespace
+                        .iter()
+                        .cloned()
+                        .chain([item.ident.to_string()])
+                        .collect(),
+                );
+            }
+            syn::Item::Enum(item) => {
+                self.declarations.insert(
+                    namespace
+                        .iter()
+                        .cloned()
+                        .chain([item.ident.to_string()])
+                        .collect(),
+                );
+            }
+            syn::Item::Mod(item) => {
+                if let Some((_, items)) = &item.content {
+                    let child = namespace
+                        .iter()
+                        .cloned()
+                        .chain([item.ident.to_string()])
+                        .collect();
+                    self.collect(&items.iter().collect::<Vec<_>>(), &child, configuration)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    #[cfg(test)]
+    pub fn inline(items: &[&syn::Item], cfgs: &[String]) -> Result<Self, String> {
+        let mut scope = Self::default();
+        scope.collect(
+            items,
+            &vec![],
+            &crate::conditional_source::Configuration::new(cfgs),
+        )?;
+        Ok(scope)
+    }
+    fn local_path(&self, prefix: &[String]) -> Option<Namespace> {
+        let (root, tail) = prefix.split_first()?;
+        if self.unindexed && root != "crate" {
+            return None;
+        }
+        let mut namespace = self.path_root(root)?;
+
+        let mut parents = root == "super";
+        for segment in tail {
+            if segment == "super" && parents {
+                namespace.pop()?;
+            } else {
+                parents = false;
+                if ["self", "super", "crate"].contains(&segment.as_str()) {
+                    return None;
+                }
+                namespace.push(segment.clone());
+            }
+        }
+        Some(namespace)
+    }
+    fn path_root(&self, root: &str) -> Option<Namespace> {
+        match root {
+            "self" => Some(self.namespace.clone()),
+            "crate" => Some(vec![]),
+            "super" => {
+                let mut parent = self.namespace.clone();
+                parent.pop()?;
+                Some(parent)
+            }
+            _ => None,
+        }
+    }
+    pub fn known_trait(&self, path: &syn::Path) -> bool {
+        if path.leading_colon.is_some()
+            || path
+                .segments
+                .iter()
+                .any(|part| !matches!(part.arguments, syn::PathArguments::None))
+        {
+            return false;
+        }
+        self.contains_local(
+            &path
+                .segments
+                .iter()
+                .map(|part| part.ident.to_string())
+                .collect::<Vec<_>>(),
+            &self.traits,
+        )
+    }
+    fn contains_local(&self, path: &[String], declarations: &BTreeSet<Namespace>) -> bool {
+        self.local_path(path)
+            .is_some_and(|path| declarations.contains(&path))
+    }
+    pub fn macro_free_function(&self, prefix: &[String], name: &str) -> bool {
+        let path: Namespace = prefix.iter().cloned().chain([name.into()]).collect();
+        self.contains_local(&path, &self.functions)
+    }
+    pub fn bindings(
+        &self,
+        tree: &syn::UseTree,
+        prefix: &[String],
+        scope: &mut BTreeMap<String, bool>,
+    ) {
+        match tree {
+            syn::UseTree::Path(path) => {
+                let child: Vec<_> = prefix
+                    .iter()
+                    .cloned()
+                    .chain([path.ident.to_string()])
+                    .collect();
+                self.bindings(&path.tree, &child, scope);
+            }
+            syn::UseTree::Group(group) => {
+                for item in &group.items {
+                    self.bindings(item, prefix, scope);
+                }
+            }
+            _ => self.binding_leaf(tree, prefix, scope),
+        }
+    }
+    fn binding_leaf(
+        &self,
+        tree: &syn::UseTree,
+        prefix: &[String],
+        scope: &mut BTreeMap<String, bool>,
+    ) {
+        match tree {
+            syn::UseTree::Name(name) => {
+                let name = if name.ident == "self" {
+                    prefix.last().cloned().unwrap_or_else(|| "self".into())
+                } else {
+                    name.ident.to_string()
+                };
+                let source = if name == "self" {
+                    prefix.to_vec()
+                } else {
+                    prefix.iter().cloned().chain([name.clone()]).collect()
+                };
+                self.named_binding(name, &source, scope);
+            }
+            syn::UseTree::Rename(rename) => {
+                let source = prefix
+                    .iter()
+                    .cloned()
+                    .chain([rename.ident.to_string()])
+                    .collect();
+                self.named_binding(rename.rename.to_string(), &source, scope);
+            }
+            syn::UseTree::Glob(_) if !self.contains_local(prefix, &self.declarations) => {
+                scope.insert("*".into(), false);
+            }
+            _ => {}
+        }
+    }
+    fn named_binding(&self, name: String, source: &Namespace, scope: &mut BTreeMap<String, bool>) {
+        scope.insert(
+            format!("trait:{name}"),
+            self.contains_local(source, &self.traits),
+        );
+        scope.insert(name, false);
+    }
+}

@@ -1,6 +1,6 @@
 {
   "identity": "rstyle.development.scalar-result-next/1",
-  "status": "source-audited nominal-error Result target; not extraction-ready; no activation or measured admission claim",
+  "status": "Data3.78 delivered fresh Result/unit-error construction and whole forwarding;21 selected instances admitted across9 contexts, zero losses",
   "selection_basis": "Complete smaller natural Result-returning helper chain, selected from original source before evaluating admission; not a scalar/scalar Result and not a unit-error Result.",
   "prior_audit": "docs/extraction-profiles/scalar-result-frontier-audit-v1.md",
   "package": {
@@ -254,13 +254,13 @@
       "Each selected active original self-comparison should complete and match in the same build context after activation.",
       "No cross-target or feature-context compatibility assumption; enabled/disabled check outcomes differ independently of any matcher result."
     ],
-    "oracle_plan": "Use unchanged full original public UnicodeWordBoundaryError::check in each native feature context and match Ok/Err independently. Private new/helper witness tests, if required, must be labeled exact-source witnesses, not full-library private execution. No oracle has been run."
+    "oracle_plan": "Use unchanged full original public UnicodeWordBoundaryError::check in each native feature context and match Ok/Err independently. Private new/helper witness tests, if required, must be labeled exact-source witnesses, not full-library private execution. Executed unchanged full original public API in all three native contexts: Ok/Err/Ok, zero mismatches; /tmp/rstyle-result-oracle.json."
   },
   "readiness": {
     "source_ready": true,
-    "extraction_ready": false,
+    "extraction_ready": true,
     "production_activation_authorized_by_artifact": false,
-    "next_gate": "Lead review of exact drop/type/source/helper evidence design, then diagnostic real Cargo fixture and all9 fresh original contexts before connected activation.",
+    "next_gate": "Fresh Result boundary delivered in Data3.78; next guarded payload and exact same-error ? selection is result-propagation-selection.json.",
     "candidate_leaf_write_set": [
       "dedicated Result value/constructor independent proof module and adversarial/composition tests (paths to be agreed with lead)"
     ],
@@ -273,11 +273,11 @@
   },
   "validation": {
     "source_hashes_and_spans": "frozen from unchanged local registry bytes",
-    "builds": "not run",
-    "captures": "not run",
-    "strict_admission": "not run",
-    "matching": "not run",
-    "native_oracles": "not run",
+    "builds": "Nine unchanged original Cargo contexts complete",
+    "captures": "21 selected active instances admitted;30 complete-roster gains and zero losses across9 contexts",
+    "strict_admission": "993 contextual original admissions independently verified",
+    "matching": "21 selected same-context mirror comparisons complete; distinct alpha/transitive peers in Cargo tests",
+    "native_oracles": "Unchanged original public API: Ok/Err/Ok in all three native contexts, zero mismatches",
     "frozen_inventory": "unchanged identities/denominators; separate development selection"
   }
 }

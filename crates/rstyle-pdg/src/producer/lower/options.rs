@@ -2,9 +2,15 @@
 use super::*;
 
 impl Builder<'_> {
-    pub(super) fn option_constructor(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        let construct = crate::checked_options::verify_constructor(node, self.facts)
-            .expect("verified scalar Option constructor");
+    pub(super) fn variant_constructor(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let construct = if crate::concrete_results::constructor_candidate(node, self.facts) {
+            crate::concrete_results::verify_constructor(node, self.facts)
+                .expect("verified concrete Result constructor")
+                .construct
+        } else {
+            crate::checked_options::verify_constructor(node, self.facts)
+                .expect("verified scalar Option constructor")
+        };
         let evaluated = self.evaluate_operands(node, flow);
         let operation = Operation {
             construct: Some(construct.into()),

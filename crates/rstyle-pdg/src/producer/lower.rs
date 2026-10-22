@@ -208,8 +208,10 @@ impl Builder<'_> {
         if crate::data_enums::constructor_candidate(node, self.facts) {
             return self.structure(node, flow);
         }
-        if crate::checked_options::constructor_candidate(node, self.facts) {
-            return self.option_constructor(node, flow);
+        if crate::checked_options::constructor_candidate(node, self.facts)
+            || crate::concrete_results::constructor_candidate(node, self.facts)
+        {
+            return self.variant_constructor(node, flow);
         }
         lowerer(node)(self, node, flow)
     }
@@ -639,16 +641,15 @@ impl Builder<'_> {
     }
 
     fn evaluate_operands(&mut self, node: &HirNode, flow: Flow) -> Operands {
+        let preserve_unit = crate::data_aggregates::constructor(node)
+            || crate::concrete_results::constructor_candidate(node, self.facts);
         let mut evaluated = Operands {
             flow,
             values: Vec::new(),
         };
         for child in &node.children {
             evaluated.flow = self.expression(child, evaluated.flow);
-            if crate::data_aggregates::constructor(node)
-                && evaluated.flow.normal
-                && evaluated.flow.value.is_none()
-            {
+            if preserve_unit && evaluated.flow.normal && evaluated.flow.value.is_none() {
                 let unit = Operation {
                     literal: Some("()".into()),
                     construct: Some("unit.value".into()),
@@ -661,7 +662,7 @@ impl Builder<'_> {
                     .flow
                     .value
                     .iter()
-                    .filter(|id| crate::data_aggregates::constructor(node) || self.is_value(id))
+                    .filter(|id| preserve_unit || self.is_value(id))
                     .cloned(),
             );
         }

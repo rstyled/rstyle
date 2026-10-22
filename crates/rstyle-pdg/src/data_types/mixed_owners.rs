@@ -61,6 +61,7 @@ pub(super) fn borrowed_use(ty: &TypeToken) -> bool {
         TypeToken::MixedEnum { .. } => false,
         TypeToken::Struct { fields, .. } => fields.iter().all(|(_, field)| borrowed_use(field)),
         TypeToken::Tuple(values) => values.iter().all(borrowed_use),
+        TypeToken::Result { ok, err } => borrowed_use(ok) && borrowed_use(err),
         TypeToken::Shared(inner)
         | TypeToken::Slice(inner)
         | TypeToken::Array { element: inner, .. }

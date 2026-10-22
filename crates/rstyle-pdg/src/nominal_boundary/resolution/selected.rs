@@ -3,11 +3,14 @@ use super::*;
 use crate::declaration_origins::Origins;
 mod borrowed;
 mod imports;
+mod no_drop;
 pub(super) mod passive;
 mod scalar_leaf;
 
+#[derive(Default)]
 pub(super) struct Selection {
     pub copies: std::collections::BTreeSet<Namespace>,
+    pub no_drop: std::collections::BTreeSet<Namespace>,
     pub passive_dependencies: bool,
 }
 
@@ -20,42 +23,126 @@ pub(super) fn verify(
     if trees.is_empty() && !supports(facts, "rust.accelerator-packing")? {
         return Err("Mixed-unit boundary requires selected Copy declarations".into());
     }
-    let mut copies = std::collections::BTreeSet::new();
-    let mut passive_dependencies = false;
+    let checker = DeclarationChecker {
+        facts,
+        origins,
+        environment,
+    };
+    let mut selection = Selection::default();
     for (key, tree) in trees {
-        verify_type(facts, tree)?;
-        let declaration = environment
+        selection.record(key, checker.verify(key, tree)?);
+    }
+
+    for (key, tree) in trees {
+        if !selection.copies.contains(key) && !selection.no_drop.contains(key) {
+            borrowed::verify(facts, tree, &selection.copies)?;
+        }
+    }
+    Ok(selection)
+}
+
+struct CheckedDeclaration {
+    copy: bool,
+    no_drop: bool,
+    passive_dependencies: bool,
+}
+
+impl Selection {
+    fn record(&mut self, key: &Namespace, checked: CheckedDeclaration) {
+        if checked.copy {
+            self.copies.insert(key.clone());
+        }
+        if checked.no_drop {
+            self.no_drop.insert(key.clone());
+        }
+        self.passive_dependencies |= checked.passive_dependencies;
+    }
+}
+
+struct DeclarationChecker<'a> {
+    facts: &'a HirFnFacts,
+    origins: &'a Origins,
+    environment: &'a Environment,
+}
+
+impl DeclarationChecker<'_> {
+    fn verify(&self, key: &Namespace, tree: &TypeTree) -> Result<CheckedDeclaration, String> {
+        verify_type(self.facts, tree)?;
+        let declaration = self
+            .environment
             .index
             .declarations
             .get(key)
             .ok_or("Missing selected struct declaration")?;
-        let item = &environment.modules[declaration.module_index].items[declaration.item_index];
+        let item =
+            &self.environment.modules[declaration.module_index].items[declaration.item_index];
         let attributes = declaration_attributes(item, tree)?;
-        if checked_copy(facts, origins, tree, attributes)? {
-            copies.insert(key.clone());
-        }
-        if let Err(error) = check_namespace(facts, environment, &declaration.namespace) {
-            if !copies.contains(key) || !passive::verify(facts, tree)? {
-                return Err(error);
+        let copy = checked_copy(self.facts, self.origins, tree, attributes)?;
+        let source_closure = cleanup_certificate(self.facts, tree, self.environment, copy)?;
+        let passive_dependencies = match check_namespace_with_closure(
+            self.facts,
+            self.environment,
+            &declaration.namespace,
+            source_closure.as_ref(),
+        ) {
+            Ok(()) => false,
+            Err(error) => {
+                if !copy || !passive::verify(self.facts, tree)? {
+                    return Err(error);
+                }
+                true
             }
-            passive_dependencies = true;
-        }
+        };
+
         match item {
-            syn::Item::Struct(item) => structure(facts, item, copies.contains(key))?,
-            syn::Item::Enum(item) => scalar_enum(facts, item)?,
+            syn::Item::Struct(item) => structure(self.facts, item, copy)?,
+            syn::Item::Enum(item) => scalar_enum(self.facts, item)?,
             _ => unreachable!(),
         }
+        Ok(CheckedDeclaration {
+            copy,
+            no_drop: source_closure.is_some(),
+            passive_dependencies,
+        })
+    }
+}
+
+fn cleanup_certificate(
+    facts: &HirFnFacts,
+    tree: &TypeTree,
+    environment: &Environment,
+    copy: bool,
+) -> Result<Option<no_drop::CheckedNoDrop>, String> {
+    if copy || !requested_no_drop(facts, tree)? {
+        return Ok(None);
+    }
+    let checked = no_drop::verify(facts, tree, environment)?;
+    if tree.nominal_parts().map(|(nominal, _)| nominal) != Some(checked.nominal()) {
+        return Err("Cleanup certificate identifies another declaration".into());
+    }
+    Ok(Some(checked))
+}
+
+fn requested_no_drop(facts: &HirFnFacts, tree: &TypeTree) -> Result<bool, String> {
+    if !supports(facts, "rust.fresh-concrete-results")? {
+        return Ok(false);
     }
 
-    for (key, tree) in trees {
-        if !copies.contains(key) {
-            borrowed::verify(facts, tree, &copies)?;
-        }
-    }
-    Ok(Selection {
-        copies,
-        passive_dependencies,
-    })
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let Observation::Captured { ty } = &interface.result else {
+        return Ok(false);
+    };
+    let error = match ty {
+        TypeTree::Result { err, .. } => err.as_ref(),
+        TypeTree::Struct { .. } => ty,
+        _ => return Ok(false),
+    };
+    Ok(error == tree
+        && matches!(tree, TypeTree::Struct { fields, .. }
+        if fields.len() == 1 && fields[0].name == "0" && fields[0].ty == TypeTree::Scalar("unit".into())))
 }
 
 fn declaration_attributes<'a>(
@@ -341,16 +428,28 @@ pub(super) fn check_namespace(
     environment: &Environment,
     namespace: &[String],
 ) -> Result<(), String> {
+    check_namespace_with_closure(facts, environment, namespace, None)
+}
+
+fn check_namespace_with_closure(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    namespace: &[String],
+    source_closure: Option<&no_drop::CheckedNoDrop>,
+) -> Result<(), String> {
     if supports(facts, "rust.closed-scalar-module-dependencies")?
         && scalar_leaf::verify(facts, environment, namespace)?
     {
         return imports::verify_leaf(facts, environment, namespace);
     }
-    if environment
-        .index
-        .unresolved_expansions
-        .iter()
-        .any(|candidate| namespace.starts_with(candidate))
+    // A private exact-owner certificate replaces only this coarse expansion
+    // flag. Scalar-leaf imports above and all other ownership checks remain.
+    if source_closure.is_none()
+        && environment
+            .index
+            .unresolved_expansions
+            .iter()
+            .any(|candidate| namespace.starts_with(candidate))
     {
         if supports(facts, "rust.scoped-nominal-imports")? {
             return imports::verify(facts, environment, namespace).map_err(|error| {

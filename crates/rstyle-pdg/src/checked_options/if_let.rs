@@ -15,12 +15,13 @@ pub(crate) struct IfLet<'a> {
 }
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::facts_support(facts, CAPABILITY)
-        && node.kind == "expr_if"
-        && node
-            .children
-            .first()
-            .is_some_and(|node| node.kind == "expr_let")
+    crate::extraction_profile::gated_node(node, facts, CAPABILITY, |node| {
+        node.kind == "expr_if"
+            && node
+                .children
+                .first()
+                .is_some_and(|node| node.kind == "expr_let")
+    })
 }
 
 pub(crate) fn verify<'a>(

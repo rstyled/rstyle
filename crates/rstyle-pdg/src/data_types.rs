@@ -27,6 +27,10 @@ pub enum TypeToken {
     Slice(Box<TypeToken>),
     Str,
     Option(Box<TypeToken>),
+    Result {
+        ok: Box<TypeToken>,
+        err: Box<TypeToken>,
+    },
     IntConversionResult(String),
     RangeUsize,
     SliceArrayResult {
@@ -66,6 +70,7 @@ impl TypeToken {
             TypeTree::IntConversionResult(value) => Self::IntConversionResult(value.clone()),
             TypeTree::RangeUsize { .. } => Self::RangeUsize,
             TypeTree::Option(value) => Self::Option(Box::new(Self::from_tree(value))),
+            TypeTree::Result { ok, err } => Self::from_result(ok, err),
             TypeTree::SliceArrayResult { length, borrowed } => Self::SliceArrayResult {
                 length: *length,
                 borrowed: *borrowed,
@@ -100,6 +105,13 @@ impl TypeToken {
         }
     }
 
+    fn from_result(ok: &TypeTree, err: &TypeTree) -> Self {
+        Self::Result {
+            ok: Box::new(Self::from_tree(ok)),
+            err: Box::new(Self::from_tree(err)),
+        }
+    }
+
     pub fn text(&self) -> Result<String, String> {
         if let Self::Scalar(value) = self {
             return Ok(value.clone());
@@ -114,6 +126,7 @@ impl TypeToken {
             }
             Self::FieldlessEnum { .. } | Self::RangeUsize => true,
             Self::Tuple(values) => values.iter().any(Self::native_width),
+            Self::Result { ok, err } => ok.native_width() || err.native_width(),
             Self::Array { element, .. }
             | Self::Shared(element)
             | Self::Slice(element)
@@ -175,9 +188,7 @@ pub(crate) fn parse_for(
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
-    if text.contains("\"kind\":\"range_usize\"") && !profile.supports("rust.fresh-range-results") {
-        return Err("Range results require their registered capability".into());
-    }
+    check_fresh_capabilities(text, profile)?;
     if text.contains("\"kind\":\"mixed_enum\"")
         && (!profile.supports("rust.borrowed-mixed-owners") || !mixed_owners::borrowed_use(&ty))
     {
@@ -220,10 +231,24 @@ pub(crate) fn parse_for(
     Ok(ty)
 }
 
+fn check_fresh_capabilities(
+    text: &str,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Result<(), String> {
+    if text.contains("\"kind\":\"result\"") && !profile.supports("rust.fresh-concrete-results") {
+        return Err("Concrete Result requires its registered fresh-result capability".into());
+    }
+    if text.contains("\"kind\":\"range_usize\"") && !profile.supports("rust.fresh-range-results") {
+        return Err("Range results require their registered capability".into());
+    }
+    Ok(())
+}
+
 pub(crate) fn scalar_option(ty: &TypeToken) -> bool {
     match ty {
         TypeToken::Option(payload) => matches!(payload.as_ref(), TypeToken::Scalar(_)),
         TypeToken::Tuple(values) => values.iter().any(scalar_option),
+        TypeToken::Result { ok, err } => scalar_option(ok) || scalar_option(err),
         TypeToken::Array { element, .. }
         | TypeToken::Shared(element)
         | TypeToken::Slice(element) => scalar_option(element),
@@ -237,14 +262,14 @@ fn check(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), Str
     if depth > crate::concrete_types::MAX_DEPTH || *entries > crate::concrete_types::MAX_ENTRIES {
         return Err("Data interface token exceeds recursive budget".into());
     }
-    check_contents(token, depth, entries)
-}
-
-fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {
     if let Some(element) = recursive_element(token) {
         return check(element, depth + 1, entries);
     }
 
+    check_contents(token, depth, entries)
+}
+
+fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {
     match token {
         TypeToken::Scalar(value)
             if scalar(value) || depth == 0 && matches!(value.as_str(), "char" | "f32" | "f64") =>
@@ -257,6 +282,7 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
             }
             Ok(())
         }
+        TypeToken::Result { ok, err } => check_result(ok, err, depth, entries),
         TypeToken::Str => Ok(()),
         TypeToken::RangeUsize if depth == 0 => Ok(()),
         TypeToken::FieldlessEnum { nominal, variants }
@@ -283,6 +309,23 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         // Admission additionally requires independently verified nominal source/effects.
         _ => Err("Data type token lacks a registered concrete proof".into()),
     }
+}
+
+fn check_result(
+    ok: &TypeToken,
+    err: &TypeToken,
+    depth: usize,
+    entries: &mut usize,
+) -> Result<(), String> {
+    if !matches!(ok, TypeToken::Scalar(value) if value == "unit")
+        || !matches!(err, TypeToken::Struct { fields, .. } if matches!(fields.as_slice(), [(name, TypeToken::Scalar(value))] if name == "0" && value == "unit"))
+    {
+        return Err(
+            "Concrete Result token requires unit success and a unit tuple error struct".into(),
+        );
+    }
+    check(ok, depth + 1, entries)?;
+    check(err, depth + 1, entries)
 }
 
 fn check_nominal(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {

@@ -60,11 +60,24 @@ fn collect_tokens(
     token: &TypeToken,
     tokens: &mut BTreeMap<String, TypeToken>,
 ) -> Result<(), String> {
-    match token {
+    if matches!(
+        token,
         TypeToken::Struct { .. }
-        | TypeToken::Enum { .. }
-        | TypeToken::FieldlessEnum { .. }
-        | TypeToken::MixedEnum { .. } => nominal_tokens(token, tokens)?,
+            | TypeToken::Enum { .. }
+            | TypeToken::FieldlessEnum { .. }
+            | TypeToken::MixedEnum { .. }
+    ) {
+        return nominal_tokens(token, tokens);
+    }
+    collect_container_tokens(token, tokens)
+}
+
+fn collect_container_tokens(
+    token: &TypeToken,
+    tokens: &mut BTreeMap<String, TypeToken>,
+) -> Result<(), String> {
+    match token {
+        TypeToken::Result { ok, err } => collect_result_tokens(ok, err, tokens)?,
         TypeToken::Tuple(elements) => {
             for element in elements {
                 collect_tokens(element, tokens)?;
@@ -76,6 +89,15 @@ fn collect_tokens(
         _ => {}
     }
     Ok(())
+}
+
+fn collect_result_tokens(
+    ok: &TypeToken,
+    err: &TypeToken,
+    tokens: &mut BTreeMap<String, TypeToken>,
+) -> Result<(), String> {
+    collect_tokens(ok, tokens)?;
+    collect_tokens(err, tokens)
 }
 
 fn nominal_tokens(
@@ -118,6 +140,10 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
             return Err("Range authority cannot be inferred from a body token".into());
         }
         TypeToken::Option(_) => return Err("Concrete Option source proof is not registered".into()),
+        TypeToken::Result { ok, err } => TypeTree::Result {
+            ok: Box::new(tree(ok, origins)?),
+            err: Box::new(tree(err, origins)?),
+        },
         TypeToken::SliceArrayResult { length, borrowed } => TypeTree::SliceArrayResult {
             length: *length,
             borrowed: *borrowed,

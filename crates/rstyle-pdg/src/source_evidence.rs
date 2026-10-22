@@ -62,6 +62,16 @@ pub(crate) fn original_expression(
     syn::parse_str(source).map_err(|error| error.to_string())
 }
 
+/// Bind a parsed child syntax node to its original parent slice.
+pub(crate) fn verify_child_source(
+    syntax: &impl Spanned,
+    child: &HirNode,
+    parent: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    verify_child_span(parent, child, syntax.span(), facts)
+}
+
 /// Bind a parsed child span to the same original parent slice used by the HIR.
 pub(crate) fn verify_child_span(
     parent: &HirNode,

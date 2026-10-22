@@ -542,6 +542,7 @@ mod tests {
             trees: BTreeMap::new(),
             environment,
             copy_trees: Default::default(),
+            no_drop_trees: Default::default(),
             array_views: false,
             scalar_aliases: false,
             passive_copy_dependencies: false,

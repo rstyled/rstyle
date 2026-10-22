@@ -21,6 +21,7 @@ pub(crate) mod checked_lengths;
 pub mod checked_options;
 pub mod collection;
 mod concrete_calls;
+pub mod concrete_results;
 pub mod concrete_types;
 mod cyclic_values;
 mod data_aggregates;

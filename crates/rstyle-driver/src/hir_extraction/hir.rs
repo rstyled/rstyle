@@ -315,6 +315,7 @@ impl<'tcx> Context<'tcx> {
         let res = self
             .float_literal(expr)
             .or_else(|| self.option_expression(expr))
+            .or_else(|| self.result_expression(expr))
             .or_else(|| match expr.kind {
                 ExprKind::Call(callee, _) => self.direct_callee(callee),
                 ExprKind::Field(base, _) if self.profile.supports("rust.verified-helper-calls") => {

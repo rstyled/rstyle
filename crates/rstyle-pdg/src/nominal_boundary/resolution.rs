@@ -47,6 +47,7 @@ pub struct Resolution {
     trees: BTreeMap<Namespace, TypeTree>,
     environment: Rc<Environment>,
     copy_trees: std::collections::BTreeSet<Namespace>,
+    no_drop_trees: std::collections::BTreeSet<Namespace>,
     array_views: bool,
     scalar_aliases: bool,
     passive_copy_dependencies: bool,
@@ -79,8 +80,54 @@ impl Resolution {
     ) -> Result<(), String> {
         let selected = selected::verify(facts, origins, &self.trees, &self.environment)?;
         self.copy_trees = selected.copies;
+        self.no_drop_trees = selected.no_drop;
         self.passive_copy_dependencies = selected.passive_dependencies;
+
         Ok(())
+    }
+
+    pub(crate) fn checked_no_drop(&self, nominal: &concrete_types::Nominal) -> bool {
+        self.checked_nominal(nominal, &self.no_drop_trees).is_some()
+    }
+
+    fn checked_nominal(
+        &self,
+        nominal: &concrete_types::Nominal,
+        permissions: &std::collections::BTreeSet<Namespace>,
+    ) -> Option<&TypeTree> {
+        let key: Namespace = nominal
+            .definition_path
+            .split("::")
+            .map(str::to_owned)
+            .collect();
+        let tree = self.trees.get(&key)?;
+        (permissions.contains(&key)
+            && tree
+                .nominal_parts()
+                .is_some_and(|(checked, _)| checked == nominal))
+        .then_some(tree)
+    }
+
+    pub(crate) fn verify_result_type_source(
+        &self,
+        facts: &HirFnFacts,
+        path: &syn::TypePath,
+    ) -> Result<(), String> {
+        if path.qself.is_some() {
+            return Err("Result type cannot use a qualified trait path".into());
+        }
+        self.environment
+            .verify_result_source(facts, &path.path, None)
+    }
+
+    pub(crate) fn verify_result_constructor_source(
+        &self,
+        facts: &dyn crate::unit_store::EvidenceFacts,
+        path: &syn::Path,
+        variant: &str,
+    ) -> Result<(), String> {
+        self.environment
+            .verify_result_source(facts.facts(), path, Some(variant))
     }
 
     pub(crate) fn requires_passive_copy_dependencies(&self) -> bool {
@@ -165,28 +212,15 @@ impl Resolution {
             | crate::data_types::TypeToken::FieldlessEnum { nominal, .. } => nominal,
             _ => return false,
         };
-        let key: Vec<_> = nominal
-            .definition_path
-            .split("::")
-            .map(str::to_string)
-            .collect();
-        self.copy_trees.contains(&key)
-            && self
-                .trees
-                .get(&key)
-                .is_some_and(|tree| crate::data_types::TypeToken::from_tree(tree) == *token)
+        self.checked_nominal(nominal, &self.copy_trees)
+            .is_some_and(|tree| crate::data_types::TypeToken::from_tree(tree) == *token)
     }
 
     pub(crate) fn checked_owned_copy(&self, tree: &TypeTree) -> bool {
         let Some((nominal, _)) = tree.nominal_parts() else {
             return false;
         };
-        let key: Vec<_> = nominal
-            .definition_path
-            .split("::")
-            .map(str::to_string)
-            .collect();
-        self.copy_trees.contains(&key) && self.trees.get(&key) == Some(tree)
+        self.checked_nominal(nominal, &self.copy_trees) == Some(tree)
     }
 }
 
@@ -282,17 +316,14 @@ pub(crate) fn verify_in(
         range_owner: None,
         trees: BTreeMap::new(),
         copy_trees: Default::default(),
+        no_drop_trees: Default::default(),
         passive_copy_dependencies: false,
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
         environment: Rc::clone(&environment),
     };
 
-    for observation in context.parameters.iter().chain([&context.result]) {
-        if let Observation::Captured { ty } = observation {
-            collect(ty, &mut resolution.trees)?;
-        }
-    }
+    collect_interface(&context, &mut resolution.trees)?;
     verify_declarations(
         &resolution,
         &environment.index.declarations,
@@ -309,6 +340,18 @@ pub(crate) fn verify_in(
         &mut resolution,
     )?;
     Ok(resolution)
+}
+
+fn collect_interface(
+    context: &InterfaceObservations,
+    trees: &mut BTreeMap<Namespace, TypeTree>,
+) -> Result<(), String> {
+    for observation in context.parameters.iter().chain([&context.result]) {
+        if let Observation::Captured { ty } = observation {
+            collect(ty, trees)?;
+        }
+    }
+    Ok(())
 }
 
 fn file_bytes<'a>(census: &'a census::Census, path: &std::path::Path) -> Result<&'a str, String> {
@@ -566,8 +609,8 @@ fn collect(tree: &TypeTree, trees: &mut BTreeMap<Namespace, TypeTree>) -> Result
         | TypeTree::Enum { .. }
         | TypeTree::FieldlessEnum { .. }
         | TypeTree::MixedEnum { .. } => collect_nominal(tree, trees)?,
-        TypeTree::Tuple(elements) => {
-            for element in elements {
+        TypeTree::Tuple(_) | TypeTree::Result { .. } => {
+            for element in tree.components() {
                 collect(element, trees)?;
             }
         }

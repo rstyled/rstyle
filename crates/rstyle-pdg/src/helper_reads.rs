@@ -48,6 +48,7 @@ pub(crate) fn supported(
                 matches!(ty, TypeToken::Scalar(_))
                     || crate::helper_normal_flow::copy_result(facts)
                     || crate::range_values::read_result(facts, pair)
+                    || crate::concrete_results::fresh_result(facts, pair)
                     || (crate::extraction_profile::facts_support(facts, crate::data_subslices::ARRAY_CAPABILITY)
                         || crate::extraction_profile::facts_support(facts, crate::helper_stored_slices::CAPABILITY))
                         && matches!(&ty, TypeToken::Shared(referent) if matches!(referent.as_ref(), TypeToken::Slice(element) if matches!(element.as_ref(), TypeToken::Scalar(_))))

@@ -45,8 +45,8 @@ pub const LOCATION_KEY: &str = "rstyle.data:formal-location";
 pub const POLICY_KEY: &str = "rstyle.data:matching-profile";
 
 pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, String> {
-    let mut pair = install_locations(pair, facts)?;
-    install_policy(&mut pair, facts)?;
+    let pair = install_locations(pair, facts)?;
+    let mut pair = install_value_contracts(pair, facts)?;
     install_evidence(&mut pair.pdg, facts)?;
     origins::install(&mut pair, facts)?;
 
@@ -74,6 +74,16 @@ pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result
         crate::float_scalars::KEY,
         |source| crate::float_scalars::semantics(source, facts),
     )
+}
+
+fn install_value_contracts(
+    mut pair: Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Pair, String> {
+    install_policy(&mut pair, facts)?;
+    crate::concrete_results::documents::install(&mut pair);
+
+    Ok(pair)
 }
 
 fn install_annotations<'a>(
@@ -430,6 +440,7 @@ fn verify_option_reads(
     context: &mut LocationContext<'_>,
     calls: &[&crate::HirNode],
 ) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    crate::concrete_results::documents::verify(pair, context.facts)?;
     let options = checked_options::verify(pair, context, calls)?;
     let callbacks = helper_option_callbacks::verify(pair, context)?;
     crate::helper_reads::merge_locations(options, callbacks)
@@ -533,7 +544,7 @@ pub(crate) fn serialized_operation<'a>(
     Ok(node)
 }
 
-fn typed_operation<'a>(
+pub(crate) fn typed_operation<'a>(
     pair: PairView<'a>,
     source: &crate::HirNode,
     construct: &str,
@@ -711,7 +722,7 @@ fn field_base<'a>(
     value_operation(pair, base)
 }
 
-fn value_operation<'a>(
+pub(crate) fn value_operation<'a>(
     pair: crate::producer::PairView<'a>,
     base: &crate::HirNode,
 ) -> Result<&'a crate::PdgNode, String> {
@@ -849,7 +860,7 @@ fn live_operations(pair: crate::producer::PairView<'_>) -> Result<BTreeSet<Strin
         .collect())
 }
 
-pub(super) fn verify_saved_operands(
+pub(crate) fn verify_saved_operands(
     pair: PairView<'_>,
     node: &PdgNode,
     values: &[&PdgNode],

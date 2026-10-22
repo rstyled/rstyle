@@ -1,0 +1,136 @@
+//! Fresh concrete core Results with a separately source-proved no-drop error.
+//!
+//! This first boundary permits whole result construction/forwarding only. It
+//! supplies neither Copy permission nor storage, payload extraction or `?`.
+mod constructors;
+pub(crate) mod documents;
+pub(crate) mod source;
+mod types;
+
+use crate::{HirNode, concrete_types::TypeTree, data_types::TypeToken, unit_store::EvidenceFacts};
+
+pub const CAPABILITY: &str = "rust.fresh-concrete-results";
+pub const RESOLUTION: &str = "resolved_result_variant";
+pub(crate) const KEY: &str = "rstyle.data:concrete-result";
+pub(crate) const SOURCE_DIGEST: &str =
+    "sha256:777e0f516deba3899c8f16c5511da3ebe7debe23f4bcf6a6353c98a927c0f7d1";
+
+pub use constructors::{Constructor, verify_constructor};
+pub(crate) use constructors::{constructor_candidate, constructors};
+
+/// Verify the exact fresh return boundary, including non-Copy error constructors.
+pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {
+    if !types::used(facts)? {
+        return Ok(());
+    }
+
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
+    let crate::concrete_types::Observation::Captured { ty } = &interface.result else {
+        return Err("Fresh Result/error requires complete captured return evidence".into());
+    };
+
+    let error = types::return_error(ty)
+        .ok_or("Fresh Result/error values require a whole supported function result")?;
+    types::checked_error(error, facts)?;
+    if !crate::extraction_profile::facts_support(facts, CAPABILITY) {
+        return Err("Fresh concrete Results require their registered capability".into());
+    }
+
+    constructors::verify_core(facts)?;
+    let result = crate::data_types::token(ty)?;
+    if facts.signature.return_ty.normalized.as_deref() != Some(result.as_str()) {
+        return Err("Fresh result interface disagrees with captured return type".into());
+    }
+
+    let source: syn::ItemFn = syn::parse_str(&facts.source.bytes).map_err(|e| e.to_string())?;
+    crate::source_evidence::closed_body(&source.block)?;
+    reject_storage(facts, error)?;
+    fresh(&facts.body, true, &TypeToken::from_tree(error), facts)
+}
+
+fn reject_storage(facts: &dyn EvidenceFacts, error: &TypeTree) -> Result<(), String> {
+    let error = TypeToken::from_tree(error);
+    for ty in facts
+        .signature
+        .params
+        .iter()
+        .map(|p| &p.ty)
+        .chain(facts.bindings.iter().map(|b| &b.ty))
+    {
+        let token = ty
+            .normalized
+            .as_deref()
+            .ok_or("Missing fresh result binding type")?;
+        if types::contains_owned(&crate::data_types::parse(token)?, &error) {
+            return Err(
+                "Result/error parameters and local storage require move/liveness proof".into(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn fresh(
+    node: &HirNode,
+    returning: bool,
+    error: &TypeToken,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let token = node
+        .ty
+        .as_ref()
+        .and_then(|ty| ty.normalized.as_deref())
+        .map(crate::data_types::parse)
+        .transpose()?;
+
+    if token
+        .as_ref()
+        .is_some_and(|ty| types::contains_owned(ty, error))
+        && (!returning
+            || !matches!(
+                node.kind.as_str(),
+                "expr_call" | "expr_struct" | "expr_block" | "expr_ret"
+            ))
+    {
+        return Err(
+            "Result/error value is not a fresh constructor/helper result forwarded whole".into(),
+        );
+    }
+
+    let constructor = constructor_candidate(node, facts);
+    if constructor {
+        verify_constructor(node, facts)?;
+    }
+
+    for (position, child) in node.children.iter().enumerate() {
+        let tail = returning && node.kind == "expr_block" && position + 1 == node.children.len();
+        fresh(
+            child,
+            tail || node.kind == "expr_ret" || returning && constructor,
+            error,
+            facts,
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_document_policy(
+    profile: &crate::ProfileId,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    crate::extraction_profile::require_capability(
+        crate::extraction_profile::policy_supports(profile, CAPABILITY),
+        || types::used(facts),
+        "Fresh concrete Results require their registered document capability",
+    )
+}
+
+/// Whole fresh no-drop values can cross the helper boundary without Copy.
+pub(crate) fn fresh_result(facts: &dyn EvidenceFacts, pair: crate::producer::PairView<'_>) -> bool {
+    pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Complete
+        && types::used(facts).unwrap_or(false)
+        && verify_function(facts).is_ok()
+}

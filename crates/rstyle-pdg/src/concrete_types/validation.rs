@@ -71,7 +71,7 @@ impl<'a> Validation<'a> {
             return self.many(tree.nominal_fields().map(|field| &field.ty), depth);
         }
         match tree {
-            TypeTree::Tuple(elements) => self.many(elements.iter(), depth),
+            TypeTree::Tuple(_) | TypeTree::Result { .. } => self.many(tree.components(), depth),
             TypeTree::Array { element, .. }
             | TypeTree::Shared(element)
             | TypeTree::Slice(element)

@@ -54,12 +54,5 @@ fn verify_source(node: &HirNode, base: &HirNode, facts: &dyn EvidenceFacts) -> R
     }
 
     let span = crate::data_aggregates::ungroup(&expression.expr).span();
-    let syntax = crate::ByteSpan {
-        start: node.span.start + crate::source_evidence::byte_offset(bytes, span.start()) as u32,
-        end: node.span.start + crate::source_evidence::byte_offset(bytes, span.end()) as u32,
-    };
-    if !crate::source_evidence::corresponding_span(&facts.source.bytes, syntax, base.span) {
-        return Err("Dereference loses its evaluated pointer correspondence".into());
-    }
-    Ok(())
+    crate::source_evidence::verify_child_span(node, base, span, facts)
 }
