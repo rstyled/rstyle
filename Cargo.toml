@@ -9,3 +9,14 @@ edition = "2024"
 [workspace.lints.clippy]
 too_many_lines = "warn"
 too_many_arguments = "warn"
+
+# Capture/replay tests parse and serialize substantial evidence. Optimize their
+# hot dependencies while retaining normal debug builds of workspace code.
+[profile.dev.package.serde_json]
+opt-level = 2
+
+[profile.dev.package."syn:2.0.119"]
+opt-level = 2
+
+[profile.dev.package.proc-macro2]
+opt-level = 2

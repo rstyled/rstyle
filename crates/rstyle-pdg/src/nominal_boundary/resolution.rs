@@ -312,12 +312,7 @@ fn file_bytes<'a>(census: &'a census::Census, path: &std::path::Path) -> Result<
 }
 
 fn source_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
-    let source = bytes.strip_prefix('\u{feff}').unwrap_or(bytes);
-    let prefix = bytes.len() - source.len();
-    ByteSpan {
-        start: (crate::source_evidence::byte_offset(source, span.start()) + prefix) as u32,
-        end: (crate::source_evidence::byte_offset(source, span.end()) + prefix) as u32,
-    }
+    crate::source_evidence::original_span(bytes, span)
 }
 
 struct Index {
@@ -890,16 +885,20 @@ struct FunctionSource<'a> {
     body: &'a syn::Block,
 }
 impl FunctionSource<'_> {
-    fn exact(&self, bytes: &str, facts: &HirFnFacts) -> bool {
+    fn range(&self, bytes: &str) -> ByteSpan {
         let start = if matches!(self.vis, syn::Visibility::Inherited) {
             self.sig.span()
         } else {
             self.vis.span()
         };
-        let range = ByteSpan {
+        ByteSpan {
             start: source_span(bytes, start).start,
             end: source_span(bytes, self.body.span()).end,
-        };
+        }
+    }
+
+    fn exact(&self, bytes: &str, facts: &HirFnFacts) -> bool {
+        let range = self.range(bytes);
         range == facts.fn_span
             && bytes.get(range.start as usize..range.end as usize)
                 == Some(facts.source.bytes.as_str())

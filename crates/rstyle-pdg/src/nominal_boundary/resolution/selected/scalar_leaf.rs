@@ -17,20 +17,22 @@ pub(super) fn verify(
         .and_then(serde_json::Value::as_str)
         .ok_or("Missing scalar leaf source file")?;
     let mut owners = Vec::new();
-    for module in environment
+    for (module_index, module) in environment
         .modules
         .iter()
-        .filter(|module| module.namespace == namespace && module.path.to_string_lossy() == file)
+        .enumerate()
+        .filter(|(_, module)| {
+            module.namespace == namespace && module.path.to_string_lossy() == file
+        })
     {
         let source = environment.source(&module.path)?;
-        for item in &module.items {
-            if let syn::Item::Fn(item) = item
-                && (FunctionSource {
-                    vis: &item.vis,
-                    sig: &item.sig,
-                    body: &item.block,
-                })
-                .exact(source.bytes(), facts)
+        for item in environment.function_candidates(module_index, facts.fn_span) {
+            if (FunctionSource {
+                vis: &item.vis,
+                sig: &item.sig,
+                body: &item.block,
+            })
+            .exact(source.bytes(), facts)
             {
                 owners.push((module, item));
             }

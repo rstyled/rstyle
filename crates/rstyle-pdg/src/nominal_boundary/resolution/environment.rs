@@ -1,6 +1,7 @@
 //! Checked original source snapshots and lexical tables for one immutable census.
 use super::*;
 use std::path::Path;
+mod functions;
 
 #[derive(Clone, Copy)]
 struct SourceId(u32);
@@ -11,6 +12,7 @@ pub(crate) struct Environment {
     census: Arc<census::Census>,
     sources: BTreeMap<PathBuf, SourceId>,
     pub(super) modules: Vec<census::Module>,
+    functions: functions::Index,
     pub(super) index: Index,
     pub(super) copy_boundary: bool,
 }
@@ -77,23 +79,29 @@ impl Environment {
                 (modules, index, true)
             }
         };
-        let sources = census
-            .files
-            .iter()
-            .enumerate()
-            .map(|(index, file)| {
-                u32::try_from(index)
-                    .map(|index| (file.path.clone(), SourceId(index)))
-                    .map_err(|_| "Oversized source table".to_owned())
-            })
-            .collect::<Result<_, _>>()?;
+        let sources = source_ids(&census)?;
 
+        let functions = functions::Index::new(&modules, &census)?;
         Ok(Self {
             census,
             sources,
             modules,
+            functions,
             index,
             copy_boundary,
+        })
+    }
+
+    pub(super) fn function_candidates(
+        &self,
+        module: usize,
+        span: ByteSpan,
+    ) -> impl Iterator<Item = &syn::ItemFn> {
+        self.functions.candidates(module, span).map(move |index| {
+            let syn::Item::Fn(function) = &self.modules[module].items[index] else {
+                unreachable!("Function index retains only original function items")
+            };
+            function
         })
     }
 
@@ -160,6 +168,19 @@ impl Environment {
         }
         Ok(())
     }
+}
+
+fn source_ids(census: &census::Census) -> Result<BTreeMap<PathBuf, SourceId>, String> {
+    census
+        .files
+        .iter()
+        .enumerate()
+        .map(|(index, file)| {
+            u32::try_from(index)
+                .map(|index| (file.path.clone(), SourceId(index)))
+                .map_err(|_| "Oversized source table".to_owned())
+        })
+        .collect()
 }
 
 #[cfg(test)]

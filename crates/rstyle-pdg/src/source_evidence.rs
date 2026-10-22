@@ -14,11 +14,11 @@ pub const KEY: &str = "source_correspondence";
 
 /// Convert a parser span to original UTF-8 offsets, retaining a leading BOM.
 pub(crate) fn original_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
-    let source = bytes.strip_prefix('\u{feff}').unwrap_or(bytes);
-    let prefix = (bytes.len() - source.len()) as u32;
+    let prefix = if bytes.starts_with('\u{feff}') { 3 } else { 0 };
+    let range = span.byte_range();
     ByteSpan {
-        start: prefix + byte_offset(source, span.start()) as u32,
-        end: prefix + byte_offset(source, span.end()) as u32,
+        start: prefix + range.start as u32,
+        end: prefix + range.end as u32,
     }
 }
 

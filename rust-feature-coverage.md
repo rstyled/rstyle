@@ -4349,3 +4349,21 @@ all58 strictly replay. Full-library matching remains incomplete under max-pairs0
 Evidence: `/tmp/rstyle-alloc-*`. Range getters additionally require exact local
 From dispatch and non-Copy Range/move/drop proof; Result/?/generic and looping
 callee families remain separate active frontier work.
+
+### Capture/replay performance checkpoint
+
+Exact parser byte ranges replace repeated line-prefix scans. A checked-unit
+function-span index replaces sibling-function scans during scalar-leaf ownership
+lookup; exact byte comparison and ambiguous-owner rejection remain mandatory.
+Tests cover Unicode/BOM/CRLF offsets and 16/128/1024 siblings with duplicate and
+wrong-range candidates. Debug builds also optimize serde_json, syn2 and
+proc-macro2; workspace code retains debug settings. The dependency rebuild took
+41.64s locally; release settings and admission contracts are unchanged.
+Saved-binary alternating comparisons and final-binary checks: stored slices
+14.0–14.1→9.3–9.4s, flags9.8–9.9→7.44s, sine14.1–14.2→12.2s, retaining all
+capture/admission/matching assertions. Evidence: `/tmp/rstyle-perf12-*`.
+**1069 tests pass /5 existing skips in108.042s**, doctests/fmt/Clippy pass;
+**rstyle0/3404, patterns0 unignored**, existing15 ignores unchanged.
+Frozen identities/denominators are untouched; no fresh frozen admission count
+was measured. Repeated evidence serialization remains a performance target;
+Range dispatch/move/drop remains the next coverage blocker chain.
