@@ -6,9 +6,9 @@ remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; current implementation is Data3.80:
-checked shared-reference Option propagation, Copy-product results and exact local
-trait-member ownership connect the three original Memchr prefix methods.
+Branch `feature/rust-feature-coverage`; Data3.82 connects the original calendar
+wrappers across selected dependency units, following the Data3.81 lz4 block-header
+parser. See the family contract and roadmap gate record.
 The root roadmap records validated checkpoints; broader P01–P22 work remains
 active and historical evidence stays unchanged.
 
@@ -164,3 +164,32 @@ resolution lane audits time0.3.47→time-core0.1.8 exact seven-function dependen
 closure; performance lane removes demonstrated immutable-source identity cache
 bypasses. Shared production interfaces stay lead-owned until readiness contracts
 and exact blockers are established. No broad trait, ownership or coverage completion.
+
+## Calendar and next instance gate
+
+Data3.82 connects all eight original calendar helpers in six fixed contexts,
+18 contextual gains/zero losses, with strict closure replay and complete153-pair
+assessment per context. [Contract](extraction-profiles/cross-unit-scalar-helpers-v1.md).
+Frozen source identities/denominators and23/30/7 remain unchanged; all58 contextual
+frozen admissions strictly replay. Final quality gates are recorded in the roadmap.
+
+Next source-selected family is regex-automata0.4.18 `Input::new<H>` and its
+blanket `From<&H>::from`, initially concrete `[u8]` and `str`. **Not production
+ready:** capture currently enumerates generic HIR owners once and discards
+selected instance arguments. Generic HIR cannot be relabeled as a concrete body.
+The original `search.rs` identity is
+`74157bd77eb6f80e8ab5952ef21e8fb2d3452c1817ec671a7a3574fbddae1ae7`;
+constructor span5136..5727, From body29808..29882. A separate frozen instance
+selection must precede admission measurements; historical definitions stay intact.
+
+| Next assignment | Readiness gate / exclusive leaf focus |
+| --- | --- |
+| Instance evidence | Prove analysis-phase concrete Instance identity/arguments, original generic body ownership and substituted node/binding/result types; no activation first |
+| Concrete dispatch | Source-audit exact `[u8]` and `str` AsRef implementations and independently prove effects/origins; no familiar-name/bound permission |
+| Constructor composition | Audit whole owned Input result, stored haystack, nested Span/default flags and caller-origin substitution; existing getters alone are insufficient |
+| Source ownership/oracle | Audit generic static impl and blanket From ownership; freeze unchanged originals/contexts and pointer identity, byte-length, Unicode, exactly-once conversion and instance/impl/origin-swap negatives |
+
+These are dependency-gated assignments, not four concurrent production edits.
+Shared registrations, instance keys, origins and summaries remain lead-owned.
+Cross-unit reference/aggregate transport, local borrowing, mutation/cleanup and
+broader P01–P22 work remain active; no admission forecast or completion claim.

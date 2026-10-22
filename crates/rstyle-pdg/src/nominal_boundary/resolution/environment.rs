@@ -6,6 +6,13 @@ mod functions;
 #[derive(Clone, Copy)]
 struct SourceId(u32);
 
+pub(crate) struct SourceOptions<'a> {
+    pub constants: bool,
+    pub cfgs: Option<&'a [String]>,
+    pub expansions: bool,
+    pub module_lints: bool,
+}
+
 /// Construction checks every source fingerprint and the closed module inventory.
 /// No serialized record or unchecked bool can construct this view.
 pub(crate) struct Environment {
@@ -67,12 +74,34 @@ impl Environment {
         Self::with_options(census, constants, None, false)
     }
 
+    #[cfg(test)]
     pub(crate) fn with_options(
         census: Arc<census::Census>,
         constants: bool,
         cfgs: Option<&[String]>,
         expansions: bool,
     ) -> Result<Self, String> {
+        Self::with_source_options(
+            census,
+            SourceOptions {
+                constants,
+                cfgs,
+                expansions,
+                module_lints: false,
+            },
+        )
+    }
+
+    pub(crate) fn with_source_options(
+        census: Arc<census::Census>,
+        options: SourceOptions<'_>,
+    ) -> Result<Self, String> {
+        let SourceOptions {
+            constants,
+            cfgs,
+            expansions,
+            module_lints,
+        } = options;
         let closed = if !census.external_imports.is_empty()
             || !census.documentation.is_empty()
             || expansions && !census.expansions.is_empty()
@@ -86,7 +115,9 @@ impl Environment {
             Ok((modules, index)) => (modules, index, false),
             Err(error) => {
                 let Some(cfgs) = cfgs else { return Err(error) };
-                let modules = if !census.external_imports.is_empty() {
+                let modules = if module_lints {
+                    census::verify_with_module_lints(&census, cfgs, expansions)?
+                } else if !census.external_imports.is_empty() {
                     census::verify_imported(&census, cfgs, expansions)?
                 } else if !census.documentation.is_empty() {
                     census::verify_documented(&census, cfgs, expansions)?

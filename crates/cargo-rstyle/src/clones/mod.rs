@@ -2,6 +2,7 @@
 
 pub mod capture;
 mod identity;
+mod linking;
 mod report;
 mod selected_context;
 use crate::Cli;
@@ -29,6 +30,9 @@ pub struct Args {
     /// Capture an explicitly selected reachable dependency library; does not authorize external calls.
     #[arg(long = "capture-dependency")]
     pub capture_dependencies: Vec<String>,
+    /// Strictly replay a saved dependency closure and its owning unit bundles.
+    #[arg(long, conflicts_with = "capture_dependencies")]
+    replay_run: Option<PathBuf>,
     /// JSON matching overrides, separate from legacy rstyle.toml.
     #[arg(long)]
     matching_config: Option<PathBuf>,
@@ -112,6 +116,8 @@ struct UnitEvidence {
     report_unit: identity::UnitId,
     namespace: rstyle_pdg::unit_store::UnitNamespace,
     bundle: PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dependency_closure: Option<PathBuf>,
     function: u32,
 }
 
@@ -178,6 +184,33 @@ impl Function {
 }
 
 impl Handoff {
+    fn new(assignments: Option<&[identity::Assignment<'_>]>) -> Self {
+        Self {
+            build_contexts: Vec::new(),
+            source_inventory: Vec::new(),
+            assessed: Vec::new(),
+            admitted: Vec::new(),
+            failures: Vec::new(),
+            keys: BTreeSet::new(),
+            unit_contexts: assignments
+                .map(|units| {
+                    units
+                        .iter()
+                        .map(|unit| identity::UnitContext {
+                            id: unit.context.id,
+                            observed_unit: unit.context.observed_unit,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }
+    }
+
+    fn sorted(mut self) -> Self {
+        self.assessed.sort_by_key(|function| function.key);
+        self
+    }
+
     fn capture(capture: &capture::Capture, args: &Args) -> Result<Self, String> {
         Stage::new("cli.handoff", "run", None).observe(|| Ok(handoff(capture, args)))
     }
@@ -211,12 +244,25 @@ fn matching_profile(args: &Args) -> rstyle_ccgraph::MatchingProfile {
 }
 
 pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
-    rstyle_pdg::verification_policy::generated(|| run_generated(cli, args))
+    if args.replay_run.is_some() {
+        rstyle_pdg::verification_policy::strict(|| run_generated(cli, args))
+    } else {
+        rstyle_pdg::verification_policy::generated(|| run_generated(cli, args))
+    }
 }
 
 fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
-    let capture = capture_for_analysis(cli, args)?;
+    let capture = if let Some(directory) = &args.replay_run {
+        linking::load_capture(directory, args)?
+    } else {
+        let mut capture =
+            Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))?;
+        if let Err(error) = capture::compile(&mut capture, cli, args) {
+            capture.failures.push(error);
+        }
+        capture
+    };
     let handoff = Handoff::capture(&capture, args)?;
     let evaluation = evaluate_matching(&handoff, &config, args)?;
     let matching = evaluation.report;
@@ -226,8 +272,9 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         .iter()
         .filter(|p| p.decision == Decision::Accepted)
         .count();
-    let complete =
-        capture.failures.is_empty() && handoff.failures.is_empty() && !matching.incomplete;
+    let capture_complete = capture.failures.is_empty();
+    let assessment_complete = handoff.failures.is_empty();
+    let complete = capture_complete && assessment_complete && !matching.incomplete;
     let report = report::make(report::Context {
         cli,
         args,
@@ -265,38 +312,9 @@ fn evaluate_matching(
     })
 }
 
-fn capture_for_analysis(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
-    let mut capture =
-        Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))?;
-    if let Err(error) = capture::compile(&mut capture, cli, args) {
-        capture.failures.push(error);
-    }
-    Ok(capture)
-}
-
 fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {
     let assignments = identity::assign(&capture.units);
-    let unit_contexts = assignments
-        .as_ref()
-        .map(|units| {
-            units
-                .iter()
-                .map(|unit| identity::UnitContext {
-                    id: unit.context.id,
-                    observed_unit: unit.context.observed_unit,
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    let mut result = Handoff {
-        build_contexts: Vec::new(),
-        source_inventory: Vec::new(),
-        assessed: Vec::new(),
-        admitted: Vec::new(),
-        failures: Vec::new(),
-        keys: BTreeSet::new(),
-        unit_contexts,
-    };
+    let mut result = Handoff::new(assignments.as_deref().ok());
     if !capture.failures.is_empty() {
         return result;
     }
@@ -310,22 +328,49 @@ fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {
             };
         }
     };
-    for assignment in assignments {
-        let request = UnitRequest {
-            id: assignment.context.id,
-            unit: assignment.unit,
-            capture,
-            args,
-        };
-        if let Err(error) = consume_unit(&request, &mut result) {
-            result.failures.push(error);
+    if !capture.plan.dependency_units.is_empty()
+        && args
+            .extraction_profile
+            .supports("rust.verified-cross-unit-scalar-helpers")
+    {
+        if let Err(error) = linking::consume(capture, args, &assignments, &mut result) {
+            return Handoff {
+                failures: result.failures.into_iter().chain([error]).collect(),
+                ..result
+            }
+            .sorted();
+        }
+    } else {
+        for assignment in assignments {
+            let request = UnitRequest {
+                id: assignment.context.id,
+                unit: assignment.unit,
+                capture,
+                args,
+            };
+            if let Err(error) = consume_unit(&request, &mut result) {
+                result.failures.push(error);
+            }
         }
     }
-    result.assessed.sort_by_key(|function| function.key);
-    result
+    result.sorted()
 }
 
 fn consume_unit(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), String> {
+    let (store, bindings) = load_unit(request, result)?;
+    consume_store(Arc::new(store), bindings, request, result)
+}
+
+fn load_unit(
+    request: &UnitRequest<'_>,
+    result: &mut Handoff,
+) -> Result<
+    (
+        rstyle_pdg::unit_store::UnitStore,
+        rstyle_pdg::nominal_binding::UnitBindings,
+    ),
+    String,
+> {
     let unit = request.unit;
     let capture = request.capture;
     if unit.extraction_profile != capture.plan.extraction_profile {
@@ -335,20 +380,24 @@ fn consume_unit(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), S
     let selected_context = selected_context::SelectedContext::new(unit)?;
     let mut bindings = rstyle_pdg::nominal_binding::UnitBindings::empty(0);
 
-    let store =
-        rstyle_pdg::unit_store::UnitStore::from_verified_current_run(&snapshot.bundle, |facts| {
-            for function in facts {
-                verify_frontend_invocation(function, unit, capture, &selected_context)?;
-                verify_receiver_inventory(function, unit.extraction_profile)?;
-                rstyle_pdg::data_library::verify_evidence(function)?;
-            }
-            bindings = nominal_bindings(facts, unit)?;
-            Ok(())
-        })?;
+    let inspect = |facts: &[HirFnFacts]| {
+        for function in facts {
+            verify_frontend_invocation(function, unit, capture, &selected_context)?;
+            verify_receiver_inventory(function, unit.extraction_profile)?;
+            rstyle_pdg::data_library::verify_evidence(function)?;
+        }
+        bindings = nominal_bindings(facts, unit)?;
+        Ok(())
+    };
+    let store = if request.args.replay_run.is_some() {
+        rstyle_pdg::unit_store::UnitStore::from_bundle_with(snapshot.bundle.bytes(), inspect)?
+    } else {
+        rstyle_pdg::unit_store::UnitStore::from_verified_current_run(&snapshot.bundle, inspect)?
+    };
     result
         .source_inventory
         .extend(source_inventory(unit, &snapshot)?);
-    consume_store(Arc::new(store), bindings, request, result)
+    Ok((store, bindings))
 }
 
 fn consume_store(
@@ -458,6 +507,7 @@ fn function_record(
             report_unit: key.unit(),
             namespace: *function.store.namespace(),
             bundle: unit.directory.join("unit.evidence.json"),
+            dependency_closure: None,
             function: u32::try_from(index).expect("checked unit function table"),
         },
         outcome: "assessed".into(),

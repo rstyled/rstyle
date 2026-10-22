@@ -2,7 +2,10 @@
 
 mod declarations;
 mod fieldless_enums;
-pub use fieldless_enums::fieldless_variants;
+pub use fieldless_enums::{
+    EXPLICIT_U8_CAPABILITY, explicit_u8_fieldless_declaration, explicit_u8_fieldless_variants,
+    explicit_u8_repr, explicit_u8_variant_expect, fieldless_variants,
+};
 pub mod lifetimes;
 mod mixed_enums;
 mod option_spelling;
@@ -326,7 +329,7 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
             nominal,
             source,
             variants,
-        } => fieldless_enums::check(nominal, source, variants),
+        } => fieldless_enums::check_with_explicit_u8(nominal, source, variants),
         _ => Ok(()),
     }
 }

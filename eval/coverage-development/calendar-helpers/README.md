@@ -18,8 +18,9 @@ and ARM macOS. Capture the original dependency library units under those consume
 flags. Direct original-manifest offline resolution needs unavailable dev
 packages; changing to dependency compilation is explicit, not an interchangeable
 baseline. Missing selected dependency capture is **unknown/incomplete**, never
-excluded or zero. The classified capture-only checkpoint now observes all eight selected originals
-in every context; semantic admission gains require a later unchanged comparison. `large-dates` is deferred as a separate feature context.
+excluded or zero. The capture-only checkpoint observed all eight selected originals before linking.
+The connected implementation now admits all eight in every context; see readiness.md
+for the measured comparison and exact remaining boundaries. `large-dates` is deferred as a separate feature context.
 
 The bounded linker covers nongeneric direct free scalar functions with empty
 type/const substitutions, exact Cargo `--extern`/artifact/package/build/definition
@@ -34,8 +35,8 @@ length table, covering every month in years −9999…9999, negative/zero/centur
 and i32 endpoints. Debug-domain invalid numeric months must panic. Required
 adversarial cases include absent/stale dependency or transitive units; wrong
 package/version/source/definition hash; wrong target/features/build; incorrect
-`--extern`; and resealed same-name transitive replacements. These are acceptance
-requirements, not claims of implemented tests.
+`--extern`; and resealed same-name transitive replacements. These define acceptance obligations; the linked contract identifies implemented
+proof checks and adversarial controls.
 
 `oracle.py --verify-only` checks identities without building. When scheduled,
 `oracle.py --output /tmp/calendar-native.json` builds a temporary exact-registry
@@ -43,6 +44,8 @@ consumer and runs `oracle.rs` against unchanged public APIs in both host feature
 contexts; Cargo metadata must resolve the frozen source roots. Runtime checks do
 not claim cross-target execution, extraction, admission or matching. Selection preceded evaluation. Native validation now passes in both feature
 contexts: 240,216 month/year cases and nine expected debug panics each, with zero
-mismatches. Capture is complete in all six contexts: the five selected core helpers admit,
-while all three time callers remain excluded. No complete-family gain is claimed.
+mismatches. All eight originals now admit in all six contexts: 18 new contextual admissions
+and zero losses against the capture-only baseline. Strict closure replay and all
+153 pair evaluations per context complete. No equivalence or held-out quality
+claim follows from these matching results.
 See `readiness.md` for measured blockers and the next checkpoint.

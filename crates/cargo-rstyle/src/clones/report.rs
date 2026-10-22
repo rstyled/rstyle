@@ -110,7 +110,11 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
 
     Report {
         report_detail: ctx.args.report_detail,
-        verification_policy: "trusted-generated",
+        verification_policy: if ctx.args.replay_run.is_some() {
+            "strict-replay"
+        } else {
+            "trusted-generated"
+        },
         scope,
         run_directory: &ctx.capture.directory,
         toolchain: crate::run::pinned_toolchain(),

@@ -39,7 +39,7 @@ fn verify_in(
             if !ancestors && shadows_float(item, control) {
                 return Err("Scalar leaf primitive name has a local declaration".into());
             }
-            module_item_with_imports(item, module, &configuration)?;
+            module_item_for(facts, item, module, &configuration)?;
             if ancestors || !verified_macro_import(item, module) {
                 macro_import(item, module, environment, &configuration)?;
             }
@@ -49,18 +49,43 @@ fn verify_in(
         if !relevant(namespace, scope, ancestors) {
             continue;
         }
-        if name.starts_with("*::") {
-            if !ancestors {
-                return Err("Scalar leaf has an unresolved local glob import".into());
-            }
-            glob(environment, target, &configuration)?;
-        } else if (protected(name) || !ancestors && matches!(name.as_str(), "f32" | "f64"))
-            && !core_imports::debug(facts, environment, (scope, name, target))?
-        {
-            return Err(
-                "Selected import shadows a primitive, library root or builtin derive".into(),
-            );
+        verify_binding(
+            facts,
+            environment,
+            enum_globs::Original {
+                namespace: scope,
+                key: name,
+                target,
+            },
+            ancestors,
+        )?;
+    }
+    Ok(())
+}
+
+fn verify_binding(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    original: enum_globs::Original<'_>,
+    ancestors: bool,
+) -> Result<(), String> {
+    let enum_globs::Original {
+        namespace: scope,
+        key: name,
+        target,
+    } = original;
+    if name.starts_with("*::") {
+        if !ancestors {
+            return Err("Scalar leaf has an unresolved local glob import".into());
         }
+        if !enum_globs::verify(facts, environment, original)? {
+            let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
+            glob(environment, target, &configuration)?;
+        }
+    } else if (protected(name) || !ancestors && matches!(name, "f32" | "f64"))
+        && !core_imports::debug(facts, environment, (scope, name, target))?
+    {
+        return Err("Selected import shadows a primitive, library root or builtin derive".into());
     }
     Ok(())
 }
@@ -87,7 +112,7 @@ fn verified_macro_import(item: &syn::Item, owner: &census::Module) -> bool {
     matches!(item, syn::Item::Mod(module) if owner.verified_macro_imports.contains(&module.ident.to_string()))
 }
 
-fn protected(name: &str) -> bool {
+pub(super) fn protected(name: &str) -> bool {
     builtin_derive(name) || concrete_types::scalar(name) || matches!(name, "str" | "core" | "std")
 }
 
@@ -265,7 +290,7 @@ pub(super) fn library_root(
             if !configuration.active(crate::conditional_source::item_attributes(item))? {
                 continue;
             }
-            module_item_with_imports(item, module, &configuration)?;
+            module_item_for(facts, item, module, &configuration)?;
             macro_import(item, module, environment, &configuration)?;
             if super::super::builtin_options::type_name(item).as_deref() == Some(root)
                 && !matches!(item, syn::Item::ExternCrate(item) if item.ident == root && item.rename.is_none())

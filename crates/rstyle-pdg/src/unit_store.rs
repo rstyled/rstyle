@@ -1,7 +1,9 @@
 //! Unit-local ownership and borrowed analysis. Dense IDs are handles, not names.
 mod bundle;
 pub use bundle::BUNDLE_SCHEMA;
+mod dependency_closure;
 mod derived;
+pub use dependency_closure::DependencyClosure;
 mod manifest;
 mod namespace;
 mod source_analysis;
@@ -15,6 +17,8 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     ops::Deref,
+    rc::Rc,
+    sync::Arc,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -96,6 +100,14 @@ pub trait EvidenceFacts: sealed::Sealed {
         None
     }
 
+    fn external_helper(
+        &self,
+        _node: &HirNode,
+        _callee: &dyn EvidenceFacts,
+    ) -> Result<bool, String> {
+        Ok(false)
+    }
+
     fn helper(&self, _node: &HirNode) -> Result<Option<HelperView<'_>>, String> {
         Ok(None)
     }
@@ -159,6 +171,10 @@ impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
     fn frontend_reference(&self) -> Option<serde_json::Value> {
         T::frontend_reference(*self)
     }
+
+    fn external_helper(&self, node: &HirNode, callee: &dyn EvidenceFacts) -> Result<bool, String> {
+        T::external_helper(*self, node, callee)
+    }
 }
 
 impl Deref for dyn EvidenceFacts + '_ {
@@ -203,12 +219,15 @@ pub struct UnitStore {
     roots: Vec<Option<GraphId>>,
     links: Vec<BTreeMap<Site, FunctionId>>,
     certified: Vec<Option<HelperId>>,
+    dependencies: Vec<Arc<UnitStore>>,
+    external_links: Vec<BTreeMap<Site, ExternalTarget>>,
 }
 
 /// A proof cache belongs to this exact immutable store and this analysis only.
 /// Policy partitions are never serialized and successful proofs alone enter it.
 pub struct UnitAnalysis<'a> {
-    store: &'a UnitStore,
+    store: StoreOwner<'a>,
+    dependencies: Vec<Rc<UnitAnalysis<'static>>>,
     proofs: Proofs,
     // Immutable derived values; policy-specific proof success is stored above.
     native_widths: RefCell<BTreeMap<FunctionId, bool>>,
@@ -216,7 +235,29 @@ pub struct UnitAnalysis<'a> {
     sources: derived::Sources,
 }
 
+enum StoreOwner<'a> {
+    Borrowed(&'a UnitStore),
+    Shared(Arc<UnitStore>),
+}
+
+impl Deref for StoreOwner<'_> {
+    type Target = UnitStore;
+    fn deref(&self) -> &UnitStore {
+        match self {
+            Self::Borrowed(store) => store,
+            Self::Shared(store) => store,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ExternalTarget {
+    dependency: usize,
+    function: FunctionId,
+}
+
 trait Resolver {
+    fn dependencies(&self) -> &[Rc<UnitAnalysis<'static>>];
     fn tables(&self) -> Tables<'_>;
     fn derived(&self) -> &[derived::Derived];
     fn sources(&self) -> &derived::Sources;
@@ -231,6 +272,7 @@ struct Tables<'a> {
     graphs: &'a [Pair],
     links: &'a [BTreeMap<Site, FunctionId>],
     certified: &'a [Option<HelperId>],
+    external_links: &'a [BTreeMap<Site, ExternalTarget>],
 }
 
 pub struct FunctionView<'a> {
@@ -246,6 +288,7 @@ impl Deref for FunctionView<'_> {
 }
 
 pub struct HelperView<'a> {
+    foreign: bool,
     resolver: &'a dyn Resolver,
     id: HelperId,
 }
@@ -313,23 +356,52 @@ impl EvidenceFacts for FunctionView<'_> {
 
     fn helper(&self, node: &HirNode) -> Result<Option<HelperView<'_>>, String> {
         let tables = self.resolver.tables();
-        let target = tables.links[self.id.0 as usize]
-            .get(&site(node))
-            .ok_or_else(|| {
-                format!(
-                    "Missing resolved unit helper link for {} at {:?} in {}",
-                    node.snippet,
-                    site(node),
-                    self.facts().name
-                )
-            })?;
-        let id = tables.certified[target.0 as usize]
-            .ok_or("Unit helper is unsupported, recursive or not yet certified")?;
-        Ok(Some(HelperView {
-            resolver: self.resolver,
-            id,
-        }))
+        if let Some(target) = tables.links[self.id.0 as usize].get(&site(node)) {
+            let id = tables.certified[target.0 as usize]
+                .ok_or("Unit helper is unsupported, recursive or not yet certified")?;
+            return Ok(Some(HelperView {
+                resolver: self.resolver,
+                id,
+                foreign: false,
+            }));
+        }
+        self.foreign(node).map(Some)
     }
+
+    fn external_helper(&self, node: &HirNode, callee: &dyn EvidenceFacts) -> Result<bool, String> {
+        let helper = self.foreign(node)?;
+        Ok(std::ptr::eq(helper.frontend().facts(), callee.facts()))
+    }
+}
+
+impl FunctionView<'_> {
+    fn foreign(&self, node: &HirNode) -> Result<HelperView<'_>, String> {
+        let tables = self.resolver.tables();
+        let target = tables.external_links[self.id.0 as usize]
+            .get(&site(node))
+            .ok_or("Missing checked external helper association")?;
+
+        let dependency = self
+            .resolver
+            .dependencies()
+            .get(target.dependency)
+            .ok_or("Missing external helper owner")?;
+        let id = dependency.store.certified[target.function.0 as usize]
+            .ok_or("External helper is unsupported or not certified")?;
+        Ok(HelperView {
+            resolver: dependency.as_ref(),
+            id,
+            foreign: true,
+        })
+    }
+}
+
+#[derive(Serialize)]
+struct HelperReference<'a> {
+    identity: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    namespace: Option<&'a UnitNamespace>,
+    helper: HelperId,
 }
 
 impl HelperView<'_> {
@@ -353,7 +425,16 @@ impl HelperView<'_> {
     }
 
     pub(crate) fn reference(&self) -> serde_json::Value {
-        serde_json::json!({"identity": "rstyle.helper.unit-reference/1", "helper": self.id})
+        let reference = HelperReference {
+            identity: if self.foreign {
+                "rstyle.helper.external-reference/1"
+            } else {
+                "rstyle.helper.unit-reference/1"
+            },
+            namespace: self.foreign.then(|| self.resolver.namespace()),
+            helper: self.id,
+        };
+        serde_json::to_value(reference).expect("serialize owner-backed helper reference")
     }
 
     fn record(&self) -> &HelperRecord {
@@ -439,11 +520,57 @@ impl UnitStore {
     }
 
     pub fn analysis(&self) -> UnitAnalysis<'_> {
-        UnitAnalysis {
-            store: self,
+        UnitAnalysis::new(StoreOwner::Borrowed(self))
+    }
+}
+
+type AnalysisOwners = BTreeMap<usize, Rc<UnitAnalysis<'static>>>;
+
+fn dependency_analyses(stores: &[Arc<UnitStore>]) -> Vec<Rc<UnitAnalysis<'static>>> {
+    let mut owners = AnalysisOwners::new();
+    stores
+        .iter()
+        .map(|store| shared_analysis(store, &mut owners))
+        .collect()
+}
+
+fn shared_analysis(
+    store: &Arc<UnitStore>,
+    owners: &mut AnalysisOwners,
+) -> Rc<UnitAnalysis<'static>> {
+    let key = Arc::as_ptr(store) as usize;
+    if let Some(analysis) = owners.get(&key) {
+        return Rc::clone(analysis);
+    }
+
+    let dependencies = store
+        .dependencies
+        .iter()
+        .map(|store| shared_analysis(store, owners))
+        .collect();
+    let analysis = Rc::new(UnitAnalysis {
+        store: StoreOwner::Shared(Arc::clone(store)),
+        dependencies,
+        proofs: RefCell::default(),
+        native_widths: RefCell::default(),
+        derived: derived::contexts(store.functions.len()),
+        sources: derived::Sources::default(),
+    });
+
+    owners.insert(key, Rc::clone(&analysis));
+    analysis
+}
+
+impl<'a> UnitAnalysis<'a> {
+    fn new(store: StoreOwner<'a>) -> Self {
+        let dependencies = dependency_analyses(&store.dependencies);
+        let derived = derived::contexts(store.functions.len());
+        Self {
+            store,
+            dependencies,
             proofs: RefCell::default(),
             native_widths: RefCell::default(),
-            derived: derived::contexts(self.functions.len()),
+            derived,
             sources: derived::Sources::default(),
         }
     }
@@ -466,6 +593,9 @@ impl UnitAnalysis<'_> {
 }
 
 impl Resolver for UnitAnalysis<'_> {
+    fn dependencies(&self) -> &[Rc<UnitAnalysis<'static>>] {
+        &self.dependencies
+    }
     fn sources(&self) -> &derived::Sources {
         &self.sources
     }
@@ -494,12 +624,14 @@ impl UnitStore {
             graphs: &self.graphs,
             links: &self.links,
             certified: &self.certified,
+            external_links: &self.external_links,
         }
     }
 }
 
 struct Builder {
     store: UnitStore,
+    dependencies: Vec<Rc<UnitAnalysis<'static>>>,
     pending: Vec<FunctionId>,
     proofs: Proofs,
     native_widths: RefCell<BTreeMap<FunctionId, bool>>,
@@ -508,6 +640,9 @@ struct Builder {
 }
 
 impl Resolver for Builder {
+    fn dependencies(&self) -> &[Rc<UnitAnalysis<'static>>] {
+        &self.dependencies
+    }
     fn sources(&self) -> &derived::Sources {
         &self.sources
     }
@@ -553,7 +688,10 @@ impl Builder {
                 roots,
                 links,
                 certified,
+                dependencies: Vec::new(),
+                external_links: vec![BTreeMap::new(); pending.len()],
             },
+            dependencies: Vec::new(),
             pending,
             proofs: RefCell::default(),
             native_widths: RefCell::default(),
@@ -625,7 +763,7 @@ impl Builder {
     }
 
     fn depth(&self, function: FunctionId) -> Result<u32, String> {
-        let depth = self.store.links[function.0 as usize]
+        let mut depth = self.store.links[function.0 as usize]
             .values()
             .map(|target| {
                 self.store.certified[target.0 as usize]
@@ -634,6 +772,12 @@ impl Builder {
             })
             .max()
             .unwrap_or(0);
+        for target in self.store.external_links[function.0 as usize].values() {
+            let owner = &self.store.dependencies[target.dependency];
+            if let Some(helper) = owner.certified[target.function.0 as usize] {
+                depth = depth.max(owner.helpers[helper.0 as usize].depth + 1);
+            }
+        }
         if depth as usize > crate::helper_calls::MAX_DEPTH {
             return Err("Helper dependencies exceed explicit depth budget 8".into());
         }
@@ -731,6 +875,7 @@ mod tests {
         let analysis = store.analysis();
         // Cache mechanics do not resolve this synthetic handle into a record.
         let helper = HelperView {
+            foreign: false,
             resolver: &analysis,
             id: HelperId(0),
         };
@@ -741,6 +886,7 @@ mod tests {
         assert!(helper.verified());
         let independent = store.analysis();
         let independent_helper = HelperView {
+            foreign: false,
             resolver: &independent,
             id: HelperId(0),
         };
@@ -755,6 +901,7 @@ mod tests {
         let store = UnitStore::capture(Vec::new()).unwrap();
         let analysis = store.analysis();
         let helper = HelperView {
+            foreign: false,
             resolver: &analysis,
             id: HelperId(0),
         };

@@ -219,6 +219,10 @@ fn fieldless_enum_support_retains_signed_values_and_closed_declaration_boundarie
         pub fn negative() -> Signed { Signed::Negative }
         #[repr(u8)] #[derive(Clone, Copy)] pub enum Repr { A, B }
         pub fn custom_repr(value: Repr) -> u8 { value as u8 }
+        #[repr(u16)] #[derive(Clone, Copy)] pub enum WideRepr { A, B }
+        pub fn wide_repr(value: WideRepr) -> u8 { value as u8 }
+        #[repr(C)] #[derive(Clone, Copy)] pub enum CRepr { A, B }
+        pub fn c_repr(value: CRepr) -> u8 { value as u8 }
         #[derive(Clone, Copy)] pub enum Conditional { #[cfg(any())] A, B }
         pub fn conditional(value: Conditional) -> u8 { value as u8 }
         const MASK: isize = 1;
@@ -236,8 +240,8 @@ fn fieldless_enum_support_retains_signed_values_and_closed_declaration_boundarie
     assert!(output.status.success());
     for function in report["functions"].as_array().unwrap() {
         let name = function["facts"]["name"].as_str().unwrap();
-        let expected = matches!(name, "signed" | "unsigned" | "negative");
-        if name == "negative" {
+        let expected = matches!(name, "signed" | "unsigned" | "negative" | "custom_repr");
+        if matches!(name, "negative" | "custom_repr") {
             let (unit, index) = data_unit(function);
             let analysis = unit.analysis();
             reject_previous_policy(

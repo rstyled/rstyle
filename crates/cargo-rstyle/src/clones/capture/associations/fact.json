@@ -1,0 +1,109 @@
+{
+  "name": "block::f",
+  "fn_span": {
+    "start": 0,
+    "end": 8
+  },
+  "source": {
+    "bytes": "fn f(){}",
+    "digest": "sha256:745dc9de7f246558ed0a895be0ee8787449f8277794db9c3511868b7d63259e2"
+  },
+  "signature": {
+    "sig_span": {
+      "start": 0,
+      "end": 6
+    },
+    "params": [],
+    "receiver": null,
+    "return_ty": {
+      "observed": "()",
+      "normalized": "unit",
+      "spelling": "()"
+    },
+    "return_ty_span": {
+      "start": 6,
+      "end": 6
+    },
+    "has_self": false,
+    "abi": {
+      "status": "known",
+      "value": "Rust"
+    },
+    "generics": [],
+    "is_variadic": false,
+    "is_async": false,
+    "is_unsafe": false,
+    "is_const": false
+  },
+  "bindings": [],
+  "body": {
+    "hir": {
+      "krate": 0,
+      "owner": 0,
+      "local": 0
+    },
+    "kind": "expr_block",
+    "span": {
+      "start": 6,
+      "end": 8
+    },
+    "snippet": "{}",
+    "children": [],
+    "res": null
+  },
+  "build": {
+    "frontend_options": {},
+    "producer_revision": {
+      "status": "known",
+      "value": "c6054f97a7e1b27519e42c74dd1d5319b38a7081+dirty"
+    },
+    "rustc_version": {
+      "status": "known",
+      "value": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)"
+    },
+    "rustc_commit": {
+      "status": "known",
+      "value": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
+    },
+    "edition": {
+      "status": "known",
+      "value": "2021"
+    },
+    "target_triple": {
+      "status": "known",
+      "value": "aarch64-unknown-linux-gnu"
+    },
+    "pointer_width": {
+      "status": "known",
+      "value": 64,
+      "policy": {
+        "id": "compat.rust.hir-r0",
+        "version": "0.1.0"
+      }
+    },
+    "data_layout": {
+      "status": "known",
+      "value": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"
+    },
+    "cfgs": [],
+    "features": [],
+    "overflow_checks": {
+      "status": "known",
+      "value": true
+    },
+    "debug_assertions": {
+      "status": "known",
+      "value": true
+    },
+    "panic_strategy": {
+      "status": "known",
+      "value": "unwind"
+    },
+    "opt_level": {
+      "status": "known",
+      "value": "No"
+    }
+  },
+  "source_diagnostics": [],
+  "source_scan_complete": false
+}

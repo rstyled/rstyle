@@ -1,5 +1,6 @@
 //! Observe complete fieldless enums; source validation independently checks values.
 use super::*;
+mod explicit_u8;
 
 impl<'tcx> Capture<'_, 'tcx> {
     pub(super) fn fieldless_enum(
@@ -18,8 +19,10 @@ impl<'tcx> Capture<'_, 'tcx> {
         }
 
         let source = self.declaration(definition.did())?;
-        let variants = rstyle_pdg::concrete_types::fieldless_variants(&source)
-            .map_err(Failure::Unsupported)?;
+        let variants = match rstyle_pdg::concrete_types::fieldless_variants(&source) {
+            Ok(variants) => variants,
+            Err(error) => explicit_u8::observe(self.ctx, definition, &source, error)?,
+        };
         if variants.len() != definition.variants().len() {
             return Err(unsupported("Fieldless enum inventory disagrees"));
         }

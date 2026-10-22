@@ -1,4 +1,5 @@
 //! Explicit dependency capture preserves unit boundaries without granting call trust.
+mod replay;
 use super::*;
 
 fn workspace() -> TempDir {
@@ -120,7 +121,7 @@ fn contexts(captured: &Value, directory: &Path) {
 }
 
 #[test]
-fn explicit_dependency_capture_keeps_features_and_external_calls_separate() {
+fn explicit_dependency_capture_links_only_checked_scalar_calls() {
     let directory = workspace();
     let (output, baseline) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(
@@ -142,17 +143,29 @@ fn explicit_dependency_capture_keeps_features_and_external_calls_separate() {
     );
     assert!(
         output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stderr),
+        captured["handoff_failures"]
     );
     inventory(&captured, 1, 2);
     assert_eq!(captured["functions"].as_array().unwrap().len(), 3);
     assert_eq!(named(&captured, "selected_value")["outcome"], "admitted");
     assert_eq!(named(&captured, "local")["outcome"], "admitted");
-    assert_eq!(named(&captured, "caller")["outcome"], "excluded");
+    assert_eq!(
+        named(&captured, "caller")["outcome"],
+        "admitted",
+        "{}",
+        named(&captured, "caller")
+    );
     assert_eq!(named(&baseline, "caller")["outcome"], "excluded");
+    replay_units(&baseline);
     contexts(&captured, directory.path());
-    replay_units(&captured);
+    let (raw, index) = data_unit(named(&captured, "caller"));
+    assert!(
+        raw.pair(index).is_none(),
+        "bare unit must not authorize foreign calls"
+    );
+    replay::check(directory.path(), &captured);
 }
 
 #[test]

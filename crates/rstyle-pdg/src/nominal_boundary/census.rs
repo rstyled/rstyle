@@ -6,6 +6,7 @@ pub mod documentation;
 pub mod expansions;
 pub mod external_imports;
 mod macro_scope;
+pub(crate) mod module_lints;
 mod module_proof;
 pub(crate) mod policy;
 #[cfg(test)]
@@ -66,6 +67,26 @@ pub(crate) fn verify_selected(census: &Census, cfgs: &[String]) -> Result<Vec<Mo
     verify_mode(census, true, Some(cfgs), InputMode::default())
 }
 
+/// Callers must independently check the registered capability before selecting
+/// this source grammar. Historical constructors retain their original policy.
+pub(crate) fn verify_with_module_lints(
+    census: &Census,
+    cfgs: &[String],
+    expansions: bool,
+) -> Result<Vec<Module>, String> {
+    verify_mode(
+        census,
+        true,
+        Some(cfgs),
+        InputMode {
+            expansions,
+            documentation: !census.documentation.is_empty(),
+            external_imports: !census.external_imports.is_empty(),
+            module_lints: true,
+        },
+    )
+}
+
 pub(crate) fn verify_expanded(census: &Census, cfgs: &[String]) -> Result<Vec<Module>, String> {
     verify_mode(
         census,
@@ -75,6 +96,7 @@ pub(crate) fn verify_expanded(census: &Census, cfgs: &[String]) -> Result<Vec<Mo
             expansions: true,
             documentation: false,
             external_imports: false,
+            module_lints: false,
         },
     )
 }
@@ -92,6 +114,7 @@ pub(crate) fn verify_documented(
             expansions,
             documentation: true,
             external_imports: false,
+            module_lints: false,
         },
     )
 }
@@ -109,6 +132,7 @@ pub(crate) fn verify_imported(
             expansions,
             documentation: !census.documentation.is_empty(),
             external_imports: true,
+            module_lints: false,
         },
     )
 }
@@ -118,6 +142,7 @@ struct InputMode {
     expansions: bool,
     documentation: bool,
     external_imports: bool,
+    module_lints: bool,
 }
 
 impl InputMode {
@@ -160,6 +185,7 @@ fn verify_mode(
         visited: inputs,
         modules: Vec::new(),
         constants,
+        module_lints: mode.module_lints,
         selected: cfgs.map(crate::conditional_source::Configuration::new),
         expansions: expansions.then_some(census.expansions.as_slice()),
         used_expansions: BTreeSet::new(),
@@ -263,6 +289,7 @@ struct Closure<'a> {
     modules: Vec<Module>,
     constants: bool,
     selected: Option<crate::conditional_source::Configuration<'a>>,
+    module_lints: bool,
     expansions: Option<&'a [expansions::ModuleExpansion]>,
     used_expansions: BTreeSet<usize>,
     external_imports: Option<&'a [external_imports::Import]>,
@@ -304,7 +331,7 @@ impl Closure<'_> {
         let source = source.strip_prefix('\u{feff}').unwrap_or(source);
         let file = syn::parse_file(source).map_err(|e| e.to_string())?;
         if let Some(configuration) = &self.selected {
-            selected_attributes(configuration, &file.attrs, true)?;
+            selected_attributes(configuration, &file.attrs, true, self.module_lints)?;
         } else {
             boundary_attributes(&file.attrs)?;
         }
@@ -389,7 +416,7 @@ impl Closure<'_> {
             return Err("Unsafe module ownership is unsupported".into());
         }
         if let Some(configuration) = &self.selected {
-            selected_attributes(configuration, &module.attrs, false)?;
+            selected_attributes(configuration, &module.attrs, false, self.module_lints)?;
         } else if !module.attrs.is_empty() {
             return Err("Module attributes require resolved presence/path evidence".into());
         }
@@ -505,6 +532,7 @@ fn selected_attributes(
     configuration: &crate::conditional_source::Configuration<'_>,
     attributes: &[syn::Attribute],
     root: bool,
+    module_lints: bool,
 ) -> Result<(), String> {
     if !configuration.active(attributes)? {
         return Err("Inactive module cannot own selected source".into());
@@ -516,6 +544,7 @@ fn selected_attributes(
             .any(|name| path.is_ident(name))
             && !(root && path.is_ident("no_std"))
             && !(!root && matches!(&attribute, syn::Meta::Path(path) if path.is_ident("macro_use")))
+            && !(module_lints && module_lints::deprecated_expect(&attribute))
         {
             return Err("Selected module attribute lacks supported presence/path semantics".into());
         }

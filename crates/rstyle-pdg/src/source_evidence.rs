@@ -1,5 +1,7 @@
 //! Independent original-source inventory checks; graph extraction remains HIR-only.
 
+mod attributes;
+pub(crate) use attributes::single_identifier_attribute;
 mod variant_paths;
 pub(crate) use variant_paths::qualified_variant;
 

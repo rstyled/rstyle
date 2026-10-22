@@ -1,9 +1,22 @@
 //! Source-derived values for complete default-representation fieldless enums.
 use super::*;
+mod explicit_u8;
+pub use explicit_u8::{
+    CAPABILITY as EXPLICIT_U8_CAPABILITY, declaration as explicit_u8_fieldless_declaration,
+    observation as explicit_u8_fieldless_variants, repr_u8 as explicit_u8_repr,
+    variant_expect as explicit_u8_variant_expect,
+};
 
 pub fn fieldless_variants(source: &str) -> Result<Vec<(String, i64)>, String> {
+    parse_with(source, variants)
+}
+
+fn parse_with(
+    source: &str,
+    check: impl FnOnce(&syn::ItemEnum, usize) -> Result<Vec<(String, i64)>, String>,
+) -> Result<Vec<(String, i64)>, String> {
     let item: syn::ItemEnum = syn::parse_str(source).map_err(|error| error.to_string())?;
-    variants(&item, source.len())
+    check(&item, source.len())
 }
 
 fn variants(item: &syn::ItemEnum, source_len: usize) -> Result<Vec<(String, i64)>, String> {
@@ -100,6 +113,7 @@ pub(super) fn check(
     variants: &[(String, i64)],
 ) -> Result<(), String> {
     check_identity(nominal, source)?;
+
     let item: syn::ItemEnum = syn::parse_str(source).map_err(|error| error.to_string())?;
     if nominal.definition_path.rsplit("::").next() != Some(item.ident.to_string().as_str())
         || self::variants(&item, source.len())? != variants
@@ -107,6 +121,27 @@ pub(super) fn check(
         return Err("Fieldless enum source, identity or discriminants disagree".into());
     }
 
+    Ok(())
+}
+
+/// Extended shape validation only. Admission must separately gate the profile
+/// and prove the complete lexical declaration, including omitted outer attrs.
+pub(super) fn check_with_explicit_u8(
+    nominal: &Nominal,
+    source: &crate::SourceText,
+    variants: &[(String, i64)],
+) -> Result<(), String> {
+    if check(nominal, source, variants).is_ok() {
+        return Ok(());
+    }
+    check_identity(nominal, source)?;
+
+    let item: syn::ItemEnum = syn::parse_str(source).map_err(|error| error.to_string())?;
+    if nominal.definition_path.rsplit("::").next() != Some(item.ident.to_string().as_str())
+        || explicit_u8::observation(source)? != variants
+    {
+        return Err("Explicit u8 fieldless source, identity or values disagree".into());
+    }
     Ok(())
 }
 

@@ -3,11 +3,15 @@ use super::*;
 use crate::declaration_origins::Origins;
 mod borrowed;
 mod core_imports;
+mod enum_globs;
 mod imports;
 pub(super) use imports::glob_excludes;
 #[cfg(test)]
+mod explicit_u8_attacks;
+#[cfg(test)]
 mod function_cleanup_tests;
 pub(super) mod local_traits;
+mod metadata;
 mod no_drop;
 pub(super) mod passive;
 mod scalar_leaf;
@@ -101,7 +105,10 @@ impl DeclarationChecker<'_> {
 
         match item {
             syn::Item::Struct(item) => structure(self.facts, item, copy)?,
-            syn::Item::Enum(item) => scalar_enum(self.facts, item)?,
+            syn::Item::Enum(item) => {
+                explicit_u8_owner(self.facts, item, tree)?;
+                scalar_enum(self.facts, item)?;
+            }
             _ => unreachable!(),
         }
         Ok(CheckedDeclaration {
@@ -261,9 +268,29 @@ fn structure(facts: &HirFnFacts, item: &syn::ItemStruct, copy: bool) -> Result<(
 }
 
 fn scalar_enum(facts: &HirFnFacts, item: &syn::ItemEnum) -> Result<(), String> {
-    nominal_attributes(facts, &item.generics, &item.attrs, AttributeOwner::Enum)?;
+    let explicit = supports(facts, concrete_types::EXPLICIT_U8_CAPABILITY)?
+        && item
+            .attrs
+            .iter()
+            .any(|attr| concrete_types::explicit_u8_repr(&attr.meta));
+    if explicit {
+        concrete_types::explicit_u8_fieldless_declaration(item)?;
+    }
+
+    nominal_attributes(
+        facts,
+        &item.generics,
+        &item.attrs,
+        AttributeOwner::Enum {
+            explicit_u8: explicit,
+        },
+    )?;
     for variant in &item.variants {
-        function_attributes(facts, &variant.attrs)?;
+        for attribute in &variant.attrs {
+            if !(explicit && concrete_types::explicit_u8_variant_expect(&attribute.meta)) {
+                function_attributes(facts, std::slice::from_ref(attribute))?;
+            }
+        }
         for field in &variant.fields {
             function_attributes(facts, &field.attrs)?;
         }
@@ -271,9 +298,33 @@ fn scalar_enum(facts: &HirFnFacts, item: &syn::ItemEnum) -> Result<(), String> {
     Ok(())
 }
 
+fn explicit_u8_owner(
+    facts: &HirFnFacts,
+    item: &syn::ItemEnum,
+    tree: &TypeTree,
+) -> Result<(), String> {
+    let TypeTree::FieldlessEnum {
+        source, variants, ..
+    } = tree
+    else {
+        return Ok(());
+    };
+    if concrete_types::fieldless_variants(source).is_ok()
+        && !item.attrs.iter().any(|attr| attr.path().is_ident("repr"))
+    {
+        return Ok(());
+    }
+    if !supports(facts, concrete_types::EXPLICIT_U8_CAPABILITY)?
+        || concrete_types::explicit_u8_fieldless_declaration(item)? != *variants
+    {
+        return Err("Fieldless enum lacks exact complete explicit u8 source proof".into());
+    }
+    Ok(())
+}
+
 enum AttributeOwner {
     Struct { transparent: bool },
-    Enum,
+    Enum { explicit_u8: bool },
 }
 
 fn nominal_attributes(
@@ -301,7 +352,12 @@ fn nominal_attributes(
         {
             continue;
         }
-        if matches!(owner, AttributeOwner::Enum)
+        if matches!(owner, AttributeOwner::Enum { explicit_u8: true })
+            && concrete_types::explicit_u8_repr(&attribute)
+        {
+            continue;
+        }
+        if matches!(owner, AttributeOwner::Enum { .. })
             && supports(facts, crate::borrowed_result_types::CAPABILITY)?
             && non_exhaustive_attribute(&attribute)
         {
@@ -325,6 +381,11 @@ pub(super) fn function_attributes(
         return Err("Selected source item is inactive".into());
     }
     for attribute in configuration.effective_attributes(attributes)? {
+        if supports(facts, concrete_types::EXPLICIT_U8_CAPABILITY)?
+            && metadata::deprecated(&attribute)
+        {
+            continue;
+        }
         if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
             .supports("rust.scalar-from-conversions")
             && inline_attribute(&attribute)
@@ -406,6 +467,28 @@ pub(super) fn module_item_with_imports(
     module_item_in(item, configuration, true)
 }
 
+pub(super) fn module_item_for(
+    facts: &HirFnFacts,
+    item: &syn::Item,
+    owner: &census::Module,
+    configuration: &crate::conditional_source::Configuration<'_>,
+) -> Result<(), String> {
+    if !supports(facts, concrete_types::EXPLICIT_U8_CAPABILITY)?
+        || matches!(item, syn::Item::ExternCrate(_))
+    {
+        return module_item_with_imports(item, owner, configuration);
+    }
+    module_item_policy_for(
+        item,
+        configuration,
+        ItemPolicy {
+            macro_imports: true,
+            test_marker: false,
+            deprecated_expect: true,
+        },
+    )
+}
+
 pub(super) fn module_item_in(
     item: &syn::Item,
     configuration: &crate::conditional_source::Configuration<'_>,
@@ -419,6 +502,28 @@ fn module_item_policy(
     configuration: &crate::conditional_source::Configuration<'_>,
     macro_imports: bool,
     test_marker: bool,
+) -> Result<(), String> {
+    module_item_policy_for(
+        item,
+        configuration,
+        ItemPolicy {
+            macro_imports,
+            test_marker,
+            deprecated_expect: false,
+        },
+    )
+}
+
+struct ItemPolicy {
+    macro_imports: bool,
+    test_marker: bool,
+    deprecated_expect: bool,
+}
+
+fn module_item_policy_for(
+    item: &syn::Item,
+    configuration: &crate::conditional_source::Configuration<'_>,
+    policy: ItemPolicy,
 ) -> Result<(), String> {
     if let syn::Item::Type(item) = item
         && concrete_types::scalar(&item.ident.to_string())
@@ -437,34 +542,45 @@ fn module_item_policy(
     for attribute in
         configuration.effective_attributes(crate::conditional_source::item_attributes(item))?
     {
-        if attribute.path().is_ident("derive") {
-            derive(&attribute)?;
-        } else if macro_imports
-            && matches!(item, syn::Item::Mod(_))
-            && matches!(&attribute, syn::Meta::Path(path) if path.is_ident("macro_use"))
-        {
-            // Imports macro names from an independently closed source module.
-            // Actual invocations and shadowing definitions remain checked.
-        } else if test_marker
-            && matches!(item, syn::Item::Fn(_))
-            && matches!(&attribute, syn::Meta::Path(path) if path.is_ident("test"))
-        {
-            // Export-name proof only; the newcap cleanup visitor independently
-            // verifies builtin authority and visits the entire original body.
-        } else if ![
-            "non_exhaustive",
-            "repr",
-            "inline",
-            "cold",
-            "must_use",
-            "deprecated",
-            "automatically_derived",
-        ]
-        .iter()
-        .any(|name| attribute.path().is_ident(name))
-        {
-            ordinary(&attribute)?;
-        }
+        module_attribute(item, &attribute, &policy)?;
+    }
+    Ok(())
+}
+
+fn module_attribute(
+    item: &syn::Item,
+    attribute: &syn::Meta,
+    policy: &ItemPolicy,
+) -> Result<(), String> {
+    if attribute.path().is_ident("derive") {
+        derive(attribute)?;
+    } else if policy.deprecated_expect && census::module_lints::deprecated_expect(attribute) {
+        // Exact lint-only metadata changes no source, export or effects.
+    } else if policy.macro_imports
+        && matches!(item, syn::Item::Mod(_))
+        && matches!(attribute, syn::Meta::Path(path) if path.is_ident("macro_use"))
+    {
+        // Imports macro names from an independently closed source module.
+        // Actual invocations and shadowing definitions remain checked.
+    } else if policy.test_marker
+        && matches!(item, syn::Item::Fn(_))
+        && matches!(attribute, syn::Meta::Path(path) if path.is_ident("test"))
+    {
+        // Export-name proof only; the newcap cleanup visitor independently
+        // verifies builtin authority and visits the entire original body.
+    } else if ![
+        "non_exhaustive",
+        "repr",
+        "inline",
+        "cold",
+        "must_use",
+        "deprecated",
+        "automatically_derived",
+    ]
+    .iter()
+    .any(|name| attribute.path().is_ident(name))
+    {
+        ordinary(attribute)?;
     }
     Ok(())
 }

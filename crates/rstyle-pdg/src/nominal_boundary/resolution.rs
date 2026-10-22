@@ -18,7 +18,8 @@ mod primitive_constants;
 mod range_from;
 mod scalar_aliases;
 mod selected;
-pub(crate) use environment::Environment;
+pub(crate) use environment::{Environment, SourceOptions};
+mod import_chains;
 use syn::spanned::Spanned;
 
 type Namespace = Vec<String>;
@@ -50,6 +51,7 @@ pub struct Resolution {
     no_drop_trees: std::collections::BTreeSet<Namespace>,
     array_views: bool,
     scalar_aliases: bool,
+    local_import_chains: bool,
     passive_copy_dependencies: bool,
 }
 
@@ -281,11 +283,14 @@ pub(crate) fn verify_source_inputs(facts: &HirFnFacts) -> Result<(), String> {
 fn standalone_environment(facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
     crate::nominal_boundary::census::policy::authority(facts)?;
     let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
-    Environment::with_options(
+    Environment::with_source_options(
         Arc::clone(&census),
-        constant_context(facts)?,
-        selected_cfgs(facts)?,
-        supports(facts, "rust.cfg-if-module-ownership")?,
+        SourceOptions {
+            constants: constant_context(facts)?,
+            cfgs: selected_cfgs(facts)?,
+            expansions: supports(facts, "rust.cfg-if-module-ownership")?,
+            module_lints: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,
+        },
     )
     .map(Rc::new)
 }
@@ -321,6 +326,7 @@ pub(crate) fn verify_in(
         passive_copy_dependencies: false,
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
+        local_import_chains: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,
         environment: Rc::clone(&environment),
     };
 
@@ -1074,6 +1080,9 @@ impl Scoped<'_> {
             names = imported;
         } else {
             names = anchored(names, self.namespace, false)?;
+        }
+        if self.resolution.local_import_chains {
+            return import_chains::resolve(names, &self.resolution.environment.index);
         }
         if !self
             .resolution

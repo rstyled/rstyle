@@ -7,7 +7,7 @@ use crate::{
     inherent_calls::Definition,
     nominal_boundary::{
         census::Census,
-        resolution::{Environment, Resolution, ResolutionView},
+        resolution::{Environment, Resolution, ResolutionView, SourceOptions as SourcePolicy},
     },
 };
 use std::{borrow::Cow, cell::OnceCell, rc::Rc, sync::Arc};
@@ -51,14 +51,9 @@ struct SourceContext {
     census: Arc<Census>,
     constants: bool,
     expansions: bool,
+    module_lints: bool,
     cfgs: Option<Vec<String>>,
     checked: Checked<Result<Rc<Environment>, String>>,
-}
-
-struct SourcePolicy<'a> {
-    constants: bool,
-    cfgs: Option<&'a [String]>,
-    expansions: bool,
 }
 
 impl Sources {
@@ -74,6 +69,10 @@ impl Sources {
                     facts,
                     "rust.cfg-if-module-ownership",
                 ),
+                module_lints: crate::extraction_profile::facts_support(
+                    facts,
+                    crate::concrete_types::EXPLICIT_U8_CAPABILITY,
+                ),
             },
         )
     }
@@ -87,12 +86,14 @@ impl Sources {
             constants,
             cfgs,
             expansions,
+            module_lints,
         } = policy;
         let mut contexts = self.0.borrow_mut();
         let index = if let Some(index) = contexts.iter().position(|context| {
             Arc::ptr_eq(&context.census, census)
                 && context.constants == constants
                 && context.expansions == expansions
+                && context.module_lints == module_lints
                 && context.cfgs.as_deref() == cfgs
         }) {
             index
@@ -101,6 +102,7 @@ impl Sources {
                 census: Arc::clone(census),
                 constants,
                 expansions,
+                module_lints,
                 cfgs: cfgs.map(<[String]>::to_vec),
                 checked: Checked::default(),
             });
@@ -109,10 +111,16 @@ impl Sources {
         contexts[index]
             .checked
             .get(|| {
-                Ok(
-                    Environment::with_options(Arc::clone(census), constants, cfgs, expansions)
-                        .map(Rc::new),
+                Ok(Environment::with_source_options(
+                    Arc::clone(census),
+                    SourcePolicy {
+                        constants,
+                        cfgs,
+                        expansions,
+                        module_lints,
+                    },
                 )
+                .map(Rc::new))
             })?
             .as_ref()
             .map(Rc::clone)
@@ -237,6 +245,7 @@ mod tests {
             constants,
             cfgs: None,
             expansions: false,
+            module_lints: false,
         }
     }
 
@@ -255,6 +264,16 @@ mod tests {
             )
             .unwrap();
         assert!(!Rc::ptr_eq(&ordinary, &expanded));
+        let linted = sources
+            .for_census(
+                &census,
+                SourcePolicy {
+                    module_lints: true,
+                    ..policy(false)
+                },
+            )
+            .unwrap();
+        assert!(!Rc::ptr_eq(&ordinary, &linted));
     }
 
     #[test]

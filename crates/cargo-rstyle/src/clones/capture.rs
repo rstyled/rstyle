@@ -1,6 +1,7 @@
 //! Isolated Cargo compilation and an explicit compiler-unit ledger.
+pub(super) mod associations;
 mod dependencies;
-mod ledger;
+pub(super) mod ledger;
 
 use super::{Args, read_json, write_json};
 use crate::{Cli, run};
@@ -546,7 +547,7 @@ fn matches_artifact(artifact: &Value, target: &Target) -> bool {
         && artifact["target"]["name"] == target.name
 }
 
-fn check_expected(capture: &mut Capture) {
+pub(in crate::clones) fn check_expected(capture: &mut Capture) {
     for target in &capture.plan.targets {
         let expected = capture
             .plan

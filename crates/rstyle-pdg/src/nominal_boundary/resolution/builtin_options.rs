@@ -81,7 +81,7 @@ impl Environment {
             .filter(|module| module.path.to_string_lossy() == file)
         {
             for blocks in owners(self, module, facts, &configuration)? {
-                self.check_ancestors(&module.namespace, &configuration)?;
+                self.check_ancestors(facts, &module.namespace, &configuration)?;
                 verify(&Scope {
                     environment: self,
                     module,
@@ -100,6 +100,7 @@ impl Environment {
 
     fn check_ancestors(
         &self,
+        facts: &HirFnFacts,
         namespace: &[String],
         configuration: &crate::conditional_source::Configuration<'_>,
     ) -> Result<(), String> {
@@ -109,7 +110,7 @@ impl Environment {
             .filter(|module| namespace.starts_with(&module.namespace))
         {
             for item in &module.items {
-                selected::module_item_with_imports(item, module, configuration)?;
+                selected::module_item_for(facts, item, module, configuration)?;
             }
         }
         Ok(())

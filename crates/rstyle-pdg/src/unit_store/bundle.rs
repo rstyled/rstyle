@@ -82,6 +82,9 @@ impl Import {
 impl UnitStore {
     /// Stream shared records directly; no frontend/proof trees are expanded.
     pub fn write_bundle(&self, writer: impl Write) -> Result<(), String> {
+        if !self.dependencies.is_empty() {
+            return Err("Dependency closure requires separate owning bundle replay".into());
+        }
         let sources = function_sources::encode(&self.functions)?;
         let export = Export {
             schema: BUNDLE_SCHEMA,
@@ -167,6 +170,7 @@ impl UnitStore {
 
         for index in 0..self.helpers.len() {
             let helper = HelperView {
+                foreign: false,
                 resolver: &analysis,
                 id: local_id(index, HelperId)?,
             };
@@ -229,6 +233,7 @@ impl Decoded {
         }
         u32::try_from(self.wire.helpers.len()).map_err(|_| "Oversized helper table")?;
         u32::try_from(self.wire.graphs.len()).map_err(|_| "Oversized graph table")?;
+        let function_count = store.functions.len();
         let mut store = UnitStore {
             namespace: store.namespace,
             functions: store.functions,
@@ -237,6 +242,8 @@ impl Decoded {
             roots: self.wire.roots,
             helpers: self.wire.helpers,
             certified: self.wire.certified,
+            dependencies: Vec::new(),
+            external_links: vec![BTreeMap::new(); function_count],
         };
         store.validate_roots()?;
         store.validate_certifications()?;

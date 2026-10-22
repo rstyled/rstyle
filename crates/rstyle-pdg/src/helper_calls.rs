@@ -5,6 +5,7 @@ use crate::{HirFnFacts, HirNode, producer};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod external;
 pub(crate) mod transport;
 mod transport_lexical;
 
@@ -371,6 +372,9 @@ fn verify_shared(
         return Err("Helper dependencies exceed explicit depth budget 8".into());
     }
     check_signature(node, caller, &resolution, &callee)?;
+    if resolution["local"] == false {
+        external::summary(helper.summary())?;
+    }
     crate::inherent_calls::verify(node, caller, &callee, &resolution)?;
     if !helper.verified() {
         verify_shared_callee(helper, &callee)?;
@@ -512,6 +516,15 @@ fn check_signature(
     } else {
         ordinary_signature(node, caller, callee)?
     };
+    if resolution["local"] == false {
+        if !signature
+            || !external::path(node, resolution, callee)
+            || resolution["definition_identity"].as_str() != identity(callee)
+        {
+            return Err("External helper signature or definition identity disagrees".into());
+        }
+        return external::signature(node, caller, resolution, callee);
+    }
     let build = same_build(caller, callee)?;
     if !signature
         || !build
