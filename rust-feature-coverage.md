@@ -4280,6 +4280,14 @@ Validation: **1042 tests /5 existing skips**, doctests/fmt/Clippy pass;
 **rstyle0/3356, patterns0 unignored**, existing15 ignores unchanged.
 
 
+Capture follow-up: reuse the checked lexical environment across functions sharing
+one immutable census, with function-local receiver/nominal proofs and separate
+strict/generated policies. Alternating repeats reduce the six-context flags test
+11.52–11.61→10.55–10.60s (~9%); stored-slice replay stays16.3–16.4s.
+All existing admission/matching expectations remain exercised; no capability,
+scoring or budget change. Evidence: `/tmp/rstyle-perf10-final-results.json`.
+
+
 ### Data-v3 3.73: original base64ct length helper
 
 [Source selection and bounded expectations](eval/coverage-development/base64ct-length-selection.json).

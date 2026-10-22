@@ -1,4 +1,5 @@
 //! Strict shared-bundle mutation fixtures; never reconstruct nested proofs.
+mod source_reuse;
 use rstyle_pdg::{HirFnFacts, unit_store::UnitStore};
 use serde_json::Value;
 

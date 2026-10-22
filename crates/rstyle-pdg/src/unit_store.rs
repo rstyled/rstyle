@@ -3,8 +3,10 @@ mod bundle;
 mod derived;
 mod manifest;
 mod namespace;
+mod source_analysis;
 pub use manifest::{BundleManifest, VerifiedBundle, transport_checksum};
 pub use namespace::UnitNamespace;
+pub use source_analysis::{SourceAnalyses, SourceAnalysis};
 
 use crate::{HirFnFacts, HirNode, helper_calls::Summary, producer::Pair};
 use serde::{Deserialize, Serialize};

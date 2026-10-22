@@ -20,7 +20,7 @@ pub(super) struct Derived {
     reference_origins: reference_origins::Queries,
 }
 
-struct Checked<T>([OnceCell<T>; 2]);
+pub(super) struct Checked<T>([OnceCell<T>; 2]);
 
 impl<T> Default for Checked<T> {
     fn default() -> Self {
@@ -29,7 +29,7 @@ impl<T> Default for Checked<T> {
 }
 
 impl<T> Checked<T> {
-    fn get(&self, check: impl FnOnce() -> Result<T, String>) -> Result<&T, String> {
+    pub(super) fn get(&self, check: impl FnOnce() -> Result<T, String>) -> Result<&T, String> {
         let slot = &self.0[usize::from(crate::verification_policy::is_generated())];
         if let Some(value) = slot.get() {
             return Ok(value);
@@ -118,7 +118,7 @@ impl Sources {
             .map_err(Clone::clone)
     }
 
-    fn resolve(&self, facts: &HirFnFacts) -> Result<Resolution, String> {
+    pub(super) fn resolve(&self, facts: &HirFnFacts) -> Result<Resolution, String> {
         let interface = facts
             .build
             .frontend_options
@@ -156,6 +156,16 @@ pub(super) fn contexts(count: usize) -> Box<[Derived]> {
         .collect()
 }
 
+pub(super) fn receivers<'a>(
+    slots: &'a [Checked<crate::data_receivers::Capture>; 2],
+    facts: &dyn EvidenceFacts,
+    original_source: bool,
+) -> Result<Cow<'a, crate::data_receivers::Capture>, String> {
+    slots[usize::from(original_source)]
+        .get(|| crate::data_receivers::check(facts, original_source))
+        .map(Cow::Borrowed)
+}
+
 impl FunctionView<'_> {
     pub(super) fn selected_origins(
         &self,
@@ -178,9 +188,7 @@ impl FunctionView<'_> {
         &self,
         original_source: bool,
     ) -> Result<Cow<'_, crate::data_receivers::Capture>, String> {
-        self.derived().receivers[usize::from(original_source)]
-            .get(|| crate::data_receivers::check(self, original_source))
-            .map(Cow::Borrowed)
+        receivers(&self.derived().receivers, self, original_source)
     }
 
     pub(super) fn option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {

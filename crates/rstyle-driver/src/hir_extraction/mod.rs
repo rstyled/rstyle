@@ -65,9 +65,11 @@ pub fn raw_crate_facts(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         ))))
         .collect::<Result<Vec<_>, _>>()?;
+
     capture_unit_evidence(tcx, options, &mut facts)?;
+    let sources = rstyle_pdg::unit_store::SourceAnalyses::default();
     for function in &mut facts {
-        capture_correspondence(function, options.selected());
+        capture_correspondence(function, options.selected(), &sources);
     }
     Ok(facts)
 }
@@ -170,11 +172,15 @@ fn find_source_scan<'a>(
     })
 }
 
-fn capture_correspondence(facts: &mut HirFnFacts, profile: ExtractionProfile) {
+fn capture_correspondence(
+    facts: &mut HirFnFacts,
+    profile: ExtractionProfile,
+    sources: &rstyle_pdg::unit_store::SourceAnalyses,
+) {
     if profile.supports("rust.conditional-source-correspondence") {
-        match rstyle_pdg::source_evidence::capture(facts) {
+        match rstyle_pdg::source_evidence::capture(&sources.function(facts)) {
             Ok(evidence) => {
-                record_correspondence(facts, evidence);
+                record_correspondence(facts, evidence, sources);
             }
             Err(error) => {
                 facts.build.frontend_options.insert(
@@ -189,8 +195,10 @@ fn capture_correspondence(facts: &mut HirFnFacts, profile: ExtractionProfile) {
 fn record_correspondence(
     facts: &mut HirFnFacts,
     evidence: rstyle_pdg::source_evidence::Correspondence,
+    sources: &rstyle_pdg::unit_store::SourceAnalyses,
 ) {
-    let diagnostics = rstyle_pdg::source_evidence::diagnostics(facts, &evidence);
+    let source = sources.function(facts);
+    let diagnostics = rstyle_pdg::source_evidence::diagnostics(&source, &evidence);
     facts.source_diagnostics.extend(diagnostics);
     facts
         .source_diagnostics
