@@ -4266,3 +4266,13 @@ ignores unchanged. Evidence: `/tmp/rstyle-span-*`; full-library matching remains
 incomplete under max-pairs0. Next source audit: base64ct's bool-to-usize encoded
 length chain. Range-valued helpers, opaque Box/drop owners, Result/?/generics and
 looping-callee composition remain separate blockers; P01–P22 stays active.
+
+Performance follow-up: exact declaration-shape reuse and indexed greedy Unicode
+string matching reduce unchanged six-context CLI tests by **26%**: flags
+15.67–15.69→11.52–11.62s; stored slices 22.07–22.11→16.35–16.38s.
+Alternating baseline/current repeats preserve all admission/matching assertions;
+peak RSS is slightly lower. No new capabilities or scoring changes. Differential
+checks cover 14,400 nonempty Unicode string pairs and long repeated inputs;
+changed declarations and type budgets remain checked. Evidence: `/tmp/rstyle-perf9-*`.
+Validation: **1042 tests /5 existing skips**, doctests/fmt/Clippy pass;
+**rstyle0/3356, patterns0 unignored**, existing15 ignores unchanged.

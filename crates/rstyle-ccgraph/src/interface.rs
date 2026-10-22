@@ -7,6 +7,9 @@
 
 use crate::frac::{ArithError, Frac};
 use crate::graph::InterfaceElement;
+use std::collections::{BTreeMap, VecDeque};
+#[cfg(test)]
+mod tests;
 
 /// Serialize one interface side exactly as the profile requires.
 pub fn serialize_interface(elements: &[InterfaceElement]) -> String {
@@ -56,11 +59,11 @@ pub fn is_known_role(role: &str) -> bool {
 /// character greedy matching symmetric. The prefix boost always applies;
 /// there is no extra `J > 0.7` condition.
 pub fn jaro_winkler(first: &str, second: &str) -> Result<Frac, ArithError> {
-    let a: Vec<char> = first.chars().collect();
-    let b: Vec<char> = second.chars().collect();
-    if a == b {
+    if first == second {
         return Ok(Frac::one());
     }
+    let a: Vec<char> = first.chars().collect();
+    let b: Vec<char> = second.chars().collect();
     if a.is_empty() || b.is_empty() {
         return Ok(Frac::zero());
     }
@@ -93,22 +96,16 @@ struct MatchState {
 
 fn find_matches(short: &[char], long: &[char]) -> MatchState {
     let window = short_long_window(short.len(), long.len());
-    let mut used = vec![false; long.len()];
     let mut taken_short = vec![false; short.len()];
+    let mut hay = Haystack::new(long, window);
     for (i, cell) in short.iter().enumerate() {
-        let hay = Haystack {
-            chars: long,
-            used: &used,
-            radius: window,
-        };
-        if let Some(j) = hay.first_open(cell, i) {
-            used[j] = true;
+        if hay.take_first(cell, i).is_some() {
             taken_short[i] = true;
         }
     }
 
     let ordered_short = picked(short, &taken_short);
-    let ordered_long = picked(long, &used);
+    let ordered_long = picked(long, &hay.used);
     MatchState {
         count: ordered_short.len(),
         ordered_short,
@@ -120,17 +117,44 @@ fn short_long_window(short_len: usize, long_len: usize) -> usize {
     (short_len.max(long_len) / 2).saturating_sub(1)
 }
 
-struct Haystack<'a> {
-    chars: &'a [char],
-    used: &'a [bool],
+struct Haystack {
+    positions: BTreeMap<char, VecDeque<usize>>,
+    used: Vec<bool>,
+    length: usize,
     radius: usize,
 }
 
-impl<'a> Haystack<'a> {
-    fn first_open(&self, needle: &char, i: usize) -> Option<usize> {
+impl Haystack {
+    fn new(chars: &[char], radius: usize) -> Self {
+        let mut positions: BTreeMap<char, VecDeque<usize>> = BTreeMap::new();
+        for (index, character) in chars.iter().enumerate() {
+            positions.entry(*character).or_default().push_back(index);
+        }
+        Self {
+            positions,
+            used: vec![false; chars.len()],
+            length: chars.len(),
+            radius,
+        }
+    }
+
+    fn take_first(&mut self, needle: &char, i: usize) -> Option<usize> {
         let lo = i.saturating_sub(self.radius);
-        let hi = (i + self.radius).min(self.chars.len().saturating_sub(1));
-        (lo..=hi).find(|j| !self.used[*j] && self.chars[*j] == *needle)
+        let hi = (i + self.radius).min(self.length.saturating_sub(1));
+        let positions = self.positions.get_mut(needle)?;
+        // The lower bound only advances. Discarding expired positions and
+        // consuming the first remaining one preserves the exact greedy match.
+        while positions.front().is_some_and(|position| *position < lo) {
+            positions.pop_front();
+        }
+
+        let position = positions
+            .front()
+            .is_some_and(|position| *position <= hi)
+            .then(|| positions.pop_front())
+            .flatten()?;
+        self.used[position] = true;
+        Some(position)
     }
 }
 
