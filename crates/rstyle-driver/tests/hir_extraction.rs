@@ -13,6 +13,9 @@ static RUN: AtomicU64 = AtomicU64::new(0);
 #[path = "support/oracle.rs"]
 mod oracle;
 
+#[path = "compiled_association/mod.rs"]
+mod compiled_association;
+
 fn directory() -> PathBuf {
     let serial = RUN.fetch_add(1, Ordering::Relaxed);
     let directory =

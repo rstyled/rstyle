@@ -914,10 +914,7 @@ impl Context<'_> {
             if let Some(resolution) = self.range_from_helper(expression, callee) {
                 return Some(resolution);
             }
-            let capture = self.scalar_from_capture(expression, callee)
-                || self.int_conversion_capture(expression, callee)
-                || self.local_from_capture(expression, callee);
-            return Some(self.instantiated_callee(expression, callee, capture));
+            return Some(self.associated_callee(expression, callee));
         }
         if kind == rustc_hir::def::DefKind::Fn
             && let Some(resolution) = self.size_callee(expression, callee)
@@ -932,7 +929,39 @@ impl Context<'_> {
             return None;
         }
 
-        Some(self.helper_callee(callee, "resolved_direct_callee", inherent))
+        let dependency = self.compiled_dependency(expression, callee, kind);
+        Some(self.helper_resolution(
+            callee,
+            "resolved_direct_callee",
+            HelperEvidence {
+                owner: inherent,
+                compiled_dependency: dependency,
+            },
+        ))
+    }
+
+    fn associated_callee(
+        &self,
+        expression: &Expr<'_>,
+        callee: rustc_hir::def_id::DefId,
+    ) -> PathRes {
+        let capture = self.scalar_from_capture(expression, callee)
+            || self.int_conversion_capture(expression, callee)
+            || self.local_from_capture(expression, callee);
+        self.instantiated_callee(expression, callee, capture)
+    }
+
+    fn compiled_dependency(
+        &self,
+        expression: &Expr<'_>,
+        callee: rustc_hir::def_id::DefId,
+        kind: rustc_hir::def::DefKind,
+    ) -> Option<super::crate_association::Dependency> {
+        (super::crate_association::enabled(self.profile)
+            && kind == rustc_hir::def::DefKind::Fn
+            && self.typeck.node_args(expression.hir_id).is_empty())
+        .then(|| super::crate_association::dependency(self.tcx, callee))
+        .flatten()
     }
 
     fn inherent_callee(
@@ -959,6 +988,22 @@ impl Context<'_> {
         kind: &str,
         owner: Option<rustc_hir::def_id::DefId>,
     ) -> PathRes {
+        self.helper_resolution(
+            callee,
+            kind,
+            HelperEvidence {
+                owner,
+                compiled_dependency: None,
+            },
+        )
+    }
+
+    fn helper_resolution(
+        &self,
+        callee: rustc_hir::def_id::DefId,
+        kind: &str,
+        evidence: HelperEvidence,
+    ) -> PathRes {
         PathRes {
             kind: kind.into(),
             target: None,
@@ -967,11 +1012,19 @@ impl Context<'_> {
                 crate_name: self.tcx.crate_name(callee.krate).to_string(),
                 local: callee.is_local(),
                 definition_identity: format!("{:?}", self.tcx.def_path_hash(callee)),
-                inherent: owner.map(|owner| super::inherent::call_owner(self.tcx, owner)),
+                inherent: evidence
+                    .owner
+                    .map(|owner| super::inherent::call_owner(self.tcx, owner)),
+                compiled_dependency: evidence.compiled_dependency,
             })
             .expect("resolved callee record"),
         }
     }
+}
+
+struct HelperEvidence {
+    owner: Option<rustc_hir::def_id::DefId>,
+    compiled_dependency: Option<super::crate_association::Dependency>,
 }
 
 #[derive(serde::Serialize)]
@@ -983,6 +1036,8 @@ struct DirectCallee {
     definition_identity: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     inherent: Option<rstyle_pdg::inherent_calls::CallOwner>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    compiled_dependency: Option<super::crate_association::Dependency>,
 }
 
 fn kind(kind: &ExprKind<'_>) -> &'static str {

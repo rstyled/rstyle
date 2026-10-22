@@ -4,6 +4,20 @@ use rstyle_pdg::frontend::*;
 use rustc_middle::ty::TyCtxt;
 use sha2::{Digest, Sha256};
 
+pub(super) fn compiled_crate(
+    tcx: TyCtxt<'_>,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+    build: &mut BuildFacts,
+) {
+    if super::crate_association::enabled(profile) {
+        build.frontend_options.insert(
+            "rstyle.rust.compiled-crate".into(),
+            serde_json::to_value(super::crate_association::local(tcx))
+                .expect("serialize compiled crate observation"),
+        );
+    }
+}
+
 pub fn digest(bytes: &[u8]) -> String {
     format!("sha256:{:x}", Sha256::digest(bytes))
 }

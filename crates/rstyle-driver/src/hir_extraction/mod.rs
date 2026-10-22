@@ -4,6 +4,7 @@ mod assertions;
 mod bool_constants;
 mod callbacks;
 mod concrete_types;
+mod crate_association;
 pub mod diagnostics;
 mod documentation_inputs;
 mod evidence;
@@ -232,18 +233,7 @@ fn function_build(
         std::env::current_dir().ok()?.join(path)
     };
     let mut build = evidence::build(tcx, options.invocation);
-    if let Some(selection) = options.profile {
-        build.frontend_options.insert(
-            rstyle_pdg::extraction_profile::SELECTION_KEY.into(),
-            serde_json::json!(selection.token()),
-        );
-    }
-    if let Some(context) = options.unit_context {
-        build.frontend_options.insert(
-            rstyle_pdg::nominal_boundary::CONTEXT_KEY.into(),
-            serde_json::to_value(context).ok()?,
-        );
-    }
+    select_build_context(&mut build, options)?;
     let identifier = tcx
         .def_ident_span(id.to_def_id())
         .and_then(|span| {
@@ -262,7 +252,24 @@ fn function_build(
         .chain(definition_identity(tcx, id, options.selected())),
     );
 
+    evidence::compiled_crate(tcx, options.selected(), &mut build);
     Some(build)
+}
+
+fn select_build_context(build: &mut BuildFacts, options: &Options<'_>) -> Option<()> {
+    if let Some(selection) = options.profile {
+        build.frontend_options.insert(
+            rstyle_pdg::extraction_profile::SELECTION_KEY.into(),
+            serde_json::json!(selection.token()),
+        );
+    }
+    if let Some(context) = options.unit_context {
+        build.frontend_options.insert(
+            rstyle_pdg::nominal_boundary::CONTEXT_KEY.into(),
+            serde_json::to_value(context).ok()?,
+        );
+    }
+    Some(())
 }
 
 fn definition_identity(
