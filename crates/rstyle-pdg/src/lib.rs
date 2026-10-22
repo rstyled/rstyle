@@ -53,6 +53,7 @@ pub mod float_scalars;
 pub mod frontend;
 pub mod helper_calls;
 mod helper_normal_flow;
+mod helper_option_callbacks;
 pub mod helper_reads;
 mod helper_references;
 mod helper_stored_slices;

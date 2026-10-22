@@ -153,7 +153,10 @@ fn environment(node: &HirNode, capture: &crate::BindingFact) -> Result<(), Strin
             "u8".into(),
         )))]),
     };
-    if environment.captures != [expected] || environment.stored_type != storage {
+    if environment.captures != [expected]
+        || environment.stored_type != storage
+        || environment.shared_formal.is_some()
+    {
         return Err(
             "Callback requires exactly one shared byte capture with drop-free storage".into(),
         );

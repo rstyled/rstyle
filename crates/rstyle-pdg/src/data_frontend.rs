@@ -403,6 +403,9 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if crate::helper_option_callbacks::candidate(node, facts) {
+        return verify_helper_callback(node, facts, places);
+    }
     if crate::named_callbacks::candidate(node, facts) {
         let checked = crate::named_callbacks::verify(node, facts)?;
         verify_nodes(checked.receiver, facts, places)?;
@@ -635,6 +638,23 @@ fn verify_parameter_origins(parameter: &crate::ParamFact) -> Result<(), String> 
     if crate::data_origins::shared(&token) && crate::data_origins::parameter(parameter)?.is_empty()
     {
         return Err("Reference-bearing formal requires unavailable element origin evidence".into());
+    }
+    Ok(())
+}
+
+fn verify_helper_callback(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    places: &crate::data_places::Places,
+) -> Result<(), String> {
+    let checked = crate::helper_option_callbacks::verify(node, facts)?;
+    for operand in [
+        checked.arguments.receiver,
+        checked.arguments.default,
+        checked.binding,
+        checked.body,
+    ] {
+        verify_nodes(operand, facts, places)?;
     }
     Ok(())
 }

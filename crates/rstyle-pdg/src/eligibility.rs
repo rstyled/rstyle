@@ -632,6 +632,9 @@ fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
     if crate::named_callbacks::candidate(node, ctx.facts) {
         return Some(check_named_callback(node, ctx));
     }
+    if crate::helper_option_callbacks::candidate(node, ctx.facts) {
+        return Some(check_helper_callback(node, ctx));
+    }
     if crate::option_callbacks::candidate(node, ctx.facts) {
         return Some(check_callback(node, ctx));
     }
@@ -653,6 +656,23 @@ fn check_named_callback(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         Err(reason) => error(
             crate::named_callbacks::CAPABILITY,
             "named_callback",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_helper_callback(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::helper_option_callbacks::verify(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(vec![
+            check_node(checked.arguments.receiver, false, ctx),
+            check_node(checked.arguments.default, false, ctx),
+            check_node(checked.binding, false, ctx),
+            check_node(checked.body, false, ctx),
+        ]),
+        Err(reason) => error(
+            crate::helper_option_callbacks::CAPABILITY,
+            "shared_helper_callback",
             node,
             &reason,
         ),

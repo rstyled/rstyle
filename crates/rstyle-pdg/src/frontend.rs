@@ -397,7 +397,7 @@ pub fn unknown_count(reason: &str) -> CountFact {
 }
 
 /// Shared exact-kind traversal for independent frontend inventory verifiers.
-pub(crate) fn collect_kind<'a>(node: &'a HirNode, kind: &str, result: &mut Vec<&'a HirNode>) {
+pub fn collect_kind<'a>(node: &'a HirNode, kind: &str, result: &mut Vec<&'a HirNode>) {
     if node.kind == kind {
         result.push(node);
     }

@@ -189,15 +189,7 @@ pub(super) fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), St
         || span.end != u64::from(child.span.end)
         || (value.category == NodeCategory::Merge
             && !matches!(child.kind.as_str(), "expr_if" | "expr_match")
-            && !(child.kind == "expr_method_call"
-                && matches!(
-                    value.attributes.construct.as_deref(),
-                    Some(
-                        "callback.option-result"
-                            | "iterator.position-result"
-                            | crate::named_callbacks::RESULT
-                    )
-                )))
+            && !(child.kind == "expr_method_call" && method_result(value)))
         || (value.category != NodeCategory::Merge
             && value.original_kind.known_value() != Some(child.kind.as_str()))
     {
@@ -255,4 +247,17 @@ fn verify_semantics(
         verify_structure(node, source, facts)?;
     }
     Ok(())
+}
+
+pub(super) fn method_result(node: &PdgNode) -> bool {
+    node.category == NodeCategory::Merge
+        && matches!(
+            node.attributes.construct.as_deref(),
+            Some(
+                "callback.option-result"
+                    | "iterator.position-result"
+                    | crate::named_callbacks::RESULT
+                    | crate::helper_option_callbacks::RESULT
+            )
+        )
 }

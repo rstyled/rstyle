@@ -4,20 +4,11 @@ use super::*;
 use crate::{named_callbacks as contract, option_callbacks::Arguments};
 
 impl Builder<'_> {
-    pub(super) fn named_callback(&mut self, checked: Arguments<'_>, flow: Flow) -> Flow {
-        let arguments = self.callback_arguments(&checked, flow);
-        let selected = self.named_select(&checked, &arguments.receiver, arguments.flow);
-
-        self.named_result(
-            &checked,
-            SavedArguments {
-                flow: selected,
-                ..arguments
-            },
-        )
-    }
-
-    fn named_result(&mut self, checked: &Arguments<'_>, arguments: SavedArguments) -> Flow {
+    pub(super) fn named_result(
+        &mut self,
+        checked: &Arguments<'_>,
+        arguments: SavedArguments,
+    ) -> Flow {
         let selected = arguments.flow;
         let controller = selected.value.clone().expect("Option selector");
         let yes = self.named_invoke(checked, arguments.receiver, arm(&selected, "true"));
@@ -29,7 +20,12 @@ impl Builder<'_> {
         self.join(checked.call, controller, Arms { yes, no })
     }
 
-    fn named_select(&mut self, checked: &Arguments<'_>, receiver: &str, flow: Flow) -> Flow {
+    pub(super) fn named_select(
+        &mut self,
+        checked: &Arguments<'_>,
+        receiver: &str,
+        flow: Flow,
+    ) -> Flow {
         let item = self.emit(
             Operation {
                 construct: Some(contract::ITEM.into()),

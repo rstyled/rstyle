@@ -14,6 +14,7 @@ mod checked_options;
 mod conditional_payloads;
 mod fieldless_enums;
 mod float_scalars;
+mod helper_option_callbacks;
 mod index_reads;
 mod indirect_reads;
 mod iterator_position;
@@ -407,13 +408,23 @@ fn verify_call_reads(
     callbacks::verify(pair, context.facts)?;
     named_callbacks::verify(pair, context.facts)?;
     let bytes = byte_calls::verify(pair, context, calls)?;
-    let options = checked_options::verify(pair, context, calls)?;
+    let options = verify_option_reads(pair, context, calls)?;
     let iterators = iterator_position::verify(pair, context)?;
 
     crate::helper_reads::merge_locations(
         crate::helper_reads::merge_locations(bytes, options)?,
         iterators,
     )
+}
+
+fn verify_option_reads(
+    pair: PairView<'_>,
+    context: &mut LocationContext<'_>,
+    calls: &[&crate::HirNode],
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    let options = checked_options::verify(pair, context, calls)?;
+    let callbacks = helper_option_callbacks::verify(pair, context)?;
+    crate::helper_reads::merge_locations(options, callbacks)
 }
 
 fn verify_projection_reads(

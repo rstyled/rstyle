@@ -28,7 +28,9 @@ pub(super) fn verify(facts: &HirFnFacts, tree: &TypeTree) -> Result<bool, String
         };
         seen |= occurs;
     }
-    Ok(uses.body(&facts.body)?.is_some_and(|occurs| occurs || seen))
+    Ok(uses
+        .body(&facts.body, facts)?
+        .is_some_and(|occurs| occurs || seen))
 }
 
 struct Uses<'a> {
@@ -44,12 +46,20 @@ impl Uses<'_> {
         Ok(self.token(&crate::data_types::parse(text)?, false))
     }
 
-    fn body(&self, node: &HirNode) -> Result<Option<bool>, String> {
-        let Some(mut seen) = node.ty.as_ref().map_or(Ok(Some(false)), |ty| self.ty(ty))? else {
+    fn body(&self, node: &HirNode, facts: &HirFnFacts) -> Result<Option<bool>, String> {
+        let observation = if node.kind == "expr_closure" {
+            crate::option_callbacks::captures::verify_structure(node, facts)
+                .ok()
+                .and_then(|capture| crate::data_types::parse(&capture.token).ok())
+                .and_then(|ty| self.token(&ty, false))
+        } else {
+            node.ty.as_ref().map_or(Ok(Some(false)), |ty| self.ty(ty))?
+        };
+        let Some(mut seen) = observation else {
             return Ok(None);
         };
         for child in &node.children {
-            let Some(occurs) = self.body(child)? else {
+            let Some(occurs) = self.body(child, facts)? else {
                 return Ok(None);
             };
             seen |= occurs;

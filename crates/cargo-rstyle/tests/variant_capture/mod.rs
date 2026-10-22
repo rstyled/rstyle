@@ -24,6 +24,7 @@ mod iterator_position;
 mod iterator_position_corruption;
 mod look_flags;
 mod named_callbacks;
+mod transition_callbacks;
 mod word_classifiers;
 
 fn descendants<'a>(node: &'a rstyle_pdg::HirNode, output: &mut Vec<&'a rstyle_pdg::HirNode>) {

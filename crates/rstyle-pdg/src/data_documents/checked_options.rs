@@ -71,6 +71,8 @@ fn expected_counts(
 ) -> [usize; 8] {
     let callbacks =
         crate::option_callbacks::invocations(facts, crate::option_callbacks::Kind::Closure).len();
+    let helper_callbacks = crate::helper_option_callbacks::sources(facts).len();
+    let borrowed_callbacks = crate::helper_option_callbacks::borrowed_sources(facts).len();
     let if_lets = options::if_lets(facts).len();
 
     let scalar = matches
@@ -83,12 +85,12 @@ fn expected_counts(
         .count();
     [
         gets.len(),
-        matches.len() - scalar,
+        matches.len() - scalar + borrowed_callbacks,
         matches.len(),
         matches.len(),
         some,
         constructors.len() - some,
-        scalar + callbacks + if_lets,
+        scalar + callbacks + helper_callbacks - borrowed_callbacks + if_lets,
         if_lets,
     ]
 }

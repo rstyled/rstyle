@@ -2,6 +2,7 @@
 
 mod callbacks;
 mod enums;
+mod helper_option_callbacks;
 mod iterator_position;
 mod loops;
 mod named_callbacks;
@@ -660,8 +661,11 @@ impl Builder<'_> {
 
     fn invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
         if crate::named_callbacks::candidate(node, self.facts) {
-            return self.named_callback(
-                crate::named_callbacks::verify(node, self.facts).expect("eligible named callback"),
+            return self.callback_invocation(
+                callbacks::Target::Named(
+                    crate::named_callbacks::verify(node, self.facts)
+                        .expect("eligible named callback"),
+                ),
                 flow,
             );
         }
@@ -675,6 +679,15 @@ impl Builder<'_> {
     }
 
     fn ordinary_invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::helper_option_callbacks::candidate(node, self.facts) {
+            return self.callback_invocation(
+                callbacks::Target::Helper(
+                    crate::helper_option_callbacks::verify(node, self.facts)
+                        .expect("eligible shared helper callback"),
+                ),
+                flow,
+            );
+        }
         if node.kind == "expr_method_call"
             && crate::extraction_profile::facts_support(
                 self.facts,
@@ -682,7 +695,7 @@ impl Builder<'_> {
             )
             && let Ok(checked) = crate::option_callbacks::verify_map_or(node, self.facts)
         {
-            return self.option_callback(node, checked, flow);
+            return self.callback_invocation(callbacks::Target::Byte(checked), flow);
         }
         self.computation(node, flow)
     }
@@ -1026,7 +1039,9 @@ impl Builder<'_> {
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
         let mut merge = Operation {
             id: id.clone(),
-            construct: if crate::named_callbacks::candidate(node, self.facts) {
+            construct: if crate::helper_option_callbacks::candidate(node, self.facts) {
+                Some(crate::helper_option_callbacks::RESULT.into())
+            } else if crate::named_callbacks::candidate(node, self.facts) {
                 Some(crate::named_callbacks::RESULT.into())
             } else if crate::option_callbacks::candidate(node, self.facts) {
                 Some("callback.option-result".into())

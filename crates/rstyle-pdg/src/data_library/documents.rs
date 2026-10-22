@@ -111,7 +111,9 @@ fn check_method_inventory(
     let mut expected = 0;
     for method in calls.iter().filter(|node| node.kind == "expr_method_call") {
         if crate::option_callbacks::candidate(method, facts) {
-            if crate::named_callbacks::candidate(method, facts) {
+            if crate::helper_option_callbacks::candidate(method, facts) {
+                crate::helper_option_callbacks::verify(method, facts)?;
+            } else if crate::named_callbacks::candidate(method, facts) {
                 crate::named_callbacks::verify(method, facts)?;
             } else {
                 crate::option_callbacks::verify_map_or(method, facts)?;

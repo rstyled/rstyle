@@ -59,6 +59,11 @@ impl Kind {
                 .map(|node| {
                     crate::checked_options::verify_match(node, facts).map(|checked| checked.binding)
                 })
+                .chain(
+                    crate::helper_option_callbacks::borrowed_sources(facts)
+                        .into_iter()
+                        .map(Ok),
+                )
                 .collect(),
             Self::Byte => Ok(super::byte_calls::sources(facts)),
             Self::Index => Ok(

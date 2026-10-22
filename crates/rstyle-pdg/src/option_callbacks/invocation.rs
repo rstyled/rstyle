@@ -26,6 +26,7 @@ impl<'a> Invocation<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Arguments<'a> {
     pub call: &'a HirNode,
     pub receiver: &'a HirNode,
@@ -97,8 +98,9 @@ fn signature(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
         .iter()
         .find(|method| method.call == node.hir)
         .ok_or("Missing immediate map_or signature observation")?;
+    let payload = payload_type(node, facts)?;
     let option = Observation::Captured {
-        ty: TypeTree::Option(Box::new(TypeTree::Scalar("u8".into()))),
+        ty: TypeTree::Option(Box::new(payload.clone())),
     };
     let boolean = Observation::Captured {
         ty: TypeTree::Scalar("bool".into()),
@@ -120,8 +122,7 @@ fn signature(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
                 .into(),
         );
     }
-    let option_token =
-        crate::data_types::token(&TypeTree::Option(Box::new(TypeTree::Scalar("u8".into()))))?;
+    let option_token = crate::data_types::token(&TypeTree::Option(Box::new(payload)))?;
     for (child, expected) in node.children[..2]
         .iter()
         .zip([option_token.as_str(), "bool"])
@@ -134,4 +135,16 @@ fn signature(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
         return Err("Immediate map_or requires a bool result".into());
     }
     Ok(())
+}
+
+fn payload_type(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<TypeTree, String> {
+    let byte = TypeTree::Scalar("u8".into());
+    let shared = TypeTree::Shared(Box::new(byte.clone()));
+    let option = crate::data_types::token(&TypeTree::Option(Box::new(shared.clone())))?;
+
+    let borrowed = crate::helper_option_callbacks::candidate(node, facts)
+        && node.children.first().is_some_and(|receiver| {
+            receiver.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) == Some(option.as_str())
+        });
+    Ok(if borrowed { shared } else { byte })
 }

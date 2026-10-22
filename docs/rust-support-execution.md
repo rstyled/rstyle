@@ -1,14 +1,15 @@
 # Rust support execution frontier
 
 Authority: [delivery plan](rust-support-parallel-delivery.md) and repository-root
-[roadmap](../rust-feature-coverage.md). Updated 2026-10-21. All P01–P22 routes
+[roadmap](../rust-feature-coverage.md). Updated 2026-10-22. All P01–P22 routes
 remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; current implementation is Data3.70:
-original base64 checked-length/Option if-let composition, following Data3.69's
-stored-slice consumer chain. The root roadmap records validated checkpoints;
+Branch `feature/rust-feature-coverage`; current implementation is Data3.71:
+original Transition predicates connect shared-helper callbacks with owned/borrowed
+byte Options, following the checked-length and stored-slice consumer chains.
+The root roadmap records validated checkpoints;
 broader coverage remains active and historical evidence stays unchanged.
 
 Compiler nightly-2026-09-30, commit
@@ -92,17 +93,18 @@ Contracts: [character](extraction-profiles/character-leaf-v1.md),
 
 ## Resume order
 
-Data3.70 connects complete original base64 `encode::encoded_len`; see the
-[fixed selection and expectations](../eval/coverage-development/base64-encoded-len-selection.json).
-The default167-function source/build selection gains only this function. Exact
-inherent implementation spans now agree with rustc beside checked outer cfg
-attributes; this repairs strict replay of two existing base64 getters.
+Data3.71 completes the [original Transition chain](../eval/coverage-development/transition-callback-selection.json):
+134→137/2582, zero losses (two intended predicates plus an audited incidental
+`Match::is_empty` regain). Six target/feature contexts strictly admit669 functions
+and complete36 selected comparisons. Frozen sixty and full package rosters remain
+unchanged; all58 frozen-package admissions and six comparisons replay. Full-library
+matching remains incomplete. Performance fixes retain all evidence and assertions;
+flags approximately35→24s, slices32.47→30.37s, sampled JSON34% smaller.
 
-Next source-selected read-only candidate: regex-automata
-`nfa::thompson::nfa::Transition::{matches,matches_unit}`. Its blocker chain includes
-exact builtin closure-capture projection/storage, borrowed Option payload reads,
-callback helper summaries and passive source dependency proof. A projection count
-alone supplies no permission. `PatternSet::{len,is_empty}` separately needs complete
+Next source-selected chain: `Span::len → Match::len`, requiring pinned usize
+saturating subtraction and a fresh helper-result audit. Fresh `Match::is_empty`
+admission rules out a universal new receiver-grammar prerequisite; retain the
+older selection's blocker history and re-evaluate it. `PatternSet::{len,is_empty}` separately needs complete
 opaque Box-field/drop evidence; zerovec still needs its connected generic,
 let-else/Result/?/closure chain. Broader scalar/enum payloads and cyclic caller
 composition remain open. Fold brief evidence into semantic commits; P01–P22 stays active.

@@ -137,6 +137,12 @@ pub(crate) fn locations(
     binding: &HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<crate::field_locations::derived::Located>, String> {
+    if crate::helper_option_callbacks::borrowed_sources(facts)
+        .iter()
+        .any(|source| source.hir == binding.hir)
+    {
+        return crate::helper_option_callbacks::locations(binding, facts);
+    }
     let checked = owner(binding, facts)?;
     let scalar = crate::data_types::parse(crate::data_aggregates::token(binding)?)?;
     let roots = crate::data_origins::origins(checked.scrutinee, facts)?;

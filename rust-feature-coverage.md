@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.70.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.71.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -23,6 +23,8 @@ mixed-owner type and lifetime-only callable evidence; 3.68 adds exact passive
 Copy dependency proof, connecting five original Input getters. Data-v3 3.69
 connects stored-slice results to checked consumers; 3.70 connects checked usize
 addition/multiplication and guarded Option if-let through original base64 lengths.
+Data-v3 3.71 connects immediate shared-helper Option callbacks through original
+Transition predicates, including copied borrowed byte payloads.
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -4202,3 +4204,32 @@ and outcomes. Development worktree: 1029 full-run passes plus the corrected new
 origin regression passing separately; five existing skips. Doctests/fmt/Clippy
 pass; **rstyle 0/3346, patterns 0 unignored**, existing15 ignores unchanged.
 Evidence: `/tmp/rstyle-perf7-*`; no extraction capability or admission change.
+
+### Data-v3 3.71: original Transition callback family
+
+[Source selection, bounded contract and independent expectations](eval/coverage-development/transition-callback-selection.json).
+Original `Transition::{matches,matches_unit}` now composes checked slice access,
+owned/borrowed byte Options, an exact shared-formal closure environment and the
+verified `matches_byte` helper. Every owner field, passive dependency, neighboring
+macro and drop obligation remains checked; general closures remain deferred.
+Unchanged native-default selection: **134→137/2582, zero losses**. Two intended
+gains are the selected predicates; incidental `Match::is_empty` reappears through
+its existing helper chain after fresh capture removes an older source diagnostic.
+This incidental gain establishes no new receiver grammar.
+
+Three targets × default/nfa-only features: **669 strict contextual admissions,
+24 selected function admissions, 36 independently specified comparisons**.
+Independent unchanged-library oracle passes all **16,777,216 byte triples per
+native feature context**, both next-state identities and out-of-range controls.
+Native execution is ARM Linux; x86 Linux and ARM macOS evidence is cross-target
+capture/replay. Full-library matching remains incomplete under max-pairs zero.
+Frozen `run-t14bfxdk` versus `run-jis8b7db`: **23 admitted /30 excluded /7 inactive**;
+all source/build identities and complete package rosters remain unchanged
+(lz4_flex8/150, syntax39/956, time-core11/226). All58 admissions strictly replay;
+six selected comparisons complete. The optimized verifier also rechecks all137
+original automata admissions and their six selected comparisons.
+Validation and performance gates are recorded in the immediately preceding
+checkpoint; evidence: `/tmp/rstyle-transition-*`. Next source-selected chain:
+`Span::len → Match::len` needs the exact usize saturating-subtraction summary and
+fresh helper-result audit. PatternSet still needs opaque Box/drop proof; broader
+Result/?/generic and cyclic composition remains open.

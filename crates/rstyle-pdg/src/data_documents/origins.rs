@@ -546,6 +546,10 @@ fn source_type<'a>(
         return Ok(Some(ty));
     }
 
+    if callback_environment(node, facts)? {
+        return Ok(Some("unit"));
+    }
+
     Ok(match node.category {
         NodeCategory::FormalInput => input_type(node, facts)?,
         NodeCategory::Return => facts.signature.return_ty.normalized.as_deref(),
@@ -563,12 +567,6 @@ fn source_type<'a>(
             if node.attributes.construct.as_deref() == Some("data.copy-discard") =>
         {
             crate::data_discards::verify(source_node(node, facts)?, facts)?;
-            Some("unit")
-        }
-        NodeCategory::Computation
-            if node.attributes.construct.as_deref() == Some("callback.shared-byte-environment") =>
-        {
-            crate::option_callbacks::verify_environment_event(source_node(node, facts)?, facts)?;
             Some("unit")
         }
         NodeCategory::Computation if node.original_kind.known_value() == Some("expr_assign_op") => {
@@ -637,14 +635,7 @@ fn event_type(node: &PdgNode) -> Option<&'static str> {
 
 fn source_kind(node: &PdgNode) -> Result<&str, String> {
     Ok(if node.category == NodeCategory::Merge {
-        if matches!(
-            node.attributes.construct.as_deref(),
-            Some(
-                "callback.option-result"
-                    | "iterator.position-result"
-                    | crate::named_callbacks::RESULT
-            )
-        ) {
+        if super::aggregates::method_result(node) {
             "expr_method_call"
         } else {
             ""
@@ -702,4 +693,26 @@ pub(super) fn wire_type(node: &PdgNode) -> Result<String, String> {
     fact.known_value()
         .map(str::to_owned)
         .ok_or_else(|| "Unknown serialized data value type".into())
+}
+
+fn callback_environment(
+    node: &PdgNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    if node.category != NodeCategory::Computation {
+        return Ok(false);
+    }
+    match node.attributes.construct.as_deref() {
+        Some("callback.shared-byte-environment") => {
+            crate::option_callbacks::verify_environment_event(source_node(node, facts)?, facts)?;
+        }
+        Some(crate::helper_option_callbacks::ENVIRONMENT) => {
+            crate::helper_option_callbacks::verify_environment_event(
+                source_node(node, facts)?,
+                facts,
+            )?;
+        }
+        _ => return Ok(false),
+    }
+    Ok(true)
 }

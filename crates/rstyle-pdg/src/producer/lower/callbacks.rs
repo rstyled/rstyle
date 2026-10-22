@@ -3,9 +3,27 @@
 
 use super::*;
 
-struct Callback<'a> {
-    node: &'a HirNode,
-    checked: crate::option_callbacks::Invocation<'a>,
+pub(super) enum Target<'a> {
+    Byte(crate::option_callbacks::Invocation<'a>),
+    Helper(crate::helper_option_callbacks::Checked<'a>),
+    Named(crate::option_callbacks::Arguments<'a>),
+}
+
+struct Body<'a> {
+    call: &'a HirNode,
+    binding: &'a HirNode,
+    expression: &'a HirNode,
+    borrowed: bool,
+}
+
+impl<'a> Target<'a> {
+    fn arguments(&self) -> crate::option_callbacks::Arguments<'a> {
+        match self {
+            Self::Byte(checked) => checked.arguments(),
+            Self::Helper(checked) => checked.arguments,
+            Self::Named(checked) => *checked,
+        }
+    }
 }
 
 pub(super) struct SavedArguments {
@@ -15,23 +33,45 @@ pub(super) struct SavedArguments {
 }
 
 impl Builder<'_> {
-    pub(super) fn option_callback(
-        &mut self,
-        node: &HirNode,
-        checked: crate::option_callbacks::Invocation<'_>,
-        flow: Flow,
-    ) -> Flow {
-        let callback = Callback { node, checked };
-        let arguments = self.callback_arguments(&callback.checked.arguments(), flow);
-        let selected = self.callback_select(&callback, &arguments.receiver, arguments.flow);
+    pub(super) fn callback_invocation(&mut self, target: Target<'_>, flow: Flow) -> Flow {
+        let arguments = self.callback_arguments(&target.arguments(), flow);
+        let selected = self.select_callback(&target, &arguments.receiver, arguments.flow);
 
-        self.callback_result(
-            &callback,
+        self.finish_callback(
+            target,
             SavedArguments {
                 flow: selected,
                 ..arguments
             },
         )
+    }
+
+    fn select_callback(&mut self, target: &Target<'_>, saved: &str, flow: Flow) -> Flow {
+        match target {
+            Target::Byte(checked) => self.callback_select(checked, saved, flow),
+            Target::Helper(checked) => self.helper_callback_select(checked, saved, flow),
+            Target::Named(checked) => self.named_select(checked, saved, flow),
+        }
+    }
+
+    fn finish_callback(&mut self, target: Target<'_>, saved: SavedArguments) -> Flow {
+        let body = match target {
+            Target::Byte(checked) => Body {
+                call: checked.call,
+                binding: checked.predicate.binding,
+                expression: checked.predicate.body,
+                borrowed: false,
+            },
+            Target::Helper(checked) => Body {
+                call: checked.arguments.call,
+                binding: checked.binding,
+                expression: checked.body,
+                borrowed: checked.borrowed,
+            },
+            Target::Named(checked) => return self.named_result(&checked, saved),
+        };
+
+        self.closure_result(&body, saved)
     }
 
     pub(super) fn callback_arguments(
@@ -51,16 +91,21 @@ impl Builder<'_> {
         }
     }
 
-    fn callback_select(&mut self, callback: &Callback<'_>, saved: &str, flow: Flow) -> Flow {
+    fn callback_select(
+        &mut self,
+        callback: &crate::option_callbacks::Invocation<'_>,
+        saved: &str,
+        flow: Flow,
+    ) -> Flow {
         // This unit-valued operation records environment creation, not a
         // supported closure value. Shared byte storage reads no scalar content.
         let created = self.emit(
             Operation {
-                construct_span: callback.node.span,
+                construct_span: callback.call.span,
                 construct: Some("callback.shared-byte-environment".into()),
                 role: "callback_environment".into(),
                 ty: "unit".into(),
-                ..template(callback.checked.callback, NodeCategory::Computation)
+                ..template(callback.callback, NodeCategory::Computation)
             },
             flow,
         );
@@ -71,36 +116,41 @@ impl Builder<'_> {
                 role: "callback_selector".into(),
                 operands: vec![saved.into()],
                 ty: "bool".into(),
-                ..template(callback.node, NodeCategory::Control)
+                ..template(callback.call, NodeCategory::Control)
             },
             created,
         )
     }
 
-    fn callback_result(&mut self, callback: &Callback<'_>, arguments: SavedArguments) -> Flow {
+    fn closure_result(&mut self, body: &Body<'_>, arguments: SavedArguments) -> Flow {
         let selected = arguments.flow;
         let controller = selected.value.clone().expect("Option selector");
-        let payload = self.callback_payload(callback, &arguments.receiver, arm(&selected, "true"));
-        let yes = self.expression(callback.checked.predicate.body, payload);
+        let payload = self.callback_payload(body, &arguments.receiver, arm(&selected, "true"));
+        let yes = self.expression(body.expression, payload);
         let no = Flow {
             value: Some(arguments.default),
             ..arm(&selected, "false")
         };
 
-        self.join(callback.node, controller, Arms { yes, no })
+        self.join(body.call, controller, Arms { yes, no })
     }
 
-    fn callback_payload(&mut self, callback: &Callback<'_>, saved: &str, flow: Flow) -> Flow {
-        let binding = callback.checked.predicate.binding;
+    fn callback_payload(&mut self, body: &Body<'_>, saved: &str, flow: Flow) -> Flow {
+        let binding = body.binding;
+        let (construct, category) = if body.borrowed {
+            ("data.option-payload", NodeCategory::Read)
+        } else {
+            ("data.option-value-payload", NodeCategory::Computation)
+        };
         let read = Operation {
-            construct_span: callback.node.span,
-            construct: Some("data.option-value-payload".into()),
+            construct_span: body.call.span,
+            construct: Some(construct.into()),
             operands: vec![saved.into()],
             role: "callback_payload_read".into(),
-            ..template(binding, NodeCategory::Computation)
+            ..template(binding, category)
         };
         let declaration = Operation {
-            construct_span: callback.node.span,
+            construct_span: body.call.span,
             ty: "unit".into(),
             symbol: binding.binding.clone(),
             write_form: Some("initialization".into()),

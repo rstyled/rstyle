@@ -1,6 +1,8 @@
 //! Immediate Option callback observations and source contracts.
 //! These checks alone never authorize graph admission.
 
+pub(crate) mod captures;
+pub use captures::{SharedCapture, SharedProjection, SharedUse};
 mod invocation;
 mod predicate;
 pub(crate) mod source;
@@ -51,6 +53,7 @@ pub(crate) fn invocations(
     let named = matches!(kind, Kind::FunctionItem);
     candidates(facts)
         .into_iter()
+        .filter(|node| !crate::helper_option_callbacks::candidate(node, facts))
         .filter(|node| crate::named_callbacks::candidate(node, facts) == named)
         .collect()
 }
@@ -77,6 +80,9 @@ pub(crate) fn verify_environment_event(
 pub struct Environment {
     pub captures: Vec<Capture>,
     pub stored_type: Observation,
+    /// Exact projected shared-formal evidence; absent on historical byte captures.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared_formal: Option<SharedCapture>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
