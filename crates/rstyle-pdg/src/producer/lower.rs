@@ -7,6 +7,7 @@ mod iterator_position;
 mod loops;
 mod named_callbacks;
 mod option_if_let;
+mod option_propagation;
 mod options;
 mod result_propagation;
 
@@ -1370,7 +1371,7 @@ fn arm(predicate: &Flow, outcome: &str) -> Flow {
 fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
     match node.kind.as_str() {
         "expr_block" => Builder::block,
-        "expr_try_desugar" => Builder::result_propagation,
+        "expr_try_desugar" => propagation_lowerer(node),
         "expr_assert" => Builder::assertion,
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,
@@ -1412,6 +1413,18 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_break" | "expr_continue" => Builder::loop_exit,
         "expr_ret" => Builder::explicit_return,
         _ => unreachable!("eligibility rejects unsupported constructs"),
+    }
+}
+
+fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
+    if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::option_propagation::capture::RESOLUTION)
+    {
+        Builder::option_propagation
+    } else {
+        Builder::result_propagation
     }
 }
 

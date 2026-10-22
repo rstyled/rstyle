@@ -2,7 +2,11 @@
 use super::*;
 
 pub(crate) fn constructor_candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    scalar_enabled(facts)
+    (scalar_enabled(facts)
+        || crate::extraction_profile::facts_support(
+            facts,
+            crate::checked_option_products::CAPABILITY,
+        ))
         && matches!(node.kind.as_str(), "expr_call" | "expr_path")
         && node
             .res
@@ -14,11 +18,19 @@ pub(crate) fn verify_constructor(
     node: &HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Result<&'static str, String> {
-    if !constructor_candidate(node, facts) || !owned(node) {
+    if !constructor_candidate(node, facts) {
         return Err("Option construction requires its concrete scalar capability".into());
     }
 
-    let scalar = types::payload(node)?;
+    let scalar = if owned(node) {
+        if !scalar_enabled(facts) {
+            return Err("Scalar Option requires its registered capability".into());
+        }
+        types::payload(node)?
+    } else {
+        let product = crate::checked_option_products::payload(node, facts)?;
+        serde_json::to_string(&product).map_err(|error| error.to_string())?
+    };
     let (variant, construct) = if node.kind == "expr_call" {
         let [payload] = node.children.as_slice() else {
             return Err("Some requires exactly one evaluated scalar payload".into());

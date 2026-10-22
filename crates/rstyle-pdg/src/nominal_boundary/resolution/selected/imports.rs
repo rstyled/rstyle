@@ -54,7 +54,9 @@ fn verify_in(
                 return Err("Scalar leaf has an unresolved local glob import".into());
             }
             glob(environment, target, &configuration)?;
-        } else if protected(name) || !ancestors && matches!(name.as_str(), "f32" | "f64") {
+        } else if (protected(name) || !ancestors && matches!(name.as_str(), "f32" | "f64"))
+            && !core_imports::debug(facts, environment, (scope, name, target))?
+        {
             return Err(
                 "Selected import shadows a primitive, library root or builtin derive".into(),
             );
@@ -178,4 +180,125 @@ fn glob(
         }
     }
     Ok(())
+}
+
+/// Retain the closed glob proof before excluding one additional type binding.
+/// Both source namespaces and private/inactive declarations remain blockers.
+pub(in crate::nominal_boundary::resolution) fn glob_excludes(
+    environment: &Environment,
+    target: &[String],
+    name: &str,
+    configuration: &crate::conditional_source::Configuration<'_>,
+) -> Result<(), String> {
+    glob(environment, target, configuration)?;
+    excludes_binding(&local_module(environment, target)?.items, name)
+}
+
+fn excludes_binding(items: &[syn::Item], name: &str) -> Result<(), String> {
+    source_bindings(items)
+        .find(|binding| binding == name)
+        .map_or(Ok(()), |_| {
+            Err("Selected glob target can shadow the requested source binding".into())
+        })
+}
+
+/// Both value and type namespaces matter: builtin source lookup also asks about
+/// Some/None/Ok/Err. Conservatively retain private and inactive declarations.
+fn source_bindings(items: &[syn::Item]) -> impl Iterator<Item = String> {
+    items.iter().filter_map(|item| {
+        super::super::builtin_options::type_name(item).or_else(|| match item {
+            syn::Item::Fn(item) => Some(item.sig.ident.to_string()),
+            syn::Item::Const(item) => Some(item.ident.to_string()),
+            syn::Item::Static(item) => Some(item.ident.to_string()),
+            syn::Item::Macro(item) => item.ident.as_ref().map(ToString::to_string),
+            _ => None,
+        })
+    })
+}
+
+/// Source-root binding proof, separate from compiler --extern override checks.
+pub(super) fn library_root(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    namespace: &[String],
+    root: &str,
+) -> Result<(), String> {
+    crate::data_library::verify_sysroot_roots(facts, &[root], "Selected core import")?;
+    let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
+
+    for module in environment
+        .modules
+        .iter()
+        .filter(|module| relevant(namespace, &module.namespace, true))
+    {
+        for item in &module.items {
+            if !configuration.active(crate::conditional_source::item_attributes(item))? {
+                continue;
+            }
+            module_item_with_imports(item, module, &configuration)?;
+            macro_import(item, module, environment, &configuration)?;
+            if super::super::builtin_options::type_name(item).as_deref() == Some(root)
+                && !matches!(item, syn::Item::ExternCrate(item) if item.ident == root && item.rename.is_none())
+            {
+                return Err("Selected library root has a local source binding".into());
+            }
+        }
+    }
+    library_root_imports(environment, namespace, root, &configuration)
+}
+
+fn library_root_imports(
+    environment: &Environment,
+    namespace: &[String],
+    root: &str,
+    configuration: &crate::conditional_source::Configuration<'_>,
+) -> Result<(), String> {
+    for ((scope, name), target) in &environment.index.imports {
+        if !relevant(namespace, scope, true) {
+            continue;
+        }
+        if name == root {
+            return Err("Selected library root has an imported source binding".into());
+        }
+        if name.starts_with("*::") {
+            glob(environment, target, configuration)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod marker_tests {
+    use super::*;
+
+    #[test]
+    fn unrelated_glob_declarations_do_not_supply_marker_bindings() {
+        let items = syn::parse_file("pub struct Span { pub start: usize, pub end: usize }")
+            .unwrap()
+            .items;
+        assert!(excludes_binding(&items, "Send").is_ok());
+        assert!(excludes_binding(&items, "Sync").is_ok());
+        for source in [
+            "pub trait Send {}",
+            "pub type Send = usize;",
+            "pub mod Send {}",
+            "pub fn Send() {}",
+            "pub const Send: usize = 0;",
+        ] {
+            let items = syn::parse_file(source).unwrap().items;
+            assert!(excludes_binding(&items, "Send").is_err());
+        }
+    }
+    #[test]
+    fn constructor_names_require_absence_in_the_value_namespace() {
+        for (source, name) in [
+            ("pub fn Some() {}", "Some"),
+            ("pub const None: usize = 0;", "None"),
+            ("pub static Ok: usize = 0;", "Ok"),
+            ("pub struct Err;", "Err"),
+        ] {
+            let items = syn::parse_file(source).unwrap().items;
+            assert!(excludes_binding(&items, name).is_err());
+        }
+    }
 }

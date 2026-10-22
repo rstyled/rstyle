@@ -7,7 +7,9 @@ pub(super) fn payload<'a>(
     path: &'a syn::TypePath,
     tree: &TypeTree,
 ) -> Result<&'a syn::Type, String> {
-    if !matches!(tree, TypeTree::Scalar(token) if super::scalar(token) && token != "unit") {
+    if !matches!(tree, TypeTree::Scalar(token) if super::scalar(token) && token != "unit")
+        && !matches!(tree, TypeTree::Tuple(_) | TypeTree::Struct { .. })
+    {
         return Err("Option source construction requires one bool/integer payload".into());
     }
     type_arguments(path, 1)?

@@ -50,6 +50,17 @@ impl Resolver<'_> {
         selectors: &[usize],
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
+        if crate::option_propagation::candidate(node, self.facts) {
+            if !selectors.is_empty() {
+                return Err("Option propagation cannot select unrelated payload components".into());
+            }
+            let checked = crate::option_propagation::verify(node, self.facts)?;
+            return crate::data_origins::propagation_origins(self.source(
+                checked.operand,
+                &[],
+                visiting,
+            )?);
+        }
         let handler: Handler<'_> = match node.kind.as_str() {
             "expr_path" => Self::read,
             "expr_tup" | "expr_struct" => Self::constructed,

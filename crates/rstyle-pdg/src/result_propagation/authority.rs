@@ -14,7 +14,11 @@ pub(super) fn verify(
     let registry = crate::data_library::registry_for(facts)
         .ok_or("Unpinned Result propagation compiler/target")?;
     crate::data_library::verify_sysroot_roots(facts, &["core", "std"], "Result propagation")?;
-    source_authority(registry)?;
+    let protocol = Protocol {
+        registry,
+        prefix: "rstyle.result-propagation",
+    };
+    protocol.sources(SOURCE_DIGESTS)?;
 
     let shape = &witness.shape;
     if operand.ty.as_ref().map(|ty| ty.observed.as_str()) != Some(shape.result.as_str())
@@ -25,66 +29,67 @@ pub(super) fn verify(
         );
     }
 
-    selection(registry, &witness.branch, "try-branch", "::branch")?;
-    selection(
-        registry,
-        &witness.residual,
-        "from-residual",
-        "::from_residual",
-    )?;
-    selection(registry, &witness.conversion, "identity-from", "::from")?;
+    protocol.selection(&witness.branch, "try-branch", "::branch")?;
+    protocol.selection(&witness.residual, "from-residual", "::from_residual")?;
+    protocol.selection(&witness.conversion, "identity-from", "::from")?;
 
-    variant(registry, &witness.break_arm.variant, "Break")?;
-    variant(registry, &witness.continue_arm.variant, "Continue")?;
+    protocol.variant(&witness.break_arm.variant, "Break")?;
+    protocol.variant(&witness.continue_arm.variant, "Continue")?;
     concrete_shape(&witness.shape)?;
     signatures(witness)
 }
 
-fn source_authority(registry: &Registry) -> Result<(), String> {
-    for (path, digest) in SOURCE_DIGESTS {
-        let digests = if *path == "result.rs" {
-            &registry.source_digests
-        } else {
-            &registry.result_propagation_source_digests
-        };
-        if digests.get(*path).map(String::as_str) != Some(*digest) {
+pub(crate) struct Protocol<'a> {
+    pub registry: &'a Registry,
+    pub prefix: &'static str,
+}
+
+impl Protocol<'_> {
+    pub fn sources(&self, sources: &[(&str, &str)]) -> Result<(), String> {
+        for (path, digest) in sources {
+            let digests = if *path == "result.rs" {
+                &self.registry.source_digests
+            } else {
+                &self.registry.result_propagation_source_digests
+            };
+            if digests.get(*path).map(String::as_str) != Some(*digest) {
+                return Err(format!(
+                    "Propagation lacks reviewed core source authority for {path}"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn selection(&self, selection: &Selection, role: &str, suffix: &str) -> Result<(), String> {
+        let method_key = format!("{}.{role}.method", self.prefix);
+        let implementation_key = format!("{}.{role}.implementation", self.prefix);
+        if !self
+            .registry
+            .exact_core_definition(&selection.method, &method_key)
+            || !self
+                .registry
+                .exact_core_definition(&selection.implementation, &implementation_key)
+            || !selection.method.path.ends_with(suffix)
+            || !selection.implementation.path.ends_with(suffix)
+            || selection.method == selection.implementation
+        {
             return Err(format!(
-                "Propagation lacks reviewed core source authority for {path}"
+                "Propagation lacks its exact selected core {role} implementation"
             ));
         }
+        Ok(())
     }
-    Ok(())
-}
 
-fn selection(
-    registry: &Registry,
-    selection: &Selection,
-    role: &str,
-    suffix: &str,
-) -> Result<(), String> {
-    let method_key = format!("rstyle.result-propagation.{role}.method");
-    let implementation_key = format!("rstyle.result-propagation.{role}.implementation");
-    if !registry.exact_core_definition(&selection.method, &method_key)
-        || !registry.exact_core_definition(&selection.implementation, &implementation_key)
-        || !selection.method.path.ends_with(suffix)
-        || !selection.implementation.path.ends_with(suffix)
-        || selection.method == selection.implementation
-    {
-        return Err(format!(
-            "Propagation lacks its exact selected core {role} implementation"
-        ));
+    pub fn variant(&self, variant: &Callee, name: &str) -> Result<(), String> {
+        let key = format!("{}.ControlFlow::{name}", self.prefix);
+        if !self.registry.exact_core_definition(variant, &key)
+            || !variant.path.ends_with(&format!("::ControlFlow::{name}"))
+        {
+            return Err("Propagation continuation lacks its pinned ControlFlow variant".into());
+        }
+        Ok(())
     }
-    Ok(())
-}
-
-fn variant(registry: &Registry, variant: &Callee, name: &str) -> Result<(), String> {
-    let key = format!("rstyle.result-propagation.ControlFlow::{name}");
-    if !registry.exact_core_definition(variant, &key)
-        || !variant.path.ends_with(&format!("::ControlFlow::{name}"))
-    {
-        return Err("Propagation continuation lacks its pinned ControlFlow variant".into());
-    }
-    Ok(())
 }
 
 fn signatures(witness: &Witness) -> Result<(), String> {

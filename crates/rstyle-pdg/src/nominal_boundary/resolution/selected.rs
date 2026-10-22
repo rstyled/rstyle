@@ -2,7 +2,10 @@
 use super::*;
 use crate::declaration_origins::Origins;
 mod borrowed;
+mod core_imports;
 mod imports;
+pub(super) use imports::glob_excludes;
+pub(super) mod local_traits;
 mod no_drop;
 pub(super) mod passive;
 mod scalar_leaf;

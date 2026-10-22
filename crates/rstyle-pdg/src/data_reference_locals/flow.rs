@@ -1,7 +1,7 @@
 //! Source kill/gen over existing binding identities. Values name original RHS
 //! operations, so copying a reference retains its earlier read snapshot.
 
-use crate::{HirFnFacts, HirNode};
+use crate::{HirNode, unit_store::EvidenceFacts};
 use std::collections::{BTreeMap, BTreeSet};
 
 type State = BTreeMap<u32, BTreeSet<u32>>;
@@ -46,14 +46,16 @@ pub(super) struct Index<'a> {
     pub values: BTreeMap<u32, Value<'a>>,
     pub reads: BTreeMap<u32, BTreeSet<u32>>,
     width: Option<u64>,
+    facts: &'a dyn EvidenceFacts,
 }
 
 impl<'a> Index<'a> {
-    pub fn new(facts: &'a HirFnFacts) -> Result<Self, String> {
+    pub fn new(facts: &'a dyn EvidenceFacts) -> Result<Self, String> {
         let mut index = Self {
             values: BTreeMap::new(),
             reads: BTreeMap::new(),
             width: facts.build.pointer_width.value,
+            facts,
         };
         let mut entry = State::new();
         for parameter in &facts.signature.params {
@@ -69,6 +71,14 @@ impl<'a> Index<'a> {
     }
 
     fn walk(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {
+        if crate::option_propagation::candidate(node, self.facts) {
+            return self.propagated_option(node, state);
+        }
+
+        self.walk_ordinary(node, state)
+    }
+
+    fn walk_ordinary(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {
         if node.kind == "expr_path" {
             return self.read(node, state);
         }
@@ -78,6 +88,14 @@ impl<'a> Index<'a> {
         }
 
         dispatch(node)(self, node, state)
+    }
+
+    fn propagated_option(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {
+        let checked = crate::option_propagation::verify(node, self.facts)?;
+        // Only operand evaluation changes the surviving user state. The
+        // independently verified None arm returns; the Some arm yields its
+        // saved reference without evaluating additional user operations.
+        self.walk(checked.operand, state)
     }
 
     fn children(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {

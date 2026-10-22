@@ -19,6 +19,24 @@ pub(super) fn payload<'tcx>(tcx: TyCtxt<'tcx>, value: Ty<'tcx>) -> Option<Ty<'tc
     (scalar(payload) || shared_scalar(payload)).then_some(payload)
 }
 
+pub(super) fn product_payload<'tcx>(ctx: &Context<'tcx>, value: Ty<'tcx>) -> Option<Ty<'tcx>> {
+    if !ctx.profile.supports("rust.concrete-option-propagation") {
+        return None;
+    }
+    let ty::Adt(definition, arguments) = value.kind() else {
+        return None;
+    };
+    if !ctx
+        .tcx
+        .is_diagnostic_item(rustc_span::sym::Option, definition.did())
+    {
+        return None;
+    }
+
+    let payload = arguments.type_at(0);
+    matches!(payload.kind(), ty::Tuple(_) | ty::Adt(_, _)).then_some(payload)
+}
+
 fn scalar(value: Ty<'_>) -> bool {
     matches!(value.kind(), ty::Bool | ty::Int(_) | ty::Uint(_))
 }
@@ -51,7 +69,8 @@ impl<'tcx> Context<'tcx> {
             _ => return None,
         };
         let resolution = self.option_variant(path, id, expected)?;
-        payload(self.tcx, self.typeck.expr_ty(expression))?;
+        payload(self.tcx, self.typeck.expr_ty(expression))
+            .or_else(|| product_payload(self, self.typeck.expr_ty(expression)))?;
 
         Some(resolution)
     }

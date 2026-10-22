@@ -283,10 +283,9 @@ impl<'tcx> Capture<'_, 'tcx> {
         if self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3
             && self.visiting.is_empty()
             && let Some(payload) = super::options::payload(self.ctx.tcx, ty)
+                .or_else(|| super::options::product_payload(self.ctx, ty))
         {
-            return self
-                .tree(payload, depth + 1)
-                .map(|payload| TypeTree::Option(Box::new(payload)));
+            return self.option_type(payload, depth);
         }
         if let Some(result) = self.int_conversion_result(ty) {
             return Ok(result);
@@ -301,6 +300,12 @@ impl<'tcx> Capture<'_, 'tcx> {
             return self.result_type(ok, err, depth);
         }
         self.storage_container(ty, depth)
+    }
+
+    fn option_type(&mut self, payload: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
+        let option = TypeTree::Option(Box::new(self.tree(payload, depth + 1)?));
+        rstyle_pdg::concrete_types::validate(&option).map_err(Failure::Unsupported)?;
+        Ok(option)
     }
 
     fn result_type(

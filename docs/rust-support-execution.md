@@ -6,11 +6,11 @@ remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; current implementation is Data3.74:
-the original base64ct length/getter family now completes default and std contexts,
-following the Transition predicate, checked-length and stored-slice chains.
-The root roadmap records validated checkpoints;
-broader coverage remains active and historical evidence stays unchanged.
+Branch `feature/rust-feature-coverage`; current implementation is Data3.80:
+checked shared-reference Option propagation, Copy-product results and exact local
+trait-member ownership connect the three original Memchr prefix methods.
+The root roadmap records validated checkpoints; broader P01–P22 work remains
+active and historical evidence stays unchanged.
 
 Compiler nightly-2026-09-30, commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`; native aarch64 Linux,
@@ -139,7 +139,7 @@ admission counts. Keep the frozen sixty and all existing development selections.
 
 | Lane | Next connected delivery and dependency order |
 | --- | --- |
-| Error flow | Fresh UnicodeWordBoundaryError constructor → Result → helper → public check delivered3.78 in all nine selected contexts, with independent no-drop proof. Data3.79 also delivers original LookSet::available with exact Try/FromResidual/reflexive From evidence,9 gains/zero losses. **Next:** source-selected Memchr/Memchr2/Memchr3 prefix methods: checked Option reference propagation, Option<Copy Span> transport and exact local trait-member ownership. Parent core::fmt::Debug import requires precise namespace proof; no blanket import/derive exception. Broader payload binding and general moves/drop remain separate. |
+| Error flow | Fresh UnicodeWordBoundaryError constructor → Result → helper → public check delivered3.78 in all nine selected contexts, with independent no-drop proof. Data3.79 also delivers original LookSet::available with exact Try/FromResidual/reflexive From evidence,9 gains/zero losses. Data3.80 connects the original Memchr/Memchr2/Memchr3 prefix methods through checked Option reference propagation, Copy-product results, exact trait-member ownership and precise Debug/import/derive proof. **Next:** original lz4_flex::block::uncompressed_size: complete no-drop error enum, differing-success Result residual, checked range/ok_or, borrowed four-byte LE decode, suffix and reference-bearing tuple result. Broader payload binding and general moves/drop remain separate. |
 | Interprocedural | Bounded scalar looping-callee seed delivered3.76. Next select dependency closure for cross-package helpers or component-specific aggregate/reference arguments/results according to complete callers. Preserve panic, return and divergence independently. Further narrow numeric kernels are deferred. |
 | Resolution | Address demonstrated module/import/alias/source-owner barriers, then concrete trait dispatch/selected bodies, generic instance identity/substitution, and associated types/constants/bounds. The local From<Span> delivery is a bounded precedent, not general trait support. |
 | Memory/data | Select a complete common slice/view family; retain bounds, saved operands and per-element origins. Establish initialized nonescaping local storage/borrowing → alias-sensitive mutable reborrows/writes and move/initialization/normal cleanup → bounded Box/Vec/String contracts. |
@@ -151,3 +151,16 @@ Async/concurrency/general unsafe remain later work. Independent oracles and
 resealed adversarial tests belong in every lane. Shared types/origins/summaries
 remain lead-owned; serialize heavy validation. Fold concise evidence/frontier
 updates into semantic commits, with no separate documentation-only milestone.
+
+Data3.80 checkpoint: all18 original prefix instances admit across six contexts;
+54 contextual gains (18 selected/36 source-audited literal siblings), zero losses.
+All780 admissions strictly replay/18 selected comparisons complete. Native prefix
+oracle7,966,720 cases plus5120 sibling queries;2564 constructors/context,
+no-default constructors only. Frozen run-etikyyi5 unchanged23/30/7, all58 strict.
+Gates1153tests/5skips, doctests/fmt/Clippy, rstyle0/3792, patterns0;15 ignores unchanged.
+Next assignments: error/data lane freezes lz4_flex0.11.6::uncompressed_size with
+complete enum/drop and differing-success Result obligations; interprocedural/
+resolution lane audits time0.3.47→time-core0.1.8 exact seven-function dependency
+closure; performance lane removes demonstrated immutable-source identity cache
+bypasses. Shared production interfaces stay lead-owned until readiness contracts
+and exact blockers are established. No broad trait, ownership or coverage completion.

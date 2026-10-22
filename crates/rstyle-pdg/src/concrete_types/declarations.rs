@@ -36,7 +36,10 @@ fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String>
         return Ok(());
     }
     if let TypeTree::Option(payload) = resolved
-        && matches!(payload.as_ref(), TypeTree::Scalar(_))
+        && matches!(
+            payload.as_ref(),
+            TypeTree::Scalar(_) | TypeTree::Tuple(_) | TypeTree::Struct { .. }
+        )
     {
         return check(super::option_spelling::payload(source, payload)?, payload);
     }

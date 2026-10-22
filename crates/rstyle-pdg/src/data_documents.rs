@@ -23,7 +23,9 @@ mod locals;
 mod locations;
 pub(crate) mod named_callbacks;
 mod option_if_let;
+pub(crate) mod option_propagation;
 mod origins;
+mod propagation;
 mod read_accesses;
 pub(crate) mod result_propagation;
 mod scalar_enums;
@@ -83,9 +85,14 @@ fn install_value_contracts(
 ) -> Result<Pair, String> {
     install_policy(&mut pair, facts)?;
     crate::concrete_results::documents::install(&mut pair);
-    result_propagation::install(&mut pair);
+    install_propagation_contracts(&mut pair);
 
     Ok(pair)
+}
+
+fn install_propagation_contracts(pair: &mut Pair) {
+    result_propagation::install(pair);
+    option_propagation::install(pair);
 }
 
 fn install_annotations<'a>(
@@ -304,6 +311,7 @@ fn verify_call_operations(
 
     option_if_let::verify(pair, facts)?;
     result_propagation::verify(pair, facts)?;
+    option_propagation::verify(pair, facts)?;
     assertions::verify(pair, facts)?;
     size_calls::verify(pair, facts)?;
     crate::data_library::verify_calls(pair, facts, calls)?;

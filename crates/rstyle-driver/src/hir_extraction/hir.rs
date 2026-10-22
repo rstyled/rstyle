@@ -330,6 +330,7 @@ impl<'tcx> Context<'tcx> {
         self.float_literal(expr)
             .or_else(|| self.option_expression(expr))
             .or_else(|| self.result_expression(expr))
+            .or_else(|| self.option_propagation(expr))
             .or_else(|| self.result_propagation(expr))
             .or_else(|| match expr.kind {
                 ExprKind::Call(callee, _) => self.direct_callee(callee),

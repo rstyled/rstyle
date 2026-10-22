@@ -5,30 +5,25 @@ use crate::{CfgEdgeKind, HirNode, result_propagation, unit_store::EvidenceFacts}
 const KEY: &str = "rstyle.data:same-error-result-propagation";
 const CONSTRUCTS: [&str; 2] = ["try.result-is-err", "try.result-ok-unit"];
 
-fn sources(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
-    crate::field_locations::operations(&facts.body, &["expr_try_desugar"])
-}
+const CONTRACT: super::propagation::Contract<2> = super::propagation::Contract {
+    key: KEY,
+    constructs: CONSTRUCTS,
+    capability: result_propagation::CAPABILITY,
+    policy_error: "Same-error Result propagation requires its registered document policy",
+    candidate: result_propagation::candidate,
+    semantics,
+    invocation,
+};
 
 pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
-    crate::extraction_profile::require_document(
-        profile,
-        result_propagation::CAPABILITY,
-        || !sources(facts).is_empty(),
-        "Same-error Result propagation requires its registered document policy",
-    )
+    CONTRACT.verify_document_policy(profile, facts)
 }
 
 pub(super) fn install(pair: &mut Pair) {
-    for node in &mut pair.pdg.nodes {
-        if let Some(construct) = node.attributes.construct.as_deref()
-            && CONSTRUCTS.contains(&construct)
-        {
-            node.annotations.insert(KEY.into(), semantics(construct));
-        }
-    }
+    CONTRACT.install(pair);
 }
 
 #[derive(serde::Serialize)]
@@ -76,18 +71,7 @@ fn semantics(construct: &str) -> serde_json::Value {
 }
 
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
-    let sources = sources(facts);
-    super::verify_construct_inventory(pair, CONSTRUCTS, [sources.len(); 2])?;
-    verify_document_policy(&pair.pdg.profile, facts)?;
-    if sources.is_empty() {
-        return Ok(());
-    }
-
-    let guards = super::conditional_payloads::Guards::new(pair)?;
-    for source in sources {
-        invocation(pair, source, facts, &guards)?;
-    }
-    Ok(())
+    CONTRACT.verify(pair, facts)
 }
 
 fn invocation(
@@ -143,7 +127,7 @@ fn operation_effects(
     Ok(())
 }
 
-fn return_effects(node: &PdgNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
+pub(super) fn return_effects(node: &PdgNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     super::verify_value_effects(
         node,
         false,
@@ -171,10 +155,10 @@ fn return_effects(node: &PdgNode, facts: &dyn EvidenceFacts) -> Result<(), Strin
     Ok(())
 }
 
-fn only_selected_consumers(
+pub(super) fn only_selected_consumers<const N: usize>(
     pair: PairView<'_>,
     saved: &PdgNode,
-    operations: [&PdgNode; 3],
+    operations: [&PdgNode; N],
 ) -> Result<(), String> {
     let actual: BTreeSet<_> = pair
         .pdg
@@ -197,7 +181,7 @@ fn only_selected_consumers(
     Ok(())
 }
 
-fn return_to_exit(pair: PairView<'_>, returned: &PdgNode) -> Result<(), String> {
+pub(super) fn return_to_exit(pair: PairView<'_>, returned: &PdgNode) -> Result<(), String> {
     let mapping = crate::read_operation_map(&pair.pdg.extensions)?;
     let candidates: Vec<_> = mapping
         .iter()

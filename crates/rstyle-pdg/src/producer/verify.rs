@@ -209,6 +209,7 @@ fn node_names(
             .iter()
             .filter(|e| {
                 node.category == e.category
+                    && node.attributes.construct == e.attributes.construct
                     && node.source_span.as_ref().map(|s| (s.start, s.end))
                         == e.source_span.as_ref().map(|s| (s.start, s.end))
                     && node.original_kind == e.original_kind

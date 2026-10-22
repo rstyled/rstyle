@@ -187,6 +187,10 @@ fn node_native_width(
     data: bool,
     facts: &dyn EvidenceFacts,
 ) -> Result<bool, String> {
+    if crate::option_propagation::candidate(node, facts) {
+        let checked = crate::option_propagation::verify(node, facts)?;
+        return node_native_width(checked.operand, data, facts);
+    }
     if crate::result_propagation::candidate(node, facts) {
         let checked = crate::result_propagation::verify(node, facts)?;
         return node_native_width(checked.operand, data, facts);
@@ -274,10 +278,8 @@ fn collect_source_kind<'a>(
     facts: &dyn EvidenceFacts,
     calls: &mut Vec<&'a HirNode>,
 ) {
-    if crate::result_propagation::candidate(node, facts)
-        && let Ok(checked) = crate::result_propagation::verify(node, facts)
-    {
-        collect_source_kind(checked.operand, kind, facts, calls);
+    if let Some(operand) = propagation_operand(node, facts) {
+        collect_source_kind(operand, kind, facts, calls);
         return;
     }
     if node.kind == kind {
@@ -286,6 +288,20 @@ fn collect_source_kind<'a>(
     for child in &node.children {
         collect_source_kind(child, kind, facts, calls);
     }
+}
+
+fn propagation_operand<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Option<&'a HirNode> {
+    if crate::option_propagation::candidate(node, facts) {
+        return crate::option_propagation::verify(node, facts)
+            .ok()
+            .map(|checked| checked.operand);
+    }
+    if crate::result_propagation::candidate(node, facts) {
+        return crate::result_propagation::verify(node, facts)
+            .ok()
+            .map(|checked| checked.operand);
+    }
+    None
 }
 
 pub(crate) fn certify_view(

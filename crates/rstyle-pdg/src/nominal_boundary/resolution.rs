@@ -614,9 +614,10 @@ fn collect(tree: &TypeTree, trees: &mut BTreeMap<Namespace, TypeTree>) -> Result
                 collect(element, trees)?;
             }
         }
-        TypeTree::Shared(element) | TypeTree::Slice(element) | TypeTree::Array { element, .. } => {
-            collect(element, trees)?
-        }
+        TypeTree::Option(element)
+        | TypeTree::Shared(element)
+        | TypeTree::Slice(element)
+        | TypeTree::Array { element, .. } => collect(element, trees)?,
         _ => {}
     }
     Ok(())
@@ -715,8 +716,8 @@ fn function_scope(
             module,
             bytes,
             facts,
-            resolution.environment.copy_boundary,
-        ));
+            &resolution.environment,
+        )?);
     }
 
     let [(namespace, receiver)] = candidates.as_slice() else {
@@ -898,12 +899,15 @@ fn supported_receiver(signature: &syn::Signature, facts: &HirFnFacts) -> bool {
     }
 }
 
+type FunctionOwner = (Namespace, Option<Box<syn::Type>>);
+
 fn module_functions(
     module: &census::Module,
     bytes: &str,
     facts: &HirFnFacts,
-    selected: bool,
-) -> Vec<(Namespace, Option<Box<syn::Type>>)> {
+    environment: &Environment,
+) -> Result<Vec<FunctionOwner>, String> {
+    let selected = environment.copy_boundary;
     let mut candidates = Vec::new();
     for item in &module.items {
         match item {
@@ -920,19 +924,15 @@ fn module_functions(
                 }
             }
             syn::Item::Impl(item) => {
-                if selected && !selected::implementation(facts, item) {
+                if selected
+                    && !selected::implementation(facts, item)
+                    && !selected::local_traits::implementation(facts, environment, module, item)?
+                {
                     continue;
                 }
                 for member in &item.items {
                     if let syn::ImplItem::Fn(method) = member
-                        && (FunctionSource {
-                            vis: &method.vis,
-                            sig: &method.sig,
-                            body: &method.block,
-                        })
-                        .exact(bytes, facts)
-                        && (!selected
-                            || selected::function_attributes(facts, &method.attrs).is_ok())
+                        && exact_method(method, bytes, facts, selected)
                         && (item.generics.params.is_empty()
                             || method.sig.generics.params.is_empty())
                     {
@@ -943,7 +943,17 @@ fn module_functions(
             _ => {}
         }
     }
-    candidates
+    Ok(candidates)
+}
+
+fn exact_method(method: &syn::ImplItemFn, bytes: &str, facts: &HirFnFacts, selected: bool) -> bool {
+    (FunctionSource {
+        vis: &method.vis,
+        sig: &method.sig,
+        body: &method.block,
+    })
+    .exact(bytes, facts)
+        && (!selected || selected::function_attributes(facts, &method.attrs).is_ok())
 }
 
 struct FunctionSource<'a> {

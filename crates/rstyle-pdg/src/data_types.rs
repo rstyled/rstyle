@@ -218,6 +218,10 @@ pub(crate) fn parse_for(
         return Err("Option type requires its registered payload capability".into());
     }
 
+    if product_option(&ty) && !profile.supports("rust.concrete-option-propagation") {
+        return Err("Product Option requires its registered propagation capability".into());
+    }
+
     if text.contains("\"kind\":\"int_conversion_result\"")
         && !profile.supports("rust.bitset-cardinality")
     {
@@ -244,15 +248,54 @@ fn check_fresh_capabilities(
     Ok(())
 }
 
-pub(crate) fn scalar_option(ty: &TypeToken) -> bool {
-    match ty {
-        TypeToken::Option(payload) => matches!(payload.as_ref(), TypeToken::Scalar(_)),
-        TypeToken::Tuple(values) => values.iter().any(scalar_option),
-        TypeToken::Result { ok, err } => scalar_option(ok) || scalar_option(err),
+pub(crate) fn scalar_option(token: &TypeToken) -> bool {
+    contains_option(token, &|payload| matches!(payload, TypeToken::Scalar(_)))
+}
+
+pub(crate) fn product_option(token: &TypeToken) -> bool {
+    contains_option(token, &|payload| {
+        matches!(payload, TypeToken::Tuple(_) | TypeToken::Struct { .. })
+    })
+}
+
+fn contains_option(token: &TypeToken, payload: &impl Fn(&TypeToken) -> bool) -> bool {
+    match token {
+        TypeToken::Option(value) => payload(value),
+        TypeToken::Tuple(values) => values.iter().any(|value| contains_option(value, payload)),
+        TypeToken::Result { ok, err } => {
+            contains_option(ok, payload) || contains_option(err, payload)
+        }
         TypeToken::Array { element, .. }
         | TypeToken::Shared(element)
-        | TypeToken::Slice(element) => scalar_option(element),
-        TypeToken::Struct { fields, .. } => fields.iter().any(|(_, field)| scalar_option(field)),
+        | TypeToken::Slice(element) => contains_option(element, payload),
+        TypeToken::Struct { fields, .. } => fields
+            .iter()
+            .any(|(_, field)| contains_option(field, payload)),
+        _ => false,
+    }
+}
+
+pub(crate) fn option_product(token: &TypeToken) -> bool {
+    option_product_with(token, &|_| true)
+}
+
+/// Reference-free product shape is independent of nominal ownership authority.
+/// The supplied check must prove each exact struct when ownership is required.
+pub(crate) fn option_product_with(
+    token: &TypeToken,
+    nominal: &impl Fn(&TypeToken) -> bool,
+) -> bool {
+    match token {
+        TypeToken::Scalar(value) => crate::concrete_types::scalar(value),
+        TypeToken::Tuple(values) => values
+            .iter()
+            .all(|value| option_product_with(value, nominal)),
+        TypeToken::Struct { fields, .. } => {
+            nominal(token)
+                && fields
+                    .iter()
+                    .all(|(_, field)| option_product_with(field, nominal))
+        }
         _ => false,
     }
 }
@@ -360,6 +403,14 @@ fn recursive_element(token: &TypeToken) -> Option<&TypeToken> {
         | TypeToken::Shared(element)
         | TypeToken::Slice(element) => Some(element),
         TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::Shared(value) if matches!(value.as_ref(), TypeToken::Scalar(scalar) if scalar != "unit" && crate::concrete_types::scalar(scalar))) => {
+            Some(payload)
+        }
+        TypeToken::Option(payload)
+            if matches!(
+                payload.as_ref(),
+                TypeToken::Tuple(_) | TypeToken::Struct { .. }
+            ) && option_product(payload) =>
+        {
             Some(payload)
         }
         TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::Scalar(scalar) if scalar != "unit" && crate::concrete_types::scalar(scalar)) => {

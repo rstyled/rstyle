@@ -12,20 +12,78 @@ use rustc_hir::{
 };
 use rustc_middle::ty::{self, Ty};
 
+pub(super) enum Protocol {
+    Result,
+    Option,
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum CapturedShape {
+    Result(Shape),
+    Option(rstyle_pdg::option_propagation::capture::Shape),
+}
+
+#[derive(serde::Serialize)]
+struct CapturedPropagation {
+    identity: &'static str,
+    root: rstyle_pdg::HirRef,
+    operand: rstyle_pdg::HirRef,
+    try_span: rstyle_pdg::ByteSpan,
+    operand_span: rstyle_pdg::ByteSpan,
+    branch_call: rstyle_pdg::HirRef,
+    residual_call: rstyle_pdg::HirRef,
+    early_return: rstyle_pdg::HirRef,
+    shape: CapturedShape,
+    branch: Selection,
+    residual: Selection,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    conversion: Option<Selection>,
+    break_arm: Arm,
+    continue_arm: Arm,
+}
+
+impl Protocol {
+    fn metadata(&self) -> (&'static str, &'static str, &'static str) {
+        match self {
+            Self::Result => ("rust.same-error-result-propagation", RESOLUTION, IDENTITY),
+            Self::Option => (
+                "rust.concrete-option-propagation",
+                rstyle_pdg::option_propagation::capture::RESOLUTION,
+                rstyle_pdg::option_propagation::capture::IDENTITY,
+            ),
+        }
+    }
+}
+
 impl<'tcx> Context<'tcx> {
     pub(super) fn result_propagation(&self, root: &Expr<'tcx>) -> Option<PathRes> {
-        if !self.profile.supports("rust.same-error-result-propagation") {
+        self.propagation_capture(root, Protocol::Result)
+    }
+
+    pub(super) fn propagation_capture(
+        &self,
+        root: &Expr<'tcx>,
+        protocol: Protocol,
+    ) -> Option<PathRes> {
+        let (capability, resolution, identity) = protocol.metadata();
+        if !self.profile.supports(capability) {
             return None;
         }
-        let witness = self.propagation_witness(root)?;
+        let witness = self.propagation_witness(root, protocol, identity)?;
         Some(PathRes {
-            kind: RESOLUTION.into(),
+            kind: resolution.into(),
             target: None,
             description: serde_json::to_string(&witness).expect("Try desugaring witness"),
         })
     }
 
-    fn propagation_witness(&self, root: &Expr<'tcx>) -> Option<Witness> {
+    fn propagation_witness(
+        &self,
+        root: &Expr<'tcx>,
+        protocol: Protocol,
+        identity: &'static str,
+    ) -> Option<CapturedPropagation> {
         let ExprKind::Match(branch, arms, hir::MatchSource::TryDesugar(_)) = root.kind else {
             return None;
         };
@@ -35,7 +93,7 @@ impl<'tcx> Context<'tcx> {
         let [operand] = call_arguments(branch)? else {
             return None;
         };
-        let shape = self.propagation_shape(operand, branch)?;
+        let (shape, conversion) = self.protocol_shape(root, branch, protocol)?;
         let (break_arm, continue_arm) = self.propagation_arms(first, second)?;
         let ExprKind::Ret(Some(residual)) = break_arm.body.kind else {
             return None;
@@ -49,8 +107,8 @@ impl<'tcx> Context<'tcx> {
         self.propagation_use(usage, &broken)?;
         self.propagation_use(continue_arm.body, &continued)?;
 
-        Some(Witness {
-            identity: IDENTITY.into(),
+        Some(CapturedPropagation {
+            identity,
             root: reference(root.hir_id),
             operand: reference(operand.hir_id),
             try_span: self.span(root.span),
@@ -61,13 +119,35 @@ impl<'tcx> Context<'tcx> {
             shape,
             branch: self.propagation_call(branch)?,
             residual: self.propagation_call(residual)?,
-            conversion: self.propagation_conversion(root, operand)?,
+            conversion,
             break_arm: broken,
             continue_arm: continued,
         })
     }
 
-    fn propagation_arms(
+    fn protocol_shape(
+        &self,
+        root: &Expr<'tcx>,
+        branch: &Expr<'tcx>,
+        protocol: Protocol,
+    ) -> Option<(CapturedShape, Option<Selection>)> {
+        let [operand] = call_arguments(branch)? else {
+            return None;
+        };
+
+        Some(match protocol {
+            Protocol::Result => (
+                CapturedShape::Result(self.propagation_shape(operand, branch)?),
+                Some(self.propagation_conversion(root, operand)?),
+            ),
+            Protocol::Option => (
+                CapturedShape::Option(self.option_propagation_shape(operand, branch)?),
+                None,
+            ),
+        })
+    }
+
+    pub(super) fn propagation_arms(
         &self,
         first: &'tcx hir::Arm<'tcx>,
         second: &'tcx hir::Arm<'tcx>,
@@ -114,7 +194,7 @@ impl<'tcx> Context<'tcx> {
         })
     }
 
-    fn propagation_arm(&self, arm: &hir::Arm<'tcx>) -> Option<Arm> {
+    pub(super) fn propagation_arm(&self, arm: &hir::Arm<'tcx>) -> Option<Arm> {
         if arm.guard.is_some() {
             return None;
         }
@@ -159,7 +239,7 @@ impl<'tcx> Context<'tcx> {
         })
     }
 
-    fn propagation_use(&self, expression: &Expr<'tcx>, arm: &Arm) -> Option<()> {
+    pub(super) fn propagation_use(&self, expression: &Expr<'tcx>, arm: &Arm) -> Option<()> {
         let ExprKind::Path(ref path) = expression.kind else {
             return None;
         };
@@ -169,7 +249,7 @@ impl<'tcx> Context<'tcx> {
         (reference(target) == arm.binding).then_some(())
     }
 
-    fn propagation_call(&self, expression: &Expr<'tcx>) -> Option<Selection> {
+    pub(super) fn propagation_call(&self, expression: &Expr<'tcx>) -> Option<Selection> {
         let ExprKind::Call(callee, _) = expression.kind else {
             return None;
         };
@@ -242,7 +322,7 @@ impl<'tcx> Context<'tcx> {
     }
 }
 
-fn call_arguments<'tcx>(expression: &Expr<'tcx>) -> Option<&'tcx [Expr<'tcx>]> {
+pub(super) fn call_arguments<'tcx>(expression: &Expr<'tcx>) -> Option<&'tcx [Expr<'tcx>]> {
     let ExprKind::Call(_, arguments) = expression.kind else {
         return None;
     };

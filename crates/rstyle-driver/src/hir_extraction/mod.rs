@@ -14,6 +14,7 @@ mod inherent;
 mod library_resolution;
 mod module_expansions;
 mod nominal_census;
+mod option_propagation;
 mod options;
 pub mod output;
 mod primitive_constants;

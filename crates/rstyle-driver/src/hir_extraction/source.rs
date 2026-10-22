@@ -241,7 +241,10 @@ fn selected_expression(
         ast::ExprKind::MethodCall(..) => profile.supports("rust.verified-primitive-summaries"),
         ast::ExprKind::Closure(_) => profile.supports("rust.immediate-option-callbacks"),
         ast::ExprKind::Let(..) => profile.supports("rust.scalar-option-if-let"),
-        ast::ExprKind::Try(..) => profile.supports("rust.same-error-result-propagation"),
+        ast::ExprKind::Try(..) => {
+            profile.supports("rust.same-error-result-propagation")
+                || profile.supports("rust.concrete-option-propagation")
+        }
         ast::ExprKind::While(..)
         | ast::ExprKind::Loop(..)
         | ast::ExprKind::Break(..)

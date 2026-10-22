@@ -142,9 +142,10 @@ fn collect<'a>(
                 collect(element, entries)?;
             }
         }
-        TypeTree::Shared(element) | TypeTree::Slice(element) | TypeTree::Array { element, .. } => {
-            collect(element, entries)?
-        }
+        TypeTree::Option(element)
+        | TypeTree::Shared(element)
+        | TypeTree::Slice(element)
+        | TypeTree::Array { element, .. } => collect(element, entries)?,
         _ => {}
     }
 

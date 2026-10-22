@@ -62,7 +62,10 @@ fn fields(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), Strin
                 fields(element, resolution)?;
             }
         }
-        TypeTree::Shared(element) | TypeTree::Slice(element) | TypeTree::Array { element, .. } => {
+        TypeTree::Option(element)
+        | TypeTree::Shared(element)
+        | TypeTree::Slice(element)
+        | TypeTree::Array { element, .. } => {
             fields(element, resolution)?;
         }
         _ => {}
@@ -150,7 +153,10 @@ fn path_proof(
         };
     }
     if let TypeTree::Option(payload) = tree
-        && matches!(payload.as_ref(), TypeTree::Scalar(_))
+        && matches!(
+            payload.as_ref(),
+            TypeTree::Scalar(_) | TypeTree::Tuple(_) | TypeTree::Struct { .. }
+        )
     {
         correspondence(
             super::option_spelling::payload(path, payload)?,

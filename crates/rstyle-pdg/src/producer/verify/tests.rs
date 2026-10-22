@@ -67,3 +67,23 @@ fn reordered_or_renamed_documents_still_use_complete_normalized_comparison() {
     let names = BTreeMap::from([(original, "different".into())]);
     assert!(compare_documents(pair().as_view(), &mut pair(), &names).is_err());
 }
+
+#[test]
+fn correspondence_distinguishes_roles_at_the_same_source_operation() {
+    let mut expected = pair();
+    let mut first = expected.pdg.nodes[0].clone();
+    first.id = "none".into();
+    first.attributes.construct = Some("try.option-none".into());
+    let mut second = first.clone();
+    second.id = "payload".into();
+    second.attributes.construct = Some("try.option-some-reference".into());
+    expected.pdg.nodes = vec![first, second];
+    let mut actual = pair();
+    actual.pdg.nodes = expected.pdg.nodes.iter().rev().cloned().collect();
+    actual.pdg.nodes[0].id = "renamed-payload".into();
+    let names = node_names(actual.as_view(), expected.as_view()).unwrap();
+    assert_eq!(names["renamed-payload"], "payload");
+    assert_eq!(names["none"], "none");
+    actual.pdg.nodes[0].attributes.construct = Some("try.option-none".into());
+    assert!(node_names(actual.as_view(), expected.as_view()).is_err());
+}

@@ -1,7 +1,7 @@
 //! Same-error `Result<(), E>` propagation with exact compiler/core evidence.
-mod authority;
+pub(crate) mod authority;
 pub mod capture;
-mod source;
+pub(crate) mod source;
 #[cfg(test)]
 mod tests;
 
@@ -19,6 +19,10 @@ pub struct Checked<'a> {
 pub fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
     crate::extraction_profile::gated_node(node, facts, CAPABILITY, |node| {
         node.kind == "expr_try_desugar"
+            && node
+                .res
+                .as_ref()
+                .is_some_and(|res| res.kind == capture::RESOLUTION)
     })
 }
 
@@ -107,7 +111,7 @@ fn structure<'a>(
     Ok((operand, early_return))
 }
 
-fn only_child<'a>(
+pub(crate) fn only_child<'a>(
     node: &'a HirNode,
     kind: &str,
     identity: &crate::HirRef,
@@ -123,7 +127,7 @@ fn only_child<'a>(
     Ok(child)
 }
 
-fn arm<'a>(node: &'a HirNode, witness: &capture::Arm) -> Result<&'a HirNode, String> {
+pub(crate) fn arm<'a>(node: &'a HirNode, witness: &capture::Arm) -> Result<&'a HirNode, String> {
     let [pattern, body] = node.children.as_slice() else {
         return Err("Propagation arm has a guard or an incomplete body".into());
     };
@@ -139,7 +143,7 @@ fn arm<'a>(node: &'a HirNode, witness: &capture::Arm) -> Result<&'a HirNode, Str
     Ok(body)
 }
 
-fn local_use(node: &HirNode, witness: &capture::Arm) -> Result<(), String> {
+pub(crate) fn local_use(node: &HirNode, witness: &capture::Arm) -> Result<(), String> {
     let resolution = node
         .res
         .as_ref()
@@ -157,7 +161,7 @@ fn local_use(node: &HirNode, witness: &capture::Arm) -> Result<(), String> {
     Ok(())
 }
 
-fn raw_call(node: &HirNode, selection: &capture::Selection) -> Result<(), String> {
+pub(crate) fn raw_call(node: &HirNode, selection: &capture::Selection) -> Result<(), String> {
     let resolution = node
         .res
         .as_ref()
@@ -191,7 +195,7 @@ fn raw_call(node: &HirNode, selection: &capture::Selection) -> Result<(), String
     Ok(())
 }
 
-fn observed(node: &HirNode, expected: &str) -> Result<(), String> {
+pub(crate) fn observed(node: &HirNode, expected: &str) -> Result<(), String> {
     if node.ty.as_ref().map(|ty| ty.observed.as_str()) != Some(expected) {
         return Err(
             "Generated propagation type disagrees with its exact concrete substitution".into(),

@@ -565,6 +565,9 @@ fn check_result_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if crate::option_propagation::candidate(node, ctx.facts) {
+        return check_option_propagation(node, ctx);
+    }
     if crate::result_propagation::candidate(node, ctx.facts) {
         return check_result_propagation(node, ctx);
     }
@@ -600,6 +603,10 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     if node.kind == "expr_match" && ctx.profile.supports("rust.scalar-match") {
         return check_match(node, ctx);
     }
+    check_ordinary_node(node, in_expansion, ctx)
+}
+
+fn check_ordinary_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     let own = check_kind(node, ctx);
 
     if node.kind == "expr_closure" || node.kind == "stmt_item" {
@@ -615,6 +622,18 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     );
 
     own.merge(children)
+}
+
+fn check_option_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::option_propagation::verify(node, ctx.facts) {
+        Ok(checked) => check_node(checked.operand, false, ctx),
+        Err(reason) => error(
+            crate::option_propagation::CAPABILITY,
+            "option_propagation",
+            node,
+            &reason,
+        ),
+    }
 }
 
 fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {

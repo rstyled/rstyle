@@ -21,6 +21,7 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
     crate::float_scalars::verify_function(facts)?;
     crate::range_values::verify_function(facts)?;
     crate::concrete_results::verify_function(facts)?;
+    crate::checked_option_products::verify_function(facts)?;
     let interface = interface(facts)?;
     let source: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
@@ -43,17 +44,7 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
-    crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
-    crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
-    crate::primitive_constants::verify_document_policy(profile, facts)?;
-    crate::concrete_results::verify_document_policy(profile, facts)?;
-    crate::data_documents::result_propagation::verify_document_policy(profile, facts)?;
-    crate::extraction_profile::require_document(
-        profile,
-        crate::range_values::CAPABILITY,
-        || crate::range_values::used(facts),
-        "Fresh Range results require their registered document policy",
-    )?;
+    verify_value_document_policy(profile, facts)?;
     let capabilities = [
         crate::helper_stored_slices::CAPABILITY,
         "rust.passive-copy-dependencies",
@@ -89,6 +80,26 @@ pub(crate) fn verify_document_policy(
         verify_nominal_policy(profile, &resolution)?;
     }
     Ok(())
+}
+
+fn verify_value_document_policy(
+    profile: &crate::ProfileId,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
+    crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
+    crate::primitive_constants::verify_document_policy(profile, facts)?;
+    crate::concrete_results::verify_document_policy(profile, facts)?;
+    crate::checked_option_products::verify_document_policy(profile, facts)?;
+    crate::data_documents::result_propagation::verify_document_policy(profile, facts)?;
+    crate::data_documents::option_propagation::verify_document_policy(profile, facts)?;
+
+    crate::extraction_profile::require_document(
+        profile,
+        crate::range_values::CAPABILITY,
+        || crate::range_values::used(facts),
+        "Fresh Range results require their registered document policy",
+    )
 }
 
 fn verify_copy_receiver_policy(
@@ -199,10 +210,14 @@ impl PathResolution for Resolver<'_> {
     }
 
     fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
-        let TypeTree::Scalar(scalar) = payload else {
-            return Err("Core Option source proof requires a scalar payload".into());
-        };
-        self.facts.verify_option_type(path, scalar)
+        if let TypeTree::Scalar(scalar) = payload {
+            return self.facts.verify_option_type(path, scalar);
+        }
+        self.facts.nominal_resolution()?.verify_product_option_type(
+            self.facts.facts(),
+            path,
+            payload,
+        )
     }
 }
 
@@ -427,6 +442,10 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if crate::option_propagation::candidate(node, facts) {
+        let checked = crate::option_propagation::verify(node, facts)?;
+        return verify_nodes(checked.operand, facts, places);
+    }
     if crate::result_propagation::candidate(node, facts) {
         let checked = crate::result_propagation::verify(node, facts)?;
         return verify_nodes(checked.operand, facts, places);

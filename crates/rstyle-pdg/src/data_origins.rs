@@ -49,6 +49,10 @@ pub fn origins(
         return crate::data_reference_locals::selected(node, &[], facts);
     }
 
+    if crate::option_propagation::candidate(node, facts) {
+        let checked = crate::option_propagation::verify(node, facts)?;
+        return propagation_origins(origins(checked.operand, facts)?);
+    }
     if crate::checked_options::get_candidate(node, facts) {
         let checked = crate::checked_options::verify_get(node, facts)?;
         return Ok(crate::checked_options::project(origins(
@@ -68,6 +72,15 @@ pub fn origins(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect())
+}
+
+// The successful payload is the saved reference itself. Its origins already
+// contain the checked-element projection; propagation neither reads nor indexes.
+pub(crate) fn propagation_origins(roots: Vec<Origin>) -> Result<Vec<Origin>, String> {
+    if roots.is_empty() {
+        return Err("Option propagation payload lacks verified input origins".into());
+    }
+    Ok(roots)
 }
 
 fn source_operation(
@@ -337,6 +350,16 @@ pub fn parameter(parameter: &crate::ParamFact) -> Result<Vec<Origin>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn propagation_preserves_only_saved_checked_reference_origins() {
+        let saved = vec![Origin {
+            parameter: 1,
+            path: vec![Projection::SharedReferent, Projection::CheckedElement],
+        }];
+        assert_eq!(propagation_origins(saved.clone()).unwrap(), saved);
+        assert!(propagation_origins(Vec::new()).is_err());
+    }
 
     #[test]
     fn element_evidence_gaps_never_return_partial_origins() {

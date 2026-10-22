@@ -269,7 +269,7 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
             Err("Integer conversion Result requires a registered scalar payload".into())
         }
         TypeTree::Option(payload) if !option_payload(payload) => {
-            Err("Option observation requires a scalar or shared scalar payload".into())
+            Err("Option observation requires a registered scalar, shared scalar, or reference-free product payload".into())
         }
         TypeTree::SliceArrayResult { length, .. } if *length > MAX_FIELDS as u64 => {
             Err("Slice conversion result exceeds supported array length".into())
@@ -339,6 +339,9 @@ fn option_payload(tree: &TypeTree) -> bool {
         TypeTree::Scalar(value) => scalar(value) && value != "unit",
         TypeTree::Shared(value) => {
             matches!(value.as_ref(), TypeTree::Scalar(value) if scalar(value) && value != "unit")
+        }
+        TypeTree::Tuple(_) | TypeTree::Struct { .. } => {
+            crate::data_types::option_product(&crate::data_types::TypeToken::from_tree(tree))
         }
         _ => false,
     }

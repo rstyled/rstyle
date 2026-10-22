@@ -88,6 +88,12 @@ fn check_type(
 fn owns(token: &TypeToken, owner: &crate::concrete_types::Nominal) -> bool {
     match token {
         TypeToken::Shared(_) => false,
+        TypeToken::Result { ok, err } => owns(ok, owner) || owns(err, owner),
+        TypeToken::Enum { variants, .. } => variants.iter().any(|(_, value)| owns(value, owner)),
+        TypeToken::MixedEnum { variants, .. } => variants
+            .iter()
+            .filter_map(|(_, shape)| shape.field())
+            .any(|value| owns(value, owner)),
         TypeToken::Struct { nominal, fields } => {
             nominal == owner || fields.iter().any(|(_, ty)| owns(ty, owner))
         }
@@ -107,4 +113,63 @@ fn check_body(node: &HirNode, nominal: &crate::concrete_types::Nominal) -> Resul
         check_body(child, nominal)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn owner() -> crate::concrete_types::Nominal {
+        crate::concrete_types::Nominal {
+            source_identity: Some("original-source".into()),
+            package_name: "sample".into(),
+            package_version: "1".into(),
+            manifest_digest: concrete_types::digest(b"manifest"),
+            definition_path: "sample::Bytes".into(),
+            declaration_digest: concrete_types::digest(b"struct Bytes(u8);"),
+        }
+    }
+
+    #[test]
+    fn borrowed_policy_finds_owned_values_in_both_result_arms_and_nested_containers() {
+        let nominal = owner();
+        let owned = TypeToken::Struct {
+            nominal: nominal.clone(),
+            fields: vec![("0".into(), TypeToken::Scalar("u8".into()))],
+        };
+        let scalar = TypeToken::Scalar("unit".into());
+        for token in [
+            TypeToken::Result {
+                ok: Box::new(owned.clone()),
+                err: Box::new(scalar.clone()),
+            },
+            TypeToken::Result {
+                ok: Box::new(scalar.clone()),
+                err: Box::new(owned.clone()),
+            },
+            TypeToken::Option(Box::new(TypeToken::Result {
+                ok: Box::new(scalar.clone()),
+                err: Box::new(owned.clone()),
+            })),
+            TypeToken::Tuple(vec![TypeToken::Result {
+                ok: Box::new(owned.clone()),
+                err: Box::new(scalar.clone()),
+            }]),
+        ] {
+            assert!(owns(&token, &nominal), "{token:?}");
+            let ty = crate::ResolvedTy {
+                spelling: String::new(),
+                observed: String::new(),
+                normalized: Some(serde_json::to_string(&token).unwrap()),
+            };
+            assert!(check_type(&ty, &nominal).is_err());
+        }
+        assert!(!owns(
+            &TypeToken::Result {
+                ok: Box::new(TypeToken::Shared(Box::new(owned))),
+                err: Box::new(scalar)
+            },
+            &nominal
+        ));
+    }
 }

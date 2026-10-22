@@ -33,7 +33,7 @@ pub fn context<'a>(
     for (name, token) in tokens {
         if !expected.contains_key(&name) {
             context.parameters.push(Observation::Captured {
-                ty: tree(&token, origins)?,
+                ty: observed_tree(facts, &token, origins)?,
             });
         }
     }
@@ -83,7 +83,8 @@ fn collect_container_tokens(
                 collect_tokens(element, tokens)?;
             }
         }
-        TypeToken::Shared(element)
+        TypeToken::Option(element)
+        | TypeToken::Shared(element)
         | TypeToken::Slice(element)
         | TypeToken::Array { element, .. } => collect_tokens(element, tokens)?,
         _ => {}
@@ -131,6 +132,36 @@ fn nominal_tokens(
     Ok(())
 }
 
+fn observed_tree(
+    facts: &HirFnFacts,
+    token: &TypeToken,
+    origins: &Origins,
+) -> Result<TypeTree, String> {
+    let tree = tree(token, origins)?;
+    if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.concrete-option-propagation")
+        && contains_option(&tree)
+    {
+        return Err("Concrete Option source proof is not registered".into());
+    }
+    Ok(tree)
+}
+
+fn contains_option(tree: &TypeTree) -> bool {
+    match tree {
+        TypeTree::Option(_) => true,
+        TypeTree::Shared(element) | TypeTree::Slice(element) | TypeTree::Array { element, .. } => {
+            contains_option(element)
+        }
+        _ => {
+            tree.components().any(contains_option)
+                || tree
+                    .nominal_fields()
+                    .any(|field| contains_option(&field.ty))
+        }
+    }
+}
+
 fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
     Ok(match token {
         TypeToken::Scalar(value) => TypeTree::Scalar(value.clone()),
@@ -139,7 +170,7 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
         TypeToken::RangeUsize => {
             return Err("Range authority cannot be inferred from a body token".into());
         }
-        TypeToken::Option(_) => return Err("Concrete Option source proof is not registered".into()),
+        TypeToken::Option(element) => TypeTree::Option(Box::new(tree(element, origins)?)),
         TypeToken::Result { ok, err } => TypeTree::Result {
             ok: Box::new(tree(ok, origins)?),
             err: Box::new(tree(err, origins)?),

@@ -4,6 +4,42 @@
 use super::*;
 use syn::visit::Visit;
 
+impl Resolution {
+    /// Namespace authority only; callers separately verify the source payload
+    /// spelling against this exact independently Copy-certified scalar product.
+    pub(crate) fn verify_product_option_type(
+        &self,
+        facts: &HirFnFacts,
+        path: &syn::TypePath,
+        payload: &TypeTree,
+    ) -> Result<(), String> {
+        if !supports(facts, "rust.concrete-option-propagation")?
+            || !matches!(payload, TypeTree::Struct { .. } | TypeTree::Tuple(_))
+            || !self.exact_product_sources(payload)
+            || !crate::checked_option_products::checked_copy(
+                &crate::data_types::TypeToken::from_tree(payload),
+                self,
+            )
+        {
+            return Err(
+                "Product Option requires an independently checked local Copy scalar product".into(),
+            );
+        }
+
+        self.environment
+            .verify_builtin_scope(facts, |scope| scope.product_option(path))
+    }
+    // Token conversion intentionally omits declaration source text. Keep exact
+    // captured-tree equality separately; a proved struct includes nested fields.
+    fn exact_product_sources(&self, payload: &TypeTree) -> bool {
+        match payload {
+            TypeTree::Tuple(values) => values.iter().all(|value| self.exact_product_sources(value)),
+            TypeTree::Struct { .. } => self.checked_owned_copy(payload),
+            _ => true,
+        }
+    }
+}
+
 impl Environment {
     pub(crate) fn verify_option_type(
         &self,
@@ -44,10 +80,10 @@ impl Environment {
             .iter()
             .filter(|module| module.path.to_string_lossy() == file)
         {
-            let bytes = self.source(&module.path)?.bytes();
-            for blocks in owners(module, bytes, facts, &configuration)? {
+            for blocks in owners(self, module, facts, &configuration)? {
                 self.check_ancestors(&module.namespace, &configuration)?;
                 verify(&Scope {
+                    environment: self,
                     module,
                     blocks,
                     configuration: &configuration,
@@ -81,12 +117,15 @@ impl Environment {
 }
 
 fn owners<'a>(
+    environment: &'a Environment,
     module: &'a census::Module,
-    bytes: &'a str,
     facts: &HirFnFacts,
     configuration: &crate::conditional_source::Configuration<'_>,
 ) -> Result<Vec<Vec<&'a syn::Block>>, String> {
+    let bytes = environment.source(&module.path)?.bytes();
     let mut owners = Owners {
+        environment,
+        module,
         bytes,
         facts,
         configuration,
@@ -105,6 +144,8 @@ fn owners<'a>(
 }
 
 struct Owners<'a, 'b> {
+    environment: &'a Environment,
+    module: &'a census::Module,
     bytes: &'a str,
     facts: &'b HirFnFacts,
     configuration: &'b crate::conditional_source::Configuration<'b>,
@@ -195,7 +236,15 @@ impl<'a> Owners<'a, '_> {
         if span.start > self.facts.fn_span.start || span.end < self.facts.fn_span.end {
             return Ok(());
         }
-        if !self.configuration.active(&item.attrs)? || !selected::implementation(self.facts, item) {
+        if !self.configuration.active(&item.attrs)?
+            || !(selected::implementation(self.facts, item)
+                || selected::local_traits::implementation(
+                    self.facts,
+                    self.environment,
+                    self.module,
+                    item,
+                )?)
+        {
             return Err("Option method requires an active supported inherent owner".into());
         }
 
@@ -220,6 +269,7 @@ impl<'a> Owners<'a, '_> {
 }
 
 struct Scope<'a, 'b> {
+    environment: &'a Environment,
     module: &'a census::Module,
     blocks: Vec<&'a syn::Block>,
     configuration: &'b crate::conditional_source::Configuration<'b>,
@@ -231,15 +281,31 @@ impl Scope<'_, '_> {
         if !concrete_types::scalar(scalar) || scalar == "unit" || path.qself.is_some() {
             return Err("Option path requires an exact bool/integer payload".into());
         }
+        if self.lookup(scalar)?.is_some() {
+            return Err("Option scalar spelling is shadowed".into());
+        }
+        self.option_owner(path)
+    }
+    fn product_option(&self, path: &syn::TypePath) -> Result<(), String> {
+        if path.qself.is_some()
+            || path
+                .path
+                .segments
+                .iter()
+                .take(path.path.segments.len().saturating_sub(1))
+                .any(|part| !matches!(part.arguments, syn::PathArguments::None))
+        {
+            return Err("Product Option has a qualified or generic library path".into());
+        }
+        self.option_owner(path)
+    }
+    fn option_owner(&self, path: &syn::TypePath) -> Result<(), String> {
         let names: Namespace = path
             .path
             .segments
             .iter()
             .map(|part| part.ident.to_string())
             .collect();
-        if self.lookup(scalar)?.is_some() {
-            return Err("Option scalar spelling is shadowed".into());
-        }
         let Some(first) = names.first() else {
             return Err("Empty Option type path".into());
         };
@@ -351,6 +417,18 @@ impl Scope<'_, '_> {
         Ok(())
     }
 
+    fn glob_excludes(&self, target: &[String], name: &str) -> Result<(), String> {
+        if !supports(self.facts, "rust.concrete-option-propagation")? {
+            return Err("Option source has unresolved relevant glob imports".into());
+        }
+        let target = if target.first().is_some_and(|part| part == "<local>") {
+            anchored(target[1..].to_vec(), &self.module.namespace, true)?
+        } else {
+            target.to_vec()
+        };
+        selected::glob_excludes(self.environment, &target, name, self.configuration)
+    }
+
     fn lookup(&self, name: &str) -> Result<Option<Namespace>, String> {
         for block in self.blocks.iter().rev() {
             let mut items = Vec::new();
@@ -372,19 +450,20 @@ impl Scope<'_, '_> {
                     _ => {}
                 }
             }
-            if let Some(binding) = lookup(items.into_iter(), name, &self.module.namespace)? {
+            if let Some(binding) = lookup(items.into_iter(), name, self)? {
                 return Ok(Some(binding));
             }
         }
-        lookup(self.module.items.iter(), name, &self.module.namespace)
+        lookup(self.module.items.iter(), name, self)
     }
 }
 
 fn lookup<'a>(
     items: impl Iterator<Item = &'a syn::Item>,
     name: &str,
-    namespace: &Namespace,
+    scope: &Scope<'_, '_>,
 ) -> Result<Option<Namespace>, String> {
+    let namespace = &scope.module.namespace;
     let mut imports = BTreeMap::new();
     let mut direct = None;
     for item in items {
@@ -409,8 +488,10 @@ fn lookup<'a>(
         }
     }
 
-    if imports.keys().any(|(_, key)| key.starts_with("*::")) {
-        return Err("Option source has unresolved relevant glob imports".into());
+    for ((_, key), target) in &imports {
+        if key.starts_with("*::") {
+            scope.glob_excludes(target, name)?;
+        }
     }
     let imported = imports.get(&(namespace.clone(), name.into())).cloned();
     if direct.is_some() && imported.is_some() {

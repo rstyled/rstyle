@@ -542,6 +542,10 @@ fn source_type<'a>(
     node: &PdgNode,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<&'a str>, String> {
+    if node.attributes.construct.as_deref() == Some("try.option-none") {
+        crate::option_propagation::verify(source_node(node, facts)?, facts)?;
+        return Ok(facts.signature.return_ty.normalized.as_deref());
+    }
     if let Some(ty) = event_type(node) {
         return Ok(Some(ty));
     }
