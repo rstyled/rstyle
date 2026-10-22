@@ -93,20 +93,23 @@ Contracts: [character](extraction-profiles/character-leaf-v1.md),
 
 ## Resume order
 
-Data3.72 completes [original Span/Match lengths](../eval/coverage-development/span-length-selection.json)
-through pinned usize saturation and existing shared temporary receivers. Default
-137→139/2582; no features83→85/590, two gains/no losses in each of six contexts.
-672 strict contextual admissions,42 selected admissions/30 comparisons pass;
-unchanged-library oracle8748 cases per native feature context. Frozen sixty and
-full package rosters remain unchanged;58 strict admissions/six comparisons pass.
-1039 tests/5 existing skips, doctests/fmt/Clippy pass; rstyle0/3353, patterns0.
-Full-library matching remains incomplete. Evidence: `/tmp/rstyle-span-*`.
+Data3.73 completes the default-feature original base64ct length helper through
+exact bool-to-usize and retained literal documentation-input proof. Three targets:
+3→6/141, no losses; std stays3/150 because active macro_use extern alloc lacks
+closed import proof. All39 contextual original admissions strictly replay; nine
+predeclared comparisons complete. Frozen sixty and complete package rosters are
+unchanged; all58 admissions strictly replay. Evidence: `/tmp/rstyle-length-*`.
+Native unchanged-library oracle131074 cases per feature context; separate private-source
+witness8320 cases. Gates:1053 tests/5 skips, doctests/fmt/Clippy, rstyle0/3371,
+patterns0 unignored; existing15 ignores unchanged.
+See the [source selection](../eval/coverage-development/base64ct-length-selection.json).
+Full-library matching remains incomplete; broader P01–P22 work remains active.
 
 Next bounded assignments (original first-wave workers are already integrated):
 
 | Frontier | Readiness gate and exclusive leaf work |
 | --- | --- |
-| P01/P10 bool conversion | Audit fresh original base64ct1.7.3 `encoding::encoded_len_inner` against the frozen source/oracle selection; confirm every checked-Option/cast blocker before activation. Dedicated bool-cast leaf and tests; shared driver/eligibility/policy edits remain with lead. |
+| P05 external macro imports | Audit active `#[macro_use] extern crate alloc` in unchanged base64ct std contexts. Determine exact imported names and existing source/derive/expansion obligations before replacing coarse rejection; default-feature length support is delivered, std remains excluded. Lead owns source-boundary/shared policy edits. |
 | P07 range/view composition | Source-audit original `Span::range → Match::range` and `Input::get_range`; require complete pinned Range<usize> value/result proof and identify actual view consumers before any activation. Dedicated range/value checks; preserve existing sequence locations/origins. |
 | P08 concrete Result frontier | Retain the zerovec audit's connected generic/let-else/Result/?/closure blockers; select a smaller complete natural Result chain before vocabulary edits. Dedicated payload/control tests; no speculative generic permission. |
 | P09 loop/callee frontier | Locate a source-required bounded scalar looping-callee chain and freeze divergence/return/read expectations before changing summaries. Dedicated flow/summary proof; no acyclic-gate relaxation. |

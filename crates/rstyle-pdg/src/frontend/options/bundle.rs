@@ -28,7 +28,7 @@ enum KnownExport<'a> {
 )]
 enum KnownImport {
     Inline(Value),
-    Census(records::CensusImport),
+    Census(Box<records::CensusImport>),
     Origins(records::OriginsImport),
 }
 
@@ -87,7 +87,7 @@ impl KnownImport {
         match self {
             Self::Inline(value) => Ok(Entry::new(key, value)),
             Self::Census(value) if key == crate::nominal_boundary::census::KEY => {
-                value.decode(sources)
+                (*value).decode(sources)
             }
             Self::Origins(value) if key == crate::declaration_origins::KEY => value.decode(sources),
             _ => Err("Wrong-kind source evidence reference".into()),

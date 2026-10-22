@@ -82,7 +82,11 @@ fn local_cfg_if(tcx: TyCtxt<'_>, definition: DefId) -> bool {
     definition.is_local() && tcx.item_name(definition).as_str() == "cfg_if"
 }
 
-fn file_span(tcx: TyCtxt<'_>, sources: &Sources, span: Span) -> Result<FileSpan, String> {
+pub(super) fn file_span(
+    tcx: TyCtxt<'_>,
+    sources: &Sources,
+    span: Span,
+) -> Result<FileSpan, String> {
     let file = tcx.sess.source_map().lookup_source_file(span.lo());
     if file.cnum != rustc_hir::def_id::LOCAL_CRATE {
         return Err("Module expansion references a foreign source buffer".into());

@@ -5,6 +5,7 @@ mod bool_constants;
 mod callbacks;
 mod concrete_types;
 pub mod diagnostics;
+mod documentation_inputs;
 mod evidence;
 mod float_scalars;
 mod hir;

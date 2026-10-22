@@ -51,17 +51,20 @@ impl Environment {
         cfgs: Option<&[String]>,
         expansions: bool,
     ) -> Result<Self, String> {
-        let closed = if expansions && !census.expansions.is_empty() {
-            Err("Module expansion records require independent expanded closure".into())
-        } else {
-            census::verify_with_constants(&census, constants)
-        }
-        .and_then(|modules| build_index(&modules, &census, None).map(|index| (modules, index)));
+        let closed =
+            if !census.documentation.is_empty() || expansions && !census.expansions.is_empty() {
+                Err("Module expansion records require independent expanded closure".into())
+            } else {
+                census::verify_with_constants(&census, constants)
+            }
+            .and_then(|modules| build_index(&modules, &census, None).map(|index| (modules, index)));
         let (modules, index, copy_boundary) = match closed {
             Ok((modules, index)) => (modules, index, false),
             Err(error) => {
                 let Some(cfgs) = cfgs else { return Err(error) };
-                let modules = if expansions {
+                let modules = if !census.documentation.is_empty() {
+                    census::verify_documented(&census, cfgs, expansions)?
+                } else if expansions {
                     census::verify_expanded(&census, cfgs)?
                 } else {
                     census::verify_selected(&census, cfgs)?
@@ -149,6 +152,7 @@ pub(crate) mod tests {
         let bytes = "\u{feff}// π\r\npub struct Data { pub value: i32 }\r\n";
         Arc::new(census::Census {
             expansions: Vec::new(),
+            documentation: Vec::new(),
             identity: census::IDENTITY.into(),
             context: crate::nominal_boundary::tests::context(),
             files: vec![census::UnitFile {

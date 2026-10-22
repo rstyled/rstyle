@@ -1,6 +1,6 @@
 //! Check positive Copy observations, without authorizing nominal admission.
 use super::{BuiltinCopy, Origin};
-use crate::{ByteSpan, HirFnFacts};
+use crate::HirFnFacts;
 use syn::{Token, punctuated::Punctuated, spanned::Spanned};
 
 pub(crate) fn verify(
@@ -59,7 +59,10 @@ fn source(
             .parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)
             .map_err(|error| error.to_string())?;
         for path in paths {
-            if path.is_ident("Copy") && token_span(origin, path.span()) == observed.derive_span {
+            if path.is_ident("Copy")
+                && crate::source_evidence::original_span(&origin.file_bytes, path.span())
+                    == observed.derive_span
+            {
                 matches += 1;
             }
         }
@@ -68,16 +71,4 @@ fn source(
         return Err("Copy observation lacks unique active derive-token ownership".into());
     }
     Ok(())
-}
-
-fn token_span(origin: &Origin, span: proc_macro2::Span) -> ByteSpan {
-    let bytes = origin
-        .file_bytes
-        .strip_prefix('\u{feff}')
-        .unwrap_or(&origin.file_bytes);
-    let prefix = (origin.file_bytes.len() - bytes.len()) as u32;
-    ByteSpan {
-        start: prefix + crate::source_evidence::byte_offset(bytes, span.start()) as u32,
-        end: prefix + crate::source_evidence::byte_offset(bytes, span.end()) as u32,
-    }
 }

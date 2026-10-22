@@ -758,7 +758,12 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         "expr_binary" | "expr_unary" | "expr_cast"
     ) && crate::float_scalars::uses(node)
     {
-        return check_float_operation(node, ctx);
+        return checked_operation(
+            node,
+            crate::float_scalars::verify_node(node, ctx.facts),
+            crate::float_scalars::CAPABILITY,
+            "float_operation",
+        );
     }
     if ctx.profile.supports("rust.concrete-read-only-data")
         && let Some(outcome) = data_kind(node, ctx)
@@ -775,15 +780,12 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     match node.kind.as_str() {
-        "stmt_size_const" => match crate::size_constants::verify(node, ctx.facts) {
-            Ok(()) => Outcome::ok(),
-            Err(reason) => error(
-                "rust.native-borrowed-byte-readers",
-                "local_size",
-                node,
-                &reason,
-            ),
-        },
+        "stmt_size_const" => checked_operation(
+            node,
+            crate::size_constants::verify(node, ctx.facts),
+            "rust.native-borrowed-byte-readers",
+            "local_size",
+        ),
         "expr_call" if ctx.profile.supports("rust.verified-helper-calls") => {
             if crate::call_summaries::static_intrinsic(node, ctx.facts) {
                 return check_method(node, ctx);
@@ -804,15 +806,15 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 }
 
-fn check_float_operation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
-    match crate::float_scalars::verify_node(node, ctx.facts) {
+fn checked_operation(
+    node: &HirNode,
+    verification: Result<(), String>,
+    capability: &str,
+    code: &str,
+) -> Outcome {
+    match verification {
         Ok(()) => Outcome::ok(),
-        Err(reason) => error(
-            crate::float_scalars::CAPABILITY,
-            "float_operation",
-            node,
-            &reason,
-        ),
+        Err(reason) => error(capability, code, node, &reason),
     }
 }
 
@@ -950,6 +952,12 @@ fn check_option_constructor(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 /// Constructs that may be admitted once their evidence checks pass.
 fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     match node.kind.as_str() {
+        "expr_cast" if crate::bool_usize::candidate(node) => checked_operation(
+            node,
+            crate::bool_usize::verify(node, ctx.facts),
+            crate::bool_usize::CAPABILITY,
+            "bool_cast",
+        ),
         "expr_cast" if ctx.profile.supports("rust.integer-casts") => check_cast(node),
         "expr_block" => check_block(node),
         "stmt_expr" | "stmt_semi" => Outcome::ok(),
@@ -964,28 +972,22 @@ fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
                     .iter()
                     .any(|child| node_norm(child) == Some("char")) =>
         {
-            match crate::character_scalars::comparison(node) {
-                Ok(()) => Outcome::ok(),
-                Err(reason) => error(
-                    crate::character_scalars::CAPABILITY,
-                    "comparison",
-                    node,
-                    &reason,
-                ),
-            }
+            checked_operation(
+                node,
+                crate::character_scalars::comparison(node),
+                crate::character_scalars::CAPABILITY,
+                "comparison",
+            )
         }
         "expr_binary" => check_binary(node),
         "expr_unary" => check_unary(node),
         "expr_assign" => check_assign(node, ctx),
-        "expr_tuple_assign" => match crate::tuple_assignment::verify(node, ctx.facts) {
-            Ok(()) => Outcome::ok(),
-            Err(message) => error(
-                "rust.scalar-tuple-assignment",
-                "tuple_assignment",
-                node,
-                &message,
-            ),
-        },
+        "expr_tuple_assign" => checked_operation(
+            node,
+            crate::tuple_assignment::verify(node, ctx.facts),
+            "rust.scalar-tuple-assignment",
+            "tuple_assignment",
+        ),
         "expr_assign_op" => check_assign_op(node, ctx),
         "expr_if" => check_if(node),
         "expr_ret" => check_expr_ty(node, "return"),

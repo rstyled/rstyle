@@ -13,6 +13,7 @@ fn options() -> FrontendOptions {
     let context = crate::nominal_boundary::tests::context();
     let census = Census {
         expansions: Vec::new(),
+        documentation: Vec::new(),
         identity: crate::nominal_boundary::census::IDENTITY.into(),
         context,
         files: vec![UnitFile {

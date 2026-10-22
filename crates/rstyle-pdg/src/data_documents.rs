@@ -4,6 +4,7 @@ mod aggregates;
 mod assertions;
 mod bitset_cardinality;
 mod bool_constants;
+mod bool_usize;
 mod borrows;
 mod byte_calls;
 mod byte_scalars;
@@ -60,6 +61,12 @@ pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result
         checked_lengths::sources(facts),
         crate::checked_lengths::KEY,
         |source| checked_lengths::semantics(source, facts),
+    )?;
+    let pair = install_annotations(
+        pair,
+        bool_usize::sources(facts),
+        crate::bool_usize::KEY,
+        |source| crate::bool_usize::semantics(source, facts),
     )?;
     install_annotations(
         pair,
@@ -279,6 +286,7 @@ fn verify_call_operations(
     scalar_from::verify(pair, facts, calls)?;
     character_ascii::verify(pair, facts, calls)?;
     float_scalars::verify(pair, facts)?;
+    bool_usize::verify(pair, facts)?;
     bitset_cardinality::verify(pair, facts, calls)?;
     checked_lengths::verify(pair, facts)?;
 

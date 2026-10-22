@@ -86,6 +86,7 @@
     "std::char::methods::<impl char>::is_ascii": "DefPathHash(Fingerprint(9963928104983068931, 12767430517691631255))",
     "core::num::<impl usize>::checked_add": "DefPathHash(Fingerprint(9963928104983068931, 3888692462411506044))",
     "core::num::<impl usize>::checked_mul": "DefPathHash(Fingerprint(9963928104983068931, 245544603516886408))",
-    "core::num::<impl usize>::saturating_sub": "DefPathHash(Fingerprint(9963928104983068931, 9835066682288662601))"
+    "core::num::<impl usize>::saturating_sub": "DefPathHash(Fingerprint(9963928104983068931, 9835066682288662601))",
+    "core::include_str#macro": "DefPathHash(Fingerprint(9963928104983068931, 6048061757705668393))"
   }
 }

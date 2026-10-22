@@ -2,6 +2,7 @@
 
 use super::UnitContext;
 mod cfg_if;
+pub mod documentation;
 pub mod expansions;
 mod macro_scope;
 mod module_proof;
@@ -34,6 +35,8 @@ pub struct Census {
     pub files: Vec<UnitFile>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub expansions: Vec<expansions::ModuleExpansion>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub documentation: Vec<documentation::Input>,
 }
 
 pub struct Module {
@@ -51,27 +54,70 @@ pub(crate) fn verify_with_constants(
     census: &Census,
     constants: bool,
 ) -> Result<Vec<Module>, String> {
-    verify_mode(census, constants, None, false)
+    verify_mode(census, constants, None, InputMode::default())
 }
 
 pub(crate) fn verify_selected(census: &Census, cfgs: &[String]) -> Result<Vec<Module>, String> {
-    verify_mode(census, true, Some(cfgs), false)
+    verify_mode(census, true, Some(cfgs), InputMode::default())
 }
 
 pub(crate) fn verify_expanded(census: &Census, cfgs: &[String]) -> Result<Vec<Module>, String> {
-    verify_mode(census, true, Some(cfgs), true)
+    verify_mode(
+        census,
+        true,
+        Some(cfgs),
+        InputMode {
+            expansions: true,
+            documentation: false,
+        },
+    )
+}
+
+pub(crate) fn verify_documented(
+    census: &Census,
+    cfgs: &[String],
+    expansions: bool,
+) -> Result<Vec<Module>, String> {
+    verify_mode(
+        census,
+        true,
+        Some(cfgs),
+        InputMode {
+            expansions,
+            documentation: true,
+        },
+    )
+}
+
+#[derive(Default)]
+struct InputMode {
+    expansions: bool,
+    documentation: bool,
 }
 
 fn verify_mode(
     census: &Census,
     constants: bool,
     cfgs: Option<&[String]>,
-    expansions: bool,
+    mode: InputMode,
 ) -> Result<Vec<Module>, String> {
-    let files = checked_files(census)?;
+    let InputMode {
+        expansions,
+        documentation,
+    } = mode;
+    check_budget(census)?;
+    let inputs = if documentation {
+        documentation::verify(census, cfgs.ok_or("Missing documentation configuration")?)?
+    } else {
+        if !census.documentation.is_empty() {
+            return Err("Documentation inputs require independent source ownership".into());
+        }
+        BTreeSet::new()
+    };
+    let files = checked_files(census, &inputs)?;
     let mut closure = Closure {
         files,
-        visited: BTreeSet::new(),
+        visited: inputs,
         modules: Vec::new(),
         constants,
         selected: cfgs.map(crate::conditional_source::Configuration::new),
@@ -104,7 +150,8 @@ pub fn check_budget(census: &Census) -> Result<(), String> {
             .checked_add(file.bytes.len())
             .ok_or("Source census byte overflow")
     })?;
-    if census.expansions.len() > MAX_FILES
+    if census.documentation.len() > MAX_FILES
+        || census.expansions.len() > MAX_FILES
         || census
             .expansions
             .iter()
@@ -118,13 +165,17 @@ pub fn check_budget(census: &Census) -> Result<(), String> {
     Ok(())
 }
 
-fn checked_files(census: &Census) -> Result<BTreeMap<PathBuf, &str>, String> {
+fn checked_files<'a>(
+    census: &'a Census,
+    documentation: &BTreeSet<PathBuf>,
+) -> Result<BTreeMap<PathBuf, &'a str>, String> {
     census.context.transport()?;
     check_budget(census)?;
     if census.identity != IDENTITY || census.files.len() > MAX_FILES {
         return Err("Unregistered or over-budget source census".into());
     }
     let mut files = BTreeMap::new();
+    let mut locations = BTreeSet::new();
     let root = census
         .context
         .package
@@ -135,10 +186,12 @@ fn checked_files(census: &Census) -> Result<BTreeMap<PathBuf, &str>, String> {
     for file in &census.files {
         if !file.path.is_absolute()
             || !file.path.starts_with(root)
-            || file
-                .path
-                .components()
-                .any(|c| matches!(c, std::path::Component::ParentDir))
+            || (!documentation.contains(&file.path)
+                && file
+                    .path
+                    .components()
+                    .any(|c| matches!(c, std::path::Component::ParentDir)))
+            || !locations.insert(documentation::in_package(root, &file.path)?)
             || file.digest != file.bytes.identity()
             || files
                 .insert(file.path.clone(), file.bytes.as_ref())
@@ -417,6 +470,7 @@ mod tests {
     fn sample(files: &[(&str, &str)]) -> Census {
         Census {
             expansions: Vec::new(),
+            documentation: Vec::new(),
             identity: IDENTITY.into(),
             context: crate::nominal_boundary::tests::context(),
             files: files

@@ -12,6 +12,16 @@ use syn::{
 
 pub const KEY: &str = "source_correspondence";
 
+/// Convert a parser span to original UTF-8 offsets, retaining a leading BOM.
+pub(crate) fn original_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
+    let source = bytes.strip_prefix('\u{feff}').unwrap_or(bytes);
+    let prefix = (bytes.len() - source.len()) as u32;
+    ByteSpan {
+        start: prefix + byte_offset(source, span.start()) as u32,
+        end: prefix + byte_offset(source, span.end()) as u32,
+    }
+}
+
 /// Parse an original expression slice without manufacturing syntax for expansions.
 pub(crate) fn original_expression(
     node: &HirNode,

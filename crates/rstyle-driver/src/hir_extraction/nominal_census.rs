@@ -22,6 +22,14 @@ pub fn capture(
         identity: census::IDENTITY.into(),
         context: context.clone(),
         files: captured,
+        documentation: if options
+            .selected()
+            .supports(census::documentation::CAPABILITY)
+        {
+            super::documentation_inputs::capture(tcx, &options.sources)?
+        } else {
+            Vec::new()
+        },
         expansions: if options.selected().supports("rust.cfg-if-module-ownership") {
             super::module_expansions::capture(tcx, &options.sources)?
         } else {

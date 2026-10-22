@@ -9,6 +9,7 @@
 
 pub(crate) mod bitset_cardinality;
 pub mod bool_constants;
+pub(crate) mod bool_usize;
 mod builtin_scalars;
 pub mod byte_literals;
 pub mod call_summaries;

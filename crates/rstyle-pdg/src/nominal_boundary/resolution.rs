@@ -236,6 +236,7 @@ pub fn verify(facts: &HirFnFacts, interface: &InterfaceObservations) -> Result<R
 }
 
 fn standalone_environment(facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
+    crate::nominal_boundary::census::documentation::authority(facts)?;
     let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
     Environment::with_options(
         Arc::clone(&census),

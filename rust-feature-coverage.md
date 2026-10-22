@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.71.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.73.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -24,7 +24,9 @@ Copy dependency proof, connecting five original Input getters. Data-v3 3.69
 connects stored-slice results to checked consumers; 3.70 connects checked usize
 addition/multiplication and guarded Option if-let through original base64 lengths.
 Data-v3 3.71 connects immediate shared-helper Option callbacks through original
-Transition predicates, including copied borrowed byte payloads.
+Transition predicates, including copied borrowed byte payloads. Data-v3 3.72
+connects original Span/Match lengths; 3.73 connects builtin bool-to-usize and
+literal crate documentation inputs through original base64ct lengths.
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -4276,3 +4278,34 @@ checks cover 14,400 nonempty Unicode string pairs and long repeated inputs;
 changed declarations and type budgets remain checked. Evidence: `/tmp/rstyle-perf9-*`.
 Validation: **1042 tests /5 existing skips**, doctests/fmt/Clippy pass;
 **rstyle0/3356, patterns0 unignored**, existing15 ignores unchanged.
+
+
+### Data-v3 3.73: original base64ct length helper
+
+[Source selection and bounded expectations](eval/coverage-development/base64ct-length-selection.json).
+Exact builtin bool-to-usize evaluates one saved operand (false→0, true→1).
+Direct root-doc include_str inputs retain all bytes and exact pinned compiler,
+owner, path and expansion proof; code includes, orphan files and macro imports
+retain their existing restrictions. Historical policies gain neither capability.
+Three pinned targets, unchanged default contexts: **3→6/141, zero losses**.
+The selected encoded_len_inner gains admission; incidental Line::len/is_empty
+also gain through their existing shared-slice chain. Original std contexts retain
+**3/150**: active macro_use extern alloc remains an unproved source boundary.
+Copied std/no_std fixtures do not establish original std-context support.
+
+All **39 contextual original admissions** strictly replay (27 base64ct,12 base64);
+**nine predeclared comparisons** complete, including rejection of the incompatible
+original length helpers. Their overflow cutoffs differ; matching/scoring is unchanged.
+Frozen run-gn15_b0l versus run-72emt3ji retains **23 admitted /30 excluded /7 inactive**;
+full lz4_flex8/150, syntax39/956 and time-core11/226 rosters are unchanged, all58
+strictly replay. Full-library matching remains explicitly incomplete under max-pairs0.
+Native execution is ARM Linux; x86 Linux and ARM macOS evidence is cross-target.
+Evidence: `/tmp/rstyle-length-*`. Original std macro imports are the next audited
+source-boundary blocker; general casts, Result/? and opaque/drop owners remain open.
+
+Independent unchanged-library oracle: **131074 cases per native feature context**;
+**8320 exact private-source witness cases** separately exercise intermediate
+and final overflow (52 incompatible peer outcomes). This private-source witness
+is not execution of the private helper inside the full package.
+**1053 tests /5 existing skips, 127.079s**, doctests/fmt/Clippy pass;
+**rstyle0/3371, patterns0 unignored**, existing15 ignores unchanged.

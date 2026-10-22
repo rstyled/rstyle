@@ -62,6 +62,7 @@ struct SourcePolicy<'a> {
 
 impl Sources {
     fn environment(&self, facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
+        crate::nominal_boundary::census::documentation::authority(facts)?;
         let census = facts.build.frontend_options.data::<Arc<Census>>()?;
         self.for_census(
             &census,

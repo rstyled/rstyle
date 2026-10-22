@@ -711,6 +711,8 @@ impl Builder<'_> {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
             construct: if let Some(construct) = crate::float_scalars::construct(node) {
                 Some(construct.into())
+            } else if crate::bool_usize::candidate(node) {
+                Some(crate::bool_usize::CONSTRUCT.into())
             } else if crate::character_ascii::candidate(node, self.facts) {
                 Some(crate::character_ascii::CONSTRUCT.into())
             } else if crate::fieldless_enums::cast_candidate(node, self.facts) {
