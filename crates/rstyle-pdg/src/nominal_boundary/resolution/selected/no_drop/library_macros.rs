@@ -74,6 +74,35 @@ pub(super) fn import(prefix: &[String], name: &str, registry: Option<&Registry>)
     }
 }
 
+/// Exact reviewed std -> alloc -> core reexports preserve both Debug namespaces.
+pub(super) fn std_debug(registry: Option<&Registry>) -> bool {
+    let Some(registry) = registry else {
+        return false;
+    };
+    import(&["core".into(), "fmt".into()], "Debug", Some(registry))
+        && [
+            (
+                "std/src/lib.rs",
+                "sha256:5b6f8c7f657686c59e87c670d6b0df328e1aab622b56172821e486cc932175d5",
+            ),
+            (
+                "alloc/src/lib.rs",
+                "sha256:3b17b423a626ffa5ff114a1f1ebab97df8998b3189753f1a187846c35c0d25c8",
+            ),
+            (
+                "alloc/src/fmt.rs",
+                "sha256:cd07ff6ed15cf6b8b31b7d601b638cf4c6ca9f0d3e8963b33d170160f4b0cf06",
+            ),
+        ]
+        .iter()
+        .all(|(path, digest)| {
+            registry
+                .cleanup_macro_source_digests
+                .get(*path)
+                .is_some_and(|actual| actual == digest)
+        })
+}
+
 /// Only these exact pinned alloc paths reuse the existing reviewed argument
 /// grammar. Arbitrary qualified macro paths retain their unsupported outcome.
 pub(super) fn qualified_alloc(mac: &syn::Macro, registry: Option<&Registry>) -> Option<syn::Macro> {

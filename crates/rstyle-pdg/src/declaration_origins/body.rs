@@ -167,7 +167,7 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
         TypeToken::Scalar(value) => TypeTree::Scalar(value.clone()),
         TypeToken::Str => TypeTree::Str,
         TypeToken::IntConversionResult(value) => TypeTree::IntConversionResult(value.clone()),
-        TypeToken::RangeUsize => {
+        TypeToken::RangeUsize | TypeToken::RangeToUsize => {
             return Err("Range authority cannot be inferred from a body token".into());
         }
         TypeToken::Option(element) => TypeTree::Option(Box::new(tree(element, origins)?)),

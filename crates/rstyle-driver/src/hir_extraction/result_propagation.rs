@@ -11,9 +11,11 @@ use rustc_hir::{
     def_id::DefId,
 };
 use rustc_middle::ty::{self, Ty};
+mod borrowed;
 
 pub(super) enum Protocol {
     Result,
+    BorrowedResult,
     Option,
 }
 
@@ -21,6 +23,7 @@ pub(super) enum Protocol {
 #[serde(untagged)]
 enum CapturedShape {
     Result(Shape),
+    BorrowedResult(rstyle_pdg::borrowed_result_propagation::capture::Shape),
     Option(rstyle_pdg::option_propagation::capture::Shape),
 }
 
@@ -47,6 +50,11 @@ impl Protocol {
     fn metadata(&self) -> (&'static str, &'static str, &'static str) {
         match self {
             Self::Result => ("rust.same-error-result-propagation", RESOLUTION, IDENTITY),
+            Self::BorrowedResult => (
+                "rust.checked-borrowed-result-flow",
+                rstyle_pdg::borrowed_result_propagation::capture::RESOLUTION,
+                rstyle_pdg::borrowed_result_propagation::capture::IDENTITY,
+            ),
             Self::Option => (
                 "rust.concrete-option-propagation",
                 rstyle_pdg::option_propagation::capture::RESOLUTION,
@@ -59,6 +67,7 @@ impl Protocol {
 impl<'tcx> Context<'tcx> {
     pub(super) fn result_propagation(&self, root: &Expr<'tcx>) -> Option<PathRes> {
         self.propagation_capture(root, Protocol::Result)
+            .or_else(|| self.propagation_capture(root, Protocol::BorrowedResult))
     }
 
     pub(super) fn propagation_capture(
@@ -138,6 +147,10 @@ impl<'tcx> Context<'tcx> {
         Some(match protocol {
             Protocol::Result => (
                 CapturedShape::Result(self.propagation_shape(operand, branch)?),
+                Some(self.propagation_conversion(root, operand)?),
+            ),
+            Protocol::BorrowedResult => (
+                CapturedShape::BorrowedResult(self.borrowed_result_shape(operand, branch)?),
                 Some(self.propagation_conversion(root, operand)?),
             ),
             Protocol::Option => (

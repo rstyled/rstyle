@@ -21,6 +21,9 @@ pub fn shared(token: &TypeToken) -> bool {
     match token {
         TypeToken::Shared(_) => true,
         TypeToken::Option(value) => shared(value),
+        TypeToken::Result { ok, err } if crate::borrowed_result_types::result(ok, err) => {
+            shared(ok)
+        }
         TypeToken::SliceArrayResult { borrowed: true, .. } => true,
         TypeToken::Tuple(elements) => elements.iter().any(shared),
         TypeToken::Struct { fields, .. } => fields.iter().any(|(_, field)| shared(field)),
@@ -253,6 +256,11 @@ pub(crate) fn paths(
     prefix: Vec<Projection>,
 ) -> Result<Vec<Vec<Projection>>, String> {
     Ok(match ty {
+        TypeToken::Result { .. } => {
+            return Err(
+                "Result formal/storage origins require unavailable guarded payload evidence".into(),
+            );
+        }
         TypeToken::Shared(_) => vec![
             prefix
                 .into_iter()
@@ -359,6 +367,51 @@ mod tests {
         }];
         assert_eq!(propagation_origins(saved.clone()).unwrap(), saved);
         assert!(propagation_origins(Vec::new()).is_err());
+    }
+
+    #[test]
+    fn result_references_are_visible_but_formal_and_storage_paths_stay_closed() {
+        let nominal = crate::concrete_types::Nominal {
+            source_identity: Some("selected".into()),
+            package_name: "sample".into(),
+            package_version: "1".into(),
+            manifest_digest: "sha256:unused-structural-test".into(),
+            definition_path: "sample::Error".into(),
+            declaration_digest: "sha256:unused-structural-test".into(),
+        };
+        let error = TypeToken::MixedEnum {
+            nominal,
+            variants: vec![
+                (
+                    "Payload".into(),
+                    crate::concrete_types::VariantShape::Named {
+                        fields: vec![("size".into(), TypeToken::Scalar("usize".into()))],
+                    },
+                ),
+                ("Empty".into(), crate::concrete_types::VariantShape::Unit {}),
+            ],
+        };
+        let slice = TypeToken::Shared(Box::new(TypeToken::Slice(Box::new(TypeToken::Scalar(
+            "u8".into(),
+        )))));
+        for ok in [
+            slice.clone(),
+            TypeToken::Tuple(vec![TypeToken::Scalar("usize".into()), slice]),
+        ] {
+            let result = TypeToken::Result {
+                ok: Box::new(ok),
+                err: Box::new(error.clone()),
+            };
+            assert!(shared(&result));
+            assert!(paths(&result, Vec::new()).is_err());
+            assert!(paths(&TypeToken::Tuple(vec![result]), Vec::new()).is_err());
+        }
+        let unsupported = TypeToken::Result {
+            ok: Box::new(TypeToken::Shared(Box::new(TypeToken::Scalar("u8".into())))),
+            err: Box::new(error),
+        };
+        assert!(!shared(&unsupported));
+        assert!(paths(&unsupported, Vec::new()).is_err());
     }
 
     #[test]

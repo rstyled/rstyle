@@ -13,23 +13,26 @@ pub(super) fn array(length: u64) -> TypeTree {
 fn result(kind: Kind) -> TypeTree {
     TypeTree::SliceArrayResult {
         length: kind.length(),
-        borrowed: matches!(kind, Kind::Borrow | Kind::UnwrapBorrow),
+        borrowed: matches!(kind, Kind::Borrow(_) | Kind::UnwrapBorrow(_)),
     }
 }
 
 pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let (input, output) = match kind {
-        Kind::Copy(_) | Kind::Borrow => (
+        Kind::Copy(_) | Kind::Borrow(_) => (
             TypeTree::Shared(Box::new(TypeTree::Slice(Box::new(TypeTree::Scalar(
                 "u8".into(),
             ))))),
             result(kind),
         ),
         Kind::Unwrap(_) => (result(kind), array(kind.length())),
-        Kind::Native => (array(4), TypeTree::Scalar("u32".into())),
+        Kind::Native | Kind::LittleU32 => (array(4), TypeTree::Scalar("u32".into())),
         Kind::NativeU16 => (array(2), TypeTree::Scalar("u16".into())),
         Kind::NativeU128 => (array(16), TypeTree::Scalar("u128".into())),
-        Kind::UnwrapBorrow => (result(kind), TypeTree::Shared(Box::new(array(8)))),
+        Kind::UnwrapBorrow(_) => (
+            result(kind),
+            TypeTree::Shared(Box::new(array(kind.length()))),
+        ),
         Kind::NativeUsize => (array(8), TypeTree::Scalar("usize".into())),
     };
     let operand = node.children.first().ok_or("Missing byte-call operand")?;
@@ -109,15 +112,17 @@ fn verify_receiver(
         return Err("Byte-call instantiated signature disagrees".into());
     }
     let allowed = match kind {
-        Kind::Copy(_) | Kind::Borrow => receiver.adjustments.iter().all(|step| {
+        Kind::Copy(_) | Kind::Borrow(_) => receiver.adjustments.iter().all(|step| {
             matches!(
                 step.kind,
                 crate::data_receivers::Kind::SharedBorrow
                     | crate::data_receivers::Kind::BuiltinDereference
             )
         }),
-        Kind::Unwrap(_) | Kind::UnwrapBorrow => receiver.adjustments.is_empty(),
-        Kind::Native | Kind::NativeUsize | Kind::NativeU16 | Kind::NativeU128 => unreachable!(),
+        Kind::Unwrap(_) | Kind::UnwrapBorrow(_) => receiver.adjustments.is_empty(),
+        Kind::Native | Kind::NativeUsize | Kind::NativeU16 | Kind::NativeU128 | Kind::LittleU32 => {
+            unreachable!()
+        }
     };
     if !allowed {
         return Err("Byte call requires builtin shared receiver adjustments".into());

@@ -132,7 +132,12 @@ impl Source<'_> {
         if !self.configuration.active(&item.attrs)? {
             return Err("Local trait owner declaration is inactive".into());
         }
-        nominal_attributes(self.facts, &item.generics, &item.attrs, false)?;
+        nominal_attributes(
+            self.facts,
+            &item.generics,
+            &item.attrs,
+            AttributeOwner::Struct { transparent: false },
+        )?;
         for field in &item.fields {
             self.active(&field.attrs)?;
         }

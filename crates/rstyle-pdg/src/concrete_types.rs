@@ -21,6 +21,7 @@ use sha2::{Digest, Sha256};
 pub const KEY: &str = "concrete_type_observations";
 pub const IDENTITY: &str = "rstyle.rust.concrete-type-capture/1";
 pub const MAX_DEPTH: usize = 16;
+pub const MAX_VARIANTS: usize = 16;
 pub const MAX_ENTRIES: usize = 4096;
 pub const MAX_FIELDS: usize = 128;
 pub const MAX_SOURCE_BYTES: usize = 64 * 1024;
@@ -47,6 +48,9 @@ pub enum TypeTree {
     IntConversionResult(String),
     /// Pinned non-Copy Range<usize>; fresh result use is checked separately.
     RangeUsize {
+        observation: crate::range_values::authority::Observation,
+    },
+    RangeToUsize {
         observation: crate::range_values::authority::Observation,
     },
     SliceArrayResult {
@@ -89,21 +93,43 @@ pub struct Variant {
 pub enum VariantShape<T> {
     Unit {},
     SingleTuple { field: T },
+    Named { fields: Vec<(String, T)> },
 }
 
 impl<T> VariantShape<T> {
     pub fn field(&self) -> Option<&T> {
         match self {
-            Self::Unit {} => None,
+            Self::Unit {} | Self::Named { .. } => None,
             Self::SingleTuple { field } => Some(field),
         }
     }
 
-    pub fn map<U>(&self, transform: impl FnOnce(&T) -> U) -> VariantShape<U> {
+    /// Every payload child, including named fields in declaration order.
+    pub fn fields(&self) -> impl Iterator<Item = &T> {
+        let single = match self {
+            Self::SingleTuple { field } => Some(field),
+            _ => None,
+        };
+        let named = match self {
+            Self::Named { fields } => Some(fields),
+            _ => None,
+        };
+        single
+            .into_iter()
+            .chain(named.into_iter().flatten().map(|(_, field)| field))
+    }
+
+    pub fn map<U>(&self, mut transform: impl FnMut(&T) -> U) -> VariantShape<U> {
         match self {
             Self::Unit {} => VariantShape::Unit {},
             Self::SingleTuple { field } => VariantShape::SingleTuple {
                 field: transform(field),
+            },
+            Self::Named { fields } => VariantShape::Named {
+                fields: fields
+                    .iter()
+                    .map(|(name, field)| (name.clone(), transform(field)))
+                    .collect(),
             },
         }
     }
@@ -118,6 +144,10 @@ pub struct MixedVariant {
 }
 
 impl TypeTree {
+    pub(crate) fn wrapped(self, wrapper: impl FnOnce(Box<Self>) -> Self) -> Self {
+        wrapper(Box::new(self))
+    }
+
     pub(crate) fn nominal_parts(&self) -> Option<(&Nominal, &crate::SourceText)> {
         match self {
             Self::Struct {
@@ -177,7 +207,7 @@ impl TypeTree {
                 mixed
                     .into_iter()
                     .flatten()
-                    .filter_map(|variant| variant.shape.field()),
+                    .flat_map(|variant| variant.shape.fields()),
             )
     }
 }
@@ -264,6 +294,7 @@ pub(crate) fn validate_observations<'a>(
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
         TypeTree::RangeUsize { observation } => crate::range_values::authority::shape(observation),
+        TypeTree::RangeToUsize { observation } => crate::range_values::authority::range_to_shape(observation),
         TypeTree::Result { ok, err } => result_shape(ok, err),
         TypeTree::IntConversionResult(value) if !matches!(value.as_str(), "usize" | "u16") => {
             Err("Integer conversion Result requires a registered scalar payload".into())
@@ -302,6 +333,9 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
 
 /// This bounded shape grants neither Copy, drop freedom nor value permission.
 fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
+    if crate::borrowed_result_types::tree_result(ok, err) {
+        return Ok(());
+    }
     let TypeTree::Struct {
         nominal,
         source,
@@ -339,6 +373,7 @@ fn option_payload(tree: &TypeTree) -> bool {
         TypeTree::Scalar(value) => scalar(value) && value != "unit",
         TypeTree::Shared(value) => {
             matches!(value.as_ref(), TypeTree::Scalar(value) if scalar(value) && value != "unit")
+                || matches!(value.as_ref(), TypeTree::Slice(element) if matches!(element.as_ref(), TypeTree::Scalar(value) if value == "u8"))
         }
         TypeTree::Tuple(_) | TypeTree::Struct { .. } => {
             crate::data_types::option_product(&crate::data_types::TypeToken::from_tree(tree))

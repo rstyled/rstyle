@@ -104,10 +104,54 @@ impl<'tcx> Capture<'_, 'tcx> {
                 self.mixed_payload(site, variant, declaration)
                     .map(|field| VariantShape::SingleTuple { field })
             }
+            VariantShape::Named { fields }
+                if !fields.is_empty()
+                    && fields.len() == variant.fields.len()
+                    && variant.ctor_kind().is_none() =>
+            {
+                let fields = variant
+                    .fields
+                    .iter()
+                    .zip(fields)
+                    .enumerate()
+                    .map(|(position, (field, (name, declaration)))| {
+                        let ty = self.named_field_type(site, field, &name)?;
+                        Ok((
+                            name.clone(),
+                            Field {
+                                position,
+                                name,
+                                declaration: declaration.into(),
+                                ty,
+                            },
+                        ))
+                    })
+                    .collect::<Result<_, Failure>>()?;
+                Ok(VariantShape::Named { fields })
+            }
             _ => Err(unsupported(
                 "Mixed enum loses its compiler unit/single tuple constructor shape",
             )),
         }
+    }
+
+    fn named_field_type(
+        &mut self,
+        site: VariantSite<'tcx>,
+        field: &ty::FieldDef,
+        name: &str,
+    ) -> Result<TypeTree, Failure> {
+        if field.name.to_string() != name {
+            return Err(unsupported(
+                "Named enum compiler/source field identity disagrees",
+            ));
+        }
+        let ty = self.mixed_field_type(site, field)?;
+        if !matches!(&ty, TypeTree::Scalar(value) if rstyle_pdg::concrete_types::scalar(value) && value != "unit")
+        {
+            return Err(unsupported("Named enum requires scalar fields"));
+        }
+        Ok(ty)
     }
 
     fn mixed_payload(
@@ -121,6 +165,20 @@ impl<'tcx> Capture<'_, 'tcx> {
             .iter()
             .next()
             .ok_or_else(|| unsupported("Missing mixed enum payload"))?;
+        let ty = self.mixed_field_type(site, field)?;
+
+        Ok(Field {
+            position: 0,
+            name: "0".into(),
+            declaration: declaration.into(),
+            ty,
+        })
+    }
+    fn mixed_field_type(
+        &mut self,
+        site: VariantSite<'tcx>,
+        field: &ty::FieldDef,
+    ) -> Result<TypeTree, Failure> {
         let tcx = self.ctx.tcx;
         let payload = tcx
             .type_of(field.did)
@@ -130,11 +188,6 @@ impl<'tcx> Capture<'_, 'tcx> {
             .try_normalize_erasing_regions(environment, payload)
             .map_err(|_| unsupported("Mixed enum payload cannot be resolved"))?;
 
-        Ok(Field {
-            position: 0,
-            name: "0".into(),
-            declaration: declaration.into(),
-            ty: self.tree(payload, site.depth + 1)?,
-        })
+        self.tree(payload, site.depth + 1)
     }
 }

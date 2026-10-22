@@ -502,10 +502,11 @@ pub(super) fn origin_value<'a>(
     if let Some((
         Projection::ByteWindow {
             operand_position: 0,
-            length: 8,
+            length,
         },
         prefix,
     )) = path.split_last()
+        && matches!(length, 4 | 8)
     {
         let referent = base_value(value, prefix)?;
         if *referent != TypeTree::Slice(Box::new(TypeTree::Scalar("u8".into()))) {
@@ -513,7 +514,7 @@ pub(super) fn origin_value<'a>(
         }
         return Ok(std::borrow::Cow::Owned(TypeTree::Array {
             element: Box::new(TypeTree::Scalar("u8".into())),
-            length: 8,
+            length: *length,
         }));
     }
     base_value(value, path).map(std::borrow::Cow::Borrowed)

@@ -1,6 +1,9 @@
 //! Operation lowering preserves source evaluation order and snapshot values.
 
+mod borrowed_result_errors;
+mod borrowed_result_propagation;
 mod callbacks;
+mod checked_slice_views;
 mod enums;
 mod helper_option_callbacks;
 mod iterator_position;
@@ -215,7 +218,7 @@ impl Builder<'_> {
         {
             return self.variant_constructor(node, flow);
         }
-        lowerer(node)(self, node, flow)
+        lowerer(node, self.facts)(self, node, flow)
     }
 
     fn compile_time_item(&mut self, _: &HirNode, flow: Flow) -> Flow {
@@ -405,14 +408,6 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
-    fn index_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        if crate::data_subslices::candidate(node, self.facts) {
-            self.subslice(node, flow)
-        } else {
-            self.scalar_index(node, flow)
-        }
-    }
-
     fn scalar_index(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let [base, index] = node.children.as_slice() else {
             unreachable!("eligible index operands")
@@ -476,13 +471,7 @@ impl Builder<'_> {
     ) -> Operands {
         let base = self.field_place(checked.base, flow);
         let saved = self.operand(&base.value);
-        let endpoints = self.evaluate_sequence(
-            checked
-                .start
-                .into_iter()
-                .chain(std::iter::once(checked.end)),
-            base,
-        );
+        let endpoints = self.evaluate_sequence(checked.start.into_iter().chain(checked.end), base);
         Operands {
             flow: endpoints.flow,
             values: saved.into_iter().chain(endpoints.values).collect(),
@@ -672,6 +661,17 @@ impl Builder<'_> {
     }
 
     fn invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::checked_slice_views::candidate(node, self.facts) {
+            return self.checked_prefix_get(node, flow);
+        }
+        if crate::borrowed_result_errors::candidate(node, self.facts) {
+            return self.borrowed_option_ok_or(node, flow);
+        }
+
+        self.dispatched_invocation(node, flow)
+    }
+
+    fn dispatched_invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
         if crate::named_callbacks::candidate(node, self.facts) {
             return self.callback_invocation(
                 callbacks::Target::Named(
@@ -1368,7 +1368,10 @@ fn arm(predicate: &Flow, outcome: &str) -> Flow {
     }
 }
 
-fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
+fn lowerer<'a>(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
     match node.kind.as_str() {
         "expr_block" => Builder::block,
         "expr_try_desugar" => propagation_lowerer(node),
@@ -1376,17 +1379,10 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,
         "stmt_size_const" | "stmt_bool_array" | "stmt_const_array_fn" => Builder::compile_time_item,
-        "expr_path"
-            if node
-                .res
-                .as_ref()
-                .is_some_and(|resolution| resolution.kind == "resolved_fieldless_variant") =>
-        {
-            Builder::fieldless_value
-        }
-        "expr_path" => Builder::path,
+        "expr_path" => path_lowerer(node, facts),
         "expr_field" => Builder::field_read,
-        "expr_index" => Builder::index_read,
+        "expr_index" if crate::data_subslices::candidate(node, facts) => Builder::subslice,
+        "expr_index" => Builder::scalar_index,
         "expr_unary" => Builder::unary,
         "expr_addr_of" => Builder::borrow,
         "expr_tup" if !node.children.is_empty() => Builder::computation,
@@ -1416,6 +1412,21 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
     }
 }
 
+fn path_lowerer<'a>(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
+    match node.res.as_ref().map(|resolution| resolution.kind.as_str()) {
+        Some("resolved_fieldless_variant")
+            if crate::borrowed_result_errors::error_candidate(node, facts) =>
+        {
+            Builder::fresh_error_variant
+        }
+        Some("resolved_fieldless_variant") => Builder::fieldless_value,
+        _ => Builder::path,
+    }
+}
+
 fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
     if node
         .res
@@ -1423,6 +1434,12 @@ fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flo
         .is_some_and(|res| res.kind == crate::option_propagation::capture::RESOLUTION)
     {
         Builder::option_propagation
+    } else if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::borrowed_result_propagation::capture::RESOLUTION)
+    {
+        Builder::borrowed_result_propagation
     } else {
         Builder::result_propagation
     }

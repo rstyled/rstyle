@@ -36,9 +36,9 @@ pub(super) fn owned(node: &HirNode) -> bool {
 }
 
 fn result(scalar: &str) -> TypeTree {
-    TypeTree::Option(Box::new(TypeTree::Shared(Box::new(TypeTree::Scalar(
-        scalar.into(),
-    )))))
+    TypeTree::Scalar(scalar.into())
+        .wrapped(TypeTree::Shared)
+        .wrapped(TypeTree::Option)
 }
 
 pub(super) fn get(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<String, String> {
@@ -46,9 +46,9 @@ pub(super) fn get(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<String, S
         return Err("Checked get requires a shared scalar payload".into());
     }
     let scalar = payload(node)?;
-    let receiver = TypeTree::Shared(Box::new(TypeTree::Slice(Box::new(TypeTree::Scalar(
-        scalar.clone(),
-    )))));
+    let receiver = TypeTree::Scalar(scalar.clone())
+        .wrapped(TypeTree::Slice)
+        .wrapped(TypeTree::Shared);
     let expected = [crate::data_types::token(&receiver)?, "usize".into()];
     let operands = node
         .children

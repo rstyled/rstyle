@@ -1,0 +1,223 @@
+{
+  "identity": "rstyle.development.uncompressed-size-readiness/1",
+  "status": "Data3.81 connected activation; original source and nine-context baseline preserved",
+  "inventory_policy": "Separate development corpus lz4_flex0.11.6; frozen lz4_flex0.14.0 identities, denominators and historical outcomes unchanged.",
+  "package": {
+    "name": "lz4_flex",
+    "version": "0.11.6",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lz4_flex-0.11.6",
+    "file_sha256": {
+      "Cargo.toml": "1a097ce53b65d7c6164b9c67ef341144b398b4ce516ec875cecb07e71bd5afea",
+      "src/lib.rs": "4be4606810fc4f60695582c6c465df24d8dad1ee564cf568a7ee80ea42424d08",
+      "src/block/mod.rs": "4536cb81f800ed34162be69b2393f144f50f2864cabb2344b3eec0b4be908746"
+    }
+  },
+  "build": {
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "edition": "2021",
+    "profile": "debug, overflow_checks=true, debug_assertions=true, panic=unwind, opt_level=No, pointer_width64",
+    "cargo_target": "lib, non-test",
+    "contexts": [
+      {
+        "name": "default",
+        "default_features": true,
+        "features": [],
+        "effective_features": [
+          "std",
+          "safe-encode",
+          "safe-decode",
+          "frame",
+          "checked-decode"
+        ]
+      },
+      {
+        "name": "no-default",
+        "default_features": false,
+        "features": [],
+        "effective_features": []
+      },
+      {
+        "name": "safe-decode-no-default",
+        "default_features": false,
+        "features": [
+          "safe-decode"
+        ],
+        "effective_features": [
+          "safe-decode"
+        ]
+      }
+    ],
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "runtime_scope": "Oracle runs native host only; cross-target capture/replay is a separate claim."
+  },
+  "functions": [
+    {
+      "name": "block::uncompressed_size",
+      "file": "src/block/mod.rs",
+      "span": {
+        "start": 5008,
+        "end": 5346
+      },
+      "sha256": "5139c6d88a492057f700ae1914ccb9a1ffcd642e062062e3786cf3d35f8c34b5",
+      "source": "pub fn uncompressed_size(input: &[u8]) -> Result<(usize, &[u8]), DecompressError> {\n    let size = input.get(..4).ok_or(DecompressError::ExpectedAnotherByte)?;\n    let size: &[u8; 4] = size.try_into().unwrap();\n    let uncompressed_size = u32::from_le_bytes(*size) as usize;\n    let rest = &input[4..];\n    Ok((uncompressed_size, rest))\n}"
+    }
+  ],
+  "owners": [
+    {
+      "name": "block::DecompressError",
+      "file": "src/block/mod.rs",
+      "span": {
+        "start": 2743,
+        "end": 3265
+      },
+      "sha256": "0af2d4843e7e77492028bac9e0b32176deda0fe8fd79c980016961c0df5b3569",
+      "source": "#[derive(Debug)]\n#[non_exhaustive]\npub enum DecompressError {\n    /// The provided output is too small\n    OutputTooSmall {\n        /// Minimum expected output size\n        expected: usize,\n        /// Actual size of output\n        actual: usize,\n    },\n    /// Literal is out of bounds of the input\n    LiteralOutOfBounds,\n    /// Expected another byte, but none found.\n    ExpectedAnotherByte,\n    /// Match offset is 0\n    OffsetZero,\n    /// Deduplication offset out of bounds (not in buffer).\n    OffsetOutOfBounds,\n}"
+    },
+    {
+      "name": "<block::DecompressError as core::fmt::Display>::fmt",
+      "file": "src/block/mod.rs",
+      "span": {
+        "start": 3439,
+        "end": 4381
+      },
+      "sha256": "0d7864631396620ccd3f82502650223fb571f5002bf478727bb989fa30168b8c",
+      "source": "impl fmt::Display for DecompressError {\n    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        match self {\n            DecompressError::OutputTooSmall { expected, actual } => {\n                write!(\n                    f,\n                    \"provided output is too small for the decompressed data, actual {actual}, expected \\\n                     {expected}\"\n                )\n            }\n            DecompressError::LiteralOutOfBounds => {\n                f.write_str(\"literal is out of bounds of the input\")\n            }\n            DecompressError::ExpectedAnotherByte => {\n                f.write_str(\"expected another byte, found none\")\n            }\n            DecompressError::OffsetZero => f.write_str(\"0 is not a valid match offset\"),\n            DecompressError::OffsetOutOfBounds => {\n                f.write_str(\"the offset to copy is not contained in the decompressed buffer\")\n            }\n        }\n    }\n}"
+    },
+    {
+      "name": "<block::DecompressError as core::error::Error>",
+      "file": "src/block/mod.rs",
+      "span": {
+        "start": 4728,
+        "end": 4761
+      },
+      "sha256": "e998d7b660711c918407fee02db32ba77860ea5beff91ee0f55335d932814ffe",
+      "source": "impl Error for DecompressError {}"
+    }
+  ],
+  "positive_expectations": {
+    "short_input": "All valid slices of lengths0..3 return Err(ExpectedAnotherByte); no header content dereference or suffix evaluation.",
+    "complete_header": "All valid slices of length>=4 return Ok((sum(input[i]*256^i,i=0..3), exact input[4..] shared view)).",
+    "borrowing": "Result component1 retains original input origin with offset4, length input.len()-4 and same suffix pointer; no copy/allocation of trailing bytes.",
+    "panic": "No valid &[u8] input panics; header u32::MAX fits selected64-bit usize.",
+    "trailing": "Arbitrary trailing bytes are accepted; this parser does not validate compressed data."
+  },
+  "negative_expectations": [
+    "Missing/incomplete dependency, owner, source or core witness never implies supported.",
+    "Do not treat DecompressError as Copy; source derives Debug only.",
+    "Every enum variant remains in complete ownership proof, including named OutputTooSmall{expected:usize,actual:usize}.",
+    "Injected destructor/opaque or reference-bearing error field, custom same-name method, altered Try/FromResidual/From selection or unresolved imports reject.",
+    "Wrong byte order, selected width, checked-range endpoint, suffix origin, saved operand, success guard, error tag or result-component mapping must fail strict semantic verification.",
+    "Unrelated mutable slicing, arbitrary Result conversions, generic payload moves, allocation/decompression loops remain excluded."
+  ],
+  "blockers": [
+    {
+      "id": "owner",
+      "known": "Complete named-payload non-Copy enum noDrop source evidence; standard Debug derive, Display/Error impls and core/glob imports remain independently checked.",
+      "current_boundary": "Mixed enum vocabulary supports only unit/single-tuple variants; existing fresh Result error is unit tuple struct."
+    },
+    {
+      "id": "checked-view",
+      "known": "Exact slice get(RangeTo<usize>) returns Option<&[u8]> with saved view endpoints/length and no content read.",
+      "current_boundary": "Checked get accepts scalar usize element access only."
+    },
+    {
+      "id": "ok-or",
+      "known": "Exact eager Option::ok_or evaluates error value even Some; dropping unused error must be independently noDrop.",
+      "current_boundary": "No general Option-to-Result payload transport."
+    },
+    {
+      "id": "residual",
+      "known": "Result<&[u8],E>? in Result<(usize,&[u8]),E> transfers same error through selected core Try/FromResidual/reflexive From; input whole Result cannot be forwarded as output.",
+      "current_boundary": "Existing Result? requires identical complete Result types and unit success."
+    },
+    {
+      "id": "borrow-array",
+      "known": "Pinned TryInto/TryFrom shared slice to &[u8;4], Result unwrap, exact byte-window origins and builtin array dereference read.",
+      "current_boundary": "Borrowed conversion/ByteWindow is hardcoded8, unlike owned conversion lengths."
+    },
+    {
+      "id": "little-endian",
+      "known": "Pinned u32::from_le_bytes([u8;4]) then exact widening usize cast.",
+      "current_boundary": "Native byte helpers use from_ne_bytes only."
+    },
+    {
+      "id": "suffix",
+      "known": "Exact RangeFrom view input[4..] and original source endpoint evidence.",
+      "current_boundary": "Subslice verifier requires end; supports bounded and prefix only."
+    },
+    {
+      "id": "return",
+      "known": "Ok constructor and fresh Result success tuple with scalar plus exact borrowed suffix component; component-specific origins retained.",
+      "current_boundary": "Result vocabulary and fresh ownership excludes this success/error shape."
+    }
+  ],
+  "unknowns": [
+    "Actual pinned core selected definition/implementation hashes and substitutions for RangeTo get, ok_or, borrowed4 TryInto/unwrap, Result residual and from_le_bytes require capture.",
+    "Additional module/import/derive/source-owner restrictions may appear in unchanged full Cargo capture; no admission outcome has been sampled for selection.",
+    "Extent of existing builtin array dereference/read evidence reuse must be confirmed without collapsing pointer loads and content reads."
+  ],
+  "acceptance": "Original unchanged function in all selected contexts through Cargo capture, verification, strict admission and complete selected matching; unchanged corpus admissions measured for new/lost outcomes. Independent native oracle and adversarial resealed source/document/guard/origin/error/drop tests remain separate evidence.",
+  "out_of_scope": "decompress_size_prepended callers still allocate/mutate Vec and execute decompression loops; no complete decompressor claim.",
+  "proposed_production_leaves": [
+    "noDrop enum declaration/ownership and actual unit-variant construction",
+    "checked slice range-view get + eager ok_or",
+    "differing-success same-error Result propagation with guarded borrowed success origins",
+    "borrowed4 array conversion + LE byte authority",
+    "suffix-view source/bounds/origin evidence + borrowed tuple Result return"
+  ],
+  "native_validation": {
+    "identity": "rstyle.original-uncompressed-size-native-oracle/1",
+    "source_identities_checked": true,
+    "contexts": [
+      {
+        "cases": 5787,
+        "mismatches": 0,
+        "scope": "unchanged public library native execution",
+        "context": "default"
+      },
+      {
+        "cases": 5787,
+        "mismatches": 0,
+        "scope": "unchanged public library native execution",
+        "context": "no-default"
+      },
+      {
+        "cases": 5787,
+        "mismatches": 0,
+        "scope": "unchanged public library native execution",
+        "context": "safe-decode-no-default"
+      }
+    ],
+    "limitation": "Native runtime only; extraction, strict admission and matching are separate."
+  },
+  "baseline": {
+    "revision": "c3a013d Data3.80 source-equivalent immutable binary snapshot; transport producer revision predates semantic commit",
+    "rosters": "/tmp/rstyle-uncompressed-baseline-{target}-{0,1,2}-roster.json",
+    "results": "/tmp/rstyle-uncompressed-baseline-results.json",
+    "selected": "all9 original contextual functions excluded",
+    "counts_per_target": {
+      "default": {
+        "admitted": 8,
+        "excluded": 136,
+        "total": 144
+      },
+      "no-default": {
+        "admitted": 5,
+        "excluded": 86,
+        "total": 91
+      },
+      "safe-decode-no-default": {
+        "admitted": 5,
+        "excluded": 91,
+        "total": 96
+      }
+    },
+    "identities": "exact original source/span/build contexts retained; frozen0.14.0 inventory unchanged",
+    "confirmed_hir": "get RangeTo and ok_or resolved core definitions; Result residual is Result<!,E>; selected generic TryInto+implementation and borrowed[u8;4] observation present; from_le_bytes and RangeFrom selected definitions retained."
+  }
+}

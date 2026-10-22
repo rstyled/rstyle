@@ -6,26 +6,28 @@ use syn::spanned::Spanned;
 
 pub const PREFIX_CAPABILITY: &str = "rust.native-prefix-readers";
 pub const ARRAY_CAPABILITY: &str = "rust.borrowed-array-views";
+pub const RESULT_CAPABILITY: &str = "rust.checked-borrowed-result-flow";
 
 pub(crate) const BOUNDS_KEY: &str = "rstyle.data:subslice-bounds";
 
 pub(crate) struct Checked<'a> {
     pub base: &'a HirNode,
     pub start: Option<&'a HirNode>,
-    pub end: &'a HirNode,
+    pub end: Option<&'a HirNode>,
+    pub requires_result_policy: bool,
     pub requires_prefix_policy: bool,
     pub array_length: Option<u64>,
 }
 
 impl<'a> Checked<'a> {
     pub fn operands(&self) -> impl Iterator<Item = &'a HirNode> {
-        std::iter::once(self.base)
-            .chain(self.start)
-            .chain(std::iter::once(self.end))
+        std::iter::once(self.base).chain(self.start).chain(self.end)
     }
 
     pub fn bounds(&self) -> crate::data_bounds::Bounds {
-        if self.start.is_some() {
+        if self.end.is_none() {
+            crate::data_bounds::Bounds::suffix(self.array_length)
+        } else if self.start.is_some() {
             crate::data_bounds::Bounds::subslice(self.array_length)
         } else {
             crate::data_bounds::Bounds::prefix(self.array_length)
@@ -64,17 +66,19 @@ pub(crate) fn verify<'a>(
     let [base, range] = node.children.as_slice() else {
         return Err("Subslice lacks exact base and range operands".into());
     };
-    let (start, end) = match range.children.as_slice() {
-        [start, end] => (Some(start), end),
-        [end] if crate::extraction_profile::facts_support(facts, PREFIX_CAPABILITY) => (None, end),
-        _ => return Err("Subslice requires registered exclusive range endpoints".into()),
+    let endpoints = source(node, base, range, facts)?;
+    let (start, end) = match (endpoints, range.children.as_slice()) {
+        ((true, true), [start, end]) => (Some(start), Some(end)),
+        ((false, true), [end]) => (None, Some(end)),
+        ((true, false), [start]) => (Some(start), None),
+        _ => return Err("Subslice lacks its exact original exclusive endpoints".into()),
     };
     let base_ty = crate::data_types::parse(crate::data_aggregates::token(base)?)?;
     let (referent, array_length) = base_type(base, base_ty, facts)?;
     if !matches!(&referent, TypeToken::Slice(element) if matches!(element.as_ref(), TypeToken::Scalar(_)))
         || crate::data_types::parse(crate::data_aggregates::token(node)?)? != referent
         || start.is_some_and(|start| crate::data_aggregates::token(start) != Ok("usize"))
-        || crate::data_aggregates::token(end)? != "usize"
+        || end.is_some_and(|end| crate::data_aggregates::token(end) != Ok("usize"))
     {
         return Err("Subslice requires a scalar slice and exact usize endpoints".into());
     }
@@ -82,18 +86,20 @@ pub(crate) fn verify<'a>(
     verify_dispatch(node, base, range)?;
 
     let core_index = authority(node, "resolved_callee", "std::ops::Index::index", facts)?;
-    let range_path = if start.is_some() {
+    let range_path = if end.is_none() {
+        "std::ops::RangeFrom"
+    } else if start.is_some() {
         "std::ops::Range"
     } else {
         "std::ops::RangeTo"
     };
     let core_range = authority(range, "resolved_range_type", range_path, facts)?;
-    source(node, base, range, facts)?;
     Ok(Checked {
         base,
         start,
         end,
         requires_prefix_policy: start.is_none() || core_index || core_range,
+        requires_result_policy: end.is_none(),
         array_length,
     })
 }
@@ -178,7 +184,7 @@ fn source(
     base: &HirNode,
     range: &HirNode,
     facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
+) -> Result<(bool, bool), String> {
     let bytes = facts
         .source
         .bytes
@@ -194,10 +200,9 @@ fn source(
     if !matches!(bounds.limits, syn::RangeLimits::HalfOpen(_)) {
         return Err("Only exclusive subslice endpoints are registered".into());
     }
-    if bounds.end.is_none()
-        || bounds.start.is_none()
-            && !crate::extraction_profile::facts_support(facts, PREFIX_CAPABILITY)
-        || range.children.len() != 1 + usize::from(bounds.start.is_some())
+    let endpoints = (bounds.start.is_some(), bounds.end.is_some());
+    if !permitted_endpoints(endpoints, facts)
+        || range.children.len() != usize::from(endpoints.0) + usize::from(endpoints.1)
     {
         return Err("Subslice source lacks its registered exclusive endpoints".into());
     }
@@ -220,7 +225,7 @@ fn source(
             return Err("Subslice loses original base/endpoint correspondence".into());
         }
     }
-    Ok(())
+    Ok(endpoints)
 }
 
 pub(crate) fn verify_borrow<'a>(
@@ -261,4 +266,13 @@ pub(crate) fn verify_borrow<'a>(
         return Err("Subslice borrow loses immutable result type".into());
     }
     Ok(checked)
+}
+
+fn permitted_endpoints(endpoints: (bool, bool), facts: &dyn EvidenceFacts) -> bool {
+    match endpoints {
+        (true, true) => true,
+        (false, true) => crate::extraction_profile::facts_support(facts, PREFIX_CAPABILITY),
+        (true, false) => crate::extraction_profile::facts_support(facts, RESULT_CAPABILITY),
+        (false, false) => false,
+    }
 }

@@ -13,11 +13,32 @@ pub(super) fn return_error(tree: &TypeTree) -> Option<&TypeTree> {
         {
             Some(tree)
         }
+        TypeTree::Result { ok, err } if crate::borrowed_result_types::tree_result(ok, err) => {
+            Some(err)
+        }
+        TypeTree::MixedEnum { .. }
+            if crate::borrowed_result_types::error(&TypeToken::from_tree(tree)).is_some() =>
+        {
+            Some(tree)
+        }
         _ => None,
     }
 }
 
 pub(super) fn checked_error(tree: &TypeTree, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    let token = TypeToken::from_tree(tree);
+    if let Some(nominal) = crate::borrowed_result_types::error(&token) {
+        if !crate::extraction_profile::facts_support(
+            facts,
+            crate::borrowed_result_types::CAPABILITY,
+        ) || !facts.nominal_resolution()?.checked_no_drop(nominal)
+        {
+            return Err(
+                "Borrowed Result error lacks its capability or independent no-drop proof".into(),
+            );
+        }
+        return Ok(());
+    }
     let TypeTree::Struct {
         nominal, fields, ..
     } = tree
@@ -31,6 +52,7 @@ pub(super) fn checked_error(tree: &TypeTree, facts: &dyn EvidenceFacts) -> Resul
     {
         return Err("Fresh Result error lacks its separately checked no-drop nominal proof".into());
     }
+
     Ok(())
 }
 
@@ -41,6 +63,19 @@ pub(crate) fn payload(
     let TypeToken::Result { ok, err } = crate::data_aggregates::parsed_type(node)? else {
         return Err("Result construction requires its concrete two-child type".into());
     };
+    if crate::borrowed_result_types::result(&ok, &err) {
+        if !crate::extraction_profile::facts_support(
+            facts,
+            crate::borrowed_result_types::CAPABILITY,
+        ) || !facts.nominal_resolution()?.checked_no_drop(
+            crate::borrowed_result_types::error(&err).expect("checked error grammar"),
+        ) {
+            return Err(
+                "Borrowed Result constructor lacks its capability or no-drop authority".into(),
+            );
+        }
+        return Ok((*ok, *err));
+    }
     if !matches!(ok.as_ref(), TypeToken::Scalar(unit) if unit == "unit") {
         return Err("Initial concrete Result supports only a unit success payload".into());
     }
@@ -53,6 +88,7 @@ pub(crate) fn payload(
     {
         return Err("Result construction lacks exact no-drop error identity".into());
     }
+
     Ok((*ok, *err))
 }
 
@@ -68,6 +104,13 @@ pub(super) fn contains_owned(ty: &TypeToken, error: &TypeToken) -> bool {
         | TypeToken::Option(ty)
         | TypeToken::Array { element: ty, .. } => contains_owned(ty, error),
         TypeToken::Struct { fields, .. } => fields.iter().any(|(_, ty)| contains_owned(ty, error)),
+        TypeToken::Enum { variants, .. } => {
+            variants.iter().any(|(_, ty)| contains_owned(ty, error))
+        }
+        TypeToken::MixedEnum { variants, .. } => variants
+            .iter()
+            .flat_map(|(_, shape)| shape.fields())
+            .any(|ty| contains_owned(ty, error)),
         _ => false,
     }
 }
@@ -99,6 +142,7 @@ fn used_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, String> 
             return Ok(true);
         }
     }
+
     Ok(false)
 }
 
@@ -106,7 +150,10 @@ fn used_type(ty: &crate::ResolvedTy, facts: &dyn EvidenceFacts) -> Result<bool, 
     let Some(text) = &ty.normalized else {
         return Ok(false);
     };
-    if !text.contains("\"kind\":\"result\"") && !text.contains("\"kind\":\"struct\"") {
+    if !text.contains("\"kind\":\"result\"")
+        && !text.contains("\"kind\":\"struct\"")
+        && !text.contains("\"kind\":\"mixed_enum\"")
+    {
         return Ok(false);
     }
     used_token(&crate::data_types::parse(text)?, facts)
@@ -115,6 +162,9 @@ fn used_type(ty: &crate::ResolvedTy, facts: &dyn EvidenceFacts) -> Result<bool, 
 fn used_token(token: &TypeToken, facts: &dyn EvidenceFacts) -> Result<bool, String> {
     match token {
         TypeToken::Result { .. } => Ok(true),
+        TypeToken::MixedEnum { .. } if crate::borrowed_result_types::error(token).is_some() => {
+            Ok(true)
+        }
         TypeToken::Struct { nominal, fields }
             if fields == &[("0".into(), TypeToken::Scalar("unit".into()))] =>
         {
@@ -122,6 +172,10 @@ fn used_token(token: &TypeToken, facts: &dyn EvidenceFacts) -> Result<bool, Stri
         }
         TypeToken::Tuple(values) => used_children(values.iter(), facts),
         TypeToken::Struct { fields, .. } => used_children(fields.iter().map(|(_, ty)| ty), facts),
+        TypeToken::Enum { variants, .. } => used_children(variants.iter().map(|(_, ty)| ty), facts),
+        TypeToken::MixedEnum { variants, .. } => {
+            used_children(variants.iter().flat_map(|(_, shape)| shape.fields()), facts)
+        }
         TypeToken::Array { element, .. } | TypeToken::Option(element) => used_token(element, facts),
         // Borrowed owner permission remains separate. No borrowed Result was
         // previously supported, so it cannot acquire fresh-result permission.
@@ -139,6 +193,7 @@ fn used_children<'a>(
             return Ok(true);
         }
     }
+
     Ok(false)
 }
 
@@ -147,6 +202,11 @@ fn contains_result(token: &TypeToken) -> bool {
         TypeToken::Result { .. } => true,
         TypeToken::Tuple(values) => values.iter().any(contains_result),
         TypeToken::Struct { fields, .. } => fields.iter().any(|(_, ty)| contains_result(ty)),
+        TypeToken::Enum { variants, .. } => variants.iter().any(|(_, ty)| contains_result(ty)),
+        TypeToken::MixedEnum { variants, .. } => variants
+            .iter()
+            .flat_map(|(_, shape)| shape.fields())
+            .any(contains_result),
         TypeToken::Array { element, .. }
         | TypeToken::Shared(element)
         | TypeToken::Slice(element)

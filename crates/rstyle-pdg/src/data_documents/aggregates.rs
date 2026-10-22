@@ -122,8 +122,11 @@ fn collect<'a>(
     constructors: &mut Vec<&'a HirNode>,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
-    if crate::data_subslices::candidate(node, facts) {
-        return collect_subslice(node, constructors, facts);
+    if let Some(operands) = structural_operands(node, facts)? {
+        for operand in operands {
+            collect(operand, constructors, facts)?;
+        }
+        return Ok(());
     }
     let children = if node.kind == "expr_tuple_assign" {
         crate::tuple_assignment::verify(node, facts)?;
@@ -141,16 +144,16 @@ fn collect<'a>(
     Ok(())
 }
 
-fn collect_subslice<'a>(
+fn structural_operands<'a>(
     node: &'a HirNode,
-    constructors: &mut Vec<&'a HirNode>,
     facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
-    let checked = crate::data_subslices::verify(node, facts)?;
-    for operand in checked.operands() {
-        collect(operand, constructors, facts)?;
+) -> Result<Option<Vec<&'a HirNode>>, String> {
+    if crate::data_subslices::candidate(node, facts) {
+        return crate::data_subslices::verify(node, facts)
+            .map(|checked| Some(checked.operands().collect()));
     }
-    Ok(())
+
+    crate::data_frontend::borrowed_results::operands(node, facts).transpose()
 }
 
 pub(super) fn check_value(value: &PdgNode, mut child: &HirNode) -> Result<(), String> {

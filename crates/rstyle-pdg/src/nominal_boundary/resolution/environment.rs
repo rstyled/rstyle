@@ -15,7 +15,26 @@ pub(crate) struct Environment {
     functions: functions::Index,
     pub(super) index: Index,
     pub(super) copy_boundary: bool,
-    cleanup_sources: std::cell::RefCell<std::collections::BTreeSet<(Vec<String>, Namespace)>>,
+    cleanup_sources: std::cell::RefCell<std::collections::BTreeSet<CleanupSource>>,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct CleanupSource {
+    cfgs: Vec<String>,
+    target: Namespace,
+    profile: &'static str,
+    generated: bool,
+}
+
+impl CleanupSource {
+    fn new(cfgs: &[String], target: &Namespace, profile: &'static str) -> Self {
+        Self {
+            cfgs: cfgs.to_vec(),
+            target: target.clone(),
+            profile,
+            generated: crate::verification_policy::is_generated(),
+        }
+    }
 }
 
 pub(super) struct SnapshotView<'a> {
@@ -94,16 +113,26 @@ impl Environment {
         })
     }
 
-    pub(super) fn checked_cleanup_source(&self, cfgs: &[String], target: &Namespace) -> bool {
+    pub(super) fn checked_cleanup_source(
+        &self,
+        cfgs: &[String],
+        target: &Namespace,
+        profile: &'static str,
+    ) -> bool {
         self.cleanup_sources
             .borrow()
-            .contains(&(cfgs.to_vec(), target.clone()))
+            .contains(&CleanupSource::new(cfgs, target, profile))
     }
 
-    pub(super) fn cache_cleanup_source(&self, cfgs: &[String], target: &Namespace) {
+    pub(super) fn cache_cleanup_source(
+        &self,
+        cfgs: &[String],
+        target: &Namespace,
+        profile: &'static str,
+    ) {
         let mut cache = self.cleanup_sources.borrow_mut();
         if cache.len() < 256 {
-            cache.insert((cfgs.to_vec(), target.clone()));
+            cache.insert(CleanupSource::new(cfgs, target, profile));
         }
     }
 
@@ -371,11 +400,21 @@ pub(crate) mod tests {
         let second = Environment::new(census()).unwrap();
         let target = vec!["sample".into(), "Data".into()];
         let cfgs = vec!["feature=one".into()];
-        assert!(!first.checked_cleanup_source(&cfgs, &target));
-        first.cache_cleanup_source(&cfgs, &target);
-        assert!(first.checked_cleanup_source(&cfgs, &target));
-        assert!(!first.checked_cleanup_source(&[], &target));
-        assert!(!first.checked_cleanup_source(&cfgs, &vec!["sample".into(), "Other".into()]));
-        assert!(!second.checked_cleanup_source(&cfgs, &target));
+        assert!(!first.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
+        first.cache_cleanup_source(&cfgs, &target, "hir-data-v3");
+        assert!(first.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
+        assert!(!first.checked_cleanup_source(&[], &target, "hir-data-v3"));
+        assert!(!first.checked_cleanup_source(
+            &cfgs,
+            &vec!["sample".into(), "Other".into()],
+            "hir-data-v3"
+        ));
+        assert!(!first.checked_cleanup_source(&cfgs, &target, "hir-data-v2"));
+        crate::verification_policy::generated(|| {
+            assert!(!first.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
+            first.cache_cleanup_source(&cfgs, &target, "hir-data-v3");
+            assert!(first.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
+        });
+        assert!(!second.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
     }
 }

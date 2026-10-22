@@ -8,7 +8,12 @@ impl<'tcx> Capture<'_, 'tcx> {
         value: Ty<'tcx>,
         depth: usize,
     ) -> Result<Option<TypeTree>, Failure> {
-        if !self.ctx.profile.supports("rust.fresh-range-results") {
+        if !self.ctx.profile.supports("rust.fresh-range-results")
+            && !self
+                .ctx
+                .profile
+                .supports("rust.checked-borrowed-result-flow")
+        {
             return Ok(None);
         }
 
@@ -16,7 +21,19 @@ impl<'tcx> Capture<'_, 'tcx> {
             return Ok(None);
         };
         let tcx = self.ctx.tcx;
-        if tcx.lang_items().range_struct() != Some(definition.did()) {
+        let range_to = tcx.lang_items().range_to_struct() == Some(definition.did());
+        if range_to
+            && !self
+                .ctx
+                .profile
+                .supports("rust.checked-borrowed-result-flow")
+        {
+            return Ok(None);
+        }
+        if !range_to
+            && (tcx.lang_items().range_struct() != Some(definition.did())
+                || !self.ctx.profile.supports("rust.fresh-range-results"))
+        {
             return Ok(None);
         }
 
@@ -28,9 +45,13 @@ impl<'tcx> Capture<'_, 'tcx> {
                 "Range capture requires a root Range<usize> value",
             ));
         }
-        Ok(Some(TypeTree::RangeUsize {
-            observation: self.range_observation(value, *definition, arguments),
-        }))
+        let mut observation = self.range_observation(value, *definition, arguments);
+        if range_to {
+            observation.lang_item = "RangeTo".into();
+            Ok(Some(TypeTree::RangeToUsize { observation }))
+        } else {
+            Ok(Some(TypeTree::RangeUsize { observation }))
+        }
     }
 
     fn range_observation(

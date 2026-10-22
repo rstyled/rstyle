@@ -108,7 +108,10 @@
     "rstyle.option-propagation.from-residual.method": "DefPathHash(Fingerprint(9963928104983068931, 3971763738738451780))",
     "rstyle.option-propagation.from-residual.implementation": "DefPathHash(Fingerprint(9963928104983068931, 12319425654118994691))",
     "rstyle.option-propagation.ControlFlow::Break": "DefPathHash(Fingerprint(9963928104983068931, 8288336137317479132))",
-    "rstyle.option-propagation.ControlFlow::Continue": "DefPathHash(Fingerprint(9963928104983068931, 16487429325092438639))"
+    "rstyle.option-propagation.ControlFlow::Continue": "DefPathHash(Fingerprint(9963928104983068931, 16487429325092438639))",
+    "std::option::Option::<T>::ok_or": "DefPathHash(Fingerprint(9963928104983068931, 5380998906077289209))",
+    "core::num::<impl u32>::from_le_bytes": "DefPathHash(Fingerprint(9963928104983068931, 17391203910829749712))",
+    "std::ops::RangeFrom": "DefPathHash(Fingerprint(9963928104983068931, 11458218263971255896))"
   },
   "alloc_macro_exports": {
     "library": {
@@ -146,7 +149,15 @@
     "core/src/fmt/mod.rs": "sha256:ab918e40543739be20757973f0d4abefcd9624d3759a64fc4147f1d8fc4bc035",
     "std/src/thread/local.rs": "sha256:e3ab1f6bc155548843ec942bc409aecf2d812e6a4088680a4647df1848b5b1f1",
     "std/src/sys/thread_local/mod.rs": "sha256:b8e407313093a89008fd0fbdd4805f2da8c7bb7711f0d36c03d858d6f0de5e4a",
-    "std/src/sys/thread_local/native/mod.rs": "sha256:258d21c8714e9e51ab4bba15b086dd5a83acad4573ac597887e5196c30adbeec"
+    "std/src/sys/thread_local/native/mod.rs": "sha256:258d21c8714e9e51ab4bba15b086dd5a83acad4573ac597887e5196c30adbeec",
+    "std/src/lib.rs": "sha256:5b6f8c7f657686c59e87c670d6b0df328e1aab622b56172821e486cc932175d5",
+    "alloc/src/lib.rs": "sha256:3b17b423a626ffa5ff114a1f1ebab97df8998b3189753f1a187846c35c0d25c8",
+    "alloc/src/fmt.rs": "sha256:cd07ff6ed15cf6b8b31b7d601b638cf4c6ca9f0d3e8963b33d170160f4b0cf06",
+    "core/src/prelude/mod.rs": "sha256:3db82d282c4ac980659183842d446e13d28b0bab609f3dc37e2036d9fefceb4c",
+    "core/src/prelude/v1.rs": "sha256:b57d120c6762622bd33114f46267dab8ba6c88be38f1433adb62d4ba36cd3a68",
+    "core/src/convert/mod.rs": "sha256:ec1dfed5b8eef22496fc85eeb0b26a5600944fb8d2f6d6e9aaf81fb45af06de5",
+    "std/src/prelude/mod.rs": "sha256:04e3eabaab3ff44016155b2949e7b6751547f9c480be51fb8a448ac8c9b2e105",
+    "std/src/prelude/v1.rs": "sha256:393900118db4000a0bd90f7c8f50fcb55475939586f24285ecca70925d6a6a2c"
   },
   "result_propagation_source_digests": {
     "ops/try_trait.rs": "sha256:5ccb79ee2c633935620932253924f4b8b09d71905db4f5c117a4a25cf3b7cd00",

@@ -76,11 +76,12 @@ impl Uses<'_> {
                 self.children(fields.iter().map(|(_, field)| field), borrowed)
             }
             TypeToken::MixedEnum { variants, .. } => self.children(
-                variants.iter().filter_map(|(_, shape)| shape.field()), borrowed),
+                variants.iter().flat_map(|(_, shape)| shape.fields()), borrowed),
             TypeToken::Enum { variants, .. } => self.children(
                 variants.iter().map(|(_, field)| field), borrowed),
             TypeToken::Shared(inner) => self.token(inner,
                 borrowed || matches!(inner.as_ref(), TypeToken::Struct { nominal, .. } if nominal != self.nominal)),
+            TypeToken::Result { ok, err } => self.children([ok.as_ref(), err.as_ref()].into_iter(), borrowed),
             TypeToken::Tuple(values) => self.children(values.iter(), borrowed),
             TypeToken::Slice(inner) | TypeToken::Option(inner)
             | TypeToken::Array { element: inner, .. } => self.token(inner, borrowed),

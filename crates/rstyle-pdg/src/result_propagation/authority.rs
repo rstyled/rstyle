@@ -118,7 +118,7 @@ fn signatures(witness: &Witness) -> Result<(), String> {
     Ok(())
 }
 
-const SOURCE_DIGESTS: &[(&str, &str)] = &[
+pub(crate) const SOURCE_DIGESTS: &[(&str, &str)] = &[
     (
         "result.rs",
         "sha256:777e0f516deba3899c8f16c5511da3ebe7debe23f4bcf6a6353c98a927c0f7d1",

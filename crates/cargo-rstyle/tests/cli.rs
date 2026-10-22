@@ -2618,7 +2618,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.80.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.81.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6177,7 +6177,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.80.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.81.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -10523,12 +10523,7 @@ fn clones_data_index_reads_preserve_places_snapshots_bounds_and_scalar_values() 
     for function in report["functions"].as_array().unwrap() {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "reference_element"
-                | "aggregate_element"
-                | "borrow_local"
-                | "write"
-                | "range"
-                | "array_helper"
+            "reference_element" | "aggregate_element" | "borrow_local" | "write" | "array_helper"
         );
         assert_eq!(
             function["outcome"],
@@ -10795,7 +10790,7 @@ fn clones_data_range_capture_distinguishes_core_desugaring_and_custom_structs() 
             "window" | "suffix" | "inclusive" => {
                 assert_eq!(
                     function["outcome"],
-                    if facts.name == "window" {
+                    if matches!(facts.name.as_str(), "window" | "suffix") {
                         "admitted"
                     } else {
                         "excluded"
@@ -10909,7 +10904,7 @@ fn clones_data_shared_subslice_views_preserve_endpoints_and_saved_origins() {
     for function in report["functions"].as_array().unwrap() {
         let positive = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "window" | "same" | "read" | "saved" | "nested" | "choose" | "helper_base"
+            "window" | "same" | "read" | "saved" | "nested" | "choose" | "helper_base" | "suffix"
         );
         assert_eq!(
             function["outcome"],

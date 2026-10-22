@@ -23,7 +23,22 @@ pub fn mixed_variant_declarations(
                         field: spelling.into(),
                     }
                 }
-                _ => return Err("Mixed enum requires unit or single tuple variants".into()),
+                syn::Fields::Named(fields)
+                    if !fields.named.is_empty() && fields.named.len() <= MAX_FIELDS =>
+                {
+                    VariantShape::Named {
+                        fields: fields
+                            .named
+                            .iter()
+                            .map(|field| named_declaration(source, field))
+                            .collect::<Result<_, String>>()?,
+                    }
+                }
+                _ => {
+                    return Err(
+                        "Mixed enum requires bounded unit/single tuple/named variants".into(),
+                    );
+                }
             };
             Ok((variant.ident.to_string(), shape))
         })
@@ -34,7 +49,7 @@ fn declaration(source: &str) -> Result<syn::ItemEnum, String> {
     let value: syn::ItemEnum = syn::parse_str(source).map_err(|error| error.to_string())?;
     if source.len() > MAX_SOURCE_BYTES
         || value.variants.is_empty()
-        || value.variants.len() > 16
+        || value.variants.len() > MAX_VARIANTS
         || !value.generics.params.is_empty()
         || value.generics.where_clause.is_some()
         || value
@@ -95,8 +110,40 @@ fn check_variant(
         {
             check_field(source, 0, &fields.unnamed[0], field)
         }
-        _ => Err("Mixed enum loses its exact unit/single tuple shape or closed payload".into()),
+        (syn::Fields::Named(fields), VariantShape::Named { fields: captured })
+            if !fields.named.is_empty()
+                && fields.named.len() == captured.len()
+                && captured.len() <= MAX_FIELDS =>
+        {
+            for (position, (original, (name, field))) in
+                fields.named.iter().zip(captured).enumerate()
+            {
+                if original.ident.as_ref().map(ToString::to_string).as_ref() != Some(name)
+                    || field.name != *name
+                    || !matches!(&field.ty, TypeTree::Scalar(value) if scalar(value) && value != "unit")
+                {
+                    return Err("Named enum field identity or scalar payload disagrees".into());
+                }
+                check_field(source, position, original, field)?;
+            }
+            Ok(())
+        }
+        _ => Err("Mixed enum loses its exact variant shape or closed payload".into()),
     }
+}
+
+fn named_declaration(source: &str, field: &syn::Field) -> Result<(String, String), String> {
+    let name = field
+        .ident
+        .as_ref()
+        .ok_or("Missing named enum field")?
+        .to_string();
+    let span = field.ty.span();
+    let spelling = source
+        .get(byte_offset(source, span.start())..byte_offset(source, span.end()))
+        .ok_or("Missing named enum field source")?;
+
+    Ok((name, spelling.into()))
 }
 
 #[cfg(test)]
@@ -213,12 +260,117 @@ mod tests {
         }
     }
 
+    fn named_error() -> TypeTree {
+        let source: crate::SourceText = "#[derive(Debug)] #[non_exhaustive] enum DecompressError { OutputTooSmall { expected: usize, actual: usize }, LiteralOutOfBounds, ExpectedAnotherByte, OffsetZero, OffsetOutOfBounds }".into();
+        let TypeTree::MixedEnum { mut nominal, .. } = observed() else {
+            unreachable!()
+        };
+        nominal.definition_path = "sample::DecompressError".into();
+        nominal.declaration_digest = source.identity().into();
+        let variants = [
+            "OutputTooSmall",
+            "LiteralOutOfBounds",
+            "ExpectedAnotherByte",
+            "OffsetZero",
+            "OffsetOutOfBounds",
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(position, name)| MixedVariant {
+            position,
+            name: name.into(),
+            shape: if position == 0 {
+                VariantShape::Named {
+                    fields: ["expected", "actual"]
+                        .into_iter()
+                        .enumerate()
+                        .map(|(position, name)| {
+                            (
+                                name.into(),
+                                Field {
+                                    position,
+                                    name: name.into(),
+                                    declaration: "usize".into(),
+                                    ty: TypeTree::Scalar("usize".into()),
+                                },
+                            )
+                        })
+                        .collect(),
+                }
+            } else {
+                VariantShape::Unit {}
+            },
+        })
+        .collect();
+        TypeTree::MixedEnum {
+            nominal,
+            source,
+            variants,
+        }
+    }
+
+    #[test]
+    fn named_inventory_retains_every_field_and_historical_ownership_boundary() {
+        let tree = named_error();
+        validate(&tree).unwrap();
+        assert_eq!(tree.nominal_fields().count(), 2);
+        let token = crate::data_types::TypeToken::from_tree(&tree);
+        assert!(token.native_width());
+        let text = token.text().unwrap();
+        assert!(text.contains("expected") && text.contains("actual"));
+        assert!(
+            crate::data_types::parse_for(
+                &text,
+                crate::extraction_profile::ExtractionProfile::DataV2
+            )
+            .is_err()
+        );
+        assert_eq!(
+            crate::data_types::parse_for(
+                &text,
+                crate::extraction_profile::ExtractionProfile::DataV3
+            )
+            .unwrap(),
+            token
+        );
+        let wire = serde_json::to_vec(&tree).unwrap();
+        assert_eq!(serde_json::from_slice::<TypeTree>(&wire).unwrap(), tree);
+    }
+
+    #[test]
+    fn named_inventory_tampering_rejects() {
+        for mutation in 0..7 {
+            let mut tree = named_error();
+            let TypeTree::MixedEnum { variants, .. } = &mut tree else {
+                unreachable!()
+            };
+            if mutation == 0 {
+                variants.remove(4);
+            } else {
+                let VariantShape::Named { fields } = &mut variants[0].shape else {
+                    unreachable!()
+                };
+                match mutation {
+                    1 => {
+                        fields.pop();
+                    }
+                    2 => fields.swap(0, 1),
+                    3 => fields[0].0 = "other".into(),
+                    4 => fields[0].1.name = "actual".into(),
+                    5 => fields[0].1.ty = TypeTree::Scalar("u64".into()),
+                    _ => fields[0].1.position = 1,
+                }
+            }
+            assert!(validate(&tree).is_err(), "mutation {mutation}");
+        }
+    }
+
     #[test]
     fn unsupported_source_shapes_remain_distinct_from_unit_variants() {
         for source in [
             "enum E { A, B() }",
             "enum E { A, B(u8,u8) }",
-            "enum E { A, B { x: u8 } }",
+            "enum E { A, B {} }",
             "enum E { A = 2, B(u8) }",
             "enum E<T> { A, B(T) }",
             "enum E { A, B }",

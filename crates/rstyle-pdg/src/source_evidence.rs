@@ -1,5 +1,8 @@
 //! Independent original-source inventory checks; graph extraction remains HIR-only.
 
+mod variant_paths;
+pub(crate) use variant_paths::qualified_variant;
+
 #[cfg(test)]
 mod tests;
 

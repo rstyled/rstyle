@@ -268,6 +268,11 @@ impl<'a> Owners<'a, '_> {
     }
 }
 
+struct GlobImport<'a> {
+    original_key: &'a str,
+    module_scope: bool,
+}
+
 struct Scope<'a, 'b> {
     environment: &'a Environment,
     module: &'a census::Module,
@@ -417,7 +422,33 @@ impl Scope<'_, '_> {
         Ok(())
     }
 
-    fn glob_excludes(&self, target: &[String], name: &str) -> Result<(), String> {
+    fn glob_excludes(
+        &self,
+        target: &[String],
+        original: GlobImport<'_>,
+        name: &str,
+    ) -> Result<(), String> {
+        if original.module_scope && supports(self.facts, crate::borrowed_result_types::CAPABILITY)?
+        {
+            let prefix: Vec<_> = original
+                .original_key
+                .strip_prefix("*::")
+                .ok_or("Missing original module glob path")?
+                .split("::")
+                .map(str::to_owned)
+                .collect();
+            if selected::lexical_glob_excludes(
+                self.facts,
+                self.environment,
+                selected::LexicalGlob {
+                    namespace: &self.module.namespace,
+                    path: &prefix,
+                },
+                name,
+            )? {
+                return Ok(());
+            }
+        }
         if !supports(self.facts, "rust.concrete-option-propagation")? {
             return Err("Option source has unresolved relevant glob imports".into());
         }
@@ -450,11 +481,11 @@ impl Scope<'_, '_> {
                     _ => {}
                 }
             }
-            if let Some(binding) = lookup(items.into_iter(), name, self)? {
+            if let Some(binding) = lookup(items.into_iter(), name, self, false)? {
                 return Ok(Some(binding));
             }
         }
-        lookup(self.module.items.iter(), name, self)
+        lookup(self.module.items.iter(), name, self, true)
     }
 }
 
@@ -462,6 +493,7 @@ fn lookup<'a>(
     items: impl Iterator<Item = &'a syn::Item>,
     name: &str,
     scope: &Scope<'_, '_>,
+    module_scope: bool,
 ) -> Result<Option<Namespace>, String> {
     let namespace = &scope.module.namespace;
     let mut imports = BTreeMap::new();
@@ -471,26 +503,20 @@ fn lookup<'a>(
             direct = Some(external(item)?);
         }
         if let syn::Item::Use(item) = item {
-            let prefix = if item.leading_colon.is_some() {
-                vec!["<external>".into()]
-            } else {
-                Vec::new()
-            };
-            import_tree(
-                &mut Imports {
-                    values: &mut imports,
-                    namespace,
-                    selected: true,
-                },
-                &item.tree,
-                prefix,
-            )?;
+            lookup_import(item, &mut imports, namespace)?;
         }
     }
 
     for ((_, key), target) in &imports {
         if key.starts_with("*::") {
-            scope.glob_excludes(target, name)?;
+            scope.glob_excludes(
+                target,
+                GlobImport {
+                    original_key: key,
+                    module_scope,
+                },
+                name,
+            )?;
         }
     }
     let imported = imports.get(&(namespace.clone(), name.into())).cloned();
@@ -562,4 +588,25 @@ impl<'ast> Visit<'ast> for ValueBindings<'_> {
         self.shadowed |= pattern.ident == self.name;
         syn::visit::visit_pat_ident(self, pattern);
     }
+}
+
+fn lookup_import(
+    item: &syn::ItemUse,
+    imports: &mut BTreeMap<(Namespace, String), Namespace>,
+    namespace: &Namespace,
+) -> Result<(), String> {
+    let prefix = if item.leading_colon.is_some() {
+        vec!["<external>".into()]
+    } else {
+        Vec::new()
+    };
+    import_tree(
+        &mut Imports {
+            values: imports,
+            namespace,
+            selected: true,
+        },
+        &item.tree,
+        prefix,
+    )
 }

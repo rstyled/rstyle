@@ -23,6 +23,10 @@ enum Semantics {
         normal_completion_requires: &'static str,
         exceptional_flow: &'static str,
     },
+    LittleEndianU32 {
+        array_operand: u64,
+        byte_significance_bits: [u8; 4],
+    },
     UnsignedByteSignificance {
         array_operand: u64,
         length: u64,
@@ -33,8 +37,8 @@ enum Semantics {
 
 pub(super) fn value(kind: Kind) -> serde_json::Value {
     let semantics = match kind {
-        Kind::Borrow => Semantics::BorrowExactLengthOrErr {
-            length: 8,
+        Kind::Borrow(_) => Semantics::BorrowExactLengthOrErr {
+            length: kind.length(),
             receiver_operand: 0,
             payload_origins_on: "ok",
             content_read: false,
@@ -46,10 +50,14 @@ pub(super) fn value(kind: Kind) -> serde_json::Value {
             reads_on: "ok",
             error: "core::array::TryFromSliceError",
         },
-        Kind::Unwrap(_) | Kind::UnwrapBorrow => Semantics::OkPayloadOrPanic {
+        Kind::Unwrap(_) | Kind::UnwrapBorrow(_) => Semantics::OkPayloadOrPanic {
             result_operand: 0,
             normal_completion_requires: "ok",
             exceptional_flow: "omitted",
+        },
+        Kind::LittleU32 => Semantics::LittleEndianU32 {
+            array_operand: 0,
+            byte_significance_bits: [0, 8, 16, 24],
         },
         Kind::Native | Kind::NativeUsize | Kind::NativeU16 | Kind::NativeU128 => {
             Semantics::UnsignedByteSignificance {

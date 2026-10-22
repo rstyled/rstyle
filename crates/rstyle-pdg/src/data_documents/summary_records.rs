@@ -46,19 +46,7 @@ impl Record<'_> {
             node,
             summary,
         } = self;
-        let records = pair
-            .pdg
-            .extensions
-            .get(crate::call_summaries::KEY)
-            .and_then(serde_json::Value::as_array)
-            .ok_or("Missing call summary inventory")?;
-        let matched: Vec<_> = records
-            .iter()
-            .filter(|record| record["pdg_node_id"] == node.id)
-            .collect();
-        let [record] = matched.as_slice() else {
-            return Err("Missing or duplicate registered summary".into());
-        };
+        let record = summary_record(pair, node)?;
 
         crate::call_summaries::verify_build(record, facts)?;
         if record["summary"] != serde_json::to_value(&summary).map_err(|error| error.to_string())?
@@ -81,6 +69,35 @@ impl Record<'_> {
         {
             return Err("Registered summary disagrees with concrete authority".into());
         }
-        crate::helper_calls::verify_call_operands(pair, node, source, record)
+        crate::helper_calls::verify_summary_operands(
+            pair,
+            crate::helper_calls::SummaryOperands {
+                node,
+                call: source,
+                record,
+            },
+            facts,
+        )
     }
+}
+
+fn summary_record<'a>(
+    pair: PairView<'a>,
+    node: &crate::PdgNode,
+) -> Result<&'a serde_json::Value, String> {
+    let records = pair
+        .pdg
+        .extensions
+        .get(crate::call_summaries::KEY)
+        .and_then(serde_json::Value::as_array)
+        .ok_or("Missing call summary inventory")?;
+    let matched: Vec<_> = records
+        .iter()
+        .filter(|record| record["pdg_node_id"] == node.id)
+        .collect();
+    let [record] = matched.as_slice() else {
+        return Err("Missing or duplicate registered summary".into());
+    };
+
+    Ok(*record)
 }

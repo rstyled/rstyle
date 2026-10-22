@@ -85,6 +85,59 @@ pub(crate) fn shape(observation: &Observation) -> Result<(), String> {
     Ok(())
 }
 
+/// Exact RangeTo<usize> observation for checked-access signatures, not value permission.
+pub fn verify_range_to(observation: &Observation, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    if !crate::extraction_profile::facts_support(facts, "rust.checked-borrowed-result-flow") {
+        return Err("RangeTo observation requires its checked-result capability".into());
+    }
+    let registry =
+        data_library::registry_for(facts.facts()).ok_or("Unpinned RangeTo compiler/target")?;
+    if facts.facts().build.pointer_width.status != crate::FactStatus::Known
+        || facts.facts().build.pointer_width.value != Some(64)
+        || registry.pointer_width != 64
+    {
+        return Err("RangeTo observation requires its reviewed 64-bit target".into());
+    }
+
+    data_library::verify_sysroot_roots(facts, &["core", "std"], "RangeTo observation")?;
+    range_to_definition(observation, registry)?;
+    range_to_shape(observation)
+}
+
+fn range_to_definition(
+    observation: &Observation,
+    registry: &data_library::Registry,
+) -> Result<(), String> {
+    if registry.source_digests.get(SOURCE_PATH).map(String::as_str) != Some(SOURCE_DIGEST)
+        || !["core::ops::RangeTo", "std::ops::RangeTo"]
+            .contains(&observation.definition.path.as_str())
+        || !registry.exact_core_definition(&observation.definition, "std::ops::RangeTo")
+    {
+        return Err("RangeTo observation lacks exact pinned definition/source".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn range_to_shape(observation: &Observation) -> Result<(), String> {
+    if observation.lang_item != "RangeTo"
+        || observation.arguments != ["usize"]
+        || observation.fields
+            != [Field {
+                position: 0,
+                name: "end".into(),
+                scalar: "usize".into(),
+            }]
+        || !observation.is_copy
+        || observation.needs_drop
+        || observation.has_drop_impl
+    {
+        return Err(
+            "RangeTo observation requires exact Copy/no-drop usize end field evidence".into(),
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,6 +165,48 @@ mod tests {
             is_copy: false,
             needs_drop: false,
             has_drop_impl: false,
+        }
+    }
+
+    fn range_to_observation(registry: &data_library::Registry) -> Observation {
+        let mut value = observation(registry);
+        value.definition.path = "core::ops::RangeTo".into();
+        value.definition.definition_hash = registry.definitions["std::ops::RangeTo"].clone();
+        value.lang_item = "RangeTo".into();
+        value.fields = vec![Field {
+            position: 0,
+            name: "end".into(),
+            scalar: "usize".into(),
+        }];
+        value.is_copy = true;
+        value
+    }
+
+    #[test]
+    fn range_to_requires_independent_complete_shape_and_exact_target_authority() {
+        for registry in data_library::registries() {
+            let value = range_to_observation(registry);
+            range_to_definition(&value, registry).unwrap();
+            range_to_shape(&value).unwrap();
+            assert!(shape(&value).is_err());
+            for mutation in 0..9 {
+                let mut changed = value.clone();
+                match mutation {
+                    0 => changed.lang_item = "Range".into(),
+                    1 => changed.arguments.clear(),
+                    2 => changed.fields.clear(),
+                    3 => changed.fields[0].name = "start".into(),
+                    4 => changed.fields[0].scalar = "u64".into(),
+                    5 => changed.fields[0].position = 1,
+                    6 => changed.is_copy = false,
+                    7 => changed.needs_drop = true,
+                    _ => changed.has_drop_impl = true,
+                }
+                assert!(range_to_shape(&changed).is_err());
+            }
+            let mut wrong_definition = value;
+            wrong_definition.definition.definition_hash = "forged".into();
+            assert!(range_to_definition(&wrong_definition, registry).is_err());
         }
     }
 

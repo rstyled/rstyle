@@ -6,15 +6,24 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(super) struct Scope {
     pub namespace: Namespace,
     pub unindexed: bool,
+    pub closed_imports: bool,
+    modules: module_globs::Modules,
     declarations: BTreeSet<Namespace>,
     functions: BTreeSet<Namespace>,
     traits: BTreeSet<Namespace>,
 }
 
 impl Scope {
-    pub fn new(modules: &[census::Module], cfgs: &[String]) -> Result<Self, String> {
+    pub fn new(
+        modules: &[census::Module],
+        cfgs: &[String],
+        closed_imports: bool,
+    ) -> Result<Self, String> {
         let configuration = crate::conditional_source::Configuration::new(cfgs);
-        let mut scope = Self::default();
+        let mut scope = Self {
+            closed_imports,
+            ..Self::default()
+        };
         for module in modules {
             scope.collect(
                 &module.items.iter().collect::<Vec<_>>(),
@@ -30,6 +39,9 @@ impl Scope {
         namespace: &Namespace,
         configuration: &crate::conditional_source::Configuration<'_>,
     ) -> Result<(), String> {
+        if self.closed_imports {
+            self.modules.collect(namespace, items, configuration)?;
+        }
         for name in function_imports::names(items, configuration)? {
             self.functions
                 .insert(namespace.iter().cloned().chain([name]).collect());
@@ -82,8 +94,15 @@ impl Scope {
         Ok(())
     }
     #[cfg(test)]
-    pub fn inline(items: &[&syn::Item], cfgs: &[String]) -> Result<Self, String> {
-        let mut scope = Self::default();
+    pub fn inline(
+        items: &[&syn::Item],
+        cfgs: &[String],
+        closed_imports: bool,
+    ) -> Result<Self, String> {
+        let mut scope = Self {
+            closed_imports,
+            ..Self::default()
+        };
         scope.collect(
             items,
             &vec![],
@@ -201,7 +220,13 @@ impl Scope {
                     .collect();
                 self.named_binding(rename.rename.to_string(), &source, scope);
             }
-            syn::UseTree::Glob(_) if !self.contains_local(prefix, &self.declarations) => {
+            syn::UseTree::Glob(_)
+                if !self.contains_local(prefix, &self.declarations)
+                    && !(self.closed_imports
+                        && self
+                            .modules
+                            .contains(&self.namespace, prefix, self.unindexed)) =>
+            {
                 scope.insert("*".into(), false);
             }
             _ => {}

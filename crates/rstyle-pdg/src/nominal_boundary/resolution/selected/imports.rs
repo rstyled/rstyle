@@ -99,9 +99,12 @@ fn local_module<'a>(
         .modules
         .iter()
         .filter(|module| module.namespace == target);
-    let module = modules
-        .next()
-        .ok_or("Import target lacks a closed local source module")?;
+    let module = modules.next().ok_or_else(|| {
+        format!(
+            "Import target lacks a closed local source module: {}",
+            target.join("::")
+        )
+    })?;
     if modules.next().is_some() {
         return Err("Import target has ambiguous local source modules".into());
     }
@@ -153,8 +156,26 @@ fn glob(
     target: &[String],
     configuration: &crate::conditional_source::Configuration<'_>,
 ) -> Result<(), String> {
-    for item in &local_module(environment, target)?.items {
-        module_item(item, configuration)?;
+    glob_items(
+        local_module(environment, target)?.items.iter(),
+        configuration,
+    )
+}
+
+pub(super) fn glob_items<'a>(
+    items: impl IntoIterator<Item = &'a syn::Item>,
+    configuration: &crate::conditional_source::Configuration<'_>,
+) -> Result<(), String> {
+    glob_items_policy(items, configuration, false)
+}
+
+pub(super) fn glob_items_policy<'a>(
+    items: impl IntoIterator<Item = &'a syn::Item>,
+    configuration: &crate::conditional_source::Configuration<'_>,
+    test_marker: bool,
+) -> Result<(), String> {
+    for item in items {
+        module_item_policy(item, configuration, false, test_marker)?;
         let (name, visibility) = match item {
             syn::Item::Use(item) if !matches!(item.vis, syn::Visibility::Inherited) => {
                 return Err("Glob target contains an unresolved public reexport".into());
@@ -191,6 +212,15 @@ pub(in crate::nominal_boundary::resolution) fn glob_excludes(
     configuration: &crate::conditional_source::Configuration<'_>,
 ) -> Result<(), String> {
     glob(environment, target, configuration)?;
+    excludes_binding(&local_module(environment, target)?.items, name)
+}
+
+/// Caller must supply a separately closed exact original module target.
+pub(super) fn checked_glob_excludes(
+    environment: &Environment,
+    target: &[String],
+    name: &str,
+) -> Result<(), String> {
     excludes_binding(&local_module(environment, target)?.items, name)
 }
 

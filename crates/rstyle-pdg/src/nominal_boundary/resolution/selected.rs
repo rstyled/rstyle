@@ -5,6 +5,8 @@ mod borrowed;
 mod core_imports;
 mod imports;
 pub(super) use imports::glob_excludes;
+#[cfg(test)]
+mod function_cleanup_tests;
 pub(super) mod local_traits;
 mod no_drop;
 pub(super) mod passive;
@@ -143,6 +145,12 @@ fn requested_no_drop(facts: &HirFnFacts, tree: &TypeTree) -> Result<bool, String
         TypeTree::Struct { .. } => ty,
         _ => return Ok(false),
     };
+    if error == tree
+        && supports(facts, no_drop::enum_errors::CAPABILITY)?
+        && no_drop::enum_errors::supported(tree)
+    {
+        return Ok(true);
+    }
     Ok(error == tree
         && matches!(tree, TypeTree::Struct { fields, .. }
         if fields.len() == 1 && fields[0].name == "0" && fields[0].ty == TypeTree::Scalar("unit".into())))
@@ -205,7 +213,7 @@ fn checked_copy(
     if let Some(copy) = &origin.builtin_copy {
         crate::declaration_origins::copy::verify(facts, origin, copy, attributes)?;
         Ok(true)
-    } else if matches!(tree, TypeTree::Struct { .. }) {
+    } else if matches!(tree, TypeTree::Struct { .. }) || requested_no_drop(facts, tree)? {
         Ok(false)
     } else {
         Err("Scalar enum requires positive builtin Copy evidence".into())
@@ -240,7 +248,12 @@ fn structure(facts: &HirFnFacts, item: &syn::ItemStruct, copy: bool) -> Result<(
         && item.fields.len() == 1
         && item.generics.params.is_empty()
         && supports(facts, "rust.borrowed-mixed-owners")?;
-    nominal_attributes(facts, &item.generics, &item.attrs, transparent)?;
+    nominal_attributes(
+        facts,
+        &item.generics,
+        &item.attrs,
+        AttributeOwner::Struct { transparent },
+    )?;
     for field in &item.fields {
         function_attributes(facts, &field.attrs)?;
     }
@@ -248,7 +261,7 @@ fn structure(facts: &HirFnFacts, item: &syn::ItemStruct, copy: bool) -> Result<(
 }
 
 fn scalar_enum(facts: &HirFnFacts, item: &syn::ItemEnum) -> Result<(), String> {
-    nominal_attributes(facts, &item.generics, &item.attrs, false)?;
+    nominal_attributes(facts, &item.generics, &item.attrs, AttributeOwner::Enum)?;
     for variant in &item.variants {
         function_attributes(facts, &variant.attrs)?;
         for field in &variant.fields {
@@ -258,11 +271,16 @@ fn scalar_enum(facts: &HirFnFacts, item: &syn::ItemEnum) -> Result<(), String> {
     Ok(())
 }
 
+enum AttributeOwner {
+    Struct { transparent: bool },
+    Enum,
+}
+
 fn nominal_attributes(
     facts: &HirFnFacts,
     generics: &syn::Generics,
     attributes: &[syn::Attribute],
-    transparent: bool,
+    owner: AttributeOwner,
 ) -> Result<(), String> {
     if !generics.params.is_empty() && !supports(facts, "rust.borrowed-mixed-owners")?
         || crate::concrete_types::lifetimes::parameter_count(generics).is_err()
@@ -276,16 +294,26 @@ fn nominal_attributes(
             derive(&attribute)?;
             continue;
         }
-        if transparent
+        if matches!(owner, AttributeOwner::Struct { transparent: true })
             && attribute.path().is_ident("repr")
             && matches!(&attribute, syn::Meta::List(list)
                 if list.parse_args::<syn::Ident>().is_ok_and(|ident| ident == "transparent"))
         {
             continue;
         }
+        if matches!(owner, AttributeOwner::Enum)
+            && supports(facts, crate::borrowed_result_types::CAPABILITY)?
+            && non_exhaustive_attribute(&attribute)
+        {
+            continue;
+        }
         ordinary(&attribute)?;
     }
     Ok(())
+}
+
+fn non_exhaustive_attribute(attribute: &syn::Meta) -> bool {
+    attribute.path().is_ident("non_exhaustive") && matches!(attribute, syn::Meta::Path(_))
 }
 
 pub(super) fn function_attributes(
@@ -383,6 +411,15 @@ pub(super) fn module_item_in(
     configuration: &crate::conditional_source::Configuration<'_>,
     macro_imports: bool,
 ) -> Result<(), String> {
+    module_item_policy(item, configuration, macro_imports, false)
+}
+
+fn module_item_policy(
+    item: &syn::Item,
+    configuration: &crate::conditional_source::Configuration<'_>,
+    macro_imports: bool,
+    test_marker: bool,
+) -> Result<(), String> {
     if let syn::Item::Type(item) = item
         && concrete_types::scalar(&item.ident.to_string())
     {
@@ -408,6 +445,12 @@ pub(super) fn module_item_in(
         {
             // Imports macro names from an independently closed source module.
             // Actual invocations and shadowing definitions remain checked.
+        } else if test_marker
+            && matches!(item, syn::Item::Fn(_))
+            && matches!(&attribute, syn::Meta::Path(path) if path.is_ident("test"))
+        {
+            // Export-name proof only; the newcap cleanup visitor independently
+            // verifies builtin authority and visits the entire original body.
         } else if ![
             "non_exhaustive",
             "repr",
@@ -431,7 +474,60 @@ pub(super) fn check_namespace(
     environment: &Environment,
     namespace: &[String],
 ) -> Result<(), String> {
-    check_namespace_with_closure(facts, environment, namespace, None)
+    let source_closure = function_cleanup_certificate(facts, environment)?;
+    check_namespace_with_closure(facts, environment, namespace, source_closure.as_ref())
+}
+
+fn function_cleanup_certificate(
+    facts: &HirFnFacts,
+    environment: &Environment,
+) -> Result<Option<no_drop::CheckedNoDrop>, String> {
+    if !supports(facts, crate::borrowed_result_types::CAPABILITY)? {
+        return Ok(None);
+    }
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let Observation::Captured {
+        ty: TypeTree::Result { ok, err },
+    } = &interface.result
+    else {
+        return Ok(None);
+    };
+
+    if !crate::borrowed_result_types::tree_result(ok, err) || !requested_no_drop(facts, err)? {
+        return Ok(None);
+    }
+    // Reuse the same exact declaration/whole-unit certificate selected above.
+    // This proves no function effects; only the coarse expansion flag changes.
+    no_drop::verify(facts, err, environment).map(Some)
+}
+
+pub(super) struct LexicalGlob<'a> {
+    pub namespace: &'a Namespace,
+    pub path: &'a [String],
+}
+
+pub(super) fn lexical_glob_excludes(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    original: LexicalGlob<'_>,
+    name: &str,
+) -> Result<bool, String> {
+    if function_cleanup_certificate(facts, environment)?.is_none() {
+        return Ok(false);
+    }
+    let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
+    let target = no_drop::module_globs::lexical_target(
+        environment,
+        original.namespace,
+        original.path,
+        &configuration,
+    )?;
+
+    imports::checked_glob_excludes(environment, &target, name)?;
+    Ok(true)
 }
 
 fn check_namespace_with_closure(
@@ -477,6 +573,24 @@ pub(super) fn implementation(facts: &HirFnFacts, item: &syn::ItemImpl) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn non_exhaustive_error_enum_marker_requires_exact_builtin_grammar() {
+        for (tokens, expected) in [
+            ("#[non_exhaustive]", true),
+            ("#[non_exhaustive()]", false),
+            ("#[non_exhaustive = true]", false),
+            ("#[custom::non_exhaustive]", false),
+            ("#[custom]", false),
+        ] {
+            let item: syn::ItemEnum =
+                syn::parse_str(&format!("{tokens} enum Error {{ Missing }}")).unwrap();
+            assert_eq!(
+                super::non_exhaustive_attribute(&item.attrs[0].meta),
+                expected
+            );
+        }
+    }
+
     #[test]
     fn inline_owner_attributes_require_the_exact_builtin_grammar() {
         for tokens in ["#[inline]", "#[inline(always)]", "#[inline(never)]"] {

@@ -3,8 +3,7 @@ use super::*;
 use crate::{HirNode, fieldless_enums as semantics, unit_store::EvidenceFacts};
 
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
-    let values = selected_operations(facts, &["expr_path"], semantics::value_candidate);
-    let casts = selected_operations(facts, &["expr_cast"], semantics::cast_candidate);
+    let Inventory { values, casts } = inventory(facts)?;
     super::verify_construct_inventory(
         pair,
         [semantics::VALUE, semantics::CAST],
@@ -44,6 +43,49 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<()
         )?;
     }
 
+    Ok(())
+}
+
+struct Inventory<'a> {
+    values: Vec<&'a HirNode>,
+    casts: Vec<&'a HirNode>,
+}
+
+fn inventory(facts: &dyn EvidenceFacts) -> Result<Inventory<'_>, String> {
+    let mut operations = Vec::new();
+    collect_operations(&facts.body, facts, &mut operations)?;
+    let values: Vec<_> = operations
+        .iter()
+        .copied()
+        .filter(|node| semantics::value_candidate(node, facts))
+        .collect();
+    let casts: Vec<_> = operations
+        .iter()
+        .copied()
+        .filter(|node| semantics::cast_candidate(node, facts))
+        .collect();
+
+    Ok(Inventory { values, casts })
+}
+
+/// Checked structural boundaries retain every evaluated original operand.
+/// Generated Try arms and fresh mixed-enum errors have their own exact inventory.
+fn collect_operations<'a>(
+    node: &'a HirNode,
+    facts: &dyn EvidenceFacts,
+    operations: &mut Vec<&'a HirNode>,
+) -> Result<(), String> {
+    if let Some(operands) = crate::data_frontend::borrowed_results::operands(node, facts) {
+        for operand in operands? {
+            collect_operations(operand, facts, operations)?;
+        }
+        return Ok(());
+    }
+
+    for child in &node.children {
+        collect_operations(child, facts, operations)?;
+    }
+    operations.push(node);
     Ok(())
 }
 

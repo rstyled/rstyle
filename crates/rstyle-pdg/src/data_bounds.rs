@@ -21,6 +21,15 @@ pub(crate) enum Bounds {
         array_length: Option<u64>,
         exceptional_flow: &'static str,
     },
+    Suffix {
+        rule: &'static str,
+        base_operand: u64,
+        start_operand: u64,
+        implicit_end: &'static str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        array_length: Option<u64>,
+        exceptional_flow: &'static str,
+    },
     Subslice {
         rule: &'static str,
         base_operand: u64,
@@ -49,6 +58,17 @@ impl Bounds {
             base_operand: 0,
             start_operand: 1,
             end_operand: 2,
+            array_length,
+            exceptional_flow: "omitted",
+        }
+    }
+
+    pub fn suffix(array_length: Option<u64>) -> Self {
+        Self::Suffix {
+            rule: "start-less-or-equal-length",
+            base_operand: 0,
+            start_operand: 1,
+            implicit_end: "base-length",
             array_length,
             exceptional_flow: "omitted",
         }

@@ -458,3 +458,30 @@ fn standard_range_self_uses_exact_pinned_nominal_binding() {
             .is_err()
     );
 }
+
+#[test]
+fn builtin_test_marker_keeps_complete_neighbor_cleanup_inspection() {
+    let valid = "struct Error(()); #[test] fn check_token() { assert!(true); }";
+    assert!(source(valid).is_err());
+    let check = |text: &str| {
+        let file = syn::parse_file(text).unwrap();
+        closure::inspect_closed_imports(
+            &file.items.iter().collect::<Vec<_>>(),
+            &vec!["Error".into()],
+        )
+    };
+    check(valid).unwrap();
+    for extra in [
+        "#[test] fn hidden() { impl Drop for Error { fn drop(&mut self) {} } }",
+        "#[test] fn hidden() { mystery!(); }",
+        "#[test(unchecked)] fn hidden() {}",
+        "use external::test; #[test] fn hidden() {}",
+        "use external::*; #[test] fn hidden() {}",
+        "macro_rules! test { () => {} } #[test] fn hidden() {}",
+    ] {
+        assert!(
+            check(&format!("struct Error(()); {extra}")).is_err(),
+            "{extra}"
+        );
+    }
+}

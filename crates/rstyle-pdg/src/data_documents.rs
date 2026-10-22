@@ -5,6 +5,8 @@ mod assertions;
 mod bitset_cardinality;
 mod bool_constants;
 mod bool_usize;
+mod borrowed_result_errors;
+pub(crate) mod borrowed_result_propagation;
 mod borrows;
 mod byte_calls;
 mod byte_scalars;
@@ -12,6 +14,7 @@ mod callbacks;
 mod character_ascii;
 mod checked_lengths;
 mod checked_options;
+mod checked_slice_views;
 mod conditional_payloads;
 mod fieldless_enums;
 mod float_scalars;
@@ -86,6 +89,17 @@ fn install_value_contracts(
     install_policy(&mut pair, facts)?;
     crate::concrete_results::documents::install(&mut pair);
     install_propagation_contracts(&mut pair);
+
+    install_borrowed_contracts(pair, facts)
+}
+
+fn install_borrowed_contracts(
+    mut pair: Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Pair, String> {
+    borrowed_result_propagation::install(&mut pair, facts)?;
+    checked_slice_views::install(&mut pair, facts)?;
+    borrowed_result_errors::install(&mut pair, facts)?;
 
     Ok(pair)
 }
@@ -309,6 +323,9 @@ fn verify_call_operations(
     bitset_cardinality::verify(pair, facts, calls)?;
     checked_lengths::verify(pair, facts)?;
 
+    borrowed_result_propagation::verify(pair, facts)?;
+    checked_slice_views::verify(pair, facts)?;
+    borrowed_result_errors::verify(pair, facts)?;
     option_if_let::verify(pair, facts)?;
     result_propagation::verify(pair, facts)?;
     option_propagation::verify(pair, facts)?;

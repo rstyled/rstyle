@@ -54,6 +54,7 @@ fn check_family(report: &Value) {
                 | "saved"
                 | "selected"
                 | "slice_window"
+                | "suffix"
         ) {
             "admitted"
         } else {

@@ -195,6 +195,10 @@ fn node_native_width(
         let checked = crate::result_propagation::verify(node, facts)?;
         return node_native_width(checked.operand, data, facts);
     }
+    if crate::borrowed_result_propagation::candidate(node, facts) {
+        let checked = crate::borrowed_result_propagation::verify(node, facts)?;
+        return node_native_width(checked.operand, data, facts);
+    }
 
     let own = node
         .ty
@@ -291,6 +295,11 @@ fn collect_source_kind<'a>(
 }
 
 fn propagation_operand<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Option<&'a HirNode> {
+    if crate::borrowed_result_propagation::candidate(node, facts) {
+        return crate::borrowed_result_propagation::verify(node, facts)
+            .ok()
+            .map(|checked| checked.operand);
+    }
     if crate::option_propagation::candidate(node, facts) {
         return crate::option_propagation::verify(node, facts)
             .ok()
@@ -640,6 +649,7 @@ fn serialized_helper_count(pair: producer::PairView<'_>, records: &[Value]) -> u
                             "data.bytes.native-u16"
                                 | "data.bytes.native-u128"
                                 | "data.bytes.native-u32"
+                                | "data.bytes.little-u32"
                                 | "data.bytes.native-usize"
                                 | "data.scalar-from"
                                 | "data.scalar-size"
@@ -724,10 +734,58 @@ pub(crate) fn verify_call_operands(
     if crate::named_callbacks::function_item(call) {
         return crate::data_documents::named_callbacks::operands(pair, call, node, record);
     }
+    verify_argument_values(
+        pair,
+        node,
+        &call.children.iter().collect::<Vec<_>>(),
+        record,
+    )
+}
+
+/// A RangeTo is a checked structural input, represented by its saved endpoint.
+pub(crate) struct SummaryOperands<'a> {
+    pub node: &'a crate::PdgNode,
+    pub call: &'a HirNode,
+    pub record: &'a Value,
+}
+
+pub(crate) fn verify_summary_operands(
+    pair: producer::PairView<'_>,
+    operands: SummaryOperands<'_>,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let SummaryOperands { node, call, record } = operands;
+
+    if !crate::checked_slice_views::candidate(call, facts) {
+        return verify_call_operands(pair, node, call, record);
+    }
+    let checked = crate::checked_slice_views::verify(call, facts)?;
+
+    if node.attributes.construct.as_deref() != Some(crate::checked_slice_views::CONSTRUCT) {
+        return Err("Checked prefix summary lacks its precise range-to-end lowering".into());
+    }
+    crate::data_documents::verify_saved_operands(
+        pair,
+        node,
+        &[
+            crate::data_documents::value_operation(pair, checked.receiver)?,
+            crate::data_documents::value_operation(pair, checked.end)?,
+        ],
+    )?;
+
+    verify_argument_values(pair, node, &[checked.receiver, checked.end], record)
+}
+
+fn verify_argument_values(
+    pair: producer::PairView<'_>,
+    node: &crate::PdgNode,
+    arguments: &[&HirNode],
+    record: &Value,
+) -> Result<(), String> {
     let operands = record["operand_pdg_node_ids"]
         .as_array()
         .ok_or("Missing serialized helper operands")?;
-    if operands.len() != call.children.len() {
+    if operands.len() != arguments.len() {
         return Err("Serialized helper argument arity disagrees".into());
     }
     let data_count = pair
@@ -758,7 +816,7 @@ pub(crate) fn verify_call_operands(
         if edges.len() != 1 || operand.as_str() != Some(edges[0].source.as_str()) {
             return Err("Serialized helper argument evaluation/dependence disagrees".into());
         }
-        verify_operand(pair, &edges[0].source, &call.children[position])?;
+        verify_operand(pair, &edges[0].source, arguments[position])?;
     }
 
     Ok(())

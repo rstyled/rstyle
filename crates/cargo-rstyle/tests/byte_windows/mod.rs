@@ -25,6 +25,7 @@ fn copied_byte_windows_compose_through_strict_admission_and_matching() {
                 | "decode"
                 | "decoded"
                 | "caller"
+                | "borrowed"
         );
         assert_eq!(
             function["outcome"],

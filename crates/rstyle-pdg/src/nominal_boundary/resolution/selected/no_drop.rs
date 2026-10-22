@@ -1,11 +1,17 @@
 //! Source-derived cleanup proof, distinct from Copy and borrowed ownership.
 use super::*;
 mod closure;
+pub(super) mod enum_errors;
 mod enum_globs;
 mod function_imports;
 mod headers;
 mod library_macros;
 mod macros;
+pub(super) mod module_globs;
+mod prelude_traits;
+mod source_imports;
+#[cfg(test)]
+mod source_imports_tests;
 #[cfg(test)]
 mod tests;
 
@@ -26,27 +32,33 @@ pub(super) fn verify(
     tree: &TypeTree,
     environment: &Environment,
 ) -> Result<CheckedNoDrop, String> {
-    let TypeTree::Struct {
-        nominal, fields, ..
-    } = tree
-    else {
-        return Err("Owned cleanup proof requires an exact local struct".into());
-    };
-
     concrete_types::validate(tree)?;
     crate::data_library::verify_sysroot_roots(facts, &["alloc", "core", "std"], "Cleanup source")?;
-    if fields.len() != 1 || fields[0].ty != TypeTree::Scalar("unit".into()) {
-        return Err("Owned cleanup proof requires one complete unit tuple field".into());
+    let (nominal, _) = tree
+        .nominal_parts()
+        .ok_or("Cleanup proof requires an original nominal type")?;
+    match tree {
+        TypeTree::Struct { fields, .. }
+            if fields.len() == 1 && fields[0].ty == TypeTree::Scalar("unit".into()) => {}
+        TypeTree::MixedEnum { .. }
+            if supports(facts, enum_errors::CAPABILITY)? && enum_errors::supported(tree) => {}
+        _ => {
+            return Err(
+                "Owned cleanup proof requires its complete registered source family".into(),
+            );
+        }
     }
+
     let registry = crate::data_library::registry_for(facts)
         .ok_or("Cleanup source requires its pinned compiler/target")?;
     if !library_macros::pinned_native(registry) {
         return Err("Cleanup source macro pin is incomplete".into());
     }
-    let key = original_declaration(nominal, environment)?;
-    if !environment.checked_cleanup_source(&facts.build.cfgs, &key) {
+    let key = original_declaration(nominal, tree, environment)?;
+    let profile = crate::extraction_profile::ExtractionProfile::from_facts(facts)?.token();
+    if !environment.checked_cleanup_source(&facts.build.cfgs, &key, profile) {
         closure::verify(environment, facts, &key)?;
-        environment.cache_cleanup_source(&facts.build.cfgs, &key);
+        environment.cache_cleanup_source(&facts.build.cfgs, &key, profile);
     }
     Ok(CheckedNoDrop {
         nominal: nominal.clone(),
@@ -55,6 +67,7 @@ pub(super) fn verify(
 
 fn original_declaration(
     nominal: &concrete_types::Nominal,
+    tree: &TypeTree,
     environment: &Environment,
 ) -> Result<Namespace, String> {
     let key: Namespace = nominal
@@ -69,17 +82,25 @@ fn original_declaration(
         .ok_or("Missing exact cleanup declaration ownership")?;
 
     let item = &environment.modules[declaration.module_index].items[declaration.item_index];
-    let syn::Item::Struct(item) = item else {
-        return Err("Cleanup declaration does not identify a struct".into());
-    };
+    match (item, tree) {
+        (syn::Item::Struct(item), TypeTree::Struct { .. }) => unit_declaration(item)?,
+        (syn::Item::Enum(item), TypeTree::MixedEnum { .. }) => {
+            enum_errors::declaration(item, tree)?
+        }
+        _ => return Err("Cleanup declaration has an unsupported nominal kind".into()),
+    }
+    if environment.declaration_identity(declaration)? != nominal.declaration_digest {
+        return Err("Cleanup declaration source identity disagrees".into());
+    }
+    Ok(key)
+}
+
+fn unit_declaration(item: &syn::ItemStruct) -> Result<(), String> {
     if !item.generics.params.is_empty()
         || item.generics.where_clause.is_some()
         || !matches!(&item.fields, syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 && matches!(&fields.unnamed[0].ty, syn::Type::Tuple(unit) if unit.elems.is_empty()))
     {
         return Err("Cleanup declaration requires an original nongeneric unit tuple".into());
     }
-    if environment.declaration_identity(declaration)? != nominal.declaration_digest {
-        return Err("Cleanup declaration source identity disagrees".into());
-    }
-    Ok(key)
+    Ok(())
 }

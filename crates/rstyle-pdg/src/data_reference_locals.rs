@@ -1,6 +1,7 @@
 //! Resolve reference-bearing locals from existing binding identities and flow.
 
 mod flow;
+pub(crate) use flow::OwnedIndex;
 mod origins;
 
 use crate::{HirNode, HirRef, extraction_profile::ExtractionProfile, unit_store::EvidenceFacts};
@@ -16,6 +17,13 @@ pub(crate) fn supported(ty: &crate::data_types::TypeToken, profile: ExtractionPr
                 borrowed: true
             }
         ) && profile.supports("rust.native-borrowed-byte-readers"))
+        || (matches!(
+            ty,
+            TypeToken::SliceArrayResult {
+                length: 4,
+                borrowed: true
+            }
+        ) && profile.supports("rust.checked-borrowed-result-flow"))
         || (matches!(ty, TypeToken::Shared(_)) && profile.supports("rust.shared-reference-locals"))
         || (matches!(ty, TypeToken::Tuple(_) | TypeToken::Struct { .. })
             && profile.supports("rust.reference-bearing-values")
@@ -75,6 +83,18 @@ fn declaration<'a>(node: &'a HirNode, target: &HirRef) -> Option<&'a HirNode> {
 }
 
 pub(crate) fn flow_enabled(facts: &dyn EvidenceFacts) -> bool {
+    let borrowed_result =
+        crate::extraction_profile::facts_support(facts, "rust.checked-borrowed-result-flow")
+            && facts
+                .signature
+                .return_ty
+                .normalized
+                .as_deref()
+                .and_then(|text| crate::data_types::parse(text).ok())
+                .is_some_and(|ty| crate::borrowed_result_types::uses_result(&ty));
+    if borrowed_result {
+        return true;
+    }
     ExtractionProfile::from_facts(facts)
         .is_ok_and(|profile| profile.supports("rust.reference-rebindings"))
         && facts.bindings.iter().any(|binding| {
@@ -102,4 +122,13 @@ pub(crate) fn compute_origins(
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<crate::data_origins::Origin>, String> {
     origins::selected(node, selectors, facts)
+}
+
+pub(crate) fn indexed_origins(
+    node: &HirNode,
+    selectors: &[usize],
+    facts: &dyn EvidenceFacts,
+    index: &OwnedIndex,
+) -> Result<Vec<crate::data_origins::Origin>, String> {
+    origins::selected_with(node, selectors, facts, index)
 }

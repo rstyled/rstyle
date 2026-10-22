@@ -1,3 +1,4 @@
+mod borrowed_parser;
 mod option_propagation;
 mod prefix_ownership;
 mod primitive_constants;

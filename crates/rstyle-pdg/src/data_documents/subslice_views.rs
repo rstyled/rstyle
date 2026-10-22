@@ -96,6 +96,10 @@ pub(super) fn verify_borrow(
 fn verify_policy(pair: PairView<'_>, checked: &data_subslices::Checked<'_>) -> Result<(), String> {
     for (required, capability) in [
         (
+            checked.requires_result_policy,
+            data_subslices::RESULT_CAPABILITY,
+        ),
+        (
             checked.array_length.is_some(),
             data_subslices::ARRAY_CAPABILITY,
         ),

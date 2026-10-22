@@ -10,6 +10,9 @@
 pub(crate) mod bitset_cardinality;
 pub mod bool_constants;
 pub(crate) mod bool_usize;
+pub(crate) mod borrowed_result_errors;
+pub mod borrowed_result_propagation;
+pub(crate) mod borrowed_result_types;
 mod builtin_scalars;
 pub mod byte_literals;
 pub mod call_summaries;
@@ -20,6 +23,7 @@ pub mod character_scalars;
 pub(crate) mod checked_lengths;
 mod checked_option_products;
 pub mod checked_options;
+pub(crate) mod checked_slice_views;
 pub mod collection;
 mod concrete_calls;
 pub mod concrete_results;

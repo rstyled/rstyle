@@ -1,5 +1,6 @@
 //! Function evidence and unit construction results are immutable and policy-local.
 mod reference_origins;
+pub(super) use reference_origins::Queries as ReferenceOrigins;
 
 use super::*;
 use crate::{

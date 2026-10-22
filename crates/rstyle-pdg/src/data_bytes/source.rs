@@ -18,11 +18,11 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
     let syntax: syn::Expr = syn::parse_str(bytes).map_err(|error| error.to_string())?;
     let argument = match (kind, crate::data_aggregates::ungroup(&syntax)) {
         (
-            Kind::Native | Kind::NativeUsize | Kind::NativeU16 | Kind::NativeU128,
+            Kind::Native | Kind::NativeUsize | Kind::NativeU16 | Kind::NativeU128 | Kind::LittleU32,
             syn::Expr::Call(call),
-        ) if native_invocation(call) && node.kind == "expr_call" => &call.args[0],
+        ) if native_invocation(call, kind) && node.kind == "expr_call" => &call.args[0],
         (
-            Kind::Copy(_) | Kind::Unwrap(_) | Kind::Borrow | Kind::UnwrapBorrow,
+            Kind::Copy(_) | Kind::Unwrap(_) | Kind::Borrow(_) | Kind::UnwrapBorrow(_),
             syn::Expr::MethodCall(call),
         ) if call.args.is_empty()
             && call.turbofish.is_none()
@@ -50,15 +50,20 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
     Ok(())
 }
 
-fn native_invocation(call: &syn::ExprCall) -> bool {
+pub(super) fn native_invocation(call: &syn::ExprCall, kind: Kind) -> bool {
     let syn::Expr::Path(path) = crate::data_aggregates::ungroup(&call.func) else {
         return false;
     };
 
+    let method = if kind == Kind::LittleU32 {
+        "from_le_bytes"
+    } else {
+        "from_ne_bytes"
+    };
     call.args.len() == 1
         && path
             .path
             .segments
             .last()
-            .is_some_and(|segment| segment.ident == "from_ne_bytes" && segment.arguments.is_empty())
+            .is_some_and(|segment| segment.ident == method && segment.arguments.is_empty())
 }

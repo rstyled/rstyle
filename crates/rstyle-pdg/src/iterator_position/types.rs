@@ -79,10 +79,6 @@ fn signature(
     dispatch(node)
 }
 
-fn byte_slice() -> TypeTree {
-    TypeTree::Slice(Box::new(TypeTree::Scalar("u8".into())))
-}
-
 fn fresh_signature(
     created: &crate::data_receivers::Method,
     receiver: &HirNode,
@@ -96,9 +92,11 @@ fn fresh_signature(
     {
         return Err("Fresh byte iterator requires an explicit shared array-field view".into());
     }
-    let shared = TypeTree::Shared(Box::new(byte_slice()));
+    let shared = TypeTree::Scalar("u8".into())
+        .wrapped(TypeTree::Slice)
+        .wrapped(TypeTree::Shared);
     let ty = if implicit {
-        byte_slice()
+        TypeTree::Scalar("u8".into()).wrapped(TypeTree::Slice)
     } else {
         shared.clone()
     };

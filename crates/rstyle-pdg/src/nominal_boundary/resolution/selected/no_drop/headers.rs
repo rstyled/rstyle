@@ -6,6 +6,7 @@ pub(super) struct Resolution {
     pub local_nominal: bool,
     pub standard_roots: bool,
     pub local_trait: bool,
+    pub resolved_trait: Option<Namespace>,
 }
 
 #[derive(Default)]
@@ -14,6 +15,7 @@ pub(super) struct Names {
     pub targets: BTreeSet<String>,
     pub aliases: BTreeSet<String>,
     imports: Vec<(String, String)>,
+    pub from_shadowed: bool,
 }
 
 impl Names {
@@ -102,7 +104,9 @@ impl Names {
         }
         // Unknown trait names can be re-exported Drop aliases. Only independently
         // rooted standard traits are sufficient to exclude that possibility here.
-        if resolution.standard_roots && known_trait(path) {
+        if resolution.standard_roots
+            && (known_trait(path) || resolution.resolved_trait.as_deref().is_some_and(known_path))
+        {
             return Ok(());
         }
         Err(possible_destructor(path, &name))
@@ -125,6 +129,19 @@ fn known_trait(path: &syn::Path) -> bool {
         .iter()
         .map(|segment| segment.ident.to_string())
         .collect();
+    known_path(&segments)
+        && segments != ["core", "error", "Error"]
+        && !matches!(
+            segments
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                .as_slice(),
+            ["core" | "std", "convert", "From"]
+        )
+}
+
+fn known_path(segments: &[String]) -> bool {
     matches!(
         segments
             .iter()
@@ -133,7 +150,8 @@ fn known_trait(path: &syn::Path) -> bool {
             .as_slice(),
         ["core" | "std", "fmt", "Display"]
             | ["core" | "std", "ops", "Index" | "IndexMut"]
-            | ["std", "error", "Error"]
+            | ["core" | "std", "error", "Error"]
+            | ["core" | "std", "convert", "From"]
     )
 }
 

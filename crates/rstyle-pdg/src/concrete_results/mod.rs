@@ -80,11 +80,39 @@ fn fresh(
     error: &TypeToken,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
+    if borrowed_fresh(node, returning, error, facts)? {
+        return Ok(());
+    }
     if crate::result_propagation::candidate(node, facts) {
         let checked = crate::result_propagation::verify(node, facts)?;
         return fresh(checked.operand, true, error, facts);
     }
 
+    verify_fresh_use(node, returning, error, facts)?;
+
+    let constructor = constructor_candidate(node, facts);
+    if constructor {
+        verify_constructor(node, facts)?;
+    }
+
+    for (position, child) in node.children.iter().enumerate() {
+        let tail = returning && node.kind == "expr_block" && position + 1 == node.children.len();
+        fresh(
+            child,
+            tail || node.kind == "expr_ret" || returning && constructor,
+            error,
+            facts,
+        )?;
+    }
+    Ok(())
+}
+
+fn verify_fresh_use(
+    node: &HirNode,
+    returning: bool,
+    error: &TypeToken,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
     let token = node
         .ty
         .as_ref()
@@ -110,21 +138,40 @@ fn fresh(
         );
     }
 
-    let constructor = constructor_candidate(node, facts);
-    if constructor {
-        verify_constructor(node, facts)?;
-    }
-
-    for (position, child) in node.children.iter().enumerate() {
-        let tail = returning && node.kind == "expr_block" && position + 1 == node.children.len();
-        fresh(
-            child,
-            tail || node.kind == "expr_ret" || returning && constructor,
-            error,
-            facts,
-        )?;
-    }
     Ok(())
+}
+
+fn borrowed_fresh(
+    node: &HirNode,
+    returning: bool,
+    error: &TypeToken,
+    facts: &dyn EvidenceFacts,
+) -> Result<bool, String> {
+    if crate::borrowed_result_propagation::candidate(node, facts) {
+        let checked = crate::borrowed_result_propagation::verify(node, facts)?;
+        fresh(checked.operand, true, error, facts)?;
+        return Ok(true);
+    }
+    if crate::borrowed_result_errors::candidate(node, facts) {
+        if !returning {
+            return Err("Fresh borrowed Result cannot be ignored or stored".into());
+        }
+        let checked = crate::borrowed_result_errors::verify(node, facts)?;
+        fresh(checked.receiver, false, error, facts)?;
+        fresh(checked.error, true, error, facts)?;
+        return Ok(true);
+    }
+    if crate::borrowed_result_errors::error_candidate(node, facts) {
+        if !returning {
+            return Err("Fresh error cannot be ignored or stored".into());
+        }
+        let checked = crate::borrowed_result_errors::verify_error(node, facts)?;
+        if &checked.token != error {
+            return Err("Fresh error differs from the complete return error".into());
+        }
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 fn method_result(node: &HirNode) -> bool {
@@ -144,11 +191,30 @@ pub(crate) fn verify_document_policy(
     )?;
     crate::extraction_profile::require_document(
         profile,
+        crate::borrowed_result_types::CAPABILITY,
+        || {
+            facts
+                .signature
+                .return_ty
+                .normalized
+                .as_deref()
+                .and_then(|text| crate::data_types::parse(text).ok())
+                .is_some_and(|token| {
+                    crate::borrowed_result_types::uses_result(&token)
+                        || crate::borrowed_result_types::error(&token).is_some()
+                })
+        },
+        "Borrowed Result boundary requires its registered document capability",
+    )?;
+    crate::extraction_profile::require_document(
+        profile,
         crate::result_propagation::CAPABILITY,
         || {
             crate::field_locations::operations(&facts.body, &["expr_method_call"])
                 .into_iter()
-                .any(method_result)
+                .any(|node| {
+                    method_result(node) && !crate::borrowed_result_errors::candidate(node, facts)
+                })
         },
         "Fresh Result method forwarding requires its registered document capability",
     )

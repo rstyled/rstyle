@@ -92,7 +92,7 @@ fn owns(token: &TypeToken, owner: &crate::concrete_types::Nominal) -> bool {
         TypeToken::Enum { variants, .. } => variants.iter().any(|(_, value)| owns(value, owner)),
         TypeToken::MixedEnum { variants, .. } => variants
             .iter()
-            .filter_map(|(_, shape)| shape.field())
+            .flat_map(|(_, shape)| shape.fields())
             .any(|value| owns(value, owner)),
         TypeToken::Struct { nominal, fields } => {
             nominal == owner || fields.iter().any(|(_, ty)| owns(ty, owner))

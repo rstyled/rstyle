@@ -284,6 +284,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             && self.visiting.is_empty()
             && let Some(payload) = super::options::payload(self.ctx.tcx, ty)
                 .or_else(|| super::options::product_payload(self.ctx, ty))
+                .or_else(|| super::options::borrowed_slice_payload(self.ctx, ty))
         {
             return self.option_type(payload, depth);
         }

@@ -31,13 +31,16 @@ pub(super) fn check(
         .as_ref()
         .is_some_and(|id| !id.is_empty())
         || variants.is_empty()
-        || variants.len() > 16
+        || variants.len() > crate::concrete_types::MAX_VARIANTS
         || !variants
             .iter()
             .any(|(_, shape)| matches!(shape, VariantShape::Unit {}))
-        || !variants
-            .iter()
-            .any(|(_, shape)| matches!(shape, VariantShape::SingleTuple { .. }))
+        || !variants.iter().any(|(_, shape)| {
+            matches!(
+                shape,
+                VariantShape::SingleTuple { .. } | VariantShape::Named { .. }
+            )
+        })
     {
         return Err("Mixed enum requires complete bounded source/unit/payload evidence".into());
     }
@@ -45,7 +48,15 @@ pub(super) fn check(
         if name.is_empty() || !names.insert(name) {
             return Err("Mixed enum variant identity is absent or repeated".into());
         }
-        if let Some(field) = shape.field() {
+        if let VariantShape::Named { fields } = shape {
+            let mut names = std::collections::BTreeSet::new();
+            if fields.is_empty() || fields.len() > crate::concrete_types::MAX_FIELDS
+                || fields.iter().any(|(name, value)| name.is_empty() || !names.insert(name)
+                    || !matches!(value, TypeToken::Scalar(value) if crate::concrete_types::scalar(value) && value != "unit")) {
+                return Err("Named enum requires unique ordered scalar fields".into());
+            }
+        }
+        for field in shape.fields() {
             if !crate::concrete_types::closed_payload(field) {
                 return Err("Mixed enum requires closed scalar/struct payloads".into());
             }

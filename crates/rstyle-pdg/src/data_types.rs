@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 mod converted;
 mod mixed_owners;
 mod parsed;
+mod scalar_slices;
+pub(crate) use scalar_slices::shared_byte_slice;
 #[cfg(test)]
 mod range_values;
 use crate::concrete_types::VariantShape;
@@ -33,6 +35,7 @@ pub enum TypeToken {
     },
     IntConversionResult(String),
     RangeUsize,
+    RangeToUsize,
     SliceArrayResult {
         length: u64,
         borrowed: bool,
@@ -69,6 +72,7 @@ impl TypeToken {
             TypeTree::Str => Self::Str,
             TypeTree::IntConversionResult(value) => Self::IntConversionResult(value.clone()),
             TypeTree::RangeUsize { .. } => Self::RangeUsize,
+            TypeTree::RangeToUsize { .. } => Self::RangeToUsize,
             TypeTree::Option(value) => Self::Option(Box::new(Self::from_tree(value))),
             TypeTree::Result { ok, err } => Self::from_result(ok, err),
             TypeTree::SliceArrayResult { length, borrowed } => Self::SliceArrayResult {
@@ -124,7 +128,7 @@ impl TypeToken {
             Self::Scalar(value) | Self::IntConversionResult(value) => {
                 matches!(value.as_str(), "isize" | "usize")
             }
-            Self::FieldlessEnum { .. } | Self::RangeUsize => true,
+            Self::FieldlessEnum { .. } | Self::RangeUsize | Self::RangeToUsize => true,
             Self::Tuple(values) => values.iter().any(Self::native_width),
             Self::Result { ok, err } => ok.native_width() || err.native_width(),
             Self::Array { element, .. }
@@ -137,7 +141,7 @@ impl TypeToken {
             }
             Self::MixedEnum { variants, .. } => variants
                 .iter()
-                .filter_map(|(_, shape)| shape.field())
+                .flat_map(|(_, shape)| shape.fields())
                 .any(Self::native_width),
             _ => false,
         }
@@ -189,8 +193,17 @@ pub(crate) fn parse_for(
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
     check_fresh_capabilities(text, profile)?;
+    if (contains_option(&ty, &shared_byte_slice) || crate::borrowed_result_types::uses_result(&ty))
+        && !profile.supports("rust.checked-borrowed-result-flow")
+    {
+        return Err("Borrowed checked values require their checked-result capability".into());
+    }
+
     if text.contains("\"kind\":\"mixed_enum\"")
-        && (!profile.supports("rust.borrowed-mixed-owners") || !mixed_owners::borrowed_use(&ty))
+        && (!profile.supports("rust.borrowed-mixed-owners")
+            || !(mixed_owners::borrowed_use(&ty)
+                || profile.supports(crate::borrowed_result_types::CAPABILITY)
+                    && crate::borrowed_result_types::owned_use(&ty)))
     {
         return Err(
             "Mixed enums require complete borrowed owners, without direct enum value operations"
@@ -222,16 +235,7 @@ pub(crate) fn parse_for(
         return Err("Product Option requires its registered propagation capability".into());
     }
 
-    if text.contains("\"kind\":\"int_conversion_result\"")
-        && !profile.supports("rust.bitset-cardinality")
-    {
-        return Err("Integer Result requires its registered capability".into());
-    }
-    if text.contains("\"kind\":\"int_conversion_result\",\"value\":\"u16\"")
-        && !profile.supports("rust.end-of-input")
-    {
-        return Err("Narrowing Result requires its registered capability".into());
-    }
+    check_conversion_capabilities(text, profile)?;
     Ok(ty)
 }
 
@@ -239,6 +243,9 @@ fn check_fresh_capabilities(
     text: &str,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<(), String> {
+    if text.contains("\"kind\":\"range_to_usize\"") {
+        return Err("RangeTo observation grants no standalone value permission".into());
+    }
     if text.contains("\"kind\":\"result\"") && !profile.supports("rust.fresh-concrete-results") {
         return Err("Concrete Result requires its registered fresh-result capability".into());
     }
@@ -327,7 +334,7 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         }
         TypeToken::Result { ok, err } => check_result(ok, err, depth, entries),
         TypeToken::Str => Ok(()),
-        TypeToken::RangeUsize if depth == 0 => Ok(()),
+        TypeToken::RangeUsize | TypeToken::RangeToUsize if depth == 0 => Ok(()),
         TypeToken::FieldlessEnum { nominal, variants }
             if nominal
                 .source_identity
@@ -360,9 +367,9 @@ fn check_result(
     depth: usize,
     entries: &mut usize,
 ) -> Result<(), String> {
-    if !matches!(ok, TypeToken::Scalar(value) if value == "unit")
-        || !matches!(err, TypeToken::Struct { fields, .. } if matches!(fields.as_slice(), [(name, TypeToken::Scalar(value))] if name == "0" && value == "unit"))
-    {
+    let unit_result = matches!(ok, TypeToken::Scalar(value) if value == "unit")
+        && matches!(err, TypeToken::Struct { fields, .. } if matches!(fields.as_slice(), [(name, TypeToken::Scalar(value))] if name == "0" && value == "unit"));
+    if !unit_result && !crate::borrowed_result_types::result(ok, err) {
         return Err(
             "Concrete Result token requires unit success and a unit tuple error struct".into(),
         );
@@ -399,6 +406,7 @@ fn check_fieldless_variants(variants: &[(String, i64)]) -> Result<(), String> {
 
 fn recursive_element(token: &TypeToken) -> Option<&TypeToken> {
     match token {
+        TypeToken::Option(payload) if shared_byte_slice(payload.as_ref()) => Some(payload),
         TypeToken::Array { element, .. }
         | TypeToken::Shared(element)
         | TypeToken::Slice(element) => Some(element),
@@ -447,4 +455,21 @@ fn valid_nominal(token: &TypeToken) -> bool {
             .source_identity
             .as_ref()
             .is_some_and(|id| !id.is_empty())
+}
+
+fn check_conversion_capabilities(
+    text: &str,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Result<(), String> {
+    if text.contains("\"kind\":\"int_conversion_result\"")
+        && !profile.supports("rust.bitset-cardinality")
+    {
+        return Err("Integer Result requires its registered capability".into());
+    }
+    if text.contains("\"kind\":\"int_conversion_result\",\"value\":\"u16\"")
+        && !profile.supports("rust.end-of-input")
+    {
+        return Err("Narrowing Result requires its registered capability".into());
+    }
+    Ok(())
 }

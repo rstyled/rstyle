@@ -4,10 +4,14 @@
 mod origins;
 mod semantics;
 mod source;
+#[cfg(test)]
+mod tests;
 mod types;
 
 use crate::{HirNode, call_summaries::Summary, unit_store::EvidenceFacts};
 use serde_json::Value;
+
+pub(crate) const CHECKED_FLOW_CAPABILITY: &str = "rust.checked-borrowed-result-flow";
 
 pub(crate) const KEY: &str = "rstyle.data:byte-call";
 
@@ -16,31 +20,33 @@ pub(crate) enum Kind {
     Copy(u64),
     Unwrap(u64),
     Native,
-    Borrow,
-    UnwrapBorrow,
+    Borrow(u64),
+    UnwrapBorrow(u64),
     NativeUsize,
     NativeU16,
     NativeU128,
+    LittleU32,
 }
 
 pub(crate) fn kind(node: &HirNode) -> Option<Kind> {
     match node.dispatch.as_ref()?.op.as_str() {
         "std::convert::TryInto::try_into" | "core::convert::TryInto::try_into" => {
             Some(if borrowed_result(node) {
-                Kind::Borrow
+                Kind::Borrow(result_length(node)?)
             } else {
                 Kind::Copy(result_length(node)?)
             })
         }
         "std::result::Result::<T, E>::unwrap" | "core::result::Result::<T, E>::unwrap" => {
             Some(if node.children.first().is_some_and(borrowed_result) {
-                Kind::UnwrapBorrow
+                Kind::UnwrapBorrow(result_length(node.children.first()?)?)
             } else {
                 Kind::Unwrap(result_length(node.children.first()?)?)
             })
         }
         "core::num::<impl u16>::from_ne_bytes" => Some(Kind::NativeU16),
         "core::num::<impl u128>::from_ne_bytes" => Some(Kind::NativeU128),
+        "core::num::<impl u32>::from_le_bytes" => Some(Kind::LittleU32),
         "core::num::<impl u32>::from_ne_bytes" => Some(Kind::Native),
         "core::num::<impl usize>::from_ne_bytes" => Some(Kind::NativeUsize),
         _ => None,
@@ -67,8 +73,9 @@ impl Kind {
             Self::Copy(_) => "data.bytes.copy-result",
             Self::Unwrap(_) => "data.bytes.unwrap",
             Self::Native => "data.bytes.native-u32",
-            Self::Borrow => "data.bytes.borrow-result",
-            Self::UnwrapBorrow => "data.bytes.unwrap-borrow",
+            Self::LittleU32 => "data.bytes.little-u32",
+            Self::Borrow(_) => "data.bytes.borrow-result",
+            Self::UnwrapBorrow(_) => "data.bytes.unwrap-borrow",
             Self::NativeUsize => "data.bytes.native-usize",
             Self::NativeU16 => "data.bytes.native-u16",
             Self::NativeU128 => "data.bytes.native-u128",
@@ -78,26 +85,51 @@ impl Kind {
     pub fn native(self) -> bool {
         matches!(
             self,
-            Self::Native | Self::NativeUsize | Self::NativeU16 | Self::NativeU128
+            Self::Native | Self::NativeUsize | Self::NativeU16 | Self::NativeU128 | Self::LittleU32
         )
     }
 
     pub fn conversion(self) -> bool {
-        matches!(self, Self::Copy(_) | Self::Borrow)
+        matches!(self, Self::Copy(_) | Self::Borrow(_))
     }
 
     pub fn unwrap(self) -> bool {
-        matches!(self, Self::Unwrap(_) | Self::UnwrapBorrow)
+        matches!(self, Self::Unwrap(_) | Self::UnwrapBorrow(_))
     }
 
     pub fn length(self) -> u64 {
         match self {
-            Self::Copy(length) | Self::Unwrap(length) => length,
-            Self::Native => 4,
+            Self::Copy(length)
+            | Self::Unwrap(length)
+            | Self::Borrow(length)
+            | Self::UnwrapBorrow(length) => length,
+            Self::Native | Self::LittleU32 => 4,
             Self::NativeU16 => 2,
             Self::NativeU128 => 16,
-            Self::Borrow | Self::UnwrapBorrow | Self::NativeUsize => 8,
+            Self::NativeUsize => 8,
         }
+    }
+
+    fn payload_capability(self) -> Result<Option<&'static str>, String> {
+        match self {
+            Self::Borrow(4) | Self::UnwrapBorrow(4) | Self::LittleU32 => {
+                Ok(Some(CHECKED_FLOW_CAPABILITY))
+            }
+            Self::Borrow(8) | Self::UnwrapBorrow(8) | Self::NativeUsize => {
+                Ok(Some("rust.native-borrowed-byte-readers"))
+            }
+            Self::Borrow(_) | Self::UnwrapBorrow(_) => {
+                Err("Borrowed byte conversion requires a registered exact array length".into())
+            }
+            _ => Ok(None),
+        }
+    }
+
+    pub fn requires_checked_flow(self) -> bool {
+        matches!(
+            self,
+            Self::Borrow(4) | Self::UnwrapBorrow(4) | Self::LittleU32
+        )
     }
 
     pub fn requires_prefix(self, node: &HirNode) -> bool {
@@ -148,11 +180,10 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Kind, 
     let kind = kind(node)
         .filter(|_| enabled(facts))
         .ok_or("Unregistered byte call")?;
-    if matches!(kind, Kind::Borrow | Kind::UnwrapBorrow | Kind::NativeUsize)
-        && !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
-            .supports("rust.native-borrowed-byte-readers")
+    if let Some(capability) = kind.payload_capability()?
+        && !crate::extraction_profile::facts_support(facts, capability)
     {
-        return Err("Borrowed byte readers require their registered capability".into());
+        return Err("Byte payload requires its registered capability".into());
     }
     if kind.requires_prefix(node)
         && !crate::extraction_profile::facts_support(
@@ -173,16 +204,33 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Kind, 
 fn authority(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let registry = crate::data_library::registry_for(facts).ok_or("Unpinned byte-call build")?;
     let callee = crate::data_library::callee(node)?;
+    if node
+        .dispatch
+        .as_ref()
+        .is_none_or(|dispatch| dispatch.op != callee.path)
+    {
+        return Err("Byte call dispatch disagrees with its resolved definition".into());
+    }
+    pinned_callee(
+        &callee,
+        kind,
+        registry,
+        crate::extraction_profile::facts_support(facts, crate::data_subslices::PREFIX_CAPABILITY),
+    )
+}
+
+fn pinned_callee(
+    callee: &crate::data_library::Callee,
+    kind: Kind,
+    registry: &crate::data_library::Registry,
+    aliases: bool,
+) -> Result<(), String> {
     if callee.crate_name != "core"
         || callee.crate_hash != registry.core_hash
         || registry
             .definitions
-            .get(definition_path(&callee.path, facts))
+            .get(definition_path(&callee.path, aliases))
             != Some(&callee.definition_hash)
-        || node
-            .dispatch
-            .as_ref()
-            .is_none_or(|dispatch| dispatch.op != callee.path)
     {
         return Err("Byte call disagrees with pinned core definition".into());
     }
@@ -190,14 +238,16 @@ fn authority(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<()
     if kind.conversion() {
         let selected = callee
             .implementation
+            .as_ref()
             .ok_or("Missing selected slice conversion implementation")?;
         if selected.crate_name != "core"
             || selected.crate_hash != registry.core_hash
             || registry
                 .definitions
-                .get(definition_path(&selected.path, facts))
+                .get(definition_path(&selected.path, aliases))
                 != Some(&selected.definition_hash)
-            || definition_path(&selected.path, facts) != "<T as std::convert::TryInto<U>>::try_into"
+            || definition_path(&selected.path, aliases)
+                != "<T as std::convert::TryInto<U>>::try_into"
             || selected.implementation.is_some()
         {
             return Err("Slice conversion lacks the pinned blanket TryInto implementation".into());
@@ -208,8 +258,8 @@ fn authority(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> Result<()
     Ok(())
 }
 
-fn definition_path<'a>(path: &'a str, facts: &dyn EvidenceFacts) -> &'a str {
-    if !crate::extraction_profile::facts_support(facts, crate::data_subslices::PREFIX_CAPABILITY) {
+fn definition_path(path: &str, aliases: bool) -> &str {
+    if !aliases {
         return path;
     }
     match path {

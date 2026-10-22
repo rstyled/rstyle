@@ -565,6 +565,9 @@ fn check_result_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if let Some(operands) = crate::data_frontend::borrowed_results::operands(node, ctx.facts) {
+        return check_borrowed_operands(node, operands, ctx);
+    }
     if crate::option_propagation::candidate(node, ctx.facts) {
         return check_option_propagation(node, ctx);
     }
@@ -604,6 +607,27 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
         return check_match(node, ctx);
     }
     check_ordinary_node(node, in_expansion, ctx)
+}
+
+fn check_borrowed_operands(
+    node: &HirNode,
+    operands: Result<Vec<&HirNode>, String>,
+    ctx: &Ctx<'_>,
+) -> Outcome {
+    match operands {
+        Ok(operands) => Outcome::combine(
+            operands
+                .into_iter()
+                .map(|operand| check_node(operand, false, ctx))
+                .collect(),
+        ),
+        Err(reason) => error(
+            crate::borrowed_result_types::CAPABILITY,
+            "checked_borrowed_result",
+            node,
+            &reason,
+        ),
+    }
 }
 
 fn check_ordinary_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {

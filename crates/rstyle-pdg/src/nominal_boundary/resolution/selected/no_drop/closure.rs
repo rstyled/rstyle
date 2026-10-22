@@ -13,7 +13,12 @@ pub(super) fn verify(
         configuration: crate::conditional_source::Configuration::new(cfgs),
         library: crate::data_library::registry_for(facts),
         native_tls: cfgs.iter().any(|cfg| cfg == "target_thread_local"),
-        enums: enum_globs::Scope::new(&environment.modules, cfgs)?,
+        test_marker: supports(facts, enum_errors::CAPABILITY)?,
+        enums: enum_globs::Scope::new(
+            &environment.modules,
+            cfgs,
+            supports(facts, enum_errors::CAPABILITY)?,
+        )?,
         names: headers::Names::new(target),
         definitions: BTreeMap::new(),
         scopes: Vec::new(),
@@ -137,11 +142,61 @@ pub(super) fn inspect_with_library(
     target: &Namespace,
     library: Option<&'static crate::data_library::Registry>,
 ) -> Result<(), String> {
+    inspect_policy(
+        items,
+        target,
+        Inspection {
+            cfgs,
+            library,
+            closed_imports: false,
+            test_marker: false,
+        },
+    )
+}
+
+#[cfg(test)]
+pub(super) fn inspect_closed_imports(
+    items: &[&syn::Item],
+    target: &Namespace,
+) -> Result<(), String> {
+    inspect_policy(
+        items,
+        target,
+        Inspection {
+            cfgs: &[],
+            library: crate::data_library::registries().first(),
+            closed_imports: true,
+            test_marker: true,
+        },
+    )
+}
+
+#[cfg(test)]
+struct Inspection<'a> {
+    cfgs: &'a [String],
+    library: Option<&'static crate::data_library::Registry>,
+    closed_imports: bool,
+    test_marker: bool,
+}
+
+#[cfg(test)]
+fn inspect_policy(
+    items: &[&syn::Item],
+    target: &Namespace,
+    policy: Inspection<'_>,
+) -> Result<(), String> {
+    let Inspection {
+        cfgs,
+        library,
+        closed_imports,
+        test_marker,
+    } = policy;
     let mut visitor = Closure {
         configuration: crate::conditional_source::Configuration::new(cfgs),
         library,
         native_tls: cfgs.iter().any(|cfg| cfg == "target_thread_local"),
-        enums: enum_globs::Scope::inline(items, cfgs)?,
+        test_marker,
+        enums: enum_globs::Scope::inline(items, cfgs, closed_imports)?,
         names: headers::Names::new(target),
         definitions: BTreeMap::new(),
         scopes: Vec::new(),
@@ -169,6 +224,7 @@ struct Closure<'a> {
     configuration: crate::conditional_source::Configuration<'a>,
     library: Option<&'static crate::data_library::Registry>,
     native_tls: bool,
+    test_marker: bool,
     enums: enum_globs::Scope,
     names: headers::Names,
     definitions: BTreeMap<String, syn::ItemMacro>,
@@ -274,6 +330,7 @@ impl Closure<'_> {
                 Some((&item.ident, false))
             }
             syn::Item::Type(item) => Some((&item.ident, false)),
+            syn::Item::Mod(item) => Some((&item.ident, false)),
             syn::Item::Use(item) => {
                 self.scope_import(item, scope);
                 None
@@ -282,12 +339,15 @@ impl Closure<'_> {
         };
 
         if let Some((name, nominal)) = binding {
-            scope.insert(name.to_string(), nominal);
+            source_imports::bind(scope, name.to_string(), nominal);
         }
     }
     fn scope_import(&self, item: &syn::ItemUse, scope: &mut BTreeMap<String, bool>) {
         self.enums.bindings(&item.tree, &[], scope);
         library_macros::bindings(&item.tree, &[], scope, self.library);
+        if self.enums.closed_imports && item.leading_colon.is_none() {
+            source_imports::record(&item.tree, scope);
+        }
     }
     fn unknown_glob(&self) -> bool {
         self.scopes.iter().any(|scope| scope.contains_key("*"))
@@ -384,7 +444,7 @@ impl Closure<'_> {
         }
 
         let name = name.to_string();
-        if super::super::builtin_derive(&name) || standard_macro(&name) {
+        if super::super::builtin_derive(&name) || standard_macro(&name) || name == "test" {
             self.error = Some("Cleanup closure shadows builtin expansion authority".into());
             return;
         }
@@ -399,14 +459,15 @@ impl Closure<'_> {
             syn::Item::Mod(item) => Some(&item.ident),
             _ => None,
         };
+        if name.is_some_and(|name| name == "From") {
+            self.names.from_shadowed = true;
+        }
         if name.is_some_and(|name| ["alloc", "core", "std"].contains(&name.to_string().as_str())) {
             return Err("Cleanup standard root declaration is shadowed".into());
         }
+
         match item {
-            syn::Item::Use(item) => {
-                import_authority(&item.tree, Vec::new(), self.library, &self.enums)?;
-                self.names.import(&item.tree)?;
-            }
+            syn::Item::Use(item) => self.collect_import(item)?,
             syn::Item::Type(item) => {
                 self.names.aliases.insert(item.ident.to_string());
                 if ["alloc", "core", "std"].contains(&item.ident.to_string().as_str()) {
@@ -427,6 +488,18 @@ impl Closure<'_> {
             }
             _ => {}
         }
+        Ok(())
+    }
+    fn collect_import(&mut self, item: &syn::ItemUse) -> Result<(), String> {
+        if source_imports::bindings(&item.tree)
+            .iter()
+            .any(|(name, _)| name == "From")
+            || self.nested_context > 0 && source_imports::has_glob(&item.tree)
+        {
+            self.names.from_shadowed = true;
+        }
+        import_authority(&item.tree, Vec::new(), self.library, &self.enums)?;
+        self.names.import(&item.tree)?;
         Ok(())
     }
     fn check(&mut self, result: Result<(), String>) -> bool {
@@ -489,6 +562,17 @@ impl Closure<'_> {
         }
         true
     }
+    fn prelude_trait(&self, path: &syn::Path) -> Option<Namespace> {
+        // Macro-generated imports/definitions can outlive their temporary visit
+        // scope. Their collected names must still block absence-based lookup.
+        if self.names.from_shadowed
+            || self.names.drops.contains("From")
+            || self.names.aliases.contains("From")
+        {
+            return None;
+        }
+        prelude_traits::resolve(path, &self.scopes, self.library)
+    }
     fn active_item(&mut self, item: &syn::Item) {
         if self.item_header(item) && self.item_evidence(item) {
             syn::visit::visit_item(self, item);
@@ -504,6 +588,14 @@ impl Closure<'_> {
                     local_nominal: self.local_nominal(item),
                     standard_roots: !self.unknown_glob(),
                     local_trait: self.local_trait(item),
+                    resolved_trait: if self.enums.closed_imports {
+                        item.trait_.as_ref().and_then(|(_, path, _)| {
+                            source_imports::resolve(path, &self.scopes)
+                                .or_else(|| self.prelude_trait(path))
+                        })
+                    } else {
+                        None
+                    },
                 },
             )
         } else {
@@ -586,17 +678,31 @@ impl Closure<'_> {
         }
     }
     fn effective_attribute(&mut self, attribute: &syn::Meta) -> bool {
+        let result = self.attribute_authority(attribute);
+        self.check(result)
+    }
+    fn attribute_authority(&self, attribute: &syn::Meta) -> Result<(), String> {
         if attribute.path().is_ident("derive") {
             if self.unknown_glob() {
-                self.error =
-                    Some("Cleanup builtin derive has an unresolved glob import in scope".into());
-                return false;
+                return Err("Cleanup builtin derive has an unresolved glob import in scope".into());
             }
-            self.check(super::super::derive(attribute));
-        } else if !inert_attribute(attribute) {
-            self.error = Some("Cleanup closure has unknown attribute expansion".into());
+            return super::super::derive(attribute);
         }
-        true
+        if attribute.path().is_ident("test") {
+            // Inspect the whole original body even if the harness removes it.
+            if !self.test_marker
+                || !matches!(attribute, syn::Meta::Path(_))
+                || self.unknown_glob()
+                || self.definitions.contains_key("test")
+            {
+                return Err("Cleanup test marker lacks exact builtin authority".into());
+            }
+            return Ok(());
+        }
+        if !inert_attribute(attribute) {
+            return Err("Cleanup closure has unknown attribute expansion".into());
+        }
+        Ok(())
     }
     fn variant_contents(&mut self, variant: &syn::Variant) {
         self.variant_attributes(variant);
@@ -742,10 +848,10 @@ fn standard_macro(name: &str) -> bool {
     .contains(&name)
 }
 
-fn protected(name: &str) -> bool {
+pub(super) fn protected(name: &str) -> bool {
     standard_macro(name)
         || super::super::builtin_derive(name)
-        || ["alloc", "core", "std"].contains(&name)
+        || ["alloc", "core", "std", "test"].contains(&name)
 }
 
 fn import_authority(
@@ -765,39 +871,61 @@ fn import_authority(
             }
             Ok(())
         }
+        _ => import_leaf(tree, &prefix, library, source),
+    }
+}
+
+fn import_leaf(
+    tree: &syn::UseTree,
+    prefix: &[String],
+    library: Option<&crate::data_library::Registry>,
+    source: &enum_globs::Scope,
+) -> Result<(), String> {
+    match tree {
         // A glob creates ambiguity only when a macro/derive/standard trait is
         // actually resolved in its lexical scope. Importing names alone creates
         // no destructor implementation. Scope maps retain a conservative barrier.
         syn::UseTree::Rename(rename)
-            if source.macro_free_function(&prefix, &rename.ident.to_string()) =>
+            if source.macro_free_function(prefix, &rename.ident.to_string()) =>
         {
             Ok(())
         }
-        syn::UseTree::Name(name)
-            if source.macro_free_function(&prefix, &name.ident.to_string()) =>
-        {
+        syn::UseTree::Name(name) if source.macro_free_function(prefix, &name.ident.to_string()) => {
             Ok(())
         }
         syn::UseTree::Rename(rename) if protected(&rename.rename.to_string()) => {
             Err("Cleanup import shadows standard expansion authority".into())
         }
-        syn::UseTree::Name(name)
-            if library_macros::import(&prefix, &name.ident.to_string(), library) =>
-        {
-            Ok(())
-        }
-        syn::UseTree::Name(name)
-            if name.ident == "self" && prefix.last().is_some_and(|name| protected(name)) =>
-        {
-            Err("Cleanup self import shadows standard authority".into())
-        }
-        syn::UseTree::Name(name) if protected(&name.ident.to_string()) => Err(format!(
+        syn::UseTree::Name(name) => named_import(name, prefix, library, source),
+        _ => Ok(()),
+    }
+}
+
+fn named_import(
+    name: &syn::UseName,
+    prefix: &[String],
+    library: Option<&crate::data_library::Registry>,
+    source: &enum_globs::Scope,
+) -> Result<(), String> {
+    if source.closed_imports
+        && prefix == ["std", "fmt"]
+        && name.ident == "Debug"
+        && library_macros::std_debug(library)
+        || library_macros::import(prefix, &name.ident.to_string(), library)
+    {
+        return Ok(());
+    }
+    if name.ident == "self" && prefix.last().is_some_and(|name| protected(name)) {
+        return Err("Cleanup self import shadows standard authority".into());
+    }
+    if protected(&name.ident.to_string()) {
+        return Err(format!(
             "Cleanup import shadows builtin expansion authority: {}::{}",
             prefix.join("::"),
             name.ident
-        )),
-        _ => Ok(()),
+        ));
     }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1,0 +1,266 @@
+//! Independently verify saved input, disjoint payload transfers and error return.
+mod consumers;
+mod flow;
+
+use super::result_propagation::{return_effects, return_to_exit};
+use super::*;
+use crate::{
+    CfgEdgeKind, HirNode, borrowed_result_propagation as propagation, unit_store::EvidenceFacts,
+};
+
+const KEY: &str = "rstyle.data:borrowed-result-propagation";
+const WITNESS: &str = "rstyle.data:borrowed-result-propagation-types";
+const CONSTRUCTS: [&str; 3] = [
+    "try.borrowed-result-is-err",
+    "try.borrowed-result-error",
+    "try.borrowed-result-ok-reference",
+];
+
+const CONTRACT: super::propagation::Contract<3> = super::propagation::Contract {
+    key: KEY,
+    constructs: CONSTRUCTS,
+    capability: propagation::CAPABILITY,
+    policy_error: "Borrowed Result propagation requires its registered document policy",
+    candidate: propagation::candidate,
+    semantics,
+    invocation,
+};
+
+pub(crate) fn verify_document_policy(
+    profile: &crate::ProfileId,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    CONTRACT.verify_document_policy(profile, facts)
+}
+
+fn sources(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
+    crate::field_locations::selected_operations(
+        facts,
+        &["expr_try_desugar"],
+        propagation::candidate,
+    )
+}
+
+pub(super) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    CONTRACT.install(pair);
+
+    for source in sources(facts) {
+        let checked = propagation::verify(source, facts)?;
+
+        let metadata = metadata(source, &checked);
+
+        for node in &mut pair.pdg.nodes {
+            if operation_for(node, source) {
+                node.annotations.insert(WITNESS.into(), metadata.clone());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn operation_for(node: &PdgNode, source: &HirNode) -> bool {
+    node.attributes
+        .construct
+        .as_deref()
+        .is_some_and(|construct| CONSTRUCTS.contains(&construct))
+        && node.source_span.as_ref().is_some_and(|span| {
+            span.start == u64::from(source.span.start) && span.end == u64::from(source.span.end)
+        })
+}
+
+#[derive(serde::Serialize)]
+struct Metadata<'a> {
+    identity: &'static str,
+    input: &'a str,
+    output: &'a str,
+    payload: &'a str,
+    error: &'a str,
+    source_span: &'a crate::ByteSpan,
+    operand_span: &'a crate::ByteSpan,
+    early_return_span: &'a crate::ByteSpan,
+}
+
+fn metadata(source: &HirNode, checked: &propagation::Checked<'_>) -> serde_json::Value {
+    serde_json::to_value(Metadata {
+        identity: "rstyle.rust.borrowed-result-flow-types/1",
+        input: &checked.input_token,
+        output: &checked.output_token,
+        payload: &checked.payload_token,
+        error: &checked.error_token,
+        source_span: &source.span,
+        operand_span: &checked.operand.span,
+        early_return_span: &checked.early_return.span,
+    })
+    .expect("Borrowed Result metadata contains only primitive fields")
+}
+
+fn semantics(construct: &str) -> serde_json::Value {
+    static RULES: std::sync::OnceLock<[serde_json::Value; 3]> = std::sync::OnceLock::new();
+    let Some(position) = CONSTRUCTS
+        .iter()
+        .position(|candidate| *candidate == construct)
+    else {
+        return serde_json::Value::Null;
+    };
+
+    RULES.get_or_init(semantic_rules)[position].clone()
+}
+
+fn semantic_rules() -> [serde_json::Value; 3] {
+    [
+        r#"{"rule":"inspect-saved-core-result-tag/1","result_operand":0,"true":"err","false":"ok","moves_payload":false,"content_read":false}"#,
+        r#"{"rule":"move-error-rewrap-output-result/1","result_operand":0,"requires":"err","payload":"same-error-once","output":"Err(error)","conversion":"pinned-reflexive-from/1","forwards_input_result":false,"content_read":false}"#,
+        r#"{"rule":"saved-core-result-shared-payload/1","result_operand":0,"requires":"ok","payload":"same-shared-reference","content_read":false}"#,
+    ].map(|text| serde_json::from_str(text).expect("Borrowed Result rules are static JSON"))
+}
+
+pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    CONTRACT.verify(pair, facts)?;
+
+    let expected = sources(facts).len() * CONSTRUCTS.len();
+
+    if pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.annotations.contains_key(KEY))
+        .count()
+        != expected
+        || pair
+            .pdg
+            .nodes
+            .iter()
+            .filter(|node| node.annotations.contains_key(WITNESS))
+            .count()
+            != expected
+    {
+        return Err("Borrowed Result semantic/type inventory disagrees with source".into());
+    }
+    Ok(())
+}
+
+fn invocation(
+    pair: PairView<'_>,
+    source: &HirNode,
+    facts: &dyn EvidenceFacts,
+    guards: &super::conditional_payloads::Guards<'_>,
+) -> Result<(), String> {
+    let checked = propagation::verify(source, facts)?;
+
+    let selector = super::typed_operation(pair, source, CONSTRUCTS[0], "bool")?;
+
+    let error = super::typed_operation(pair, source, CONSTRUCTS[1], &checked.output_token)?;
+
+    let success = super::typed_operation(pair, source, CONSTRUCTS[2], &checked.payload_token)?;
+
+    let returned = super::serialized_operation(pair, &checked.early_return.span, |node| {
+        node.category == NodeCategory::Return
+    })?;
+
+    let saved = super::value_operation(pair, checked.operand)?;
+
+    let metadata = metadata(source, &checked);
+
+    for (operation, category, construct) in [
+        (selector, NodeCategory::Control, CONSTRUCTS[0]),
+        (error, NodeCategory::Computation, CONSTRUCTS[1]),
+        (success, NodeCategory::Computation, CONSTRUCTS[2]),
+    ] {
+        super::verify_saved_operands(pair, operation, &[saved])?;
+
+        operation_effects(operation, category, construct, &metadata)?;
+    }
+    super::verify_saved_operands(pair, returned, &[error])?;
+
+    return_effects(returned, facts)?;
+
+    guards.guarded(selector, error, CfgEdgeKind::True)?;
+
+    guards.guarded(selector, returned, CfgEdgeKind::True)?;
+
+    guards.guarded(selector, success, CfgEdgeKind::False)?;
+
+    consumers::verify(pair, saved, [selector, error, success])?;
+
+    consumers::verify(pair, error, [returned])?;
+
+    let operations = Operations {
+        saved,
+        selector,
+        error,
+        success,
+        returned,
+    };
+    operations.order(pair)?;
+
+    flow::verify(pair, &operations)?;
+
+    return_to_exit(pair, returned)
+}
+
+fn operation_effects(
+    node: &PdgNode,
+    category: NodeCategory,
+    construct: &str,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    super::verify_value_effects(
+        node,
+        false,
+        "Borrowed Result propagation invents value effects",
+    )?;
+
+    if node.category != category
+        || node.annotations.get(KEY) != Some(&semantics(construct))
+        || node.annotations.get(WITNESS) != Some(metadata)
+        || node
+            .attributes
+            .extensions
+            .contains_key("compat.rust.hir-r0:return-form")
+        || node.attributes.write_form.is_some()
+        || node.annotations.contains_key(crate::data_places::KEY)
+    {
+        return Err("Borrowed Result propagation loses its exact payload interpretation".into());
+    }
+    Ok(())
+}
+
+struct Operations<'a> {
+    saved: &'a PdgNode,
+    selector: &'a PdgNode,
+    error: &'a PdgNode,
+    success: &'a PdgNode,
+    returned: &'a PdgNode,
+}
+
+impl Operations<'_> {
+    fn order(&self, pair: PairView<'_>) -> Result<(), String> {
+        let Self {
+            saved,
+            selector,
+            error,
+            success,
+            returned,
+        } = *self;
+        use super::callbacks::order::{before, completion};
+
+        let live = super::live_operations(pair)?;
+
+        if [saved, selector, error, success, returned]
+            .iter()
+            .any(|node| !live.contains(&node.id))
+        {
+            return Err("Borrowed Result propagation loses a reachable complete branch".into());
+        }
+
+        before(pair, &completion(pair, saved)?, selector)?;
+
+        before(pair, &completion(pair, selector)?, error)?;
+
+        before(pair, &completion(pair, selector)?, success)?;
+
+        before(pair, &completion(pair, error)?, returned)?;
+
+        Ok(())
+    }
+}

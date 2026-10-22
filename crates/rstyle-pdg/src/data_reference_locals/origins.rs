@@ -1,7 +1,7 @@
 //! Resolve formal origins by following source reaching RHS operations. A visited
 //! (operation, component) cuts cycles; all terminal formal paths are still visited.
 
-use super::flow::{Index, Value};
+use super::flow::{OwnedIndex, Value};
 use crate::{HirNode, data_origins::Origin, data_types::TypeToken, unit_store::EvidenceFacts};
 use std::collections::BTreeSet;
 
@@ -10,7 +10,16 @@ pub(super) fn selected(
     selectors: &[usize],
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
-    let index = Index::new(facts)?;
+    let index = OwnedIndex::new(facts)?;
+    selected_with(node, selectors, facts, &index)
+}
+
+pub(super) fn selected_with(
+    node: &HirNode,
+    selectors: &[usize],
+    facts: &dyn EvidenceFacts,
+    index: &OwnedIndex,
+) -> Result<Vec<Origin>, String> {
     let resolver = Resolver { index, facts };
     let roots = resolver.source(node, selectors, &mut BTreeSet::new())?;
     Ok(roots
@@ -21,7 +30,7 @@ pub(super) fn selected(
 }
 
 struct Resolver<'a> {
-    index: Index<'a>,
+    index: &'a OwnedIndex,
     facts: &'a dyn EvidenceFacts,
 }
 
@@ -34,6 +43,14 @@ impl Resolver<'_> {
         selectors: &[usize],
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
+        if crate::extraction_profile::facts_support(self.facts, "rust.checked-borrowed-result-flow")
+            && selectors.is_empty()
+            && !crate::data_origins::shared(&crate::data_types::parse(
+                crate::data_aggregates::token(node)?,
+            )?)
+        {
+            return Ok(Vec::new());
+        }
         let key = (node.hir.local, selectors.to_vec());
         if !visiting.insert(key.clone()) {
             return Ok(Vec::new());
@@ -50,17 +67,15 @@ impl Resolver<'_> {
         selectors: &[usize],
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
-        if crate::option_propagation::candidate(node, self.facts) {
-            if !selectors.is_empty() {
-                return Err("Option propagation cannot select unrelated payload components".into());
-            }
-            let checked = crate::option_propagation::verify(node, self.facts)?;
-            return crate::data_origins::propagation_origins(self.source(
-                checked.operand,
-                &[],
-                visiting,
-            )?);
+        if crate::borrowed_result_propagation::candidate(node, self.facts)
+            || crate::option_propagation::candidate(node, self.facts)
+        {
+            return self.propagated(node, selectors, visiting);
         }
+        if crate::concrete_results::constructor_candidate(node, self.facts) {
+            return self.result_constructor(node, selectors, visiting);
+        }
+
         let handler: Handler<'_> = match node.kind.as_str() {
             "expr_path" => Self::read,
             "expr_tup" | "expr_struct" => Self::constructed,
@@ -74,6 +89,38 @@ impl Resolver<'_> {
             _ => return Err("Unsupported reference rebinding source operation".into()),
         };
         handler(self, node, selectors, visiting)
+    }
+
+    fn propagated(
+        &self,
+        node: &HirNode,
+        selectors: &[usize],
+        visiting: &mut Visiting,
+    ) -> Result<Vec<Origin>, String> {
+        if !selectors.is_empty() {
+            return Err("Propagation cannot select unrelated payload components".into());
+        }
+        let operand = if crate::borrowed_result_propagation::candidate(node, self.facts) {
+            crate::borrowed_result_propagation::verify(node, self.facts)?.operand
+        } else {
+            crate::option_propagation::verify(node, self.facts)?.operand
+        };
+
+        crate::data_origins::propagation_origins(self.source(operand, &[], visiting)?)
+    }
+
+    fn result_constructor(
+        &self,
+        node: &HirNode,
+        selectors: &[usize],
+        visiting: &mut Visiting,
+    ) -> Result<Vec<Origin>, String> {
+        let checked = crate::concrete_results::verify_constructor(node, self.facts)?;
+        match checked.construct {
+            "data.result-ok" => self.source(checked.payload, selectors, visiting),
+            "data.result-err" if selectors.is_empty() => Ok(Vec::new()),
+            _ => Err("Result failure cannot select a successful payload component".into()),
+        }
     }
 
     fn projection(
@@ -163,34 +210,25 @@ impl Resolver<'_> {
         selectors: &[usize],
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
+        let ty = crate::data_types::parse(crate::data_aggregates::token(node)?)?;
+        if crate::borrowed_result_types::uses_result(&ty) {
+            return Err(
+                "Result formal/storage reference flow requires guarded move evidence".into(),
+            );
+        }
+
         let definitions = self
             .index
             .reads
             .get(&node.hir.local)
             .filter(|definitions| !definitions.is_empty())
             .ok_or("Reference read has no source reaching definition")?;
+
         let mut roots = Vec::new();
         for definition in definitions {
-            match self
-                .index
-                .values
-                .get(definition)
-                .ok_or("Missing reference source definition")?
-            {
+            match self.index.value(definition, self.facts)? {
                 Value::Parameter(parameter) => {
-                    let ty = crate::data_types::parse(
-                        parameter
-                            .ty
-                            .normalized
-                            .as_deref()
-                            .ok_or("Missing reference formal type")?,
-                    )?;
-                    roots.extend(crate::data_component_origins::selected(
-                        &ty,
-                        selectors,
-                        parameter.position,
-                        Vec::new(),
-                    )?);
+                    roots.extend(formal_origins(parameter, selectors)?);
                 }
                 Value::Expression(value) => {
                     if crate::data_aggregates::token(value)? != crate::data_aggregates::token(node)?
@@ -245,13 +283,14 @@ impl Resolver<'_> {
         _: &[usize],
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
-        if crate::checked_options::get_candidate(node, self.facts) {
-            let checked = crate::checked_options::verify_get(node, self.facts)?;
-            return Ok(crate::checked_options::project(self.source(
-                checked.receiver,
-                &[],
-                visiting,
-            )?));
+        if let Some(receiver) = checked_receiver(node, self.facts) {
+            let (receiver, element) = receiver?;
+            let roots = self.source(receiver, &[], visiting)?;
+            return Ok(if element {
+                crate::checked_options::project(roots)
+            } else {
+                roots
+            });
         }
         if let Some(origins) = crate::data_bytes::source_origins(node, self.facts, |operand| {
             self.source(operand, &[], visiting)
@@ -267,6 +306,46 @@ impl Resolver<'_> {
             self.source(actual, &[], visiting)
         })
     }
+}
+
+fn formal_origins(
+    parameter: &crate::ParamFact,
+    selectors: &[usize],
+) -> Result<Vec<Origin>, String> {
+    let ty = crate::data_types::parse(
+        parameter
+            .ty
+            .normalized
+            .as_deref()
+            .ok_or("Missing reference formal type")?,
+    )?;
+    crate::data_component_origins::selected(&ty, selectors, parameter.position, Vec::new())
+}
+
+fn checked_receiver<'a>(
+    node: &'a HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Option<Result<(&'a HirNode, bool), String>> {
+    if crate::checked_slice_views::candidate(node, facts) {
+        return Some(
+            crate::checked_slice_views::verify(node, facts)
+                .map(|checked| (checked.receiver, false)),
+        );
+    }
+
+    if crate::borrowed_result_errors::candidate(node, facts) {
+        return Some(
+            crate::borrowed_result_errors::verify(node, facts)
+                .map(|checked| (checked.receiver, false)),
+        );
+    }
+
+    if crate::checked_options::get_candidate(node, facts) {
+        return Some(
+            crate::checked_options::verify_get(node, facts).map(|checked| (checked.receiver, true)),
+        );
+    }
+    None
 }
 
 type Handler<'a> =

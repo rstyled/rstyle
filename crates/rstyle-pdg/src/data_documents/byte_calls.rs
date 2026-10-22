@@ -87,6 +87,14 @@ fn verify_policy(
     source: &crate::HirNode,
     kind: data_bytes::Kind,
 ) -> Result<(), String> {
+    if kind.requires_checked_flow()
+        && !crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            data_bytes::CHECKED_FLOW_CAPABILITY,
+        )
+    {
+        return Err("Checked borrowed bytes require their registered document policy".into());
+    }
     if kind.requires_prefix(source)
         && !crate::extraction_profile::policy_supports(
             &pair.pdg.profile,

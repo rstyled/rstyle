@@ -11,23 +11,33 @@ pub(in crate::data_documents) fn verify(
     environment: &PdgNode,
     selector: &PdgNode,
 ) -> Result<(), String> {
-    let receiver = super::super::value_operation(pair, checked.receiver)?;
-    let default = super::super::value_operation(pair, checked.default)?;
-    before(pair, &completion(pair, default)?, environment)?;
-    before(pair, &completion(pair, environment)?, selector)?;
+    operands(pair, checked.receiver, checked.default, environment)?;
+    before(pair, &completion(pair, environment)?, selector)
+}
+
+/// Save the receiver before every argument operation, then complete the argument
+/// before its consumer. Operand-specific semantic verification stays with callers.
+pub(in crate::data_documents) fn operands(
+    pair: PairView<'_>,
+    receiver: &HirNode,
+    argument: &HirNode,
+    consumer: &PdgNode,
+) -> Result<(), String> {
+    let receiver = super::super::value_operation(pair, receiver)?;
     let receiver = completion(pair, receiver)?;
 
     for node in &pair.pdg.nodes {
         if node.category != NodeCategory::Merge
             && node.source_span.as_ref().is_some_and(|span| {
-                span.start >= u64::from(checked.default.span.start)
-                    && span.end <= u64::from(checked.default.span.end)
+                span.start >= u64::from(argument.span.start)
+                    && span.end <= u64::from(argument.span.end)
             })
         {
             before(pair, &receiver, node)?;
         }
     }
-    Ok(())
+    let argument = super::super::value_operation(pair, argument)?;
+    before(pair, &completion(pair, argument)?, consumer)
 }
 
 pub(in crate::data_documents) struct ResultValues<'a> {

@@ -25,28 +25,8 @@ fn qualified_value(
 ) -> Result<(syn::Path, String), String> {
     let expression: syn::ExprPath =
         syn::parse_str(source(node, facts)?).map_err(|error| error.to_string())?;
-    if expression.qself.is_some()
-        || !expression.attrs.is_empty()
-        || expression.path.segments.len() < 2
-        || expression
-            .path
-            .segments
-            .iter()
-            .any(|part| !matches!(part.arguments, syn::PathArguments::None))
-    {
-        return Err("Fieldless value requires an enum-qualified path".into());
-    }
-
-    let mut owner = expression.path;
-    let name = owner
-        .segments
-        .pop()
-        .ok_or("Missing variant path")?
-        .into_value()
-        .ident
-        .to_string();
-    owner.segments.pop_punct();
-    Ok((owner, name))
+    crate::source_evidence::qualified_variant(expression)
+        .map_err(|_| "Fieldless value requires an enum-qualified path".into())
 }
 
 fn verify_identity(

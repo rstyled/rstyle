@@ -71,6 +71,10 @@ impl<'a> Index<'a> {
     }
 
     fn walk(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {
+        if crate::borrowed_result_propagation::candidate(node, self.facts) {
+            let checked = crate::borrowed_result_propagation::verify(node, self.facts)?;
+            return self.walk(checked.operand, state);
+        }
         if crate::option_propagation::candidate(node, self.facts) {
             return self.propagated_option(node, state);
         }
@@ -409,4 +413,136 @@ fn definition(node: &HirNode) -> Result<Option<Definition<'_>>, String> {
         target,
         value,
     }))
+}
+
+/// Owned reaching definitions retain only paths into the exact immutable body.
+/// They carry no pointers that can be dereferenced and no serialized authority.
+pub(crate) struct OwnedIndex {
+    pub(super) reads: BTreeMap<u32, BTreeSet<u32>>,
+    values: BTreeMap<u32, OwnedValue>,
+    paths: BTreeMap<usize, (usize, usize)>,
+    owner: usize,
+}
+
+enum OwnedValue {
+    Parameter(usize),
+    Expression(usize),
+}
+
+impl OwnedIndex {
+    pub(crate) fn new(facts: &dyn EvidenceFacts) -> Result<Self, String> {
+        let index = Index::new(facts)?;
+        let values = index
+            .values
+            .into_iter()
+            .map(|(id, value)| {
+                let value = match value {
+                    Value::Parameter(parameter) => OwnedValue::Parameter(
+                        facts
+                            .signature
+                            .params
+                            .iter()
+                            .position(|candidate| std::ptr::eq(candidate, parameter))
+                            .ok_or("Missing owned reference parameter")?,
+                    ),
+                    Value::Expression(node) => {
+                        OwnedValue::Expression(std::ptr::from_ref(node).addr())
+                    }
+                };
+                Ok((id, value))
+            })
+            .collect::<Result<_, String>>()?;
+
+        let mut owned = Self::for_body(&facts.body);
+        owned.values = values;
+        owned.reads = index.reads;
+        Ok(owned)
+    }
+
+    pub(crate) fn for_body(body: &HirNode) -> Self {
+        let mut paths = BTreeMap::new();
+        let owner = std::ptr::from_ref(body).addr();
+        collect_paths(body, owner, 0, &mut paths);
+        Self {
+            paths,
+            owner: std::ptr::from_ref(body).addr(),
+            values: BTreeMap::new(),
+            reads: BTreeMap::new(),
+        }
+    }
+
+    pub(crate) fn owns(&self, body: &HirNode, node: &HirNode) -> bool {
+        std::ptr::from_ref(body).addr() == self.owner
+            && self.paths.contains_key(&std::ptr::from_ref(node).addr())
+    }
+
+    fn node<'a>(&self, body: &'a HirNode, address: usize) -> Result<&'a HirNode, String> {
+        if std::ptr::from_ref(body).addr() != self.owner {
+            return Err("Reaching definitions belong to another immutable body".into());
+        }
+        let mut positions = Vec::new();
+        let mut current = address;
+        while current != self.owner {
+            let (parent, position) = self
+                .paths
+                .get(&current)
+                .ok_or("Missing owned reference operation")?;
+            positions.push(*position);
+            current = *parent;
+        }
+
+        positions
+            .into_iter()
+            .rev()
+            .try_fold(body, |node, position| {
+                node.children
+                    .get(position)
+                    .ok_or("Invalid owned reference path".into())
+            })
+    }
+
+    pub(super) fn value<'a>(
+        &self,
+        id: &u32,
+        facts: &'a dyn EvidenceFacts,
+    ) -> Result<Value<'a>, String> {
+        if std::ptr::from_ref(&facts.body).addr() != self.owner {
+            return Err("Reaching definitions belong to another immutable body".into());
+        }
+        match self
+            .values
+            .get(id)
+            .ok_or("Missing reference source definition")?
+        {
+            OwnedValue::Parameter(position) => facts
+                .signature
+                .params
+                .get(*position)
+                .map(Value::Parameter)
+                .ok_or("Missing owned reference formal".into()),
+            OwnedValue::Expression(address) => {
+                self.node(&facts.body, *address).map(Value::Expression)
+            }
+        }
+    }
+
+    pub(crate) fn retained_steps(&self) -> usize {
+        self.reads.values().fold(
+            self.paths.len().saturating_add(self.values.len()),
+            |sum, values| sum.saturating_add(values.len()).saturating_add(1),
+        )
+    }
+}
+
+fn collect_paths(
+    node: &HirNode,
+    parent: usize,
+    position: usize,
+    paths: &mut BTreeMap<usize, (usize, usize)>,
+) {
+    let address = std::ptr::from_ref(node).addr();
+    paths.insert(address, (parent, position));
+    for (position, child) in node.children.iter().enumerate() {
+        collect_paths(child, address, position, paths);
+    }
 }

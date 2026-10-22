@@ -1,5 +1,7 @@
 //! Independently checked source/type/origin boundary for local data extraction.
 
+pub(crate) mod borrowed_results;
+
 use crate::{HirNode, concrete_types::*, data_types, field_locations};
 use source_proof::PathResolution;
 
@@ -93,6 +95,13 @@ fn verify_value_document_policy(
     crate::checked_option_products::verify_document_policy(profile, facts)?;
     crate::data_documents::result_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::option_propagation::verify_document_policy(profile, facts)?;
+    crate::data_documents::borrowed_result_propagation::verify_document_policy(profile, facts)?;
+    crate::extraction_profile::require_document(
+        profile,
+        crate::borrowed_result_types::CAPABILITY,
+        || borrowed_results::used(&facts.body, facts),
+        "Checked borrowed Result operations require their registered document policy",
+    )?;
 
     crate::extraction_profile::require_document(
         profile,
@@ -442,6 +451,9 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if let Some(operands) = borrowed_results::operands(node, facts) {
+        return verify_borrowed_nodes(node, facts, places, operands);
+    }
     if crate::option_propagation::candidate(node, facts) {
         let checked = crate::option_propagation::verify(node, facts)?;
         return verify_nodes(checked.operand, facts, places);
@@ -483,6 +495,22 @@ fn verify_nodes(
     Ok(())
 }
 
+fn verify_borrowed_nodes(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    places: &crate::data_places::Places,
+    operands: Result<Vec<&HirNode>, String>,
+) -> Result<(), String> {
+    let operands = operands?;
+
+    verify_node_type(node, facts)?;
+    verify_reference_origins(node, facts, places)?;
+    for operand in operands {
+        verify_nodes(operand, facts, places)?;
+    }
+    Ok(())
+}
+
 fn verify_node_type(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
@@ -495,7 +523,10 @@ fn verify_node_type(
             token,
             crate::extraction_profile::ExtractionProfile::from_facts(facts)?,
         )?;
-        if node.kind == "expr_path" && !crate::checked_options::constructor_candidate(node, facts) {
+        if node.kind == "expr_path"
+            && !crate::checked_options::constructor_candidate(node, facts)
+            && !crate::borrowed_result_errors::error_candidate(node, facts)
+        {
             verify_path(node, facts, token)?;
         }
     }
@@ -573,6 +604,12 @@ fn verify_reference_origins(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if crate::concrete_results::constructor_candidate(node, facts) {
+        let checked = crate::concrete_results::verify_constructor(node, facts)?;
+        if checked.construct == "data.result-err" {
+            return Ok(());
+        }
+    }
     // These are Option pattern containers, not evaluated reference values.
     // Their exact shape and nested binding are checked by verify_match.
     if matches!(

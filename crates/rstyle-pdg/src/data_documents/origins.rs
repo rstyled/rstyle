@@ -1,5 +1,7 @@
 //! Independently compare source origins with serialized value-dependence paths.
 
+mod borrowed_results;
+
 use crate::{
     HirNode, NodeCategory, PdgNode,
     data_origins::{self, Origin},
@@ -44,7 +46,10 @@ pub(super) fn verify(
         )
         .map_err(|error| error.to_string())?;
         let graph = graph_origins(node, pair, facts, &mut BTreeSet::new())?;
-        if actual != expected || graph != expected || expected.is_empty() {
+        if actual != expected
+            || graph != expected
+            || expected.is_empty() && !borrowed_results::verified_empty(node, facts)?
+        {
             return Err(
                 "Reference origins disagree with original source or serialized value dependencies"
                     .into(),
@@ -93,6 +98,9 @@ fn source_origins(
     }
 
     let source = source_node(node, facts)?;
+    if borrowed_results::verified_empty(node, facts)? {
+        return Ok(Vec::new());
+    }
     let actual = node.annotations["compat.rust.hir-r0:type"]["value"].as_str();
     if actual != source.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
         return Err("Serialized reference value type disagrees with source".into());
@@ -161,6 +169,10 @@ impl Graph<'_> {
         selectors: &[usize],
         visiting: &mut BTreeSet<String>,
     ) -> Option<Result<Vec<Origin>, String>> {
+        if let Some(origins) = self.borrowed_result_origins(node, selectors, visiting) {
+            return Some(origins);
+        }
+
         if node.category == NodeCategory::Call {
             let source = match source_node(node, self.facts) {
                 Ok(source) => source,
@@ -542,6 +554,10 @@ fn source_type<'a>(
     node: &PdgNode,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<&'a str>, String> {
+    if node.attributes.construct.as_deref() == Some("try.borrowed-result-error") {
+        crate::borrowed_result_propagation::verify(source_node(node, facts)?, facts)?;
+        return Ok(facts.signature.return_ty.normalized.as_deref());
+    }
     if node.attributes.construct.as_deref() == Some("try.option-none") {
         crate::option_propagation::verify(source_node(node, facts)?, facts)?;
         return Ok(facts.signature.return_ty.normalized.as_deref());
