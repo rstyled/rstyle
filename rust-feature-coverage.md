@@ -4367,3 +4367,22 @@ capture/admission/matching assertions. Evidence: `/tmp/rstyle-perf12-*`.
 Frozen identities/denominators are untouched; no fresh frozen admission count
 was measured. Repeated evidence serialization remains a performance target;
 Range dispatch/move/drop remains the next coverage blocker chain.
+
+### Report serialization checkpoint
+
+Full JSON stdout now reuses the successfully persisted report instead of
+serializing it again. `--report-detail compact` retains every function outcome,
+source identity, matching result and complete unit-bundle reference while omitting
+inline facts/documents; default full output remains available. Strict bundle replay,
+full/compact matching equality and incomplete-budget tests pass.
+Equal-work 512-function source-heavy capture: full JSON5.32–5.36→3.91–4.00s;
+compact2.58–2.63s, report57.4→0.94MB,
+peak RSS198844–198908→165412–165548KiB. All512 admissions remain unchanged.
+Actual fixtures, warmup then alternating repeated saved-binary samples:
+stored slices9.25–9.39→8.53–8.65s; flags7.38–7.42→7.06–7.16s;
+sine12.16–12.17→11.99–12.00s. Evidence: `/tmp/rstyle-report-{bench,equal-work}*`.
+Final-binary 512-function recheck:5.31→3.96s, compact2.63s.
+Integrated checkpoint: **1072 tests pass /5 existing skips in106.218s**,
+doctests/fmt/Clippy pass; **rstyle0/3410, patterns0 unignored**,
+existing15 ignores unchanged. Includes observational local-From tests;
+no new extraction capability or admission permission is claimed.

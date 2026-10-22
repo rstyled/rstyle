@@ -6,9 +6,9 @@ remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; current implementation is Data3.71:
-original Transition predicates connect shared-helper callbacks with owned/borrowed
-byte Options, following the checked-length and stored-slice consumer chains.
+Branch `feature/rust-feature-coverage`; current implementation is Data3.74:
+the original base64ct length/getter family now completes default and std contexts,
+following the Transition predicate, checked-length and stored-slice chains.
 The root roadmap records validated checkpoints;
 broader coverage remains active and historical evidence stays unchanged.
 
@@ -110,9 +110,9 @@ Next bounded assignments (original first-wave workers are already integrated):
 | Frontier | Readiness gate and exclusive leaf work |
 | --- | --- |
 | P05 external macro imports | Delivered3.74: pinned complete alloc import inventory unlocks the three original std length/getter functions. Macro bodies, allocation/drop and other import grammars remain independently closed. Lead owns source-boundary/shared policy edits. |
-| P07 range/view composition | Source audit finds `Span::range → local impl From<Span> for Range<usize>` beneath Match::range and Input::get_range. Required proofs: exact concrete trait dispatch/source owner, pinned non-Copy Range constructor/fields, move/drop behavior and complete helper results. Freeze target identities, contexts and independent expectations before activation. Preserve existing sequence locations/origins. |
-| P08 concrete Result frontier | Retain the zerovec audit's connected generic/let-else/Result/?/closure blockers; select a smaller complete natural Result chain before vocabulary edits. Dedicated payload/control tests; no speculative generic permission. |
-| P09 loop/callee frontier | Locate a source-required bounded scalar looping-callee chain and freeze divergence/return/read expectations before changing summaries. Dedicated flow/summary proof; no acyclic-gate relaxation. |
+| P07 range/view composition | [Frozen selection](../eval/coverage-development/range-getters-selection.json): `Input::get_range` and `Match::range → Span::range → local From<Span>`. Original-library endpoint oracle passes4704 cases in each native default/no-default context. Observation now binds the selected local From path/hash to its captured definition; unchanged native no-default roster85/590, zero gains/losses. Required next: independent trait-owner proof, exact pinned non-Copy Range fields/drop-free concrete instance, fresh result forwarding and helper composition. No trait or Range admission added. |
+| P08 concrete Result frontier | [Frozen next selection](../eval/coverage-development/scalar-result-next-selection.json): UnicodeWordBoundaryError::check and cfg-selected helper/new; default/no-default/word-boundary contexts have independent Ok/Err expectations. Needs exact non-Copy nominal-error owner/drop proof plus Result construction/tag/forwarding. Cargo evidence remains pending; zerovec's broader blockers remain separate. |
+| P09 loop/callee frontier | [Frozen next selection](../eval/coverage-development/scalar-loop-callee-selection.json): ryu::pow5factor_32 → multiple_of_power_of_5_32. Positive values permit at most13 backedges; selected debug assertions make zero panic before division. Needs complete loop/value exits, checked increment, helper/source proof and separate divergence evidence; no acyclic-gate relaxation. Cargo evidence remains pending. |
 
 PatternSet separately requires complete opaque Box-field/drop proof. Fold brief
 evidence into semantic commits; the full P01–P22 routing remains active.

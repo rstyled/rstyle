@@ -769,22 +769,47 @@ impl Context<'_> {
                     && arguments.type_at(0) == self.tcx.types.u16)
     }
 
-    fn selected_implementation(
+    // Observational selection only; this does not authorize trait calls or
+    // replace independent source ownership, type, effect or drop evidence.
+    fn local_from_capture(&self, expression: &Expr<'_>, callee: rustc_hir::def_id::DefId) -> bool {
+        self.tcx
+            .associated_item(callee)
+            .trait_container(self.tcx)
+            .is_some_and(|definition| {
+                self.tcx
+                    .is_diagnostic_item(rustc_span::sym::From, definition)
+            })
+            && self.tcx.item_name(callee) == rustc_span::sym::from
+            && self
+                .selected_callee(expression, callee)
+                .is_some_and(|selected| {
+                    selected.is_local() && self.tcx.generics_of(selected).count() == 0
+                })
+    }
+
+    fn selected_callee(
         &self,
         expression: &Expr<'_>,
         callee: rustc_hir::def_id::DefId,
-    ) -> Option<Box<rstyle_pdg::data_library::Callee>> {
+    ) -> Option<rustc_hir::def_id::DefId> {
         let environment = ty::TypingEnv::post_analysis(self.tcx, expression.hir_id.owner.def_id);
-        let selected = ty::Instance::try_resolve(
+        ty::Instance::try_resolve(
             self.tcx,
             environment,
             callee,
             self.typeck.node_args(expression.hir_id),
         )
         .ok()
-        .flatten()?;
-        let implementation = self.library_callee(selected.def_id());
+        .flatten()
+        .map(|instance| instance.def_id())
+    }
 
+    fn selected_implementation(
+        &self,
+        expression: &Expr<'_>,
+        callee: rustc_hir::def_id::DefId,
+    ) -> Option<Box<rstyle_pdg::data_library::Callee>> {
+        let implementation = self.library_callee(self.selected_callee(expression, callee)?);
         Some(Box::new(
             serde_json::from_str(&implementation.description).expect("captured implementation"),
         ))
@@ -844,7 +869,8 @@ impl Context<'_> {
         if !callee.is_local() && kind == rustc_hir::def::DefKind::AssocFn && self.profile.is_data()
         {
             let capture = self.scalar_from_capture(expression, callee)
-                || self.int_conversion_capture(expression, callee);
+                || self.int_conversion_capture(expression, callee)
+                || self.local_from_capture(expression, callee);
             return Some(self.instantiated_callee(expression, callee, capture));
         }
         if kind == rustc_hir::def::DefKind::Fn

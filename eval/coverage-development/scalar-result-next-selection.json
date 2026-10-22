@@ -1,0 +1,283 @@
+{
+  "identity": "rstyle.development.scalar-result-next/1",
+  "status": "source-audited nominal-error Result target; not extraction-ready; no activation or measured admission claim",
+  "selection_basis": "Complete smaller natural Result-returning helper chain, selected from original source before evaluating admission; not a scalar/scalar Result and not a unit-error Result.",
+  "prior_audit": "docs/extraction-profiles/scalar-result-frontier-audit-v1.md",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18",
+    "upstream_revision": "e6ad938198e68339a593f85d228f2d44cb54718f",
+    "file_sha256": {
+      "Cargo.toml": "25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+      "src/lib.rs": "47d562a98f5f50f7cbbffb1f103e277871c7419da05dbb2b0db78dee6e7b4c2e",
+      "src/macros.rs": "3e4b39252bfa471fad384160a43f113ebfec7bec46a85d16f006622881dd2081",
+      "src/util/mod.rs": "6c828a493f0f88c8b515aee4f8faf91ba653eb07e8fc3c23c0524553410803f9",
+      "src/util/look.rs": "49026d8bcb6f9229b2d462e363eb6c6dc9d1e17de6acb190105b2d71ca5a9490",
+      "src/util/unicode_data/mod.rs": "54c3e10bbc393e9881bfac3295815b160f59e69e2056bc29ee7cf0addd8e3cf7"
+    }
+  },
+  "build_selection": {
+    "target": "regex_automata library; test=false; doctest=false",
+    "edition": "2021",
+    "profile": "Cargo debug; no custom rustflags or extern replacements",
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "pointer_width": 64,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic_strategy": "unwind",
+    "opt_level": "No",
+    "contexts": [
+      {
+        "cargo_arguments": [],
+        "expected_feature_closure_from_manifest": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ],
+        "expected_active_branch": "syntax-tables",
+        "expected_public_check_result": "Ok(())"
+      },
+      {
+        "cargo_arguments": [
+          "--no-default-features"
+        ],
+        "expected_feature_closure_from_manifest": [],
+        "expected_active_branch": "unavailable",
+        "expected_public_check_result": "Err(UnicodeWordBoundaryError(()))"
+      },
+      {
+        "cargo_arguments": [
+          "--no-default-features",
+          "--features",
+          "unicode-word-boundary"
+        ],
+        "expected_feature_closure_from_manifest": [
+          "unicode-word-boundary"
+        ],
+        "expected_active_branch": "local-tables",
+        "expected_public_check_result": "Ok(())"
+      }
+    ],
+    "context_source": "Manifest source and span-length-selection.json; these are requested selections, not new captured contexts.",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "context_product": "Each feature context below on each target above: 9 separately selected contexts.",
+    "actual_cargo_unit_evidence": "pending fresh real Cargo capture"
+  },
+  "functions": [
+    {
+      "name": "util::look::UnicodeWordBoundaryError::new",
+      "file": "src/util/look.rs",
+      "line": 1284,
+      "signature": "pub(crate) fn new() -> UnicodeWordBoundaryError",
+      "role": "required unavailable-branch constructor",
+      "active_when": "not(feature=\"unicode-word-boundary\")",
+      "span": {
+        "start": 50134,
+        "end": 50226
+      },
+      "sha256": "1043108994a218cb762b46528c66ce1e991809c472bebf12a1a370f0439ef71f",
+      "source": "pub(crate) fn new() -> UnicodeWordBoundaryError {\n        UnicodeWordBoundaryError(())\n    }"
+    },
+    {
+      "name": "util::look::UnicodeWordBoundaryError::check",
+      "file": "src/util/look.rs",
+      "line": 1290,
+      "signature": "pub fn check() -> Result<(), UnicodeWordBoundaryError>",
+      "role": "public target",
+      "active_when": "true",
+      "span": {
+        "start": 50323,
+        "end": 50415
+      },
+      "sha256": "d2da7070c2f3cffd8694ec5502b064303ba84a555e2e6b5b2dbf746c5a7e9819",
+      "source": "pub fn check() -> Result<(), UnicodeWordBoundaryError> {\n        is_word_char::check()\n    }"
+    },
+    {
+      "name": "util::look::is_word_char::check@syntax-tables",
+      "file": "src/util/look.rs",
+      "line": 1575,
+      "signature": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError>",
+      "role": "required success helper",
+      "active_when": "all(feature=\"unicode-word-boundary\",feature=\"syntax\",feature=\"unicode-perl\")",
+      "span": {
+        "start": 61011,
+        "end": 61102
+      },
+      "sha256": "5cb6f899d71454f338950fa636e05e5bb29b4b2fb137220ede259c867e3ad2bf",
+      "source": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError> {\n        Ok(())\n    }"
+    },
+    {
+      "name": "util::look::is_word_char::check@local-tables",
+      "file": "src/util/look.rs",
+      "line": 1623,
+      "signature": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError>",
+      "role": "required success helper",
+      "active_when": "all(feature=\"unicode-word-boundary\",not(all(feature=\"syntax\",feature=\"unicode-perl\")))",
+      "span": {
+        "start": 62551,
+        "end": 62642
+      },
+      "sha256": "5cb6f899d71454f338950fa636e05e5bb29b4b2fb137220ede259c867e3ad2bf",
+      "source": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError> {\n        Ok(())\n    }"
+    },
+    {
+      "name": "util::look::is_word_char::check@unavailable",
+      "file": "src/util/look.rs",
+      "line": 1677,
+      "signature": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError>",
+      "role": "required error helper",
+      "active_when": "not(feature=\"unicode-word-boundary\")",
+      "span": {
+        "start": 64270,
+        "end": 64398
+      },
+      "sha256": "8f0f43d5d8b5f6d9c97c39679883fd290cf0bbe8caede4791a32d4131ba39f58",
+      "source": "pub(super) fn check() -> Result<(), super::UnicodeWordBoundaryError> {\n        Err(super::UnicodeWordBoundaryError::new())\n    }"
+    }
+  ],
+  "owner": {
+    "name": "util::look::UnicodeWordBoundaryError",
+    "file": "src/util/look.rs",
+    "declaration": {
+      "span": {
+        "start": 49981,
+        "end": 50045
+      },
+      "sha256": "b371d4bf5ccf5c59df5d818349e80eab3555fc832cd2092b0202a19c15ba832d",
+      "source": "#[derive(Clone, Debug)]\npub struct UnicodeWordBoundaryError(());"
+    },
+    "complete_inherent_impl": {
+      "span": {
+        "start": 50047,
+        "end": 50417
+      },
+      "sha256": "f46b799a03860d1ed9bc604cf9e6b719a0040acd3f348ea74d46969d95a6a948",
+      "source": "impl UnicodeWordBoundaryError {\n    #[cfg(not(feature = \"unicode-word-boundary\"))]\n    pub(crate) fn new() -> UnicodeWordBoundaryError {\n        UnicodeWordBoundaryError(())\n    }\n\n    /// Returns an error if and only if Unicode word boundary data is\n    /// unavailable.\n    pub fn check() -> Result<(), UnicodeWordBoundaryError> {\n        is_word_char::check()\n    }\n}"
+    },
+    "source_properties": [
+      "Private single tuple field of unit type (); no type/lifetime parameters.",
+      "Derives Clone and Debug, deliberately not Copy.",
+      "No source-written Drop implementation for this nominal found across package src; this search alone is not compiler drop/ownership proof.",
+      "Trait neighbors: always core::fmt::Display with write! body; std::error::Error only under std. Neither trait method is called by this selected chain."
+    ]
+  },
+  "source_and_dependency_audit": [
+    "Crate root is always #![no_std]; extern crate std under any(test,std), alloc under alloc. Root macro_use mod macros contributes log/debug/trace definitions. Full root/module census and active cfg evidence remain mandatory.",
+    "Unconditional lib.rs pub mod util -> util/mod.rs pub mod look. Selected public check is an inherent static method; it calls a local free helper, not a trait method. Error constructor is inherent static. No generic dispatch or selected local trait implementation is needed in this family.",
+    "Result/Ok/Err come from core prelude; exact pinned definition/type and instantiated Result<(), this E> identities require capture and independent verification.",
+    "Exactly one of the three active is_word_char modules applies. Earlier alternatives at lines1404/1495 are within a block comment ending line1564 and are not functions/inactive items.",
+    "Success modules have neighboring fwd/rev and is_word_character functions using utf8 decoders, regex_syntax tables or local unicode_data::perl_word table/binary_search. The selected check bodies do not call them, but their active source/imports/cfg must remain in census and scope proof.",
+    "The disabled module has neighboring fwd/rev returning nominal-error Results with unused byte/index inputs. They are outside selection; no implicit admission claim.",
+    "Derive expansions and Display write! invocation are present beside the selected owner. Preserve and prove their source ownership and noninterference without invoking formatter bodies or inventing macro purity. No bang macro invocation occurs in selected function bodies.",
+    "LookSet::available, LookMatcher Unicode methods and external callers need additional Result consumption, ?/UTF8/char/owner/caller proof and are explicitly outside this target. Test module and testlook macro are cfg(test), inactive in selected library contexts, with retained source/configuration evidence."
+  ],
+  "known_blockers": [
+    "Non-Copy tuple-unit nominal declaration/type/constructor support, exact owner and private field resolution; do not relabel E as ().",
+    "Positive compiler needs_drop/structural drop-free evidence tied to complete owner/derives/traits/source closure; non-Copy does not imply drop effects, and no source Drop search does not prove absence.",
+    "Concrete Result<(), exact E> type observations and independently verified Ok/Err tags, unit payloads and nominal payload construction/moves.",
+    "Whole non-Copy Result/error return forwarding and exact local helper call/result composition without invented Copy, repeated evaluation or alias independence.",
+    "Exact cfg-dependent source/helper identity and complete original unit census; no success-only supported-prefix certification.",
+    "Current concrete nominal machinery generally requires Copy and current Result types are specialized conversion Results; production inspection/diagnostics required before choosing implementation seams."
+  ],
+  "unknowns": [
+    "Fresh current extraction outcomes and every additional diagnostic; no baseline admission count has been measured for this selection.",
+    "Exact captured nominal/concrete Result HIR shape, compiler needs_drop observation availability, selected derived identities and local helper evidence.",
+    "Whether existing source-scope proof admits associated no-self functions on a non-Copy owner once bounded owner evidence exists, including nested cfg modules and super:: spelling.",
+    "Actual Cargo package/unit IDs, dependencies, target compiler/library hashes, complete source census and effective feature/cfg closure for all nine contexts remain capture-time obligations."
+  ],
+  "bounded_contract": {
+    "positive": [
+      "Only the selected exact concrete unit-payload error and Result<(),that error>, constructed and forwarded through the complete named chain.",
+      "Selected helpers evaluate once, have no input parameters, perform no allocation, indexing, mutation or panic operation in their original bodies. Any such claim still needs complete independently checked body/dependency evidence.",
+      "Source-based error has unit data, no source-defined Drop and no generic field; activate only after exact compiler/source drop proof."
+    ],
+    "negative": [
+      "No general nominal Result, Copy permission, formatter/derive execution support, generic trait dispatch, arbitrary destructor or cleanup permission.",
+      "No source omission, unsupported neighboring dependency erasure, assumed cfg inactivity or unsupported-prefix certificate.",
+      "No admission through missing/unknown type/drop/helper evidence."
+    ],
+    "deferred": [
+      "LookSet::available and ?/FromResidual/Try.",
+      "Unicode fwd/rev/character/table/decoder chains.",
+      "General Result payload patterns, mutable consumption, allocation/formatting, broader move/drop/unwind."
+    ]
+  },
+  "independent_expectations": {
+    "semantic": [
+      "Public check returns Ok(()) iff unicode-word-boundary is enabled; otherwise returns Err of the exact UnicodeWordBoundaryError nominal with unit field.",
+      "Success helper returns Ok(()); disabled helper constructs one nominal error and wraps it in Err; constructor produces the exact nominal with unit field.",
+      "All selected bodies terminate and have no source operation that panics. No equivalence of Ok and Err values, or type erasure to Result<(),()>, is permitted."
+    ],
+    "classification": [
+      "Public check active in all9 selections. Exactly one helper branch active per context; the other source branches retain inactive classification.",
+      "new active only in the3 no-default contexts; inactive in the6 enabled contexts.",
+      "Strict admission expected only after every bounded proof obligation is implemented; current unsupported and unknown must remain distinct."
+    ],
+    "adversarial": [
+      "Changed cfg/module/helper identity or source span/digest; inactive/commented helper substituted for active helper.",
+      "Err/Ok tag swapped, erased or duplicated error construction, wrong payload nominal/unit field, hidden Drop/extra field or forged Copy/drop proof.",
+      "Changed core Result constructor/type identity, compiler/target provenance, omitted derive/Display/macro/source-census dependency.",
+      "Historical policy downgrade with new non-Copy/Result operations must reject."
+    ],
+    "matching": [
+      "Each selected active original self-comparison should complete and match in the same build context after activation.",
+      "No cross-target or feature-context compatibility assumption; enabled/disabled check outcomes differ independently of any matcher result."
+    ],
+    "oracle_plan": "Use unchanged full original public UnicodeWordBoundaryError::check in each native feature context and match Ok/Err independently. Private new/helper witness tests, if required, must be labeled exact-source witnesses, not full-library private execution. No oracle has been run."
+  },
+  "readiness": {
+    "source_ready": true,
+    "extraction_ready": false,
+    "production_activation_authorized_by_artifact": false,
+    "next_gate": "Lead review of exact drop/type/source/helper evidence design, then diagnostic real Cargo fixture and all9 fresh original contexts before connected activation.",
+    "candidate_leaf_write_set": [
+      "dedicated Result value/constructor independent proof module and adversarial/composition tests (paths to be agreed with lead)"
+    ],
+    "lead_owned_shared_dependencies": [
+      "driver concrete types/HIR/drop capture",
+      "PDG concrete/data types and nominal/source ownership",
+      "flow/helper/result documents and policy registration",
+      "CLI composition registration and integrated natural validation"
+    ]
+  },
+  "validation": {
+    "source_hashes_and_spans": "frozen from unchanged local registry bytes",
+    "builds": "not run",
+    "captures": "not run",
+    "strict_admission": "not run",
+    "matching": "not run",
+    "native_oracles": "not run",
+    "frozen_inventory": "unchanged identities/denominators; separate development selection"
+  }
+}

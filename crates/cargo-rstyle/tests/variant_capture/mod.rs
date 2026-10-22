@@ -25,6 +25,7 @@ mod indexed_helpers;
 mod input_owner;
 mod iterator_position;
 mod iterator_position_corruption;
+mod local_from;
 mod look_flags;
 mod named_callbacks;
 mod span_lengths;
