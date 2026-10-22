@@ -52,10 +52,7 @@ impl<'a> Imported<'a> {
     }
 
     pub fn finish(self) -> Result<(), String> {
-        if self.used.contains(&false) {
-            return Err("Unreferenced bundle source snapshot".into());
-        }
-        Ok(())
+        all_referenced(&self.used, "Unreferenced bundle source snapshot")
     }
 }
 
@@ -84,4 +81,12 @@ impl Ranges {
         self.records.insert(key, owned.clone());
         Ok(owned)
     }
+}
+
+/// Require every record in a transport table to have an explicit consumer.
+pub(crate) fn all_referenced(used: &[bool], message: &str) -> Result<(), String> {
+    if used.contains(&false) {
+        return Err(message.into());
+    }
+    Ok(())
 }

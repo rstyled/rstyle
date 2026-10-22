@@ -92,16 +92,12 @@ impl UnitDefinitions {
 }
 
 pub(super) fn verify(facts: &HirFnFacts, own: &Definition) -> Result<(), String> {
-    let unit: UnitDefinitions = crate::data_frontend::evidence(facts, UNIT_KEY)?;
-    unit.validate()?;
-    let matches: Vec<_> = unit
-        .definitions
-        .iter()
-        .filter(|record| record.definition_identity == own.definition_identity)
-        .collect();
-
+    let association = facts
+        .build
+        .frontend_options
+        .inherent_association(&own.definition_identity)?;
     let expected = Association::from(own.clone());
-    if matches.as_slice() != [&expected]
+    if association.as_ref() != &expected
         || own.function_span != facts.fn_span
         || facts.build.frontend_options.get("source_file")
             != Some(&serde_json::json!(own.source_file))

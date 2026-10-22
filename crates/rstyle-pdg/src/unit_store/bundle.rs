@@ -5,7 +5,8 @@ use std::io::Write;
 mod function_sources;
 mod graph_sources;
 
-const SCHEMA: &str = "rstyle.shared-unit/4";
+pub const BUNDLE_SCHEMA: &str = "rstyle.shared-unit/5";
+const LEGACY_SCHEMA: &str = "rstyle.shared-unit/4";
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -19,6 +20,7 @@ struct Export<'a> {
     schema: &'static str,
     namespace: &'a UnitNamespace,
     sources: Vec<&'a str>,
+    inherent_units: crate::frontend::option_bundle::Inventories<'a>,
     functions: Vec<function_sources::Export<'a>>,
     helpers: &'a [HelperRecord],
     graphs: &'a [Pair],
@@ -33,12 +35,20 @@ struct Import {
     schema: String,
     namespace: UnitNamespace,
     sources: Vec<crate::SourceSnapshot>,
+    #[serde(default, deserialize_with = "present_inventories")]
+    inherent_units: Option<Vec<serde_json::Value>>,
     functions: Vec<function_sources::Import>,
     helpers: Vec<HelperRecord>,
     graphs: Vec<Pair>,
     roots: Vec<Option<GraphId>>,
     links: Vec<Vec<CallLink>>,
     certified: Vec<Option<HelperId>>,
+}
+
+fn present_inventories<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Vec<serde_json::Value>>, D::Error> {
+    Vec::deserialize(deserializer).map(Some)
 }
 
 struct Decoded {
@@ -49,16 +59,21 @@ struct Decoded {
 impl Import {
     fn decode(bytes: &[u8]) -> Result<Decoded, String> {
         let mut wire: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
-        if wire.schema != SCHEMA {
+        if ![BUNDLE_SCHEMA, LEGACY_SCHEMA].contains(&wire.schema.as_str()) {
             return Err("Unsupported shared unit schema".into());
         }
 
+        let mut inventories = crate::frontend::option_bundle::ImportedInventories::new(
+            wire.inherent_units.take(),
+            wire.schema == LEGACY_SCHEMA,
+        )?;
         let mut sources = crate::source_table::Imported::new(&wire.sources);
         let functions = std::mem::take(&mut wire.functions)
             .into_iter()
-            .map(|function| function.into_facts(&mut sources))
+            .map(|function| function.into_facts(&mut sources, &mut inventories))
             .collect::<Result<_, _>>()?;
         sources.finish()?;
+        inventories.finish()?;
 
         Ok(Decoded { wire, functions })
     }
@@ -69,9 +84,10 @@ impl UnitStore {
     pub fn write_bundle(&self, writer: impl Write) -> Result<(), String> {
         let sources = function_sources::encode(&self.functions)?;
         let export = Export {
-            schema: SCHEMA,
+            schema: BUNDLE_SCHEMA,
             namespace: &self.namespace,
             sources: sources.snapshots,
+            inherent_units: sources.inventories,
             functions: sources.functions,
             helpers: &self.helpers,
             graphs: &self.graphs,

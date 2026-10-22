@@ -1,7 +1,9 @@
 //! Source-aware bundle adapter; ordinary frontend JSON remains unchanged.
 use super::*;
 use crate::source_table;
+mod inherent_units;
 mod records;
+pub(crate) use inherent_units::{ImportedInventories, Inventories};
 use records::SourceRecord;
 
 pub(crate) struct Export<'a>(Vec<(&'a str, EntryView<'a>)>);
@@ -17,6 +19,7 @@ enum KnownExport<'a> {
     Inline(&'a Entry),
     Census(records::CensusExport<'a>),
     Origins(records::OriginsExport<'a>),
+    InherentUnit(u32),
 }
 
 #[derive(Deserialize)]
@@ -30,6 +33,7 @@ enum KnownImport {
     Inline(Value),
     Census(Box<records::CensusImport>),
     Origins(records::OriginsImport),
+    InherentUnit(u32),
 }
 
 #[derive(Deserialize)]
@@ -40,6 +44,7 @@ impl<'a> Export<'a> {
     pub fn new(
         options: &'a FrontendOptions,
         sources: &mut source_table::Owners<'a>,
+        inventories: &mut Inventories<'a>,
     ) -> Result<Self, String> {
         options
             .0
@@ -52,7 +57,12 @@ impl<'a> Export<'a> {
                     Entry::Origins(record) => EntryView::Source(KnownExport::Origins(
                         records::OriginsExport::new(record, sources)?,
                     )),
-                    _ if source_key(key) => EntryView::Source(KnownExport::Inline(entry)),
+                    Entry::InherentUnits(record) if record.validate().is_ok() => {
+                        EntryView::Source(KnownExport::InherentUnit(inventories.reference(record)?))
+                    }
+                    _ if source_key(key) || key == crate::inherent_calls::UNIT_KEY => {
+                        EntryView::Source(KnownExport::Inline(entry))
+                    }
                     _ => EntryView::Ordinary(entry),
                 };
                 Ok((key.as_str(), value))
@@ -66,30 +76,53 @@ impl Import {
     pub fn decode(
         self,
         sources: &mut source_table::Imported<'_>,
+        inventories: &mut ImportedInventories,
     ) -> Result<FrontendOptions, String> {
-        let mut entries = BTreeMap::new();
-        for (key, value) in self.0 {
-            let entry = if source_key(&key) {
-                let encoded: KnownImport =
-                    serde_json::from_value(value).map_err(|error| error.to_string())?;
-                encoded.decode(&key, sources)?
-            } else {
-                Entry::new(&key, value)
-            };
-            entries.insert(key, entry);
-        }
+        let entries = self
+            .0
+            .into_iter()
+            .map(|(key, value)| {
+                let entry = decode_entry(&key, value, sources, inventories)?;
+                Ok((key, entry))
+            })
+            .collect::<Result<_, String>>()?;
         Ok(FrontendOptions(entries))
     }
 }
 
+fn decode_entry(
+    key: &str,
+    value: Value,
+    sources: &mut source_table::Imported<'_>,
+    inventories: &mut ImportedInventories,
+) -> Result<Entry, String> {
+    if source_key(key) || !inventories.legacy() && key == crate::inherent_calls::UNIT_KEY {
+        let encoded: KnownImport =
+            serde_json::from_value(value).map_err(|error| error.to_string())?;
+        encoded.decode(key, sources, inventories)
+    } else if key == crate::inherent_calls::UNIT_KEY {
+        Ok(inventories.legacy_entry(value))
+    } else {
+        Ok(Entry::new(key, value))
+    }
+}
+
 impl KnownImport {
-    fn decode(self, key: &str, sources: &mut source_table::Imported<'_>) -> Result<Entry, String> {
+    fn decode(
+        self,
+        key: &str,
+        sources: &mut source_table::Imported<'_>,
+        inventories: &mut ImportedInventories,
+    ) -> Result<Entry, String> {
         match self {
             Self::Inline(value) => Ok(Entry::new(key, value)),
             Self::Census(value) if key == crate::nominal_boundary::census::KEY => {
                 (*value).decode(sources)
             }
             Self::Origins(value) if key == crate::declaration_origins::KEY => value.decode(sources),
+            Self::InherentUnit(index) if key == crate::inherent_calls::UNIT_KEY => {
+                inventories.entry(index)
+            }
             _ => Err("Wrong-kind source evidence reference".into()),
         }
     }

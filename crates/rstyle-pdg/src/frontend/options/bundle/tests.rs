@@ -59,7 +59,10 @@ fn options() -> FrontendOptions {
 
 fn encoded(options: &FrontendOptions) -> (Value, Vec<crate::SourceSnapshot>) {
     let mut sources = source_table::Owners::default();
-    let wire = serde_json::to_value(Export::new(options, &mut sources).unwrap()).unwrap();
+    let wire = serde_json::to_value(
+        Export::new(options, &mut sources, &mut Inventories::default()).unwrap(),
+    )
+    .unwrap();
     let snapshots = sources
         .snapshots
         .into_iter()
@@ -71,7 +74,9 @@ fn encoded(options: &FrontendOptions) -> (Value, Vec<crate::SourceSnapshot>) {
 fn decode(wire: Value, snapshots: &[crate::SourceSnapshot]) -> Result<FrontendOptions, String> {
     let import: Import = serde_json::from_value(wire).map_err(|error| error.to_string())?;
     let mut sources = source_table::Imported::new(snapshots);
-    let options = import.decode(&mut sources)?;
+    let mut inventories = ImportedInventories::new(Some(vec![]), false)?;
+    let options = import.decode(&mut sources, &mut inventories)?;
+    inventories.finish()?;
     sources.finish()?;
     Ok(options)
 }

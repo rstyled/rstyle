@@ -160,12 +160,20 @@ pub fn capture_unit(facts: &mut [HirFnFacts], options: &Options<'_>) -> Result<(
     };
     inventory.validate()?;
 
-    let value = serde_json::to_value(inventory).map_err(|error| error.to_string())?;
+    install_unit(facts, inventory)
+}
+
+fn install_unit(
+    facts: &mut [HirFnFacts],
+    inventory: rstyle_pdg::inherent_calls::UnitDefinitions,
+) -> Result<(), String> {
+    let mut shared = rstyle_pdg::FrontendOptions::default();
+    shared.insert_data(std::sync::Arc::new(inventory));
     for function in facts {
         function
             .build
             .frontend_options
-            .insert(rstyle_pdg::inherent_calls::UNIT_KEY.into(), value.clone());
+            .share_inherent_inventory(&shared)?;
     }
     Ok(())
 }

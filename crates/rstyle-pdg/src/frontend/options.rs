@@ -1,5 +1,6 @@
 //! Typed ownership for repeated data evidence, retaining the open JSON boundary.
 pub(crate) mod bundle;
+mod inherent_units;
 mod source_ranges;
 use crate::{concrete_types::InterfaceObservations, field_locations::FieldObservations};
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,7 @@ enum Entry {
     Fields(Record<FieldObservations>),
     Receivers(Record<crate::data_receivers::Capture>),
     Origins(Record<crate::declaration_origins::Origins>),
+    InherentUnits(inherent_units::Inventory),
     Census(Record<Arc<crate::nominal_boundary::census::Census>>),
 }
 
@@ -74,6 +76,9 @@ impl Entry {
             crate::data_receivers::KEY => Self::decode(json, Self::Receivers),
             crate::nominal_boundary::census::KEY => Self::decode(json, Self::Census),
             crate::declaration_origins::KEY => Self::decode(json, Self::Origins),
+            crate::inherent_calls::UNIT_KEY => Self::decode(json, |record| {
+                Self::InherentUnits(inherent_units::Inventory::new(record))
+            }),
             _ => Self::Json(json),
         }
     }
@@ -100,6 +105,7 @@ impl Entry {
             Self::Receivers(record) => record.json(),
             Self::Census(record) => record.json(),
             Self::Origins(record) => record.json(),
+            Self::InherentUnits(record) => record.record.json(),
         }
     }
 
@@ -117,6 +123,11 @@ impl Entry {
             (Self::Origins(left), Self::Origins(right)) => {
                 left.value == right.value && left.nulls == right.nulls
             }
+            (Self::InherentUnits(left), Self::InherentUnits(right)) => {
+                (Arc::ptr_eq(&left.record.value, &right.record.value)
+                    || left.record.value == right.record.value)
+                    && left.record.nulls == right.record.nulls
+            }
             (Self::Census(left), Self::Census(right)) => {
                 left.value == right.value && left.nulls == right.nulls
             }
@@ -132,6 +143,7 @@ impl Entry {
             Self::Receivers(record) => record.into_json(),
             Self::Census(record) => record.into_json(),
             Self::Origins(record) => record.into_json(),
+            Self::InherentUnits(record) => record.record.into_json(),
         }
     }
 }
@@ -145,6 +157,7 @@ impl Serialize for Entry {
             Self::Receivers(record) => record.render().serialize(serializer),
             Self::Census(record) => record.render().serialize(serializer),
             Self::Origins(record) => record.render().serialize(serializer),
+            Self::InherentUnits(record) => record.record.render().serialize(serializer),
         }
     }
 }
@@ -204,6 +217,7 @@ impl FrontendOptions {
             crate::data_receivers::KEY,
             crate::nominal_boundary::census::KEY,
             crate::declaration_origins::KEY,
+            crate::inherent_calls::UNIT_KEY,
         ] {
             if matches!(self.0.get(key), Some(Entry::Json(_))) {
                 let entry = self.0.remove(key).expect("existing data evidence");
@@ -399,6 +413,7 @@ mod sealed {
     impl Sealed for super::FieldObservations {}
     impl Sealed for crate::data_receivers::Capture {}
     impl Sealed for crate::declaration_origins::Origins {}
+    impl Sealed for std::sync::Arc<crate::inherent_calls::UnitDefinitions> {}
     impl Sealed for std::sync::Arc<crate::nominal_boundary::census::Census> {}
 }
 

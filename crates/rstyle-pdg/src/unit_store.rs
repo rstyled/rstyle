@@ -1,5 +1,6 @@
 //! Unit-local ownership and borrowed analysis. Dense IDs are handles, not names.
 mod bundle;
+pub use bundle::BUNDLE_SCHEMA;
 mod derived;
 mod manifest;
 mod namespace;

@@ -4386,3 +4386,23 @@ Integrated checkpoint: **1072 tests pass /5 existing skips in106.218s**,
 doctests/fmt/Clippy pass; **rstyle0/3410, patterns0 unignored**,
 existing15 ignores unchanged. Includes observational local-From tests;
 no new extraction capability or admission permission is claimed.
+
+### Shared inherent-inventory performance checkpoint
+
+Unit-wide inherent inventories now share immutable storage, validation and an
+identity index instead of being cloned/decoded per function. Bundle `/5` stores
+explicit references to a single inventory table; historical `/4` import remains
+supported. Missing, dangling, duplicate, contradictory and unused entries reject;
+callee-specific source checks still run. Full readable JSON remains available.
+Warmup plus alternating repeated equal-work captures (128/256/512 functions)
+confirm the eliminated function-count × method-count duplication. At512 functions:
+**10.91–11.03→4.62–4.67s**, RSS753040–753064→217800–218120KiB,
+bundle118178664→21786910bytes, identical admissions/rosters. Unchanged original
+regex-automata default capture (one before/after pair): **182.27→105.08s**,
+RSS6417656→1047940KiB, bundle1184877865→200210380bytes; all143 admissions and
+reasons unchanged. No-default20.69→15.69s; all89 unchanged. Timings are separate
+from native CI and do not establish that all remaining costs are linear.
+Evidence: `/tmp/rstyle-inherent-{scaling,natural-performance}*`.
+Integrated combined checkpoint: **1090 tests pass /5 existing skips in108.282s**,
+doctests/fmt/Clippy pass; rstyle and patterns pass with no new ignores. Range
+activation and its strict natural/frozen replay are recorded separately.

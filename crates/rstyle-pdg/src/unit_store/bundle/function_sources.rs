@@ -52,6 +52,7 @@ pub(super) struct Import {
 pub(super) struct Encoded<'a> {
     pub snapshots: Vec<&'a str>,
     pub functions: Vec<Export<'a>>,
+    pub inventories: option_bundle::Inventories<'a>,
 }
 
 #[derive(Default)]
@@ -72,16 +73,18 @@ impl<'a> Owners<'a> {
 
 pub(super) fn encode(facts: &[HirFnFacts]) -> Result<Encoded<'_>, String> {
     let mut owners = Owners::default();
+    let mut inventories = option_bundle::Inventories::default();
     let functions = facts
         .iter()
         .map(|function| {
             let reference = owners.reference(&function.source)?;
-            Export::new(function, reference, &mut owners.table)
+            Export::new(function, reference, &mut owners.table, &mut inventories)
         })
         .collect::<Result<_, String>>()?;
     Ok(Encoded {
         snapshots: owners.table.snapshots,
         functions,
+        inventories,
     })
 }
 
@@ -90,6 +93,7 @@ impl<'a> Export<'a> {
         facts: &'a HirFnFacts,
         source: Reference<'a>,
         sources: &mut source_table::Owners<'a>,
+        inventories: &mut option_bundle::Inventories<'a>,
     ) -> Result<Self, String> {
         Ok(Self {
             name: &facts.name,
@@ -98,7 +102,7 @@ impl<'a> Export<'a> {
             signature: &facts.signature,
             bindings: &facts.bindings,
             body: &facts.body,
-            build: build::Export::new(&facts.build, sources)?,
+            build: build::Export::new(&facts.build, sources, inventories)?,
             source_diagnostics: &facts.source_diagnostics,
             source_scan_complete: facts.source_scan_complete,
         })
@@ -119,6 +123,7 @@ impl Import {
     pub(super) fn into_facts(
         self,
         sources: &mut source_table::Imported<'_>,
+        inventories: &mut option_bundle::ImportedInventories,
     ) -> Result<HirFnFacts, String> {
         let bytes = sources.range(self.source.snapshot, self.source.range)?;
         Ok(HirFnFacts {
@@ -133,7 +138,7 @@ impl Import {
             body: self.body,
             build: self
                 .build
-                .try_map_options(|options| options.decode(sources))?,
+                .try_map_options(|options| options.decode(sources, inventories))?,
             source_diagnostics: self.source_diagnostics,
             source_scan_complete: self.source_scan_complete,
         })
