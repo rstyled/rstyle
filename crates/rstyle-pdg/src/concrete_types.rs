@@ -39,6 +39,10 @@ pub enum TypeTree {
     Option(Box<TypeTree>),
     /// Core Result<T, TryFromIntError>; no error layout is inferred.
     IntConversionResult(String),
+    /// Pinned non-Copy Range<usize>; fresh result use is checked separately.
+    RangeUsize {
+        observation: crate::range_values::authority::Observation,
+    },
     SliceArrayResult {
         length: u64,
         borrowed: bool,
@@ -238,6 +242,7 @@ pub(crate) fn validate_observations<'a>(
 
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
+        TypeTree::RangeUsize { observation } => crate::range_values::authority::shape(observation),
         TypeTree::IntConversionResult(value) if !matches!(value.as_str(), "usize" | "u16") => {
             Err("Integer conversion Result requires a registered scalar payload".into())
         }

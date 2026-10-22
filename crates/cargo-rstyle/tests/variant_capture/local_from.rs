@@ -1,4 +1,4 @@
-//! Local From observations advance the Range chain without authorizing trait calls.
+//! Exact local From selection supports fresh Range results without general trait permission.
 use super::float_kernels::function;
 use super::*;
 
@@ -32,7 +32,7 @@ mod fake {
 "#;
 
 #[test]
-fn concrete_local_from_observes_selected_identity_without_trait_admission() {
+fn concrete_local_from_binds_selected_range_helpers_and_preserves_other_trait_rejections() {
     for no_std in [false, true] {
         let directory = clone_workspace();
         let prefix = if no_std { "#![no_std]\n" } else { "" };
@@ -81,7 +81,7 @@ fn concrete_local_from_observes_selected_identity_without_trait_admission() {
 fn check_selected(report: &Value) {
     for name in ["range", "explicit"] {
         let entry = function(report, name);
-        assert_eq!(entry["outcome"], "excluded", "{}", entry["reasons"]);
+        assert_eq!(entry["outcome"], "admitted", "{}", entry["reasons"]);
         let callees = resolutions(entry);
         let callee = &callees[0];
         assert_eq!(callee.crate_name, "core");
@@ -119,8 +119,14 @@ fn resolutions(entry: &Value) -> Vec<rstyle_pdg::data_library::Callee> {
         .filter(|node| node.kind == "expr_call")
         .filter_map(|node| {
             let resolution = node.res.as_ref()?;
-            (resolution.kind == "resolved_callee")
-                .then(|| serde_json::from_str(&resolution.description).unwrap())
+            let record: Value = serde_json::from_str(&resolution.description).ok()?;
+            if resolution.kind == "resolved_direct_callee" {
+                serde_json::from_value(record.get("trait_selection")?.clone()).ok()
+            } else if resolution.kind == "resolved_callee" {
+                serde_json::from_value(record).ok()
+            } else {
+                None
+            }
         })
         .collect()
 }

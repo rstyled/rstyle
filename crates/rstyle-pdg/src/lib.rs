@@ -67,6 +67,7 @@ pub mod nominal_binding;
 pub mod nominal_boundary;
 pub mod option_callbacks;
 pub mod producer;
+pub mod range_values;
 pub mod scalar_constants;
 mod scalar_exhaustiveness;
 pub(crate) mod scalar_from;

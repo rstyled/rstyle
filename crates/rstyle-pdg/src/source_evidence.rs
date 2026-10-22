@@ -12,6 +12,30 @@ use syn::{
 
 pub const KEY: &str = "source_correspondence";
 
+/// Prove that module lexical resolution suffices for every scope in this body.
+pub(crate) fn closed_body(body: &syn::Block) -> Result<(), String> {
+    struct LocalItems(bool);
+    impl<'ast> Visit<'ast> for LocalItems {
+        fn visit_macro(&mut self, _: &'ast syn::Macro) {
+            self.0 = true;
+        }
+
+        fn visit_stmt(&mut self, statement: &'ast syn::Stmt) {
+            if matches!(statement, syn::Stmt::Item(_) | syn::Stmt::Macro(_)) {
+                self.0 = true;
+            }
+            visit::visit_stmt(self, statement);
+        }
+    }
+
+    let mut local = LocalItems(false);
+    local.visit_block(body);
+    if local.0 {
+        return Err("Source body has unresolved block-local item/macro scopes".into());
+    }
+    Ok(())
+}
+
 /// Convert a parser span to original UTF-8 offsets, retaining a leading BOM.
 pub(crate) fn original_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
     let prefix = if bytes.starts_with('\u{feff}') { 3 } else { 0 };

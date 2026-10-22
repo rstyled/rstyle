@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 mod converted;
 mod mixed_owners;
 mod parsed;
+#[cfg(test)]
+mod range_values;
 use crate::concrete_types::VariantShape;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,6 +28,7 @@ pub enum TypeToken {
     Str,
     Option(Box<TypeToken>),
     IntConversionResult(String),
+    RangeUsize,
     SliceArrayResult {
         length: u64,
         borrowed: bool,
@@ -61,6 +64,7 @@ impl TypeToken {
             TypeTree::Slice(value) => Self::Slice(Box::new(Self::from_tree(value))),
             TypeTree::Str => Self::Str,
             TypeTree::IntConversionResult(value) => Self::IntConversionResult(value.clone()),
+            TypeTree::RangeUsize { .. } => Self::RangeUsize,
             TypeTree::Option(value) => Self::Option(Box::new(Self::from_tree(value))),
             TypeTree::SliceArrayResult { length, borrowed } => Self::SliceArrayResult {
                 length: *length,
@@ -108,7 +112,7 @@ impl TypeToken {
             Self::Scalar(value) | Self::IntConversionResult(value) => {
                 matches!(value.as_str(), "isize" | "usize")
             }
-            Self::FieldlessEnum { .. } => true,
+            Self::FieldlessEnum { .. } | Self::RangeUsize => true,
             Self::Tuple(values) => values.iter().any(Self::native_width),
             Self::Array { element, .. }
             | Self::Shared(element)
@@ -171,6 +175,9 @@ pub(crate) fn parse_for(
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
+    if text.contains("\"kind\":\"range_usize\"") && !profile.supports("rust.fresh-range-results") {
+        return Err("Range results require their registered capability".into());
+    }
     if text.contains("\"kind\":\"mixed_enum\"")
         && (!profile.supports("rust.borrowed-mixed-owners") || !mixed_owners::borrowed_use(&ty))
     {
@@ -251,6 +258,7 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
             Ok(())
         }
         TypeToken::Str => Ok(()),
+        TypeToken::RangeUsize if depth == 0 => Ok(()),
         TypeToken::FieldlessEnum { nominal, variants }
             if nominal
                 .source_identity

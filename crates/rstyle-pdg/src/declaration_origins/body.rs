@@ -114,6 +114,9 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
         TypeToken::Scalar(value) => TypeTree::Scalar(value.clone()),
         TypeToken::Str => TypeTree::Str,
         TypeToken::IntConversionResult(value) => TypeTree::IntConversionResult(value.clone()),
+        TypeToken::RangeUsize => {
+            return Err("Range authority cannot be inferred from a body token".into());
+        }
         TypeToken::Option(_) => return Err("Concrete Option source proof is not registered".into()),
         TypeToken::SliceArrayResult { length, borrowed } => TypeTree::SliceArrayResult {
             length: *length,

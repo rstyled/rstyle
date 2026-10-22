@@ -29,12 +29,12 @@ pub(crate) fn from_record(record: &Method, facts: &dyn EvidenceFacts) -> Result<
         && record.adjustments[0].kind == Kind::SharedBorrow
         && record.adjustments[0].target == record.adjusted_type
         && record.signature_inputs.first() == Some(&record.adjusted_type)
-        && matches!(
+        && (matches!(
             &record.signature_result,
             Observation::Captured {
                 ty: TypeTree::Scalar(_)
             }
-        )
+        ) || crate::range_values::receiver_result(&record.signature_result, facts)?)
         && facts.nominal_resolution()?.checked_owned_copy(tree))
 }
 

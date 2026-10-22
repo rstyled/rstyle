@@ -5,6 +5,7 @@
   "pointer_width": 64,
   "core_hash": "32c3d1db268e158f817dfd97ac1b490b",
   "source_digests": {
+    "ops/range.rs": "sha256:5d791bd2ee8997e93ac72c35db831815d9acbb7aed05cd1539799b7677a13d20",
     "slice": "sha256:062320a86dc6a3d20718bc8fca824bd1f3df0bb8bb0c3d72e101be989cf576bf",
     "str": "sha256:bb2e4e174e8db5c79f6c602565c1f97f049f10ca600540bfb1d3c7f382de9bc5"
   },

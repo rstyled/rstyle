@@ -19,6 +19,7 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
         crate::diagnostics::Stage::new("source.data_frontend", &facts.name, None).enter();
     crate::character_scalars::verify_function(facts)?;
     crate::float_scalars::verify_function(facts)?;
+    crate::range_values::verify_function(facts)?;
     let interface = interface(facts)?;
     let source: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
@@ -42,6 +43,12 @@ pub(crate) fn verify_document_policy(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
+    crate::extraction_profile::require_document(
+        profile,
+        crate::range_values::CAPABILITY,
+        || crate::range_values::used(facts),
+        "Fresh Range results require their registered document policy",
+    )?;
     let capabilities = [
         crate::helper_stored_slices::CAPABILITY,
         "rust.passive-copy-dependencies",

@@ -30,6 +30,11 @@ pub(super) fn check(source: &syn::Type, resolved: &TypeTree) -> Result<(), Strin
 }
 
 fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String> {
+    if matches!(resolved, TypeTree::RangeUsize { .. }) {
+        // Only observational shape here; exact lexical identity is required by
+        // source_proof before any spelling can authorize data extraction.
+        return Ok(());
+    }
     if let TypeTree::Option(payload) = resolved
         && matches!(payload.as_ref(), TypeTree::Scalar(_))
     {

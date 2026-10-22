@@ -115,6 +115,13 @@ fn path_proof(
     tree: &TypeTree,
     resolution: &impl PathResolution,
 ) -> Result<(), String> {
+    if matches!(tree, TypeTree::RangeUsize { .. }) {
+        return if resolution.resolve(path)? == *tree {
+            Ok(())
+        } else {
+            Err("Source Range spelling disagrees with its bound observation".into())
+        };
+    }
     if let TypeTree::Option(payload) = tree
         && matches!(payload.as_ref(), TypeTree::Scalar(_))
     {

@@ -341,7 +341,7 @@ fn import_tree(
     imports.tree(tree, prefix)
 }
 
-fn type_name(item: &syn::Item) -> Option<String> {
+pub(super) fn type_name(item: &syn::Item) -> Option<String> {
     match item {
         syn::Item::Struct(item) => Some(item.ident.to_string()),
         syn::Item::Enum(item) => Some(item.ident.to_string()),

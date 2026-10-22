@@ -210,9 +210,13 @@ mod tests {
         let sysroot = String::from_utf8(output.stdout).unwrap();
         for registry in registries() {
             for (module, expected) in &registry.source_digests {
-                let path = std::path::Path::new(sysroot.trim()).join(format!(
-                    "lib/rustlib/src/rust/library/core/src/{module}/mod.rs"
-                ));
+                let relative = if module.ends_with(".rs") {
+                    module.clone()
+                } else {
+                    format!("{module}/mod.rs")
+                };
+                let path = std::path::Path::new(sysroot.trim())
+                    .join(format!("lib/rustlib/src/rust/library/core/src/{relative}"));
                 let source = std::fs::read(path).unwrap();
                 assert_eq!(&crate::concrete_types::digest(&source), expected);
             }

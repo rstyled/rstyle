@@ -59,6 +59,22 @@ impl ComponentContext<'_> {
             return Err("Qualified struct construction remains unavailable".into());
         }
         let token = crate::data_types::parse(crate::data_aggregates::token(self.node)?)?;
+        if token == TypeToken::RangeUsize {
+            if syntax.rest.is_some() {
+                return Err("Fresh Range construction cannot consume an update base".into());
+            }
+            let mut path = syntax.path.clone();
+            if !path.is_ident("Self")
+                && let Some(last) = path.segments.last_mut()
+                && matches!(last.arguments, syn::PathArguments::None)
+            {
+                last.arguments = syn::PathArguments::AngleBracketed(syn::parse_quote!(<usize>));
+            }
+            verify_path(&path, &token, self.facts)?;
+            let fields =
+                ["start", "end"].map(|name| (name.to_owned(), TypeToken::Scalar("usize".into())));
+            return self.slots(syntax, &fields, &token);
+        }
         let TypeToken::Struct { fields, .. } = &token else {
             return Err("Constructor lacks nominal struct type".into());
         };

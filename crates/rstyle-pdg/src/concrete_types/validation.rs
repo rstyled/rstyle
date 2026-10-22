@@ -36,6 +36,9 @@ impl<'a> Validation<'a> {
         if depth > MAX_DEPTH || self.entries > MAX_ENTRIES {
             return Err("Concrete type observation exceeds depth/entry budget".into());
         }
+        if depth != 0 && matches!(tree, TypeTree::RangeUsize { .. }) {
+            return Err("Range values require a complete root result observation".into());
+        }
         let root_scalar = depth == 0
             && matches!(tree, TypeTree::Scalar(token) if matches!(token.as_str(), "char" | "f32" | "f64"));
         let fresh = !root_scalar && self.shape(tree)?;

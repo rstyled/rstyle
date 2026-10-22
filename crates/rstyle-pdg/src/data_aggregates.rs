@@ -12,7 +12,7 @@ pub(crate) fn constructor(node: &HirNode) -> bool {
 
 pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let ty = crate::data_types::parse(token(node)?)?;
-    let references = !reference_free(&ty);
+    let references = !reference_free(&ty) && ty != TypeToken::RangeUsize;
     if references && !reference_literal(node, facts) {
         return Err(
             "Reference-bearing construction requires its registered literal capability".into(),

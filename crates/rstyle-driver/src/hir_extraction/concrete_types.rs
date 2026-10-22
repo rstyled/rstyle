@@ -4,6 +4,7 @@ mod callbacks;
 mod copy;
 mod fieldless_enums;
 mod mixed_enums;
+mod range_values;
 mod receivers;
 mod scalar_enums;
 
@@ -115,7 +116,7 @@ impl<'tcx> Capture<'_, 'tcx> {
         interface: &InterfaceObservations,
     ) -> Result<(), String> {
         interface_tokens(&mut facts.signature, interface)?;
-        self.node_tokens(&mut facts.body)?;
+        self.node_tokens(&mut facts.body, false)?;
         self.binding_tokens(&mut facts.bindings)
     }
 
@@ -153,12 +154,25 @@ impl<'tcx> Capture<'_, 'tcx> {
         }
     }
 
-    fn node_tokens(&mut self, node: &mut rstyle_pdg::HirNode) -> Result<(), String> {
-        if node.ty.as_ref().is_some_and(|ty| ty.normalized.is_none()) {
+    fn node_tokens(
+        &mut self,
+        node: &mut rstyle_pdg::HirNode,
+        index_bound: bool,
+    ) -> Result<(), String> {
+        // Only index bounds retain the dedicated subslice proof grammar.
+        // Standalone range receivers still need consistent concrete observations.
+        let range_syntax = index_bound
+            && node.kind == "expr_struct"
+            && node
+                .res
+                .as_ref()
+                .is_some_and(|resolution| resolution.kind == "resolved_range_type");
+        if !range_syntax && node.ty.as_ref().is_some_and(|ty| ty.normalized.is_none()) {
             let token = self.hir_token(&node.hir, node.kind == "expr_ret")?;
             node.ty.as_mut().expect("present type").normalized = token;
         }
-        self.child_tokens(&mut node.children)?;
+
+        self.child_tokens(&mut node.children, node.kind == "expr_index")?;
         if matches!(node.kind.as_str(), "expr_method_call" | "expr_call")
             || node.kind == "expr_cast" && self.ctx.profile.supports("rust.fieldless-enum-values")
         {
@@ -167,9 +181,17 @@ impl<'tcx> Capture<'_, 'tcx> {
         Ok(())
     }
 
-    fn child_tokens(&mut self, nodes: &mut [rstyle_pdg::HirNode]) -> Result<(), String> {
+    fn child_tokens(
+        &mut self,
+        nodes: &mut [rstyle_pdg::HirNode],
+        indexing: bool,
+    ) -> Result<(), String> {
+        let bound = nodes
+            .get(1)
+            .filter(|_| indexing)
+            .map(|node| node.hir.clone());
         for node in nodes {
-            self.node_tokens(node)?;
+            self.node_tokens(node, bound.as_ref() == Some(&node.hir))?;
         }
         Ok(())
     }
@@ -254,6 +276,10 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 
     fn storage(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
+        if let Some(range) = self.range_value(ty, depth)? {
+            return Ok(range);
+        }
+
         if self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3
             && self.visiting.is_empty()
             && let Some(payload) = super::options::payload(self.ctx.tcx, ty)

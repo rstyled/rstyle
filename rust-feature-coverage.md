@@ -4406,3 +4406,30 @@ Evidence: `/tmp/rstyle-inherent-{scaling,natural-performance}*`.
 Integrated combined checkpoint: **1090 tests pass /5 existing skips in108.282s**,
 doctests/fmt/Clippy pass; rstyle and patterns pass with no new ignores. Range
 activation and its strict natural/frozen replay are recorded separately.
+
+### Data-v3 3.75: original Range getter family
+
+[Contract](docs/extraction-profiles/fresh-range-results-v1.md) and
+[source selection](eval/coverage-development/range-getters-selection.json).
+Fresh exact non-Copy `Range<usize>` results now compose through original
+`Span::range → <Range<usize> as From<Span>>::from`, `Input::get_range` and
+`Match::range`. Pinned library/drop evidence and exact local From selection are
+mandatory; Range inputs/storage/field consumption and general traits/moves/drop
+remain unavailable. Existing subslice-bound grammar is preserved independently
+of standalone Range receiver normalization.
+All three targets: no-default **85→89/590**, default **139→143/2582**;
+exactly four declared gains per context, zero losses, anchors retained and reverse
+conversion excluded. All696 contextual original admissions strictly replay;
+**24 selected comparisons** complete and match. Shared-transport native controls
+retain all232 admissions and8 comparisons with identical full rosters/reasons.
+Independent unchanged-library native oracle: **4704 cases per feature context**,
+including endpoint extremes, inverted ranges, done-state and invalid Match panic
+controls. Native execution is ARM Linux; x86 Linux/macOS are cross capture/replay.
+Integrated gates: **1090 tests /5 existing skips in108.282s**, doctests/fmt/Clippy
+pass; **rstyle0/3470, patterns0 unignored**, existing15 ignores unchanged.
+Full-library matching remains incomplete under max-pairs0. Evidence:
+`/tmp/rstyle-range-{natural-results,evidence}*`, `/tmp/rstyle-range-getters-native-*`.
+Broader P07 sequences, P08 Result and P09 looping helpers remain active frontiers.
+Frozen `run-tk89n2fv` versus `run-pk54tszf`: **23 admitted /30 excluded /7 inactive**,
+no identity/context/outcome changes; complete package rosters remain8/150,
+39/956 and11/226. All58 retained admissions independently strictly replay.

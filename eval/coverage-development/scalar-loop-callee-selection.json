@@ -59,7 +59,7 @@
     "zero": "With selected debug assertions, value=0 panics before division/remainder or count mutation, for every p, including p=0. No fabricated return.",
     "termination": "For positive value, every backedge sets value=value/5 with zero remainder and increments count once. Ranking value strictly decreases, remains positive, and at most13 backedges precede the exiting iteration (at most14 iterations).",
     "effects": "Scalar Copy locals only; no heap, reference, alias, destructor or external effect. Assertion panic remains an explicit exceptional outcome.",
-    "evaluation_order": "At each iteration assertion precedes q=value/5, r=value%5 and break condition; division/remainder use the same saved iteration value. Exit does not update value/count. Caller evaluates both input arguments once in source order, invokes helper once, and compares only its normal return.",
+    "evaluation_order": "At each iteration assertion precedes q=value/5, r=value%5 and break condition; division/remainder use the same saved iteration value. Exit does not update value/count. Caller evaluates the left comparison operand first: it snapshots value once for the one-argument helper and invokes that helper once. Only after the helper returns normally does it read the right comparison operand p and compare; a helper panic does not reach the p read or comparison.",
     "outside_scope": [
       "Debug assertions disabled: zero with checked count overflow eventually panics; with unchecked overflow it diverges. Neither may be summarized as always-returning.",
       "General recursion, arbitrary loop termination, wrapping inverse u64 sibling, unsafe neighboring functions and complete float formatting are not activated."

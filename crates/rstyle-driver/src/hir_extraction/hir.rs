@@ -787,6 +787,42 @@ impl Context<'_> {
                 })
     }
 
+    fn range_from_helper(
+        &self,
+        expression: &Expr<'_>,
+        callee: rustc_hir::def_id::DefId,
+    ) -> Option<PathRes> {
+        if !self.profile.supports("rust.fresh-range-results")
+            || !self.local_from_capture(expression, callee)
+        {
+            return None;
+        }
+
+        let signature = self
+            .tcx
+            .fn_sig(callee)
+            .instantiate(self.tcx, self.typeck.node_args(expression.hir_id))
+            .skip_binder();
+        let ty::Adt(definition, arguments) = signature.output().kind() else {
+            return None;
+        };
+        if Some(definition.did()) != self.tcx.lang_items().range_struct()
+            || arguments.len() != 1
+            || arguments.type_at(0) != self.tcx.types.usize
+        {
+            return None;
+        }
+
+        let selected = self.selected_callee(expression, callee)?;
+        let mut resolution = self.helper_callee(selected, "resolved_direct_callee", None);
+        let mut record: serde_json::Value = serde_json::from_str(&resolution.description).ok()?;
+        let selection = self.instantiated_callee(expression, callee, true);
+        record["trait_selection"] = serde_json::from_str(&selection.description).ok()?;
+        resolution.description = record.to_string();
+
+        Some(resolution)
+    }
+
     fn selected_callee(
         &self,
         expression: &Expr<'_>,
@@ -868,6 +904,9 @@ impl Context<'_> {
         }
         if !callee.is_local() && kind == rustc_hir::def::DefKind::AssocFn && self.profile.is_data()
         {
+            if let Some(resolution) = self.range_from_helper(expression, callee) {
+                return Some(resolution);
+            }
             let capture = self.scalar_from_capture(expression, callee)
                 || self.int_conversion_capture(expression, callee)
                 || self.local_from_capture(expression, callee);

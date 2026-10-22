@@ -14,6 +14,7 @@ mod array_lengths;
 mod builtin_options;
 pub(crate) mod environment;
 mod float_constants;
+mod range_from;
 mod scalar_aliases;
 mod selected;
 pub(crate) use environment::Environment;
@@ -40,6 +41,8 @@ pub struct Resolution {
     pub namespace: Namespace,
     pub receiver: Option<TypeTree>,
     owner_path: Option<Namespace>,
+    range_value: Option<TypeTree>,
+    range_owner: Option<(ByteSpan, TypeTree)>,
     trees: BTreeMap<Namespace, TypeTree>,
     environment: Rc<Environment>,
     copy_trees: std::collections::BTreeSet<Namespace>,
@@ -271,6 +274,11 @@ pub(crate) fn verify_in(
         namespace: Vec::new(),
         receiver: None,
         owner_path: None,
+        range_value: range_from::observed(
+            facts,
+            context.parameters.iter().chain([&context.result]),
+        )?,
+        range_owner: None,
         trees: BTreeMap::new(),
         copy_trees: Default::default(),
         passive_copy_dependencies: false,
@@ -290,7 +298,7 @@ pub(crate) fn verify_in(
         &origins,
         environment.census(),
     )?;
-    if environment.copy_boundary {
+    if environment.copy_boundary || resolution.range_value.is_some() {
         resolution.select_copies(facts, &origins)?;
     }
     function_scope(
@@ -632,6 +640,9 @@ fn function_scope(
     census: &census::Census,
     resolution: &mut Resolution,
 ) -> Result<(), String> {
+    if range_from::bind(facts, resolution)? {
+        return Ok(());
+    }
     let file = facts
         .build
         .frontend_options
@@ -926,6 +937,9 @@ impl PathResolution for Scoped<'_> {
     }
 
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
+        if let Some(tree) = range_from::resolve(path, self)? {
+            return Ok(tree);
+        }
         if path.qself.is_some() || path.path.leading_colon.is_some() {
             return Err("Unsupported nominal type path".into());
         }
@@ -1066,6 +1080,22 @@ fn nominal_span(bytes: &str, item: &syn::Item) -> Result<ByteSpan, String> {
         start: source_span(bytes, start).start,
         end: source_span(bytes, item.span()).end,
     })
+}
+
+/// Exact source-only local From owner, after the normal checked resolution.
+/// Type/library/selected-implementation authority remains independently checked.
+pub(crate) fn range_from_owner(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<(ByteSpan, TypeTree)>, String> {
+    Ok(facts.nominal_resolution()?.range_owner.clone())
+}
+
+/// Lexical original-source proof only; selected trait/type authority is separate.
+pub(crate) fn range_from_call(
+    node: &crate::HirNode,
+    caller: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    range_from::call(node, caller)
 }
 
 #[cfg(test)]
