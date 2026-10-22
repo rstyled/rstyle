@@ -56,7 +56,9 @@ impl<'a> Validation<'a> {
         {
             return Ok(false);
         }
-        check_shape(tree)?;
+        if tree.nominal_parts().is_none() || !crate::data_types::has_checked_shape(tree) {
+            check_shape(tree)?;
+        }
 
         Ok(tree.nominal_parts().is_some())
     }
@@ -134,6 +136,8 @@ mod tests {
     #[test]
     fn repeated_shapes_keep_entry_and_depth_limits() {
         let value = nominal();
+        crate::data_types::token(&value).unwrap();
+        assert!(crate::data_types::has_checked_shape(&value));
         let mut validation = Validation::default();
         for _ in 0..MAX_ENTRIES / 2 {
             validation.check(&value, 0).unwrap();
@@ -143,6 +147,26 @@ mod tests {
         validation.check(&value, 0).unwrap();
         assert!(validation.check(&value, MAX_DEPTH).is_err());
         assert!(validation.check(&value, MAX_DEPTH + 1).is_err());
+    }
+
+    #[test]
+    fn converted_shape_reuse_requires_every_declaration_and_field_byte() {
+        let original = nominal();
+        crate::data_types::token(&original).unwrap();
+        assert!(crate::data_types::has_checked_shape(&original));
+        let mut changed = original.clone();
+        let TypeTree::Struct { fields, .. } = &mut changed else {
+            unreachable!()
+        };
+        fields[0].declaration = "u16".into();
+        assert!(!crate::data_types::has_checked_shape(&changed));
+        assert!(tree(&changed).is_err());
+        let TypeTree::Struct { source, .. } = &mut changed else {
+            unreachable!()
+        };
+        *source = "struct Value { byte: u16 }".into();
+        assert!(tree(&changed).is_err());
+        assert!(tree(&original).is_ok());
     }
 
     #[test]

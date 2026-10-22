@@ -131,6 +131,12 @@ pub fn token(tree: &TypeTree) -> Result<String, String> {
     converted::get(tree, || checked_token(tree))
 }
 
+/// A successful exact conversion has already checked this declaration shape.
+/// Callers must still count every occurrence and check contextual depth limits.
+pub(crate) fn has_checked_shape(tree: &TypeTree) -> bool {
+    converted::contains(tree)
+}
+
 fn checked_token(tree: &TypeTree) -> Result<String, String> {
     crate::concrete_types::validate(tree)?;
     let text = TypeToken::from_tree(tree).text()?;

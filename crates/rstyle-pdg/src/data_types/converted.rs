@@ -15,6 +15,17 @@ thread_local! {
     static TOKENS: RefCell<Tokens> = RefCell::default();
 }
 
+pub(super) fn contains(tree: &TypeTree) -> bool {
+    TOKENS.with(|tokens| {
+        tokens
+            .borrow()
+            .values
+            .iter()
+            .rev()
+            .any(|(key, _)| key == tree)
+    })
+}
+
 pub(super) fn get(
     tree: &TypeTree,
     convert: impl FnOnce() -> Result<String, String>,
