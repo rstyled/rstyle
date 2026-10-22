@@ -17,6 +17,19 @@ use syn::{
 
 pub const KEY: &str = "source_correspondence";
 
+/// Relative identifier paths only; this proves syntax, never name resolution.
+pub(crate) fn plain_relative_path(path: &syn::Path) -> Option<Vec<String>> {
+    if path.leading_colon.is_some() || path.segments.iter().any(|part| !part.arguments.is_none()) {
+        return None;
+    }
+    Some(
+        path.segments
+            .iter()
+            .map(|part| part.ident.to_string())
+            .collect(),
+    )
+}
+
 /// Prove that module lexical resolution suffices for every scope in this body.
 pub(crate) fn closed_body(body: &syn::Block) -> Result<(), String> {
     struct LocalItems(bool);

@@ -144,22 +144,8 @@ impl Scope {
         }
     }
     pub fn known_trait(&self, path: &syn::Path) -> bool {
-        if path.leading_colon.is_some()
-            || path
-                .segments
-                .iter()
-                .any(|part| !matches!(part.arguments, syn::PathArguments::None))
-        {
-            return false;
-        }
-        self.contains_local(
-            &path
-                .segments
-                .iter()
-                .map(|part| part.ident.to_string())
-                .collect::<Vec<_>>(),
-            &self.traits,
-        )
+        crate::source_evidence::plain_relative_path(path)
+            .is_some_and(|names| self.contains_local(&names, &self.traits))
     }
     fn contains_local(&self, path: &[String], declarations: &BTreeSet<Namespace>) -> bool {
         self.local_path(path)

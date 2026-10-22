@@ -5,7 +5,7 @@
 
 use super::super::hir::{Context, reference};
 use super::projection::Projection;
-use super::{Definition, definition_record, types};
+use super::{Definition, adjustments, definition_record, types};
 use rustc_hir::{BinOpKind, Expr, ExprKind, def_id::DefId};
 use rustc_middle::ty::{self, TyCtxt};
 use serde::Serialize;
@@ -47,7 +47,9 @@ struct Selection {
     selected_arguments: types::Arguments,
     selected_impl: CompilerDefinition,
     selected_trait: CompilerDefinition,
+    requested_signature: Signature,
     signature: Signature,
+    operand_adjustments: [adjustments::Observation; 2],
     operand_types: types::Arguments,
     result_type: types::Arguments,
 }
@@ -131,14 +133,17 @@ fn selection<'tcx>(
         });
     };
 
-    let signature = selected_signature(tcx, instance);
-    let Ok(signature) = signature else {
-        return Ok(Outcome::Error {
-            reason: "selected comparison signature normalization failed".into(),
-        });
-    };
+    let requested_signature = instantiated_signature(tcx, requested, substituted)?;
+    let signature = instantiated_signature(tcx, instance.def_id(), instance.args)?;
     let ExprKind::Binary(_, left, right) = expression.kind else {
         unreachable!("selection only receives binary comparisons");
+    };
+    let operand_adjustments = match (
+        adjustments::operand(context, left, projection),
+        adjustments::operand(context, right, projection),
+    ) {
+        (Ok(left), Ok(right)) => [left, right],
+        (Err(reason), _) | (_, Err(reason)) => return Ok(Outcome::Unsupported { reason }),
     };
     let operands = [
         projection.node_ty(tcx, context.typeck, left.hir_id)?,
@@ -152,29 +157,33 @@ fn selection<'tcx>(
         selected_arguments: types::arguments(tcx, instance.args),
         selected_impl: definition(tcx, implementation),
         selected_trait: definition(tcx, selected_trait),
+        requested_signature,
         signature,
+        operand_adjustments,
         operand_types: type_list(tcx, operands),
         result_type: type_list(tcx, [result]),
     })))
 }
 
-fn selected_signature<'tcx>(
+fn instantiated_signature<'tcx>(
     tcx: TyCtxt<'tcx>,
-    instance: ty::Instance<'tcx>,
-) -> Result<Signature, ()> {
+    definition: DefId,
+    arguments: ty::GenericArgsRef<'tcx>,
+) -> Result<Signature, super::projection::Error> {
     let signature = tcx
         .try_normalize_erasing_regions(
             ty::TypingEnv::fully_monomorphized(),
-            tcx.fn_sig(instance.def_id())
-                .instantiate(tcx, instance.args),
+            tcx.fn_sig(definition).instantiate(tcx, arguments),
         )
-        .map_err(|_| ())?
+        .map_err(|_| super::projection::Error::Normalization)?
         .skip_binder();
 
-    Ok(Signature {
-        inputs: type_list(tcx, signature.inputs().iter().copied()),
-        output: type_list(tcx, [signature.output()]),
-    })
+    let inputs = type_list(tcx, signature.inputs().iter().copied());
+    let output = type_list(tcx, [signature.output()]);
+    if !inputs.complete() || !output.complete() {
+        return Err(super::projection::Error::UnsupportedType);
+    }
+    Ok(Signature { inputs, output })
 }
 
 fn type_list<'tcx>(

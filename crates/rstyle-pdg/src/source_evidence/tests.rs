@@ -76,3 +76,18 @@ impl<'ast> Visit<'ast> for CheckSpans<'_> {
         self.count += 1;
     }
 }
+
+#[test]
+fn plain_paths_distinguish_relative_names_from_absolute_and_parameterized_syntax() {
+    assert_eq!(
+        super::plain_relative_path(&syn::parse_quote!(core::cmp::PartialOrd)),
+        Some(vec!["core".into(), "cmp".into(), "PartialOrd".into()])
+    );
+    for path in [
+        syn::parse_quote!(::core::cmp::PartialOrd),
+        syn::parse_quote!(PartialOrd<u32>),
+        syn::parse_str("PartialOrd<>").unwrap(),
+    ] {
+        assert_eq!(super::plain_relative_path(&path), None);
+    }
+}

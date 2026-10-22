@@ -80,6 +80,7 @@ pub mod result_propagation;
 pub mod scalar_constants;
 mod scalar_exhaustiveness;
 pub(crate) mod scalar_from;
+pub mod scalar_instances;
 mod scalar_loop_helpers;
 pub mod scalar_patterns;
 pub mod size_calls;

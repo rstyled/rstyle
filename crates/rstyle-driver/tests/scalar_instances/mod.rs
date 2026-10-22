@@ -6,8 +6,8 @@ const SOURCE: &str = r#"
 pub fn clamp<T: PartialOrd>(value: T, low: T, high: T) -> T {
     debug_assert!(low <= high, "ordered bounds");
     let saved: T = value;
-    if saved < low { return low; }
-    if saved > high { high } else { saved }
+    let chosen: T = if saved < low { return low; } else { saved };
+    if chosen > high { high } else { chosen }
 }
 pub fn tuple<T: Copy>(value: T) -> T { let pair = (value, value); pair.0 }
 pub fn nested<T: Copy>(value: T) -> T { let callback = || value; callback() }
@@ -16,6 +16,7 @@ pub fn relations<T: PartialOrd>(a: T, b: T) -> bool {
     let _ = a == b; let _ = a != b; let _ = a < b;
     let _ = a <= b; let _ = a > b; a >= b
 }
+pub fn minimum<T: PartialOrd>(a: T, b: T) -> T { if a < b { a } else { b } }
 "#;
 
 struct Capture {
@@ -108,6 +109,7 @@ fn check_projection(entry: &Value, ty: &str) {
             .any(|node| node["kind"] == "expr_path" && node["ty"]["normalized"] == ty)
     );
     check_comparisons(entry, &body, ty);
+    check_never_adjustment(entry, ty);
 }
 
 fn check_comparisons(entry: &Value, body: &[&Value], ty: &str) {
@@ -120,6 +122,7 @@ fn check_comparisons(entry: &Value, body: &[&Value], ty: &str) {
     for observation in comparisons {
         assert_eq!(observation["status"], "resolved", "comparison status");
         assert_eq!(observation["selected"]["crate"], "core");
+        check_operand_adjustments(observation);
         assert_eq!(observation["operand_types"][0]["identity"]["name"], ty);
         let node = body
             .iter()
@@ -163,7 +166,7 @@ fn requested_scalar_body_projection_preserves_generic_roster_and_complete_source
     let functions: Vec<HirFnFacts> = serde_json::from_value(raw["facts"].clone()).unwrap();
     assert_eq!(
         functions.len(),
-        5,
+        6,
         "ordinary inventory stays definition-only"
     );
     let clamp = functions
@@ -178,6 +181,8 @@ fn requested_scalar_body_projection_preserves_generic_roster_and_complete_source
         "diagnostic projection grants no admission"
     );
     assert_eq!(entries[0]["source"]["bytes"], &clamp.source.bytes[..]);
+    check_bindings(&entries[0], clamp, "i32");
+    check_bindings(&entries[1], clamp, "u32");
 }
 
 #[test]
@@ -211,7 +216,14 @@ fn unsupported_projection_never_publishes_a_supported_prefix() {
                 .as_str()
                 .is_some_and(|reason| !reason.is_empty())
         );
-        for field in ["body", "signature", "comparisons", "adjustments", "source"] {
+        for field in [
+            "body",
+            "signature",
+            "bindings",
+            "comparisons",
+            "adjustments",
+            "source",
+        ] {
             assert!(entry.get(field).is_none(), "no partial {field}");
         }
     }
@@ -239,6 +251,62 @@ fn malformed_projection_requests_fail_capture_instead_of_defaulting() {
         assert!(
             !published,
             "malformed input cannot publish an empty successful projection"
+        );
+    }
+}
+
+fn check_operand_adjustments(observation: &Value) {
+    assert_eq!(observation["requested_signature"], observation["signature"]);
+    let operands = observation["operand_adjustments"].as_array().unwrap();
+    assert_eq!(operands.len(), 2);
+    for (index, operand) in operands.iter().enumerate() {
+        assert_eq!(
+            operand["source_type"][0],
+            observation["operand_types"][index]
+        );
+        assert_eq!(operand["steps"].as_array().unwrap().len(), 1);
+        assert_eq!(operand["steps"][0]["kind"], "shared_borrow");
+        assert_eq!(operand["steps"][0]["target"], operand["adjusted_type"]);
+        assert_eq!(
+            operand["adjusted_type"][0],
+            observation["signature"]["inputs"][index]
+        );
+    }
+}
+
+fn check_never_adjustment(entry: &Value, ty: &str) {
+    let never = entry["adjustments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|adjustment| {
+            adjustment["steps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|step| step["kind"] == "never_to_any")
+        })
+        .expect("early return branch has actual compiler NeverToAny coercion");
+    assert_eq!(never["source_type"][0]["identity"]["name"], "!");
+    assert_eq!(never["adjusted_type"][0]["identity"]["name"], ty);
+    assert!(
+        never.get("kinds").is_none(),
+        "debug strings are not structural adjustment evidence"
+    );
+}
+
+fn check_bindings(entry: &Value, raw: &HirFnFacts, ty: &str) {
+    let projected = entry["bindings"].as_array().unwrap();
+    assert_eq!(projected.len(), raw.bindings.len());
+    for (projected, original) in projected.iter().zip(&raw.bindings) {
+        assert_eq!(projected["ty"]["normalized"], ty);
+        let mut preserved = projected.clone();
+        let mut original = serde_json::to_value(original).unwrap();
+        preserved.as_object_mut().unwrap().remove("ty");
+        original.as_object_mut().unwrap().remove("ty");
+        assert_eq!(
+            preserved, original,
+            "binding source/identity/mutability/inventory preserved"
         );
     }
 }
@@ -280,6 +348,7 @@ fn relation_census(entry: &Value, ty: &str) {
         );
         scalar_pair(&observation["requested_arguments"], ty);
         scalar_pair(&observation["operand_types"], ty);
+        check_operand_adjustments(observation);
         assert!(
             observation["selected_arguments"]
                 .as_array()
@@ -329,4 +398,62 @@ fn all_six_comparisons_preserve_trait_census_and_structural_scalar_signatures() 
             unsigned["selected"]["definition_identity"]
         );
     }
+}
+
+fn checked_entry(original: &HirFnFacts, mut entry: Value) -> Result<(), String> {
+    let object = entry.as_object_mut().unwrap();
+    object.remove("request");
+    object.remove("status");
+    let projection = serde_json::from_value(entry).map_err(|error| error.to_string())?;
+    let checked = rstyle_pdg::scalar_instances::verify(original, &projection)?;
+    assert_ne!(
+        classify(checked.facts()).status,
+        EligibilityVerdict::Eligible
+    );
+    assert_eq!(
+        checked.facts().signature.generics,
+        original.signature.generics
+    );
+    Ok(())
+}
+
+#[test]
+fn independently_checked_projection_requires_complete_operation_and_adjustment_censuses() {
+    let capture = capture(requests(json!([
+        {"function":"minimum", "arguments":["i32"]},
+        {"function":"minimum", "arguments":["u32"]}
+    ])));
+    assert!(capture.output.status.success());
+    let raw = capture.snapshot("-pre-helper-certification.json");
+    let facts: Vec<HirFnFacts> = serde_json::from_value(raw["facts"].clone()).unwrap();
+    let original = facts.iter().find(|facts| facts.name == "minimum").unwrap();
+    let snapshot = capture.snapshot("-scalar-instances.json");
+    let entries = snapshot["requests"].as_array().unwrap();
+    for entry in entries {
+        checked_entry(original, entry.clone()).unwrap();
+        for field in ["comparisons", "adjustments"] {
+            let mut missing = entry.clone();
+            missing[field].as_array_mut().unwrap().pop();
+            assert!(checked_entry(original, missing).is_err(), "missing {field}");
+            let mut duplicate = entry.clone();
+            let records = duplicate[field].as_array_mut().unwrap();
+            records.push(records[0].clone());
+            assert!(
+                checked_entry(original, duplicate).is_err(),
+                "duplicate {field}"
+            );
+        }
+    }
+    let mut swapped = entries[0].clone();
+    swapped["arguments"] = entries[1]["arguments"].clone();
+    assert!(checked_entry(original, swapped).is_err());
+    let mut swapped = entries[0].clone();
+    swapped["comparisons"] = entries[1]["comparisons"].clone();
+    assert!(checked_entry(original, swapped).is_err());
+    let mut changed = original.clone();
+    changed
+        .build
+        .frontend_options
+        .insert("definition_identity".into(), json!("other"));
+    assert!(checked_entry(&changed, entries[0].clone()).is_err());
 }

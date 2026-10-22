@@ -4765,12 +4765,22 @@ the raw rosters retain 2,212 default / 1,965 no-default definitions. No admissio
 frozen admission measurements above were not rerun. No new hashing or serialized
 lookup keys. Evidence: `/tmp/rstyle-clamp-owner-native-final/summary.json`.
 
-Remaining activation gates: independently checked generic source/bounds and
-primitive core-body authority, structural adjustment proof, caller/artifact-bound
-instance storage and strict replay. Diagnostic requests carry none of that
-semantic authority; failures publish no projected prefix. Next work must connect
+The independent projection verifier now checks complete unchanged source/HIR and
+binding correspondence, concrete scalar flow, exact pinned primitive comparison
+implementations/signatures and ordered operand adjustments. All 24 fresh original
+clamp projections pass across the four contexts; metadata and definition rosters
+remain unchanged. Evidence: `/tmp/rstyle-clamp-typed-proof/independent-proof.json`.
+Its indexed traversal uses borrowed metadata and preindexed UTF-8 locations;
+it introduces no hashing or serialized lookup keys.
+
+Remaining activation gates: exact resolved generic-bound and assertion provenance
+tied to the original source/owner,
+caller/artifact-bound instance storage, concrete source/frontend bridging and
+strict replay into callers. The projection certificate explicitly grants none of
+these authorities. No admission expansion or policy bump; the frozen admission
+selection was not rerun for this proof-only increment. Next work must connect
 these gates into the declared clamp callers rather than add another syntax leaf.
 
-Validation: 1,283 workspace tests / five existing skips and doctests pass; final
-extraction target 58 passed / one existing ignored. Fmt/Clippy pass; rstyle
-0 violations / 4,141 functions, patterns 0 unignored; 15 existing ignores unchanged.
+Validation: 1,301 workspace tests / five existing skips and doctests pass
+(122.559s nextest execution). Fmt/Clippy pass; rstyle 0 violations / 4,222
+functions, patterns 0 unignored; all 15 existing ignores unchanged.

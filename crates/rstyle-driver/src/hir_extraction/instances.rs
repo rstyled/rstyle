@@ -9,6 +9,7 @@ use rustc_hir::{
 use rustc_middle::ty::{self, GenericArgsRef, TyCtxt, TypeVisitableExt};
 use serde::Serialize;
 
+mod adjustments;
 mod comparisons;
 pub(super) mod diagnostic;
 mod projection;

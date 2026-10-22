@@ -1,10 +1,6 @@
 //! Explicit owner-local feasibility capture; never imported as admission evidence.
-use super::super::{
-    Options, function_source,
-    hir::{Context, reference},
-    source,
-};
-use super::{comparisons, definition_record, projection::Projection, types};
+use super::super::{Options, function_source, hir::Context, source};
+use super::{adjustments, comparisons, definition_record, projection::Projection, types};
 use rstyle_pdg::{HirNode, SignatureFacts};
 use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::{self, TyCtxt};
@@ -88,16 +84,10 @@ struct Body {
     source: rstyle_pdg::SourceFacts,
     fn_span: rstyle_pdg::ByteSpan,
     signature: SignatureFacts,
+    bindings: Vec<rstyle_pdg::BindingFact>,
     body: HirNode,
     comparisons: Vec<comparisons::Observation>,
-    adjustments: Vec<Adjustments>,
-}
-
-#[derive(Serialize)]
-struct Adjustments {
-    hir: rstyle_pdg::HirRef,
-    targets: Vec<String>,
-    kinds: Vec<String>,
+    adjustments: Vec<adjustments::Observation>,
 }
 
 pub(crate) fn capture(
@@ -213,6 +203,7 @@ fn body<'tcx>(
     let projection = Projection::new(tcx, owner, arguments).map_err(Failure::from)?;
 
     let signature = project_signature(&context, &projection, facts.signature)?;
+    let bindings = project_bindings(&context, &projection, facts.bindings)?;
     let projected = project_node(&context, &projection, facts.body)?;
     Ok(Body {
         definition: definition_record(tcx, owner.to_def_id()),
@@ -220,10 +211,25 @@ fn body<'tcx>(
         source: facts.source,
         fn_span: facts.fn_span,
         signature,
+        bindings,
         body: projected.node,
         comparisons: projected.comparisons,
         adjustments: projected.adjustments,
     })
+}
+
+fn project_bindings<'tcx>(
+    context: &Context<'tcx>,
+    projection: &Projection<'tcx>,
+    bindings: Vec<rstyle_pdg::BindingFact>,
+) -> Result<Vec<rstyle_pdg::BindingFact>, Failure> {
+    bindings
+        .into_iter()
+        .map(|mut binding| {
+            binding.ty = projected_type(context, projection, &binding.hir, &binding.ty.spelling)?;
+            Ok(binding)
+        })
+        .collect()
 }
 
 fn project_signature<'tcx>(
@@ -257,7 +263,7 @@ fn project_signature<'tcx>(
 struct Projected {
     node: HirNode,
     comparisons: Vec<comparisons::Observation>,
-    adjustments: Vec<Adjustments>,
+    adjustments: Vec<adjustments::Observation>,
 }
 
 fn project_node<'tcx>(
@@ -283,7 +289,7 @@ struct View<'a, 'tcx> {
     context: &'a Context<'tcx>,
     projection: &'a Projection<'tcx>,
     comparisons: Vec<comparisons::Observation>,
-    adjustments: Vec<Adjustments>,
+    adjustments: Vec<adjustments::Observation>,
 }
 
 impl<'tcx> View<'_, 'tcx> {
@@ -327,24 +333,9 @@ impl<'tcx> View<'_, 'tcx> {
         {
             self.comparisons.push(observation);
         }
-        let original = self.context.typeck.expr_adjustments(expression);
-        if !original.is_empty() {
-            self.adjustments.push(Adjustments {
-                hir: reference(expression.hir_id),
-                targets: original
-                    .iter()
-                    .map(|adjustment| {
-                        self.projection
-                            .ty(self.context.tcx, adjustment.target)
-                            .map(|ty| ty.to_string())
-                            .map_err(Failure::from)
-                    })
-                    .collect::<Result<_, _>>()?,
-                kinds: original
-                    .iter()
-                    .map(|adjustment| format!("{:?}", adjustment.kind))
-                    .collect(),
-            });
+        let observation = adjustments::operand(self.context, expression, self.projection)?;
+        if !observation.is_empty() {
+            self.adjustments.push(observation);
         }
         Ok(())
     }
