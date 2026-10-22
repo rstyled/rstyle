@@ -4,6 +4,7 @@ mod byte_membership;
 mod byte_windows;
 mod checked_options;
 mod checksum_state;
+mod compact_report;
 #[path = "../src/diagnostic_process.rs"]
 mod diagnostic_process;
 mod inherent_expansions;

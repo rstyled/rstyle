@@ -1,5 +1,6 @@
 //! Reproducible evidence with independent completeness indicators.
 
+mod functions;
 mod matching;
 
 use super::{Args, Handoff, capture};
@@ -8,6 +9,13 @@ use rstyle_ccgraph::RunReport;
 use serde::Serialize;
 use serde_json::Value;
 use std::path::Path;
+
+#[derive(Clone, Copy, clap::ValueEnum, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Detail {
+    Full,
+    Compact,
+}
 
 pub struct Context<'a> {
     pub cli: &'a Cli,
@@ -29,6 +37,7 @@ struct Scope<'a> {
 
 #[derive(Serialize)]
 pub struct Report<'a> {
+    report_detail: Detail,
     scope: Scope<'a>,
     run_directory: &'a Path,
     toolchain: String,
@@ -53,7 +62,7 @@ pub struct Report<'a> {
     capture_complete: bool,
     capture_failures: &'a [String],
     assessment_complete: bool,
-    functions: &'a [super::Function],
+    functions: functions::Functions<'a>,
     build_contexts: &'a [super::UnitBuildContexts],
     owned_source_inventory: &'a [Value],
     handoff_failures: &'a [String],
@@ -104,6 +113,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
     };
 
     Report {
+        report_detail: ctx.args.report_detail,
         verification_policy: "trusted-generated",
         scope,
         run_directory: &ctx.capture.directory,
@@ -135,7 +145,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
         capture_complete: ctx.capture.failures.is_empty(),
         capture_failures: &ctx.capture.failures,
         assessment_complete: ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty(),
-        functions: &ctx.handoff.assessed,
+        functions: functions::Functions::new(&ctx.handoff.assessed, ctx.args.report_detail),
         build_contexts: &ctx.handoff.build_contexts,
         owned_source_inventory: &ctx.handoff.source_inventory,
         handoff_failures: &ctx.handoff.failures,
@@ -155,30 +165,22 @@ fn enumeration_complete(ctx: &Context<'_>) -> bool {
         && expected == Some(ctx.matching.pairs.len())
 }
 
-pub fn render(
-    format: Format,
-    report: &Report<'_>,
-    accepted: usize,
-    directory: &Path,
-) -> Result<String, String> {
-    match format {
-        Format::Json => serde_json::to_string(report).map_err(|e| e.to_string()),
-        Format::Text => Ok(format!(
-            "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
-            report.observed_units.len(),
-            coverage_summary(report),
-            report.matching.report.pairs.len(),
-            report.capture_complete,
-            report.assessment_complete,
-            report.pair_enumeration_complete,
-            report.pair_evaluation_complete,
-            directory.join("report.json").display()
-        )),
-    }
+fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String {
+    format!(
+        "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
+        report.observed_units.len(),
+        coverage_summary(report),
+        report.matching.report.pairs.len(),
+        report.capture_complete,
+        report.assessment_complete,
+        report.pair_enumeration_complete,
+        report.pair_evaluation_complete,
+        directory.join("report.json").display()
+    )
 }
 
 fn coverage_summary(report: &Report<'_>) -> String {
-    let functions = report.functions;
+    let functions = report.functions.items;
     let counts = ["admitted", "excluded", "unknown", "failed"].map(|outcome| {
         let count = functions
             .iter()
@@ -202,7 +204,15 @@ impl Report<'_> {
         rstyle_pdg::diagnostics::Stage::new("cli.report_write", "run", None)
             .observe(|| write(&self.run_directory.join("report.json"), self))?;
         rstyle_pdg::diagnostics::Stage::new("cli.report_render", "run", None)
-            .observe(|| render(format, self, accepted, self.run_directory))
+            .observe(|| self.render_published(format, accepted))
+    }
+
+    fn render_published(&self, format: Format, accepted: usize) -> Result<String, String> {
+        match format {
+            Format::Json => std::fs::read_to_string(self.run_directory.join("report.json"))
+                .map_err(|error| error.to_string()),
+            Format::Text => Ok(render_text(self, accepted, self.run_directory)),
+        }
     }
 }
 

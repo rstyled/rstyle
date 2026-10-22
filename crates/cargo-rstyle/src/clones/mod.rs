@@ -32,6 +32,9 @@ pub struct Args {
     /// Include conformance evidence (projection traces and WL round histograms).
     #[arg(long)]
     trace: bool,
+    /// Inline full facts, or keep compact identities and references to complete unit bundles.
+    #[arg(long, value_enum, default_value = "full")]
+    report_detail: report::Detail,
     /// Exit 1 if any pair is accepted; similarity does not prove equivalence.
     #[arg(long)]
     fail_on_accepted_pairs: bool,

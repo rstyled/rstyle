@@ -178,6 +178,14 @@ counts, completeness indicators and the report path. Every captured run writes
 - `pair_enumeration_complete`: all required admitted-function pairs were emitted.
 - `pair_evaluation_complete`: capture, assessment and all pair evaluations succeeded.
 
+Use `--report-detail compact` to keep function names, source spans/digests,
+outcomes, reasons and complete matching results without repeating inline frontend
+facts and extraction documents. Every function retains its `unit_evidence`
+bundle path and function index; complete source/facts/documents remain in that
+sealed bundle for independent verification. This changes presentation only.
+The default `--report-detail full` preserves inline evidence. Compact reports
+omit inline projection traces; matching traces requested with `--trace` remain.
+
 Functions retain admitted, excluded, unknown or failed outcomes and reasons.
 Unsupported/unknown source is never silently removed from coverage. Original
 frontend facts, source bytes/navigation, document identities, bounded normal-flow
