@@ -924,7 +924,7 @@ fn serialized_manifest_policies_guards_and_frontiers_are_checked() {
     for mutation in 0..8 {
         let mut serialized = baseline.serialize().unwrap();
         if mutation == 0 {
-            serialized.manifest.documents[0].sha256 = "sha256:wrong".to_string();
+            serialized.manifest.documents[0].checksum = "sha256:wrong".to_string();
             assert!(rstyle_pdg::producer::verify_serialized(&serialized, facts).is_err());
             continue;
         }
@@ -1435,7 +1435,7 @@ fn integer_casts_reject_tampered_facts_and_documents() {
         .unwrap()
         .serialize()
         .unwrap();
-    serialized.manifest.documents[0].sha256 = "sha256:0000".into();
+    serialized.manifest.documents[0].checksum = "sha256:0000".into();
     assert!(rstyle_pdg::producer::verify_serialized(&serialized, &facts).is_err());
 }
 

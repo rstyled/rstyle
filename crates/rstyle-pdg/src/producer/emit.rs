@@ -5,8 +5,9 @@ use crate::unit_store::EvidenceFacts;
 use crate::{cfg::*, frontend::*, model::*};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+
+mod identities;
 
 pub const PREFIX: &str = "compat.rust.hir-r0";
 pub const TYPE_KEY: &str = "compat.rust.hir-r0:type";
@@ -16,7 +17,8 @@ pub const SITES_KEY: &str = "compat.rust.hir-r0:value-sites";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentIdentity {
     pub key: String,
-    pub sha256: String,
+    #[serde(alias = "sha256")]
+    pub checksum: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,16 +142,13 @@ impl SerializedPair {
 impl SerializedPairView<'_> {
     pub fn verify_identities(&self, pair: &Pair) -> Result<(), String> {
         let links = read_paired_graph(&pair.pdg.extensions)?;
-        let mut actual: Vec<_> = self.manifest.documents.iter().collect();
-        let mut expected = [
-            identity(links.pdg_document_key, self.pdg_bytes),
-            identity(links.cfg_document_key, self.cfg_bytes),
-        ];
-        actual.sort_by(|a, b| a.key.cmp(&b.key));
-        expected.sort_by(|a, b| a.key.cmp(&b.key));
-        if !actual.into_iter().eq(expected.iter()) {
-            return Err("External document byte identities or paired keys disagree".to_string());
-        }
+        identities::verify_manifest(
+            self.manifest,
+            [
+                (links.pdg_document_key, self.pdg_bytes),
+                (links.cfg_document_key, self.cfg_bytes),
+            ],
+        )?;
 
         Ok(())
     }
@@ -162,8 +161,8 @@ impl Pair {
         let links = read_paired_graph(&self.pdg.extensions).expect("producer paired links");
         let manifest = Manifest {
             documents: vec![
-                identity(links.pdg_document_key, &pdg_bytes),
-                identity(links.cfg_document_key, &cfg_bytes),
+                identities::identity(links.pdg_document_key, &pdg_bytes),
+                identities::identity(links.cfg_document_key, &cfg_bytes),
             ],
         };
 
@@ -172,13 +171,6 @@ impl Pair {
             cfg_bytes,
             manifest,
         })
-    }
-}
-
-fn identity(key: String, bytes: &[u8]) -> DocumentIdentity {
-    DocumentIdentity {
-        key,
-        sha256: format!("sha256:{:x}", Sha256::digest(bytes)),
     }
 }
 
