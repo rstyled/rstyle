@@ -1,8 +1,10 @@
 //! Unit-local ownership and borrowed analysis. Dense IDs are handles, not names.
 mod bundle;
 pub use bundle::BUNDLE_SCHEMA;
+pub use bundle::{read_diagnostic_snapshot, write_diagnostic_snapshot};
 mod dependency_closure;
 mod derived;
+mod instances;
 pub use dependency_closure::DependencyClosure;
 mod manifest;
 mod namespace;
@@ -42,6 +44,12 @@ mod sealed {
 /// helper views from being substituted from a different owning unit.
 pub trait EvidenceFacts: sealed::Sealed {
     fn facts(&self) -> &HirFnFacts;
+
+    /// Only an immutable, separately verified instance owner supplies this
+    /// witness. Raw frontend records and serialized flags supply none.
+    fn scalar_instance(&self) -> Option<&crate::scalar_instances::CheckedProjection> {
+        None
+    }
 
     /// Check retained source inputs and their unit closure, without nominal type permission.
     fn verify_source_inputs(&self) -> Result<(), String> {
@@ -120,6 +128,10 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn scalar_instance(&self) -> Option<&crate::scalar_instances::CheckedProjection> {
+        T::scalar_instance(*self)
+    }
+
     fn verify_source_inputs(&self) -> Result<(), String> {
         T::verify_source_inputs(*self)
     }
@@ -221,6 +233,7 @@ pub struct UnitStore {
     certified: Vec<Option<HelperId>>,
     dependencies: Vec<Arc<UnitStore>>,
     external_links: Vec<BTreeMap<Site, ExternalTarget>>,
+    instance: Option<instances::InstanceRecord>,
 }
 
 /// A proof cache belongs to this exact immutable store and this analysis only.
@@ -273,6 +286,7 @@ struct Tables<'a> {
     links: &'a [BTreeMap<Site, FunctionId>],
     certified: &'a [Option<HelperId>],
     external_links: &'a [BTreeMap<Site, ExternalTarget>],
+    instance: Option<&'a instances::InstanceRecord>,
 }
 
 pub struct FunctionView<'a> {
@@ -294,6 +308,12 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn scalar_instance(&self) -> Option<&crate::scalar_instances::CheckedProjection> {
+        (self.id.0 == 0)
+            .then_some(self.resolver.tables().instance?)
+            .map(|instance| &instance.checked)
+    }
+
     fn verify_source_inputs(&self) -> Result<(), String> {
         self.source_inputs()
     }
@@ -625,6 +645,7 @@ impl UnitStore {
             links: &self.links,
             certified: &self.certified,
             external_links: &self.external_links,
+            instance: self.instance.as_ref(),
         }
     }
 }
@@ -690,6 +711,7 @@ impl Builder {
                 certified,
                 dependencies: Vec::new(),
                 external_links: vec![BTreeMap::new(); pending.len()],
+                instance: None,
             },
             dependencies: Vec::new(),
             pending,

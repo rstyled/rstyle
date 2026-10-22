@@ -13,6 +13,7 @@ mod adjustments;
 mod comparisons;
 pub(super) mod diagnostic;
 mod projection;
+mod provenance;
 mod types;
 
 const KEY: &str = "rstyle.rust.call-instances";

@@ -2,6 +2,8 @@
 //! dense IDs survive a round trip but are never global persistent identities.
 use super::*;
 use std::io::Write;
+mod diagnostic;
+pub use diagnostic::{read_diagnostic_snapshot, write_diagnostic_snapshot};
 mod function_sources;
 mod graph_sources;
 
@@ -82,6 +84,9 @@ impl Import {
 impl UnitStore {
     /// Stream shared records directly; no frontend/proof trees are expanded.
     pub fn write_bundle(&self, writer: impl Write) -> Result<(), String> {
+        if self.instance.is_some() {
+            return Err("Scalar instance requires original-owner and projection replay".into());
+        }
         if !self.dependencies.is_empty() {
             return Err("Dependency closure requires separate owning bundle replay".into());
         }
@@ -244,6 +249,7 @@ impl Decoded {
             certified: self.wire.certified,
             dependencies: Vec::new(),
             external_links: vec![BTreeMap::new(); function_count],
+            instance: None,
         };
         store.validate_roots()?;
         store.validate_certifications()?;

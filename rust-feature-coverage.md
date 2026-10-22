@@ -4784,3 +4784,29 @@ these gates into the declared clamp callers rather than add another syntax leaf.
 Validation: 1,301 workspace tests / five existing skips and doctests pass
 (122.559s nextest execution). Fmt/Clippy pass; rstyle 0 violations / 4,222
 functions, patterns 0 unignored; all 15 existing ignores unchanged.
+
+The next increment checks the complete resolved generic-bound roster (including
+implicit Sized) and actual assertion macro identities, then binds each checked
+projection to its original lexical Cargo/source owner in a separate instance
+store. All 24 original clamp projections pass in the same four native contexts;
+the original 2,212/1,965 definition rosters and emitted metadata are preserved.
+Three-target std/core captures independently exercise the provenance boundary.
+The capability remains unregistered: no instance graphs, ordinary export or
+dependency linking are authorized. Caller/request/artifact binding and strict
+instance replay remain the next connected activation gates; no admission gain
+or frozen-inventory recapture is claimed.
+
+An opt-in raw diagnostic adapter reuses the existing shared-source bundle codec
+to avoid repeating the whole census per function. The default-context capture
+retains all 2,212 functions and 19 source snapshots (233,032 UTF-8 bytes stored
+once) in a 45,769,908-byte diagnostic file. This is representation evidence,
+not a controlled timing comparison. No new hashing scheme or serialized lookup
+key is introduced; the capture runner preserves the existing manifest identity.
+Evidence: `/tmp/rstyle-clamp-provenance-owner/{summary,owned-proof}.json` and
+`/tmp/rstyle-instance-provenance-typed/`.
+
+Validation: the full run passed 1,318 tests with only the workspace style gate
+failing; after fixing it, all 48 affected checks and doctests pass. Fmt and
+warning-denied Clippy pass; rstyle reports zero violations across 4,271
+functions, patterns zero unignored candidates, with all 15 ignores unchanged.
+Comparison-site traversal reuses one stack instead of copying a path per node.

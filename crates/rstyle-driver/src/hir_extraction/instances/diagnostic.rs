@@ -1,6 +1,8 @@
 //! Explicit owner-local feasibility capture; never imported as admission evidence.
 use super::super::{Options, function_source, hir::Context, source};
-use super::{adjustments, comparisons, definition_record, projection::Projection, types};
+use super::{
+    adjustments, comparisons, definition_record, projection::Projection, provenance, types,
+};
 use rstyle_pdg::{HirNode, SignatureFacts};
 use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::{self, TyCtxt};
@@ -80,6 +82,7 @@ impl From<String> for Failure {
 #[derive(Serialize)]
 struct Body {
     definition: super::Definition,
+    provenance: provenance::Observation,
     arguments: types::Arguments,
     source: rstyle_pdg::SourceFacts,
     fn_span: rstyle_pdg::ByteSpan,
@@ -202,11 +205,13 @@ fn body<'tcx>(
     let arguments = tcx.mk_args(&arguments);
     let projection = Projection::new(tcx, owner, arguments).map_err(Failure::from)?;
 
+    let provenance = provenance::capture(&context, owner, &projection, &facts.body)?;
     let signature = project_signature(&context, &projection, facts.signature)?;
     let bindings = project_bindings(&context, &projection, facts.bindings)?;
     let projected = project_node(&context, &projection, facts.body)?;
     Ok(Body {
         definition: definition_record(tcx, owner.to_def_id()),
+        provenance,
         arguments: types::arguments(tcx, arguments),
         source: facts.source,
         fn_span: facts.fn_span,

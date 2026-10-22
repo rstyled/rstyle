@@ -177,6 +177,11 @@ pub(super) fn receivers<'a>(
 
 impl FunctionView<'_> {
     pub(super) fn source_inputs(&self) -> Result<(), String> {
+        if self.scalar_instance().is_some() {
+            // The private instance constructor checks the exact original owner
+            // after the complete scalar/body/bound/assertion proof succeeds.
+            return Ok(());
+        }
         self.resolver
             .sources()
             .environment(self.facts())?

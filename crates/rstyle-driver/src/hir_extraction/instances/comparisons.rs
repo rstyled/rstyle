@@ -25,7 +25,7 @@ pub(super) struct Observation {
 }
 
 #[derive(Serialize)]
-struct CompilerDefinition {
+pub(super) struct CompilerDefinition {
     #[serde(flatten)]
     definition: Definition,
     crate_hash: String,
@@ -196,7 +196,7 @@ fn type_list<'tcx>(
     )
 }
 
-fn definition(tcx: TyCtxt<'_>, id: DefId) -> CompilerDefinition {
+pub(super) fn definition(tcx: TyCtxt<'_>, id: DefId) -> CompilerDefinition {
     CompilerDefinition {
         definition: definition_record(tcx, id),
         crate_hash: tcx.crate_hash(id.krate).to_string(),

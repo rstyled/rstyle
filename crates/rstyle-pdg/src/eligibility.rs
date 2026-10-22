@@ -1056,7 +1056,7 @@ fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
                 "comparison",
             )
         }
-        "expr_binary" => check_binary(node),
+        "expr_binary" => check_binary(node, ctx),
         "expr_unary" => check_unary(node),
         "expr_assign" => check_assign(node, ctx),
         "expr_tuple_assign" => checked_operation(
@@ -1668,7 +1668,15 @@ fn check_cast(node: &HirNode) -> Outcome {
     Outcome::ok()
 }
 
-fn check_binary(node: &HirNode) -> Outcome {
+fn check_binary(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if ctx.profile.supports(crate::scalar_instances::CAPABILITY)
+        && ctx
+            .facts
+            .scalar_instance()
+            .is_some_and(|instance| instance.comparison_site(node))
+    {
+        return check_expr_ty(node, "checked_instance_comparison");
+    }
     let dispatch = builtin_or_reject(node, "binary");
     if !dispatch.diagnostics.is_empty() || dispatch.gap {
         return dispatch;

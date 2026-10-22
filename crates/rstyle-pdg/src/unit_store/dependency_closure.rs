@@ -120,6 +120,9 @@ impl Plan {
     }
 
     fn checked(units: &[UnitStore], associations: &[Value]) -> Result<Self, String> {
+        if units.iter().any(|unit| unit.instance.is_some()) {
+            return Err("Scalar instances require checked caller-instance associations".into());
+        }
         unique_namespaces(units)?;
         let mut plan = Self {
             dependencies: vec![Vec::new(); units.len()],

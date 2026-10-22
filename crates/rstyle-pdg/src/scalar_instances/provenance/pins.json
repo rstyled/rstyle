@@ -1,0 +1,53 @@
+[
+  {
+    "target": "aarch64-unknown-linux-gnu",
+    "core_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+    "stable_crate_id": "StableCrateId(5614226571623188065)",
+    "definitions": {
+      "core::cmp::PartialOrd": "DefPathHash(Fingerprint(5614226571623188065, 6427014422700682928))",
+      "core::marker::Sized": "DefPathHash(Fingerprint(5614226571623188065, 8711262497952198464))",
+      "core::debug_assert": "DefPathHash(Fingerprint(5614226571623188065, 15214468834988084050))",
+      "core::assert": "DefPathHash(Fingerprint(5614226571623188065, 3272199434458081814))",
+      "core::cmp::PartialEq": "DefPathHash(Fingerprint(5614226571623188065, 11706085118630135922))",
+      "std::cmp::PartialOrd": "DefPathHash(Fingerprint(5614226571623188065, 6427014422700682928))",
+      "std::marker::Sized": "DefPathHash(Fingerprint(5614226571623188065, 8711262497952198464))",
+      "std::debug_assert": "DefPathHash(Fingerprint(5614226571623188065, 15214468834988084050))",
+      "std::assert": "DefPathHash(Fingerprint(5614226571623188065, 3272199434458081814))",
+      "std::cmp::PartialEq": "DefPathHash(Fingerprint(5614226571623188065, 11706085118630135922))"
+    }
+  },
+  {
+    "target": "x86_64-unknown-linux-gnu",
+    "core_hash": "f961ecb4c84cffc7c73b0d153b2677a7",
+    "stable_crate_id": "StableCrateId(2625310331494506890)",
+    "definitions": {
+      "core::cmp::PartialOrd": "DefPathHash(Fingerprint(2625310331494506890, 1578243371173929519))",
+      "core::marker::Sized": "DefPathHash(Fingerprint(2625310331494506890, 10089672756420721710))",
+      "core::debug_assert": "DefPathHash(Fingerprint(2625310331494506890, 10703347756998269972))",
+      "core::assert": "DefPathHash(Fingerprint(2625310331494506890, 7422119126659951106))",
+      "core::cmp::PartialEq": "DefPathHash(Fingerprint(2625310331494506890, 17924519772929590759))",
+      "std::cmp::PartialOrd": "DefPathHash(Fingerprint(2625310331494506890, 1578243371173929519))",
+      "std::marker::Sized": "DefPathHash(Fingerprint(2625310331494506890, 10089672756420721710))",
+      "std::debug_assert": "DefPathHash(Fingerprint(2625310331494506890, 10703347756998269972))",
+      "std::assert": "DefPathHash(Fingerprint(2625310331494506890, 7422119126659951106))",
+      "std::cmp::PartialEq": "DefPathHash(Fingerprint(2625310331494506890, 17924519772929590759))"
+    }
+  },
+  {
+    "target": "arm64-apple-macosx",
+    "core_hash": "32c3d1db268e158f817dfd97ac1b490b",
+    "stable_crate_id": "StableCrateId(9963928104983068931)",
+    "definitions": {
+      "core::cmp::PartialOrd": "DefPathHash(Fingerprint(9963928104983068931, 11559962192858067512))",
+      "core::marker::Sized": "DefPathHash(Fingerprint(9963928104983068931, 4176966893925313802))",
+      "core::debug_assert": "DefPathHash(Fingerprint(9963928104983068931, 12589990868077671937))",
+      "core::assert": "DefPathHash(Fingerprint(9963928104983068931, 8642363694216092874))",
+      "core::cmp::PartialEq": "DefPathHash(Fingerprint(9963928104983068931, 1748982221154713205))",
+      "std::cmp::PartialOrd": "DefPathHash(Fingerprint(9963928104983068931, 11559962192858067512))",
+      "std::marker::Sized": "DefPathHash(Fingerprint(9963928104983068931, 4176966893925313802))",
+      "std::debug_assert": "DefPathHash(Fingerprint(9963928104983068931, 12589990868077671937))",
+      "std::assert": "DefPathHash(Fingerprint(9963928104983068931, 8642363694216092874))",
+      "std::cmp::PartialEq": "DefPathHash(Fingerprint(9963928104983068931, 1748982221154713205))"
+    }
+  }
+]

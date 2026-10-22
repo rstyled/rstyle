@@ -1,4 +1,6 @@
 //! Requested owner-local projections are diagnostic, never concrete admissions.
+mod provenance;
+
 use super::*;
 use serde_json::{Value, json};
 
@@ -222,6 +224,7 @@ fn unsupported_projection_never_publishes_a_supported_prefix() {
             "bindings",
             "comparisons",
             "adjustments",
+            "provenance",
             "source",
         ] {
             assert!(entry.get(field).is_none(), "no partial {field}");

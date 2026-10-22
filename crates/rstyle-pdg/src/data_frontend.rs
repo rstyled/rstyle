@@ -19,6 +19,13 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
 pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     let observation =
         crate::diagnostics::Stage::new("source.data_frontend", &facts.name, None).enter();
+    if facts.scalar_instance().is_some() {
+        if !crate::extraction_profile::facts_support(facts, crate::scalar_instances::CAPABILITY) {
+            return Err("Scalar instances require their registered frontend capability".into());
+        }
+        let places = crate::data_places::Places::verify(facts)?;
+        return observation.finish(verify_nodes(&facts.body, facts, &places));
+    }
     crate::character_scalars::verify_function(facts)?;
     crate::float_scalars::verify_function(facts)?;
     crate::range_values::verify_function(facts)?;
@@ -46,6 +53,11 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if facts.scalar_instance().is_some()
+        && !crate::extraction_profile::policy_supports(profile, crate::scalar_instances::CAPABILITY)
+    {
+        return Err("Scalar instances require their registered document policy".into());
+    }
     verify_value_document_policy(profile, facts)?;
     let capabilities = [
         crate::helper_stored_slices::CAPABILITY,

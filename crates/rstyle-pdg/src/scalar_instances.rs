@@ -1,13 +1,17 @@
 //! Independently checked owner-local scalar projections.
 //!
-//! This is source/substitution and operation proof only. It grants no lexical
-//! bound, caller/request, artifact, helper-summary or admission authority.
+//! This proves source/substitution, resolved bounds, assertions and operations.
+//! It grants no caller/request, artifact, helper-summary or admission authority.
 mod comparisons;
+mod owner;
+mod provenance;
 mod source;
 
 use crate::{BindingFact, ByteSpan, HirFnFacts, HirNode, HirRef, SignatureFacts, SourceFacts};
 use serde::Deserialize;
 use std::collections::BTreeMap;
+
+pub const CAPABILITY: &str = "rust.checked-scalar-instances";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -21,6 +25,7 @@ pub struct Projection {
     body: HirNode,
     comparisons: Vec<comparisons::Observation>,
     adjustments: Vec<comparisons::Adjustments>,
+    provenance: provenance::Observation,
 }
 
 #[derive(Deserialize)]
@@ -51,15 +56,37 @@ enum ScalarType {
     Builtin { name: String },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ScalarArgument {
+    I32,
+    U32,
+}
+
 /// A complete checked body, still unavailable to ordinary admission.
 pub struct CheckedProjection {
     facts: HirFnFacts,
     comparisons: usize,
+    scalar: ScalarArgument,
+    comparison_nodes: BTreeMap<Site, Vec<usize>>,
 }
 
 impl CheckedProjection {
     pub fn facts(&self) -> &HirFnFacts {
         &self.facts
+    }
+
+    pub fn scalar_argument(&self) -> ScalarArgument {
+        self.scalar
+    }
+
+    pub(crate) fn comparison_site(&self, node: &HirNode) -> bool {
+        let Some(path) = self.comparison_nodes.get(&site(&node.hir)) else {
+            return false;
+        };
+        let checked = path.iter().try_fold(&self.facts.body, |current, index| {
+            current.children.get(*index)
+        });
+        checked == Some(node)
     }
 
     pub fn comparison_count(&self) -> usize {
@@ -80,10 +107,18 @@ pub fn verify(original: &HirFnFacts, projection: &Projection) -> Result<CheckedP
     let projected = materialize(original, projection);
 
     let source = source::verify(original, &projected, scalar)?;
+    provenance::verify(&projection.provenance, &source, scalar)?;
     operations(&source, projection, scalar)?;
+    let comparison_nodes = comparison_nodes(&projected, projection)?;
     Ok(CheckedProjection {
         facts: projected,
         comparisons: projection.comparisons.len(),
+        scalar: if scalar == "i32" {
+            ScalarArgument::I32
+        } else {
+            ScalarArgument::U32
+        },
+        comparison_nodes,
     })
 }
 
@@ -219,4 +254,45 @@ fn adjustments(
         return Err("Missing ordered adjustment evidence for a comparison operand".into());
     }
     Ok(())
+}
+
+fn comparison_nodes(
+    facts: &HirFnFacts,
+    projection: &Projection,
+) -> Result<BTreeMap<Site, Vec<usize>>, String> {
+    let expected: std::collections::BTreeSet<_> = projection
+        .comparisons
+        .iter()
+        .map(|record| site(comparisons::site(record)))
+        .collect();
+    let mut paths = BTreeMap::new();
+    comparison_paths(&facts.body, &mut Vec::new(), &expected, &mut paths);
+
+    if paths.len() != expected.len() {
+        return Err("Missing verified comparison path".into());
+    }
+    Ok(paths)
+}
+
+fn comparison_paths(
+    node: &HirNode,
+    path: &mut Vec<usize>,
+    expected: &std::collections::BTreeSet<Site>,
+    paths: &mut BTreeMap<Site, Vec<usize>>,
+) {
+    if expected.contains(&site(&node.hir)) {
+        paths.insert(site(&node.hir), path.to_vec());
+    }
+    for (index, child) in node.children.iter().enumerate() {
+        path.push(index);
+        comparison_paths(child, path, expected, paths);
+        path.pop();
+    }
+}
+
+pub(crate) fn verify_owner(
+    original: &HirFnFacts,
+    checked: &CheckedProjection,
+) -> Result<(), String> {
+    owner::verify(original, checked)
 }
