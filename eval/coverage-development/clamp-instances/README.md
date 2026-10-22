@@ -54,3 +54,17 @@ selects a build cache. The runner verifies selected bytes, registry resolution,
 features, debug mode and native results. Its output is native evidence only.
 Instance capture, strict verification/admission/matching, adversarial evidence
 mutations and unchanged-selection admission deltas remain required future work.
+
+Owner-local projection is now exercised diagnostically in all four native
+contexts: six original instances/context, 2,212 default / 1,965 no-default
+definitions and byte-identical emitted metadata. `/tmp/rstyle-clamp-owner-native-final/summary.json`
+retains this feasibility evidence; it is not admission or caller-binding evidence.
+The driver hook runs only under existing `RSTYLE_DIAGNOSTIC_CAPTURE_ONLY=1`:
+`RSTYLE_DIAGNOSTIC_INSTANCE_REQUESTS` names a JSON file with identity
+`rstyle.diagnostic.scalar-instance-requests/1`, `crate_name: "num_traits"`, and
+`requests: [{"function":"clamp","arguments":["i32"]}]` (repeat for the six
+selected instances). Results are separate `*-scalar-instances.json` snapshots;
+no normal evidence publication or original metadata emission follows this pass.
+Each result preserves original source, generics and HIR while recording compiler
+substitution, comparison selection and adjustment observations. Obligations,
+source authority, adjustment authority and caller/artifact bindings remain unproved.

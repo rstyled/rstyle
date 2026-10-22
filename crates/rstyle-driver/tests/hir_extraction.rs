@@ -19,6 +19,9 @@ mod compiled_association;
 #[path = "call_instances/mod.rs"]
 mod call_instances;
 
+#[path = "scalar_instances/mod.rs"]
+mod scalar_instances;
+
 fn directory() -> PathBuf {
     let serial = RUN.fetch_add(1, Ordering::Relaxed);
     let directory =

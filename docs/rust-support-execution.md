@@ -193,8 +193,8 @@ it does not replace the Input selection or establish instance admissions.
 
 | Next assignment | Readiness gate / exclusive leaf focus |
 | --- | --- |
-| Scalar body projection | Substitute original owner arguments through compiler types for params, locals, expressions, adjustments/results and assertion children; preserve source/HIR and distinguish instances from definitions |
-| Primitive trait operations | Prove exact i32/u32 PartialOrd/PartialEq method/impl selection and macro-defined core bodies; retain overloaded dispatch until independently checked |
+| Scalar body projection | Owner-local diagnostic projection now captures all six clamp instances in four native contexts, preserving source/HIR and definition rosters. Next prove source/substitution independently; diagnostic output has no admission authority |
+| Primitive trait operations | 56 concrete method/impl selections observed in original contexts. Next prove macro-defined core bodies and structural adjustments; overloaded dispatch remains unchanged |
 | Instance linking/replay | Join caller observations to a separately captured owning-library body using exact artifact/build/structural arguments; current scalar linker requires empty substitutions |
 | Source ownership/oracles | Prove original T declaration/bound correspondence, imports and debug_assert/clippy metadata; keep custom/stateful traits, wrong substitutions, missing comparison proof and debug-mode swaps closed |
 

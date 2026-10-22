@@ -4754,3 +4754,23 @@ projection, exact primitive comparison proof, generic source correspondence and
 instance-aware dependency replay. See [the execution frontier](docs/rust-support-execution.md).
 Validation: **1279 tests/5 existing skips**, doctests/fmt/Clippy pass;
 rstyle **0/4109**, patterns **0 unignored**, with15 existing ignores unchanged.
+
+### Owner-local scalar instance projection gate
+
+A diagnostic-only owning-compiler pass now projects original scalar generic bodies
+without altering the definition roster or overloaded dispatch. All six num-traits
+clamp instances project in four native feature/assertion contexts (24 projections,
+56 resolved comparison observations); emitted metadata remains byte-identical and
+the raw rosters retain 2,212 default / 1,965 no-default definitions. No admission expansion or policy bump;
+frozen admission measurements above were not rerun. No new hashing or serialized
+lookup keys. Evidence: `/tmp/rstyle-clamp-owner-native-final/summary.json`.
+
+Remaining activation gates: independently checked generic source/bounds and
+primitive core-body authority, structural adjustment proof, caller/artifact-bound
+instance storage and strict replay. Diagnostic requests carry none of that
+semantic authority; failures publish no projected prefix. Next work must connect
+these gates into the declared clamp callers rather than add another syntax leaf.
+
+Validation: 1,283 workspace tests / five existing skips and doctests pass; final
+extraction target 58 passed / one existing ignored. Fmt/Clippy pass; rstyle
+0 violations / 4,141 functions, patterns 0 unignored; 15 existing ignores unchanged.

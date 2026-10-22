@@ -621,7 +621,10 @@ impl<'tcx> Context<'tcx> {
         }
     }
 
-    fn dispatch_operands(&self, expr: &Expr<'tcx>) -> Option<(String, Vec<&'tcx Expr<'tcx>>)> {
+    pub(super) fn dispatch_operands(
+        &self,
+        expr: &Expr<'tcx>,
+    ) -> Option<(String, Vec<&'tcx Expr<'tcx>>)> {
         Some(match expr.kind {
             ExprKind::Binary(op, left, right) => (op.node.as_str().to_string(), vec![left, right]),
             ExprKind::AssignOp(op, left, right) => {

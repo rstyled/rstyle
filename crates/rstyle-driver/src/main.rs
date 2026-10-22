@@ -175,7 +175,13 @@ impl HirExtract {
     fn capture_diagnostic(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
         let facts = hir_extraction::raw_crate_facts(tcx, &self.scanned, options)
             .expect("capture diagnostic raw facts");
-        hir_extraction::diagnostics::snapshot("pre-helper-certification", &facts)
+        hir_extraction::capture_instance_diagnostics(tcx, &self.scanned, options)
+            .expect("capture requested scalar instance diagnostics");
+        Self::retain_diagnostic(&facts);
+    }
+
+    fn retain_diagnostic(facts: &[rstyle_pdg::HirFnFacts]) {
+        hir_extraction::diagnostics::snapshot("pre-helper-certification", facts)
             .expect("retain diagnostic raw facts");
         eprintln!(
             "rstyle diagnostic scope=extraction-only; helper certification and successful publication not performed"

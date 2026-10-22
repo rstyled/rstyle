@@ -13,6 +13,7 @@ mod float_scalars;
 mod hir;
 mod inherent;
 mod instances;
+pub(crate) use instances::diagnostic::capture as capture_instance_diagnostics;
 mod library_resolution;
 mod module_expansions;
 mod nominal_census;

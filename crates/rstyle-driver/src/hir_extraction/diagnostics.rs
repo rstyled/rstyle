@@ -42,20 +42,21 @@ fn write_snapshot(directory: PathBuf, phase: &str, facts: &[HirFnFacts]) -> Resu
 fn persist(directory: &Path, snapshot: &Snapshot<'_>) -> io::Result<()> {
     std::fs::create_dir_all(directory)?;
     let path = directory.join(format!("{}-{}.json", std::process::id(), snapshot.phase));
-    persist_file(&path, snapshot)
+
+    persist_file(&path, snapshot)?;
+    announce(&path, snapshot.phase);
+    Ok(())
 }
 
-fn persist_file(path: &Path, snapshot: &Snapshot<'_>) -> io::Result<()> {
+pub(super) fn persist_file(path: &Path, snapshot: &impl Serialize) -> io::Result<()> {
     let file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(path)?;
-    write_json(file, snapshot)?;
-    announce(path, snapshot.phase);
-    Ok(())
+    write_json(file, snapshot)
 }
 
-fn write_json(file: std::fs::File, snapshot: &Snapshot<'_>) -> io::Result<()> {
+fn write_json(file: std::fs::File, snapshot: &impl Serialize) -> io::Result<()> {
     let mut writer = io::BufWriter::new(file);
     serde_json::to_writer(&mut writer, snapshot)?;
     writer.flush()?;

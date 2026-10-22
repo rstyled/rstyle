@@ -9,6 +9,9 @@ use rustc_hir::{
 use rustc_middle::ty::{self, GenericArgsRef, TyCtxt, TypeVisitableExt};
 use serde::Serialize;
 
+mod comparisons;
+pub(super) mod diagnostic;
+mod projection;
 mod types;
 
 const KEY: &str = "rstyle.rust.call-instances";
