@@ -1,4 +1,5 @@
 //! Isolated Cargo compilation and an explicit compiler-unit ledger.
+mod dependencies;
 mod ledger;
 
 use super::{Args, read_json, write_json};
@@ -23,7 +24,7 @@ pub struct Target {
     pub test: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Plan {
     pub ledger_schema: String,
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
@@ -33,6 +34,14 @@ pub struct Plan {
     pub compiler_identity: String,
     pub cargo_identity: String,
     pub primary_units: Vec<Value>,
+    #[serde(default)]
+    pub dependency_units: Vec<Value>,
+}
+
+impl Plan {
+    fn planned_units(&self) -> impl Iterator<Item = &Value> {
+        self.primary_units.iter().chain(&self.dependency_units)
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -131,6 +140,7 @@ fn plan(
         driver: environment.driver,
         targets,
         primary_units: Vec::new(),
+        dependency_units: Vec::new(),
     }
 }
 
@@ -293,16 +303,21 @@ fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String>
     command
         .args(["check", "--message-format=json"])
         .env("RUSTUP_TOOLCHAIN", run::pinned_toolchain())
-        .env(
-            "RUSTC_WORKSPACE_WRAPPER",
-            std::env::current_exe().map_err(|e| e.to_string())?,
-        )
+        .env("RUSTC_WORKSPACE_WRAPPER", "")
         .env("RUSTC_WRAPPER", "")
         .env_remove("RUSTC")
         .env("CARGO_TARGET_DIR", capture.directory.join("build"))
         .env("CARGO_INCREMENTAL", "0")
         .env("RSTYLE_CAPTURE_PLAN", capture.directory.join("plan.json"));
-    command.args(selection_args(cli)).args(build_args(args));
+    let wrapper = if args.capture_dependencies.is_empty() {
+        "RUSTC_WORKSPACE_WRAPPER"
+    } else {
+        "RUSTC_WRAPPER"
+    };
+    command
+        .env(wrapper, std::env::current_exe().map_err(|e| e.to_string())?)
+        .args(selection_args(cli))
+        .args(build_args(args));
 
     Ok(command)
 }
@@ -358,14 +373,30 @@ fn build_args(args: &Args) -> Vec<std::ffi::OsString> {
 
 pub fn compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
     let graph = expected_units(capture, cli, args)?;
-    configure_capture(capture, graph)?;
+    let selected = dependencies::from_cargo(&graph, cli, args)?;
+    capture.plan = configured_plan(&capture.plan, &graph, selected)?;
+    capture.expected_unit_graph = graph;
+    write_json(&capture.directory.join("plan.json"), &capture.plan)?;
+
     perform_compile(capture, cli, args)
 }
 
-fn configure_capture(capture: &mut Capture, graph: Value) -> Result<(), String> {
-    capture.plan.primary_units = primary_units(&graph)?;
-    capture.expected_unit_graph = graph;
-    write_json(&capture.directory.join("plan.json"), &capture.plan)
+fn configured_plan(
+    plan: &Plan,
+    graph: &Value,
+    selected: Vec<dependencies::Selected>,
+) -> Result<Plan, String> {
+    let (units, targets): (Vec<_>, Vec<_>) = selected
+        .into_iter()
+        .map(|dependency| (dependency.unit, dependency.target))
+        .unzip();
+
+    Ok(Plan {
+        primary_units: primary_units(graph)?,
+        dependency_units: units,
+        targets: plan.targets.iter().cloned().chain(targets).collect(),
+        ..plan.clone()
+    })
 }
 
 fn primary_units(graph: &Value) -> Result<Vec<Value>, String> {
@@ -487,8 +518,7 @@ fn verify_planned_context(
     artifact: &Value,
     target: &Target,
 ) -> Result<(), String> {
-    let planned = &capture.plan.primary_units;
-    let agrees = planned.iter().any(|unit| {
+    let agrees = capture.plan.planned_units().any(|unit| {
         unit["pkg_id"] == target.package
             && unit["target"]["src_path"] == target.source.to_string_lossy().as_ref()
             && unit["target"]["name"] == target.name
@@ -520,8 +550,7 @@ fn check_expected(capture: &mut Capture) {
     for target in &capture.plan.targets {
         let expected = capture
             .plan
-            .primary_units
-            .iter()
+            .planned_units()
             .filter(|u| {
                 u["pkg_id"] == target.package
                     && u["target"]["src_path"] == target.source.to_string_lossy().as_ref()
@@ -844,7 +873,7 @@ fn intended_invocation(plan: &Plan, target: &Target, invocation: &[String]) -> b
 }
 
 fn intended_mode(plan: &Plan, target: &Target, linked: bool, features: &[Value]) -> bool {
-    plan.primary_units.iter().any(|unit| {
+    plan.planned_units().any(|unit| {
         unit["pkg_id"] == target.package
             && unit["target"]["src_path"] == target.source.to_string_lossy().as_ref()
             && unit["target"]["name"] == target.name

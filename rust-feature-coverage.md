@@ -4658,3 +4658,39 @@ not rerun for this corpus/documentation checkpoint.
 Future milestone reports should state supported complete families, unchanged
 selection gains/losses, remaining combined blockers and validation briefly;
 keep detailed evidence in linked contracts/artifacts instead of repeating it.
+
+### Selected dependency capture: calendar baseline
+
+`--capture-dependency NAME[@VERSION]` now captures explicitly requested reachable
+ordinary dependency check libraries with exact Cargo unit/build evidence. Primary
+and dependency inventories stay distinct; duplicate, missing, unreachable,
+ambiguous and unsupported compilation contexts fail closed. Foreign calls still
+require separate linking proof. No new hashing or serialization lookup path.
+The unchanged calendar selection is now classified in all six contexts: **five
+selected core helpers admitted, three time callers excluded** in each. All84
+contextual package admissions strictly replay. No complete-family gain is claimed;
+this is the first classified dependency baseline. Existing arithmetic, cold-path
+and core assertion support already suffices; the earlier audit was too pessimistic.
+Remaining combined blockers: actual compiled-artifact/instance association and
+foreign summaries, Month variant attributes/full repr/Copy/discriminant proof,
+its exact variant-glob namespace, then connected owned receiver/cast wrappers.
+See [the concise frontier](eval/coverage-development/calendar-helpers/readiness.md).
+Gates: **1228 tests/5 existing skips**, doctests/fmt/Clippy pass; **rstyle0/3989,
+patterns0 unignored**, existing15 ignores unchanged. Frozen run `run-4t0twce7`
+retains all60 selected identities and denominators, with **23 admitted/30 excluded/7 inactive**.
+The final verifier strictly replays all58 contextual frozen-package admissions;
+complete package rosters retain exact identities/contexts with **zero gains/losses**.
+Capture/roster evidence uses an explicit zero-pair budget and does not validate complete matching.
+
+Next coordinated write sets (shared policy/integration owned by the parent):
+
+| Lane | Assignment and gate | Exclusive focus |
+| --- | --- | --- |
+| A | Record actual rustc crate/loaded-artifact/empty-instance evidence; no local crate-hash query before encoding | Driver association observation leaf and tests |
+| B | Join successful Cargo artifacts and exact graph edges; requires A evidence | Capture artifact associations, XXH3 transport seals |
+| C | Resolve foreign scalar summaries and strict closure replay; requires A+B, complete selected closure and semantic attacks | UnitStore closure links and explicit external helper proof |
+| D | Complete Month owner/variant/representation proof; source audit ready, new capability gated by parent | Fieldless enum capture/checks and exact enum-glob ownership |
+
+Full P01–P22 remains active. Evidence: `/tmp/rstyle-dependency-*` and
+`/tmp/rstyle-calendar-capture-{results,strict}.json`; native oracle from the prior
+checkpoint remains a separate runtime check.

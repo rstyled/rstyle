@@ -1,6 +1,6 @@
 {
   "identity": "rstyle.development.calendar-helper-readiness/1",
-  "status": "source-first selection; native oracle passed; capture and admission not measured",
+  "status": "source-first selection; native oracle passed; six-context capture-only baseline: five selected core helpers admitted, three selected time callers excluded",
   "inventory_policy": "Separate development selection. Frozen inventories, identities, contexts, denominators and historical results remain unchanged.",
   "packages": [
     {
@@ -43,6 +43,7 @@
         "features": [],
         "effective_time_features": [
           "alloc",
+          "default",
           "std"
         ],
         "effective_time_core_features": []
@@ -66,7 +67,8 @@
       "time": "=0.3.47",
       "time-core": "=0.1.8"
     },
-    "source_identity": "registry+https://github.com/rust-lang/crates.io-index; original registry roots frozen above, no path substitution or source edits"
+    "source_identity": "registry+https://github.com/rust-lang/crates.io-index; original registry roots frozen above, no path substitution or source edits",
+    "effective_feature_correction": "First exact-consumer Cargo unit graph includes the default feature marker alongside alloc/std. Corrected expected metadata only; declared default-features=true, source identities, selected functions and context membership unchanged."
   },
   "functions": [
     {

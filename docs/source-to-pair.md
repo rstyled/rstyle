@@ -79,6 +79,23 @@ Select features through Cargo options; manually injecting additional
 `--cfg feature=...` flags cannot satisfy the planned feature inventory and fails
 capture completeness.
 
+### Explicit dependency evidence capture
+
+Repeat `--capture-dependency NAME` (or `NAME@VERSION`/exact Cargo package ID) to
+capture selected reachable dependency library units alongside the primary roots.
+For example, `--capture-dependency time --capture-dependency time-core` captures
+those two libraries under the consumer's actual Cargo features and target.
+The report keeps `intended_dependency_units` separate from
+`intended_primary_units`; both participate in capture completeness checks.
+
+This initial bound requires one ordinary non-test check library unit per requested
+package on the exact selected platform. Missing, unreachable, duplicate, primary,
+ambiguous and host/build/proc-macro requests fail capture explicitly. Packages
+with multiple reachable compilation variants are also unavailable in this bound.
+Unrequested dependencies compile normally. Default workspace capture is unchanged.
+Capturing a callee does not authorize foreign helper calls: cross-unit linking
+still needs exact artifact, instance and independently replayable summary proof.
+
 ## Freshness, concurrency and completion
 
 Each command creates a unique directory under `<target>/rstyle/clones/run-*`.

@@ -18,8 +18,8 @@ and ARM macOS. Capture the original dependency library units under those consume
 flags. Direct original-manifest offline resolution needs unavailable dev
 packages; changing to dependency compilation is explicit, not an interchangeable
 baseline. Missing selected dependency capture is **unknown/incomplete**, never
-excluded or zero. Establish a classified capture-only checkpoint before claiming
-semantic admission gains. `large-dates` is deferred as a separate feature context.
+excluded or zero. The classified capture-only checkpoint now observes all eight selected originals
+in every context; semantic admission gains require a later unchanged comparison. `large-dates` is deferred as a separate feature context.
 
 The bounded linker covers nongeneric direct free scalar functions with empty
 type/const substitutions, exact Cargo `--extern`/artifact/package/build/definition
@@ -43,5 +43,6 @@ consumer and runs `oracle.rs` against unchanged public APIs in both host feature
 contexts; Cargo metadata must resolve the frozen source roots. Runtime checks do
 not claim cross-target execution, extraction, admission or matching. Selection preceded evaluation. Native validation now passes in both feature
 contexts: 240,216 month/year cases and nine expected debug panics each, with zero
-mismatches. Capture and admission remain unmeasured. See `readiness.md` for the
-implementation audit and next checkpoint.
+mismatches. Capture is complete in all six contexts: the five selected core helpers admit,
+while all three time callers remain excluded. No complete-family gain is claimed.
+See `readiness.md` for measured blockers and the next checkpoint.

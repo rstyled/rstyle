@@ -26,6 +26,9 @@ pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+    /// Capture an explicitly selected reachable dependency library; does not authorize external calls.
+    #[arg(long = "capture-dependency")]
+    pub capture_dependencies: Vec<String>,
     /// JSON matching overrides, separate from legacy rstyle.toml.
     #[arg(long)]
     matching_config: Option<PathBuf>,

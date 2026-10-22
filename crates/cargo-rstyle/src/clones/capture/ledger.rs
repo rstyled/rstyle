@@ -66,6 +66,7 @@ mod tests {
             compiler_identity: "compiler".into(),
             cargo_identity: "cargo".into(),
             primary_units: Vec::new(),
+            dependency_units: Vec::new(),
         }
     }
 

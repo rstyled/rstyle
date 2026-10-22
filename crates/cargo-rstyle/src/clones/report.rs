@@ -58,6 +58,7 @@ pub struct Report<'a> {
     expected_targets: &'a [capture::Target],
     expected_compilation_units: &'a Value,
     intended_primary_units: &'a [Value],
+    intended_dependency_units: &'a [Value],
     observed_units: &'a [capture::Unit],
     capture_complete: bool,
     capture_failures: &'a [String],
@@ -105,12 +106,7 @@ fn ctx_profile_is_data(args: &Args) -> bool {
 }
 
 pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
-    let scope = Scope {
-        packages: &ctx.cli.packages,
-        all_targets: ctx.cli.all_targets,
-        manifest_path: &ctx.cli.manifest_path,
-        build_options: ctx.args,
-    };
+    let scope = selected_scope(&ctx);
 
     Report {
         report_detail: ctx.args.report_detail,
@@ -141,6 +137,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
         expected_targets: &ctx.capture.plan.targets,
         expected_compilation_units: &ctx.capture.expected_unit_graph,
         intended_primary_units: &ctx.capture.plan.primary_units,
+        intended_dependency_units: &ctx.capture.plan.dependency_units,
         observed_units: &ctx.capture.units,
         capture_complete: ctx.capture.failures.is_empty(),
         capture_failures: &ctx.capture.failures,
@@ -153,6 +150,15 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
         pair_enumeration_complete: enumeration_complete(&ctx),
         matching: matching::Matching::new(ctx.matching, ctx.args.trace, ctx.partitions),
         claim: "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
+    }
+}
+
+fn selected_scope<'a>(ctx: &Context<'a>) -> Scope<'a> {
+    Scope {
+        packages: &ctx.cli.packages,
+        all_targets: ctx.cli.all_targets,
+        manifest_path: &ctx.cli.manifest_path,
+        build_options: ctx.args,
     }
 }
 
