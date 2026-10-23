@@ -164,6 +164,7 @@ pub(super) fn summary(summary: &Summary) -> Result<(), String> {
         || summary.memory_effects
         || summary.memory_reads.is_some()
         || summary.reference_outputs.is_some()
+        || summary.component_outputs.is_some()
     {
         return Err("External scalar helper contains memory or reference effects".into());
     }
@@ -258,6 +259,7 @@ mod tests {
                 positive_max_backedges: 1,
             }),
             reference_outputs: None,
+            component_outputs: None,
             memory_reads: None,
         }
     }
@@ -284,6 +286,9 @@ mod tests {
         assert!(summary(&evidence).is_err());
         let mut evidence = partial();
         evidence.reference_outputs = Some(Vec::new());
+        assert!(summary(&evidence).is_err());
+        let mut evidence = partial();
+        evidence.component_outputs = Some(Vec::new());
         assert!(summary(&evidence).is_err());
     }
 

@@ -85,7 +85,12 @@ impl Resolver<'_> {
             "expr_field" | "expr_unary" | "expr_addr_of" | "pat_binding" => Self::terminal,
             "expr_block" | "expr_ret" => Self::tail,
             "expr_if" => Self::alternatives,
-            "expr_call" | "expr_method_call" if selectors.is_empty() => Self::call,
+            "expr_call" | "expr_method_call"
+                if selectors.is_empty()
+                    || crate::helper_component_outputs::call_used(node, self.facts) =>
+            {
+                Self::call
+            }
             _ => return Err("Unsupported reference rebinding source operation".into()),
         };
         handler(self, node, selectors, visiting)
@@ -280,24 +285,53 @@ impl Resolver<'_> {
     fn call(
         &self,
         node: &HirNode,
-        _: &[usize],
+        selectors: &[usize],
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
-        if let Some(receiver) = checked_receiver(node, self.facts) {
-            let (receiver, element) = receiver?;
-            let roots = self.source(receiver, &[], visiting)?;
-            return Ok(if element {
-                crate::checked_options::project(roots)
-            } else {
-                roots
-            });
-        }
-        if let Some(origins) = crate::data_bytes::source_origins(node, self.facts, |operand| {
-            self.source(operand, &[], visiting)
-        }) {
+        if !crate::helper_component_outputs::call_used(node, self.facts)
+            && let Some(origins) = self.library_call(node, visiting)
+        {
             return origins;
         }
+        self.helper_call(node, selectors, visiting)
+    }
 
+    fn library_call(
+        &self,
+        node: &HirNode,
+        visiting: &mut Visiting,
+    ) -> Option<Result<Vec<Origin>, String>> {
+        if let Some(receiver) = checked_receiver(node, self.facts) {
+            return Some((|| {
+                let (receiver, element) = receiver?;
+                let roots = self.source(receiver, &[], visiting)?;
+                Ok(if element {
+                    crate::checked_options::project(roots)
+                } else {
+                    roots
+                })
+            })());
+        }
+        crate::data_bytes::source_origins(node, self.facts, |operand| {
+            self.source(operand, &[], visiting)
+        })
+    }
+
+    fn helper_call(
+        &self,
+        node: &HirNode,
+        selectors: &[usize],
+        visiting: &mut Visiting,
+    ) -> Result<Vec<Origin>, String> {
+        if crate::helper_component_outputs::call_used(node, self.facts) {
+            return crate::helper_component_outputs::map(node, selectors, self.facts, |position| {
+                let actual = node
+                    .children
+                    .get(position as usize)
+                    .ok_or("Missing selected helper actual")?;
+                self.source(actual, &[], visiting)
+            });
+        }
         crate::helper_references::map_outputs(node, self.facts, |position| {
             let actual = node
                 .children

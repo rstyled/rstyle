@@ -27,7 +27,7 @@ mod locations;
 pub(crate) mod named_callbacks;
 mod option_if_let;
 pub(crate) mod option_propagation;
-mod origins;
+pub(crate) mod origins;
 mod propagation;
 mod read_accesses;
 pub(crate) mod result_propagation;

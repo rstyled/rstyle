@@ -107,6 +107,12 @@ fn verify_value_document_policy(
     crate::data_documents::borrowed_result_propagation::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,
+        crate::helper_component_outputs::CAPABILITY,
+        || crate::helper_component_outputs::used(facts),
+        "Component helper results require their registered document policy",
+    )?;
+    crate::extraction_profile::require_document(
+        profile,
         crate::borrowed_result_types::CAPABILITY,
         || borrowed_results::used(&facts.body, facts),
         "Checked borrowed Result operations require their registered document policy",

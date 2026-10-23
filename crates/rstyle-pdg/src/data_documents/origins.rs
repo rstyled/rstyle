@@ -131,6 +131,34 @@ fn graph_origins(
     Graph { pair, facts }.origins(node, &[], visiting)
 }
 
+pub(crate) fn selected_return(
+    node: &PdgNode,
+    selectors: &[usize],
+    pair: crate::producer::PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
+    if node.category != NodeCategory::Return {
+        return Err("Component summary requires an exact RETURN".into());
+    }
+    let source = source_node(node, facts)?;
+    let mut expected = crate::data_component_origins::source(source, selectors, facts)?;
+    let mut actual = Graph { pair, facts }.origins(node, selectors, &mut BTreeSet::new())?;
+
+    expected.sort();
+    expected.dedup();
+    actual.sort();
+    actual.dedup();
+
+    if expected.is_empty() || actual != expected {
+        return Err(format!(
+            "Selected RETURN origins disagree in {} at {:?}: source={expected:?}, graph={actual:?}",
+            facts.name, selectors,
+        ));
+    }
+
+    Ok(expected)
+}
+
 struct Graph<'a> {
     pair: crate::producer::PairView<'a>,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
@@ -169,16 +197,56 @@ impl Graph<'_> {
         selectors: &[usize],
         visiting: &mut BTreeSet<String>,
     ) -> Option<Result<Vec<Origin>, String>> {
-        if let Some(origins) = self.borrowed_result_origins(node, selectors, visiting) {
+        let construct = node.attributes.construct.as_deref();
+        if matches!(
+            construct,
+            Some(
+                "data.option-get-prefix"
+                    | "data.option-ok-or"
+                    | "data.result-ok"
+                    | "data.result-err"
+                    | "try.borrowed-result-ok-reference"
+                    | "try.borrowed-result-error"
+            )
+        ) {
+            return Some(self.borrowed_result_operation(node, selectors, visiting));
+        }
+        if let Some(origins) = self.helper_call_origins(node, selectors, visiting) {
             return Some(origins);
         }
+        match construct {
+            Some("data.bytes.borrow-result" | "data.bytes.unwrap-borrow" | "data.option-get") => {
+                Some(self.byte_call_operation(node, selectors, visiting))
+            }
+            _ => None,
+        }
+    }
 
+    fn helper_call_origins(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Option<Result<Vec<Origin>, String>> {
         if node.category == NodeCategory::Call {
             let source = match source_node(node, self.facts) {
                 Ok(source) => source,
                 Err(error) => return Some(Err(error)),
             };
             if crate::helper_calls::direct_resolution(source).is_some() {
+                if crate::helper_component_outputs::call_used(source, self.facts) {
+                    return Some(crate::helper_component_outputs::map(
+                        source,
+                        selectors,
+                        self.facts,
+                        |position| {
+                            self.origins(self.operand(node, u64::from(position))?, &[], visiting)
+                        },
+                    ));
+                }
+                if !selectors.is_empty() {
+                    return Some(Err("Selected helper result lacks component evidence".into()));
+                }
                 return Some(crate::helper_references::map_outputs(
                     source,
                     self.facts,
@@ -188,26 +256,27 @@ impl Graph<'_> {
                 ));
             }
         }
-        let construct = node.attributes.construct.as_deref()?;
-        if !matches!(
-            construct,
-            "data.bytes.borrow-result" | "data.bytes.unwrap-borrow" | "data.option-get"
-        ) {
-            return None;
+        None
+    }
+
+    fn byte_call_operation(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
+        let source = source_node(node, self.facts)?;
+        let roots = self.origins(self.operand(node, 0)?, &[], visiting)?;
+
+        if node.attributes.construct.as_deref() == Some("data.option-get") {
+            crate::checked_options::verify_get(source, self.facts)?;
+            return Ok(crate::checked_options::project(roots));
         }
-        Some((|| {
-            let source = source_node(node, self.facts)?;
-            let roots = self.origins(self.operand(node, 0)?, &[], visiting)?;
-            if construct == "data.option-get" {
-                crate::checked_options::verify_get(source, self.facts)?;
-                return Ok(crate::checked_options::project(roots));
-            }
-            if !selectors.is_empty() {
-                return Err("Byte payload has no aggregate selector".into());
-            }
-            let kind = crate::data_bytes::verify(source, self.facts)?;
-            Ok(crate::data_bytes::project(kind, roots))
-        })())
+        if !selectors.is_empty() {
+            return Err("Byte payload has no aggregate selector".into());
+        }
+        let kind = crate::data_bytes::verify(source, self.facts)?;
+        Ok(crate::data_bytes::project(kind, roots))
     }
 
     fn traversed_origins(
@@ -317,6 +386,7 @@ impl Graph<'_> {
             return self.origins(self.operand(node, 0)?, &path, visiting);
         }
         if !selectors.is_empty()
+            && node.category == NodeCategory::Computation
             && matches!(
                 node.original_kind.known_value(),
                 Some("expr_tup" | "expr_struct")

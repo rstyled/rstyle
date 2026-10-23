@@ -59,6 +59,7 @@ mod fieldless_enums;
 pub mod float_scalars;
 pub mod frontend;
 pub mod helper_calls;
+pub mod helper_component_outputs;
 mod helper_normal_flow;
 mod helper_option_callbacks;
 pub mod helper_reads;

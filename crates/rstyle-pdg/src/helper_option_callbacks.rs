@@ -185,6 +185,7 @@ pub(crate) fn verify<'a>(
         || summary.may_panic
         || !summary.always_returns
         || summary.reference_outputs.is_some()
+        || summary.component_outputs.is_some()
     {
         return Err(
             "Immediate helper callback requires a complete returning read-only bool helper".into(),

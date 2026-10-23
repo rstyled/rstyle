@@ -15,10 +15,14 @@ pub fn supported_result(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<
         return Ok(true);
     }
     let result = result_type(facts)?;
-    Ok(!data_origins::shared(&result) || matches!(result, TypeToken::Shared(_)))
+    Ok(crate::helper_component_outputs::supported(facts)
+        || !data_origins::shared(&result)
+        || matches!(result, TypeToken::Shared(_)))
 }
 
-fn result_type(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<TypeToken, String> {
+pub(crate) fn result_type(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<TypeToken, String> {
     data_types::parse(
         facts
             .signature
@@ -44,7 +48,7 @@ fn returned_view(
         return Ok(None);
     }
     let result = result_type(facts)?;
-    if !data_origins::shared(&result) {
+    if !data_origins::shared(&result) || crate::helper_component_outputs::supported(facts) {
         return Ok(None);
     }
     if !matches!(result, TypeToken::Shared(_)) {
@@ -98,7 +102,7 @@ fn verify_returned_reads(
     Ok(())
 }
 
-fn verify_formal(
+pub(crate) fn verify_formal(
     origin: &Origin,
     facts: &dyn crate::unit_store::EvidenceFacts,
     result: &TypeToken,
@@ -181,6 +185,9 @@ pub(crate) fn map_outputs(
     facts: &dyn crate::unit_store::EvidenceFacts,
     mut resolve: impl FnMut(u32) -> Result<Vec<Origin>, String>,
 ) -> Result<Vec<Origin>, String> {
+    if crate::helper_component_outputs::call_used(call, facts) {
+        return crate::helper_component_outputs::map(call, &[], facts, resolve);
+    }
     let dependency = crate::helper_calls::verify_use(call, facts)?;
     let outputs = dependency
         .summary()
@@ -195,7 +202,7 @@ pub(crate) fn map_outputs(
     Ok(origins.into_iter().collect())
 }
 
-fn project_output(output: &Origin, actual: Vec<Origin>) -> Result<Vec<Origin>, String> {
+pub(crate) fn project_output(output: &Origin, actual: Vec<Origin>) -> Result<Vec<Origin>, String> {
     if actual.is_empty() {
         return Err("Returned helper argument lacks verified reference origins".into());
     }

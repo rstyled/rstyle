@@ -3,29 +3,7 @@ use super::*;
 use crate::unit_store::EvidenceFacts;
 
 impl Graph<'_> {
-    pub(super) fn borrowed_result_origins(
-        &self,
-        node: &PdgNode,
-        selectors: &[usize],
-        visiting: &mut BTreeSet<String>,
-    ) -> Option<Result<Vec<Origin>, String>> {
-        let construct = node.attributes.construct.as_deref()?;
-
-        if !matches!(
-            construct,
-            "data.option-get-prefix"
-                | "data.option-ok-or"
-                | "data.result-ok"
-                | "data.result-err"
-                | "try.borrowed-result-ok-reference"
-                | "try.borrowed-result-error"
-        ) {
-            return None;
-        }
-        Some(self.borrowed_result_operation(node, selectors, visiting))
-    }
-
-    fn borrowed_result_operation(
+    pub(super) fn borrowed_result_operation(
         &self,
         node: &PdgNode,
         selectors: &[usize],

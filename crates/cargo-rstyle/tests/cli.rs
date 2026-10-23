@@ -5,6 +5,7 @@ mod byte_windows;
 mod checked_options;
 mod checksum_state;
 mod compact_report;
+mod component_helper_results;
 mod dependency_capture;
 #[path = "../src/diagnostic_process.rs"]
 mod diagnostic_process;
@@ -2620,7 +2621,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.83.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.84.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6179,7 +6180,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.83.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.84.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -9061,7 +9062,7 @@ fn clones_data_reference_bearing_values_preserve_origin_unions_and_exact_slots()
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "arrays" | "zero" | "helper_return"
+            "arrays" | "zero"
         );
         assert_eq!(
             function["outcome"],
@@ -9210,7 +9211,7 @@ fn clones_data_reference_value_fields_select_exact_component_origins() {
     for function in functions {
         let excluded = matches!(
             function["facts"]["name"].as_str().unwrap(),
-            "borrow" | "helper_result" | "helper_field"
+            "borrow" | "helper_field"
         );
         assert_eq!(
             function["outcome"],
@@ -9281,6 +9282,7 @@ fn check_reference_value_field_origins(report: &Value) {
         ("shadow", vec![0]),
         ("conditional", vec![0, 1]),
         ("stable", vec![0]),
+        ("helper_result", vec![0]),
     ] {
         let function = report["functions"]
             .as_array()

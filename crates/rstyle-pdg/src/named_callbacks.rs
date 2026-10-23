@@ -129,6 +129,7 @@ pub(crate) fn verify_summary(summary: &helper_calls::Summary) -> Result<(), Stri
         || summary.may_panic
         || !summary.always_returns
         || summary.reference_outputs.is_some()
+        || summary.component_outputs.is_some()
         || summary.memory_reads.is_some()
     {
         return Err("Named callback requires a fully verified returning scalar helper without effects or panic".into());

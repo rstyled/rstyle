@@ -28,6 +28,11 @@ fn source_operation(
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
     match node.kind.as_str() {
+        "expr_call" | "expr_method_call"
+            if crate::helper_component_outputs::call_used(node, facts) =>
+        {
+            call(node, selectors, facts)
+        }
         "expr_tup" | "expr_struct" => {
             let (operand, rest) = operand(node, selectors, facts)?;
             source(
@@ -63,6 +68,20 @@ fn source_operation(
         }
         _ => Err("Aggregate component lacks supported source correspondence".into()),
     }
+}
+
+fn call(
+    node: &HirNode,
+    selectors: &[usize],
+    facts: &dyn EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
+    crate::helper_component_outputs::map(node, selectors, facts, |position| {
+        let actual = node
+            .children
+            .get(position as usize)
+            .ok_or("Missing selected helper actual")?;
+        source(actual, &[], facts)
+    })
 }
 
 fn local_or_formal(

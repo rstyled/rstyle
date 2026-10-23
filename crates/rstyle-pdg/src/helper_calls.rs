@@ -41,6 +41,8 @@ pub struct Summary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference_outputs: Option<Vec<crate::data_origins::Origin>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_outputs: Option<Vec<crate::helper_component_outputs::Output>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_reads: Option<Vec<crate::helper_reads::Read>>,
 }
 
@@ -71,20 +73,17 @@ fn summary(
     let result_type = result_type(facts)?;
 
     let loop_proof = crate::scalar_loop_helpers::verify_if_loop(facts, pair.as_view())?;
-    let references = reference_outputs.is_some();
+    let component_outputs = crate::helper_component_outputs::derive(facts, pair.as_view())?;
+    let references = reference_outputs.is_some() || component_outputs.is_some();
     let memory_reads = crate::helper_reads::derive(facts, pair.as_view())?;
     let reads = memory_reads.is_some();
     let view = crate::helper_views::projected(facts, &reference_outputs);
     let normal = crate::helper_normal_flow::supported(facts, pair.as_view());
-    let may_panic = loop_proof.as_ref().map_or_else(
-        || {
-            (view || normal)
-                && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial
-        },
-        |proof| proof.may_panic,
-    );
+    let may_panic = summary_may_panic(loop_proof.as_ref(), pair.as_view(), view || normal);
     Ok(Summary {
-        identity: if loop_proof.is_some() {
+        identity: if component_outputs.is_some() {
+            crate::helper_component_outputs::SUMMARY
+        } else if loop_proof.is_some() {
             crate::scalar_loop_helpers::SUMMARY
         } else if view {
             crate::helper_views::SUMMARY
@@ -110,8 +109,23 @@ fn summary(
         argument_evaluation: "source-order-once/1".into(),
         result_dependence: result_dependence(references).into(),
         reference_outputs,
+        component_outputs,
         memory_reads,
     })
+}
+
+fn summary_may_panic(
+    loop_proof: Option<&crate::scalar_loop_helpers::Checked>,
+    pair: producer::PairView<'_>,
+    checked_normal: bool,
+) -> bool {
+    loop_proof.map_or_else(
+        || {
+            checked_normal
+                && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial
+        },
+        |proof| proof.may_panic,
+    )
 }
 
 fn result_type(facts: &dyn EvidenceFacts) -> Result<String, String> {
@@ -411,9 +425,13 @@ fn check_boundary(
     let view = crate::helper_views::projected(facts, &outputs);
     let byte_reads = crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
         && crate::helper_normal_flow::supported(facts, pair.as_view());
-    if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
-        && !(pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial
-            && (view || crate::helper_normal_flow::supported(facts, pair.as_view())))
+    let component = crate::helper_component_outputs::supported(facts);
+    if component
+        && (pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
+            || !pair.pdg.memory_locations.is_empty())
+        || pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
+            && !(pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial
+                && (view || crate::helper_normal_flow::supported(facts, pair.as_view())))
         || !pair.pdg.memory_locations.is_empty()
             && !crate::helper_reads::supported(facts, pair.as_view())
         || pair.pdg.nodes.iter().any(|node| {
