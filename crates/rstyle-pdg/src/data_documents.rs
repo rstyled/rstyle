@@ -29,6 +29,8 @@ pub(crate) mod named_callbacks;
 mod option_if_let;
 pub(crate) mod option_propagation;
 pub(crate) mod origins;
+mod owned_product_values;
+pub(crate) mod product_result_propagation;
 mod propagation;
 mod read_accesses;
 mod reference_instances;
@@ -112,9 +114,17 @@ fn install_result_contracts(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    install_result_transfers(pair, facts)?;
+    borrowed_result_errors::install(pair, facts)
+}
+
+fn install_result_transfers(
+    pair: &mut Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     borrowed_result_propagation::install(pair, facts)?;
     scalar_result_propagation::install(pair, facts)?;
-    borrowed_result_errors::install(pair, facts)
+    product_result_propagation::install(pair, facts)
 }
 
 fn install_propagation_contracts(pair: &mut Pair) {
@@ -342,6 +352,8 @@ fn verify_call_operations(
     checked_slice_views::verify(pair, facts)?;
     checked_suffix_views::verify(pair, facts)?;
     scalar_result_propagation::verify(pair, facts)?;
+    product_result_propagation::verify(pair, facts)?;
+    owned_product_values::verify(pair, facts)?;
     borrowed_result_errors::verify(pair, facts)?;
     option_if_let::verify(pair, facts)?;
     result_propagation::verify(pair, facts)?;
@@ -507,6 +519,11 @@ fn verify_field(
     field: &FieldOperation,
     expected: &mut BTreeMap<String, crate::MemoryLocation>,
 ) -> Result<(), String> {
+    if owned_product_values::field_role(field, context.facts)? {
+        // The complete update validator consumes this exact field observation
+        // as a write role; it is not an independent field-value read.
+        return Ok(());
+    }
     let node = serialized_field(pair, field)?;
 
     let facts = context.facts;
@@ -620,7 +637,9 @@ fn verify_reads(pair: crate::producer::PairView<'_>, fields: usize) -> Result<()
             matches!(
                 node.category,
                 NodeCategory::Read | NodeCategory::Computation
-            ) && node.original_kind.known_value() == Some("expr_field")
+            ) && (node.original_kind.known_value() == Some("expr_field")
+                || node.attributes.construct.as_deref()
+                    == Some(crate::owned_product_values::UPDATE))
         })
         .count()
         != fields

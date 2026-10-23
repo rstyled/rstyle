@@ -71,18 +71,22 @@ fn summary(
     pair: &producer::Pair,
     reference_outputs: ReferenceOutputs,
 ) -> Result<Summary, String> {
-    let result_type = result_type(facts)?;
-
     let loop_proof = crate::scalar_loop_helpers::verify_if_loop(facts, pair.as_view())?;
     let component_outputs = crate::helper_component_outputs::derive(facts, pair.as_view())?;
+    let guarded =
+        component_outputs.is_some() && crate::helper_component_outputs::guarded_product(facts);
     let references = reference_outputs.is_some() || component_outputs.is_some();
+
     let memory_reads = crate::helper_reads::derive(facts, pair.as_view())?;
     let reads = memory_reads.is_some();
     let view = crate::helper_views::projected(facts, &reference_outputs);
     let normal = crate::helper_normal_flow::supported(facts, pair.as_view());
+
     let may_panic = summary_may_panic(loop_proof.as_ref(), pair.as_view(), view || normal);
     Ok(Summary {
-        identity: if component_outputs.is_some() {
+        identity: if guarded {
+            crate::helper_component_outputs::PRODUCT_SUMMARY
+        } else if component_outputs.is_some() {
             crate::helper_component_outputs::SUMMARY
         } else if loop_proof.is_some() {
             crate::scalar_loop_helpers::SUMMARY
@@ -101,18 +105,26 @@ fn summary(
         }
         .into(),
         argument_types: argument_types(facts)?,
-        result_type,
+        result_type: result_type(facts)?,
         mutates_arguments: false,
         memory_effects: reads,
         may_panic,
         always_returns: !may_panic && loop_proof.as_ref().is_none_or(|proof| !proof.may_diverge),
         bounded_loop: loop_proof.map(Into::into),
         argument_evaluation: "source-order-once/1".into(),
-        result_dependence: result_dependence(references).into(),
+        result_dependence: guarded_result_dependence(guarded, references).into(),
         reference_outputs,
         component_outputs,
         memory_reads,
     })
+}
+
+fn guarded_result_dependence(guarded: bool, references: bool) -> &'static str {
+    if guarded {
+        crate::helper_component_outputs::RESULT_DEPENDENCE
+    } else {
+        result_dependence(references)
+    }
 }
 
 fn summary_may_panic(
@@ -214,6 +226,10 @@ fn node_native_width(
     }
     if crate::borrowed_result_propagation::candidate(node, facts) {
         let checked = crate::borrowed_result_propagation::verify(node, facts)?;
+        return node_native_width(checked.operand, data, facts);
+    }
+    if crate::product_result_propagation::candidate(node, facts) {
+        let checked = crate::product_result_propagation::verify(node, facts)?;
         return node_native_width(checked.operand, data, facts);
     }
     if crate::scalar_result_propagation::candidate(node, facts) {
@@ -330,6 +346,11 @@ fn collect_source_kind<'a>(
 }
 
 fn propagation_operand<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Option<&'a HirNode> {
+    if crate::product_result_propagation::candidate(node, facts) {
+        return crate::product_result_propagation::verify(node, facts)
+            .ok()
+            .map(|checked| checked.operand);
+    }
     if crate::scalar_result_propagation::candidate(node, facts) {
         return crate::scalar_result_propagation::verify(node, facts)
             .ok()

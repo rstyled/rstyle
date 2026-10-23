@@ -98,6 +98,10 @@ fn source_origins(
     }
 
     let source = source_node(node, facts)?;
+    if node.attributes.construct.as_deref() == Some(crate::owned_product_values::UPDATE) {
+        return crate::owned_product_values::source(source, &[], facts)?
+            .ok_or_else(|| "Owned product graph transition has no checked source value".into());
+    }
     if borrowed_results::verified_empty(node, facts)? {
         return Ok(Vec::new());
     }
@@ -159,6 +163,26 @@ pub(crate) fn selected_return(
     Ok(expected)
 }
 
+pub(crate) fn selected_product_return(
+    node: &PdgNode,
+    selectors: &[usize],
+    pair: crate::producer::PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
+    crate::concrete_results::fresh_products::product_boundary(facts)?;
+    if node.category != NodeCategory::Return {
+        return Err("Product component summary requires an exact RETURN".into());
+    }
+    if borrowed_results::verified_empty(node, facts)? {
+        let actual = Graph { pair, facts }.origins(node, &[], &mut BTreeSet::new())?;
+        if !actual.is_empty() {
+            return Err("Proved product Err return unexpectedly carries graph origins".into());
+        }
+        return Ok(actual);
+    }
+    selected_return(node, selectors, pair, facts)
+}
+
 struct Graph<'a> {
     pair: crate::producer::PairView<'a>,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
@@ -171,10 +195,7 @@ impl Graph<'_> {
         selectors: &[usize],
         visiting: &mut BTreeSet<String>,
     ) -> Result<Vec<Origin>, String> {
-        if let Some(origins) = self.address_origins(node, selectors, visiting) {
-            return origins;
-        }
-        if let Some(origins) = self.call_origins(node, selectors, visiting) {
+        if let Some(origins) = self.value_origins(node, selectors, visiting) {
             return origins;
         }
         if node.category == NodeCategory::FormalInput {
@@ -189,6 +210,36 @@ impl Graph<'_> {
         }
 
         self.traversed_origins(node, selectors, visiting)
+    }
+
+    fn value_origins(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Option<Result<Vec<Origin>, String>> {
+        if node.attributes.construct.as_deref() == Some("data.owned-product-update") {
+            return Some(self.owned_update_origins(node, selectors, visiting));
+        }
+        if let Some(origins) = self.address_origins(node, selectors, visiting) {
+            return Some(origins);
+        }
+        self.call_origins(node, selectors, visiting)
+    }
+
+    fn owned_update_origins(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
+        if !visiting.insert(node.id.clone()) {
+            return Err("Cyclic owned product update lacks linear value evidence".into());
+        }
+
+        let roots = self.origins(self.operand(node, 0)?, selectors, visiting);
+        visiting.remove(&node.id);
+        roots
     }
 
     fn call_origins(
@@ -209,6 +260,8 @@ impl Graph<'_> {
                     | "try.borrowed-result-ok-reference"
                     | "try.borrowed-result-error"
                     | "try.scalar-result-error"
+                    | "try.product-result-error"
+                    | "try.product-result-ok-product"
             )
         ) {
             return Some(self.borrowed_result_operation(node, selectors, visiting));
@@ -635,6 +688,13 @@ fn access_origins(
 }
 
 fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+    if node.attributes.construct.as_deref() == Some("data.owned-product-update") {
+        let boundary = crate::concrete_results::fresh_products::product_boundary(facts)?;
+        if wire_type(node)? != boundary.ok.text()? {
+            return Err("Owned product transition loses its exact complete product type".into());
+        }
+        return Ok(());
+    }
     let expected = source_type(node, facts)?;
     if expected.is_none() || wire_type(node)?.as_str() != expected.unwrap_or_default() {
         return Err(format!(
@@ -699,6 +759,9 @@ fn propagation_return(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
     match node.attributes.construct.as_deref() {
+        Some("try.product-result-error") => {
+            crate::product_result_propagation::verify(source_node(node, facts)?, facts)?;
+        }
         Some("try.scalar-result-error") => {
             crate::scalar_result_propagation::verify(source_node(node, facts)?, facts)?;
         }

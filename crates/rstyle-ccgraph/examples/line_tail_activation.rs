@@ -3,6 +3,8 @@ use rstyle_pdg::{producer::Pair, unit_store::UnitStore, verification_policy};
 use serde_json::{Value, json};
 #[path = "line_tail_activation/reader.rs"]
 mod reader;
+#[path = "line_tail_activation/wrapped.rs"]
+mod wrapped;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
@@ -66,6 +68,9 @@ impl<'a> Replay<'a> {
             ],
             Some("rstyle.development.base64ct-line-reader/1") => {
                 vec![Some("decoder::LineReader::<'i>::new_unwrapped")]
+            }
+            Some("rstyle.development.base64ct-line-reader-wrapped/1") => {
+                vec![Some("decoder::LineReader::<'i>::new_wrapped")]
             }
             _ => return Err("Unregistered original family selection".into()),
         };
@@ -164,6 +169,9 @@ impl<'a> Replay<'a> {
         identity_matching(pair, &view)?;
         if expected["name"] == "decoder::LineReader::<'i>::new_unwrapped" {
             return reader::check(pair, &view);
+        }
+        if expected["name"] == "decoder::LineReader::<'i>::new_wrapped" {
+            return wrapped::check(pair, &view);
         }
         if expected["name"]
             .as_str()

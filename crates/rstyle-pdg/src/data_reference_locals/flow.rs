@@ -71,6 +71,16 @@ impl<'a> Index<'a> {
     }
 
     fn walk(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {
+        if let Some(update) = crate::owned_product_locals::update_for(node, self.facts)? {
+            // The complete affine proof limits replacement to a Copy field
+            // without references. Evaluate RHS/address in order; the remaining
+            // reference components retain their earlier definitions.
+            return self.sequence([update.value(), update.receiver()], state);
+        }
+        self.walk_unowned(node, state)
+    }
+
+    fn walk_unowned(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {
         if let Some(operand) = result_operand(node, self.facts)? {
             return self.walk(operand, state);
         }
@@ -321,6 +331,10 @@ fn result_operand<'a>(
     node: &'a HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Result<Option<&'a HirNode>, String> {
+    if crate::product_result_propagation::candidate(node, facts) {
+        return crate::product_result_propagation::verify(node, facts)
+            .map(|checked| Some(checked.operand));
+    }
     if crate::scalar_result_propagation::candidate(node, facts) {
         return crate::scalar_result_propagation::verify(node, facts)
             .map(|checked| Some(checked.operand));

@@ -1791,6 +1791,17 @@ fn check_unary(node: &HirNode) -> Outcome {
 
 /// Direct assignment target must be a lexical binding path (never a read).
 fn check_assign(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if let Some(result) = crate::owned_product_locals::update_for(node, ctx.facts).transpose() {
+        return match result {
+            Ok(_) => Outcome::ok(),
+            Err(reason) => error(
+                "rust.linear-product-result-flow",
+                "owned_update",
+                node,
+                &reason,
+            ),
+        };
+    }
     let [target, _value] = node.children.as_slice() else {
         return evidence_gap(node, "assignment shape");
     };

@@ -1,6 +1,11 @@
 //! Selected reference leaves of complete aggregate helper results.
 //! This transports verified origins; it grants no Copy, cleanup or foreign authority.
+mod guarded_results;
 mod roster;
+pub(crate) use guarded_results::{
+    CAPABILITY as PRODUCT_CAPABILITY, RESULT_DEPENDENCE, SUMMARY as PRODUCT_SUMMARY,
+    verify_product_call,
+};
 #[cfg(test)]
 mod tests;
 
@@ -35,20 +40,37 @@ fn aggregate_call(call: &HirNode) -> bool {
         .ok()
         .and_then(|text| crate::data_types::parse(text).ok())
         .is_some_and(|ty| {
-            matches!(ty, TypeToken::Tuple(_) | TypeToken::Struct { .. })
+            (matches!(ty, TypeToken::Tuple(_) | TypeToken::Struct { .. })
+                || guarded_results::shape(&ty))
                 && crate::data_origins::shared(&ty)
         })
 }
 
 pub fn call_used(call: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::facts_support(facts, CAPABILITY) && aggregate_call(call)
+    crate::extraction_profile::facts_support(facts, CAPABILITY)
+        && aggregate_call(call)
+        && crate::data_aggregates::parsed_type(call).is_ok_and(|ty| {
+            !guarded_results::shape(&ty)
+                || crate::extraction_profile::facts_support(facts, PRODUCT_CAPABILITY)
+        })
 }
 
 pub fn supported(facts: &dyn EvidenceFacts) -> bool {
     crate::extraction_profile::facts_support(facts, CAPABILITY)
         && shared_formals(facts)
-        && crate::helper_references::result_type(facts)
-            .is_ok_and(|ty| roster::leaves(&ty).is_ok_and(|leaves| !leaves.is_empty()))
+        && crate::helper_references::result_type(facts).is_ok_and(|ty| {
+            (!guarded_results::shape(&ty) || guarded_results::supported(facts))
+                && roster::leaves(&ty).is_ok_and(|leaves| !leaves.is_empty())
+        })
+}
+
+pub(crate) fn guarded_product(facts: &dyn EvidenceFacts) -> bool {
+    crate::helper_references::result_type(facts).is_ok_and(|ty| guarded_results::shape(&ty))
+        && supported(facts)
+}
+
+pub(crate) fn fresh_product_result(facts: &dyn EvidenceFacts, pair: PairView<'_>) -> bool {
+    guarded_product(facts) && derive(facts, pair).is_ok_and(|outputs| outputs.is_some())
 }
 
 fn shared_formals(facts: &dyn EvidenceFacts) -> bool {
@@ -77,7 +99,8 @@ pub fn derive(
         return Err("Component helper results require complete memory-free return evidence".into());
     }
 
-    let mut outputs = roster::leaves(&crate::helper_references::result_type(facts)?)?;
+    let result = crate::helper_references::result_type(facts)?;
+    let mut outputs = roster::leaves(&result)?;
     let returns: Vec<_> = pair
         .pdg
         .nodes
@@ -87,31 +110,42 @@ pub fn derive(
     if returns.is_empty() {
         return Err("Component result lacks returning evidence".into());
     }
+    let context = ReturnOrigins {
+        returns: &returns,
+        pair,
+        facts,
+        guarded: guarded_results::shape(&result),
+    };
     for output in &mut outputs {
-        output.origins = output_origins(output, &returns, pair, facts)?;
+        output.origins = context.collect(output)?;
     }
+    roster::verify(&result, &outputs)?;
     Ok(Some(outputs))
 }
 
-fn output_origins(
-    output: &Output,
-    returns: &[&crate::PdgNode],
-    pair: PairView<'_>,
-    facts: &dyn EvidenceFacts,
-) -> Result<Vec<Origin>, String> {
-    let mut origins = BTreeSet::new();
-    for returned in returns {
-        for origin in crate::data_documents::origins::selected_return(
-            returned,
-            &output.selectors,
-            pair,
-            facts,
-        )? {
-            verify_origin(&origin, facts, &output.ty)?;
-            origins.insert(origin);
+struct ReturnOrigins<'a> {
+    returns: &'a [&'a crate::PdgNode],
+    pair: PairView<'a>,
+    facts: &'a dyn EvidenceFacts,
+    guarded: bool,
+}
+
+impl ReturnOrigins<'_> {
+    fn collect(&self, output: &Output) -> Result<Vec<Origin>, String> {
+        let mut origins = BTreeSet::new();
+        for returned in self.returns {
+            let selected = if self.guarded {
+                crate::data_documents::origins::selected_product_return
+            } else {
+                crate::data_documents::origins::selected_return
+            };
+            for origin in selected(returned, &output.selectors, self.pair, self.facts)? {
+                verify_origin(&origin, self.facts, &output.ty)?;
+                origins.insert(origin);
+            }
         }
+        Ok(origins.into_iter().collect())
     }
-    Ok(origins.into_iter().collect())
 }
 
 fn verify_origin(origin: &Origin, facts: &dyn EvidenceFacts, ty: &TypeToken) -> Result<(), String> {
@@ -131,6 +165,7 @@ pub fn map(
         return Err("Selected component call requires its registered capability".into());
     }
     let dependency = crate::helper_calls::verify_use(call, facts)?;
+    guarded_results::verify_dependency(call, facts, &dependency)?;
     let outputs = dependency
         .summary()
         .component_outputs

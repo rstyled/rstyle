@@ -168,3 +168,64 @@ fn forge(pair: &mut rstyle_pdg::producer::Pair, attack: &str, roots: &Value) {
         );
     }
 }
+
+const WRAPPED_METHODS: &str = r#"
+        pub fn new_wrapped(bytes: &'a [u8], line_width: usize) -> Result<Self, Error> {
+            if line_width < 4 { return Err(InvalidLength); }
+            let mut reader = Self::new_unwrapped(bytes)?;
+            reader.line_width = Some(line_width);
+            Ok(reader)
+        }
+        pub fn same_wrapped(bytes: &'a [u8], line_width: usize) -> Result<Self, Error> {
+            if line_width < 4 { return Err(InvalidLength); }
+            let mut reader = Self::new_unwrapped(bytes)?;
+            reader.line_width = Some(line_width);
+            Ok(reader)
+        }
+        pub fn escaped(bytes: &'a [u8], line_width: usize) -> Result<Self, Error> {
+            let mut reader = Self::new_unwrapped(bytes)?;
+            let alias = &reader;
+            reader.line_width = Some(line_width);
+            Ok(reader)
+        }
+        pub fn overwritten(bytes: &'a [u8], line_width: usize) -> Result<Self, Error> {
+            let mut reader = Self::new_unwrapped(bytes)?;
+            reader.line_width = None;
+            reader.line_width = Some(line_width);
+            Ok(reader)
+        }
+        pub fn alpha"#;
+
+#[test]
+fn wrapped_product_results_connect_helper_propagation_update_and_move() {
+    let directory = clone_workspace();
+    let source = SOURCE.replace("        pub fn alpha", WRAPPED_METHODS);
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for name in [
+        "Reader::<'a>::new_wrapped",
+        "Reader::<'a>::same_wrapped",
+        "Reader::<'a>::overwritten",
+    ] {
+        let function = named(&report, name);
+        assert_eq!(
+            function["outcome"], "admitted",
+            "{name}: {}",
+            function["reasons"]
+        );
+    }
+    assert_eq!(
+        named(&report, "Reader::<'a>::escaped")["outcome"],
+        "excluded"
+    );
+    check_aggregate_documents(&report);
+    check_equivalent_matching(
+        &report,
+        ["Reader::<'a>::new_wrapped", "Reader::<'a>::same_wrapped"],
+    );
+}

@@ -67,7 +67,11 @@ impl Resolver<'_> {
         selectors: &[usize],
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
-        if crate::borrowed_result_propagation::candidate(node, self.facts)
+        if let Some(origins) = crate::owned_product_values::source(node, selectors, self.facts)? {
+            return Ok(origins);
+        }
+        if crate::product_result_propagation::candidate(node, self.facts)
+            || crate::borrowed_result_propagation::candidate(node, self.facts)
             || crate::option_propagation::candidate(node, self.facts)
         {
             return self.propagated(node, selectors, visiting);
@@ -102,6 +106,14 @@ impl Resolver<'_> {
         selectors: &[usize],
         visiting: &mut Visiting,
     ) -> Result<Vec<Origin>, String> {
+        if crate::product_result_propagation::candidate(node, self.facts) {
+            let checked = crate::product_result_propagation::verify(node, self.facts)?;
+            return crate::data_origins::propagation_origins(self.source(
+                checked.operand,
+                selectors,
+                visiting,
+            )?);
+        }
         if !selectors.is_empty() {
             return Err("Propagation cannot select unrelated payload components".into());
         }
@@ -123,7 +135,23 @@ impl Resolver<'_> {
         let checked = crate::concrete_results::verify_constructor(node, self.facts)?;
         match checked.construct {
             "data.result-ok" => self.source(checked.payload, selectors, visiting),
-            "data.result-err" if selectors.is_empty() => Ok(Vec::new()),
+            "data.result-err" => {
+                if !selectors.is_empty() {
+                    let boundary =
+                        crate::concrete_results::fresh_products::product_boundary(self.facts)?;
+                    if crate::data_aggregates::parsed_type(node)? != boundary.result {
+                        return Err("Selected Err source differs from its product boundary".into());
+                    }
+                }
+                if crate::data_origins::shared(&crate::data_aggregates::parsed_type(
+                    checked.payload,
+                )?) {
+                    return Err(
+                        "Checked Result error unexpectedly carries reference origins".into(),
+                    );
+                }
+                Ok(Vec::new())
+            }
             _ => Err("Result failure cannot select a successful payload component".into()),
         }
     }

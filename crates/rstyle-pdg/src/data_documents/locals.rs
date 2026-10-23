@@ -45,6 +45,7 @@ fn source_binding<'a>(
         return Ok(None);
     }
     let source = super::origins::source_node(node, facts)?;
+
     if node.category == NodeCategory::Declaration {
         let symbol = source
             .children
@@ -56,6 +57,9 @@ fn source_binding<'a>(
             .iter()
             .find(|binding| Some(binding.symbol.as_str()) == symbol));
     }
+    if let Some(update) = crate::owned_product_locals::update_for(source, facts)? {
+        return Ok(resolved_binding(update.receiver(), facts));
+    }
     let source = if node.category == NodeCategory::Assignment {
         source
             .children
@@ -64,16 +68,23 @@ fn source_binding<'a>(
     } else {
         source
     };
+    Ok(resolved_binding(source, facts))
+}
+
+fn resolved_binding<'a>(
+    source: &crate::HirNode,
+    facts: &'a dyn EvidenceFacts,
+) -> Option<&'a BindingFact> {
     let target = source
         .res
         .as_ref()
         .filter(|resolution| resolution.kind == "local")
         .and_then(|resolution| resolution.target.as_ref());
 
-    Ok(facts
+    facts
         .bindings
         .iter()
-        .find(|binding| Some(&binding.hir) == target))
+        .find(|binding| Some(&binding.hir) == target)
 }
 
 fn verify_access(node: &PdgNode, binding: &BindingFact) -> Result<(), String> {
@@ -144,7 +155,23 @@ fn verify_value(
     {
         return Err("Local aggregate definition loses its typed whole-value operand".into());
     }
+    verify_definition_source(node, value, facts)
+}
+
+fn verify_definition_source(
+    node: &PdgNode,
+    value: &PdgNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
     let source = super::origins::source_node(node, facts)?;
+    if crate::owned_product_locals::update_for(source, facts)?.is_some() {
+        return if value.attributes.construct.as_deref() == Some(crate::owned_product_values::UPDATE)
+        {
+            Ok(())
+        } else {
+            Err("Owned field assignment must define the checked whole aggregate transition".into())
+        };
+    }
     let initializer = if node.category == NodeCategory::Declaration {
         source
             .children

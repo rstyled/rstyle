@@ -65,6 +65,42 @@ impl<'tcx> Context<'tcx> {
         })
     }
 
+    pub(super) fn product_result_shape(
+        &self,
+        operand: &Expr<'tcx>,
+        branch: &Expr<'tcx>,
+    ) -> Option<rstyle_pdg::product_result_propagation::capture::Shape> {
+        let input = self.typeck.expr_ty(operand);
+        let (payload, error) = payloads(self.tcx, input)?;
+        let (output_payload, output_error) = payloads(self.tcx, self.result)?;
+        let ty::Adt(owner, _) = payload.kind() else {
+            return None;
+        };
+
+        // Region-normalized equality corroborates the captured nominal identity;
+        // source ownership and returned backing origins prove lifetime transport.
+        if !owner.is_struct()
+            || self.tcx.erase_and_anonymize_regions(input)
+                != self.tcx.erase_and_anonymize_regions(self.result)
+            || error != output_error
+        {
+            return None;
+        }
+
+        let control_flow = self.typeck.expr_ty(branch);
+        let residual = self.borrowed_result_residual(control_flow, payload, error)?;
+
+        Some(rstyle_pdg::product_result_propagation::capture::Shape {
+            input: input.to_string(),
+            output: self.result.to_string(),
+            payload: payload.to_string(),
+            output_payload: output_payload.to_string(),
+            error: error.to_string(),
+            residual: residual.to_string(),
+            control_flow: control_flow.to_string(),
+        })
+    }
+
     fn borrowed_byte_slice(&self, value: Ty<'tcx>) -> bool {
         matches!(value.kind(), ty::Ref(_, inner, hir::Mutability::Not)
             if matches!(inner.kind(), ty::Slice(element) if *element == self.tcx.types.u8))

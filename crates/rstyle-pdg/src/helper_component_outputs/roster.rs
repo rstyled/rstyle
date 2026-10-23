@@ -2,6 +2,11 @@
 use super::*;
 
 pub(super) fn leaves(ty: &TypeToken) -> Result<Vec<Output>, String> {
+    let ty = match ty {
+        TypeToken::Result { ok, .. } if guarded_results::shape(ty) => ok.as_ref(),
+        _ => ty,
+    };
+
     if !matches!(ty, TypeToken::Tuple(_) | TypeToken::Struct { .. }) {
         return Err("Component helper result must be a tuple or named product".into());
     }

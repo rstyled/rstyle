@@ -22,15 +22,21 @@ pub fn implementation(
     }
     let owner = tcx.inherent_impl_of_assoc(id)?;
     let nongeneric = tcx.generics_of(id).count() == 0 && tcx.generics_of(owner).count() == 0;
-    (nongeneric || profile.supports("rust.borrowed-mixed-owners") && lifetime_owner(tcx, id, owner))
-        .then_some(owner)
+    (nongeneric
+        || profile.supports("rust.borrowed-mixed-owners")
+            && lifetime_owner(
+                tcx,
+                id,
+                owner,
+                profile.supports("rust.linear-product-result-flow"),
+            ))
+    .then_some(owner)
 }
 
-fn lifetime_owner(tcx: TyCtxt<'_>, id: DefId, owner: DefId) -> bool {
+fn lifetime_owner(tcx: TyCtxt<'_>, id: DefId, owner: DefId, static_product: bool) -> bool {
     let method = tcx.generics_of(id);
     let implementation = tcx.generics_of(owner);
     method.own_params.is_empty()
-        && tcx.associated_item(id).is_method()
         && method.parent == Some(owner)
         && implementation.parent.is_none()
         && !implementation.own_params.is_empty()
@@ -39,8 +45,12 @@ fn lifetime_owner(tcx: TyCtxt<'_>, id: DefId, owner: DefId) -> bool {
             .own_params
             .iter()
             .all(|parameter| matches!(parameter.kind, ty::GenericParamDefKind::Lifetime))
-        && matches!(tcx.fn_sig(id).instantiate_identity().skip_binder().inputs().first(),
-            Some(receiver) if matches!(receiver.kind(), ty::Ref(_, _, rustc_hir::Mutability::Not)))
+        && if tcx.associated_item(id).is_method() {
+            matches!(tcx.fn_sig(id).instantiate_identity().skip_binder().inputs().first(),
+                Some(receiver) if matches!(receiver.kind(), ty::Ref(_, _, rustc_hir::Mutability::Not)))
+        } else {
+            static_product
+        }
 }
 
 pub fn call_owner(tcx: TyCtxt<'_>, owner: DefId) -> CallOwner {

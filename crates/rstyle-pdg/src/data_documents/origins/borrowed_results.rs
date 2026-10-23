@@ -65,7 +65,13 @@ impl Graph<'_> {
         let payload = self.saved_operand(node, checked.payload, 0)?;
 
         if checked.construct == "data.result-err" {
-            no_selectors(selectors)?;
+            if !selectors.is_empty() {
+                let boundary =
+                    crate::concrete_results::fresh_products::product_boundary(self.facts)?;
+                if crate::data_types::parse(&wire_type(node)?)? != boundary.result {
+                    return Err("Selected Err graph differs from its product boundary".into());
+                }
+            }
             return empty_error_payload(checked.payload);
         }
         self.origins(payload, selectors, visiting)
@@ -84,6 +90,12 @@ impl Graph<'_> {
             .ok_or("Missing Result operation construct")?;
         let source = source_node(node, self.facts)?;
 
+        if matches!(
+            construct,
+            "try.product-result-error" | "try.product-result-ok-product"
+        ) {
+            return self.propagated_product(node, selectors, visiting);
+        }
         no_selectors(selectors)?;
 
         if construct == "try.scalar-result-error" {
@@ -113,6 +125,32 @@ impl Graph<'_> {
             );
         }
         self.origins(saved, &[], visiting)
+    }
+
+    fn propagated_product(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
+        let source = source_node(node, self.facts)?;
+        let checked = crate::product_result_propagation::verify(source, self.facts)?;
+        let saved = self.saved_operand(node, checked.operand, 0)?;
+
+        if node.attributes.construct.as_deref() == Some("try.product-result-error") {
+            if wire_type(node)? != checked.output_token
+                || data_origins::shared(&crate::data_types::parse(&checked.error_token)?)
+            {
+                return Err(
+                    "Propagated product error loses its checked complete error boundary".into(),
+                );
+            }
+            return Ok(Vec::new());
+        }
+        if wire_type(node)? != checked.payload_token {
+            return Err("Propagated product success loses its exact owned payload type".into());
+        }
+        data_origins::propagation_origins(self.origins(saved, selectors, visiting)?)
     }
 
     fn saved_operand(
@@ -173,6 +211,10 @@ pub(super) fn verified_empty(node: &PdgNode, facts: &dyn EvidenceFacts) -> Resul
 
     let source = source_node(node, facts)?;
 
+    if node.attributes.construct.as_deref() == Some("try.product-result-error") {
+        let checked = crate::product_result_propagation::verify(source, facts)?;
+        return Ok(wire_type(node)? == checked.output_token);
+    }
     if node.attributes.construct.as_deref() == Some("try.scalar-result-error") {
         let checked = crate::scalar_result_propagation::verify(source, facts)?;
         return Ok(wire_type(node)? == checked.output_token);
@@ -223,6 +265,16 @@ pub(super) fn generated_error_return(
         return Ok(false);
     }
 
+    for question_mark in crate::field_locations::selected_operations(
+        facts,
+        &["expr_try_desugar"],
+        crate::product_result_propagation::candidate,
+    ) {
+        let checked = crate::product_result_propagation::verify(question_mark, facts)?;
+        if checked.early_return.hir == source.hir && checked.early_return.span == source.span {
+            return Ok(true);
+        }
+    }
     for question_mark in crate::field_locations::selected_operations(
         facts,
         &["expr_try_desugar"],

@@ -5051,3 +5051,24 @@ Fresh frozen `run-49q4l17t` preserves all60 identities, outcomes, reasons/build
 settings and denominators versus `run-gp8bnmsf`:23/30/7,0 gains/losses;
 116 documents pass schema checks,21 Python tests pass. This adds no frozen
 strict semantic replay claim.
+
+### Data-v3 3.90: guarded product Result callers and affine updates
+
+Original base64ct1.7.3 `LineReader::new_wrapped → new_unwrapped` now composes
+same-unit guarded summaries, exact same-product/error `?`, one initialized
+nonescaping no-drop local, Copy scalar/Option field replacement and terminal move.
+Six unchanged default/std target selections each gain1/lose0 (0/1→1/1), complete
+rosters141/150 unchanged. [Contract](docs/extraction-profiles/linear-product-result-flow-v1.md).
+Six strict replays/identity comparisons and108 resealed attacks pass; independent
+ARM Linux original-source oracle64,638 cases/context has0 mismatches. Full suite:
+1,497 tests/five existing skips plus doctests; fmt/Clippy, style0/4,843, patterns0
+with15 existing ignores unchanged. Expanded composition1.646s; no new production
+hash or serialized key. Frozen `run-dm2kys18` preserves all60 identities, outcomes,
+blockers/build settings and denominators against `run-49q4l17t`:23/30/7,116 schema
+checks; no new frozen strict replay claim. Evidence:`/tmp/rstyle-390-*`.
+
+Foreign mixed-product linking, general payload matches, generic/trait selection,
+mutable memory, escaping storage and drop/unwind remain separate. Next source
+readiness audit prioritizes exact `Match::new<Span/Range<usize>>` Into→From chains;
+error-payload and mutable-formal alternatives remain in the execution frontier.
+Broader P01–P22 work and native x86/macOS execution checks remain outstanding.

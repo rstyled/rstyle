@@ -124,6 +124,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.scalar-success-result-propagation",
     "rust.checked-suffix-result-views",
     "rust.fresh-reference-product-results",
+    "rust.linear-product-result-flow",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -275,7 +276,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.89.0", 111)),
+            Self::DataV3 => Some(("3.90.0", 112)),
         }
     }
 

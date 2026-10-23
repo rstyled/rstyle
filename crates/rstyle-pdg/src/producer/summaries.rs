@@ -37,6 +37,10 @@ impl SummaryCapture<'_> {
             let checked = crate::option_propagation::verify(node, self.facts)?;
             return self.visit(checked.operand);
         }
+        if crate::product_result_propagation::candidate(node, self.facts) {
+            let checked = crate::product_result_propagation::verify(node, self.facts)?;
+            return self.visit(checked.operand);
+        }
         if crate::scalar_result_propagation::candidate(node, self.facts) {
             let checked = crate::scalar_result_propagation::verify(node, self.facts)?;
             return self.visit(checked.operand);

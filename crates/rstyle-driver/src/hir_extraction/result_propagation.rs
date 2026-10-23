@@ -17,6 +17,7 @@ pub(super) enum Protocol {
     Result,
     BorrowedResult,
     ScalarResult,
+    ProductResult,
     Option,
 }
 
@@ -26,6 +27,7 @@ enum CapturedShape {
     Result(Shape),
     ScalarResult(rstyle_pdg::scalar_result_propagation::capture::Shape),
     BorrowedResult(rstyle_pdg::borrowed_result_propagation::capture::Shape),
+    ProductResult(rstyle_pdg::product_result_propagation::capture::Shape),
     Option(rstyle_pdg::option_propagation::capture::Shape),
 }
 
@@ -62,6 +64,11 @@ impl Protocol {
                 rstyle_pdg::scalar_result_propagation::capture::RESOLUTION,
                 rstyle_pdg::scalar_result_propagation::capture::IDENTITY,
             ),
+            Self::ProductResult => (
+                rstyle_pdg::product_result_propagation::CAPABILITY,
+                rstyle_pdg::product_result_propagation::capture::RESOLUTION,
+                rstyle_pdg::product_result_propagation::capture::IDENTITY,
+            ),
             Self::Option => (
                 "rust.concrete-option-propagation",
                 rstyle_pdg::option_propagation::capture::RESOLUTION,
@@ -76,6 +83,7 @@ impl<'tcx> Context<'tcx> {
         self.propagation_capture(root, Protocol::Result)
             .or_else(|| self.propagation_capture(root, Protocol::BorrowedResult))
             .or_else(|| self.propagation_capture(root, Protocol::ScalarResult))
+            .or_else(|| self.propagation_capture(root, Protocol::ProductResult))
     }
 
     pub(super) fn propagation_capture(
@@ -163,6 +171,10 @@ impl<'tcx> Context<'tcx> {
             ),
             Protocol::ScalarResult => (
                 CapturedShape::ScalarResult(self.scalar_result_shape(operand, branch)?),
+                Some(self.propagation_conversion(root, operand)?),
+            ),
+            Protocol::ProductResult => (
+                CapturedShape::ProductResult(self.product_result_shape(operand, branch)?),
                 Some(self.propagation_conversion(root, operand)?),
             ),
             Protocol::Option => (

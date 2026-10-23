@@ -5,6 +5,12 @@ pub(crate) fn operands<'a>(
     node: &'a HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Option<Result<Vec<&'a HirNode>, String>> {
+    if crate::product_result_propagation::candidate(node, facts) {
+        return Some(
+            crate::product_result_propagation::verify(node, facts)
+                .map(|checked| vec![checked.operand]),
+        );
+    }
     if crate::scalar_result_propagation::candidate(node, facts) {
         return Some(
             crate::scalar_result_propagation::verify(node, facts)
@@ -46,7 +52,8 @@ pub(crate) fn operands<'a>(
 }
 
 pub(super) fn used(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    crate::scalar_result_propagation::candidate(node, facts)
+    crate::product_result_propagation::candidate(node, facts)
+        || crate::scalar_result_propagation::candidate(node, facts)
         || crate::checked_slice_views::suffix::candidate(node, facts)
         || crate::borrowed_result_propagation::candidate(node, facts)
         || crate::checked_slice_views::candidate(node, facts)

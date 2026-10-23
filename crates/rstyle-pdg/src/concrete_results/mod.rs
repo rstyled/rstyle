@@ -94,6 +94,10 @@ fn fresh(
     if borrowed_fresh(node, returning, error, facts)? {
         return Ok(());
     }
+    if crate::product_result_propagation::candidate(node, facts) {
+        let checked = crate::product_result_propagation::verify(node, facts)?;
+        return fresh(checked.operand, true, error, facts);
+    }
     if crate::scalar_result_propagation::candidate(node, facts) {
         let checked = crate::scalar_result_propagation::verify(node, facts)?;
         return fresh(checked.operand, true, error, facts);
@@ -260,8 +264,10 @@ fn verify_copy_document_policy(
 
 /// Whole fresh no-drop values can cross the helper boundary without Copy.
 pub(crate) fn fresh_result(facts: &dyn EvidenceFacts, pair: crate::producer::PairView<'_>) -> bool {
-    !fresh_products::interface_used(facts).unwrap_or(true)
-        && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Complete
+    if fresh_products::interface_used(facts).unwrap_or(true) {
+        return crate::helper_component_outputs::fresh_product_result(facts, pair);
+    }
+    pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Complete
         && types::used(facts).unwrap_or(false)
         && verify_function(facts).is_ok()
 }

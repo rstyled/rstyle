@@ -10,6 +10,10 @@ pub(crate) fn source(
     selectors: &[usize],
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
+    if let Some(origins) = crate::owned_product_values::source(node, selectors, facts)? {
+        return Ok(origins);
+    }
+
     if crate::data_reference_locals::flow_enabled(facts) {
         return crate::data_reference_locals::selected(node, selectors, facts);
     }
@@ -27,6 +31,12 @@ fn source_operation(
     selectors: &[usize],
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
+    if crate::concrete_results::constructor_candidate(node, facts)
+        && crate::data_aggregates::parsed_type(node)
+            .is_ok_and(|ty| crate::concrete_results::fresh_products::used(&ty))
+    {
+        return product_constructor(node, selectors, facts);
+    }
     match node.kind.as_str() {
         "expr_call" | "expr_method_call"
             if crate::helper_component_outputs::call_used(node, facts) =>
@@ -59,14 +69,40 @@ fn source_operation(
             selectors,
             facts,
         ),
-        "expr_if" if node.children.len() == 3 => {
-            let mut roots = source(&node.children[1], selectors, facts)?;
-            roots.extend(source(&node.children[2], selectors, facts)?);
-            roots.sort();
-            roots.dedup();
-            Ok(roots)
-        }
+        "expr_if" if node.children.len() == 3 => alternatives(node, selectors, facts),
         _ => Err("Aggregate component lacks supported source correspondence".into()),
+    }
+}
+
+fn alternatives(
+    node: &HirNode,
+    selectors: &[usize],
+    facts: &dyn EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
+    let mut roots = source(&node.children[1], selectors, facts)?;
+
+    roots.extend(source(&node.children[2], selectors, facts)?);
+    roots.sort();
+    roots.dedup();
+    Ok(roots)
+}
+
+fn product_constructor(
+    node: &HirNode,
+    selectors: &[usize],
+    facts: &dyn EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
+    let checked = crate::concrete_results::verify_constructor(node, facts)?;
+    let boundary = crate::concrete_results::fresh_products::product_boundary(facts)?;
+    if crate::data_types::parse(crate::data_aggregates::token(node)?)? != boundary.result {
+        return Err("Selected product constructor differs from its return boundary".into());
+    }
+    if checked.construct == "data.result-ok" {
+        source(checked.payload, selectors, facts)
+    } else if !crate::data_origins::shared(&crate::data_aggregates::parsed_type(checked.payload)?) {
+        Ok(Vec::new())
+    } else {
+        Err("Selected product Err payload unexpectedly carries origins".into())
     }
 }
 

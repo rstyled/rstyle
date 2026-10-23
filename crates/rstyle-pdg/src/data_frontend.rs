@@ -121,6 +121,7 @@ fn verify_value_document_policy(
     crate::data_documents::option_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::borrowed_result_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::scalar_result_propagation::verify_document_policy(profile, facts)?;
+    crate::data_documents::product_result_propagation::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,
         crate::helper_component_outputs::CAPABILITY,
@@ -479,8 +480,13 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if let Some(update) = crate::owned_product_locals::update_for(node, facts)? {
+        verify_nodes(update.receiver(), facts, places)?;
+        return verify_nodes(update.value(), facts, places);
+    }
+
     if let Some(operands) = borrowed_results::operands(node, facts) {
-        return verify_borrowed_nodes(node, facts, places, operands);
+        return verify_node_operands(node, facts, places, operands?);
     }
     if crate::option_propagation::candidate(node, facts) {
         let checked = crate::option_propagation::verify(node, facts)?;
@@ -490,6 +496,7 @@ fn verify_nodes(
         let checked = crate::result_propagation::verify(node, facts)?;
         return verify_nodes(checked.operand, facts, places);
     }
+
     if crate::helper_option_callbacks::candidate(node, facts) {
         return verify_helper_callback(node, facts, places);
     }
@@ -513,24 +520,24 @@ fn verify_nodes(
         }
         return Ok(());
     }
-    verify_value_operations(node, facts)?;
-    verify_node_type(node, facts)?;
-    verify_reference_origins(node, facts, places)?;
-
-    for child in &node.children {
-        verify_nodes(child, facts, places)?;
-    }
-    Ok(())
+    verify_plain_nodes(node, facts, places)
 }
 
-fn verify_borrowed_nodes(
+fn verify_plain_nodes(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
-    operands: Result<Vec<&HirNode>, String>,
 ) -> Result<(), String> {
-    let operands = operands?;
+    verify_value_operations(node, facts)?;
+    verify_node_operands(node, facts, places, &node.children)
+}
 
+fn verify_node_operands<'a>(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    places: &crate::data_places::Places,
+    operands: impl IntoIterator<Item = &'a HirNode>,
+) -> Result<(), String> {
     verify_node_type(node, facts)?;
     verify_reference_origins(node, facts, places)?;
     for operand in operands {

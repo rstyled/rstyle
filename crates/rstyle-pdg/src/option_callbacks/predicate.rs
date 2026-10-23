@@ -121,14 +121,8 @@ fn equality<'a>(binding: &HirNode, body: &'a HirNode) -> Result<&'a HirNode, Str
 }
 
 fn path(node: &HirNode) -> Result<(), String> {
-    if node.kind != "expr_path"
-        || node.expansion.is_some()
-        || !node.children.is_empty()
+    if crate::source_evidence::resolved_local_leaf(node).is_none()
         || node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some("u8")
-        || !node
-            .res
-            .as_ref()
-            .is_some_and(|res| res.kind == "local" && res.target.is_some())
     {
         return Err("Callback operands must be original resolved byte bindings".into());
     }

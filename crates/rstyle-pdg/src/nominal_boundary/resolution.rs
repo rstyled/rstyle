@@ -853,6 +853,14 @@ fn check_implementation(
                 && implementation_source_span(bytes, item) == *implementation
                 && supported_inherent_member(item, bytes, facts)
             {
+                if !facts.signature.has_self
+                    && !item.generics.params.is_empty()
+                    && !supports(facts, "rust.linear-product-result-flow")?
+                {
+                    return Err(
+                        "Lifetime-only static helper requires its registered capability".into(),
+                    );
+                }
                 owners += 1;
             }
         }

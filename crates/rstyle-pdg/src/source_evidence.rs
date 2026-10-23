@@ -24,6 +24,17 @@ pub(crate) fn byte_range(bytes: &str, span: ByteSpan) -> Result<&str, String> {
         .ok_or_else(|| "Source range is out of bounds or splits UTF-8".into())
 }
 
+/// Original leaf path with a captured local binding; supplies no type or dispatch proof.
+pub(crate) fn resolved_local_leaf(node: &HirNode) -> Option<&HirRef> {
+    if node.kind != "expr_path" || node.expansion.is_some() || !node.children.is_empty() {
+        return None;
+    }
+    node.res
+        .as_ref()
+        .filter(|resolution| resolution.kind == "local")
+        .and_then(|resolution| resolution.target.as_ref())
+}
+
 /// Relative identifier paths only; this proves syntax, never name resolution.
 pub(crate) fn plain_relative_path(path: &syn::Path) -> Option<Vec<String>> {
     if path.leading_colon.is_some() || path.segments.iter().any(|part| !part.arguments.is_none()) {

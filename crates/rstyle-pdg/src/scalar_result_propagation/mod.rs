@@ -129,6 +129,14 @@ fn structure<'a>(
     node: &'a HirNode,
     witness: &Witness,
 ) -> Result<(&'a HirNode, &'a HirNode, &'a HirNode), String> {
+    structure_with_generated(node, witness, &authority::generated_output(&witness.shape)?)
+}
+
+pub(crate) fn structure_with_generated<'a>(
+    node: &'a HirNode,
+    witness: &Witness,
+    generated_output: &str,
+) -> Result<(&'a HirNode, &'a HirNode, &'a HirNode), String> {
     let [branch, broken, continued] = node.children.as_slice() else {
         return Err("Scalar success propagation requires two complete generated arms".into());
     };
@@ -153,7 +161,7 @@ fn structure<'a>(
 
     observed(usage, &witness.shape.residual)?;
 
-    observed(residual, &authority::generated_output(&witness.shape)?)?;
+    observed(residual, generated_output)?;
 
     local_use(usage, &witness.break_arm)?;
 

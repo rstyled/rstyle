@@ -52,6 +52,9 @@ pub fn origins(
         return Ok(Vec::new());
     }
 
+    if let Some(origins) = crate::owned_product_values::source(node, &[], facts)? {
+        return Ok(origins);
+    }
     if crate::data_reference_locals::flow_enabled(facts) {
         return crate::data_reference_locals::selected(node, &[], facts);
     }

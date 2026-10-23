@@ -149,6 +149,34 @@ fn invocation(
 
         operation_effects(operation, category, construct, &metadata)?;
     }
+    verify_transfer(
+        pair,
+        facts,
+        guards,
+        Operations {
+            saved,
+            selector,
+            error,
+            success,
+            returned,
+        },
+    )
+}
+
+/// Shared branch topology grants no payload, ownership or origin permission.
+pub(super) fn verify_transfer(
+    pair: PairView<'_>,
+    facts: &dyn EvidenceFacts,
+    guards: &super::conditional_payloads::Guards<'_>,
+    operations: Operations<'_>,
+) -> Result<(), String> {
+    let Operations {
+        saved,
+        selector,
+        error,
+        success,
+        returned,
+    } = operations;
     super::verify_saved_operands(pair, returned, &[error])?;
 
     return_effects(returned, facts)?;
@@ -163,13 +191,6 @@ fn invocation(
 
     consumers::verify(pair, error, [returned])?;
 
-    let operations = Operations {
-        saved,
-        selector,
-        error,
-        success,
-        returned,
-    };
     operations.order(pair)?;
 
     flow::verify(pair, &operations)?;

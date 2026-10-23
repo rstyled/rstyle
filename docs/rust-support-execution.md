@@ -6,9 +6,9 @@ remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; Data3.83 connects bounded original scalar
-generic instances through exact cross-package call links and strict replay,
-following Data3.82 calendar wrappers and the Data3.81 lz4 block-header parser.
+Branch `feature/rust-feature-coverage`; Data3.90 connects original wrapped-reader
+construction through guarded product Result summaries, exact `?` and affine local
+updates, following Data3.89 fresh product Result ownership.
 The root roadmap records validated checkpoints; broader P01–P22 work remains
 active and historical evidence stays unchanged.
 
@@ -362,3 +362,31 @@ Frozen checkpoint `run-49q4l17t` versus `run-gp8bnmsf`:all60 identities/outcomes
 reasons/build settings and denominators unchanged,23/30/7,0 gains/losses;
 116 schema-checked documents and21 Python tests. No additional frozen strict
 semantic replay claim. Assessment parity: `/tmp/rstyle-389-frozen-parity.json`.
+
+
+Data3.90 connects original `LineReader::new_wrapped → new_unwrapped` without
+changing earlier selections. All six target/feature contexts gain1/lose0,
+rosters141/150 unchanged; six strict replays/identity comparisons and108 resealed
+attacks pass. Original-source oracle64,638 cases/default and/std has0 mismatches.
+Final gates:1,497 tests/five existing skips, doctests/fmt/Clippy, style0/4,843,
+patterns0/15 unchanged ignores. Composition1.646s; no new hash or serialized key.
+Frozen `run-dm2kys18` versus `run-49q4l17t`:all60 identities/outcomes/blockers/build
+settings and denominators match,23/30/7,116 schema checks (not new strict replay).
+Evidence:`/tmp/rstyle-390-*`; [contract](extraction-profiles/linear-product-result-flow-v1.md).
+
+Next frontier is source-audited, not implementation-ready. Guarded Result summaries
+do not authorize plain foreign Input products. Prefer a bounded resolution chain
+before another getter; freeze exact expectations before measuring admission.
+
+| Lane / exclusive scope | Next target and readiness gate |
+| --- | --- |
+| Lead integration/oracle | Freeze separate Match constructor selection, concrete build/substitution identities and independent value/panic oracle; own shared policy/types/origins and gates. No promised upstream search gains. |
+| Resolution/callables | Original regex-automata0.4.18 `Match::new<Span/Range<usize>>` plus exact Into→From bodies. Prove complete Match/PatternID source/Copy ownership, actual blanket implementation, once-only conversion, assertion/panic and full scalar result. Instance/dispatch leaves only after interface freeze; Range consumption is an extra obligation. |
+| Error/payload | Audit time0.3.47 ComponentRange→TryFromParsed→inverse payload match. Actual fields are static str+bool; require static origins, complete mixed enum/unit error, concrete trait selection and saved match payload proof. No parser-caller gain claimed; error/pattern leaves only after capture readiness. |
+| Memory/data | Frozen safe lz4_flex0.14.0 `backtrack_match`: mutable scalar formal locations, alias-sensitive loop memory/read-write/post-state and panic contract before helper export. Then base64ct `Line::take` adds split_at, tuple binding, static empty slice and descriptor writes. No public compressor/decoder gain claimed; memory leaves only after contract freeze. |
+
+Bounded source audits:`/tmp/rstyle-390-{resolution,error,memory}-frontier.md`.
+All three candidates have unresolved capture/interface questions; reassess if a
+large prerequisite chain yields no useful originals. Preserve all earlier owners,
+foreign/linking restrictions and frozen membership. Native x86/macOS execution,
+full-library matching, general cleanup and broader P01–P22 routes remain active.

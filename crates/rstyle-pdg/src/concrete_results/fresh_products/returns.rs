@@ -9,6 +9,9 @@ pub(super) enum Role {
 }
 
 pub(crate) fn verify_product_returns(facts: &dyn EvidenceFacts) -> Result<(), String> {
+    if crate::owned_product_locals::candidate(facts) {
+        return crate::owned_product_locals::verify(facts).map(|_| ());
+    }
     let boundary = product_boundary(facts)?;
     super::super::reject_storage(
         facts,

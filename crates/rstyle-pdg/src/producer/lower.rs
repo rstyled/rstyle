@@ -13,6 +13,8 @@ mod named_callbacks;
 mod option_if_let;
 mod option_propagation;
 mod options;
+mod owned_product_values;
+mod product_result_propagation;
 mod result_propagation;
 mod scalar_result_propagation;
 
@@ -843,6 +845,11 @@ impl Builder<'_> {
     }
 
     fn assignment(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if let Some(update) = crate::owned_product_locals::update_for(node, self.facts)
+            .expect("verified owned update")
+        {
+            return self.owned_product_update(update, flow);
+        }
         let flow = self.expression(&node.children[1], flow);
         let mut operation = self.write(node, "reassignment");
         operation.operator = Some("=".to_string());
@@ -1477,6 +1484,12 @@ fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flo
         .is_some_and(|res| res.kind == crate::scalar_result_propagation::capture::RESOLUTION)
     {
         Builder::scalar_result_propagation
+    } else if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::product_result_propagation::capture::RESOLUTION)
+    {
+        Builder::product_result_propagation
     } else {
         Builder::result_propagation
     }
