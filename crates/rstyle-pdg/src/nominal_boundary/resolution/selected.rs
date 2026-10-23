@@ -26,9 +26,10 @@ pub(super) struct Selection {
 pub(super) fn verify(
     facts: &HirFnFacts,
     origins: &Origins,
-    trees: &BTreeMap<Namespace, TypeTree>,
-    environment: &Environment,
+    resolution: &Resolution,
 ) -> Result<Selection, String> {
+    let trees = &resolution.trees;
+    let environment = &resolution.environment;
     if trees.is_empty() && !supports(facts, "rust.accelerator-packing")? {
         return Err("Mixed-unit boundary requires selected Copy declarations".into());
     }
@@ -36,6 +37,7 @@ pub(super) fn verify(
         facts,
         origins,
         environment,
+        resolution,
     };
     let mut selection = Selection::default();
     for (key, tree) in trees {
@@ -72,6 +74,7 @@ struct DeclarationChecker<'a> {
     facts: &'a HirFnFacts,
     origins: &'a Origins,
     environment: &'a Environment,
+    resolution: &'a Resolution,
 }
 
 impl DeclarationChecker<'_> {
@@ -87,7 +90,7 @@ impl DeclarationChecker<'_> {
             &self.environment.modules[declaration.module_index].items[declaration.item_index];
         let attributes = declaration_attributes(item, tree)?;
         let copy = checked_copy(self.facts, self.origins, tree, attributes)?;
-        let source_closure = cleanup_certificate(self.facts, tree, self.environment, copy)?;
+        let source_closure = self.cleanup_certificate(tree, copy)?;
         let passive_dependencies = match check_namespace_with_closure(
             self.facts,
             self.environment,
@@ -119,20 +122,25 @@ impl DeclarationChecker<'_> {
     }
 }
 
-fn cleanup_certificate(
-    facts: &HirFnFacts,
-    tree: &TypeTree,
-    environment: &Environment,
-    copy: bool,
-) -> Result<Option<no_drop::CheckedNoDrop>, String> {
-    if copy || !requested_no_drop(facts, tree)? {
-        return Ok(None);
+impl DeclarationChecker<'_> {
+    fn cleanup_certificate(
+        &self,
+        tree: &TypeTree,
+        copy: bool,
+    ) -> Result<Option<no_drop::CheckedNoDrop>, String> {
+        if copy || !requested_no_drop(self.facts, tree)? {
+            return Ok(None);
+        }
+        let checked = if super::fresh_products::eligible(tree) {
+            no_drop::reference_products::verify(self.facts, tree, self.resolution, self.origins)?
+        } else {
+            no_drop::verify(self.facts, tree, self.environment)?
+        };
+        if tree.nominal_parts().map(|(nominal, _)| nominal) != Some(checked.nominal()) {
+            return Err("Cleanup certificate identifies another declaration".into());
+        }
+        Ok(Some(checked))
     }
-    let checked = no_drop::verify(facts, tree, environment)?;
-    if tree.nominal_parts().map(|(nominal, _)| nominal) != Some(checked.nominal()) {
-        return Err("Cleanup certificate identifies another declaration".into());
-    }
-    Ok(Some(checked))
 }
 
 fn requested_no_drop(facts: &HirFnFacts, tree: &TypeTree) -> Result<bool, String> {
@@ -147,6 +155,13 @@ fn requested_no_drop(facts: &HirFnFacts, tree: &TypeTree) -> Result<bool, String
     let Observation::Captured { ty } = &interface.result else {
         return Ok(false);
     };
+    if let TypeTree::Result { ok, .. } = ty
+        && supports(facts, super::fresh_products::CAPABILITY)?
+        && ok.as_ref() == tree
+        && super::fresh_products::eligible(tree)
+    {
+        return Ok(true);
+    }
     let error = match ty {
         TypeTree::Result { err, .. } => err.as_ref(),
         TypeTree::Struct { .. } => ty,
@@ -241,6 +256,11 @@ fn supported_field(facts: &HirFnFacts, tree: &TypeTree) -> bool {
             if supports(facts, "rust.borrowed-mixed-owners").unwrap_or(false) =>
         {
             matches!(referent.as_ref(), TypeTree::Slice(element) if matches!(element.as_ref(), TypeTree::Scalar(value) if concrete_types::scalar(value) && value != "unit"))
+        }
+        TypeTree::Option(payload) => {
+            supports(facts, super::fresh_products::CAPABILITY).unwrap_or(false)
+                && matches!(payload.as_ref(), TypeTree::Scalar(token)
+                    if concrete_types::scalar(token) && token != "unit")
         }
         TypeTree::Array { element, .. } => {
             supports(facts, "rust.copy-array-fields").unwrap_or(false)

@@ -275,6 +275,11 @@ fn check_checked_capabilities(
     ty: &TypeToken,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<(), String> {
+    if crate::concrete_results::fresh_products::used(ty)
+        && !profile.supports(crate::concrete_results::fresh_products::CAPABILITY)
+    {
+        return Err("Fresh product Result requires its registered capability".into());
+    }
     if crate::concrete_results::copy_errors::contains_copy_result(ty)
         && !profile.supports(crate::concrete_results::copy_errors::CAPABILITY)
     {
@@ -431,6 +436,7 @@ fn check_result(
     if !unit_result
         && !crate::borrowed_result_types::GRAMMAR.permits(ok, err)
         && !crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err)
+        && !crate::concrete_results::fresh_products::GRAMMAR.permits(ok, err)
     {
         return Err(
             "Concrete Result token requires unit success and a unit tuple error struct".into(),

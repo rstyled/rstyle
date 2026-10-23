@@ -342,6 +342,10 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
 /// This bounded shape grants neither Copy, drop freedom nor value permission.
 fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
     if crate::borrowed_result_types::tree_result(ok, err)
+        || crate::concrete_results::fresh_products::GRAMMAR.permits(
+            &crate::data_types::TypeToken::from_tree(ok),
+            &crate::data_types::TypeToken::from_tree(err),
+        )
         || crate::concrete_results::copy_errors::GRAMMAR.permits(
             &crate::data_types::TypeToken::from_tree(ok),
             &crate::data_types::TypeToken::from_tree(err),

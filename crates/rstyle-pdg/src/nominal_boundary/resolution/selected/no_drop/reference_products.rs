@@ -21,16 +21,25 @@ pub(in crate::nominal_boundary::resolution) fn probe(
 }
 
 pub(in crate::nominal_boundary::resolution::selected) fn supported(tree: &TypeTree) -> bool {
-    let TypeTree::Struct { source, fields, .. } = tree else {
-        return false;
-    };
-    concrete_types::lifetimes::declaration_count(source) == Ok(1)
-        && !fields.is_empty()
-        && fields.len() <= concrete_types::MAX_FIELDS
-        && fields.iter().any(|field| byte_view(&field.ty))
-        && fields
+    fields(tree).is_some_and(|fields| {
+        fields
             .iter()
             .all(|field| byte_view(&field.ty) || copy_shape(&field.ty, 0))
+    })
+}
+
+/// Common source shape only; each caller separately restricts field semantics.
+pub(in crate::nominal_boundary::resolution) fn fields(
+    tree: &TypeTree,
+) -> Option<&[concrete_types::Field]> {
+    let TypeTree::Struct { source, fields, .. } = tree else {
+        return None;
+    };
+    (concrete_types::lifetimes::declaration_count(source) == Ok(1)
+        && !fields.is_empty()
+        && fields.len() <= concrete_types::MAX_FIELDS
+        && fields.iter().any(|field| byte_view(&field.ty)))
+    .then_some(fields.as_slice())
 }
 
 fn byte_view(tree: &TypeTree) -> bool {
@@ -45,6 +54,8 @@ fn copy_shape(tree: &TypeTree, depth: usize) -> bool {
     }
     match tree {
         TypeTree::Scalar(token) => concrete_types::scalar(token) && token != "unit",
+        TypeTree::Option(payload) => matches!(payload.as_ref(), TypeTree::Scalar(token)
+            if concrete_types::scalar(token) && token != "unit"),
         TypeTree::Struct { source, fields, .. } => {
             concrete_types::lifetimes::declaration_count(source) == Ok(0)
                 && !fields.is_empty()
@@ -80,12 +91,7 @@ pub(in crate::nominal_boundary::resolution::selected) fn verify(
         .frontend_options
         .data::<InterfaceObservations>()?;
     crate::declaration_origins::verify_in(&interface, origins, environment)?;
-    verify_declarations(
-        resolution,
-        &environment.index.declarations,
-        origins,
-        environment.census(),
-    )?;
+    verify_declarations(resolution, origins, facts)?;
     let checker = Proof {
         facts,
         resolution,
@@ -200,6 +206,9 @@ impl Proof<'_> {
     fn copy(&self, tree: &TypeTree) -> Result<(), String> {
         if matches!(tree, TypeTree::Scalar(_)) {
             return Ok(());
+        }
+        if let TypeTree::Option(payload) = tree {
+            return super::super::super::builtin_options::scalar_copy(self.facts, payload);
         }
         let key = self.declaration(tree)?;
         let item = self.item(&key)?;

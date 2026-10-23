@@ -238,3 +238,5 @@ fn whole_witness_rejects_missing_and_forged_copy_authority_for_every_dependency(
         );
     }
 }
+
+mod reader;

@@ -5,6 +5,7 @@
 mod constructors;
 pub(crate) mod copy_errors;
 pub(crate) mod documents;
+pub(crate) mod fresh_products;
 pub(crate) mod source;
 mod types;
 
@@ -22,6 +23,9 @@ pub(crate) use types::payload;
 
 /// Verify the exact fresh return boundary, including non-Copy error constructors.
 pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {
+    if fresh_products::interface_used(facts)? {
+        return fresh_products::verify_product_returns(facts);
+    }
     if !types::used(facts)? {
         return Ok(());
     }
@@ -49,12 +53,20 @@ pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {
 
     let source: syn::ItemFn = syn::parse_str(&facts.source.bytes).map_err(|e| e.to_string())?;
     crate::source_evidence::closed_body(&source.block)?;
-    reject_storage(facts, error)?;
-    fresh(&facts.body, true, &TypeToken::from_tree(error), facts)
+    let error = TypeToken::from_tree(error);
+    reject_storage(
+        facts,
+        |token| types::contains_owned(token, &error),
+        "Result/error parameters and local storage require move/liveness proof",
+    )?;
+    fresh(&facts.body, true, &error, facts)
 }
 
-fn reject_storage(facts: &dyn EvidenceFacts, error: &TypeTree) -> Result<(), String> {
-    let error = TypeToken::from_tree(error);
+fn reject_storage(
+    facts: &dyn EvidenceFacts,
+    forbidden: impl Fn(&TypeToken) -> bool,
+    diagnostic: &str,
+) -> Result<(), String> {
     for ty in facts
         .signature
         .params
@@ -66,10 +78,8 @@ fn reject_storage(facts: &dyn EvidenceFacts, error: &TypeTree) -> Result<(), Str
             .normalized
             .as_deref()
             .ok_or("Missing fresh result binding type")?;
-        if types::contains_owned(&crate::data_types::parse(token)?, &error) {
-            return Err(
-                "Result/error parameters and local storage require move/liveness proof".into(),
-            );
+        if forbidden(&crate::data_types::parse(token)?) {
+            return Err(diagnostic.into());
         }
     }
     Ok(())
@@ -189,7 +199,9 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
+    fresh_products::verify_document_policy(profile, facts)?;
     verify_copy_document_policy(profile, facts)?;
+
     crate::extraction_profile::require_capability(
         crate::extraction_profile::policy_supports(profile, CAPABILITY),
         || types::used(facts),
@@ -248,7 +260,8 @@ fn verify_copy_document_policy(
 
 /// Whole fresh no-drop values can cross the helper boundary without Copy.
 pub(crate) fn fresh_result(facts: &dyn EvidenceFacts, pair: crate::producer::PairView<'_>) -> bool {
-    pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Complete
+    !fresh_products::interface_used(facts).unwrap_or(true)
+        && pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Complete
         && types::used(facts).unwrap_or(false)
         && verify_function(facts).is_ok()
 }

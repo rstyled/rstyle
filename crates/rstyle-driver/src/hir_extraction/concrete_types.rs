@@ -281,10 +281,8 @@ impl<'tcx> Capture<'_, 'tcx> {
         }
 
         if self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3
-            && self.visiting.is_empty()
             && let Some(payload) = super::options::payload(self.ctx.tcx, ty)
-                .or_else(|| super::options::product_payload(self.ctx, ty))
-                .or_else(|| super::options::borrowed_slice_payload(self.ctx, ty))
+                .or_else(|| self.nonnested_option_payload(ty))
         {
             return self.option_type(payload, depth);
         }
@@ -301,6 +299,13 @@ impl<'tcx> Capture<'_, 'tcx> {
             return self.result_type(ok, err, depth);
         }
         self.storage_container(ty, depth)
+    }
+
+    fn nonnested_option_payload(&self, ty: Ty<'tcx>) -> Option<Ty<'tcx>> {
+        self.visiting.is_empty().then(|| {
+            super::options::product_payload(self.ctx, ty)
+                .or_else(|| super::options::borrowed_slice_payload(self.ctx, ty))
+        })?
     }
 
     fn option_type(&mut self, payload: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {

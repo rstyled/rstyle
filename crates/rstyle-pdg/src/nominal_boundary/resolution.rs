@@ -14,6 +14,8 @@ mod array_lengths;
 mod builtin_options;
 pub(crate) mod environment;
 mod float_constants;
+mod fresh_products;
+pub(crate) use fresh_products::CheckedFreshProduct;
 mod primitive_constants;
 mod range_from;
 mod reference_owners;
@@ -82,7 +84,7 @@ impl Resolution {
         facts: &HirFnFacts,
         origins: &declaration_origins::Origins,
     ) -> Result<(), String> {
-        let selected = selected::verify(facts, origins, &self.trees, &self.environment)?;
+        let selected = selected::verify(facts, origins, self)?;
         self.copy_trees = selected.copies;
         self.no_drop_trees = selected.no_drop;
         self.passive_copy_dependencies = selected.passive_dependencies;
@@ -375,12 +377,7 @@ fn declaration_resolution(
     };
 
     collect_interface(&context, &mut resolution.trees)?;
-    verify_declarations(
-        &resolution,
-        &environment.index.declarations,
-        &origins,
-        environment.census(),
-    )?;
+    verify_declarations(&resolution, &origins, facts)?;
     Ok(resolution)
 }
 
@@ -693,10 +690,11 @@ fn collect_nominal(
 
 fn verify_declarations(
     resolution: &Resolution,
-    declarations: &BTreeMap<Namespace, Declaration>,
     origins: &declaration_origins::Origins,
-    census: &census::Census,
+    facts: &HirFnFacts,
 ) -> Result<(), String> {
+    let declarations = &resolution.environment.index.declarations;
+    let census = resolution.environment.census();
     for (key, tree) in &resolution.trees {
         let (nominal, _) = tree.nominal_parts().ok_or("Non-nominal registry entry")?;
         let declaration = declarations
@@ -719,9 +717,10 @@ fn verify_declarations(
                 "Nominal declaration source, namespace or selected package disagrees".into(),
             );
         }
-        let scoped = Scoped {
+        let scoped = builtin_options::DeclarationScope {
             resolution,
             namespace: &declaration.namespace,
+            facts,
         };
         for field in tree.nominal_fields() {
             concrete_types::source_proof::verify_top_spelling(

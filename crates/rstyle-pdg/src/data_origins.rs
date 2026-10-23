@@ -23,7 +23,8 @@ pub fn shared(token: &TypeToken) -> bool {
         TypeToken::Option(value) => shared(value),
         TypeToken::Result { ok, err }
             if crate::borrowed_result_types::GRAMMAR.permits(ok, err)
-                || crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err) =>
+                || crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err)
+                || crate::concrete_results::fresh_products::GRAMMAR.permits(ok, err) =>
         {
             shared(ok)
         }
@@ -420,6 +421,50 @@ mod tests {
         };
         assert!(!shared(&unsupported));
         assert!(paths(&unsupported, Vec::new()).is_err());
+    }
+
+    #[test]
+    fn fresh_product_results_expose_backing_without_formal_or_storage_permission() {
+        let nominal = crate::concrete_types::Nominal {
+            source_identity: Some("selected".into()),
+            package_name: "sample".into(),
+            package_version: "1".into(),
+            manifest_digest: "unused-structural-test".into(),
+            definition_path: "sample::Reader".into(),
+            declaration_digest: "unused-structural-test".into(),
+        };
+        let result = TypeToken::Result {
+            ok: Box::new(TypeToken::Struct {
+                nominal: nominal.clone(),
+                fields: vec![
+                    (
+                        "remaining".into(),
+                        TypeToken::Shared(Box::new(TypeToken::Slice(Box::new(TypeToken::Scalar(
+                            "u8".into(),
+                        ))))),
+                    ),
+                    (
+                        "line_width".into(),
+                        TypeToken::Option(Box::new(TypeToken::Scalar("usize".into()))),
+                    ),
+                ],
+            }),
+            err: Box::new(TypeToken::FieldlessEnum {
+                nominal,
+                variants: vec![("InvalidLength".into(), 0)],
+            }),
+        };
+        assert!(shared(&result));
+        assert!(paths(&result, Vec::new()).is_err());
+        assert!(paths(&TypeToken::Tuple(vec![result.clone()]), Vec::new()).is_err());
+        let TypeToken::Result { ok, .. } = result else {
+            unreachable!();
+        };
+        let scalar_error = TypeToken::Result {
+            ok,
+            err: Box::new(TypeToken::Scalar("usize".into())),
+        };
+        assert!(!shared(&scalar_error));
     }
 
     #[test]

@@ -140,7 +140,7 @@ fn explicit_source_lifetime_is_required_independently_of_erased_observations() {
 fn owned_unknown_reference_and_cleanup_payload_shapes_do_not_become_copy() {
     for ty in [
         TypeTree::Str,
-        TypeTree::Option(Box::new(scalar("u32"))),
+        TypeTree::Option(Box::new(scalar("unit"))),
         TypeTree::Shared(Box::new(scalar("u8"))),
         TypeTree::Tuple(vec![scalar("u32")]),
         scalar("unit"),
@@ -237,4 +237,17 @@ fn source_copy_spelling_and_drop_flags_are_not_positive_copy_evidence() {
             builtin_copy: None,
         });
     assert!(!super::super::super::checked_copy(&facts, &origins, child, &item.attrs).unwrap());
+}
+
+#[test]
+fn scalar_option_is_a_bounded_copy_shape_without_product_copy_authority() {
+    assert!(copy_shape(&TypeTree::Option(Box::new(scalar("usize"))), 0));
+    for payload in [
+        fixture(),
+        TypeTree::Option(Box::new(scalar("usize"))),
+        TypeTree::Shared(Box::new(scalar("u8"))),
+        scalar("unit"),
+    ] {
+        assert!(!copy_shape(&TypeTree::Option(Box::new(payload)), 0));
+    }
 }

@@ -661,6 +661,11 @@ fn verify_reference_origins(
             .is_some_and(|ty| crate::data_origins::shared(&ty))
         && origins.is_empty()
     {
+        if crate::concrete_results::fresh_products::interface_used(facts)?
+            && crate::concrete_results::fresh_products::empty_error_branch(node, facts)?
+        {
+            return Ok(());
+        }
         return Err("Reference-valued expression lacks complete formal origins".into());
     }
 

@@ -156,7 +156,16 @@ pub(super) fn verified_empty(node: &PdgNode, facts: &dyn EvidenceFacts) -> Resul
         return Ok(false);
     };
 
-    if !crate::borrowed_result_types::GRAMMAR.permits(&ok, &err)
+    if crate::concrete_results::fresh_products::GRAMMAR.permits(&ok, &err) {
+        // A structural product shape grants no empty-path exception: prove the
+        // complete success owner and actual Copy error before examining Err.
+        let boundary = crate::concrete_results::fresh_products::product_boundary(facts)?;
+        if boundary.ok != *ok || boundary.error != *err {
+            return Err(
+                "Empty product Result path differs from its complete return boundary".into(),
+            );
+        }
+    } else if !crate::borrowed_result_types::GRAMMAR.permits(&ok, &err)
         && !crate::concrete_results::copy_errors::GRAMMAR.permits(&ok, &err)
     {
         return Ok(false);

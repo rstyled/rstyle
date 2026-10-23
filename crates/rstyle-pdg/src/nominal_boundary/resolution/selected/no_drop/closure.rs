@@ -46,6 +46,7 @@ fn verify_mode(
         nested_context: 0,
         generated_context: 0,
         reference_product,
+        checked_external_imports: supports(facts, super::super::fresh_products::CAPABILITY)?,
     };
     for collecting in [true, false] {
         visitor.pass(environment, collecting)?;
@@ -265,6 +266,7 @@ fn inspect_policy(
         nested_context: 0,
         generated_context: 0,
         reference_product,
+        checked_external_imports: false,
     };
     visitor.scopes = vec![visitor.scope(items.iter().copied())?];
     for item in items {
@@ -297,6 +299,7 @@ struct Closure<'a> {
     nested_context: usize,
     generated_context: usize,
     reference_product: bool,
+    checked_external_imports: bool,
 }
 
 impl Closure<'_> {
@@ -346,6 +349,15 @@ impl Closure<'_> {
         parent: &census::Module,
         item: &syn::Item,
     ) -> Result<(), String> {
+        if self.reference_product
+            && self.checked_external_imports
+            && checked_external_import(environment, parent, item)?
+        {
+            // The immutable census checked this exact root declaration, its
+            // source span and complete pinned macro exports. Calls and local
+            // shadowing still pass through the exhaustive visitor.
+            return Ok(());
+        }
         if let syn::Item::Mod(child) = item {
             if ["alloc", "core", "std"].contains(&child.ident.to_string().as_str()) {
                 return Err("Cleanup standard root is shadowed".into());
@@ -959,6 +971,34 @@ impl<'ast> Visit<'ast> for Closure<'_> {
     }
 }
 
+fn checked_external_import(
+    environment: &Environment,
+    owner: &census::Module,
+    item: &syn::Item,
+) -> Result<bool, String> {
+    let syn::Item::ExternCrate(import) = item else {
+        return Ok(false);
+    };
+    if !owner
+        .verified_external_imports
+        .contains(&import.ident.to_string())
+    {
+        return Ok(false);
+    }
+
+    let source = environment.source(&owner.path)?;
+    let span = ByteSpan {
+        start: crate::source_evidence::original_span(source.bytes(), import.extern_token.span)
+            .start,
+        end: crate::source_evidence::original_span(source.bytes(), import.semi_token.span).end,
+    };
+    Ok(environment
+        .census()
+        .external_imports
+        .iter()
+        .any(|record| record.declaration.path == owner.path && record.declaration.span == span))
+}
+
 fn inert_attribute(attribute: &syn::Meta) -> bool {
     [
         "doc",
@@ -1136,4 +1176,45 @@ pub(super) fn imported_expansion(text: &str, name: &str) -> Result<String, Strin
     let invocation = syn::parse_str::<syn::ExprMacro>(&format!("{name}!()"))
         .map_err(|error| error.to_string())?;
     macros::expand(definition, &invocation.mac).map(|tokens| tokens.to_string())
+}
+
+#[cfg(test)]
+mod checked_external_tests {
+    use super::*;
+    use crate::nominal_boundary::census::{expansions::FileSpan, external_imports};
+
+    #[test]
+    fn checked_import_requires_exact_original_declaration_not_only_a_crate_name() {
+        let source = "#[macro_use] extern crate alloc;\n";
+        let mut census =
+            (*crate::nominal_boundary::resolution::environment::tests::census()).clone();
+        census.files[0].bytes = source.into();
+        census.files[0].digest = census.files[0].bytes.identity().into();
+        census.external_imports.push(external_imports::Import {
+            declaration: FileSpan {
+                path: census.files[0].path.clone(),
+                digest: census.files[0].digest.clone(),
+                span: ByteSpan { start: 13, end: 32 },
+            },
+            exports: crate::data_library::registry()
+                .alloc_macro_exports
+                .clone()
+                .unwrap(),
+        });
+        let environment =
+            Environment::with_options(std::sync::Arc::new(census), true, Some(&[]), false).unwrap();
+        let module = &environment.modules[0];
+        assert!(checked_external_import(&environment, module, &module.items[0]).unwrap());
+        for source in [
+            "extern crate alloc;",
+            "extern crate alloc as renamed;",
+            "#[custom] extern crate alloc;",
+        ] {
+            let unproved: syn::Item = syn::parse_str(source).unwrap();
+            assert!(
+                !checked_external_import(&environment, module, &unproved).unwrap(),
+                "{source}"
+            );
+        }
+    }
 }

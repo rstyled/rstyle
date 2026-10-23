@@ -4,6 +4,97 @@
 use super::*;
 use syn::visit::Visit;
 
+/// Field spellings resolve in the declaration module, without function locals.
+pub(super) struct DeclarationScope<'a> {
+    pub resolution: &'a Resolution,
+    pub namespace: &'a Namespace,
+    pub facts: &'a HirFnFacts,
+}
+
+impl PathResolution for DeclarationScope<'_> {
+    fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
+        Scoped {
+            resolution: self.resolution,
+            namespace: self.namespace,
+        }
+        .resolve(path)
+    }
+
+    fn array_length(&self, source: &syn::Expr, expected: u64) -> Result<(), String> {
+        array_lengths::verify(
+            &Scoped {
+                resolution: self.resolution,
+                namespace: self.namespace,
+            },
+            source,
+            expected,
+        )
+    }
+
+    fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
+        if !supports(self.facts, super::fresh_products::CAPABILITY)? {
+            return Err("Declaration Option fields require their fresh-product capability".into());
+        }
+        let TypeTree::Scalar(scalar) = payload else {
+            return Err("Fresh product Option field requires a scalar payload".into());
+        };
+        self.option(path, scalar)
+    }
+}
+
+impl DeclarationScope<'_> {
+    fn option(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
+        let environment = &self.resolution.environment;
+        environment.check_context(self.facts)?;
+        let configuration = crate::conditional_source::Configuration::new(&self.facts.build.cfgs);
+        environment.check_ancestors(self.facts, self.namespace, &configuration)?;
+
+        let modules: Vec<_> = environment
+            .modules
+            .iter()
+            .filter(|module| &module.namespace == self.namespace)
+            .collect();
+        let [module] = modules.as_slice() else {
+            return Err("Option field lacks one exact declaration module".into());
+        };
+
+        crate::data_library::verify_sysroot_roots(self.facts, &["core", "std"], "Option field")?;
+        Scope {
+            environment,
+            module,
+            blocks: Vec::new(),
+            configuration: &configuration,
+            facts: self.facts,
+        }
+        .verify(path, scalar)
+    }
+}
+
+/// Reviewed Option semantics make Option<scalar> Copy and drop-free; this grants
+/// neither arbitrary nominal Copy nor owned Option/product value permission.
+pub(super) fn scalar_copy(facts: &HirFnFacts, payload: &TypeTree) -> Result<(), String> {
+    if !supports(facts, super::fresh_products::CAPABILITY)?
+        || !matches!(payload, TypeTree::Scalar(token) if concrete_types::scalar(token) && token != "unit")
+    {
+        return Err("Cleanup Option field requires its registered scalar payload".into());
+    }
+    let registry = crate::data_library::registry_for(facts)
+        .ok_or("Option field cleanup requires a pinned compiler/target")?;
+
+    // Bind conditional Copy and absence of Drop to the complete reviewed core
+    // source, independently of the registered constructor definitions.
+    let baseline = crate::data_library::registry();
+    let reviewed = baseline.result_propagation_source_digests.get("option.rs");
+    if reviewed.is_none()
+        || registry.result_propagation_source_digests.get("option.rs") != reviewed
+        || !registry.definitions.contains_key("std::prelude::v1::None")
+        || !registry.definitions.contains_key("std::prelude::v1::Some")
+    {
+        return Err("Option field cleanup lacks reviewed complete core source/variants".into());
+    }
+    crate::data_library::verify_sysroot_roots(facts, &["core", "std"], "Option field cleanup")
+}
+
 impl Resolution {
     /// Namespace authority only; callers separately verify the source payload
     /// spelling against this exact independently Copy-certified scalar product.

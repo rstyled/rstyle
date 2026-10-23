@@ -1,6 +1,8 @@
 //! Strict replay and selected identity matching for the complete original Line methods.
 use rstyle_pdg::{producer::Pair, unit_store::UnitStore, verification_policy};
 use serde_json::{Value, json};
+#[path = "line_tail_activation/reader.rs"]
+mod reader;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
@@ -30,11 +32,15 @@ fn run(report: &Value, selection: &Value) -> Result<(), String> {
     let replay = Replay::load(report, selection)?;
     replay.check_roster()?;
     let attacks = replay.check_selected()?;
+    let selected = selection["functions"]
+        .as_array()
+        .ok_or("Missing selection")?
+        .len();
     let build = &replay.roster[0]["facts"]["build"];
     println!(
         "{}",
-        json!({"original_roster":replay.roster.len(), "selected_denominator":2,
-        "strictly_admitted":2, "identity_accepted":2, "resealed_attacks_rejected":attacks,
+        json!({"original_roster":replay.roster.len(), "selected_denominator":selected,
+        "strictly_admitted":selected, "identity_accepted":selected, "resealed_attacks_rejected":attacks,
         "target":build["target_triple"], "features":build["features"], "strict_import":true,
         "full_library_matching_claimed":false})
     );
@@ -49,11 +55,22 @@ impl<'a> Replay<'a> {
         let selected = selection["functions"]
             .as_array()
             .ok_or("Missing selection")?;
-        if selected.len() != 2
-            || selected[0]["name"] != "decoder::Line::<'i>::slice_tail"
-            || selected[1]["name"] != "decoder::Line::<'i>::len"
-        {
-            return Err("Selected denominator must remain two original methods".into());
+        let names: Vec<_> = selected
+            .iter()
+            .map(|function| function["name"].as_str())
+            .collect();
+        let expected = match selection["identity"].as_str() {
+            Some("rstyle.development.base64ct-line-tail/1") => vec![
+                Some("decoder::Line::<'i>::slice_tail"),
+                Some("decoder::Line::<'i>::len"),
+            ],
+            Some("rstyle.development.base64ct-line-reader/1") => {
+                vec![Some("decoder::LineReader::<'i>::new_unwrapped")]
+            }
+            _ => return Err("Unregistered original family selection".into()),
+        };
+        if names != expected {
+            return Err("Original family selection identities/denominator changed".into());
         }
         let records = report["functions"]
             .as_array()
@@ -145,6 +162,9 @@ impl<'a> Replay<'a> {
         verification_policy::strict(|| rstyle_pdg::producer::verify(pair, &view))
             .map_err(|e| e.join("; "))?;
         identity_matching(pair, &view)?;
+        if expected["name"] == "decoder::LineReader::<'i>::new_unwrapped" {
+            return reader::check(pair, &view);
+        }
         if expected["name"]
             .as_str()
             .is_some_and(|name| name.ends_with("::slice_tail"))
@@ -193,6 +213,15 @@ fn semantic_attacks(
         "summary",
         "policy",
     ];
+    verify_attacks(pair, view, &attacks, forge)
+}
+
+fn verify_attacks(
+    pair: &Pair,
+    view: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    attacks: &[&str],
+    forge: impl Fn(&Pair, &str) -> Result<Pair, String>,
+) -> Result<usize, String> {
     for attack in attacks {
         let forged = forge(pair, attack)?;
         let sealed = forged.serialize().map_err(|e| e.to_string())?;
@@ -212,6 +241,8 @@ fn check_sources(bundle: &Value, selection: &Value) -> Result<(), String> {
     for obligation in selection["source_obligations"]
         .as_array()
         .ok_or("Missing source obligations")?
+        .iter()
+        .chain(selection["owners"].as_array().into_iter().flatten())
     {
         let start = obligation["span"]["start"]
             .as_u64()

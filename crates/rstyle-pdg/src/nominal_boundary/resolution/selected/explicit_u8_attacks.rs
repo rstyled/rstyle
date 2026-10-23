@@ -7,7 +7,7 @@ const EXPECT: &str = "pub enum Month { #[expect(missing_docs)] January = 1, Febr
 
 struct Case {
     facts: HirFnFacts,
-    environment: Environment,
+    environment: Rc<Environment>,
     tree: TypeTree,
     origins: Origins,
 }
@@ -36,14 +36,30 @@ impl Case {
         };
         Self {
             facts,
-            environment,
+            environment: Rc::new(environment),
             tree,
             origins,
         }
     }
 
     fn verify(&self) -> Result<(), String> {
+        let resolution = Resolution {
+            namespace: vec![],
+            receiver: None,
+            owner_path: None,
+            range_value: None,
+            range_owner: None,
+            trees: BTreeMap::new(),
+            environment: Rc::clone(&self.environment),
+            copy_trees: Default::default(),
+            no_drop_trees: Default::default(),
+            array_views: false,
+            scalar_aliases: false,
+            local_import_chains: false,
+            passive_copy_dependencies: false,
+        };
         DeclarationChecker {
+            resolution: &resolution,
             facts: &self.facts,
             origins: &self.origins,
             environment: &self.environment,
@@ -171,7 +187,7 @@ fn contradictory_drop_is_invalid_rust_and_not_a_new_source_certificate() {
     let environment =
         Environment::with_options(std::sync::Arc::new(census), true, Some(&[]), false).unwrap();
     let case = Case {
-        environment,
+        environment: Rc::new(environment),
         ..case
     };
 

@@ -72,6 +72,13 @@ pub(crate) fn payload(
     let TypeToken::Result { ok, err } = crate::data_aggregates::parsed_type(node)? else {
         return Err("Result construction requires its concrete two-child type".into());
     };
+    if fresh_products::GRAMMAR.permits(&ok, &err) {
+        let boundary = fresh_products::product_boundary(facts)?;
+        if *ok != boundary.ok || *err != boundary.error {
+            return Err("Fresh product constructor differs from its whole return boundary".into());
+        }
+        return Ok((*ok, *err));
+    }
     if copy_errors::GRAMMAR.permits(&ok, &err) {
         copy_errors::checked_error(&err, facts)?;
         return Ok((*ok, *err));

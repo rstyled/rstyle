@@ -328,3 +328,37 @@ assessment115.36MB→0.70MB. All21 Python checks pass; no Rust semantic change o
 hash. Single fresh run50.36s/1,235,844KiB max RSS; no controlled speedup claim.
 Next activate the source-frozen LineReader ownership bridge with coordinated
 nominal/type/origin interfaces above.
+
+Data3.89 connects original `LineReader::new_unwrapped` through complete fresh
+non-Copy product Result ownership, scalar Option cleanup and guarded origins.
+Each unchanged six-context selection gains1/loses0 (0/1→1/1), rosters141/150.
+Six strict owning-bundle replays, six identity comparisons and36 semantic attacks
+pass; ARM Linux default/std oracle9,234 cases each has0 mismatches. Full gates:
+1,483 tests/five existing skips and doctests, fmt/Clippy; style0/4,743,
+patterns0/15 unchanged ignores. Composition0.878s with prebuilt driver; no new
+production hash or serialized key. Evidence: `/tmp/rstyle-389-*`.
+
+The next source audit identifies the complete `new_wrapped` chain, rather than
+opening helper export alone. Expected: InvalidLength iff width<4 or bytes empty;
+otherwise exact backing and Some(width). Three connected prerequisites remain:
+guarded product Result summaries, same-product same-error `?`, and linear local
+ownership with a Copy field update followed by one whole move. Existing selectors
+and no-drop proof do not establish any of these by themselves.
+
+| Next assignment | Readiness gate / exclusive leaf scope |
+| --- | --- |
+| Lead integration/oracle | Freeze separate unchanged `new_wrapped` selection and independent width/empty/order expectations; confirm captured MIN_LINE_WIDTH and exact generated Try selections. Own shared registrations and all gates. |
+| Callable boundary | Specify guarded Ok component/value summary and explicit Err alternative using existing checked call links; preserve helper panic/divergence/error evidence. Helper-summary leaves only after interface freeze. |
+| Ownership flow | One initialized nonescaping no-drop owner, Copy scalar/Option field replacement and exactly-once terminal move. Reject aliases/borrows, partial moves, reference-field writes and unsupported merges. Dedicated local ownership leaves. |
+| Guarded origins | Substitute exact helper success components under the checked continuation; preserve untouched backing across the local aggregate transition. Origin source/graph leaves after transfer interface freeze. |
+
+Status: next caller source-audited, capture/oracle readiness checks pending;
+production activation not started. This has higher demonstrated caller value
+than more leaf operations, with moderate/high integration uncertainty across
+summary/propagation/local-value interfaces. Retain the small six-context Cargo
+validation set and serialize builds/replays; no general ownership architecture is
+required by the declared single-local family. Broader P01–P22 scope stays active.
+Frozen checkpoint `run-49q4l17t` versus `run-gp8bnmsf`:all60 identities/outcomes,
+reasons/build settings and denominators unchanged,23/30/7,0 gains/losses;
+116 schema-checked documents and21 Python tests. No additional frozen strict
+semantic replay claim. Assessment parity: `/tmp/rstyle-389-frozen-parity.json`.

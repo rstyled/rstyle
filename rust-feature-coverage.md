@@ -5021,3 +5021,33 @@ fresh non-Copy product Result ownership, nested scalar Option capture/no-drop
 proof and guarded component origins. Its public Decoder callers still require
 loops/mutation/dispatch. Also remove demonstrated full-report duplication from
 the inventory harness using existing compact reports and complete bundle evidence.
+
+### Data-v3 3.89: fresh reference products in Result
+
+Original base64ct1.7.3 `LineReader::new_unwrapped` now admits with its actual
+Clone-only owner, scalar Option field, checked Copy Error and guarded backing
+origins. Default/std selections on ARM Linux, x86 Linux and ARM macOS each
+move0/1→1/1, gain1/lose0; complete original rosters stay141/150. The bounded
+[contract](docs/extraction-profiles/fresh-reference-product-results-v1.md)
+keeps product storage, moves, helper export and aggregate `?` unavailable.
+Exact census-proved alloc macro declarations are reused without omitting
+neighboring items or granting arbitrary expansion permission.
+
+Checkpoint:1,483 tests/five existing skips and doctests pass; fmt/Clippy pass;
+rstyle0/4,743, patterns0 with15 existing ignores unchanged. Six complete original
+bundles strictly replay; six selected identity comparisons accept and36 resealed
+semantic attacks reject. Native private-source oracle:9,234 cases/default and/std
+on ARM Linux,0 mismatches. Composition test0.878s with prebuilt driver; compilation
+is separate, and no controlled speedup is claimed. Evidence: `/tmp/rstyle-389-*`.
+
+Next complete caller is `LineReader::new_wrapped`: guarded product Result helper
+summaries → exact same-product/same-error `?` → one initialized nonescaping local,
+Copy Option field update and terminal whole move. Confirm MIN_LINE_WIDTH's exact
+constant capture and generated Try selections before activation. This advances
+callable summaries and normal ownership; public Decoder loops/decoding/memory
+remain separate. No new production hash operation or serialized cache key.
+
+Fresh frozen `run-49q4l17t` preserves all60 identities, outcomes, reasons/build
+settings and denominators versus `run-gp8bnmsf`:23/30/7,0 gains/losses;
+116 documents pass schema checks,21 Python tests pass. This adds no frozen
+strict semantic replay claim.

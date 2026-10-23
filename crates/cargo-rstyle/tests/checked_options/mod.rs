@@ -77,7 +77,10 @@ fn core_option_patterns_retain_payload_bindings_and_resolved_variant_identities(
             if facts.name == "owning" {
                 let observed =
                     &function["facts"]["build"]["frontend_options"]["concrete_type_observations"];
-                assert_eq!(observed["parameters"][0]["status"], "Unsupported");
+                assert_eq!(observed["parameters"][0]["status"], "Captured");
+                let fields = &observed["parameters"][0]["ty"]["evidence"]["evidence"]["fields"];
+                assert_eq!(fields[1]["name"], "option");
+                assert_eq!(fields[1]["ty"]["kind"], "Option");
             }
         }
     }
