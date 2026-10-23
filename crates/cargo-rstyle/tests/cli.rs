@@ -2621,7 +2621,7 @@ fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_bound
         "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.87.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.88.0");
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(
         functions
@@ -6180,7 +6180,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.87.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.88.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -10998,3 +10998,182 @@ fn check_subslice_authorities(function: &Value) {
 mod copy_boundary;
 
 mod borrowed_scalar;
+
+mod scalar_result_line_tail {
+    use super::*;
+
+    const SELECTION: &str =
+        include_str!("../../../eval/coverage-development/line-tail/selection.json");
+
+    fn source() -> String {
+        let selection: Value = serde_json::from_str(SELECTION).unwrap();
+        let owner = selection["source_obligations"][0]["source"]
+            .as_str()
+            .unwrap();
+        let tail = selection["functions"][0]["source"].as_str().unwrap();
+        let len = selection["functions"][1]["source"].as_str().unwrap();
+        let alpha = tail.replace("slice_tail", "alpha");
+        format!(
+            r#"
+            mod errors {{
+                #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+                pub enum Error {{ InvalidEncoding, InvalidLength }}
+            }}
+            use crate::errors::Error::{{self, InvalidLength}};
+            {owner}
+            impl<'i> Line<'i> {{ {tail} {alpha} {len}
+                fn wrong_payload(&self, nbytes: usize) -> Result<&'i [u8], Error> {{
+                    let offset = (self.len() as u32).checked_sub(nbytes as u32).ok_or(InvalidLength)?;
+                    self.remaining.get(offset as usize..).ok_or(InvalidLength)
+                }}
+            }}
+            // Returning a borrowed Result through a helper needs its own summary contract.
+            pub fn caller<'i>(line: &Line<'i>, nbytes: usize) -> Result<&'i [u8], Error> {{
+                line.slice_tail(nbytes)
+            }}
+            {}
+            {}
+            "#,
+            noncopy_source(owner, tail, len),
+            converted_source(),
+        )
+    }
+
+    fn noncopy_source(owner: &str, tail: &str, len: &str) -> String {
+        format!(
+            r#"mod noncopy {{
+                #[derive(Clone, Debug)]
+                pub enum Error {{ InvalidEncoding, InvalidLength }}
+                use self::Error::InvalidLength;
+                {owner}
+                impl<'i> Line<'i> {{ {tail} {len} }}
+            }}"#,
+        )
+    }
+
+    fn converted_source() -> &'static str {
+        r#"mod converted {
+            use super::{Error, Line};
+            #[derive(Clone, Copy, Debug)] enum ForeignError { InvalidLength }
+            use self::ForeignError::InvalidLength;
+            impl From<ForeignError> for Error {
+                fn from(_: ForeignError) -> Self { Error::InvalidLength }
+            }
+            pub fn tail<'i>(line: &Line<'i>, nbytes: usize) -> Result<&'i [u8], Error> {
+                let offset = line.len().checked_sub(nbytes).ok_or(InvalidLength)?;
+                line.remaining.get(offset..).ok_or(Error::InvalidLength)
+            }
+        }"#
+    }
+
+    fn named<'a>(report: &'a Value, name: &str) -> &'a Value {
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap_or_else(|| panic!("missing {name}: {}", report["functions"]))
+    }
+
+    #[test]
+    fn original_line_tail_composes_scalar_result_question_mark_and_checked_suffix() {
+        let directory = clone_workspace();
+        std::fs::write(directory.path().join("src/lib.rs"), source()).unwrap();
+        let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+        assert!(
+            output.status.success(),
+            "capture={} handoff={} stderr={}",
+            report["capture_failures"],
+            report["handoff_failures"],
+            String::from_utf8_lossy(&output.stderr),
+        );
+        for flag in [
+            "capture_complete",
+            "assessment_complete",
+            "pair_enumeration_complete",
+            "pair_evaluation_complete",
+        ] {
+            assert_eq!(report[flag], true, "{flag}");
+        }
+        for name in [
+            "Line::<'i>::slice_tail",
+            "Line::<'i>::alpha",
+            "Line::<'i>::len",
+        ] {
+            assert_eq!(
+                named(&report, name)["outcome"],
+                "admitted",
+                "{name}: {}",
+                named(&report, name)["reasons"]
+            );
+        }
+        for name in [
+            "caller",
+            "Line::<'i>::wrong_payload",
+            "noncopy::Line::<'i>::slice_tail",
+            "converted::tail",
+        ] {
+            assert_eq!(
+                named(&report, name)["outcome"],
+                "excluded",
+                "{name}: {}",
+                named(&report, name)["reasons"]
+            );
+        }
+        // Loading the owning bundle replays every admitted graph under strict policy.
+        check_aggregate_documents(&report);
+        check_equivalent_matching(&report, ["Line::<'i>::slice_tail", "Line::<'i>::alpha"]);
+        check_scalar_operations(named(&report, "Line::<'i>::slice_tail"));
+        reject_conversion(named(&report, "Line::<'i>::slice_tail"));
+    }
+
+    fn check_scalar_operations(function: &Value) {
+        let (unit, index) = data_unit(function);
+        let pair = shared_evidence::pair(&unit, function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        let question = find_kind(&facts.body, "expr_try_desugar").unwrap();
+        assert_eq!(
+            question.ty.as_ref().unwrap().normalized.as_deref(),
+            Some("usize")
+        );
+        for construct in [
+            "try.scalar-result-is-err",
+            "try.scalar-result-error",
+            "try.scalar-result-ok-scalar",
+        ] {
+            assert_eq!(
+                pair.pdg
+                    .nodes
+                    .iter()
+                    .filter(|node| node.attributes.construct.as_deref() == Some(construct))
+                    .count(),
+                1,
+                "{construct}"
+            );
+        }
+        let success = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| {
+                node.attributes.construct.as_deref() == Some("try.scalar-result-ok-scalar")
+            })
+            .unwrap();
+        assert!(
+            !success
+                .annotations
+                .contains_key(rstyle_pdg::data_origins::KEY)
+        );
+    }
+
+    fn reject_conversion(function: &Value) {
+        shared_evidence::reject_edit(function, |bundle, index| {
+            let question = &mut bundle["functions"][index]["body"]["children"][0]["children"][1];
+            let mut witness: Value =
+                serde_json::from_str(question["res"]["description"].as_str().unwrap()).unwrap();
+            witness["conversion"]["implementation_arguments"][0] = "OtherError".into();
+            question["res"]["description"] = witness.to_string().into();
+        });
+    }
+}

@@ -1,6 +1,8 @@
 //! Selected core implementations, exact substitutions, and complete residual type.
 use super::capture::{Shape, Witness};
 use crate::result_propagation::authority::{Protocol, SOURCE_DIGESTS};
+pub(super) use crate::result_propagation::types::generated_output;
+use crate::result_propagation::types::{CheckedOutput, DeclaredOutput, scalar_path};
 use crate::{HirNode, unit_store::EvidenceFacts};
 
 pub(super) fn verify(
@@ -107,17 +109,18 @@ pub(super) fn concrete_shape(shape: &Shape) -> Result<(), String> {
     Ok(())
 }
 
-/// Erase only the optional lifetime in the independently parsed bounded payload.
-/// The declaration observation remains exact and is never replaced in Shape.
-pub(super) fn generated_output(shape: &Shape) -> Result<String, String> {
-    concrete_shape(shape)?;
+impl CheckedOutput for Shape {
+    const GENERATED_PAYLOAD: &'static str = "(usize, &[u8])";
 
-    let path = ["core::result::Result", "std::result::Result"]
-        .into_iter()
-        .find(|path| shape.output == format!("{path}<{}, {}>", shape.output_payload, shape.error))
-        .ok_or("Borrowed Result output lacks its exact declared core type")?;
+    fn checked_output(&self) -> Result<DeclaredOutput<'_>, String> {
+        concrete_shape(self)?;
 
-    Ok(format!("{path}<(usize, &[u8]), {}>", shape.error))
+        Ok(DeclaredOutput {
+            declared: &self.output,
+            payload: &self.output_payload,
+            error: &self.error,
+        })
+    }
 }
 
 fn output_payload(text: &str) -> bool {
@@ -137,11 +140,4 @@ fn output_payload(text: &str) -> bool {
         return false;
     };
     reference.mutability.is_none() && scalar_path(&slice.elem, "u8")
-}
-
-fn scalar_path(ty: &syn::Type, name: &str) -> bool {
-    matches!(ty, syn::Type::Path(path) if path.qself.is_none()
-        && path.path.leading_colon.is_none() && path.path.segments.len() == 1
-        && path.path.segments[0].ident == name
-        && path.path.segments[0].arguments.is_none())
 }

@@ -34,7 +34,9 @@ impl Graph<'_> {
         source: &HirNode,
         construct: &str,
     ) -> Result<&PdgNode, String> {
-        let receiver = if construct == "data.option-get-prefix" {
+        let receiver = if construct == "data.option-get-suffix" {
+            crate::checked_slice_views::suffix::verify(source, self.facts)?.receiver
+        } else if construct == "data.option-get-prefix" {
             crate::checked_slice_views::verify(source, self.facts)?.receiver
         } else {
             let checked = crate::borrowed_result_errors::verify(source, self.facts)?;
@@ -84,6 +86,14 @@ impl Graph<'_> {
 
         no_selectors(selectors)?;
 
+        if construct == "try.scalar-result-error" {
+            let checked = crate::scalar_result_propagation::verify(source, self.facts)?;
+            self.saved_operand(node, checked.operand, 0)?;
+            if wire_type(node)? != checked.output_token {
+                return Err("Scalar propagated error loses complete output Result type".into());
+            }
+            return Ok(Vec::new());
+        }
         let checked = crate::borrowed_result_propagation::verify(source, self.facts)?;
 
         let saved = self.saved_operand(node, checked.operand, 0)?;
@@ -146,12 +156,18 @@ pub(super) fn verified_empty(node: &PdgNode, facts: &dyn EvidenceFacts) -> Resul
         return Ok(false);
     };
 
-    if !crate::borrowed_result_types::result(&ok, &err) {
+    if !crate::borrowed_result_types::GRAMMAR.permits(&ok, &err)
+        && !crate::concrete_results::copy_errors::GRAMMAR.permits(&ok, &err)
+    {
         return Ok(false);
     }
 
     let source = source_node(node, facts)?;
 
+    if node.attributes.construct.as_deref() == Some("try.scalar-result-error") {
+        let checked = crate::scalar_result_propagation::verify(source, facts)?;
+        return Ok(wire_type(node)? == checked.output_token);
+    }
     if node.attributes.construct.as_deref() == Some("try.borrowed-result-error") {
         let checked = crate::borrowed_result_propagation::verify(source, facts)?;
 
@@ -198,6 +214,16 @@ pub(super) fn generated_error_return(
         return Ok(false);
     }
 
+    for question_mark in crate::field_locations::selected_operations(
+        facts,
+        &["expr_try_desugar"],
+        crate::scalar_result_propagation::candidate,
+    ) {
+        let checked = crate::scalar_result_propagation::verify(question_mark, facts)?;
+        if checked.early_return.hir == source.hir && checked.early_return.span == source.span {
+            return Ok(true);
+        }
+    }
     for question_mark in crate::field_locations::selected_operations(
         facts,
         &["expr_try_desugar"],

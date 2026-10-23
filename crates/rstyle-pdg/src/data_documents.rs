@@ -15,6 +15,7 @@ mod character_ascii;
 mod checked_lengths;
 mod checked_options;
 mod checked_slice_views;
+mod checked_suffix_views;
 mod conditional_payloads;
 mod fieldless_enums;
 mod float_scalars;
@@ -35,6 +36,7 @@ mod reference_products;
 pub(crate) mod result_propagation;
 mod scalar_enums;
 mod scalar_from;
+pub(crate) mod scalar_result_propagation;
 mod size_calls;
 mod subslice_views;
 mod summary_records;
@@ -99,11 +101,20 @@ fn install_borrowed_contracts(
     mut pair: Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Pair, String> {
-    borrowed_result_propagation::install(&mut pair, facts)?;
+    install_result_contracts(&mut pair, facts)?;
     checked_slice_views::install(&mut pair, facts)?;
-    borrowed_result_errors::install(&mut pair, facts)?;
+    checked_suffix_views::install(&mut pair, facts)?;
 
     Ok(pair)
+}
+
+fn install_result_contracts(
+    pair: &mut Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    borrowed_result_propagation::install(pair, facts)?;
+    scalar_result_propagation::install(pair, facts)?;
+    borrowed_result_errors::install(pair, facts)
 }
 
 fn install_propagation_contracts(pair: &mut Pair) {
@@ -329,6 +340,8 @@ fn verify_call_operations(
 
     borrowed_result_propagation::verify(pair, facts)?;
     checked_slice_views::verify(pair, facts)?;
+    checked_suffix_views::verify(pair, facts)?;
+    scalar_result_propagation::verify(pair, facts)?;
     borrowed_result_errors::verify(pair, facts)?;
     option_if_let::verify(pair, facts)?;
     result_propagation::verify(pair, facts)?;

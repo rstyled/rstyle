@@ -216,6 +216,10 @@ fn node_native_width(
         let checked = crate::borrowed_result_propagation::verify(node, facts)?;
         return node_native_width(checked.operand, data, facts);
     }
+    if crate::scalar_result_propagation::candidate(node, facts) {
+        let checked = crate::scalar_result_propagation::verify(node, facts)?;
+        return node_native_width(checked.operand, data, facts);
+    }
 
     let own = node
         .ty
@@ -326,16 +330,24 @@ fn collect_source_kind<'a>(
 }
 
 fn propagation_operand<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Option<&'a HirNode> {
+    if crate::scalar_result_propagation::candidate(node, facts) {
+        return crate::scalar_result_propagation::verify(node, facts)
+            .ok()
+            .map(|checked| checked.operand);
+    }
+
     if crate::borrowed_result_propagation::candidate(node, facts) {
         return crate::borrowed_result_propagation::verify(node, facts)
             .ok()
             .map(|checked| checked.operand);
     }
+
     if crate::option_propagation::candidate(node, facts) {
         return crate::option_propagation::verify(node, facts)
             .ok()
             .map(|checked| checked.operand);
     }
+
     if crate::result_propagation::candidate(node, facts) {
         return crate::result_propagation::verify(node, facts)
             .ok()
@@ -812,6 +824,9 @@ pub(crate) fn verify_summary_operands(
     operands: SummaryOperands<'_>,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::checked_slice_views::suffix::candidate(operands.call, facts) {
+        return verify_suffix_summary_operands(pair, operands, facts);
+    }
     let SummaryOperands { node, call, record } = operands;
 
     if !crate::checked_slice_views::candidate(call, facts) {
@@ -832,6 +847,29 @@ pub(crate) fn verify_summary_operands(
     )?;
 
     verify_argument_values(pair, node, &[checked.receiver, checked.end], record)
+}
+
+fn verify_suffix_summary_operands(
+    pair: producer::PairView<'_>,
+    operands: SummaryOperands<'_>,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let SummaryOperands { node, call, record } = operands;
+    let checked = crate::checked_slice_views::suffix::verify(call, facts)?;
+    if node.attributes.construct.as_deref() != Some(crate::checked_slice_views::suffix::CONSTRUCT) {
+        return Err("Checked suffix summary lacks its precise range-to-start lowering".into());
+    }
+
+    crate::data_documents::verify_saved_operands(
+        pair,
+        node,
+        &[
+            crate::data_documents::value_operation(pair, checked.receiver)?,
+            crate::data_documents::value_operation(pair, checked.start)?,
+        ],
+    )?;
+
+    verify_argument_values(pair, node, &[checked.receiver, checked.start], record)
 }
 
 fn verify_argument_values(

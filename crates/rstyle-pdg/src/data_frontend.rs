@@ -120,6 +120,7 @@ fn verify_value_document_policy(
     crate::data_documents::result_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::option_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::borrowed_result_propagation::verify_document_policy(profile, facts)?;
+    crate::data_documents::scalar_result_propagation::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,
         crate::helper_component_outputs::CAPABILITY,

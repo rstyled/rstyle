@@ -39,7 +39,9 @@ impl<'a> Validation<'a> {
         if depth != 0
             && matches!(
                 tree,
-                TypeTree::RangeUsize { .. } | TypeTree::RangeToUsize { .. }
+                TypeTree::RangeUsize { .. }
+                    | TypeTree::RangeToUsize { .. }
+                    | TypeTree::RangeFromUsize { .. }
             )
         {
             return Err("Range values require a complete root result observation".into());

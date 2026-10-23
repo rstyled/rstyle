@@ -12,6 +12,7 @@ pub(crate) fn get_candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
     node.kind == "expr_method_call"
         && candidate(node, facts)
         && !crate::checked_slice_views::candidate(node, facts)
+        && !crate::checked_slice_views::suffix::candidate(node, facts)
 }
 
 pub(crate) fn match_candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {

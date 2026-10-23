@@ -1,8 +1,9 @@
-//! Fresh concrete core Results with a separately source-proved no-drop error.
+//! Fresh concrete Results with separately proved no-drop or Copy errors.
 //!
-//! This first boundary permits whole result construction/forwarding only. It
-//! supplies neither Copy permission nor storage, payload extraction or `?`.
+//! Whole construction/forwarding composes with independently checked propagation.
+//! Copy errors retain their enum vocabulary; local Result storage stays closed.
 mod constructors;
+pub(crate) mod copy_errors;
 pub(crate) mod documents;
 pub(crate) mod source;
 mod types;
@@ -82,6 +83,10 @@ fn fresh(
 ) -> Result<(), String> {
     if borrowed_fresh(node, returning, error, facts)? {
         return Ok(());
+    }
+    if crate::scalar_result_propagation::candidate(node, facts) {
+        let checked = crate::scalar_result_propagation::verify(node, facts)?;
+        return fresh(checked.operand, true, error, facts);
     }
     if crate::result_propagation::candidate(node, facts) {
         let checked = crate::result_propagation::verify(node, facts)?;
@@ -184,6 +189,7 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
+    verify_copy_document_policy(profile, facts)?;
     crate::extraction_profile::require_capability(
         crate::extraction_profile::policy_supports(profile, CAPABILITY),
         || types::used(facts),
@@ -217,6 +223,26 @@ pub(crate) fn verify_document_policy(
                 })
         },
         "Fresh Result method forwarding requires its registered document capability",
+    )
+}
+
+fn verify_copy_document_policy(
+    profile: &crate::ProfileId,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    crate::extraction_profile::require_document(
+        profile,
+        copy_errors::CAPABILITY,
+        || {
+            facts
+                .signature
+                .return_ty
+                .normalized
+                .as_deref()
+                .and_then(|text| crate::data_types::parse(text).ok())
+                .is_some_and(|token| copy_errors::contains_copy_result(&token))
+        },
+        "Copy fieldless Result requires its registered document capability",
     )
 }
 

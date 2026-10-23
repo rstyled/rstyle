@@ -53,6 +53,10 @@ pub enum TypeTree {
     RangeUsize {
         observation: crate::range_values::authority::Observation,
     },
+    /// Observed non-Copy checked suffix carrier; no standalone value permission.
+    RangeFromUsize {
+        observation: crate::range_values::authority::Observation,
+    },
     RangeToUsize {
         observation: crate::range_values::authority::Observation,
     },
@@ -297,6 +301,7 @@ pub(crate) fn validate_observations<'a>(
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
         TypeTree::RangeUsize { observation } => crate::range_values::authority::shape(observation),
+        TypeTree::RangeFromUsize { observation } => crate::range_values::authority::range_from_shape(observation),
         TypeTree::RangeToUsize { observation } => crate::range_values::authority::range_to_shape(observation),
         TypeTree::Result { ok, err } => result_shape(ok, err),
         TypeTree::IntConversionResult(value) if !matches!(value.as_str(), "usize" | "u16") => {
@@ -336,7 +341,12 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
 
 /// This bounded shape grants neither Copy, drop freedom nor value permission.
 fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
-    if crate::borrowed_result_types::tree_result(ok, err) {
+    if crate::borrowed_result_types::tree_result(ok, err)
+        || crate::concrete_results::copy_errors::GRAMMAR.permits(
+            &crate::data_types::TypeToken::from_tree(ok),
+            &crate::data_types::TypeToken::from_tree(err),
+        )
+    {
         return Ok(());
     }
     let TypeTree::Struct {

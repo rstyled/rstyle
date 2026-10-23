@@ -5,6 +5,18 @@ pub(crate) fn operands<'a>(
     node: &'a HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Option<Result<Vec<&'a HirNode>, String>> {
+    if crate::scalar_result_propagation::candidate(node, facts) {
+        return Some(
+            crate::scalar_result_propagation::verify(node, facts)
+                .map(|checked| vec![checked.operand]),
+        );
+    }
+    if crate::checked_slice_views::suffix::candidate(node, facts) {
+        return Some(
+            crate::checked_slice_views::suffix::verify(node, facts)
+                .map(|checked| vec![checked.receiver, checked.start]),
+        );
+    }
     if crate::borrowed_result_propagation::candidate(node, facts) {
         return Some(
             crate::borrowed_result_propagation::verify(node, facts)
@@ -34,7 +46,9 @@ pub(crate) fn operands<'a>(
 }
 
 pub(super) fn used(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    crate::borrowed_result_propagation::candidate(node, facts)
+    crate::scalar_result_propagation::candidate(node, facts)
+        || crate::checked_slice_views::suffix::candidate(node, facts)
+        || crate::borrowed_result_propagation::candidate(node, facts)
         || crate::checked_slice_views::candidate(node, facts)
         || crate::borrowed_result_errors::candidate(node, facts)
         || crate::borrowed_result_errors::error_candidate(node, facts)

@@ -8,34 +8,31 @@ impl<'tcx> Capture<'_, 'tcx> {
         value: Ty<'tcx>,
         depth: usize,
     ) -> Result<Option<TypeTree>, Failure> {
-        if !self.ctx.profile.supports("rust.fresh-range-results")
-            && !self
-                .ctx
-                .profile
-                .supports("rust.checked-borrowed-result-flow")
-        {
-            return Ok(None);
-        }
-
         let ty::Adt(definition, arguments) = value.kind() else {
             return Ok(None);
         };
         let tcx = self.ctx.tcx;
-        let range_to = tcx.lang_items().range_to_struct() == Some(definition.did());
-        if range_to
-            && !self
+        let kind = if tcx.lang_items().range_to_struct() == Some(definition.did())
+            && self
                 .ctx
                 .profile
                 .supports("rust.checked-borrowed-result-flow")
         {
-            return Ok(None);
-        }
-        if !range_to
-            && (tcx.lang_items().range_struct() != Some(definition.did())
-                || !self.ctx.profile.supports("rust.fresh-range-results"))
+            "RangeTo"
+        } else if tcx.lang_items().range_from_struct() == Some(definition.did())
+            && self
+                .ctx
+                .profile
+                .supports("rust.checked-suffix-result-views")
         {
+            "RangeFrom"
+        } else if tcx.lang_items().range_struct() == Some(definition.did())
+            && self.ctx.profile.supports("rust.fresh-range-results")
+        {
+            "Range"
+        } else {
             return Ok(None);
-        }
+        };
 
         if depth != 0
             || arguments.len() != 1
@@ -46,12 +43,12 @@ impl<'tcx> Capture<'_, 'tcx> {
             ));
         }
         let mut observation = self.range_observation(value, *definition, arguments);
-        if range_to {
-            observation.lang_item = "RangeTo".into();
-            Ok(Some(TypeTree::RangeToUsize { observation }))
-        } else {
-            Ok(Some(TypeTree::RangeUsize { observation }))
-        }
+        observation.lang_item = kind.into();
+        Ok(Some(match kind {
+            "RangeTo" => TypeTree::RangeToUsize { observation },
+            "RangeFrom" => TypeTree::RangeFromUsize { observation },
+            _ => TypeTree::RangeUsize { observation },
+        }))
     }
 
     fn range_observation(

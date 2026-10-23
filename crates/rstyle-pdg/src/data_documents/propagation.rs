@@ -14,6 +14,11 @@ pub(super) struct Contract<const N: usize> {
     pub invocation: Invocation,
 }
 
+pub(super) struct AnnotationInventory {
+    pub witness: &'static str,
+    pub error: &'static str,
+}
+
 impl<const N: usize> Contract<N> {
     fn sources<'a>(&self, facts: &'a dyn EvidenceFacts) -> Vec<&'a HirNode> {
         crate::field_locations::selected_operations(facts, &["expr_try_desugar"], self.candidate)
@@ -47,6 +52,28 @@ impl<const N: usize> Contract<N> {
             .then(|| (self.semantics)(construct))
     }
 
+    pub fn verify_annotations(
+        &self,
+        pair: PairView<'_>,
+        facts: &dyn EvidenceFacts,
+        inventory: AnnotationInventory,
+    ) -> Result<(), String> {
+        self.verify(pair, facts)?;
+
+        let expected = self.sources(facts).len() * N;
+        if [self.key, inventory.witness].into_iter().any(|key| {
+            pair.pdg
+                .nodes
+                .iter()
+                .filter(|node| node.annotations.contains_key(key))
+                .count()
+                != expected
+        }) {
+            return Err(inventory.error.into());
+        }
+        Ok(())
+    }
+
     pub fn verify(&self, pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
         let sources = self.sources(facts);
         super::verify_construct_inventory(pair, self.constructs, [sources.len(); N])?;
@@ -61,4 +88,21 @@ impl<const N: usize> Contract<N> {
         }
         Ok(())
     }
+}
+
+/// Select a dedicated contract's rule without mixing its interpretation table.
+pub(super) fn semantic_rule<const N: usize>(
+    construct: &str,
+    constructs: &[&str; N],
+    rules: &std::sync::OnceLock<[serde_json::Value; N]>,
+    initialize: fn() -> [serde_json::Value; N],
+) -> serde_json::Value {
+    let Some(position) = constructs
+        .iter()
+        .position(|candidate| *candidate == construct)
+    else {
+        return serde_json::Value::Null;
+    };
+
+    rules.get_or_init(initialize)[position].clone()
 }

@@ -370,6 +370,13 @@ fn checked_receiver<'a>(
     node: &'a HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Option<Result<(&'a HirNode, bool), String>> {
+    if crate::checked_slice_views::suffix::candidate(node, facts) {
+        return Some(
+            crate::checked_slice_views::suffix::verify(node, facts)
+                .map(|checked| (checked.receiver, false)),
+        );
+    }
+
     if crate::checked_slice_views::candidate(node, facts) {
         return Some(
             crate::checked_slice_views::verify(node, facts)

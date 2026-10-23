@@ -20,7 +20,7 @@ pub(super) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<(), 
             return Err("Eager conversion source lacks its exact call".into());
         }
         node.annotations
-            .insert(errors::KEY.into(), errors::semantics());
+            .insert(errors::KEY.into(), errors::semantics_for(source, facts)?);
     }
 
     Ok(())
@@ -103,7 +103,7 @@ fn verify_call(
     )?;
 
     if node.category != NodeCategory::Call
-        || node.annotations.get(errors::KEY) != Some(&errors::semantics())
+        || node.annotations.get(errors::KEY) != Some(&errors::semantics_for(source, facts)?)
     {
         return Err("Eager conversion loses exact saved-payload/error semantics".into());
     }

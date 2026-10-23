@@ -75,20 +75,55 @@ pub(crate) fn value(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(String
         return Err("Missing complete fieldless value type".into());
     };
 
-    let (owner, name) = qualified_value(node, facts)?;
-    let tree = facts.nominal_resolution()?.resolve(&syn::TypePath {
-        qself: None,
-        path: owner,
-    })?;
-    if TypeToken::from_tree(&tree) != checked_type(node, facts)? {
-        return Err("Fieldless variant path disagrees with nominal source".into());
-    }
+    let name = source_variant(node, facts, &nominal)?;
     verify_identity(node, facts, &nominal, &name)?;
 
     variants
         .into_iter()
         .find(|(tag, _)| tag == &name)
         .ok_or("Unknown fieldless variant".into())
+}
+
+fn source_variant(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+    nominal: &crate::concrete_types::Nominal,
+) -> Result<String, String> {
+    let syntax: syn::ExprPath =
+        syn::parse_str(source(node, facts)?).map_err(|error| error.to_string())?;
+    let name = if syntax.path.segments.len() == 1
+        && crate::extraction_profile::facts_support(facts, "rust.copy-fieldless-result-flow")
+    {
+        let expression = syntax;
+        if expression.qself.is_some() || !expression.attrs.is_empty() {
+            return Err("Fieldless variant requires an ordinary source path".into());
+        }
+        let function: syn::ItemFn =
+            syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
+        crate::source_evidence::closed_body(&function.block)?;
+        let name = expression
+            .path
+            .segments
+            .last()
+            .ok_or("Empty variant path")?
+            .ident
+            .to_string();
+        facts
+            .nominal_resolution()?
+            .verify_fieldless_variant_source(&expression.path, nominal, &name)?;
+        name
+    } else {
+        let (owner, name) = qualified_value(node, facts)?;
+        let tree = facts.nominal_resolution()?.resolve(&syn::TypePath {
+            qself: None,
+            path: owner,
+        })?;
+        if TypeToken::from_tree(&tree) != checked_type(node, facts)? {
+            return Err("Fieldless variant path disagrees with nominal source".into());
+        }
+        name
+    };
+    Ok(name)
 }
 
 pub(crate) fn cast(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {

@@ -64,3 +64,17 @@ fn borrowed_byte_slice_option_observation_is_exact_and_capability_gated() {
         assert!(parse(&token.text().unwrap()).is_err());
     }
 }
+
+#[test]
+fn non_copy_suffix_carrier_grants_no_standalone_or_nested_value_permission() {
+    use crate::extraction_profile::ExtractionProfile::{DataV2, DataV3};
+    let text = r#"{"kind":"range_from_usize"}"#;
+    let token = parse(text).unwrap();
+    assert_eq!(token, TypeToken::RangeFromUsize);
+    assert!(token.native_width());
+    assert_eq!(token.text().unwrap(), text);
+    for profile in [DataV2, DataV3] {
+        assert!(parse_for(text, profile).is_err());
+    }
+    assert!(parse(&TypeToken::Tuple(vec![token]).text().unwrap()).is_err());
+}

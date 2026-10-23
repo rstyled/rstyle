@@ -85,6 +85,7 @@ pub(crate) mod scalar_from;
 pub mod scalar_instances;
 mod scalar_loop_helpers;
 pub mod scalar_patterns;
+pub mod scalar_result_propagation;
 pub mod size_calls;
 pub mod size_constants;
 pub mod source_evidence;

@@ -21,6 +21,7 @@ mod scalar_aliases;
 mod selected;
 pub(crate) use environment::{Environment, SourceOptions};
 mod import_chains;
+mod variants;
 use syn::spanned::Spanned;
 
 type Namespace = Vec<String>;

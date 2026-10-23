@@ -2,7 +2,7 @@
 use super::*;
 use crate::{EdgeFamily, PdgEdge};
 
-pub(super) fn verify<const N: usize>(
+pub(in crate::data_documents) fn verify<const N: usize>(
     pair: PairView<'_>,
     saved: &PdgNode,
     operations: [&PdgNode; N],

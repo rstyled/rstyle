@@ -52,15 +52,7 @@ pub fn verify(observation: &Observation, facts: &dyn EvidenceFacts) -> Result<()
 }
 
 fn definition(observation: &Observation, registry: &data_library::Registry) -> Result<(), String> {
-    if registry.source_digests.get(SOURCE_PATH).map(String::as_str) != Some(SOURCE_DIGEST) {
-        return Err("Missing reviewed Range declaration source authority".into());
-    }
-    if !["core::ops::Range", "std::ops::Range"].contains(&observation.definition.path.as_str())
-        || !registry.exact_core_definition(&observation.definition, "std::ops::Range")
-    {
-        return Err("Range value disagrees with reviewed core definition".into());
-    }
-    Ok(())
+    definition_for(observation, registry, "Range")
 }
 
 pub(crate) fn shape(observation: &Observation) -> Result<(), String> {
@@ -85,54 +77,114 @@ pub(crate) fn shape(observation: &Observation) -> Result<(), String> {
     Ok(())
 }
 
-/// Exact RangeTo<usize> observation for checked-access signatures, not value permission.
+/// Exact RangeTo observation for checked signatures, never standalone value permission.
 pub fn verify_range_to(observation: &Observation, facts: &dyn EvidenceFacts) -> Result<(), String> {
-    if !crate::extraction_profile::facts_support(facts, "rust.checked-borrowed-result-flow") {
-        return Err("RangeTo observation requires its checked-result capability".into());
+    verify_one_ended(observation, facts, Carrier::Prefix)
+}
+
+/// Non-Copy RangeFrom is only a fresh checked carrier, never stored or reused.
+pub fn verify_range_from(
+    observation: &Observation,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    verify_one_ended(observation, facts, Carrier::Suffix)
+}
+
+#[derive(Clone, Copy)]
+enum Carrier {
+    Prefix,
+    Suffix,
+}
+
+impl Carrier {
+    fn contract(self) -> (&'static str, &'static str, bool, &'static str) {
+        match self {
+            Self::Prefix => ("RangeTo", "end", true, "rust.checked-borrowed-result-flow"),
+            Self::Suffix => (
+                "RangeFrom",
+                "start",
+                false,
+                "rust.checked-suffix-result-views",
+            ),
+        }
     }
-    let registry =
-        data_library::registry_for(facts.facts()).ok_or("Unpinned RangeTo compiler/target")?;
+}
+
+fn verify_one_ended(
+    observation: &Observation,
+    facts: &dyn EvidenceFacts,
+    carrier: Carrier,
+) -> Result<(), String> {
+    let (name, field, is_copy, capability) = carrier.contract();
+    if !crate::extraction_profile::facts_support(facts, capability) {
+        return Err("One-ended range observation requires its checked-access capability".into());
+    }
+    let registry = data_library::registry_for(facts.facts())
+        .ok_or("Unpinned checked range compiler/target")?;
     if facts.facts().build.pointer_width.status != crate::FactStatus::Known
         || facts.facts().build.pointer_width.value != Some(64)
         || registry.pointer_width != 64
     {
-        return Err("RangeTo observation requires its reviewed 64-bit target".into());
+        return Err("Checked range observation requires its reviewed 64-bit target".into());
     }
 
-    data_library::verify_sysroot_roots(facts, &["core", "std"], "RangeTo observation")?;
-    range_to_definition(observation, registry)?;
-    range_to_shape(observation)
+    data_library::verify_sysroot_roots(facts, &["core", "std"], "Checked range observation")?;
+    definition_for(observation, registry, name)?;
+    one_ended_shape(observation, name, field, is_copy)
 }
 
-fn range_to_definition(
+fn definition_for(
     observation: &Observation,
     registry: &data_library::Registry,
+    name: &str,
 ) -> Result<(), String> {
+    let core = format!("core::ops::{name}");
+    let std = format!("std::ops::{name}");
     if registry.source_digests.get(SOURCE_PATH).map(String::as_str) != Some(SOURCE_DIGEST)
-        || !["core::ops::RangeTo", "std::ops::RangeTo"]
-            .contains(&observation.definition.path.as_str())
-        || !registry.exact_core_definition(&observation.definition, "std::ops::RangeTo")
+        || ![core.as_str(), std.as_str()].contains(&observation.definition.path.as_str())
+        || !registry.exact_core_definition(&observation.definition, &std)
     {
-        return Err("RangeTo observation lacks exact pinned definition/source".into());
+        return Err("Checked range observation lacks exact pinned definition/source".into());
     }
     Ok(())
 }
 
+#[cfg(test)]
+fn range_to_definition(
+    observation: &Observation,
+    registry: &data_library::Registry,
+) -> Result<(), String> {
+    definition_for(observation, registry, "RangeTo")
+}
+
 pub(crate) fn range_to_shape(observation: &Observation) -> Result<(), String> {
-    if observation.lang_item != "RangeTo"
+    one_ended_shape(observation, "RangeTo", "end", true)
+}
+
+pub(crate) fn range_from_shape(observation: &Observation) -> Result<(), String> {
+    one_ended_shape(observation, "RangeFrom", "start", false)
+}
+
+fn one_ended_shape(
+    observation: &Observation,
+    name: &str,
+    field: &str,
+    is_copy: bool,
+) -> Result<(), String> {
+    if observation.lang_item != name
         || observation.arguments != ["usize"]
         || observation.fields
             != [Field {
                 position: 0,
-                name: "end".into(),
+                name: field.into(),
                 scalar: "usize".into(),
             }]
-        || !observation.is_copy
+        || observation.is_copy != is_copy
         || observation.needs_drop
         || observation.has_drop_impl
     {
         return Err(
-            "RangeTo observation requires exact Copy/no-drop usize end field evidence".into(),
+            "Checked range observation contradicts exact field/Copy/cleanup evidence".into(),
         );
     }
     Ok(())
@@ -180,6 +232,39 @@ mod tests {
         }];
         value.is_copy = true;
         value
+    }
+
+    #[test]
+    fn suffix_carrier_is_non_copy_and_requires_exact_start_and_source_identity() {
+        assert!(!std::mem::needs_drop::<std::ops::RangeFrom<usize>>());
+        for registry in data_library::registries() {
+            let mut value = observation(registry);
+            value.definition.path = "core::ops::RangeFrom".into();
+            value.definition.definition_hash = registry.definitions["std::ops::RangeFrom"].clone();
+            value.lang_item = "RangeFrom".into();
+            value.fields.truncate(1);
+            definition_for(&value, registry, "RangeFrom").unwrap();
+            range_from_shape(&value).unwrap();
+            assert!(range_to_shape(&value).is_err());
+            for mutation in 0..10 {
+                let mut changed = value.clone();
+                match mutation {
+                    0 => changed.lang_item = "RangeTo".into(),
+                    1 => changed.arguments = vec!["u64".into()],
+                    2 => changed.fields.clear(),
+                    3 => changed.fields[0].name = "end".into(),
+                    4 => changed.fields[0].scalar = "u64".into(),
+                    5 => changed.fields[0].position = 1,
+                    6 => changed.is_copy = true,
+                    7 => changed.needs_drop = true,
+                    8 => changed.has_drop_impl = true,
+                    _ => changed.fields.push(changed.fields[0].clone()),
+                }
+                assert!(range_from_shape(&changed).is_err());
+            }
+            value.definition.definition_hash = registry.definitions["std::ops::RangeTo"].clone();
+            assert!(definition_for(&value, registry, "RangeFrom").is_err());
+        }
     }
 
     #[test]

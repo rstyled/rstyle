@@ -202,11 +202,13 @@ impl Graph<'_> {
             construct,
             Some(
                 "data.option-get-prefix"
+                    | "data.option-get-suffix"
                     | "data.option-ok-or"
                     | "data.result-ok"
                     | "data.result-err"
                     | "try.borrowed-result-ok-reference"
                     | "try.borrowed-result-error"
+                    | "try.scalar-result-error"
             )
         ) {
             return Some(self.borrowed_result_operation(node, selectors, visiting));
@@ -649,12 +651,7 @@ fn source_type<'a>(
     node: &PdgNode,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<&'a str>, String> {
-    if node.attributes.construct.as_deref() == Some("try.borrowed-result-error") {
-        crate::borrowed_result_propagation::verify(source_node(node, facts)?, facts)?;
-        return Ok(facts.signature.return_ty.normalized.as_deref());
-    }
-    if node.attributes.construct.as_deref() == Some("try.option-none") {
-        crate::option_propagation::verify(source_node(node, facts)?, facts)?;
+    if propagation_return(node, facts)? {
         return Ok(facts.signature.return_ty.normalized.as_deref());
     }
     if let Some(ty) = event_type(node) {
@@ -695,6 +692,26 @@ fn source_type<'a>(
             .as_ref()
             .and_then(|ty| ty.normalized.as_deref()),
     })
+}
+
+fn propagation_return(
+    node: &PdgNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    match node.attributes.construct.as_deref() {
+        Some("try.scalar-result-error") => {
+            crate::scalar_result_propagation::verify(source_node(node, facts)?, facts)?;
+        }
+        Some("try.borrowed-result-error") => {
+            crate::borrowed_result_propagation::verify(source_node(node, facts)?, facts)?;
+        }
+        Some("try.option-none") => {
+            crate::option_propagation::verify(source_node(node, facts)?, facts)?;
+        }
+        _ => return Ok(false),
+    }
+
+    Ok(true)
 }
 
 fn input_type<'a>(

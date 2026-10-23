@@ -3,6 +3,12 @@ use super::*;
 
 pub(super) fn return_error(tree: &TypeTree) -> Option<&TypeTree> {
     match tree {
+        TypeTree::Result { ok, err }
+            if copy_errors::GRAMMAR
+                .permits(&TypeToken::from_tree(ok), &TypeToken::from_tree(err)) =>
+        {
+            Some(err)
+        }
         TypeTree::Result { ok, err } if matches!(ok.as_ref(), TypeTree::Scalar(unit) if unit == "unit") => {
             Some(err)
         }
@@ -27,6 +33,9 @@ pub(super) fn return_error(tree: &TypeTree) -> Option<&TypeTree> {
 
 pub(super) fn checked_error(tree: &TypeTree, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let token = TypeToken::from_tree(tree);
+    if copy_errors::error(&token).is_some() {
+        return copy_errors::checked_error(&token, facts);
+    }
     if let Some(nominal) = crate::borrowed_result_types::error(&token) {
         if !crate::extraction_profile::facts_support(
             facts,
@@ -63,7 +72,11 @@ pub(crate) fn payload(
     let TypeToken::Result { ok, err } = crate::data_aggregates::parsed_type(node)? else {
         return Err("Result construction requires its concrete two-child type".into());
     };
-    if crate::borrowed_result_types::result(&ok, &err) {
+    if copy_errors::GRAMMAR.permits(&ok, &err) {
+        copy_errors::checked_error(&err, facts)?;
+        return Ok((*ok, *err));
+    }
+    if crate::borrowed_result_types::GRAMMAR.permits(&ok, &err) {
         if !crate::extraction_profile::facts_support(
             facts,
             crate::borrowed_result_types::CAPABILITY,

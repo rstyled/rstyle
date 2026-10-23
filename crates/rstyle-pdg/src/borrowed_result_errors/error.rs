@@ -6,6 +6,7 @@ pub(crate) struct Error {
     pub token: TypeToken,
     pub variant: String,
     pub position: usize,
+    pub discriminant: Option<i64>,
 }
 
 pub(crate) fn error_candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
@@ -16,9 +17,26 @@ pub(crate) fn error_candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool
                     .res
                     .as_ref()
                     .is_some_and(|resolution| resolution.kind == "resolved_fieldless_variant")
-                && crate::data_aggregates::parsed_type(node)
-                    .is_ok_and(|token| matches!(token, TypeToken::MixedEnum { .. }))
+                && crate::data_aggregates::parsed_type(node).is_ok_and(|token| {
+                    matches!(token, TypeToken::MixedEnum { .. }) || copy_result_error(&token, facts)
+                })
         })
+}
+
+fn copy_result_error(token: &TypeToken, facts: &dyn EvidenceFacts) -> bool {
+    crate::extraction_profile::facts_support(
+        facts,
+        crate::concrete_results::copy_errors::CAPABILITY,
+    ) && crate::concrete_results::copy_errors::error(token).is_some()
+        && facts
+            .signature
+            .return_ty
+            .normalized
+            .as_deref()
+            .is_some_and(|text| {
+                matches!(crate::data_types::parse(text), Ok(TypeToken::Result { err, .. })
+                if err.as_ref() == token)
+            })
 }
 
 pub(crate) fn verify_error(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Error, String> {
@@ -32,6 +50,9 @@ pub(crate) fn verify_error(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<
         );
     }
     let token = crate::data_aggregates::parsed_type(node)?;
+    if crate::concrete_results::copy_errors::error(&token).is_some() {
+        return copy_error(node, facts, token);
+    }
     let nominal = crate::borrowed_result_types::error(&token)
         .ok_or("Fresh error requires its complete bounded scalar enum")?;
     let resolution = facts.nominal_resolution()?;
@@ -53,6 +74,33 @@ pub(crate) fn verify_error(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<
         token,
         variant: name,
         position,
+        discriminant: None,
+    })
+}
+
+fn copy_error(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+    token: TypeToken,
+) -> Result<Error, String> {
+    crate::concrete_results::copy_errors::checked_error(&token, facts)?;
+
+    // Reuse the lexical value proof, including original imported variant paths.
+    // A captured resolved variant identity alone does not establish this source.
+    let (variant, discriminant) = crate::fieldless_enums::value(node, facts)?;
+    let TypeToken::FieldlessEnum { variants, .. } = &token else {
+        unreachable!("checked Copy fieldless error")
+    };
+    let position = variants
+        .iter()
+        .position(|(name, value)| name == &variant && value == &discriminant)
+        .ok_or("Copy error lost its checked variant/discriminant")?;
+
+    Ok(Error {
+        token,
+        variant,
+        position,
+        discriminant: Some(discriminant),
     })
 }
 
@@ -116,16 +164,28 @@ struct Semantics<'a> {
     payload: bool,
     copy_permission: bool,
     cleanup: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    discriminant: Option<i64>,
 }
 
 pub(crate) fn error_semantics(checked: &Error) -> serde_json::Value {
+    let copy = checked.discriminant.is_some();
     let semantics = Semantics {
-        rule: "fresh-no-drop-unit-error",
+        rule: if copy {
+            "checked-copy-fieldless-error"
+        } else {
+            "fresh-no-drop-unit-error"
+        },
         variant: &checked.variant,
         position: checked.position,
         payload: false,
-        copy_permission: false,
-        cleanup: "complete-original-source-proof",
+        copy_permission: copy,
+        cleanup: if copy {
+            "complete-original-copy-proof"
+        } else {
+            "complete-original-source-proof"
+        },
+        discriminant: checked.discriminant,
     };
 
     serde_json::to_value(semantics).expect("registered fresh error semantics")

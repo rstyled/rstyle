@@ -32,12 +32,12 @@ pub(super) fn verify(
         serde_json::from_str(&range.description).map_err(|error| error.to_string())?;
     if range.kind != "resolved_range_type"
         || range.target.is_some()
-        || !matches!(
-            callee.path.as_str(),
-            "std::ops::RangeTo" | "core::ops::RangeTo"
+        || !super::shared::exact_core(
+            &callee,
+            registry,
+            &["std::ops::RangeTo", "core::ops::RangeTo"],
+            "std::ops::RangeTo",
         )
-        || !registry.exact_core_definition(&callee, "std::ops::RangeTo")
-        || callee.implementation.is_some()
     {
         return Err("Checked prefix get requires the exact core RangeTo type".into());
     }
@@ -49,12 +49,13 @@ pub(super) fn method(
     callee: &crate::data_library::Callee,
     registry: &crate::data_library::Registry,
 ) -> Result<(), String> {
-    if callee.path != GET
-        || !registry.exact_core_definition(callee, GET)
-        || callee.implementation.is_some()
-    {
-        return Err("Checked prefix get disagrees with pinned core method".into());
-    }
-
-    Ok(())
+    super::shared::require_exact_core(
+        callee,
+        registry,
+        super::shared::CoreContract {
+            paths: &[GET],
+            canonical: GET,
+            error: "Checked prefix get disagrees with pinned core method",
+        },
+    )
 }

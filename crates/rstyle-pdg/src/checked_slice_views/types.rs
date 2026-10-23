@@ -1,10 +1,6 @@
 //! Full captured receiver signatures; unsupported observations grant no evidence.
 use super::*;
-use crate::{
-    concrete_types::{Observation, TypeTree},
-    data_receivers::Kind,
-    data_types::TypeToken,
-};
+use crate::{concrete_types::TypeTree, data_types::TypeToken};
 
 pub(super) fn verify(
     node: &HirNode,
@@ -51,51 +47,5 @@ pub(super) fn verify(
         .find(|method| method.call == node.hir)
         .ok_or("Missing complete checked prefix get receiver capture")?;
 
-    signature(record, &result, facts)
-}
-
-fn signature(
-    record: &crate::data_receivers::Method,
-    result: &TypeTree,
-    facts: &dyn EvidenceFacts,
-) -> Result<(), String> {
-    let captured = |ty| Observation::Captured { ty };
-    let [
-        input,
-        Observation::Captured {
-            ty: TypeTree::RangeToUsize { observation },
-        },
-    ] = record.signature_inputs.as_slice()
-    else {
-        return Err("Checked prefix get requires complete captured input observations".into());
-    };
-    crate::range_values::authority::verify_range_to(observation, facts)?;
-    let kinds: Vec<_> = record.adjustments.iter().map(|step| &step.kind).collect();
-    if record.receiver_type
-        != captured(
-            TypeTree::Scalar("u8".into())
-                .wrapped(TypeTree::Slice)
-                .wrapped(TypeTree::Shared),
-        )
-        || record.adjusted_type
-            != captured(
-                TypeTree::Scalar("u8".into())
-                    .wrapped(TypeTree::Slice)
-                    .wrapped(TypeTree::Shared),
-            )
-        || *input
-            != captured(
-                TypeTree::Scalar("u8".into())
-                    .wrapped(TypeTree::Slice)
-                    .wrapped(TypeTree::Shared),
-            )
-        || record.signature_result != captured(result.clone())
-        || !(kinds.is_empty() || kinds == [&Kind::BuiltinDereference, &Kind::SharedBorrow])
-    {
-        return Err(
-            "Checked prefix get requires exact immutable instantiated receiver evidence".into(),
-        );
-    }
-
-    Ok(())
+    super::shared::signature(record, &result, facts, super::shared::RangeKind::Prefix)
 }

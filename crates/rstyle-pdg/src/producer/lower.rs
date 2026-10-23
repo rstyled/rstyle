@@ -4,6 +4,7 @@ mod borrowed_result_errors;
 mod borrowed_result_propagation;
 mod callbacks;
 mod checked_slice_views;
+mod checked_suffix_views;
 mod enums;
 mod helper_option_callbacks;
 mod iterator_position;
@@ -13,6 +14,7 @@ mod option_if_let;
 mod option_propagation;
 mod options;
 mod result_propagation;
+mod scalar_result_propagation;
 
 use super::graph::*;
 use crate::{NodeCategory, frontend::*};
@@ -674,14 +676,18 @@ impl Builder<'_> {
     }
 
     fn invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        if crate::checked_slice_views::candidate(node, self.facts) {
-            return self.checked_prefix_get(node, flow);
-        }
-        if crate::borrowed_result_errors::candidate(node, self.facts) {
-            return self.borrowed_option_ok_or(node, flow);
-        }
+        let lower: fn(&mut Self, &HirNode, Flow) -> Flow =
+            if crate::checked_slice_views::suffix::candidate(node, self.facts) {
+                Self::checked_suffix_get
+            } else if crate::checked_slice_views::candidate(node, self.facts) {
+                Self::checked_prefix_get
+            } else if crate::borrowed_result_errors::candidate(node, self.facts) {
+                Self::borrowed_option_ok_or
+            } else {
+                Self::dispatched_invocation
+            };
 
-        self.dispatched_invocation(node, flow)
+        lower(self, node, flow)
     }
 
     fn dispatched_invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -1465,6 +1471,12 @@ fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flo
         .is_some_and(|res| res.kind == crate::borrowed_result_propagation::capture::RESOLUTION)
     {
         Builder::borrowed_result_propagation
+    } else if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::scalar_result_propagation::capture::RESOLUTION)
+    {
+        Builder::scalar_result_propagation
     } else {
         Builder::result_propagation
     }

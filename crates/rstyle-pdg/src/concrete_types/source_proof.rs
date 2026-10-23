@@ -161,8 +161,13 @@ fn path_proof(
         correspondence(err_source, err, resolution)?;
         return resolution.concrete_result(path, ok, err);
     }
-    if matches!(tree, TypeTree::RangeToUsize { .. }) {
-        return Err("RangeTo is supported only as a verified checked-access carrier".into());
+    if matches!(
+        tree,
+        TypeTree::RangeToUsize { .. } | TypeTree::RangeFromUsize { .. }
+    ) {
+        return Err(
+            "One-ended ranges are supported only as verified checked-access carriers".into(),
+        );
     }
     if matches!(tree, TypeTree::RangeUsize { .. }) {
         return if resolution.resolve(path)? == *tree {

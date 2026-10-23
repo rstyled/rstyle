@@ -9,9 +9,8 @@ mod tests;
 
 pub(crate) const CAPABILITY: &str = "rust.checked-borrowed-result-flow";
 
-pub(crate) fn result(ok: &TypeToken, err: &TypeToken) -> bool {
-    success(ok) && error(err).is_some()
-}
+pub(crate) const GRAMMAR: crate::data_types::ResultGrammar =
+    crate::data_types::ResultGrammar { success, error };
 
 pub(crate) fn tree_result(ok: &TypeTree, err: &TypeTree) -> bool {
     let success = shared_byte_slice(ok)
@@ -54,7 +53,10 @@ pub(crate) fn error(token: &TypeToken) -> Option<&Nominal> {
 
 pub(crate) fn owned_use(token: &TypeToken) -> bool {
     match token {
-        TypeToken::Result { ok, err } => result(ok, err),
+        TypeToken::Result { ok, err } => {
+            GRAMMAR.permits(ok, err)
+                || crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err)
+        }
         TypeToken::MixedEnum { .. } => error(token).is_some(),
         TypeToken::Tuple(values) => values.iter().all(owned_use),
         TypeToken::Struct { fields, .. } => fields.iter().all(|(_, ty)| owned_use(ty)),
@@ -78,7 +80,7 @@ fn contains_owned(token: &TypeToken) -> bool {
 pub(crate) fn uses_result(token: &TypeToken) -> bool {
     any(
         token,
-        &|token| matches!(token, TypeToken::Result { ok, err } if result(ok, err)),
+        &|token| matches!(token, TypeToken::Result { ok, err } if GRAMMAR.permits(ok, err)),
     )
 }
 

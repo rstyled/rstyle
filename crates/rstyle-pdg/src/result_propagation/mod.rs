@@ -4,6 +4,7 @@ pub mod capture;
 pub(crate) mod source;
 #[cfg(test)]
 mod tests;
+pub(crate) mod types;
 
 use crate::{HirNode, unit_store::EvidenceFacts};
 use capture::Witness;

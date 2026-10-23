@@ -32,6 +32,93 @@ fn eager_conversion_preserves_the_exact_shared_payload_and_error_type() {
     assert!(types(&TypeToken::Option(Box::new(slice("u16"))), &error, &output).is_err());
 }
 
+fn fieldless_error() -> TypeToken {
+    let TypeTree::MixedEnum { nominal, .. } = enum_tree() else {
+        unreachable!()
+    };
+    TypeToken::FieldlessEnum {
+        nominal,
+        variants: vec![("InvalidEncoding".into(), 0), ("InvalidLength".into(), 1)],
+    }
+}
+
+#[test]
+fn scalar_eager_conversion_keeps_saved_usize_and_actual_fieldless_error() {
+    let error = fieldless_error();
+    let usize_type = TypeToken::Scalar("usize".into());
+    let input = TypeToken::Option(Box::new(usize_type.clone()));
+    let output = TypeToken::Result {
+        ok: Box::new(usize_type.clone()),
+        err: Box::new(error.clone()),
+    };
+    types(&input, &error, &output).unwrap();
+    for changed in [
+        TypeToken::Result {
+            ok: Box::new(TypeToken::Scalar("u32".into())),
+            err: Box::new(error.clone()),
+        },
+        TypeToken::Result {
+            ok: Box::new(usize_type.clone()),
+            err: Box::new(TypeToken::Scalar("usize".into())),
+        },
+        TypeToken::Result {
+            ok: Box::new(slice("u8")),
+            err: Box::new(error.clone()),
+        },
+    ] {
+        assert!(types(&input, &error, &changed).is_err());
+    }
+    assert!(
+        types(
+            &TypeToken::Option(Box::new(TypeToken::Scalar("u32".into()))),
+            &error,
+            &output
+        )
+        .is_err()
+    );
+    let mixed = TypeToken::from_tree(&enum_tree());
+    let wrong_error = TypeToken::Result {
+        ok: Box::new(usize_type),
+        err: Box::new(mixed.clone()),
+    };
+    assert!(types(&input, &mixed, &wrong_error).is_err());
+}
+
+#[test]
+fn copy_error_semantics_preserve_discriminant_and_eager_unused_error_authority() {
+    let checked = error::Error {
+        token: fieldless_error(),
+        variant: "InvalidLength".into(),
+        position: 1,
+        discriminant: Some(1),
+    };
+    let description = error_semantics(&checked);
+    assert_eq!(description["rule"], "checked-copy-fieldless-error");
+    assert_eq!(description["discriminant"], 1);
+    assert_eq!(description["copy_permission"], true);
+    assert_eq!(description["cleanup"], "complete-original-copy-proof");
+    let eager = semantics_values(
+        "ok-saved-scalar-payload",
+        "independently-source-proved-copy-fieldless-error",
+    );
+    assert_eq!(eager["evaluation"], "receiver-then-error-once-even-some");
+    assert_eq!(eager["receiver_operand"], 0);
+    assert_eq!(eager["error_operand"], 1);
+    assert_eq!(eager["some"], "ok-saved-scalar-payload");
+    assert_eq!(
+        eager["unused_error"],
+        "independently-source-proved-copy-fieldless-error"
+    );
+    assert_eq!(eager["content_read"], false);
+    let legacy = error::Error {
+        discriminant: None,
+        ..checked
+    };
+    let description = error_semantics(&legacy);
+    assert!(description.get("discriminant").is_none());
+    assert_eq!(description["copy_permission"], false);
+}
+
 #[test]
 fn source_contract_rejects_lazy_reordered_or_substituted_forms() {
     for source in [

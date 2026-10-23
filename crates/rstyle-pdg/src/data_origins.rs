@@ -21,7 +21,10 @@ pub fn shared(token: &TypeToken) -> bool {
     match token {
         TypeToken::Shared(_) => true,
         TypeToken::Option(value) => shared(value),
-        TypeToken::Result { ok, err } if crate::borrowed_result_types::result(ok, err) => {
+        TypeToken::Result { ok, err }
+            if crate::borrowed_result_types::GRAMMAR.permits(ok, err)
+                || crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err) =>
+        {
             shared(ok)
         }
         TypeToken::SliceArrayResult { borrowed: true, .. } => true,

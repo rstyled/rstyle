@@ -1,6 +1,6 @@
 //! Independently verify saved input, disjoint payload transfers and error return.
-mod consumers;
-mod flow;
+pub(super) mod consumers;
+pub(super) mod flow;
 
 use super::result_propagation::{return_effects, return_to_exit};
 use super::*;
@@ -96,14 +96,7 @@ fn metadata(source: &HirNode, checked: &propagation::Checked<'_>) -> serde_json:
 
 fn semantics(construct: &str) -> serde_json::Value {
     static RULES: std::sync::OnceLock<[serde_json::Value; 3]> = std::sync::OnceLock::new();
-    let Some(position) = CONSTRUCTS
-        .iter()
-        .position(|candidate| *candidate == construct)
-    else {
-        return serde_json::Value::Null;
-    };
-
-    RULES.get_or_init(semantic_rules)[position].clone()
+    super::propagation::semantic_rule(construct, &CONSTRUCTS, &RULES, semantic_rules)
 }
 
 fn semantic_rules() -> [serde_json::Value; 3] {
@@ -115,28 +108,14 @@ fn semantic_rules() -> [serde_json::Value; 3] {
 }
 
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
-    CONTRACT.verify(pair, facts)?;
-
-    let expected = sources(facts).len() * CONSTRUCTS.len();
-
-    if pair
-        .pdg
-        .nodes
-        .iter()
-        .filter(|node| node.annotations.contains_key(KEY))
-        .count()
-        != expected
-        || pair
-            .pdg
-            .nodes
-            .iter()
-            .filter(|node| node.annotations.contains_key(WITNESS))
-            .count()
-            != expected
-    {
-        return Err("Borrowed Result semantic/type inventory disagrees with source".into());
-    }
-    Ok(())
+    CONTRACT.verify_annotations(
+        pair,
+        facts,
+        super::propagation::AnnotationInventory {
+            witness: WITNESS,
+            error: "Borrowed Result semantic/type inventory disagrees with source",
+        },
+    )
 }
 
 fn invocation(
@@ -225,16 +204,16 @@ fn operation_effects(
     Ok(())
 }
 
-struct Operations<'a> {
-    saved: &'a PdgNode,
-    selector: &'a PdgNode,
-    error: &'a PdgNode,
-    success: &'a PdgNode,
-    returned: &'a PdgNode,
+pub(super) struct Operations<'a> {
+    pub(super) saved: &'a PdgNode,
+    pub(super) selector: &'a PdgNode,
+    pub(super) error: &'a PdgNode,
+    pub(super) success: &'a PdgNode,
+    pub(super) returned: &'a PdgNode,
 }
 
 impl Operations<'_> {
-    fn order(&self, pair: PairView<'_>) -> Result<(), String> {
+    pub(super) fn order(&self, pair: PairView<'_>) -> Result<(), String> {
         let Self {
             saved,
             selector,

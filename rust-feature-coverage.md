@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.87.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.88.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -42,6 +42,8 @@ adds local component-specific shared-reference helper results. Data-v3 3.85
 activates the original byte Input constructor as a separately owned checked
 instance; 3.86 adds exact string-to-byte origin projection. 3.87 connects both
 original From callers to their checked constructor and component summaries.
+3.88 connects original Line tail extraction through Copy-error scalar Result
+propagation and checked suffix views, preserving saved values and backing origins.
 Foreign aggregate callers remain pending. See the
 [constructor contract](docs/extraction-profiles/reference-constructor-instances-v1.md).
 Broader character/float APIs, conversions and structured forms remain deferred.
@@ -4989,3 +4991,33 @@ rstyle0/4,641, patterns0 with15 existing ignores unchanged. Fresh frozen
 oracle132,736 observations/context has0 mismatches. Four original/replayed identity
 comparisons/context pass. Fresh complete probes take136.63s/default and20.22s/no-default;
 these include additional From work and do not establish a controlled speedup.
+
+### Data-v3 3.88: complete checked Line tail error flow
+
+Original base64ct1.7.3 `Line::slice_tail → len` now connects checked subtraction,
+eager Copy-error conversion, scalar same-error `?` and checked suffix access.
+Actual Error source/import/Copy proof and non-Copy RangeFrom carrier authority
+remain separate. Unchanged default/std selections on the three pinned targets
+each gain1, lose0, reaching2/2; full rosters stay141/150. See the bounded
+[contract and acceptance probe](eval/coverage-development/line-tail/README.md).
+Borrowed Result-returning helper wrappers and public Decoder mutation/loop chains
+remain unsupported; this does not establish general Result payloads or ownership.
+
+Checkpoint:1,466 tests/five existing skips and doctests pass; fmt/Clippy pass;
+rstyle0/4,709, patterns0 with15 existing ignores unchanged. All six complete
+original bundles strictly import;12 selected identity comparisons accept and48
+resealed semantic attacks reject. Native exact private-source witness remains
+1,209,654 queries/context with0 mismatches; cross-target capture is not native
+macOS/x86 execution. Fresh frozen `run-9bjlp2ny` preserves all60 identities,
+every denominator and23/30/7 against `run-26yohht4`;116 graph documents pass
+schema checks (not an additional frozen semantic replay). Evidence:
+`/tmp/rstyle-388-*`. Existing parser/fieldless-enum regressions pass; Copy-error
+classification requires the actual Result error type, not any neighboring enum.
+The new composition test takes1.071s; parser regression3.537s with prebuilt driver.
+Standalone test-side driver compilation is separate; no controlled speedup claimed.
+
+Next source-audited ownership bridge: original `LineReader::new_unwrapped` needs
+fresh non-Copy product Result ownership, nested scalar Option capture/no-drop
+proof and guarded component origins. Its public Decoder callers still require
+loops/mutation/dispatch. Also remove demonstrated full-report duplication from
+the inventory harness using existing compact reports and complete bundle evidence.

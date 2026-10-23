@@ -1,4 +1,4 @@
-//! Fresh no-drop error values and eager checked-reference Option conversion.
+//! Source-proved error values and eager checked-reference/usize Option conversion.
 mod authority;
 mod error;
 mod source;
@@ -70,14 +70,15 @@ fn types(input: &TypeToken, error: &TypeToken, output: &TypeToken) -> Result<(),
     let TypeToken::Option(payload) = input else {
         return Err("Eager ok_or requires a concrete checked Option".into());
     };
-    if !matches!(payload.as_ref(), TypeToken::Shared(slice)
+    let shared = matches!(payload.as_ref(), TypeToken::Shared(slice)
         if matches!(slice.as_ref(), TypeToken::Slice(byte)
-            if matches!(byte.as_ref(), TypeToken::Scalar(value) if value == "u8")))
+            if matches!(byte.as_ref(), TypeToken::Scalar(value) if value == "u8")));
+    let scalar_copy = matches!(payload.as_ref(), TypeToken::Scalar(value) if value == "usize")
+        && crate::concrete_results::copy_errors::error(error).is_some();
+    if !(shared || scalar_copy)
         || !matches!(output, TypeToken::Result { ok, err } if ok == payload && err.as_ref() == error)
     {
-        return Err(
-            "Eager ok_or requires an exact shared byte-slice success and saved error type".into(),
-        );
+        return Err("Eager ok_or requires its exact byte-slice or Copy-error usize success".into());
     }
 
     Ok(())
@@ -129,14 +130,45 @@ struct Semantics {
 }
 
 pub(crate) fn semantics() -> serde_json::Value {
+    semantics_values(
+        "ok-saved-shared-payload",
+        "independently-source-proved-no-drop",
+    )
+}
+
+pub(crate) fn semantics_for(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<serde_json::Value, String> {
+    let checked = verify(node, facts)?;
+    let error = verify_error(checked.error, facts)?;
+    if error.discriminant.is_none() {
+        return Ok(semantics());
+    }
+
+    let receiver = crate::data_aggregates::parsed_type(checked.receiver)?;
+    let scalar = matches!(receiver, TypeToken::Option(payload)
+        if matches!(*payload, TypeToken::Scalar(ref value) if value == "usize"));
+
+    Ok(semantics_values(
+        if scalar {
+            "ok-saved-scalar-payload"
+        } else {
+            "ok-saved-shared-payload"
+        },
+        "independently-source-proved-copy-fieldless-error",
+    ))
+}
+
+fn semantics_values(some: &'static str, unused_error: &'static str) -> serde_json::Value {
     let semantics = Semantics {
         rule: "eager-option-to-result",
         receiver_operand: 0,
         error_operand: 1,
         evaluation: "receiver-then-error-once-even-some",
-        some: "ok-saved-shared-payload",
+        some,
         none: "err-saved-fresh-error",
-        unused_error: "independently-source-proved-no-drop",
+        unused_error,
         content_read: false,
     };
 

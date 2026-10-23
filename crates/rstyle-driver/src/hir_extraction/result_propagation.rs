@@ -16,6 +16,7 @@ mod borrowed;
 pub(super) enum Protocol {
     Result,
     BorrowedResult,
+    ScalarResult,
     Option,
 }
 
@@ -23,6 +24,7 @@ pub(super) enum Protocol {
 #[serde(untagged)]
 enum CapturedShape {
     Result(Shape),
+    ScalarResult(rstyle_pdg::scalar_result_propagation::capture::Shape),
     BorrowedResult(rstyle_pdg::borrowed_result_propagation::capture::Shape),
     Option(rstyle_pdg::option_propagation::capture::Shape),
 }
@@ -55,6 +57,11 @@ impl Protocol {
                 rstyle_pdg::borrowed_result_propagation::capture::RESOLUTION,
                 rstyle_pdg::borrowed_result_propagation::capture::IDENTITY,
             ),
+            Self::ScalarResult => (
+                "rust.scalar-success-result-propagation",
+                rstyle_pdg::scalar_result_propagation::capture::RESOLUTION,
+                rstyle_pdg::scalar_result_propagation::capture::IDENTITY,
+            ),
             Self::Option => (
                 "rust.concrete-option-propagation",
                 rstyle_pdg::option_propagation::capture::RESOLUTION,
@@ -68,6 +75,7 @@ impl<'tcx> Context<'tcx> {
     pub(super) fn result_propagation(&self, root: &Expr<'tcx>) -> Option<PathRes> {
         self.propagation_capture(root, Protocol::Result)
             .or_else(|| self.propagation_capture(root, Protocol::BorrowedResult))
+            .or_else(|| self.propagation_capture(root, Protocol::ScalarResult))
     }
 
     pub(super) fn propagation_capture(
@@ -151,6 +159,10 @@ impl<'tcx> Context<'tcx> {
             ),
             Protocol::BorrowedResult => (
                 CapturedShape::BorrowedResult(self.borrowed_result_shape(operand, branch)?),
+                Some(self.propagation_conversion(root, operand)?),
+            ),
+            Protocol::ScalarResult => (
+                CapturedShape::ScalarResult(self.scalar_result_shape(operand, branch)?),
                 Some(self.propagation_conversion(root, operand)?),
             ),
             Protocol::Option => (

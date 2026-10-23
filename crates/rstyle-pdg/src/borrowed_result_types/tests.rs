@@ -162,10 +162,7 @@ fn success_contract_rejects_other_scalar_order_and_reference_shapes() {
         TypeTree::Slice(Box::new(TypeTree::Scalar("u8".into()))),
     ] {
         assert!(!tree_result(&ok, &error));
-        assert!(!result(
-            &TypeToken::from_tree(&ok),
-            &TypeToken::from_tree(&error)
-        ));
+        assert!(!GRAMMAR.permits(&TypeToken::from_tree(&ok), &TypeToken::from_tree(&error)));
     }
 }
 
@@ -196,7 +193,7 @@ fn error_contract_rejects_reference_owner_and_nested_result_fields() {
         };
         fields[0].1 = field;
         assert!(error(&altered).is_none());
-        assert!(!result(&TypeToken::from_tree(&byte_slice()), &altered));
+        assert!(!GRAMMAR.permits(&TypeToken::from_tree(&byte_slice()), &altered));
     }
 }
 

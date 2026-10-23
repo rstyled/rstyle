@@ -1,6 +1,8 @@
 //! Checked prefix views retain saved receiver/end metadata, never content reads.
 mod authority;
+mod shared;
 mod source;
+pub(crate) mod suffix;
 #[cfg(test)]
 mod tests;
 mod types;
@@ -18,16 +20,7 @@ pub(crate) struct Checked<'a> {
 }
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::facts_support(facts, CAPABILITY)
-        && node.kind == "expr_method_call"
-        && node
-            .dispatch
-            .as_ref()
-            .is_some_and(|dispatch| dispatch.op == GET)
-        && node
-            .children
-            .get(1)
-            .is_some_and(|range| range.kind == "expr_struct")
+    shared::candidate(node, facts, shared::RangeKind::Prefix)
 }
 
 pub(crate) fn verify<'a>(

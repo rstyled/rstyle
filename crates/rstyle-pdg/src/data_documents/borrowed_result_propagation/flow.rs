@@ -1,7 +1,10 @@
 //! These synthetic operations have exact direct control transfers, without effects between them.
 use super::*;
 
-pub(super) fn verify(pair: PairView<'_>, operations: &Operations<'_>) -> Result<(), String> {
+pub(in crate::data_documents) fn verify(
+    pair: PairView<'_>,
+    operations: &Operations<'_>,
+) -> Result<(), String> {
     let Operations {
         selector,
         error,

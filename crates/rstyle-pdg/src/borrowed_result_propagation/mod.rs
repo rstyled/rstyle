@@ -111,8 +111,8 @@ fn types(
     };
 
     if *ok != payload
-        || !crate::borrowed_result_types::result(&ok, &err)
-        || !crate::borrowed_result_types::result(&output_ok, &output_err)
+        || !crate::borrowed_result_types::GRAMMAR.permits(&ok, &err)
+        || !crate::borrowed_result_types::GRAMMAR.permits(&output_ok, &output_err)
         || err != output_err
         || ok == output_ok
         || !matches!(ok.as_ref(), TypeToken::Shared(inner) if matches!(inner.as_ref(), TypeToken::Slice(element) if matches!(element.as_ref(), TypeToken::Scalar(name) if name == "u8")))

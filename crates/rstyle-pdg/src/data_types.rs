@@ -3,6 +3,8 @@
 use crate::concrete_types::{Nominal, TypeTree, scalar};
 use serde::{Deserialize, Serialize};
 mod converted;
+mod result_grammar;
+pub(crate) use result_grammar::ResultGrammar;
 mod mixed_owners;
 mod parsed;
 mod scalar_slices;
@@ -36,6 +38,7 @@ pub enum TypeToken {
     IntConversionResult(String),
     RangeUsize,
     RangeToUsize,
+    RangeFromUsize,
     SliceArrayResult {
         length: u64,
         borrowed: bool,
@@ -73,6 +76,7 @@ impl TypeToken {
             TypeTree::IntConversionResult(value) => Self::IntConversionResult(value.clone()),
             TypeTree::RangeUsize { .. } => Self::RangeUsize,
             TypeTree::RangeToUsize { .. } => Self::RangeToUsize,
+            TypeTree::RangeFromUsize { .. } => Self::RangeFromUsize,
             TypeTree::Option(value) => Self::Option(Box::new(Self::from_tree(value))),
             TypeTree::Result { ok, err } => Self::from_result(ok, err),
             TypeTree::SliceArrayResult { length, borrowed } => Self::SliceArrayResult {
@@ -128,7 +132,10 @@ impl TypeToken {
             Self::Scalar(value) | Self::IntConversionResult(value) => {
                 matches!(value.as_str(), "isize" | "usize")
             }
-            Self::FieldlessEnum { .. } | Self::RangeUsize | Self::RangeToUsize => true,
+            Self::FieldlessEnum { .. }
+            | Self::RangeUsize
+            | Self::RangeToUsize
+            | Self::RangeFromUsize => true,
             Self::Tuple(values) => values.iter().any(Self::native_width),
             Self::Result { ok, err } => ok.native_width() || err.native_width(),
             Self::Array { element, .. }
@@ -225,11 +232,7 @@ fn parse_context(
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
     check_fresh_capabilities(text, profile)?;
-    if (contains_option(&ty, &shared_byte_slice) || crate::borrowed_result_types::uses_result(&ty))
-        && !profile.supports("rust.checked-borrowed-result-flow")
-    {
-        return Err("Borrowed checked values require their checked-result capability".into());
-    }
+    check_checked_capabilities(&ty, profile)?;
 
     if text.contains("\"kind\":\"mixed_enum\"")
         && !checked_product
@@ -264,20 +267,39 @@ fn parse_context(
         return Err("Option type requires its registered payload capability".into());
     }
 
-    if product_option(&ty) && !profile.supports("rust.concrete-option-propagation") {
+    check_conversion_capabilities(text, profile)?;
+    Ok(ty)
+}
+
+fn check_checked_capabilities(
+    ty: &TypeToken,
+    profile: crate::extraction_profile::ExtractionProfile,
+) -> Result<(), String> {
+    if crate::concrete_results::copy_errors::contains_copy_result(ty)
+        && !profile.supports(crate::concrete_results::copy_errors::CAPABILITY)
+    {
+        return Err("Copy fieldless Result requires its registered capability".into());
+    }
+    if (contains_option(ty, &shared_byte_slice) || crate::borrowed_result_types::uses_result(ty))
+        && !profile.supports("rust.checked-borrowed-result-flow")
+    {
+        return Err("Borrowed checked values require their checked-result capability".into());
+    }
+    if product_option(ty) && !profile.supports("rust.concrete-option-propagation") {
         return Err("Product Option requires its registered propagation capability".into());
     }
 
-    check_conversion_capabilities(text, profile)?;
-    Ok(ty)
+    Ok(())
 }
 
 fn check_fresh_capabilities(
     text: &str,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<(), String> {
-    if text.contains("\"kind\":\"range_to_usize\"") {
-        return Err("RangeTo observation grants no standalone value permission".into());
+    if text.contains("\"kind\":\"range_to_usize\"")
+        || text.contains("\"kind\":\"range_from_usize\"")
+    {
+        return Err("Checked range observation grants no standalone value permission".into());
     }
     if text.contains("\"kind\":\"result\"") && !profile.supports("rust.fresh-concrete-results") {
         return Err("Concrete Result requires its registered fresh-result capability".into());
@@ -367,7 +389,11 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         }
         TypeToken::Result { ok, err } => check_result(ok, err, depth, entries),
         TypeToken::Str => Ok(()),
-        TypeToken::RangeUsize | TypeToken::RangeToUsize if depth == 0 => Ok(()),
+        TypeToken::RangeUsize | TypeToken::RangeToUsize | TypeToken::RangeFromUsize
+            if depth == 0 =>
+        {
+            Ok(())
+        }
         TypeToken::FieldlessEnum { nominal, variants }
             if nominal
                 .source_identity
@@ -402,7 +428,10 @@ fn check_result(
 ) -> Result<(), String> {
     let unit_result = matches!(ok, TypeToken::Scalar(value) if value == "unit")
         && matches!(err, TypeToken::Struct { fields, .. } if matches!(fields.as_slice(), [(name, TypeToken::Scalar(value))] if name == "0" && value == "unit"));
-    if !unit_result && !crate::borrowed_result_types::result(ok, err) {
+    if !unit_result
+        && !crate::borrowed_result_types::GRAMMAR.permits(ok, err)
+        && !crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err)
+    {
         return Err(
             "Concrete Result token requires unit success and a unit tuple error struct".into(),
         );

@@ -91,7 +91,9 @@ pub(crate) fn flow_enabled(facts: &dyn EvidenceFacts) -> bool {
                 .normalized
                 .as_deref()
                 .and_then(|text| crate::data_types::parse(text).ok())
-                .is_some_and(|ty| crate::borrowed_result_types::uses_result(&ty));
+                .is_some_and(|ty| crate::borrowed_result_types::uses_result(&ty) ||
+                    crate::extraction_profile::facts_support(facts, crate::concrete_results::copy_errors::CAPABILITY)
+                    && matches!(&ty, crate::data_types::TypeToken::Result { ok, err } if crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err)));
     if borrowed_result {
         return true;
     }

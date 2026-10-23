@@ -71,9 +71,8 @@ impl<'a> Index<'a> {
     }
 
     fn walk(&mut self, node: &'a HirNode, state: State) -> Result<Transfer, String> {
-        if crate::borrowed_result_propagation::candidate(node, self.facts) {
-            let checked = crate::borrowed_result_propagation::verify(node, self.facts)?;
-            return self.walk(checked.operand, state);
+        if let Some(operand) = result_operand(node, self.facts)? {
+            return self.walk(operand, state);
         }
         if crate::option_propagation::candidate(node, self.facts) {
             return self.propagated_option(node, state);
@@ -315,6 +314,23 @@ impl<'a> Index<'a> {
         }
         Ok(result)
     }
+}
+
+/// Each Result contract independently proves its sole surviving user operand.
+fn result_operand<'a>(
+    node: &'a HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<Option<&'a HirNode>, String> {
+    if crate::scalar_result_propagation::candidate(node, facts) {
+        return crate::scalar_result_propagation::verify(node, facts)
+            .map(|checked| Some(checked.operand));
+    }
+
+    if crate::borrowed_result_propagation::candidate(node, facts) {
+        return crate::borrowed_result_propagation::verify(node, facts)
+            .map(|checked| Some(checked.operand));
+    }
+    Ok(None)
 }
 
 fn reference(node: &HirNode) -> bool {

@@ -277,32 +277,11 @@ fresh Cargo owners. No raw dispatch is invented. Typed nested sidecars remove JS
 round trips; checked immutable owner sessions are reused. No new hash/key format.
 Evidence: `/tmp/rstyle-387-*`.
 
-Next delivery: base64ct Line::slice_tail → len, independently source-frozen under
-`eval/coverage-development/line-tail/`. Its complete chain needs eager scalar
-ok_or, usize success propagation into a borrowed Result, checked suffix access,
-and actual fieldless Copy Error/import ownership. Shared Line origins/len are
-existing controls; verify the newly demanded Error source closure in real Cargo.
-Do not force this Copy error into MixedEnum/no-drop authority. Independent attacks
-cover saved operands/guards, import shadowing, offsets, backing pointers and policy.
-
 Foreign Input linking remains a foundation lane: production reference inventories,
 loaded artifact/selected-impl evidence and caller component authority are absent.
-Audited regex/bstr/globset callers additionally require local mutation/borrowing,
-search dispatch or owned state; none is a ready Input-only natural admission.
-Do not claim the four foreign mechanism probes as natural-source gains. Prioritize
-the complete error-flow family over this larger foundation. Public Decoder loops
-and mutation remain separate. Broader P01–P22 execution stays active.
-
-
-| Next error-family assignment | Readiness and exclusive leaf scope |
-| --- | --- |
-| Copy error / eager scalar ok_or | Original Error is fieldless Copy; extend Result/error leaves using actual Copy authority and exact imported InvalidLength resolution. Keep complete source/reexport/derive checks; root owns shared type gates. |
-| Scalar success propagation | Prove saved Result<usize,E> success and same-error early return into Result<&[u8],E>. Separate scalar payload construct from the existing reference-payload rule; root coordinates driver/lowering/document registrations. |
-| Checked suffix | Prove original RangeFrom identity, saved receiver/start, Some iff start≤length, exact len−start and backing origin, including empty end pointer. Dedicated source/view semantics; root owns shared range/type changes. |
-| Integration / independent oracle | Root captures unchanged complete base64ct owners before activation, checks all Error source obligations, integrates the three leaves, then runs strict replay/admission/matching and unchanged-selection deltas. Native witness passed1,209,654 queries/context; whole-original admission remains pending. |
-
-These are the next readiness-gated assignments, not claims of delivered support.
-Avoid overlapping edits to Result vocabulary, source resolution, origins or policy.
+Source audits found no ready new foreign scalar-instance caller in the cached
+corpus; existing calendar/clamp chains remain controls. Prefer demonstrated
+error/ownership prerequisites over another isolated min/max leaf.
 
 Data3.87 checkpoint:1,442 tests/five existing skips, doctests/fmt/Clippy pass;
 rstyle0/4,641; patterns0/15 unchanged ignores. Fresh frozen `run-26yohht4`
@@ -312,3 +291,31 @@ Fresh full Input probes:136.63/20.22s default/no-default,1,607,372/281,300KiB
 peak RSS; workload includes both From instances, so no speedup claim. Native
 Input oracle132,736 observations/context and Line witness1,209,654/context
 have0 mismatches; the latter still has no whole-original admission evidence.
+
+
+Data3.88 delivers original `Line::slice_tail → len`: each unchanged default/std
+selection on ARM Linux, x86 Linux and ARM macOS moves1/2→2/2, gains1/loses0;
+complete rosters141/150. Strict replay of six complete bundles,12 selected identity
+comparisons and48 resealed attacks pass. Public Decoder callers and borrowed
+Result helper summaries remain separate. Full gates:1,466tests/five existing
+skips, doctests/fmt/Clippy pass; style0/4,709, patterns0/15 unchanged ignores.
+Frozen `run-9bjlp2ny` preserves all60 identities/denominators and23/30/7 against
+`run-26yohht4`, with116 schema-checked documents. Evidence: `/tmp/rstyle-388-*`.
+
+Next source audit selects original `LineReader::new_unwrapped`, excluded in all
+six retained complete contexts after expectations were frozen. It returns
+Err(InvalidLength) iff bytes are empty, otherwise a fresh non-Copy product with
+the exact backing and `line_width=None`. Complete caller `new_wrapped` additionally
+needs aggregate Result `?`, local field updates and fresh return; public Decoder
+constructors add generic decoding, loops, arrays/byte writes and iterator state.
+
+| Next assignment | Readiness gate and exclusive leaf scope |
+| --- | --- |
+| Nominal ownership | Reuse complete reference-product no-drop proof; select Result success owner and prove scalar Option fields. Preserve Clone/Iterator/import/macro/Drop neighbors; no Copy permission. Nominal resolution subtree only. |
+| Capture/types/freshness | Capture bounded nested Option<scalar>; combine exact Copy error and fresh product Result witness. Separate boundary proof from full body walk to avoid constructor-proof recursion; reject stored/reused/moved products. Driver type capture and concrete Result leaves only. |
+| Guarded origins | Prove Ok product component origins and independently validated empty Err paths, using saved operands and typed selectors. Keep Result helper export closed until consumers prove branch extraction; origin source/graph leaves only. |
+| Integration/performance | Lead owns registrations, source/frontend gates, independent oracle/Cargo tests, captures and all final gates. First remove inventory harness full-report duplication via existing compact navigation and complete bundles; preserve source correspondence and unchanged-selection parity. |
+
+Source/expectation audit is complete; product activation has not started. Do not
+invent generic instance authority for this nongeneric constructor. No new SHA
+operation or serialized lookup key. Broader P01–P22 scope stays active.

@@ -104,6 +104,9 @@ pub fn resolve_for(
     if crate::data_bytes::kind(node).is_some() && crate::data_bytes::enabled(facts) {
         return crate::data_bytes::resolve(node, facts);
     }
+    if crate::checked_slice_views::suffix::candidate(node, facts) {
+        return crate::checked_slice_views::suffix::resolve(node, facts).map(Some);
+    }
     if crate::checked_slice_views::candidate(node, facts) {
         return crate::checked_slice_views::resolve(node, facts).map(Some);
     }
