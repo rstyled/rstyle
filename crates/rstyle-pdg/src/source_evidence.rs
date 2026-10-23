@@ -17,6 +17,13 @@ use syn::{
 
 pub const KEY: &str = "source_correspondence";
 
+/// Borrow an exact UTF-8 byte range; out-of-bounds and split characters fail.
+pub(crate) fn byte_range(bytes: &str, span: ByteSpan) -> Result<&str, String> {
+    bytes
+        .get(span.start as usize..span.end as usize)
+        .ok_or_else(|| "Source range is out of bounds or splits UTF-8".into())
+}
+
 /// Relative identifier paths only; this proves syntax, never name resolution.
 pub(crate) fn plain_relative_path(path: &syn::Path) -> Option<Vec<String>> {
     if path.leading_colon.is_some() || path.segments.iter().any(|part| !part.arguments.is_none()) {

@@ -29,6 +29,48 @@ const SOURCES: &[(&str, &str)] = &[
     ),
 ];
 
+pub(super) const REFERENCE_NAMES: &[&str] =
+    &["PartialEq", "Iterator", "DoubleEndedIterator", "TryFrom"];
+
+/// Identity-only evidence; no implementation effect or call permission follows.
+pub(super) struct ReferenceTrait {
+    _private: (),
+}
+
+pub(super) fn reference_product(
+    path: &syn::Path,
+    scopes: &[BTreeMap<String, bool>],
+    library: Option<&crate::data_library::Registry>,
+    edition: Option<&str>,
+) -> Option<ReferenceTrait> {
+    let segment = path.segments.first()?;
+    let name = segment.ident.to_string();
+    if path.leading_colon.is_some()
+        || path.segments.len() != 1
+        || !reference_arguments(&name, &segment.arguments)
+        || name == "TryFrom" && !matches!(edition, Some("2021" | "2024"))
+        || scopes
+            .iter()
+            .any(|scope| scope.contains_key(&name) || scope.contains_key("*"))
+        || !pinned(library?)
+    {
+        return None;
+    }
+    // The pinned core prelude reexports cmp::PartialEq and both iter traits;
+    // pinned std prelude/root preserve those same core identities. The pinned
+    // edition modules add convert::TryFrom specifically in 2021 and 2024.
+    Some(ReferenceTrait { _private: () })
+}
+
+fn reference_arguments(name: &str, arguments: &syn::PathArguments) -> bool {
+    match name {
+        "PartialEq" | "TryFrom" => matches!(arguments, syn::PathArguments::AngleBracketed(args)
+            if args.args.len() == 1 && matches!(args.args.first(), Some(syn::GenericArgument::Type(_)))),
+        "Iterator" | "DoubleEndedIterator" => matches!(arguments, syn::PathArguments::None),
+        _ => false,
+    }
+}
+
 pub(super) fn resolve(
     path: &syn::Path,
     scopes: &[BTreeMap<String, bool>],
@@ -82,3 +124,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod reference_tests;

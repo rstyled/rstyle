@@ -22,18 +22,34 @@ pub trait PathResolution {
             ok: Box::new(ok.clone()),
             err: Box::new(err.clone()),
         };
-        if self.resolve(path)? != expected {
-            return Err("Source path resolution disagrees with concrete Result".into());
-        }
-        Ok(())
+        resolved_type(
+            self,
+            path,
+            expected,
+            "Source path resolution disagrees with concrete Result",
+        )
     }
 
     fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
-        if self.resolve(path)? != TypeTree::Option(Box::new(payload.clone())) {
-            return Err("Source path resolution disagrees with concrete Option".into());
-        }
-        Ok(())
+        resolved_type(
+            self,
+            path,
+            TypeTree::Option(Box::new(payload.clone())),
+            "Source path resolution disagrees with concrete Option",
+        )
     }
+}
+
+fn resolved_type(
+    resolution: &(impl PathResolution + ?Sized),
+    path: &syn::TypePath,
+    expected: TypeTree,
+    reason: &str,
+) -> Result<(), String> {
+    if resolution.resolve(path)? != expected {
+        return Err(reason.into());
+    }
+    Ok(())
 }
 
 pub fn verify(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), String> {

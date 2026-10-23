@@ -16,6 +16,7 @@ pub(crate) mod environment;
 mod float_constants;
 mod primitive_constants;
 mod range_from;
+mod reference_owners;
 mod scalar_aliases;
 mod selected;
 pub(crate) use environment::{Environment, SourceOptions};
@@ -280,6 +281,15 @@ pub(crate) fn verify_source_inputs(facts: &HirFnFacts) -> Result<(), String> {
     standalone_environment(facts)?.check_input_owner(facts)
 }
 
+/// Resolve original constructor paths in the exact checked impl-method scope.
+/// No function, instance, cleanup or caller permission escapes this check.
+pub(crate) fn verify_reference_paths(
+    facts: &HirFnFacts,
+    paths: &[(syn::TypePath, concrete_types::Nominal)],
+) -> Result<(), String> {
+    reference_owners::verify(facts, paths)
+}
+
 fn standalone_environment(facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
     crate::nominal_boundary::census::policy::authority(facts)?;
     let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
@@ -300,6 +310,39 @@ pub(crate) fn constant_context(facts: &HirFnFacts) -> Result<bool, String> {
 }
 
 pub(crate) fn verify_in(
+    facts: &HirFnFacts,
+    interface: &InterfaceObservations,
+    environment: Rc<Environment>,
+) -> Result<Resolution, String> {
+    let mut resolution = declaration_resolution(facts, interface, Rc::clone(&environment))?;
+    if environment.copy_boundary || resolution.range_value.is_some() {
+        let origins = facts
+            .build
+            .frontend_options
+            .data::<declaration_origins::Origins>()?;
+        resolution.select_copies(facts, &origins)?;
+    }
+    function_scope(
+        facts,
+        &environment.modules,
+        environment.census(),
+        &mut resolution,
+    )?;
+    Ok(resolution)
+}
+
+/// Check the complete captured result's cleanup obligations without authorizing
+/// construction, calls, source finding coverage, or admission.
+pub fn probe_reference_product_result(facts: &HirFnFacts) -> Result<(), String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
+    selected::no_drop::reference_products::probe(facts, &resolution)
+}
+
+fn declaration_resolution(
     facts: &HirFnFacts,
     interface: &InterfaceObservations,
     environment: Rc<Environment>,
@@ -336,15 +379,6 @@ pub(crate) fn verify_in(
         &environment.index.declarations,
         &origins,
         environment.census(),
-    )?;
-    if environment.copy_boundary || resolution.range_value.is_some() {
-        resolution.select_copies(facts, &origins)?;
-    }
-    function_scope(
-        facts,
-        &environment.modules,
-        environment.census(),
-        &mut resolution,
     )?;
     Ok(resolution)
 }

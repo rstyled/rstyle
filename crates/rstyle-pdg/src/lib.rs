@@ -76,6 +76,7 @@ pub mod option_propagation;
 pub mod primitive_constants;
 pub mod producer;
 pub mod range_values;
+pub mod reference_instances;
 pub mod result_propagation;
 pub mod scalar_constants;
 mod scalar_exhaustiveness;

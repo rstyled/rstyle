@@ -14,6 +14,30 @@ pub(super) struct Scope {
 }
 
 impl Scope {
+    /// Original enum wildcards can introduce variants, never a destructor trait.
+    pub fn only_original_enum_globs(&self, tree: &syn::UseTree) -> bool {
+        self.original_enum_globs(tree, &[])
+    }
+
+    fn original_enum_globs(&self, tree: &syn::UseTree, prefix: &[String]) -> bool {
+        match tree {
+            syn::UseTree::Path(path) => {
+                let prefix = prefix
+                    .iter()
+                    .cloned()
+                    .chain([path.ident.to_string()])
+                    .collect::<Vec<_>>();
+                self.original_enum_globs(&path.tree, &prefix)
+            }
+            syn::UseTree::Group(group) => group
+                .items
+                .iter()
+                .all(|tree| self.original_enum_globs(tree, prefix)),
+            syn::UseTree::Glob(_) => self.contains_local(prefix, &self.declarations),
+            _ => true,
+        }
+    }
+
     pub fn new(
         modules: &[census::Module],
         cfgs: &[String],
@@ -226,3 +250,6 @@ impl Scope {
         scope.insert(name, false);
     }
 }
+
+#[cfg(test)]
+mod tests;

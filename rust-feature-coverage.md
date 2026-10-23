@@ -4866,3 +4866,19 @@ Local integrated gates: 1,349 tests / five existing skips and doctests pass
 (122.802s nextest). Fmt and warning-denied Clippy pass; rstyle zero violations
 across4,340 functions, patterns zero unignored candidates, all15 ignores unchanged.
 The real Cargo reference diagnostic regression runs0.25s; no admission gain is claimed.
+
+Independent reference proof now checks all four original Input new/From owner
+observations in both native feature contexts, the complete constructor saved-value
+flow and lexical nominal paths, and actual full-source cleanup of the entire
+Input/Span/Anchored/PatternID/SmallIndex product. Unrelated lexical wildcard imports
+no longer poison this separate proof; generated imports, Drop aliases and historical
+cleanup restrictions remain guarded. No admission activation or new SHA/serialized
+lookup keys. Opaque compiler type IDs, outer From selection, owning instance links
+and component summaries remain prerequisites. Native oracle rerun:132,736
+observations/context, zero mismatches. Full-source proof evidence:
+`/tmp/rstyle-input-independent{,-no-default}-proof.log`.
+
+Integrated checkpoint:1,385 tests pass/five existing skips, doctests/fmt/Clippy
+pass; rstyle zero violations/4,496 functions and zero unignored patterns, all15
+ignores unchanged. Existing Result composition takes5.816s in this run; no
+controlled speedup or fresh admission measurement is claimed.

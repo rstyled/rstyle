@@ -7,6 +7,8 @@ pub(super) struct Resolution {
     pub standard_roots: bool,
     pub local_trait: bool,
     pub resolved_trait: Option<Namespace>,
+    pub reference_product_debug: bool,
+    pub reference_product_prelude: Option<prelude_traits::ReferenceTrait>,
 }
 
 #[derive(Default)]
@@ -16,6 +18,7 @@ pub(super) struct Names {
     pub aliases: BTreeSet<String>,
     imports: Vec<(String, String)>,
     pub from_shadowed: bool,
+    pub reference_prelude_shadowed: BTreeSet<String>,
 }
 
 impl Names {
@@ -70,16 +73,7 @@ impl Names {
 
         let self_ty = transparent(item.self_ty.as_ref());
         let syn::Type::Path(ty) = self_ty else {
-            return match self_ty {
-                syn::Type::Array(_)
-                | syn::Type::Slice(_)
-                | syn::Type::Tuple(_)
-                | syn::Type::Reference(_)
-                | syn::Type::Ptr(_)
-                | syn::Type::BareFn(_)
-                | syn::Type::Never(_) => Ok(()),
-                _ => Err("Cleanup self type is not independently resolved".into()),
-            };
+            return non_nominal_self(self_ty);
         };
         if ty.qself.is_some() {
             return Err("Associated cleanup self type is unsupported".into());
@@ -105,11 +99,27 @@ impl Names {
         // Unknown trait names can be re-exported Drop aliases. Only independently
         // rooted standard traits are sufficient to exclude that possibility here.
         if resolution.standard_roots
-            && (known_trait(path) || resolution.resolved_trait.as_deref().is_some_and(known_path))
+            && (known_trait(path)
+                || resolution.resolved_trait.as_deref().is_some_and(known_path)
+                || resolution.reference_product_debug
+                || resolution.reference_product_prelude.is_some())
         {
             return Ok(());
         }
         Err(possible_destructor(path, &name))
+    }
+}
+
+fn non_nominal_self(ty: &syn::Type) -> Result<(), String> {
+    match ty {
+        syn::Type::Array(_)
+        | syn::Type::Slice(_)
+        | syn::Type::Tuple(_)
+        | syn::Type::Reference(_)
+        | syn::Type::Ptr(_)
+        | syn::Type::BareFn(_)
+        | syn::Type::Never(_) => Ok(()),
+        _ => Err("Cleanup self type is not independently resolved".into()),
     }
 }
 

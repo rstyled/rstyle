@@ -8,16 +8,34 @@ pub(super) fn verify(
     facts: &HirFnFacts,
     target: &Namespace,
 ) -> Result<(), String> {
+    verify_mode(environment, facts, target, false)
+}
+
+pub(super) fn verify_reference_product(
+    environment: &Environment,
+    facts: &HirFnFacts,
+    target: &Namespace,
+) -> Result<(), String> {
+    verify_mode(environment, facts, target, true)
+}
+
+fn verify_mode(
+    environment: &Environment,
+    facts: &HirFnFacts,
+    target: &Namespace,
+    reference_product: bool,
+) -> Result<(), String> {
     let cfgs = &facts.build.cfgs;
     let mut visitor = Closure {
         configuration: crate::conditional_source::Configuration::new(cfgs),
+        edition: facts.build.edition.known_value(),
         library: crate::data_library::registry_for(facts),
         native_tls: cfgs.iter().any(|cfg| cfg == "target_thread_local"),
         test_marker: supports(facts, enum_errors::CAPABILITY)?,
         enums: enum_globs::Scope::new(
             &environment.modules,
             cfgs,
-            supports(facts, enum_errors::CAPABILITY)?,
+            reference_product || supports(facts, enum_errors::CAPABILITY)?,
         )?,
         names: headers::Names::new(target),
         definitions: BTreeMap::new(),
@@ -26,6 +44,8 @@ pub(super) fn verify(
         collecting: true,
         expansions: 0,
         nested_context: 0,
+        generated_context: 0,
+        reference_product,
     };
     for collecting in [true, false] {
         visitor.pass(environment, collecting)?;
@@ -150,6 +170,8 @@ pub(super) fn inspect_with_library(
             library,
             closed_imports: false,
             test_marker: false,
+            reference_product: false,
+            edition: None,
         },
     )
 }
@@ -167,6 +189,8 @@ pub(super) fn inspect_closed_imports(
             library: crate::data_library::registries().first(),
             closed_imports: true,
             test_marker: true,
+            reference_product: false,
+            edition: None,
         },
     )
 }
@@ -177,6 +201,38 @@ struct Inspection<'a> {
     library: Option<&'static crate::data_library::Registry>,
     closed_imports: bool,
     test_marker: bool,
+    reference_product: bool,
+    edition: Option<&'a str>,
+}
+
+#[cfg(test)]
+pub(super) fn inspect_reference_product(
+    items: &[&syn::Item],
+    target: &Namespace,
+    library: Option<&'static crate::data_library::Registry>,
+) -> Result<(), String> {
+    inspect_reference_product_edition(items, target, library, Some("2021"))
+}
+
+#[cfg(test)]
+pub(super) fn inspect_reference_product_edition(
+    items: &[&syn::Item],
+    target: &Namespace,
+    library: Option<&'static crate::data_library::Registry>,
+    edition: Option<&str>,
+) -> Result<(), String> {
+    inspect_policy(
+        items,
+        target,
+        Inspection {
+            cfgs: &[],
+            library,
+            closed_imports: true,
+            test_marker: true,
+            reference_product: true,
+            edition,
+        },
+    )
 }
 
 #[cfg(test)]
@@ -190,9 +246,12 @@ fn inspect_policy(
         library,
         closed_imports,
         test_marker,
+        reference_product,
+        edition,
     } = policy;
     let mut visitor = Closure {
         configuration: crate::conditional_source::Configuration::new(cfgs),
+        edition,
         library,
         native_tls: cfgs.iter().any(|cfg| cfg == "target_thread_local"),
         test_marker,
@@ -204,6 +263,8 @@ fn inspect_policy(
         collecting: true,
         expansions: 0,
         nested_context: 0,
+        generated_context: 0,
+        reference_product,
     };
     visitor.scopes = vec![visitor.scope(items.iter().copied())?];
     for item in items {
@@ -222,6 +283,7 @@ fn inspect_policy(
 
 struct Closure<'a> {
     configuration: crate::conditional_source::Configuration<'a>,
+    edition: Option<&'a str>,
     library: Option<&'static crate::data_library::Registry>,
     native_tls: bool,
     test_marker: bool,
@@ -233,6 +295,8 @@ struct Closure<'a> {
     collecting: bool,
     expansions: usize,
     nested_context: usize,
+    generated_context: usize,
+    reference_product: bool,
 }
 
 impl Closure<'_> {
@@ -451,20 +515,7 @@ impl Closure<'_> {
         self.definitions.insert(name, item.clone());
     }
     fn collect_item(&mut self, item: &syn::Item) -> Result<(), String> {
-        let name = match item {
-            syn::Item::Struct(item) => Some(&item.ident),
-            syn::Item::Enum(item) => Some(&item.ident),
-            syn::Item::Union(item) => Some(&item.ident),
-            syn::Item::Trait(item) => Some(&item.ident),
-            syn::Item::Mod(item) => Some(&item.ident),
-            _ => None,
-        };
-        if name.is_some_and(|name| name == "From") {
-            self.names.from_shadowed = true;
-        }
-        if name.is_some_and(|name| ["alloc", "core", "std"].contains(&name.to_string().as_str())) {
-            return Err("Cleanup standard root declaration is shadowed".into());
-        }
+        self.collect_declaration_name(item)?;
 
         match item {
             syn::Item::Use(item) => self.collect_import(item)?,
@@ -490,17 +541,70 @@ impl Closure<'_> {
         }
         Ok(())
     }
+    fn collect_declaration_name(&mut self, item: &syn::Item) -> Result<(), String> {
+        let name = match item {
+            syn::Item::Struct(item) => Some(&item.ident),
+            syn::Item::Enum(item) => Some(&item.ident),
+            syn::Item::Union(item) => Some(&item.ident),
+            syn::Item::Trait(item) => Some(&item.ident),
+            syn::Item::Mod(item) => Some(&item.ident),
+            _ => None,
+        };
+
+        if name.is_some_and(|name| name == "From") {
+            self.names.from_shadowed = true;
+        }
+        if self.reference_product
+            && let Some(name) = name
+            && prelude_traits::REFERENCE_NAMES.contains(&name.to_string().as_str())
+        {
+            self.names
+                .reference_prelude_shadowed
+                .insert(name.to_string());
+        }
+        if name.is_some_and(|name| ["alloc", "core", "std"].contains(&name.to_string().as_str())) {
+            return Err("Cleanup standard root declaration is shadowed".into());
+        }
+
+        Ok(())
+    }
     fn collect_import(&mut self, item: &syn::ItemUse) -> Result<(), String> {
+        if self.reference_product {
+            self.collect_reference_import(item);
+        }
+
         if source_imports::bindings(&item.tree)
             .iter()
             .any(|(name, _)| name == "From")
-            || self.nested_context > 0 && source_imports::has_glob(&item.tree)
+            || source_imports::has_glob(&item.tree)
+                && if self.reference_product {
+                    self.generated_context > 0 && !self.enums.only_original_enum_globs(&item.tree)
+                } else {
+                    self.nested_context > 0
+                }
         {
             self.names.from_shadowed = true;
         }
         import_authority(&item.tree, Vec::new(), self.library, &self.enums)?;
         self.names.import(&item.tree)?;
         Ok(())
+    }
+    fn collect_reference_import(&mut self, item: &syn::ItemUse) {
+        for (name, _) in source_imports::bindings(&item.tree) {
+            if prelude_traits::REFERENCE_NAMES.contains(&name.as_str()) {
+                self.names.reference_prelude_shadowed.insert(name);
+            }
+        }
+        if self.generated_context > 0
+            && source_imports::has_glob(&item.tree)
+            && !self.enums.only_original_enum_globs(&item.tree)
+        {
+            self.names.reference_prelude_shadowed.extend(
+                prelude_traits::REFERENCE_NAMES
+                    .iter()
+                    .map(|name| (*name).to_owned()),
+            );
+        }
     }
     fn check(&mut self, result: Result<(), String>) -> bool {
         if self.error.is_none() {
@@ -509,10 +613,21 @@ impl Closure<'_> {
         self.error.is_none()
     }
     fn expansion(&mut self, tokens: proc_macro2::TokenStream) -> Result<(), String> {
+        self.begin_expansion()?;
+
+        let result = self.expanded_tokens(tokens);
+        self.generated_context -= 1;
+        result
+    }
+    fn begin_expansion(&mut self) -> Result<(), String> {
         self.expansions += 1;
         if self.expansions > 16384 {
             return Err("Cleanup expansion budget exceeded".into());
         }
+        self.generated_context += 1;
+        Ok(())
+    }
+    fn expanded_tokens(&mut self, tokens: proc_macro2::TokenStream) -> Result<(), String> {
         if let Ok(file) = syn::parse2::<syn::File>(tokens.clone()) {
             self.expanded_items(&file)?;
         } else {
@@ -588,6 +703,8 @@ impl Closure<'_> {
                     local_nominal: self.local_nominal(item),
                     standard_roots: !self.unknown_glob(),
                     local_trait: self.local_trait(item),
+                    reference_product_debug: self.reference_product_debug(item),
+                    reference_product_prelude: self.reference_product_prelude(item),
                     resolved_trait: if self.enums.closed_imports {
                         item.trait_.as_ref().and_then(|(_, path, _)| {
                             source_imports::resolve(path, &self.scopes)
@@ -603,6 +720,47 @@ impl Closure<'_> {
         };
 
         self.check(result)
+    }
+    fn reference_product_debug(&self, item: &syn::ItemImpl) -> bool {
+        if !self.reference_product || self.unknown_glob() {
+            return false;
+        }
+        let Some((_, path, _)) = &item.trait_ else {
+            return false;
+        };
+        let Some(path) = source_imports::resolve(path, &self.scopes) else {
+            return false;
+        };
+        match path
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["core", "fmt", "Debug"] => {
+                library_macros::import(&["core".into(), "fmt".into()], "Debug", self.library)
+            }
+            ["std", "fmt", "Debug"] => library_macros::std_debug(self.library),
+            _ => false,
+        }
+    }
+    fn reference_product_prelude(
+        &self,
+        item: &syn::ItemImpl,
+    ) -> Option<prelude_traits::ReferenceTrait> {
+        if !self.reference_product {
+            return None;
+        }
+        let (_, path, _) = item.trait_.as_ref()?;
+        let name = path.segments.first()?.ident.to_string();
+
+        if self.names.reference_prelude_shadowed.contains(&name)
+            || self.names.drops.contains(&name)
+            || self.names.aliases.contains(&name)
+        {
+            return None;
+        }
+        prelude_traits::reference_product(path, &self.scopes, self.library, self.edition)
     }
     fn block_contents(&mut self, block: &syn::Block, scope: BTreeMap<String, bool>) {
         let saved = self.definitions.clone();

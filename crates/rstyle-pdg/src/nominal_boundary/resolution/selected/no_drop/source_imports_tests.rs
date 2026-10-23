@@ -1,6 +1,93 @@
 //! The complete cleanup visitor still sees every imported module and item body.
 use super::*;
 
+fn reference_product(
+    source: &str,
+    registry: &'static crate::data_library::Registry,
+) -> Result<(), String> {
+    let file = syn::parse_file(source).unwrap();
+    closure::inspect_reference_product(
+        &file.items.iter().collect::<Vec<_>>(),
+        &vec!["Error".into()],
+        Some(registry),
+    )
+}
+
+#[test]
+fn reference_product_debug_requires_pinned_identity_and_preserves_historical_rejection() {
+    let registry = &crate::data_library::registries()[0];
+    let source = "struct Error; impl core::fmt::Debug for Error { fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result { write!(f, \"error\") } }";
+    reference_product(source, registry).unwrap();
+    assert!(inspect(source).unwrap_err().contains("possible destructor"));
+    for import in ["use core::fmt;", "use core::fmt as format_module;"] {
+        let alias = if import.contains(" as ") {
+            "format_module"
+        } else {
+            "fmt"
+        };
+        let changed = format!(
+            "{import} {}",
+            source.replace("core::fmt::", &format!("{alias}::"))
+        );
+        reference_product(&changed, registry).unwrap();
+        assert!(inspect(&changed).is_err());
+    }
+    for changed in [
+        format!("{source} mod core {{}}"),
+        format!("{source} use external::*;"),
+        source.replace("core::fmt::Debug", "external::fmt::Debug"),
+        source.replace("core::fmt::Debug", "Debug").replace(
+            "struct Error;",
+            "struct Error; use core::ops::Drop as Debug;",
+        ),
+        source.replace(
+            "write!(f, \"error\")",
+            "{ impl Drop for Error { fn drop(&mut self) {} } write!(f, \"error\") }",
+        ),
+        format!(
+            "{source} macro_rules! hidden {{ () => {{ impl Drop for Error {{ fn drop(&mut self) {{}} }} }}; }} hidden!();"
+        ),
+    ] {
+        assert!(reference_product(&changed, registry).is_err(), "{changed}");
+    }
+}
+
+#[test]
+fn reference_product_debug_cannot_survive_missing_or_changed_source_pins() {
+    for root in ["core", "std"] {
+        let source = format!("struct Error; impl {root}::fmt::Debug for Error {{}}");
+        reference_product(&source, &crate::data_library::registries()[0]).unwrap();
+        let paths: &[&str] = if root == "core" {
+            &["core/src/fmt/mod.rs"]
+        } else {
+            &[
+                "core/src/fmt/mod.rs",
+                "std/src/lib.rs",
+                "alloc/src/lib.rs",
+                "alloc/src/fmt.rs",
+            ]
+        };
+        for path in paths {
+            for replacement in [None, Some("sha256:changed".to_owned())] {
+                let mut registry: crate::data_library::Registry = serde_json::from_str(
+                    include_str!("../../../../../contracts/read-only-lengths-v2.json"),
+                )
+                .unwrap();
+                registry.cleanup_macro_source_digests.remove(*path);
+                if let Some(value) = replacement {
+                    registry
+                        .cleanup_macro_source_digests
+                        .insert((*path).into(), value);
+                }
+                assert!(
+                    reference_product(&source, Box::leak(Box::new(registry))).is_err(),
+                    "{root}: {path}"
+                );
+            }
+        }
+    }
+}
+
 fn inspect(source: &str) -> Result<(), String> {
     let file = syn::parse_file(source).unwrap();
     closure::inspect_closed_imports(

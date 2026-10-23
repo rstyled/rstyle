@@ -54,9 +54,7 @@ impl<'a> SnapshotView<'a> {
     }
 
     pub fn range(&self, span: ByteSpan) -> Result<&'a str, String> {
-        self.bytes()
-            .get(span.start as usize..span.end as usize)
-            .ok_or_else(|| "Source range is out of bounds or splits UTF-8".into())
+        crate::source_evidence::byte_range(self.bytes(), span)
     }
 }
 

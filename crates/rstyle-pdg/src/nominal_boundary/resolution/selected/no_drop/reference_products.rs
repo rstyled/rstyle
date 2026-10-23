@@ -4,6 +4,22 @@ use super::*;
 use crate::concrete_types::VariantShape;
 use crate::nominal_boundary::resolution::{Resolution, verify_declarations};
 
+/// Exercise cleanup evidence without installing an owned-value permission.
+pub(in crate::nominal_boundary::resolution) fn probe(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+) -> Result<(), String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let Observation::Captured { ty } = &interface.result else {
+        return Err("Product cleanup probe requires a captured complete result".into());
+    };
+    let origins = facts.build.frontend_options.data::<Origins>()?;
+    verify(facts, ty, resolution, &origins).map(|_| ())
+}
+
 pub(in crate::nominal_boundary::resolution::selected) fn supported(tree: &TypeTree) -> bool {
     let TypeTree::Struct { source, fields, .. } = tree else {
         return false;
@@ -110,6 +126,7 @@ fn declaration(item: &syn::ItemStruct, tree: &TypeTree) -> Result<(), String> {
     if fields.named.len() != tree.nominal_fields().count() {
         return Err("Cleanup product original field inventory disagrees".into());
     }
+
     for (source, observed) in fields.named.iter().zip(tree.nominal_fields()) {
         if source
             .ident
@@ -157,6 +174,7 @@ impl Proof<'_> {
                 "Cleanup product differs from the independently resolved complete tree".into(),
             );
         }
+
         let environment = &self.resolution.environment;
         let declaration = environment
             .index
@@ -191,6 +209,7 @@ impl Proof<'_> {
                 "Cleanup product dependency lacks exact positive builtin Copy proof".into(),
             );
         }
+
         match item {
             syn::Item::Struct(item) => super::super::structure(self.facts, item, true)?,
             syn::Item::Enum(item) => super::super::scalar_enum(self.facts, item)?,
@@ -213,13 +232,10 @@ impl Proof<'_> {
         if !library_macros::pinned_native(registry) {
             return Err("Product cleanup macro source pins are incomplete".into());
         }
+
         let environment = &self.resolution.environment;
-        let profile = crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?.token();
-        if !environment.checked_cleanup_source(&self.facts.build.cfgs, key, profile) {
-            closure::verify(environment, self.facts, key)?;
-            environment.cache_cleanup_source(&self.facts.build.cfgs, key, profile);
-        }
-        Ok(())
+        // This evidence-only mode must not share ordinary admission caches.
+        closure::verify_reference_product(environment, self.facts, key)
     }
 }
 
