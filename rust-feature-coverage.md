@@ -5110,3 +5110,14 @@ incomplete; this is a connected owning-instance checkpoint.
 Checkpoint validation:1,559 workspace tests/five existing skips plus doctests;
 fmt/Clippy pass, style0/5,163 and patterns0/15 unchanged ignores. Evidence:
 `/tmp/rstyle-395-*`; source-only oracle passes, fresh native oracle not rerun.
+
+
+Fresh Data3.92 follow-through: both selected private Match instances now pass
+strict verification and all six original/replay pairs on fresh default/no-default
+ARM Linux, x86 Linux and ARM macOS captures (590/2,582 definitions). Native
+original-library oracle passes22,475 cases per feature context; native foreign
+target execution and ordinary generic caller linking remain outstanding.
+The source-index/nominal-error retention increment preserves matching outcomes
+and reduces controlled equal-work native no-default replay16.27–16.79→12.14–12.65s.
+No admission gain is attributed to performance work; frozen counts remain
+unreassessed. [Evidence and remaining checksum migration](docs/rust-support-execution.md).

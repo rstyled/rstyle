@@ -170,12 +170,11 @@ impl Environment {
         module: usize,
         span: ByteSpan,
     ) -> impl Iterator<Item = &syn::ItemFn> {
-        self.functions.candidates(module, span).map(move |index| {
-            let syn::Item::Fn(function) = &self.modules[module].items[index] else {
-                unreachable!("Function index retains only original function items")
-            };
-            function
-        })
+        self.owner_candidates(module, span)
+            .filter_map(|(item, method)| match (item, method) {
+                (syn::Item::Fn(function), None) => Some(function),
+                _ => None,
+            })
     }
 
     pub(super) fn census(&self) -> &census::Census {

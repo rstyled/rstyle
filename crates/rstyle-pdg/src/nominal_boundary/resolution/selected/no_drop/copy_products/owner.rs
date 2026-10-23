@@ -86,15 +86,16 @@ fn namespace(
     }
     let mut candidates = Vec::new();
 
-    for module in environment
+    for (module_index, module) in environment
         .modules
         .iter()
-        .filter(|module| module.path == std::path::Path::new(file))
+        .enumerate()
+        .filter(|(_, module)| module.path == std::path::Path::new(file))
     {
         let bytes =
             crate::nominal_boundary::resolution::file_bytes(environment.census(), &module.path)?;
         candidates.extend(crate::nominal_boundary::resolution::module_functions(
-            module,
+            module_index,
             bytes,
             facts,
             environment,

@@ -1,7 +1,9 @@
 //! Independent original-source inventory checks; graph extraction remains HIR-only.
 
 mod attributes;
+mod candidates;
 pub(crate) mod checked_activation;
+mod positions;
 pub(crate) use attributes::single_identifier_attribute;
 mod exact_pairs;
 pub(crate) use exact_pairs::exact_pairs;
@@ -156,6 +158,8 @@ pub struct Correspondence {
 struct Inventory<'a> {
     facts: &'a dyn crate::unit_store::EvidenceFacts,
     entries: Vec<Entry>,
+    candidates: candidates::Candidates<'a>,
+    positions: positions::Positions,
     checked_options: bool,
     configuration: Option<crate::conditional_source::Configuration<'a>>,
 }
@@ -166,6 +170,8 @@ pub fn capture(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Correspon
     let mut inventory = Inventory {
         facts,
         entries: Vec::new(),
+        candidates: candidates::Candidates::new(&facts.body),
+        positions: positions::Positions::new(&facts.source.bytes),
         checked_options: crate::checked_options::enabled(facts) && has_option_patterns(&facts.body),
         configuration: crate::extraction_profile::ExtractionProfile::from_facts(facts)?
             .supports("rust.cfg-source-removal")
@@ -225,8 +231,8 @@ impl Inventory<'_> {
         }
 
         let span = ByteSpan {
-            start: offset(&self.facts.source.bytes, syntax.start()),
-            end: offset(&self.facts.source.bytes, syntax.end()),
+            start: self.positions.offset(syntax.start()),
+            end: self.positions.offset(syntax.end()),
         };
         let hir = contained_node(&self.facts.body, span);
         self.entries.push(Entry {
@@ -333,19 +339,13 @@ impl Inventory<'_> {
     }
 
     fn add(&mut self, kind: &str, span: proc_macro2::Span) -> bool {
-        let source = &self.facts.source.bytes;
         let span = ByteSpan {
-            start: offset(source, span.start()),
-            end: offset(source, span.end()),
+            start: self.positions.offset(span.start()),
+            end: self.positions.offset(span.end()),
         };
-        let candidates = self.find(&self.facts.body, kind, span);
-
-        let hir = if candidates.len() == 1 {
-            Some(candidates[0].clone())
-        } else {
-            None
-        };
+        let hir = self.candidates.unique(&self.facts.source.bytes, kind, span);
         let matched = hir.is_some();
+
         self.entries.push(Entry {
             kind: kind.into(),
             span,
@@ -413,8 +413,8 @@ impl<'ast> Visit<'ast> for Inventory<'_> {
             let source = &self.facts.source.bytes;
             let bytes = source
                 .get(
-                    offset(source, item.span().start()) as usize
-                        ..offset(source, item.span().end()) as usize,
+                    self.positions.offset(item.span().start()) as usize
+                        ..self.positions.offset(item.span().end()) as usize,
                 )
                 .unwrap_or_default();
             let kind = if table
@@ -501,24 +501,6 @@ pub(crate) fn byte_offset(source: &str, position: proc_macro2::LineColumn) -> us
         .map_or(line.len(), |(offset, _)| offset);
 
     prefix + column
-}
-
-impl Inventory<'_> {
-    fn find(&self, node: &HirNode, kind: &str, span: ByteSpan) -> Vec<HirRef> {
-        let matches_kind = node.kind == kind
-            || (matches!(kind, "expr_call" | "expr_path") && node.kind == "expr_struct")
-            || (kind == "pat_name" && matches!(node.kind.as_str(), "pat_binding" | "pat_constant"));
-        let own = (matches_kind && corresponding_span(&self.facts.source.bytes, span, node.span))
-            .then(|| node.hir.clone());
-
-        own.into_iter()
-            .chain(
-                node.children
-                    .iter()
-                    .flat_map(|child| self.find(child, kind, span)),
-            )
-            .collect()
-    }
 }
 
 pub(crate) fn corresponding_span(source: &str, syntax: ByteSpan, hir: ByteSpan) -> bool {
@@ -894,8 +876,8 @@ impl<'ast> Inventory<'_> {
         profile.is_some_and(|p| p.supports(crate::character_ranges::CAPABILITY))
             && source
                 .get(
-                    byte_offset(source, range.span().start())
-                        ..byte_offset(source, range.span().end()),
+                    self.positions.byte_offset(range.span().start())
+                        ..self.positions.byte_offset(range.span().end()),
                 )
                 .is_some_and(|text| crate::character_ranges::from_source(text).is_ok())
     }
@@ -926,8 +908,8 @@ impl<'ast> Inventory<'_> {
 
     fn option_pattern(&mut self, pattern: &'ast syn::Pat) -> bool {
         let span = ByteSpan {
-            start: offset(&self.facts.source.bytes, pattern.span().start()),
-            end: offset(&self.facts.source.bytes, pattern.span().end()),
+            start: self.positions.offset(pattern.span().start()),
+            end: self.positions.offset(pattern.span().end()),
         };
         let kind = match pattern {
             syn::Pat::TupleStruct(_) => "pat_option_some",
@@ -935,7 +917,11 @@ impl<'ast> Inventory<'_> {
             syn::Pat::Ident(_) | syn::Pat::Path(_) => "pat_option_none",
             _ => return false,
         };
-        if self.find(&self.facts.body, kind, span).len() != 1 {
+        if self
+            .candidates
+            .unique(&self.facts.source.bytes, kind, span)
+            .is_none()
+        {
             return false;
         }
         self.add(kind, pattern.span());

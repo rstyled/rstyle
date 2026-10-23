@@ -14,7 +14,9 @@ use std::{borrow::Cow, cell::OnceCell, rc::Rc, sync::Arc};
 
 #[derive(Default)]
 pub(super) struct Derived {
-    nominal: Checked<Resolution>,
+    // Source-only outcomes are stable even while helper certification progresses.
+    // An error remains an error, never a Resolution or admission witness.
+    nominal: Checked<Result<Resolution, String>>,
     data_frontend: Checked<()>,
     receivers: [Checked<crate::data_receivers::Capture>; 2],
     inherent: Checked<Option<Definition>>,
@@ -127,6 +129,14 @@ impl Sources {
             .map_err(Clone::clone)
     }
 
+    fn resolve_observed(&self, input: &dyn EvidenceFacts) -> Result<Resolution, String> {
+        crate::diagnostics::Stage::new("source.nominal_shared", &input.facts().name, None)
+            .enter()
+            .finish(self.resolve(input))
+    }
+
+    // Both outcomes are retained by FunctionView::nominal. Keep this proof
+    // independent of helper tables that change during Builder::capture.
     pub(super) fn resolve(&self, input: &dyn EvidenceFacts) -> Result<Resolution, String> {
         let facts = input.facts();
         let interface = facts
@@ -232,8 +242,11 @@ impl FunctionView<'_> {
         let result = self
             .derived()
             .nominal
-            .get(|| self.resolver.sources().resolve(self))?;
-        Ok(ResolutionView::borrowed(result))
+            .get(|| Ok(self.resolver.sources().resolve_observed(self)))?;
+        result
+            .as_ref()
+            .map(ResolutionView::borrowed)
+            .map_err(Clone::clone)
     }
 
     pub(super) fn inherent(&self) -> Result<Option<Cow<'_, Definition>>, String> {
@@ -397,3 +410,6 @@ mod tests {
         assert!(sources.0.borrow()[0].checked.0[1].get().unwrap().is_err());
     }
 }
+
+#[cfg(test)]
+mod nominal_tests;

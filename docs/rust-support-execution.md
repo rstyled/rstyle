@@ -6,9 +6,13 @@ remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; Data3.90 connects original wrapped-reader
-construction through guarded product Result summaries, exact `?` and affine local
-updates, following Data3.89 fresh product Result ownership.
+Branch `feature/rust-feature-coverage`; Data3.92 connects both original
+`Match::new<Span/Range<usize>>` private owning instances. Fresh default/no-default
+captures retain590/2,582 definitions on each declared target; both instances pass
+strict replay and all six selected original/replay pairs. Ordinary generic caller
+linking remains closed. The next memory target is frozen safe lz4_flex0.14.0
+`backtrack_match`; its independent private-body oracle passes48,856 cases, while
+location-aware loads/stores and loop post-state remain unsupported.
 The root roadmap records validated checkpoints; broader P01–P22 work remains
 active and historical evidence stays unchanged.
 
@@ -462,3 +466,31 @@ Final integrated replays also pass all three retained contexts: native16.776s,
 x8616.881s, macOS17.032s (single diagnostic samples). Native frontend observations
 fall5,226→4,138 after replay-session reuse; hashing remains0.499s. This demonstrates
 removed repeated work, not a controlled speedup estimate.
+
+
+### Match composition performance — unchanged Data3.92 support
+
+Fresh default/no-default captures retain590/2,582 definitions on ARM Linux,
+x86 Linux and ARM macOS; both private instances and all six original/replay
+pairs pass strict verification in every context. Fresh native original-library
+oracle:22,475 cases per feature context, zero mismatches. Foreign captures do
+not establish native execution; ordinary generic callers remain closed.
+
+Source correspondence now uses an interval index, lexical function ownership
+uses the existing module/span index, and completed immutable nominal-source
+failures remain errors in their existing verification slots. Frontend failures
+remain retryable as helper certification progresses. Nominal proof work falls
+1,532→482 checks and7.111→3.006s in diagnostic runs. Controlled native no-default
+warmup plus three alternating equal-work samples:16.27–16.79s before versus
+12.14–12.65s after; peak RSS291,936–292,000 versus289,132–289,292KiB. Complete
+matching output is identical. Indexes alone produced only small gains.
+Evidence:`/tmp/rstyle-396-{bench,final-contexts}.json` and associated logs.
+
+Routine source/manifest/declaration SHA remains a migration task: reuse existing
+XXH3 for new consistency claims, explicitly verify legacy SHA identities and
+reviewed library pins, and preserve r0's historical conformance requirements.
+The audit found no cryptographic requirement for routine new source checks.
+
+Checkpoint gates:1,574 tests pass/five existing skips plus doctests; fmt and
+warning-denied Clippy pass; style0/5179 and patterns0/15 unchanged ignores.
+Gate logs:`/tmp/rstyle-396-*-final.log`. Frozen reassessment remains pending.

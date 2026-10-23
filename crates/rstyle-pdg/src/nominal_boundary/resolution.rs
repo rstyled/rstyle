@@ -784,13 +784,14 @@ fn function_scope(
         .and_then(serde_json::Value::as_str)
         .ok_or("Missing function source identity")?;
     let mut candidates = Vec::new();
-    for module in modules
+    for (module_index, module) in modules
         .iter()
-        .filter(|module| module.path.to_string_lossy() == file)
+        .enumerate()
+        .filter(|(_, module)| module.path.to_string_lossy() == file)
     {
         let bytes = file_bytes(census, &module.path)?;
         candidates.extend(module_functions(
-            module,
+            module_index,
             bytes,
             facts,
             &resolution.environment,
@@ -987,16 +988,18 @@ fn supported_receiver(signature: &syn::Signature, facts: &HirFnFacts) -> bool {
 type FunctionOwner = (Namespace, Option<Box<syn::Type>>);
 
 fn module_functions(
-    module: &census::Module,
+    module_index: usize,
     bytes: &str,
     facts: &HirFnFacts,
     environment: &Environment,
 ) -> Result<Vec<FunctionOwner>, String> {
+    let module = &environment.modules[module_index];
     let selected = environment.copy_boundary;
     let mut candidates = Vec::new();
-    for item in &module.items {
-        match item {
-            syn::Item::Fn(item)
+
+    for (item, method) in environment.owner_candidates(module_index, facts.fn_span) {
+        match (item, method) {
+            (syn::Item::Fn(item), None)
                 if (FunctionSource {
                     vis: &item.vis,
                     sig: &item.sig,
@@ -1008,21 +1011,17 @@ fn module_functions(
                     candidates.push((module.namespace.clone(), None))
                 }
             }
-            syn::Item::Impl(item) => {
+            (syn::Item::Impl(item), Some(method)) => {
                 if selected
                     && !selected::implementation(facts, item)
                     && !selected::local_traits::implementation(facts, environment, module, item)?
                 {
                     continue;
                 }
-                for member in &item.items {
-                    if let syn::ImplItem::Fn(method) = member
-                        && exact_method(method, bytes, facts, selected)
-                        && (item.generics.params.is_empty()
-                            || method.sig.generics.params.is_empty())
-                    {
-                        candidates.push((module.namespace.clone(), Some(item.self_ty.clone())));
-                    }
+                if exact_method(method, bytes, facts, selected)
+                    && (item.generics.params.is_empty() || method.sig.generics.params.is_empty())
+                {
+                    candidates.push((module.namespace.clone(), Some(item.self_ty.clone())));
                 }
             }
             _ => {}
