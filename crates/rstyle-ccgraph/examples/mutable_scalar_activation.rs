@@ -16,11 +16,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     store.write_bundle(&mut replay)?;
     let replay = UnitStore::from_bundle(&replay)?;
 
-    verification_policy::strict(|| check([&store, &replay], &selection))?;
+    verification_policy::strict(|| {
+        if let Some(functions) = selection["functions"].as_array() {
+            check_all([&store, &replay], functions)
+        } else {
+            check([&store, &replay], &selection).map(|_| ())
+        }
+    })?;
     Ok(())
 }
 
-fn check(stores: [&UnitStore; 2], selection: &Value) -> Result<(), String> {
+fn check(
+    stores: [&UnitStore; 2],
+    selection: &Value,
+) -> Result<rstyle_ccgraph::ImportedFunction, String> {
     let source = selection["function"]["source"]
         .as_str()
         .ok_or("Missing source")?;
@@ -63,6 +72,39 @@ fn check(stores: [&UnitStore; 2], selection: &Value) -> Result<(), String> {
         json!({"strict_imports":2,"selected_pairs":1,
         "decision":report.pairs[0].decision,"score":report.pairs[0].displayed_score,
         "owner_definitions":stores[0].functions().len()})
+    );
+    Ok(imports.remove(0))
+}
+
+fn check_all(stores: [&UnitStore; 2], functions: &[Value]) -> Result<(), String> {
+    if functions.is_empty() {
+        return Err("Expected at least one selected original".into());
+    }
+    let mut originals = Vec::new();
+    let mut sources = std::collections::BTreeSet::new();
+    for (index, function) in functions.iter().enumerate() {
+        let source = function["source"]
+            .as_str()
+            .ok_or("Missing selected source")?;
+        if !sources.insert(source) {
+            return Err("Selected original source identity is duplicated".into());
+        }
+        let mut original = check(stores, &json!({"function": function}))?;
+        original.key = format!("selected:{index}");
+        originals.push(original);
+    }
+    let report = rstyle_ccgraph::evaluate_all(&originals, &CcgraphConfig::default());
+    let expected = originals.len() * (originals.len() - 1) / 2;
+    if report.incomplete
+        || report.pairs.len() != expected
+        || report.functions.iter().any(|function| !function.eligible)
+    {
+        return Err("Selected original pair enumeration/evaluation is incomplete".into());
+    }
+    println!(
+        "{}",
+        json!({"selected_originals":originals.len(),
+        "evaluated_original_pairs":report.pairs.len(),"complete":true})
     );
     Ok(())
 }

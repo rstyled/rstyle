@@ -8,7 +8,7 @@ pub(super) fn verify(
     facts: &HirFnFacts,
     target: &Namespace,
 ) -> Result<(), String> {
-    verify_mode(environment, facts, target, false)
+    verify_mode(environment, facts, target, SourceMode::Cleanup)
 }
 
 pub(super) fn verify_reference_product(
@@ -16,7 +16,7 @@ pub(super) fn verify_reference_product(
     facts: &HirFnFacts,
     target: &Namespace,
 ) -> Result<(), String> {
-    verify_mode(environment, facts, target, true)
+    verify_mode(environment, facts, target, SourceMode::Product)
 }
 
 /// Exact Copy-product callers separately prove every field and builtin Copy.
@@ -26,16 +26,33 @@ pub(super) fn verify_copy_product(
     facts: &HirFnFacts,
     target: &Namespace,
 ) -> Result<(), String> {
-    verify_mode(environment, facts, target, true)
+    verify_mode(environment, facts, target, SourceMode::Product)
+}
+
+pub(super) fn verify_copy_owner(
+    environment: &Environment,
+    facts: &HirFnFacts,
+    target: &Namespace,
+) -> Result<(), String> {
+    verify_mode(environment, facts, target, SourceMode::CopyOwner)
+}
+
+#[derive(Clone, Copy)]
+enum SourceMode {
+    Cleanup,
+    Product,
+    CopyOwner,
 }
 
 fn verify_mode(
     environment: &Environment,
     facts: &HirFnFacts,
     target: &Namespace,
-    reference_product: bool,
+    mode: SourceMode,
 ) -> Result<(), String> {
+    let reference_product = !matches!(mode, SourceMode::Cleanup);
     let cfgs = &facts.build.cfgs;
+
     let mut visitor = Closure {
         configuration: crate::conditional_source::Configuration::new(cfgs),
         edition: facts.build.edition.known_value(),
@@ -56,6 +73,7 @@ fn verify_mode(
         nested_context: 0,
         generated_context: 0,
         reference_product,
+        copy_owner: matches!(mode, SourceMode::CopyOwner),
         checked_external_imports: supports(facts, super::super::fresh_products::CAPABILITY)?,
     };
     for collecting in [true, false] {
@@ -276,6 +294,7 @@ fn inspect_policy(
         nested_context: 0,
         generated_context: 0,
         reference_product,
+        copy_owner: false,
         checked_external_imports: false,
     };
     visitor.scopes = vec![visitor.scope(items.iter().copied())?];
@@ -291,6 +310,11 @@ fn inspect_policy(
         visitor.visit_item(item);
     }
     visitor.error.map_or(Ok(()), Err)
+}
+
+fn shadows_primitive(item: &syn::Item) -> bool {
+    super::super::super::builtin_options::type_name(item)
+        .is_some_and(|name| concrete_types::scalar(&name) || name == "str")
 }
 
 struct Closure<'a> {
@@ -309,6 +333,7 @@ struct Closure<'a> {
     nested_context: usize,
     generated_context: usize,
     reference_product: bool,
+    copy_owner: bool,
     checked_external_imports: bool,
 }
 
@@ -537,6 +562,9 @@ impl Closure<'_> {
         self.definitions.insert(name, item.clone());
     }
     fn collect_item(&mut self, item: &syn::Item) -> Result<(), String> {
+        if self.copy_owner && shadows_primitive(item) {
+            return Err("Copy source declaration shadows an unresolved primitive binding".into());
+        }
         self.collect_declaration_name(item)?;
 
         match item {
@@ -591,6 +619,20 @@ impl Closure<'_> {
         Ok(())
     }
     fn collect_import(&mut self, item: &syn::ItemUse) -> Result<(), String> {
+        if self.copy_owner
+            && self.generated_context > 0
+            && source_imports::has_glob(&item.tree)
+            && !self.enums.only_original_enum_globs(&item.tree)
+        {
+            return Err("Copy source expansion has unresolved glob bindings".into());
+        }
+        if self.copy_owner
+            && source_imports::bindings(&item.tree)
+                .iter()
+                .any(|(name, _)| concrete_types::scalar(name) || name == "str")
+        {
+            return Err("Copy source import shadows an unresolved primitive binding".into());
+        }
         if self.reference_product {
             self.collect_reference_import(item);
         }

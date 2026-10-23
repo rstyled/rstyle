@@ -12,6 +12,7 @@ pub(super) struct Proof<'a> {
 enum SourceClosure {
     ReferenceProduct,
     CopyProduct,
+    CopyOwner,
 }
 
 impl<'a> Proof<'a> {
@@ -38,6 +39,19 @@ impl<'a> Proof<'a> {
             resolution,
             origins,
             source: SourceClosure::CopyProduct,
+        }
+    }
+
+    pub(super) fn copy_owner(
+        facts: &'a HirFnFacts,
+        resolution: &'a Resolution,
+        origins: &'a Origins,
+    ) -> Self {
+        Self {
+            facts,
+            resolution,
+            origins,
+            source: SourceClosure::CopyOwner,
         }
     }
 
@@ -145,6 +159,7 @@ impl<'a> Proof<'a> {
             SourceClosure::ReferenceProduct => {
                 closure::verify_reference_product(environment, self.facts, key)
             }
+            SourceClosure::CopyOwner => closure::verify_copy_owner(environment, self.facts, key),
             SourceClosure::CopyProduct => {
                 closure::verify_copy_product(environment, self.facts, key)
             }

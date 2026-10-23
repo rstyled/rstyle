@@ -59,6 +59,7 @@ pub struct Resolution {
     scalar_aliases: bool,
     local_import_chains: bool,
     passive_copy_dependencies: bool,
+    copy_owner_source: Option<selected::no_drop::copy_owners::CheckedCopyOwnerSource>,
 }
 
 fn requires_mixed_owner(tree: &TypeTree) -> bool {
@@ -137,6 +138,10 @@ impl Resolution {
     ) -> Result<(), String> {
         self.environment
             .verify_result_source(facts.facts(), path, Some(variant))
+    }
+
+    pub(crate) fn requires_copy_owner_source(&self) -> bool {
+        self.copy_owner_source.is_some()
     }
 
     pub(crate) fn requires_passive_copy_dependencies(&self) -> bool {
@@ -328,6 +333,9 @@ pub(crate) fn verify_in(
     };
 
     let mut resolution = declaration_resolution(facts, interface, Rc::clone(&environment))?;
+    if supports(facts, "rust.checked-copy-owner-source")? && owner.is_none() {
+        resolution.copy_owner_source = selected::no_drop::copy_owners::capture(facts, &resolution)?;
+    }
     if environment.copy_boundary || resolution.range_value.is_some() {
         let origins = facts
             .build
@@ -420,6 +428,7 @@ fn declaration_resolution(
         copy_trees: Default::default(),
         no_drop_trees: Default::default(),
         passive_copy_dependencies: false,
+        copy_owner_source: None,
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
         local_import_chains: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,
@@ -832,7 +841,7 @@ fn lexical_function_scope(
     };
     resolution.namespace = namespace.clone();
     if resolution.environment.copy_boundary {
-        selected::check_namespace(input, &resolution.environment, namespace)?;
+        selected::check_function_namespace(input, resolution, namespace)?;
     }
     if let Some(receiver) = receiver {
         resolve_receiver(resolution, receiver, facts)?;

@@ -73,6 +73,7 @@ pub(crate) fn verify_document_policy(
         "rust.accelerator-packing",
         "rust.borrowed-copy-child-fields",
         crate::fieldless_enums::CAPABILITY,
+        "rust.checked-copy-owner-source",
     ];
     if capabilities
         .iter()
@@ -94,6 +95,7 @@ pub(crate) fn verify_document_policy(
 
     let interface = interface(facts)?;
     if let Some(resolution) = nominal_resolution(facts, &interface)? {
+        verify_source_owner_policy(profile, &resolution)?;
         verify_nominal_policy(profile, &resolution)?;
     }
     Ok(())
@@ -193,6 +195,18 @@ fn verify_copy_receiver_policy(
         }
     }
     Ok(())
+}
+
+fn verify_source_owner_policy(
+    profile: &crate::ProfileId,
+    resolution: &crate::nominal_boundary::resolution::Resolution,
+) -> Result<(), String> {
+    crate::extraction_profile::require_document(
+        profile,
+        "rust.checked-copy-owner-source",
+        || resolution.requires_copy_owner_source(),
+        "Copy owner source requires its registered document policy",
+    )
 }
 
 fn verify_nominal_policy(

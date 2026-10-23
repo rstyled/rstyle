@@ -6,8 +6,8 @@ mod receipts;
 use super::product_fields::Proof;
 use super::*;
 use crate::nominal_boundary::resolution::{Resolution, verify_declarations};
-use owner::Owner;
-pub(super) use receipts::Receipt;
+pub(super) use owner::Owner;
+pub(super) use receipts::{Receipt, SourceReceipt};
 use std::sync::Arc;
 
 pub(in crate::nominal_boundary::resolution::selected) fn supported(tree: &TypeTree) -> bool {
@@ -93,40 +93,7 @@ impl CheckedCopyProductSource {
         &self,
         tree: &TypeTree,
     ) -> Option<&CheckedNoDrop> {
-        self.declarations
-            .iter()
-            .find(|receipt| receipt.tree() == tree)
-            .map(Receipt::certificate)
-    }
-
-    pub(in crate::nominal_boundary::resolution) fn root(&self) -> &CheckedNoDrop {
-        self.declaration(&self.root)
-            .expect("Successful recursive proof retains root receipt")
-    }
-
-    pub(in crate::nominal_boundary::resolution) fn verify_owner(
-        &self,
-        facts: &HirFnFacts,
-        environment: &Environment,
-    ) -> Result<(), String> {
-        self.owner.verify(facts, environment)?;
-
-        if environment.census() != self.census.as_ref()
-            || environment.copy_boundary != self.copy_boundary
-        {
-            return Err(
-                "Copy product source belongs to another immutable source environment".into(),
-            );
-        }
-
-        let interface = facts
-            .build
-            .frontend_options
-            .data::<InterfaceObservations>()?;
-        if !matches!(&interface.result, Observation::Captured { ty } if ty == &self.root) {
-            return Err("Copy product source result differs from its complete checked root".into());
-        }
-        Ok(())
+        SourceReceipt::declaration(self, tree)
     }
 
     pub(in crate::nominal_boundary::resolution) fn function_namespace<'a>(
@@ -135,8 +102,7 @@ impl CheckedCopyProductSource {
         environment: &Environment,
         namespace: &[String],
     ) -> Result<Option<&'a CheckedNoDrop>, String> {
-        self.verify_owner(facts, environment)?;
-        Ok((self.owner.namespace() == namespace).then(|| self.root()))
+        SourceReceipt::function_namespace(self, facts, environment, namespace)
     }
 }
 
@@ -160,4 +126,45 @@ fn inputs(
     crate::declaration_origins::verify_in(&interface, origins, &resolution.environment)?;
     verify_declarations(resolution, origins, facts)?;
     Ok(())
+}
+
+impl SourceReceipt for CheckedCopyProductSource {
+    fn verify_owner(&self, facts: &HirFnFacts, environment: &Environment) -> Result<(), String> {
+        self.owner.verify(facts, environment)?;
+
+        if environment.census() != self.census.as_ref()
+            || environment.copy_boundary != self.copy_boundary
+        {
+            return Err(
+                "Copy product source belongs to another immutable source environment".into(),
+            );
+        }
+
+        let interface = facts
+            .build
+            .frontend_options
+            .data::<InterfaceObservations>()?;
+        if !matches!(&interface.result, Observation::Captured { ty } if ty == &self.root) {
+            return Err("Copy product source result differs from its complete checked root".into());
+        }
+        Ok(())
+    }
+
+    fn owner(&self) -> &Owner {
+        &self.owner
+    }
+    fn root_tree(&self) -> &TypeTree {
+        &self.root
+    }
+    fn receipts(&self) -> &[Receipt] {
+        &self.declarations
+    }
+}
+
+pub(in crate::nominal_boundary::resolution) fn verify_owner(
+    source: &CheckedCopyProductSource,
+    facts: &HirFnFacts,
+    environment: &Environment,
+) -> Result<(), String> {
+    SourceReceipt::verify_owner(source, facts, environment)
 }

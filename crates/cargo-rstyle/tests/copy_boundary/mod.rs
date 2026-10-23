@@ -70,7 +70,13 @@ fn workspace() -> TempDir {
 
 #[test]
 fn selected_copy_boundary_keeps_missing_proofs_and_lexical_unknowns_closed() {
-    for change in ["copy", "macro", "primitive_alias", "glob"] {
+    for change in [
+        "copy",
+        "macro",
+        "multi_arm_macro",
+        "primitive_alias",
+        "glob",
+    ] {
         let directory = workspace();
         let original = include_str!("../../../../eval/coverage-development/position-span.rs");
         let source = match change {
@@ -82,6 +88,9 @@ fn selected_copy_boundary_keeps_missing_proofs_and_lexical_unknowns_closed() {
                 ),
             "macro" => format!(
                 "{original}\nmacro_rules! hidden {{ () => {{ pub fn hidden() {{}} }} }} hidden!();"
+            ),
+            "multi_arm_macro" => format!(
+                "{original}\nmacro_rules! hidden {{ () => {{ pub fn hidden() {{}} }}; ($name:ident) => {{ pub fn $name() {{}} }} }} hidden!();"
             ),
             "primitive_alias" => format!("{original}\ntype usize = core::primitive::usize;"),
             "glob" => format!("{original}\nuse core::fmt::*;"),
@@ -102,7 +111,12 @@ fn selected_copy_boundary_keeps_missing_proofs_and_lexical_unknowns_closed() {
                 .iter()
                 .find(|function| function["facts"]["name"] == name)
                 .unwrap();
-            assert_eq!(function["outcome"], "excluded", "{change}: {function}");
+            let expected = if change == "macro" && name != "data::Span::new" {
+                "admitted"
+            } else {
+                "excluded"
+            };
+            assert_eq!(function["outcome"], expected, "{change}: {function}");
         }
     }
 }

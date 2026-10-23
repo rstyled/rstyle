@@ -5167,3 +5167,14 @@ patterns0/15 unchanged ignores pass. Generic/drop-sensitive/default-provided
 bodies remain outside the [bounded contract](eval/coverage-development/adler-default/README.md).
 No new SHA or serialized lookup keys. Broader P01–P22 coverage remains active;
 [next connected constructor frontier](docs/rust-support-execution.md).
+
+Data3.95 replaces the coarse expansion barrier for exact ordinary nongeneric
+Copy-owner methods with complete source/cleanup receipts. Original native no-
+default SmallIndex owners gain six admissions (103→109/590), lose none;
+`one_more → as_usize` composes. Primitive aliases/import ambiguity, generated
+callables and unknown cleanup remain closed. Six strict identity matches and
+all15 selected original pairs finish; frozen60 identities/denominators/outcomes
+remain24 admitted/29 excluded/7 inactive. All1,624 tests/five skips, doctests,
+fmt/Clippy, style0/5,480 and patterns0/15 unchanged ignores pass. Checked
+construction remains incomplete behind MAX, conversion and error transport;
+[frontier and bounded evidence](docs/rust-support-execution.md).

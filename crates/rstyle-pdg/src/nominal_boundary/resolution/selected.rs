@@ -41,7 +41,7 @@ pub(super) fn verify(
         {
             return Err("Product source receipt requires its exact owning active instance".into());
         }
-        owner.copy_source().verify_owner(facts, environment)?;
+        no_drop::copy_products::verify_owner(owner.copy_source(), facts, environment)?;
     }
     let checker = DeclarationChecker {
         owner,
@@ -142,7 +142,13 @@ impl DeclarationChecker<'_> {
     ) -> Result<Option<no_drop::CheckedNoDrop>, String> {
         let retained = self
             .owner
-            .and_then(|owner| owner.copy_source().declaration(tree));
+            .and_then(|owner| owner.copy_source().declaration(tree))
+            .or_else(|| {
+                self.resolution
+                    .copy_owner_source
+                    .as_ref()
+                    .and_then(|source| source.declaration(tree))
+            });
         let checked = if let Some(checked) = retained {
             checked.clone()
         } else {
@@ -529,6 +535,7 @@ pub(super) fn module_item_for(
             macro_imports: true,
             test_marker: false,
             deprecated_expect: true,
+            source_closure: None,
         },
     )
 }
@@ -554,20 +561,22 @@ fn module_item_policy(
             macro_imports,
             test_marker,
             deprecated_expect: false,
+            source_closure: None,
         },
     )
 }
 
-struct ItemPolicy {
+struct ItemPolicy<'a> {
     macro_imports: bool,
     test_marker: bool,
     deprecated_expect: bool,
+    source_closure: Option<&'a no_drop::CheckedNoDrop>,
 }
 
 fn module_item_policy_for(
     item: &syn::Item,
     configuration: &crate::conditional_source::Configuration<'_>,
-    policy: ItemPolicy,
+    policy: ItemPolicy<'_>,
 ) -> Result<(), String> {
     if let syn::Item::Type(item) = item
         && concrete_types::scalar(&item.ident.to_string())
@@ -575,6 +584,7 @@ fn module_item_policy_for(
         return Err("Primitive spelling is shadowed by an unresolved alias".into());
     }
     if let syn::Item::Macro(item) = item
+        && policy.source_closure.is_none()
         && (item.ident.is_none()
             || item
                 .ident
@@ -629,6 +639,24 @@ fn module_attribute(
     Ok(())
 }
 
+pub(super) fn check_function_namespace(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &Resolution,
+    namespace: &[String],
+) -> Result<(), String> {
+    let Some(source) = &resolution.copy_owner_source else {
+        return check_namespace(input, &resolution.environment, namespace);
+    };
+    let certificate =
+        source.function_namespace(input.facts(), &resolution.environment, namespace)?;
+    check_namespace_with_closure(
+        input.facts(),
+        &resolution.environment,
+        namespace,
+        certificate,
+    )
+}
+
 pub(super) fn check_namespace(
     input: &dyn crate::unit_store::EvidenceFacts,
     environment: &Environment,
@@ -653,7 +681,7 @@ fn function_cleanup_certificate(
         let owner = input
             .product_instance()
             .ok_or("Missing checked product owner")?;
-        owner.copy_source().verify_owner(facts, environment)?;
+        no_drop::copy_products::verify_owner(owner.copy_source(), facts, environment)?;
         return owner
             .copy_source()
             .function_namespace(facts, environment, namespace)

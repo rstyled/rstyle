@@ -3,7 +3,7 @@ use super::*;
 use crate::{BuildFacts, ByteSpan, HirRef, SourceFacts};
 use serde_json::Value;
 
-pub(super) struct Owner {
+pub(in crate::nominal_boundary::resolution::selected::no_drop) struct Owner {
     name: String,
     span: ByteSpan,
     source: SourceFacts,
@@ -18,7 +18,7 @@ pub(super) struct Owner {
 }
 
 impl Owner {
-    pub(super) fn capture(
+    pub(in crate::nominal_boundary::resolution::selected::no_drop) fn capture(
         facts: &HirFnFacts,
         environment: &Environment,
         origins: &Origins,
@@ -41,7 +41,7 @@ impl Owner {
         })
     }
 
-    pub(super) fn verify(
+    pub(in crate::nominal_boundary::resolution::selected::no_drop) fn verify(
         &self,
         facts: &HirFnFacts,
         environment: &Environment,
@@ -68,7 +68,9 @@ impl Owner {
         Ok(())
     }
 
-    pub(super) fn namespace(&self) -> &[String] {
+    pub(in crate::nominal_boundary::resolution::selected::no_drop) fn namespace(
+        &self,
+    ) -> &[String] {
         &self.namespace
     }
 }

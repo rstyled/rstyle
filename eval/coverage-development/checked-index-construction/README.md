@@ -39,5 +39,35 @@ Native public-API oracle now passes8,202 cases (4,101 successes/4,101 errors)
 per default/no-default and debug/release-branch context, zero mismatches. The
 copied private Usize witness passes separately; its unused original trait members
 produce dead-code diagnostics. These are runtime/source expectations, not
-extraction admission. No capture/admission measurement has been performed for
-this selection. Evidence:`/tmp/rstyle-402-index-oracle.log`.
+extraction admission. Evidence:`/tmp/rstyle-402-index-oracle.log`.
+
+Data3.95 source increment reuses exhaustive Copy/source receipts for exact ordinary
+nongeneric inherent owners with scalar arguments, shared receivers and scalar or
+owning-product results. Both original `index_type_impls!` neighbors remain checked;
+no generated callable or function-effect authority follows from a source receipt.
+The new receipt binds original method/impl/declaration, complete interface,
+source census, cfg/build and profile. Historical3.94 document downgrades reject.
+
+Native ARM Linux no-default complete owners retain590 identical definitions:
+103→109 admissions, zero losses. Of the six preselected ordinary functions,
+`new_unchecked` and `as_usize` gain; the other four remain excluded. Four additional
+roster gains are `as_u64`, `as_u32`, `as_i32` and `one_more`; these are incidental
+outcomes, not retroactively frozen source-first targets. All six gains pass strict
+original/replay verification, admission and identity matching (Accepted score1).
+The caller `one_more → as_usize` now composes. Matching for the complete library
+remains explicitly budget-incomplete; cross-target/default contexts are pending.
+Evidence:`/tmp/rstyle-403-native-delta.json`, `/tmp/rstyle-403-strict.log`.
+
+The checked constructor family remains incomplete. Its remaining chain is MAX
+nominal constant evidence, real local Usize/debug core conversion dispatch,
+non-Copy scalar-error no-drop/whole Result transport and connected summaries.
+Generated PatternID additionally needs emitted callable/error ownership and
+ordered map/map_err constructor transport. Separate unregistered proof leaves
+for scalar errors and local trait dispatch are development work, not activation.
+
+Final source gate preserves ordinary lexical alias/import rejection and adds
+adversarial generated primitive/glob controls. All1,624 workspace tests plus
+doctests pass, fmt/Clippy pass, style0 and patterns0 with15 unchanged ignores.
+Strict replay checks all six identity pairs and completes15 original pairs;
+frozen60 identities, denominators and outcomes are unchanged (24/29/7).
+Evidence: `/tmp/rstyle-403-final-*`, `/tmp/rstyle-403-frozen-comparison.json`.

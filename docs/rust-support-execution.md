@@ -682,3 +682,42 @@ newer diagnostic capture is incomplete. MAX observation, debug total-conversion
 proof, non-Copy struct errors and generated callable/constructor callback ownership
 remain readiness prerequisites. Source/error lanes retain disjoint leaves; lead
 must schedule a current complete-owner capture before production activation.
+
+
+Data3.95 source increment (P05/P22 prerequisite for checked index): original
+ordinary Copy-owner receipts now feed declaration and function namespace checks.
+They retain exact method/impl/interface/build/source ownership and exhaustive
+neighbor expansion proof; private-instance result receipts keep their existing
+invariant. No generated callable, purity, alias or cleanup shortcut is granted.
+Fresh native ARM Linux no-default regex-automata owner:590 unchanged definitions,
+103→109 admissions, six gains/zero losses. Preselected six gain only new_unchecked
+and as_usize; incidental getters/as_i32/one_more account for the other four.
+All six gains strictly verify/admit/replay and identity-match Accepted score1;
+complete-library matching remains budget-incomplete. Cargo composition and3.94
+policy downgrade tests pass. The replay example batches selections over one
+strictly imported original/replayed owner, avoiding six repeated full imports.
+No SHA computation, serialized lookup key or new cache substrate was added.
+Evidence:`/tmp/rstyle-403-{native-delta.json,final-strict.log}`. Final checkpoint:
+1,624 tests/five existing skips plus doctests pass; fmt and warning-denied Clippy
+pass; style0/5,480 and patterns0/15 unchanged ignores. Direct/generated primitive
+shadows and unresolved generated globs reject; ordinary lexical import checks
+remain mandatory. Strict replay finishes six identity comparisons and all15
+original pairs (10.35s); native oracle passes8,202 public cases in each of four
+feature/debug contexts. Frozen `run-d3tge24c` vs `run-bbmmkg_8`: all60 identities,
+denominators and outcomes unchanged,24 admitted/29 excluded/7 inactive;118 schema
+checks. First archive download failed; network-enabled retry passed. Default/cross-
+target capture and foreign native execution are pending.
+
+Frontier: checked SmallIndex::new/TryFrom still requires MAX, local Usize/core
+conversion, scalar-error no-drop and Result helper transport. Scalar-error and
+local-value-trait proof leaves exist unregistered and untested; do not treat them
+as supported. Generated PatternID remains behind actual emitted callable/error
+source ownership and ordered constructor callbacks. Preserve the committed
+six-function selection, generated templates and frozen60 identities/denominators.
+
+Next MAX dependency audit: `/tmp/rstyle-403-max-next.md`. Existing owned-Copy
+autoborrow/helper snapshots fit MAX.as_usize; missing nominal-constant capture,
+original initializer/dependency proof and complete product lowering remain.
+Do not substitute the primitive u32::MAX contract for legacy core::i32::MAX,
+or assume transparent layout proves evaluated fields. The full constructor
+chain still needs Usize/core conversion and non-Copy Result transport.

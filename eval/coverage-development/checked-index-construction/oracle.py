@@ -15,6 +15,17 @@ use regex_automata::{PatternID, util::primitives::SmallIndex};
 fn check(index: usize, counts: &mut [usize; 2]) {
     // Independent interval specification, fixed before evaluating admission.
     const EXPECTED_MAX: usize = 2_147_483_646;
+    // Current pinned implementation controls for the newly connected reads.
+    // The unchecked API promises no logical range invariant; specify its full
+    // observed integer behavior without assuming index <= EXPECTED_MAX.
+    let raw = SmallIndex::new_unchecked(index);
+    let low = (index as u64) % 4_294_967_296;
+    let signed = if low < 2_147_483_648 { low as i64 } else { low as i64 - 4_294_967_296 };
+    assert_eq!(raw.as_usize() as u64, low);
+    assert_eq!(raw.as_u64(), low);
+    assert_eq!(raw.as_u32() as u64, low);
+    assert_eq!(raw.as_i32() as i64, signed);
+    assert_eq!(raw.one_more() as u64, low + 1);
     let small = SmallIndex::new(index);
     let via_trait = <SmallIndex as TryFrom<usize>>::try_from(index);
     let pattern = PatternID::new(index);

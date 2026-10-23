@@ -129,6 +129,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.consuming-range-conversions",
     "rust.mutable-scalar-formals",
     "rust.checked-concrete-default",
+    "rust.checked-copy-owner-source",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -288,7 +289,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.94.0", 116)),
+            Self::DataV3 => Some(("3.95.0", 117)),
         }
     }
 

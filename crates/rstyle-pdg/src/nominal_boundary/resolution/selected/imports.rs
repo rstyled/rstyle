@@ -6,7 +6,15 @@ pub(super) fn verify(
     environment: &Environment,
     namespace: &[String],
 ) -> Result<(), String> {
-    verify_in(facts, environment, namespace, true)
+    verify_in(
+        environment,
+        namespace,
+        Scope {
+            facts,
+            ancestors: true,
+            closure: None,
+        },
+    )
 }
 
 pub(super) fn verify_leaf(
@@ -14,15 +22,71 @@ pub(super) fn verify_leaf(
     environment: &Environment,
     namespace: &[String],
 ) -> Result<(), String> {
-    verify_in(facts, environment, namespace, false)
+    verify_in(
+        environment,
+        namespace,
+        Scope {
+            facts,
+            ancestors: false,
+            closure: None,
+        },
+    )
 }
 
-fn verify_in(
+pub(super) fn verify_source(
     facts: &HirFnFacts,
     environment: &Environment,
     namespace: &[String],
-    ancestors: bool,
+    closure: &no_drop::CheckedNoDrop,
 ) -> Result<(), String> {
+    verify_in(
+        environment,
+        namespace,
+        Scope {
+            facts,
+            ancestors: true,
+            closure: Some(closure),
+        },
+    )
+}
+
+struct Scope<'a> {
+    facts: &'a HirFnFacts,
+    ancestors: bool,
+    closure: Option<&'a no_drop::CheckedNoDrop>,
+}
+
+impl Scope<'_> {
+    fn item(
+        &self,
+        item: &syn::Item,
+        owner: &census::Module,
+        configuration: &crate::conditional_source::Configuration<'_>,
+    ) -> Result<(), String> {
+        let facts = self.facts;
+        if self.closure.is_none() || matches!(item, syn::Item::ExternCrate(_)) {
+            return module_item_for(facts, item, owner, configuration);
+        }
+        module_item_policy_for(
+            item,
+            configuration,
+            ItemPolicy {
+                macro_imports: true,
+                test_marker: false,
+                deprecated_expect: true,
+                source_closure: self.closure,
+            },
+        )
+    }
+}
+
+fn verify_in(
+    environment: &Environment,
+    namespace: &[String],
+    scope: Scope<'_>,
+) -> Result<(), String> {
+    let facts = scope.facts;
+    let ancestors = scope.ancestors;
     let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
     let control = facts
         .signature
@@ -39,7 +103,7 @@ fn verify_in(
             if !ancestors && shadows_float(item, control) {
                 return Err("Scalar leaf primitive name has a local declaration".into());
             }
-            module_item_for(facts, item, module, &configuration)?;
+            scope.item(item, module, &configuration)?;
             if ancestors || !verified_macro_import(item, module) {
                 macro_import(item, module, environment, &configuration)?;
             }
