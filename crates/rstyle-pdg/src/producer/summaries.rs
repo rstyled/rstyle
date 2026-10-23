@@ -89,7 +89,7 @@ impl SummaryCapture<'_> {
             return Err("Ambiguous or missing call source/HIR correspondence".into());
         };
         if (node.kind == "expr_call" && !call_summaries::static_intrinsic(node, self.facts))
-            || crate::helper_calls::direct_resolution(node).is_some()
+            || crate::helper_calls::selected_resolution(node, self.facts).is_some()
         {
             return serde_json::to_value(HelperRecord {
                 pdg_node_id: &operation.id,

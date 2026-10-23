@@ -424,3 +424,41 @@ then an owner-backed Into-to-From helper dependency using existing strict replay
 Adapter audit:`/tmp/rstyle-394-range-dependency-adapter.md`; shared registration
 and owner integration stay lead-owned. Fresh six-context capture and complete
 selected matching remain pending. [Contract](extraction-profiles/product-constructor-instances-v1.md).
+
+### Data3.92 — owning Range constructor and exact local conversion dependency
+
+The unchanged two-instance Match selection now has both private owning instances:
+`Span` and `Range<usize>`. Range consumes its formal once, reads the original
+From body's ordered usize endpoints and binds the original Into site to that
+certified callee in its retained complete owner. It remains non-Copy/no-drop;
+no generic trait dispatch or general cleanup permission is inferred. The source
+receipt binds the exact static trait method without relaxing neighboring-item
+or callable ownership proof. Diagnostic-to-original joins allow checked type
+normalization and source-equal redundant parameter spelling only.
+
+Three retained ARM/x86/macOS 590-definition contexts pass original From strict
+admission and both constructor instances' production, serialized verification,
+strict admission/replay, namespace negatives and three resealed CALL attacks.
+Selected owning instances gain1/lose0 against3.91; ordinary caller and frozen
+counts are unmeasured here. No fresh capture/native foreign run is claimed.
+
+Instrumented pre-session-reuse probe samples: native21.103s, x8620.475s,
+macOS20.735s. Native source.snapshot_hash events total0.651s; unit.capture9.889s.
+Stages are nested, so totals cannot be added. These are diagnostic samples, not
+controlled performance comparisons. Reuse one existing checked replay session
+for both instances and clone typed test documents directly before resealing;
+no new SHA operation, serialized lookup key or speculative cache.
+
+Frontier: fresh six-context original captures → strict two-instance replay and
+complete selected pair evaluation → reassess the next complete caller chain.
+Broader error-flow/callable/resolution/memory priorities remain as recorded above;
+this checkpoint does not complete the family or P01–P22. Evidence:`/tmp/rstyle-395-*`.
+
+Checkpoint gates: fmt and warning-denied workspace/all-target Clippy pass;
+1,559 workspace tests pass/five existing skips (128.631s), plus workspace doctests.
+Style0/5,163; patterns0 with15 existing ignores unchanged. Source-only oracle
+passes; no fresh native value-oracle or frozen reassessment is claimed.
+Final integrated replays also pass all three retained contexts: native16.776s,
+x8616.881s, macOS17.032s (single diagnostic samples). Native frontend observations
+fall5,226→4,138 after replay-session reuse; hashing remains0.499s. This demonstrates
+removed repeated work, not a controlled speedup estimate.

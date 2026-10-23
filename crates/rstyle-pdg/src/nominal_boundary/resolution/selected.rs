@@ -658,6 +658,15 @@ fn function_cleanup_certificate(
             .function_namespace(facts, environment, namespace)
             .map(|certificate| certificate.cloned());
     }
+    if crate::extraction_profile::facts_support(input, crate::range_values::CONSUMING_CAPABILITY)
+        && crate::range_values::consuming_input(input)
+    {
+        crate::range_values::consuming::verify_fields(input)?;
+        let source = super::checked_copy_product_source(facts)?;
+        return source
+            .function_namespace(facts, environment, namespace)
+            .map(|certificate| certificate.cloned());
+    }
     if !supports(facts, crate::borrowed_result_types::CAPABILITY)? {
         return Ok(None);
     }

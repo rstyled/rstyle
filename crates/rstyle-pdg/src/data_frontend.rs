@@ -101,6 +101,12 @@ fn verify_value_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    crate::extraction_profile::require_document(
+        profile,
+        crate::range_values::CONSUMING_CAPABILITY,
+        || crate::range_values::consuming_input(facts),
+        "Consuming Range values require their registered document policy",
+    )?;
     crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
     verify_instance_document_policy(profile, facts)?;
     verify_result_document_policy(profile, facts)

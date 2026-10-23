@@ -1,7 +1,9 @@
 //! Checked full-value Into→From identity; never an origin-only or name-based summary.
 mod authority;
 mod model;
+mod range_projection;
 mod review;
+pub(super) use range_projection::verify as verify_range;
 mod source;
 #[cfg(test)]
 mod tests;
@@ -39,9 +41,14 @@ pub(super) fn verify_local_argument(
 pub(super) struct CheckedConversion {
     call: HirNode,
     receiver: HirNode,
+    input: TypeTree,
 }
 
 impl CheckedConversion {
+    pub(super) fn input(&self) -> &TypeTree {
+        &self.input
+    }
+
     pub(super) fn call(&self) -> &HirNode {
         &self.call
     }
@@ -86,6 +93,7 @@ pub(super) fn verify(
     Ok(CheckedConversion {
         call: call.clone(),
         receiver: receiver.clone(),
+        input: span.clone(),
     })
 }
 

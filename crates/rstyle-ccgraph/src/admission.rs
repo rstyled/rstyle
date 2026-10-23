@@ -312,7 +312,7 @@ fn imported_matching_profile(profile: &rstyle_pdg::ProfileId) -> crate::graph::M
             | "3.66.0" | "3.67.0" | "3.68.0" | "3.69.0" | "3.70.0" | "3.71.0" | "3.72.0" | "3.73.0"
             | "3.74.0" | "3.75.0" | "3.76.0" | "3.77.0" | "3.78.0" | "3.79.0" | "3.80.0" | "3.81.0"
             | "3.82.0" | "3.83.0" | "3.84.0" | "3.85.0" | "3.86.0" | "3.87.0" | "3.88.0" | "3.89.0"
-            | "3.90.0",
+            | "3.90.0" | "3.91.0",
         ) => MatchingProfile::DataCallsV1,
         (rstyle_pdg::extraction_profile::DATA_ID, _) => MatchingProfile::DataV1,
         _ => MatchingProfile::ScalarV1,

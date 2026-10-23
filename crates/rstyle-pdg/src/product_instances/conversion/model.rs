@@ -2,6 +2,9 @@
 use crate::{ByteSpan, HirRef, data_library::Callee};
 use serde::Deserialize;
 
+mod range;
+pub(super) use range::verify as verify_range;
+
 #[derive(Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Definition {
@@ -35,6 +38,9 @@ impl Definition {
 #[derive(Clone, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(super) enum Structural {
+    Builtin {
+        name: String,
+    },
     Adt {
         definition: Definition,
         arguments: Vec<Structural>,
@@ -88,21 +94,55 @@ pub(super) struct Signature {
 
 impl Signature {
     pub fn verify(&self, span: &Structural) -> Result<(), String> {
+        self.between(
+            span,
+            span,
+            SignatureContract {
+                input_error: "Product conversion must have exactly one value input",
+                bound_error: "Product conversion introduces unsupported late-bound variables",
+                argument: single_argument,
+            },
+        )
+    }
+
+    fn between(
+        &self,
+        input_type: &Structural,
+        output: &Structural,
+        contract: SignatureContract,
+    ) -> Result<(), String> {
         let [input] = self.inputs.as_slice() else {
-            return Err("Product conversion must have exactly one value input".into());
+            return Err(contract.input_error.into());
         };
         if self.bound_variables != 0 {
-            return Err("Product conversion introduces unsupported late-bound variables".into());
+            return Err(contract.bound_error.into());
         }
-        arguments(input, span, 1)?;
-        arguments(&self.output, span, 1)
+        (contract.argument)(input, input_type)?;
+        (contract.argument)(&self.output, output)
     }
+}
+
+struct SignatureContract {
+    input_error: &'static str,
+    bound_error: &'static str,
+    argument: fn(&[Argument], &Structural) -> Result<(), String>,
+}
+
+fn single_argument(values: &[Argument], expected: &Structural) -> Result<(), String> {
+    arguments(values, expected, 1)
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(super) enum Original {
-    Parameter { index: u32, name: String },
+    Parameter {
+        index: u32,
+        name: String,
+    },
+    Adt {
+        definition: Definition,
+        arguments: Vec<Structural>,
+    },
 }
 
 #[derive(Deserialize)]
@@ -134,7 +174,9 @@ impl Selection {
         let original = &self.original_impl_trait_arguments;
         if original.len() != parameters.len()
             || original.iter().zip(parameters).any(|(observed, expected)| {
-                let Original::Parameter { index, name } = observed;
+                let Original::Parameter { index, name } = observed else {
+                    return true;
+                };
                 index != expected || name != if *expected == 0 { "T" } else { "U" }
             })
         {

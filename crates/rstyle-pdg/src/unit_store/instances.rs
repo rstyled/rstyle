@@ -32,7 +32,7 @@ pub(super) trait InstanceProof {
         store: &mut UnitStore,
         origin: OriginalInstance<Self::Argument>,
         checked: Self::Checked,
-    );
+    ) -> Result<(), String>;
 }
 
 pub(super) fn capture_instance<P: InstanceProof>(
@@ -64,7 +64,8 @@ pub(super) fn capture_instance<P: InstanceProof>(
         definition: local_id(definition, FunctionId)?,
         argument: P::argument(&checked),
     };
-    proof.install(&mut builder.store, origin, checked);
+    proof.install(&mut builder.store, origin, checked)?;
+    builder.dependencies = dependency_analyses(&builder.store.dependencies);
     builder.capture()
 }
 
@@ -92,8 +93,9 @@ impl InstanceProof for &Projection {
         store: &mut UnitStore,
         origin: OriginalInstance<ScalarArgument>,
         checked: CheckedProjection,
-    ) {
+    ) -> Result<(), String> {
         store.instance = Some(InstanceRecord { origin, checked });
+        Ok(())
     }
 }
 
@@ -138,6 +140,10 @@ pub(super) trait RetainedConstructor: RetainedInstance {
     fn observation(&self) -> &serde_json::Value;
     fn checked(&self) -> &Self::Checked;
     fn verify_original(&self, original: &HirFnFacts) -> Result<Self::Checked, String>;
+
+    fn verify_store(&self, _store: &UnitStore) -> Result<(), String> {
+        Ok(())
+    }
 
     fn reverify(&self, original: &HirFnFacts, functions: &[HirFnFacts]) -> Result<(), String> {
         let checked = self.verify_original(original)?;

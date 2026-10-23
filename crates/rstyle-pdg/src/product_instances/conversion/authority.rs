@@ -2,6 +2,10 @@
 use super::model::{Definition, Observation, Selection};
 use crate::{HirFnFacts, HirNode, data_library::Registry};
 
+mod range;
+pub(super) use range::local_definition;
+pub(super) use range::verify as verify_range;
+
 const SOURCE: &str = "sha256:ec1dfed5b8eef22496fc85eeb0b26a5600944fb8d2f6d6e9aaf81fb45af06de5";
 
 pub(super) fn verify(
@@ -9,6 +13,12 @@ pub(super) fn verify(
     observed: &Observation,
     call: &HirNode,
 ) -> Result<(), String> {
+    let registry = reviewed(canonical)?;
+    definitions(registry, observed)?;
+    original_call(observed, call)
+}
+
+fn reviewed(canonical: &HirFnFacts) -> Result<&'static Registry, String> {
     let registry = crate::data_library::registry_for(canonical)
         .ok_or("Unpinned product conversion compiler/target")?;
     crate::data_library::verify_sysroot_roots(canonical, &["core", "std"], "Product conversion")?;
@@ -24,7 +34,10 @@ pub(super) fn verify(
     }
     super::review::verify()?;
 
-    definitions(registry, observed)?;
+    Ok(registry)
+}
+
+fn original_call(observed: &Observation, call: &HirNode) -> Result<(), String> {
     let requested = crate::data_library::callee(call)?;
     if requested != observed.into.requested.callee()? {
         return Err("Product original call differs from its pinned requested Into method".into());
@@ -112,4 +125,24 @@ fn pinned(
         ));
     }
     Ok(())
+}
+
+/// Definition ownership is independent of whether a local item is a type or method.
+pub(super) fn local_compiled(
+    canonical: &HirFnFacts,
+    definition: &Definition,
+    missing: &str,
+) -> Result<bool, String> {
+    let compiled = canonical
+        .build
+        .frontend_options
+        .get("rstyle.rust.compiled-crate")
+        .ok_or(missing)?;
+    Ok(definition.local
+        && definition.crate_hash.is_none()
+        && !definition.definition_identity.is_empty()
+        && !definition.path.is_empty()
+        && compiled["identity"] == "rstyle.rust.compiled-crate/1"
+        && compiled["crate_name"].as_str() == Some(definition.crate_name.as_str())
+        && compiled["stable_crate_id"].as_str() == Some(definition.stable_crate_id.as_str()))
 }

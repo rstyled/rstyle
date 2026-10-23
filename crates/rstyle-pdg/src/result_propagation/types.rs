@@ -1,9 +1,6 @@
 //! Structural type operations shared after each propagation proves its payload.
 pub(crate) fn scalar_path(ty: &syn::Type, name: &str) -> bool {
-    matches!(ty, syn::Type::Path(path) if path.qself.is_none()
-        && path.path.leading_colon.is_none() && path.path.segments.len() == 1
-        && path.path.segments[0].ident == name
-        && path.path.segments[0].arguments.is_none())
+    crate::source_evidence::plain_type_path(ty, name)
 }
 
 /// Each implementation proves its dedicated payload before exposing output parts.

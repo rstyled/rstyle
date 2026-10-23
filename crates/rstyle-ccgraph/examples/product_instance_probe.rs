@@ -14,7 +14,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let inventory: Value = serde_json::from_slice(&std::fs::read(observed)?)?;
     probe(&facts, &inventory)?;
     rstyle_pdg::verification_policy::strict(|| owning_probe(facts, &inventory))?;
-    println!("Original Span owning admission and strict sidecar replay passed");
+    println!(
+        "Both original constructor instances passed owning admission and strict sidecar replay"
+    );
     Ok(())
 }
 
@@ -32,19 +34,38 @@ fn owning_probe(facts: Vec<rstyle_pdg::HirFnFacts>, inventory: &Value) -> Result
         "Original complete owner captured: {} definitions",
         owner.functions().len()
     );
-    let instance = unit_store::UnitStore::capture_product_constructor(
-        Arc::clone(&owner),
-        ordinal,
-        &request["instances"][0],
+    let replay = unit_store::ProductConstructorReplay::new(owner, |_| Ok(()))?;
+    for (index, argument) in [
         product_instances::SpanArgument::Span,
+        product_instances::SpanArgument::RangeUsize,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        owning_instance(&replay, ordinal, &request["instances"][index], argument)?;
+    }
+    Ok(())
+}
+
+fn owning_instance(
+    replay: &unit_store::ProductConstructorReplay,
+    ordinal: usize,
+    observation: &Value,
+    argument: product_instances::SpanArgument,
+) -> Result<(), String> {
+    let instance = unit_store::UnitStore::capture_product_constructor(
+        Arc::clone(replay.owner()),
+        ordinal,
+        observation,
+        argument,
     )?;
     let analysis = instance.analysis();
     let view = analysis.function(0).ok_or("Missing checked instance")?;
     let pair = admitted_pair(&view)?;
-    eprintln!("Original Span owning pair independently verified");
+    verify_call_attacks(&pair, &view, argument)?;
+    eprintln!("Original {argument:?} owning pair independently verified");
     let mut sidecar = Vec::new();
     instance.write_product_constructor_sidecar(&mut sidecar)?;
-    let replay = unit_store::ProductConstructorReplay::new(owner, |_| Ok(()))?;
     let restored = replay.replay(&sidecar)?;
     let restored_analysis = restored.analysis();
     let restored_view = restored_analysis
@@ -115,6 +136,45 @@ fn probe(facts: &[rstyle_pdg::HirFnFacts], inventory: &Value) -> Result<(), Stri
     .is_ok()
     {
         return Err("Range unexpectedly acquired consuming ownership authority".into());
+    }
+    Ok(())
+}
+
+fn verify_call_attacks(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &dyn unit_store::EvidenceFacts,
+    argument: product_instances::SpanArgument,
+) -> Result<(), String> {
+    if argument != product_instances::SpanArgument::RangeUsize {
+        return Ok(());
+    }
+    for field in ["operator", "callee", "construct"] {
+        let mut changed = rstyle_pdg::producer::Pair {
+            pdg: pair.pdg.clone(),
+            cfg: pair.cfg.clone(),
+        };
+        let call = changed
+            .pdg
+            .nodes
+            .iter_mut()
+            .find(|node| {
+                node.attributes.construct.as_deref() == Some("data.product-instance.range-into")
+            })
+            .ok_or("Missing Range conversion CALL")?;
+        match field {
+            "operator" => {
+                call.attributes.operator =
+                    Some(rstyle_pdg::StringFact::known("different operation"))
+            }
+            "callee" => {
+                call.attributes.callee = Some(rstyle_pdg::StringFact::known("different callee"))
+            }
+            _ => call.attributes.construct = Some("data.product-instance.identity-into".into()),
+        }
+        let sealed = changed.serialize().map_err(|error| error.to_string())?;
+        if rstyle_pdg::producer::verify_serialized(&sealed, facts).is_ok() {
+            return Err(format!("Resealed changed Range {field} was accepted"));
+        }
     }
     Ok(())
 }

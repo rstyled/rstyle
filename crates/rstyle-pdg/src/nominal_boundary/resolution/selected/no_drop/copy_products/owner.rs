@@ -78,6 +78,12 @@ fn namespace(
     environment: &Environment,
     file: &str,
 ) -> Result<Namespace, String> {
+    if crate::extraction_profile::facts_support(facts, crate::range_values::CONSUMING_CAPABILITY)
+        && crate::range_values::consuming_input(facts)
+    {
+        crate::range_values::consuming::verify_fields(facts)?;
+        return range_namespace(facts, environment, file);
+    }
     let mut candidates = Vec::new();
 
     for module in environment
@@ -96,6 +102,57 @@ fn namespace(
     }
     let [(namespace, _)] = candidates.as_slice() else {
         return Err("Copy product source lacks a unique exact original function namespace".into());
+    };
+    Ok(namespace.clone())
+}
+
+/// Bind this receipt to source, without granting callable trait ownership.
+/// The reverse conversion resolver independently checks the exact trait/impl.
+fn range_namespace(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    file: &str,
+) -> Result<Namespace, String> {
+    let mut candidates = Vec::new();
+    for module in environment
+        .modules
+        .iter()
+        .filter(|module| module.path == std::path::Path::new(file))
+    {
+        let bytes = environment.source(&module.path)?.bytes();
+        for item in &module.items {
+            let syn::Item::Impl(item) = item else {
+                continue;
+            };
+            if item.trait_.is_none()
+                || item.unsafety.is_some()
+                || item.defaultness.is_some()
+                || !item.generics.params.is_empty()
+                || item.generics.where_clause.is_some()
+                || item.items.len() != 1
+            {
+                continue;
+            }
+            for member in &item.items {
+                let syn::ImplItem::Fn(method) = member else {
+                    continue;
+                };
+                if (crate::nominal_boundary::resolution::FunctionSource {
+                    vis: &method.vis,
+                    sig: &method.sig,
+                    body: &method.block,
+                })
+                .exact(bytes, facts)
+                {
+                    super::super::super::function_attributes(facts, &item.attrs)?;
+                    super::super::super::function_attributes(facts, &method.attrs)?;
+                    candidates.push(module.namespace.clone());
+                }
+            }
+        }
+    }
+    let [namespace] = candidates.as_slice() else {
+        return Err("Range Copy-source receipt lacks one exact original source owner".into());
     };
     Ok(namespace.clone())
 }

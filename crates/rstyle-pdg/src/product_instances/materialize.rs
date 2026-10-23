@@ -2,11 +2,13 @@
 use super::{SpanArgument, conversion, source};
 use crate::{
     HirFnFacts, HirNode, HirRef,
-    concrete_types::{self, InterfaceObservations, Observation, TypeTree},
+    concrete_types::{InterfaceObservations, Observation, TypeTree},
 };
 use serde_json::Value;
+mod range;
 #[cfg(test)]
 mod tests;
+pub use range::verify_range_constructor_projection;
 
 /// A complete source/type/conversion projection, separate from frontend admission.
 pub struct CheckedProjection {
@@ -14,9 +16,14 @@ pub struct CheckedProjection {
     argument: SpanArgument,
     operation: HirNode,
     source: crate::nominal_boundary::resolution::CheckedCopyProductSource,
+    local_from: Option<Box<HirFnFacts>>,
 }
 
 impl CheckedProjection {
+    pub fn local_from(&self) -> Option<&HirFnFacts> {
+        self.local_from.as_deref()
+    }
+
     pub fn facts(&self) -> &HirFnFacts {
         &self.facts
     }
@@ -45,49 +52,89 @@ pub fn verify(
     observation: &Value,
     argument: SpanArgument,
 ) -> Result<CheckedProjection, String> {
-    let mut interface = canonical
-        .build
-        .frontend_options
-        .data::<InterfaceObservations>()?
-        .as_ref()
-        .clone();
-    let Observation::Captured { ty: result } = &interface.result else {
-        return Err("Product instance requires its complete captured result".into());
-    };
+    let prepared = Prepared::new(canonical, observation)?;
+    let conversion = conversion::verify(canonical, observation, prepared.span()?, argument)?;
+    prepared.project(&conversion, argument)
+}
 
-    let source = source::verify(canonical, observation, result)?;
-    let copy_source = crate::nominal_boundary::resolution::checked_copy_product_source(canonical)?;
-    nominal_types(canonical, observation, result)?;
-    let span = span(result)?;
-    let conversion = conversion::verify(canonical, observation, span, argument)?;
-    if conversion.call() != source.conversion() || conversion.receiver() != source.receiver() {
-        return Err("Product conversion and source proofs identify different operations".into());
+struct Prepared<'a> {
+    source: source::CheckedSource<'a>,
+    interface: InterfaceObservations,
+    copy_source: crate::nominal_boundary::resolution::CheckedCopyProductSource,
+}
+
+impl<'a> Prepared<'a> {
+    fn new(canonical: &'a HirFnFacts, observation: &Value) -> Result<Self, String> {
+        let interface = canonical
+            .build
+            .frontend_options
+            .data::<InterfaceObservations>()?
+            .into_owned();
+        let Observation::Captured { ty: result } = &interface.result else {
+            return Err("Product instance requires its complete captured result".into());
+        };
+
+        let source = source::verify(canonical, observation, result)?;
+        let copy_source =
+            crate::nominal_boundary::resolution::checked_copy_product_source(canonical)?;
+        nominal_types(canonical, observation, result)?;
+
+        Ok(Self {
+            source,
+            interface,
+            copy_source,
+        })
     }
-    verify_original_receiver(canonical, conversion.call())?;
-    let token = crate::data_types::token(span)?;
-    let formal = source.input().hir.clone();
-    let facts = concrete_facts(canonical, &formal, &token)?;
-    let operation = concrete_operation(&facts, conversion.call(), &formal, &token)?;
-    let [_, input] = interface.parameters.as_mut_slice() else {
-        return Err("Product instance requires its exact two-formal interface".into());
-    };
-    if !matches!(input, Observation::Unsupported { .. }) {
-        return Err(
-            "Product input must retain its original unsupported generic observation".into(),
-        );
+
+    fn span(&self) -> Result<&TypeTree, String> {
+        let Observation::Captured { ty: result } = &self.interface.result else {
+            return Err("Product result lost its captured observation".into());
+        };
+        span(result)
     }
-    *input = Observation::Captured { ty: span.clone() };
-    let mut facts = facts;
-    facts.build.frontend_options.insert(
-        concrete_types::KEY.into(),
-        serde_json::to_value(interface).map_err(|error| error.to_string())?,
-    );
-    Ok(CheckedProjection {
-        facts,
-        argument,
-        operation,
-        source: copy_source,
-    })
+
+    fn project(
+        mut self,
+        conversion: &conversion::CheckedConversion,
+        argument: SpanArgument,
+    ) -> Result<CheckedProjection, String> {
+        let canonical = self.source.facts();
+        if conversion.call() != self.source.conversion()
+            || conversion.receiver() != self.source.receiver()
+        {
+            return Err(
+                "Product conversion and source proofs identify different operations".into(),
+            );
+        }
+
+        verify_original_receiver(canonical, conversion.call())?;
+        let token = crate::data_types::token(conversion.input())?;
+        let formal = &self.source.input().hir;
+        let mut facts = concrete_facts(canonical, formal, &token)?;
+        let operation = concrete_operation(&facts, conversion.call(), formal, &token)?;
+
+        let [_, input] = self.interface.parameters.as_mut_slice() else {
+            return Err("Product instance requires its exact two-formal interface".into());
+        };
+        if !matches!(input, Observation::Unsupported { .. }) {
+            return Err(
+                "Product input must retain its original unsupported generic observation".into(),
+            );
+        }
+
+        *input = Observation::Captured {
+            ty: conversion.input().clone(),
+        };
+        facts.build.frontend_options.insert_data(self.interface);
+
+        Ok(CheckedProjection {
+            facts,
+            argument,
+            operation,
+            source: self.copy_source,
+            local_from: None,
+        })
+    }
 }
 
 fn verify_original_receiver(canonical: &HirFnFacts, call: &HirNode) -> Result<(), String> {

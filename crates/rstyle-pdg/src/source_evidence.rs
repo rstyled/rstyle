@@ -952,3 +952,16 @@ impl<'ast> Inventory<'_> {
         true
     }
 }
+
+/// Compare complete ordered inventories without accepting a matching prefix.
+pub(crate) fn all_pairs<L, R>(
+    left: &[L],
+    right: &[R],
+    mut equal: impl FnMut(&L, &R) -> bool,
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| equal(left, right))
+}

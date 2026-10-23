@@ -3,7 +3,9 @@
 Data-v3 3.91 adds a private owning projection for the original regex-automata
 0.4.18 `Match::new<Span>`. The separate
 [development selection](../../eval/coverage-development/match-construction/selection.json)
-still includes `Match::new<Range<usize>>`; the complete family is unfinished.
+includes `Match::new<Range<usize>>`; Data-v3 3.92 now connects that second
+private owning instance. Fresh six-context capture and complete selected matching
+remain pending, so the family is not yet delivered.
 
 The projection checks the complete original source/body roster, nominal fields,
 builtin Copy derives, neighboring source closure, actual blanket Into delegation
@@ -28,7 +30,20 @@ checks original/projection negatives, owning production, serialized verification
 strict matcher admission and sidecar replay. It does not establish selected-pair
 matching completeness or native execution on captured foreign targets.
 
-Remaining Range chain: bounded consuming formal and no-drop evidence, ordered
-endpoint value projections, reverse local From owner/body verification, and an
-independently replayed Into-to-From dependency adapter. No Range Copy permission,
-general trait dispatch, destructor model or ordinary generic admission is added.
+The Range path proves the actual original `From<Range<usize>> for Span` body
+and lexical implementation owner, its complete ordered `start`/`end` selectors,
+and the pinned non-Copy/no-drop Range contract. The original constructor transfers
+its formal exactly once to Into; the checked blanket forwarding binds that site
+to the certified original From dependency. Original dispatch remains Into, and
+Range never receives the Span identity summary or Copy permission. Source joins
+permit only checked concrete normalization and redundant parameter-pattern type
+spelling equal to the original captured source type.
+
+Both instances pass owning production, serialized verification, strict admission
+and replay on the retained ARM Linux/x86 Linux/macOS 590-definition captures.
+Three resealed CALL attacks change the Range operator, callee or construct and
+must reject. These are cross-target evidence replays, not native foreign runs.
+The original From also passes strict production/admission in each complete owner.
+The selected owning instances gain one/lose zero against the preceding Span-only
+checkpoint; ordinary caller and frozen admission counts have not been reassessed.
+No general trait dispatch, destructor model or ordinary generic admission is added.

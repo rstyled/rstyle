@@ -3,6 +3,11 @@ use super::model::{Argument, Definition, Observation, Structural};
 use crate::{HirFnFacts, HirNode, concrete_types::TypeTree};
 use serde_json::Value;
 
+mod local_from;
+mod range;
+pub(super) use local_from::verify as join_local_from;
+pub(super) use range::verify as range_identity;
+
 pub(super) fn site(canonical: &HirFnFacts) -> Result<(&HirNode, &HirNode), String> {
     let operations =
         crate::field_locations::operations(&canonical.body, &["expr_method_call", "expr_call"]);
@@ -161,21 +166,16 @@ pub(super) fn local_nominal(
     let Structural::Adt {
         definition,
         arguments,
-    } = identity;
-    let compiled = canonical
-        .build
-        .frontend_options
-        .get("rstyle.rust.compiled-crate")
-        .ok_or("Missing original product compiled-crate identity")?;
-
-    if !definition.local
-        || definition.crate_hash.is_some()
-        || !arguments.is_empty()
-        || definition.definition_identity.is_empty()
+    } = identity
+    else {
+        return Err("Product local nominal requires its complete ADT identity".into());
+    };
+    if !super::authority::local_compiled(
+        canonical,
+        definition,
+        "Missing original product compiled-crate identity",
+    )? || !arguments.is_empty()
         || definition.path != nominal.definition_path
-        || compiled["identity"] != "rstyle.rust.compiled-crate/1"
-        || compiled["crate_name"].as_str() != Some(definition.crate_name.as_str())
-        || compiled["stable_crate_id"].as_str() != Some(definition.stable_crate_id.as_str())
     {
         return Err("Product observation differs from its source-resolved local nominal".into());
     }

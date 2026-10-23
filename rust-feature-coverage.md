@@ -5092,3 +5092,21 @@ Range still needs its consuming formal, ordered endpoint projections, verified
 local From body and an Into-to-From dependency adapter. Complete selected matching,
 fresh six-context captures and native execution remain pending; this is an
 owning-instance boundary, not completion of the two-instance family.
+
+Data3.92 connects the second selected private owning instance,
+`Match::new<Range<usize>>`, through the certified original local From body,
+ordered scalar endpoint reads and once-only non-Copy/no-drop Range transfer.
+The original Into CALL retains its actual dispatch and an exact From dependency;
+it never receives Span's identity summary. Both selected instances pass strict
+production, serialized verification, admission and replay on the three retained
+590-definition owners (ARM Linux, x86 Linux, macOS), including resealed CALL
+operator/callee/construct attacks. Owning-instance selection gains1/loses0 versus
+3.91; ordinary callers and frozen admissions have not been reassessed. Historical
+3.91 matching remains routed without the new capability. No new SHA computation,
+serialized lookup key, Copy permission or general destructor contract is added.
+Fresh six-context captures, complete selected matching and native foreign-target
+execution remain pending. The two-instance family and broader P01–P22 goal remain
+incomplete; this is a connected owning-instance checkpoint.
+Checkpoint validation:1,559 workspace tests/five existing skips plus doctests;
+fmt/Clippy pass, style0/5,163 and patterns0/15 unchanged ignores. Evidence:
+`/tmp/rstyle-395-*`; source-only oracle passes, fresh native oracle not rerun.

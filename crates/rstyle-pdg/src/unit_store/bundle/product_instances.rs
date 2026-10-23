@@ -76,7 +76,7 @@ impl ProductConstructorReplay {
 fn parse_argument(value: &str) -> Result<SpanArgument, String> {
     match value {
         "Span" => Ok(SpanArgument::Span),
-        "RangeUsize" => Err("Product Range replay requires its separate consuming proof".into()),
+        "RangeUsize" => Ok(SpanArgument::RangeUsize),
         _ => Err("Product sidecar requires its exact concrete argument".into()),
     }
 }

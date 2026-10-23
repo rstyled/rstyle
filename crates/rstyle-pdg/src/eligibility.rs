@@ -896,7 +896,7 @@ fn checked_operation(
 
 fn check_method(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     if ctx.profile.supports("rust.verified-inherent-helper-calls")
-        && crate::helper_calls::direct_resolution(node).is_some()
+        && crate::helper_calls::selected_resolution(node, ctx.facts).is_some()
     {
         return match crate::helper_calls::verify_use(node, ctx.facts) {
             Ok(_) => Outcome::ok(),

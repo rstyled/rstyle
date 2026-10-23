@@ -7,6 +7,7 @@ use serde_json::Value;
 
 mod external;
 pub(crate) mod instances;
+mod product_conversions;
 mod reference_forwarders;
 pub(crate) mod transport;
 mod transport_lexical;
@@ -285,7 +286,9 @@ pub fn direct_resolution(node: &HirNode) -> Option<Value> {
 
 /// Ordinary compiler resolution or the exact call retained by a private From proof.
 pub fn selected_resolution(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Value> {
-    direct_resolution(node).or_else(|| reference_forwarders::resolution(node, facts))
+    direct_resolution(node)
+        .or_else(|| reference_forwarders::resolution(node, facts))
+        .or_else(|| product_conversions::resolution(node, facts))
 }
 
 pub(crate) fn callee(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<String> {
@@ -312,7 +315,7 @@ pub(crate) fn call_nodes(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
         .chain(
             methods
                 .into_iter()
-                .filter(|node| direct_resolution(node).is_some()),
+                .filter(|node| selected_resolution(node, facts).is_some()),
         )
         .chain(
             crate::option_callbacks::invocations(
@@ -429,7 +432,8 @@ fn verify_shared(
     helper: &crate::unit_store::HelperView<'_>,
 ) -> Result<(), String> {
     let callee = helper.frontend();
-    let selected = reference_forwarders::verify(node, caller, &callee)?;
+    let selected = reference_forwarders::verify(node, caller, &callee)?
+        || product_conversions::verify(node, caller, &callee)?;
     let resolution = selected_resolution(node, caller).ok_or("Unresolved direct helper call")?;
 
     if helper.depth() + 1 > MAX_DEPTH {

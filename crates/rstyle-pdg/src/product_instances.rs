@@ -7,6 +7,7 @@ mod source;
 #[cfg(test)]
 mod test_support;
 
+pub use materialize::verify_range_constructor_projection;
 pub use materialize::{CheckedProjection, verify as verify_constructor_projection};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

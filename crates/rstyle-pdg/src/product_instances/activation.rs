@@ -10,6 +10,7 @@ mod tests;
 
 pub const CAPABILITY: &str = "rust.checked-product-constructor-instances";
 pub const CONSTRUCT: &str = "data.product-instance.identity-into";
+pub const RANGE_CONSTRUCT: &str = "data.product-instance.range-into";
 pub const SUMMARY: &str = "rstyle.product-instance.span-identity";
 
 pub fn verify(facts: &dyn EvidenceFacts) -> Result<bool, String> {
@@ -24,12 +25,18 @@ fn checked(facts: &dyn EvidenceFacts) -> Result<Option<&CheckedProjection>, Stri
     let Some(checked) = facts.product_instance() else {
         return Ok(None);
     };
-    if !crate::extraction_profile::facts_support(facts, CAPABILITY)
-        || checked.argument() != SpanArgument::Span
-    {
+    if !crate::extraction_profile::facts_support(facts, CAPABILITY) {
         return Err(
             "Product identity requires its checked Span substitution and capability".into(),
         );
+    }
+    if checked.argument() == SpanArgument::RangeUsize
+        && (!crate::extraction_profile::facts_support(
+            facts,
+            crate::range_values::CONSUMING_CAPABILITY,
+        ) || checked.local_from().is_none())
+    {
+        return Err("Range conversion requires its checked consuming capability and callee".into());
     }
 
     if checked.facts() != facts.facts() {
@@ -60,7 +67,32 @@ pub fn summary(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Option<Summa
     if !operation(node, facts)? {
         return Ok(None);
     }
+    if facts
+        .product_instance()
+        .is_some_and(|checked| checked.argument() == SpanArgument::RangeUsize)
+    {
+        return Ok(None);
+    }
     identity_summary(node).map(Some)
+}
+
+pub fn construct(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<Option<&'static str>, String> {
+    if !operation(node, facts)? {
+        return Ok(None);
+    }
+    Ok(Some(
+        match facts
+            .product_instance()
+            .ok_or("Missing checked product instance")?
+            .argument()
+        {
+            SpanArgument::Span => CONSTRUCT,
+            SpanArgument::RangeUsize => RANGE_CONSTRUCT,
+        },
+    ))
 }
 
 fn identity_summary(node: &HirNode) -> Result<Summary, String> {

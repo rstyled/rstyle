@@ -139,6 +139,7 @@ pub(super) fn checked_constructor_input<R: super::super::instances::RetainedCons
 ) -> Result<super::super::instances::RetainedInput<'_, R>, String> {
     let input = super::super::instances::retained_input::<R>(store)?;
     crate::verification_policy::strict(|| {
+        input.record.verify_store(store)?;
         input.record.reverify(input.original, &store.functions)?;
         store.validate_evidence()
     })?;

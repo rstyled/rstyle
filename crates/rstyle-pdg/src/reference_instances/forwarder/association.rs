@@ -113,7 +113,7 @@ fn symbolic(argument: &Value, expected: &Value) -> bool {
 }
 
 fn same(left: &[Argument], right: &[Argument]) -> bool {
-    left.len() == right.len() && left.iter().zip(right).all(|(a, b)| source::equal(a, b))
+    crate::source_evidence::all_pairs(left, right, source::equal)
 }
 
 fn inner(record: &Observation, constructor: &Observation, node: &HirNode) -> Result<()> {

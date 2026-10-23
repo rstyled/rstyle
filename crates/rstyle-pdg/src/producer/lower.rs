@@ -746,43 +746,47 @@ impl Builder<'_> {
                 .as_ref()
                 .map(|d| d.op.clone())
                 .or_else(|| crate::helper_calls::callee(node, self.facts)),
-            construct: if crate::product_instances::activation::operation(node, self.facts)
-                .expect("verified product operation")
-            {
-                Some(crate::product_instances::activation::CONSTRUCT.into())
-            } else if crate::reference_instances::activation::operation(node, self.facts)
-                .expect("verified reference operation")
-                .is_some()
-            {
-                Some(crate::reference_instances::activation::CONSTRUCT.into())
-            } else if let Some(construct) = crate::float_scalars::construct(node) {
-                Some(construct.into())
-            } else if crate::bool_usize::candidate(node) {
-                Some(crate::bool_usize::CONSTRUCT.into())
-            } else if crate::character_ascii::candidate(node, self.facts) {
-                Some(crate::character_ascii::CONSTRUCT.into())
-            } else if crate::fieldless_enums::cast_candidate(node, self.facts) {
-                Some(crate::fieldless_enums::CAST.into())
-            } else if crate::size_calls::candidate(node, self.facts) {
-                Some(crate::size_calls::CONSTRUCT.into())
-            } else if let Some(kind) = crate::bitset_cardinality::kind(node, self.facts) {
-                Some(kind.construct().into())
-            } else if let Some(kind) = crate::checked_lengths::kind(node, self.facts) {
-                Some(kind.construct().into())
-            } else if crate::scalar_from::candidate(node, self.facts) {
-                Some(crate::scalar_from::CONSTRUCT.into())
-            } else if crate::checked_options::get_candidate(node, self.facts) {
-                Some("data.option-get".into())
-            } else {
-                crate::data_bytes::kind(node)
-                    .filter(|_| crate::data_bytes::enabled(self.facts))
-                    .map(|kind| kind.construct().into())
-            },
+            construct: self.computation_construct(node),
             operands: evaluated.values,
             ..template(node, category)
         };
 
         self.emit(operation, evaluated.flow)
+    }
+
+    fn computation_construct(&self, node: &HirNode) -> Option<String> {
+        if let Some(construct) = crate::product_instances::activation::construct(node, self.facts)
+            .expect("verified product operation")
+        {
+            Some(construct.into())
+        } else if crate::reference_instances::activation::operation(node, self.facts)
+            .expect("verified reference operation")
+            .is_some()
+        {
+            Some(crate::reference_instances::activation::CONSTRUCT.into())
+        } else if let Some(construct) = crate::float_scalars::construct(node) {
+            Some(construct.into())
+        } else if crate::bool_usize::candidate(node) {
+            Some(crate::bool_usize::CONSTRUCT.into())
+        } else if crate::character_ascii::candidate(node, self.facts) {
+            Some(crate::character_ascii::CONSTRUCT.into())
+        } else if crate::fieldless_enums::cast_candidate(node, self.facts) {
+            Some(crate::fieldless_enums::CAST.into())
+        } else if crate::size_calls::candidate(node, self.facts) {
+            Some(crate::size_calls::CONSTRUCT.into())
+        } else if let Some(kind) = crate::bitset_cardinality::kind(node, self.facts) {
+            Some(kind.construct().into())
+        } else if let Some(kind) = crate::checked_lengths::kind(node, self.facts) {
+            Some(kind.construct().into())
+        } else if crate::scalar_from::candidate(node, self.facts) {
+            Some(crate::scalar_from::CONSTRUCT.into())
+        } else if crate::checked_options::get_candidate(node, self.facts) {
+            Some("data.option-get".into())
+        } else {
+            crate::data_bytes::kind(node)
+                .filter(|_| crate::data_bytes::enabled(self.facts))
+                .map(|kind| kind.construct().into())
+        }
     }
 
     fn structure(&mut self, node: &HirNode, flow: Flow) -> Flow {

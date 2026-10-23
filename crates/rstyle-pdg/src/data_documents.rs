@@ -343,6 +343,7 @@ fn verify_call_operations(
 ) -> Result<(), String> {
     checked_instances::verify::<reference_instances::Operations>(pair, facts)?;
     checked_instances::verify::<product_instances::Operations>(pair, facts)?;
+    checked_instances::verify::<product_instances::RangeOperations>(pair, facts)?;
     reference_products::verify(pair, facts)?;
     scalar_from::verify(pair, facts, calls)?;
     character_ascii::verify(pair, facts, calls)?;

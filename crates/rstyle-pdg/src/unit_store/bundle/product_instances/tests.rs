@@ -50,7 +50,7 @@ fn wrong_owner_argument_and_serialized_authority_are_rejected() {
             .unwrap()
             .contains("selected owner")
     );
-    for argument in ["RangeUsize", "usize", "Span "] {
+    for argument in ["usize", "Span "] {
         let mut changed = wire(&original);
         changed["argument"] = argument.into();
         let bytes = serde_json::to_vec(&changed).unwrap();
@@ -86,5 +86,21 @@ fn generated_policy_cannot_bypass_original_ownership_or_export_checks() {
             .err()
             .unwrap()
             .contains("not a product constructor instance")
+    );
+}
+
+#[test]
+fn range_wire_argument_still_requires_an_original_definition() {
+    let original = owner();
+    let replay = ProductConstructorReplay::new(Arc::clone(&original), |_| Ok(())).unwrap();
+    let mut changed = wire(&original);
+    changed["argument"] = "RangeUsize".into();
+    let bytes = serde_json::to_vec(&changed).unwrap();
+    assert!(
+        replay
+            .replay(&bytes)
+            .err()
+            .unwrap()
+            .contains("absent original definition")
     );
 }

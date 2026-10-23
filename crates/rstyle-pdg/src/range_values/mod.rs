@@ -1,10 +1,12 @@
 //! Fresh non-Copy Range results, without local storage or general move semantics.
 pub mod authority;
+pub(crate) mod consuming;
 mod selection;
 
 use crate::{HirNode, concrete_types::Observation, unit_store::EvidenceFacts};
 
 pub const CAPABILITY: &str = "rust.fresh-range-results";
+pub(crate) const CONSUMING_CAPABILITY: &str = "rust.consuming-range-conversions";
 pub(crate) const TOKEN: &str = r#"{"kind":"range_usize"}"#;
 
 pub(crate) fn is_range(node: &HirNode) -> bool {
@@ -43,6 +45,12 @@ pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {
     if !used(facts) {
         return Ok(());
     }
+    if consuming_input(facts) {
+        if !crate::extraction_profile::facts_support(facts, CONSUMING_CAPABILITY) {
+            return Err("Consuming Range input requires its registered capability".into());
+        }
+        return consuming::verify_fields(facts).map(|_| ());
+    }
     if !crate::extraction_profile::facts_support(facts, CAPABILITY) {
         return Err("Fresh Range results require their registered capability".into());
     }
@@ -78,6 +86,27 @@ pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {
     let source: syn::ItemFn = syn::parse_str(&facts.source.bytes).map_err(|e| e.to_string())?;
     crate::source_evidence::closed_body(&source.block)?;
     fresh(&facts.body, true)
+}
+
+pub(crate) fn consuming_input(facts: &dyn EvidenceFacts) -> bool {
+    facts
+        .signature
+        .params
+        .iter()
+        .any(|parameter| parameter.ty.normalized.as_deref() == Some(TOKEN))
+}
+
+pub(crate) fn value_field(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<Option<usize>, String> {
+    if node.kind != "expr_field"
+        || !node.children.first().is_some_and(is_range)
+        || !crate::extraction_profile::facts_support(facts, CONSUMING_CAPABILITY)
+    {
+        return Ok(None);
+    }
+    consuming::verify_fields(facts)?.position(node)
 }
 
 fn fresh(node: &HirNode, returning: bool) -> Result<(), String> {

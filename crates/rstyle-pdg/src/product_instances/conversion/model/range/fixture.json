@@ -1,0 +1,615 @@
+{
+  "observation": {
+    "identity": "rstyle.rust.product-into-from-observation/1",
+    "hir": {
+      "krate": 0,
+      "owner": 843,
+      "local": 9
+    },
+    "span": {
+      "start": 91,
+      "end": 102
+    },
+    "receiver": {
+      "krate": 0,
+      "owner": 843,
+      "local": 11
+    },
+    "receiver_type": [
+      {
+        "kind": "type",
+        "value": "core::ops::Range<usize>",
+        "display_only": true,
+        "identity_status": "known",
+        "identity": {
+          "kind": "adt",
+          "definition": {
+            "path": "core::ops::Range",
+            "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+            "crate": "core",
+            "stable_crate_id": "StableCrateId(5614226571623188065)",
+            "local": false
+          },
+          "arguments": [
+            {
+              "kind": "builtin",
+              "name": "usize"
+            }
+          ]
+        }
+      }
+    ],
+    "result_type": [
+      {
+        "kind": "type",
+        "value": "util::search::Span",
+        "display_only": true,
+        "identity_status": "known",
+        "identity": {
+          "kind": "adt",
+          "definition": {
+            "path": "util::search::Span",
+            "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+            "crate": "regex_automata",
+            "stable_crate_id": "StableCrateId(3110190647891633628)",
+            "local": true
+          },
+          "arguments": []
+        }
+      }
+    ],
+    "adjustments": [],
+    "from_selection_basis": "independent compiler selection of From<concrete input> for actual Span; not a core Into body/effect proof",
+    "into": {
+      "requested": {
+        "path": "core::convert::Into::into",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 16030961817817393146))",
+        "crate": "core",
+        "stable_crate_id": "StableCrateId(5614226571623188065)",
+        "local": false,
+        "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+      },
+      "requested_trait": {
+        "path": "core::convert::Into",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 8456630946339444921))",
+        "crate": "core",
+        "stable_crate_id": "StableCrateId(5614226571623188065)",
+        "local": false,
+        "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+      },
+      "requested_arguments": [
+        {
+          "kind": "type",
+          "value": "core::ops::Range<usize>",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "core::ops::Range",
+              "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+              "crate": "core",
+              "stable_crate_id": "StableCrateId(5614226571623188065)",
+              "local": false
+            },
+            "arguments": [
+              {
+                "kind": "builtin",
+                "name": "usize"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ],
+      "selected": {
+        "path": "<T as core::convert::Into<U>>::into",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 4505297086250473726))",
+        "crate": "core",
+        "stable_crate_id": "StableCrateId(5614226571623188065)",
+        "local": false,
+        "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+      },
+      "selected_impl": {
+        "path": "<T as core::convert::Into<U>>",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 3785085442851023334))",
+        "crate": "core",
+        "stable_crate_id": "StableCrateId(5614226571623188065)",
+        "local": false,
+        "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+      },
+      "selected_trait": {
+        "path": "core::convert::Into",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 8456630946339444921))",
+        "crate": "core",
+        "stable_crate_id": "StableCrateId(5614226571623188065)",
+        "local": false,
+        "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+      },
+      "selected_arguments": [
+        {
+          "kind": "type",
+          "value": "core::ops::Range<usize>",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "core::ops::Range",
+              "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+              "crate": "core",
+              "stable_crate_id": "StableCrateId(5614226571623188065)",
+              "local": false
+            },
+            "arguments": [
+              {
+                "kind": "builtin",
+                "name": "usize"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ],
+      "original_impl_trait_arguments": [
+        {
+          "kind": "parameter",
+          "index": 0,
+          "name": "T"
+        },
+        {
+          "kind": "parameter",
+          "index": 1,
+          "name": "U"
+        }
+      ],
+      "substituted_impl_trait_arguments": [
+        {
+          "kind": "type",
+          "value": "core::ops::Range<usize>",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "core::ops::Range",
+              "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+              "crate": "core",
+              "stable_crate_id": "StableCrateId(5614226571623188065)",
+              "local": false
+            },
+            "arguments": [
+              {
+                "kind": "builtin",
+                "name": "usize"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ],
+      "requested_signature": {
+        "inputs": [
+          [
+            {
+              "kind": "type",
+              "value": "core::ops::Range<usize>",
+              "display_only": true,
+              "identity_status": "known",
+              "identity": {
+                "kind": "adt",
+                "definition": {
+                  "path": "core::ops::Range",
+                  "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+                  "crate": "core",
+                  "stable_crate_id": "StableCrateId(5614226571623188065)",
+                  "local": false
+                },
+                "arguments": [
+                  {
+                    "kind": "builtin",
+                    "name": "usize"
+                  }
+                ]
+              }
+            }
+          ]
+        ],
+        "output": [
+          {
+            "kind": "type",
+            "value": "util::search::Span",
+            "display_only": true,
+            "identity_status": "known",
+            "identity": {
+              "kind": "adt",
+              "definition": {
+                "path": "util::search::Span",
+                "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+                "crate": "regex_automata",
+                "stable_crate_id": "StableCrateId(3110190647891633628)",
+                "local": true
+              },
+              "arguments": []
+            }
+          }
+        ],
+        "bound_variables": 0
+      },
+      "selected_signature": {
+        "inputs": [
+          [
+            {
+              "kind": "type",
+              "value": "core::ops::Range<usize>",
+              "display_only": true,
+              "identity_status": "known",
+              "identity": {
+                "kind": "adt",
+                "definition": {
+                  "path": "core::ops::Range",
+                  "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+                  "crate": "core",
+                  "stable_crate_id": "StableCrateId(5614226571623188065)",
+                  "local": false
+                },
+                "arguments": [
+                  {
+                    "kind": "builtin",
+                    "name": "usize"
+                  }
+                ]
+              }
+            }
+          ]
+        ],
+        "output": [
+          {
+            "kind": "type",
+            "value": "util::search::Span",
+            "display_only": true,
+            "identity_status": "known",
+            "identity": {
+              "kind": "adt",
+              "definition": {
+                "path": "util::search::Span",
+                "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+                "crate": "regex_automata",
+                "stable_crate_id": "StableCrateId(3110190647891633628)",
+                "local": true
+              },
+              "arguments": []
+            }
+          }
+        ],
+        "bound_variables": 0
+      }
+    },
+    "from": {
+      "requested": {
+        "path": "core::convert::From::from",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 5283227860215656468))",
+        "crate": "core",
+        "stable_crate_id": "StableCrateId(5614226571623188065)",
+        "local": false,
+        "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+      },
+      "requested_trait": {
+        "path": "core::convert::From",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 8299352005360573279))",
+        "crate": "core",
+        "stable_crate_id": "StableCrateId(5614226571623188065)",
+        "local": false,
+        "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+      },
+      "requested_arguments": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        },
+        {
+          "kind": "type",
+          "value": "core::ops::Range<usize>",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "core::ops::Range",
+              "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+              "crate": "core",
+              "stable_crate_id": "StableCrateId(5614226571623188065)",
+              "local": false
+            },
+            "arguments": [
+              {
+                "kind": "builtin",
+                "name": "usize"
+              }
+            ]
+          }
+        }
+      ],
+      "selected": {
+        "path": "<util::search::Span as core::convert::From<core::ops::Range<usize>>>::from",
+        "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 2772757977121578653))",
+        "crate": "regex_automata",
+        "stable_crate_id": "StableCrateId(3110190647891633628)",
+        "local": true
+      },
+      "selected_impl": {
+        "path": "<util::search::Span as core::convert::From<core::ops::Range<usize>>>",
+        "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 103377273272188070))",
+        "crate": "regex_automata",
+        "stable_crate_id": "StableCrateId(3110190647891633628)",
+        "local": true
+      },
+      "selected_trait": {
+        "path": "core::convert::From",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 8299352005360573279))",
+        "crate": "core",
+        "stable_crate_id": "StableCrateId(5614226571623188065)",
+        "local": false,
+        "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+      },
+      "selected_arguments": [],
+      "original_impl_trait_arguments": [
+        {
+          "kind": "adt",
+          "definition": {
+            "path": "util::search::Span",
+            "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+            "crate": "regex_automata",
+            "stable_crate_id": "StableCrateId(3110190647891633628)",
+            "local": true
+          },
+          "arguments": []
+        },
+        {
+          "kind": "adt",
+          "definition": {
+            "path": "core::ops::Range",
+            "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+            "crate": "core",
+            "stable_crate_id": "StableCrateId(5614226571623188065)",
+            "local": false,
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+          },
+          "arguments": [
+            {
+              "kind": "builtin",
+              "name": "usize"
+            }
+          ]
+        }
+      ],
+      "substituted_impl_trait_arguments": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        },
+        {
+          "kind": "type",
+          "value": "core::ops::Range<usize>",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "core::ops::Range",
+              "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+              "crate": "core",
+              "stable_crate_id": "StableCrateId(5614226571623188065)",
+              "local": false
+            },
+            "arguments": [
+              {
+                "kind": "builtin",
+                "name": "usize"
+              }
+            ]
+          }
+        }
+      ],
+      "requested_signature": {
+        "inputs": [
+          [
+            {
+              "kind": "type",
+              "value": "core::ops::Range<usize>",
+              "display_only": true,
+              "identity_status": "known",
+              "identity": {
+                "kind": "adt",
+                "definition": {
+                  "path": "core::ops::Range",
+                  "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+                  "crate": "core",
+                  "stable_crate_id": "StableCrateId(5614226571623188065)",
+                  "local": false
+                },
+                "arguments": [
+                  {
+                    "kind": "builtin",
+                    "name": "usize"
+                  }
+                ]
+              }
+            }
+          ]
+        ],
+        "output": [
+          {
+            "kind": "type",
+            "value": "util::search::Span",
+            "display_only": true,
+            "identity_status": "known",
+            "identity": {
+              "kind": "adt",
+              "definition": {
+                "path": "util::search::Span",
+                "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+                "crate": "regex_automata",
+                "stable_crate_id": "StableCrateId(3110190647891633628)",
+                "local": true
+              },
+              "arguments": []
+            }
+          }
+        ],
+        "bound_variables": 0
+      },
+      "selected_signature": {
+        "inputs": [
+          [
+            {
+              "kind": "type",
+              "value": "core::ops::Range<usize>",
+              "display_only": true,
+              "identity_status": "known",
+              "identity": {
+                "kind": "adt",
+                "definition": {
+                  "path": "core::ops::Range",
+                  "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+                  "crate": "core",
+                  "stable_crate_id": "StableCrateId(5614226571623188065)",
+                  "local": false
+                },
+                "arguments": [
+                  {
+                    "kind": "builtin",
+                    "name": "usize"
+                  }
+                ]
+              }
+            }
+          ]
+        ],
+        "output": [
+          {
+            "kind": "type",
+            "value": "util::search::Span",
+            "display_only": true,
+            "identity_status": "known",
+            "identity": {
+              "kind": "adt",
+              "definition": {
+                "path": "util::search::Span",
+                "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+                "crate": "regex_automata",
+                "stable_crate_id": "StableCrateId(3110190647891633628)",
+                "local": true
+              },
+              "arguments": []
+            }
+          }
+        ],
+        "bound_variables": 0
+      }
+    }
+  },
+  "range": {
+    "observation": {
+      "arguments": [
+        "usize"
+      ],
+      "definition": {
+        "crate": "core",
+        "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+        "definition_hash": "DefPathHash(Fingerprint(5614226571623188065, 860015315731983206))",
+        "path": "core::ops::Range"
+      },
+      "fields": [
+        {
+          "name": "start",
+          "position": 0,
+          "scalar": "usize"
+        },
+        {
+          "name": "end",
+          "position": 1,
+          "scalar": "usize"
+        }
+      ],
+      "has_drop_impl": false,
+      "is_copy": false,
+      "lang_item": "Range",
+      "needs_drop": false
+    }
+  }
+}

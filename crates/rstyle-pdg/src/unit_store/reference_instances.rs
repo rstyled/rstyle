@@ -47,12 +47,13 @@ impl InstanceProof for ConstructorProof<'_> {
         store: &mut UnitStore,
         origin: OriginalInstance<Haystack>,
         checked: CheckedProjection,
-    ) {
+    ) -> Result<(), String> {
         store.reference_instance = Some(ReferenceInstanceRecord {
             origin,
             checked,
             observation: self.observation.clone(),
         });
+        Ok(())
     }
 }
 

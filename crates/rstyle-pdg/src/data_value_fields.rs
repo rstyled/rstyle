@@ -4,6 +4,9 @@ use crate::{HirNode, data_types::TypeToken, unit_store::EvidenceFacts};
 use syn::{ext::IdentExt, spanned::Spanned};
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
+    if crate::range_values::value_field(node, facts).is_ok_and(|position| position.is_some()) {
+        return true;
+    }
     if node.kind != "expr_field"
         || !crate::extraction_profile::ExtractionProfile::from_facts(facts)
             .is_ok_and(|profile| profile.supports("rust.aggregate-value-fields"))
@@ -60,6 +63,9 @@ fn reassigned(node: &HirNode, target: &crate::HirRef) -> bool {
 }
 
 pub(crate) fn index(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<usize, String> {
+    if let Some(position) = crate::range_values::value_field(node, facts)? {
+        return Ok(position);
+    }
     if !candidate(node, facts) {
         return Err("Field lacks a supported aggregate value base".into());
     }

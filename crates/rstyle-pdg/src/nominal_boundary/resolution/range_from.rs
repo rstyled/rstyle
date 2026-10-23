@@ -2,6 +2,8 @@
 //! This proves neither pinned library identity nor move/drop/type authority.
 use super::*;
 
+mod reverse;
+
 pub(super) struct Owner {
     pub namespace: Namespace,
     pub implementation: ByteSpan,
@@ -9,6 +11,22 @@ pub(super) struct Owner {
 }
 
 pub(super) fn owner(facts: &HirFnFacts, resolution: &Resolution) -> Result<Option<Owner>, String> {
+    find_owner(facts, resolution, conversion)
+}
+
+/// Reverse lexical ownership only; consumes no Range and grants no Copy proof.
+pub(super) fn reverse_owner(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+) -> Result<Option<Owner>, String> {
+    find_owner(facts, resolution, reverse::conversion)
+}
+
+fn find_owner(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    check: impl Fn(&HirFnFacts, &Resolution, &census::Module, &syn::ItemImpl) -> Result<Owner, String>,
+) -> Result<Option<Owner>, String> {
     resolution.environment.check_context(facts)?;
     let file = facts
         .build
@@ -29,7 +47,7 @@ pub(super) fn owner(facts: &HirFnFacts, resolution: &Resolution) -> Result<Optio
             if let syn::Item::Impl(item) = item
                 && exact_method(item, bytes, facts).is_some()
             {
-                let candidate = conversion(facts, resolution, module, item)?;
+                let candidate = check(facts, resolution, module, item)?;
                 if found.replace(candidate).is_some() {
                     return Err("Ambiguous exact Range conversion owner".into());
                 }
@@ -63,6 +81,9 @@ pub(super) fn observed<'a>(
 }
 
 pub(super) fn bind(facts: &HirFnFacts, resolution: &mut Resolution) -> Result<bool, String> {
+    if bind_reverse(facts, resolution)? {
+        return Ok(true);
+    }
     if facts.name.rsplit("::").next() != Some("from") {
         return Ok(false);
     }
@@ -76,9 +97,43 @@ pub(super) fn bind(facts: &HirFnFacts, resolution: &mut Resolution) -> Result<bo
         return Err("Range conversion input lacks checked local Copy ownership".into());
     }
 
-    resolution.namespace = owner.namespace;
-    resolution.receiver = Some(range);
-    resolution.range_owner = Some((owner.implementation, owner.parameter));
+    install_owner(resolution, owner, range);
+    Ok(true)
+}
+
+/// Bind only the gated, captured reverse interface after exact lexical proof.
+fn bind_reverse(facts: &HirFnFacts, resolution: &mut Resolution) -> Result<bool, String> {
+    if !supports(facts, "rust.consuming-range-conversions")?
+        || facts.name.rsplit("::").next() != Some("from")
+    {
+        return Ok(false);
+    }
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let [
+        Observation::Captured {
+            ty: TypeTree::RangeUsize { .. },
+        },
+    ] = interface.parameters.as_slice()
+    else {
+        return Ok(false);
+    };
+    let Observation::Captured {
+        ty: result @ TypeTree::Struct { .. },
+    } = &interface.result
+    else {
+        return Ok(false);
+    };
+    let Some(owner) = reverse_owner(facts, resolution)? else {
+        return Ok(false);
+    };
+    if !resolution.checked_owned_copy(result) {
+        return Err("Reverse Range result lacks checked local Copy ownership".into());
+    }
+
+    install_owner(resolution, owner, result.clone());
     Ok(true)
 }
 
@@ -294,6 +349,17 @@ impl Scope<'_> {
     }
 
     fn trait_input<'a>(&self, item: &'a syn::ItemImpl) -> Result<&'a syn::TypePath, String> {
+        let (input, output) = self.conversion_paths(item)?;
+        if !self.range(output)? {
+            return Err("Range conversion owner is not exact Range<usize>".into());
+        }
+        Ok(input)
+    }
+
+    fn conversion_paths<'a>(
+        &self,
+        item: &'a syn::ItemImpl,
+    ) -> Result<(&'a syn::TypePath, &'a syn::TypePath), String> {
         let Some((negative, path, _)) = &item.trait_ else {
             return Err("Range conversion lacks a trait owner".into());
         };
@@ -301,17 +367,13 @@ impl Scope<'_> {
             return Err("Range conversion lacks exact core/std From ownership".into());
         }
 
+        let syn::Type::Path(input) = argument(path)? else {
+            return Err("Range From input is not a concrete path".into());
+        };
         let syn::Type::Path(output) = item.self_ty.as_ref() else {
             return Err("Range conversion owner is not a concrete type path".into());
         };
-        if !self.range(output)? {
-            return Err("Range conversion owner is not exact Range<usize>".into());
-        }
-
-        let syn::Type::Path(input) = argument(path)? else {
-            return Err("Range From input is not a concrete local path".into());
-        };
-        Ok(input)
+        Ok((input, output))
     }
 
     fn method(&self, method: &syn::ImplItemFn, input: &syn::TypePath) -> Result<(), String> {
@@ -517,11 +579,17 @@ fn signature(signature: &syn::Signature) -> Result<(), String> {
     Ok(())
 }
 
+fn install_owner(resolution: &mut Resolution, owner: Owner, receiver: TypeTree) {
+    resolution.namespace = owner.namespace;
+    resolution.receiver = Some(receiver);
+    resolution.range_owner = Some((owner.implementation, owner.parameter));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn lexical(bytes: &str) -> Resolution {
+    pub(super) fn lexical(bytes: &str) -> Resolution {
         let mut census = (*environment::tests::census()).clone();
         census.files[0].bytes = bytes.into();
         census.files[0].digest = concrete_types::digest(bytes.as_bytes());
