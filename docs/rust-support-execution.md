@@ -721,3 +721,32 @@ original initializer/dependency proof and complete product lowering remain.
 Do not substitute the primitive u32::MAX contract for legacy core::i32::MAX,
 or assume transparent layout proves evaluated fields. The full constructor
 chain still needs Usize/core conversion and non-Copy Result transport.
+
+Data3.96 connects original `<usize as Usize>::as_u64` through its debug
+`u64::try_from(self).expect("usize overflowed u64")` body. Complete local trait
+declaration/impl membership, requested/selected instances, original scalar
+signature and ordinary source/build/body/summary proofs remain required. Exact
+reviewed64-bit core authority proves always-Ok conversion with real TryFromIntError;
+literal message evaluation is retained. Arbitrary/saved Results, narrowing,
+effectful messages and escaping strings receive no new permission.
+
+Fresh unchanged native no-default owner:109→110/590, one gain/zero losses.
+Seven strict original/replay identity comparisons are Accepted score1; all21
+selected original pairs finish. Std/no_std Cargo composition, semantic boundary
+oracle, resealed message/selection attacks and3.95 downgrades pass. Four x86 Linux/
+ARM macOS std/no_std captures strictly replay; foreign native execution remains
+pending. Native public-API oracle:8,202 cases in each of four feature/debug contexts,
+zero mismatches. All1,644 tests/five existing skips plus doctests, fmt/Clippy, style0/5538
+and patterns0/15 unchanged ignores pass. Frozen `run-lz1z4duc` preserves all60
+identities/denominators/outcomes at24 admitted/29 excluded/7 inactive;118 document
+checks. Routine consistency stays XXH3; SHA remains for reviewed source pins and
+historical claims, with no serialized lookup key. Method-shape filtering precedes call-inventory scans. Composition
+test1.33s excludes compilation; this is not a controlled speedup claim.
+Evidence:`/tmp/rstyle-404-{native-delta,native-strict,cross-results,frozen-comparison}`.
+
+Next connected blockers: MAX typed value/initializer/dependency proof; named-scalar
+non-Copy error no-drop receipt; exact core TryFrom/associated Error selection;
+Result-aware original owner closure and fresh whole-result helper transport.
+Existing scalar-error leaf remains unregistered. Generated PatternID additionally
+needs emitted callable/error ownership and ordered constructor callbacks.
+Readiness/write-set audits:`/tmp/rstyle-405-{max-ready,scalar-error-ready}.md`.

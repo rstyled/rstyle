@@ -188,6 +188,11 @@ fn empty_error_payload(source: &HirNode) -> Result<Vec<Origin>, String> {
 
 /// This is an explicit source-proved exception for Err, never a missing-root default.
 pub(super) fn verified_empty(node: &PdgNode, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    if node.attributes.construct.as_deref()
+        == Some(crate::lossless_integer_calls::message::CONSTRUCT)
+    {
+        return crate::lossless_integer_calls::message::verify(source_node(node, facts)?, facts);
+    }
     let token = crate::data_types::parse(&wire_type(node)?)?;
 
     let crate::data_types::TypeToken::Result { ok, err } = token else {

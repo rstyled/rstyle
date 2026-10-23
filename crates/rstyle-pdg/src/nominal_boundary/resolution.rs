@@ -22,6 +22,7 @@ mod range_from;
 mod reference_owners;
 mod scalar_aliases;
 mod selected;
+pub(crate) mod value_traits;
 pub(crate) use environment::{Environment, SourceOptions};
 pub(crate) use selected::no_drop::copy_products::CheckedCopyProductSource;
 mod import_chains;

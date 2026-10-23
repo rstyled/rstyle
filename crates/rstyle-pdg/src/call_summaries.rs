@@ -94,6 +94,9 @@ pub fn resolve_for(
     if crate::size_calls::candidate(node, facts) {
         return crate::size_calls::resolve(node, facts);
     }
+    if crate::lossless_integer_calls::kind(node, facts).is_some() {
+        return crate::lossless_integer_calls::resolve(node, facts);
+    }
     if crate::bitset_cardinality::kind(node, facts).is_some() {
         return crate::bitset_cardinality::resolve(node, facts);
     }
@@ -179,7 +182,8 @@ pub(crate) fn static_intrinsic(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> bool {
-    crate::bitset_cardinality::kind(node, facts).is_some()
+    crate::lossless_integer_calls::kind(node, facts).is_some()
+        || crate::bitset_cardinality::kind(node, facts).is_some()
         || crate::size_calls::candidate(node, facts)
         || crate::scalar_from::candidate(node, facts)
         || crate::data_bytes::enabled(facts) && crate::data_bytes::kind(node).is_some()

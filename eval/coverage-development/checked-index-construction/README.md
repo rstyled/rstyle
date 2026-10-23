@@ -58,14 +58,24 @@ The caller `one_more → as_usize` now composes. Matching for the complete libra
 remains explicitly budget-incomplete; cross-target/default contexts are pending.
 Evidence:`/tmp/rstyle-403-native-delta.json`, `/tmp/rstyle-403-strict.log`.
 
-The checked constructor family remains incomplete. Its remaining chain is MAX
+At Data3.95 the checked constructor family remained incomplete. Its remaining chain was MAX
 nominal constant evidence, real local Usize/debug core conversion dispatch,
 non-Copy scalar-error no-drop/whole Result transport and connected summaries.
 Generated PatternID additionally needs emitted callable/error ownership and
 ordered map/map_err constructor transport. Separate unregistered proof leaves
-for scalar errors and local trait dispatch are development work, not activation.
+for scalar errors and local trait dispatch were development work, not activation.
 
-Final source gate preserves ordinary lexical alias/import rejection and adds
+Data3.96 delivers the Usize/debug conversion prerequisite: exact local value-trait
+selection and reviewed64-bit always-Ok usize→u64/expect compose. Actual
+TryFromIntError identity and evaluated literal message remain checked. The fresh
+native no-default roster gains only original Usize::as_u64 (109→110/590), with no
+losses; seven strict original/replay matches and all21 original pairs finish.
+Four std/no_std x86 Linux/ARM macOS diagnostic captures strictly replay; these are
+not foreign native executions. MAX, named-error no-drop, nominal core TryFrom/
+associated Error, Result-aware owner closure and whole-result summaries remain
+connected prerequisites. The scalar-error leaf is still unregistered.
+
+The Data3.95 final source gate preserves ordinary lexical alias/import rejection and adds
 adversarial generated primitive/glob controls. All1,624 workspace tests plus
 doctests pass, fmt/Clippy pass, style0 and patterns0 with15 unchanged ignores.
 Strict replay checks all six identity pairs and completes15 original pairs;

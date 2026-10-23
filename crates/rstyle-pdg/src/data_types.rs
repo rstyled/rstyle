@@ -442,7 +442,9 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         {
             check_fieldless_variants(variants)
         }
-        TypeToken::IntConversionResult(value) if matches!(value.as_str(), "usize" | "u16") => {
+        TypeToken::IntConversionResult(value)
+            if matches!(value.as_str(), "usize" | "u16" | "u64") =>
+        {
             Ok(())
         }
         TypeToken::SliceArrayResult { length, .. }
@@ -562,6 +564,11 @@ fn check_conversion_capabilities(
     text: &str,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<(), String> {
+    if text.contains("\"kind\":\"int_conversion_result\",\"value\":\"u64\"")
+        && !profile.supports("rust.lossless-usize-u64-calls")
+    {
+        return Err("Lossless u64 Result requires its registered capability".into());
+    }
     if text.contains("\"kind\":\"int_conversion_result\"")
         && !profile.supports("rust.bitset-cardinality")
     {

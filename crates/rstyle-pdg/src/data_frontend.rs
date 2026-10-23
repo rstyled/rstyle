@@ -61,6 +61,7 @@ pub(crate) fn verify_document_policy(
         return Err("Scalar instances require their registered document policy".into());
     }
     crate::default_calls::verify_document_policy(profile, facts)?;
+    crate::nominal_boundary::resolution::value_traits::verify_document_policy(profile, facts)?;
     verify_value_document_policy(profile, facts)?;
     let capabilities = [
         crate::helper_stored_slices::CAPABILITY,
@@ -383,19 +384,30 @@ fn verify_interface(
                 parameter.ty.normalized.as_deref(),
             )?,
             syn::FnArg::Receiver(receiver) => {
-                if receiver.reference.is_none()
-                    && !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
-                        .supports("rust.owned-copy-self")
+                verify_receiver_policy(receiver, facts)?;
+                if !crate::nominal_boundary::resolution::value_traits::receiver(facts, observation)?
                 {
-                    return Err("Owned self requires its registered Copy boundary".into());
+                    verify_receiver(receiver, observation, parameter, resolution)?;
                 }
-                verify_receiver(receiver, observation, parameter, resolution)?
             }
         }
         verify_parameter_origins(parameter)?;
     }
 
     verify_output(facts, &source.sig.output, &interface.result, resolution)?;
+    Ok(())
+}
+
+fn verify_receiver_policy(
+    receiver: &syn::Receiver,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    if receiver.reference.is_none()
+        && !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.owned-copy-self")
+    {
+        return Err("Owned self requires its registered Copy boundary".into());
+    }
     Ok(())
 }
 
@@ -689,6 +701,9 @@ fn verify_reference_origins(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if crate::lossless_integer_calls::message::verify(node, facts)? {
+        return Ok(());
+    }
     if crate::concrete_results::constructor_candidate(node, facts) {
         let checked = crate::concrete_results::verify_constructor(node, facts)?;
         if checked.construct == "data.result-err" {

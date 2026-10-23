@@ -396,7 +396,9 @@ impl<'tcx> Capture<'_, 'tcx> {
         if !tcx.is_diagnostic_item(rustc_span::sym::Result, definition.did())
             || !(arguments.type_at(0) == tcx.types.usize
                 || self.ctx.profile.supports("rust.end-of-input")
-                    && arguments.type_at(0) == tcx.types.u16)
+                    && arguments.type_at(0) == tcx.types.u16
+                || self.ctx.profile.supports("rust.lossless-usize-u64-calls")
+                    && arguments.type_at(0) == tcx.types.u64)
         {
             return None;
         }

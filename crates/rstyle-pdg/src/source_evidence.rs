@@ -8,6 +8,10 @@ mod positions;
 pub(crate) use attributes::single_identifier_attribute;
 mod exact_pairs;
 pub(crate) use exact_pairs::exact_pairs;
+mod definitions;
+pub(crate) use definitions::require_definition;
+mod conversions;
+pub(crate) use conversions::primitive_conversion;
 mod syntax;
 pub(crate) use syntax::{plain_type_path, plain_value_path};
 mod variant_paths;
@@ -803,6 +807,7 @@ fn resolved_summary(
 ) -> bool {
     (node.hir == *hir
         && (crate::inherent_calls::source_resolved(node, facts).unwrap_or(false)
+            || crate::local_value_trait_calls::resolution(node, facts).is_some()
             || crate::helper_option_callbacks::candidate(node, facts)
                 && crate::helper_option_callbacks::verify_source(node, facts).is_ok()
             || crate::named_callbacks::candidate(node, facts)

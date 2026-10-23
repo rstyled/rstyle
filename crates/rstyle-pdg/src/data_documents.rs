@@ -404,6 +404,7 @@ fn verify_call_operations(
     float_scalars::verify(pair, facts)?;
     bool_usize::verify(pair, facts)?;
     bitset_cardinality::verify(pair, facts, calls)?;
+    crate::local_value_trait_calls::verify_document_policy(pair, facts, calls)?;
     checked_lengths::verify(pair, facts)?;
 
     borrowed_result_propagation::verify(pair, facts)?;

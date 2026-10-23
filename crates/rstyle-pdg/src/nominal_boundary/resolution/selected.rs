@@ -671,6 +671,15 @@ pub(super) fn check_namespace(
     )
 }
 
+pub(in crate::nominal_boundary::resolution) fn primitive_trait_namespace(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    namespace: &[String],
+) -> Result<(), String> {
+    check_namespace(facts, environment, namespace)?;
+    imports::verify(facts, environment, namespace)
+}
+
 fn function_cleanup_certificate(
     input: &dyn crate::unit_store::EvidenceFacts,
     environment: &Environment,

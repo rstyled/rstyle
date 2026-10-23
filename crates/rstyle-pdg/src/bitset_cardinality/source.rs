@@ -5,7 +5,7 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
     let syntax = crate::source_evidence::original_expression(node, facts)?;
     let source = crate::data_aggregates::ungroup(&syntax);
     let arguments = if kind.implementation().is_some() {
-        vec![conversion(
+        vec![crate::source_evidence::primitive_conversion(
             source,
             if kind == Kind::Narrow { "u16" } else { "usize" },
         )?]
@@ -35,36 +35,6 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
         }
     }
     Ok(())
-}
-
-fn conversion<'a>(source: &'a syn::Expr, target: &str) -> Result<&'a syn::Expr, String> {
-    let syn::Expr::Call(call) = source else {
-        return Err("Integer conversion requires direct syntax".into());
-    };
-    let syn::Expr::Path(path) = crate::data_aggregates::ungroup(&call.func) else {
-        return Err("Integer conversion requires a builtin primitive path".into());
-    };
-    let names: Vec<_> = path
-        .path
-        .segments
-        .iter()
-        .map(|part| part.ident.to_string())
-        .collect();
-
-    if call.args.len() != 1
-        || path.qself.is_some()
-        || path
-            .path
-            .segments
-            .iter()
-            .any(|part| !part.arguments.is_empty())
-        || !(names == [target, "try_from"]
-            || names == ["core", "primitive", target, "try_from"]
-            || names == ["std", "primitive", target, "try_from"])
-    {
-        return Err("Integer conversion source is outside its primitive contract".into());
-    }
-    Ok(&call.args[0])
 }
 
 fn method(source: &syn::Expr, kind: Kind) -> Result<Vec<&syn::Expr>, String> {

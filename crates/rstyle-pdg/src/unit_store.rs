@@ -945,7 +945,9 @@ fn function_links(
         .supports("rust.verified-helper-calls");
     let mut links = BTreeMap::new();
     for node in crate::helper_calls::call_nodes(facts) {
-        let Some(resolution) = crate::helper_calls::direct_resolution(node) else {
+        let Some(resolution) = crate::local_value_trait_calls::resolution(node, facts)
+            .or_else(|| crate::helper_calls::direct_resolution(node))
+        else {
             continue;
         };
         if !resolution[crate::helper_calls::KEY].is_null() {

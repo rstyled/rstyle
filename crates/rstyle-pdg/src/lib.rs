@@ -69,6 +69,8 @@ mod helper_stored_slices;
 mod helper_views;
 pub mod inherent_calls;
 pub mod iterator_position;
+pub(crate) mod local_value_trait_calls;
+pub(crate) mod lossless_integer_calls;
 pub mod model;
 pub(crate) mod mutable_scalars;
 pub(crate) mod named_callbacks;

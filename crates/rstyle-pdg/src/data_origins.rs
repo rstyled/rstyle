@@ -51,6 +51,10 @@ pub fn origins(
     if !shared(&ty) {
         return Ok(Vec::new());
     }
+    // This exact nonescaping static literal has no formal referent dependency.
+    if crate::lossless_integer_calls::message::verify(node, facts)? {
+        return Ok(Vec::new());
+    }
 
     if let Some(origins) = crate::owned_product_values::source(node, &[], facts)? {
         return Ok(origins);

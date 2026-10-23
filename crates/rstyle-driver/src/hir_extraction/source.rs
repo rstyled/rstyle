@@ -37,6 +37,7 @@ impl<'a> Visitor<'a> for Scan {
             conditional_source: false,
             profile: self.profile,
             match_pattern: false,
+            literal_message: None,
         };
         owned.visit_block(body);
 
@@ -50,6 +51,7 @@ impl<'a> Visitor<'a> for Scan {
 }
 
 struct Owned {
+    literal_message: Option<Span>,
     match_pattern: bool,
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     findings: Vec<Finding>,
@@ -173,8 +175,26 @@ impl<'a> Visitor<'a> for Owned {
         if self.conditional_let(expression) {
             return;
         }
+
+        self.with_literal_message(expression);
+    }
+}
+
+impl Owned {
+    fn with_literal_message(&mut self, expression: &ast::Expr) {
+        let previous = self.literal_message;
+        if let Some(span) = lossless_message(expression, self.profile) {
+            self.literal_message = Some(span);
+        }
+
+        self.expression(expression);
+        self.literal_message = previous;
+    }
+
+    fn expression(&mut self, expression: &ast::Expr) {
         if let Some((capability, construct)) = deferred(&expression.kind)
             && !selected_expression(&expression.kind, self.profile)
+            && self.literal_message != Some(expression.span)
         {
             self.reject(expression.span, capability, construct);
             return;
@@ -182,6 +202,57 @@ impl<'a> Visitor<'a> for Owned {
 
         visit::walk_expr(self, expression);
     }
+}
+
+/// Syntactic candidate only; independent HIR/core/source checks grant semantics.
+fn lossless_message(
+    expression: &ast::Expr,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Option<Span> {
+    if !profile.supports("rust.lossless-usize-u64-calls") {
+        return None;
+    }
+
+    let ast::ExprKind::MethodCall(method) = &expression.kind else {
+        return None;
+    };
+    if method.seg.ident.name.as_str() != "expect" || method.seg.args.is_some() {
+        return None;
+    }
+
+    let [message] = method.args.as_slice() else {
+        return None;
+    };
+    let ast::ExprKind::Lit(literal) = &message.kind else {
+        return None;
+    };
+
+    if !matches!(
+        literal.kind,
+        ast::token::LitKind::Str | ast::token::LitKind::StrRaw(_)
+    ) || literal.suffix.is_some()
+    {
+        return None;
+    }
+
+    let ast::ExprKind::Call(callee, arguments) = &method.receiver.kind else {
+        return None;
+    };
+    let ast::ExprKind::Path(None, path) = &callee.kind else {
+        return None;
+    };
+
+    let names: Vec<_> = path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.name.as_str())
+        .collect();
+    (arguments.len() == 1
+        && path.segments.iter().all(|segment| segment.args.is_none())
+        && (names == ["u64", "try_from"]
+            || names == ["core", "primitive", "u64", "try_from"]
+            || names == ["std", "primitive", "u64", "try_from"]))
+    .then_some(message.span)
 }
 
 impl Owned {

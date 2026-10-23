@@ -955,7 +955,7 @@ fn enum_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
     })
 }
 
-fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+fn data_constructor_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
     if let Some(outcome) = enum_kind(node, ctx) {
         return Some(outcome);
     }
@@ -966,11 +966,24 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         return Some(check_result_constructor(node, ctx));
     }
 
+    None
+}
+
+fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if let Some(outcome) = data_constructor_kind(node, ctx) {
+        return Some(outcome);
+    }
     let ty = || match node_norm(node) {
         Some(token) if accepted_type(token, ctx.facts) => Outcome::ok(),
         _ => check_expr_ty(node, "data_value"),
     };
     match node.kind.as_str() {
+        "expr_lit"
+            if crate::lossless_integer_calls::message::verify(node, ctx.facts)
+                .is_ok_and(|value| value) =>
+        {
+            Some(Outcome::ok())
+        }
         "expr_lit" if node_norm(node).is_some_and(|ty| matches!(ty, "char" | "f32" | "f64")) => {
             Some(ty())
         }

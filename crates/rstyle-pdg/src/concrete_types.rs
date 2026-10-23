@@ -306,7 +306,7 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
         TypeTree::RangeFromUsize { observation } => crate::range_values::authority::range_from_shape(observation),
         TypeTree::RangeToUsize { observation } => crate::range_values::authority::range_to_shape(observation),
         TypeTree::Result { ok, err } => result_shape(ok, err),
-        TypeTree::IntConversionResult(value) if !matches!(value.as_str(), "usize" | "u16") => {
+        TypeTree::IntConversionResult(value) if !matches!(value.as_str(), "usize" | "u16" | "u64") => {
             Err("Integer conversion Result requires a registered scalar payload".into())
         }
         TypeTree::Option(payload) if !option_payload(payload) => {

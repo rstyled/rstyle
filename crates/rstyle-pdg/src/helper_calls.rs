@@ -286,7 +286,8 @@ pub fn direct_resolution(node: &HirNode) -> Option<Value> {
 
 /// Ordinary compiler resolution or the exact call retained by a private From proof.
 pub fn selected_resolution(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Value> {
-    direct_resolution(node)
+    crate::local_value_trait_calls::resolution(node, facts)
+        .or_else(|| direct_resolution(node))
         .or_else(|| reference_forwarders::resolution(node, facts))
         .or_else(|| product_conversions::resolution(node, facts))
 }
@@ -604,11 +605,17 @@ fn check_signature(
         return external::signature(node, caller, resolution, callee);
     }
     let build = same_build(caller, callee)?;
+    let requested = if resolution.get("value_trait_requested").is_some() {
+        crate::local_value_trait_calls::verify_selection(node, caller, callee, resolution)?;
+        resolution["value_trait_requested"].as_str() == Some(dispatch.op.as_str())
+    } else {
+        dispatch.op == callee.name
+    };
     if !signature
         || !build
         || resolution["local"] != true
         || resolution["path"] != callee.name
-        || dispatch.op != callee.name
+        || !requested
         || resolution["definition_identity"].as_str() != identity(callee)
     {
         return Err(
@@ -746,6 +753,7 @@ fn serialized_helper_count(pair: producer::PairView<'_>, records: &[Value]) -> u
                                 | "data.scalar-size"
                                 | "data.integer.try-u32-usize"
                                 | "data.integer.try-usize-u16"
+                                | "data.integer.try-usize-u64"
                         )
                     )
                     || records.iter().any(|record| {

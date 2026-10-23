@@ -5178,3 +5178,11 @@ remain24 admitted/29 excluded/7 inactive. All1,624 tests/five skips, doctests,
 fmt/Clippy, style0/5,480 and patterns0/15 unchanged ignores pass. Checked
 construction remains incomplete behind MAX, conversion and error transport;
 [frontier and bounded evidence](docs/rust-support-execution.md).
+
+Data3.96 connects exact local nongeneric `usize → u64` value-trait methods to
+their verified bodies, including the reviewed 64-bit `u64::try_from(self).expect`
+chain. The real error is `TryFromIntError`; totality follows from the selected
+implementation, with the literal message retained as an evaluated operand.
+Native unchanged owners gain `Usize::as_u64` (109→110/590, no losses); frozen60
+remains24/29/7. General trait dispatch, arbitrary Result consumption and checked
+SmallIndex construction remain incomplete. [Validation and next blockers](docs/rust-support-execution.md).

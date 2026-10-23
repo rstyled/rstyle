@@ -124,6 +124,9 @@ pub(crate) fn verify(
     resolution: &serde_json::Value,
 ) -> Result<(), String> {
     crate::range_values::verify_selection(node, caller, callee, resolution)?;
+    if resolution.get("value_trait_requested").is_some() {
+        return crate::local_value_trait_calls::verify_selection(node, caller, callee, resolution);
+    }
     if resolution.get("inherent").is_none() {
         return if callee.signature.has_self {
             Err("Associated helper lacks resolved inherent ownership".into())

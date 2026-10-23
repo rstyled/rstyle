@@ -260,6 +260,9 @@ impl Builder<'_> {
 
     fn literal(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let mut operation = template(node, NodeCategory::Computation);
+        if crate::lossless_integer_calls::message::verify(node, self.facts).unwrap_or(false) {
+            operation.construct = Some(crate::lossless_integer_calls::message::CONSTRUCT.into());
+        }
         operation.literal = Some(if crate::float_scalars::computation(node) {
             operation.construct = crate::float_scalars::construct(node).map(str::to_string);
             crate::float_scalars::literal(node, self.facts)
@@ -784,6 +787,8 @@ impl Builder<'_> {
             Some(crate::fieldless_enums::CAST.into())
         } else if crate::size_calls::candidate(node, self.facts) {
             Some(crate::size_calls::CONSTRUCT.into())
+        } else if let Some(kind) = crate::lossless_integer_calls::kind(node, self.facts) {
+            Some(kind.construct().into())
         } else if let Some(kind) = crate::bitset_cardinality::kind(node, self.facts) {
             Some(kind.construct().into())
         } else if let Some(kind) = crate::checked_lengths::kind(node, self.facts) {

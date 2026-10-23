@@ -197,15 +197,9 @@ pub(super) fn local(facts: &HirFnFacts, definition: &model::Definition) -> Resul
 
 pub(super) fn definition(facts: &HirFnFacts, definition: &model::Definition) -> Result<(), String> {
     local(facts, definition)?;
-    if definition.path != facts.name
-        || facts
-            .build
-            .frontend_options
-            .get("definition_identity")
-            .and_then(serde_json::Value::as_str)
-            != Some(definition.definition_identity.as_str())
-    {
-        return Err("Default selected definition differs from exact original function".into());
-    }
-    Ok(())
+    crate::source_evidence::require_definition(
+        facts,
+        &definition.path,
+        &definition.definition_identity,
+    )
 }
