@@ -61,7 +61,9 @@ pub(crate) fn verify(census: &Census, cfgs: &[String]) -> Result<BTreeSet<PathBu
 
     for input in &census.documentation {
         check_builtin(input)?;
-        if input.invocation.path != root.path || input.invocation.digest != root.bytes.identity() {
+        if input.invocation.path != root.path
+            || !root.bytes.matches_identity(&input.invocation.digest)
+        {
             return Err("Documentation invocation belongs to another source owner".into());
         }
 
@@ -131,7 +133,7 @@ fn check_input(census: &Census, input: &Input, literal: &str) -> Result<(), Stri
         .iter()
         .find(|file| file.path == input.input.path)
         .ok_or("Missing immutable documentation input")?;
-    if file.digest != file.bytes.identity()
+    if !file.bytes.matches_identity(&file.digest)
         || input.input.digest != file.digest
         || input.expanded_digest != file.digest
         || input.input.span.start

@@ -2,7 +2,6 @@
 
 use rstyle_pdg::frontend::*;
 use rustc_middle::ty::TyCtxt;
-use sha2::{Digest, Sha256};
 
 pub(super) fn compiled_crate(
     tcx: TyCtxt<'_>,
@@ -18,8 +17,20 @@ pub(super) fn compiled_crate(
     }
 }
 
+pub(super) fn source_identity(
+    source: &rstyle_pdg::SourceText,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> String {
+    if profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3 {
+        source.checksum().to_owned()
+    } else {
+        // Historical function-source conformance, including pinned r0, remains SHA.
+        source.identity().to_owned()
+    }
+}
+
 pub fn digest(bytes: &[u8]) -> String {
-    format!("sha256:{:x}", Sha256::digest(bytes))
+    rstyle_pdg::source_identity::checksum(bytes)
 }
 
 pub fn build(tcx: TyCtxt<'_>, invocation: &[String]) -> BuildFacts {

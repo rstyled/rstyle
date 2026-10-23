@@ -62,7 +62,7 @@ impl<'a> Proof<'a> {
             .declarations
             .get(&key)
             .ok_or("Missing cleanup product declaration")?;
-        if environment.declaration_identity(declaration)? != nominal.declaration_digest {
+        if !environment.declaration_matches(declaration, &nominal.declaration_digest)? {
             return Err("Cleanup product original declaration identity disagrees".into());
         }
         Ok(key)

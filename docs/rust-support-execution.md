@@ -494,3 +494,25 @@ The audit found no cryptographic requirement for routine new source checks.
 Checkpoint gates:1,574 tests pass/five existing skips plus doctests; fmt and
 warning-denied Clippy pass; style0/5179 and patterns0/15 unchanged ignores.
 Gate logs:`/tmp/rstyle-396-*-final.log`. Frozen reassessment remains pending.
+
+
+### Routine source checksums — unchanged Data3.92 support
+
+Fresh Data-v3 function claims and fresh manifest/file/declaration claims now use
+existing XXH3. Strict checks dispatch by the explicit scheme; malformed/unknown
+claims, missing bytes, changed ranges and contradictory linked records remain
+errors. Actual immutable owners retain lazy SHA verification for old claims;
+r0 function conformance and reviewed library/frozen SHA pins remain unchanged.
+[Format boundary](performance/unit-build-contexts.md#routine-source-consistency-subsequent-data392-increment).
+
+All1,577 tests/five existing skips and doctests pass; fmt/Clippy pass,
+style0/5,189 and patterns0/15 unchanged ignores. Python inventory tests23 pass.
+Unchanged frozen sixty:23 admitted/30 excluded/7 inactive, gain0/loss0 versus
+`run-dm2kys18`; fresh evidence:`target/hir-coverage/run-d4nnwn0k`. This inventory
+verifies capture/schema/correspondence, not strict matching completeness.
+Retained SHA and fresh XXH3 native590-definition Match owners both pass strict
+constructor verification/replay and all six selected matching pairs, with
+identical decisions/scores. Diagnostic replay samples12.16/12.05s do not establish
+a controlled speedup. Evidence:`/tmp/rstyle-397-{gates,frozen-comparison,matching-results}.json`.
+No new admission capability. Ordinary generic callers and the mutable backtracking
+blocker chain remain outstanding; the P01–P22 goal stays active.

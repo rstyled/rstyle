@@ -37,7 +37,7 @@ impl PackageContext {
             || self.name.is_empty()
             || self.version.is_empty()
             || self.manifest_bytes.len() > MAX_MANIFEST_BYTES
-            || self.manifest_digest != self.manifest_bytes.identity()
+            || !self.manifest_bytes.matches_identity(&self.manifest_digest)
             || !self.manifest_path.is_absolute()
             || self
                 .manifest_path
@@ -217,7 +217,7 @@ fn check_range(
     span: crate::ByteSpan,
     function: &crate::SourceFacts,
 ) -> Result<(), String> {
-    if function.digest != function.bytes.identity()
+    if !function.bytes.matches_identity(&function.digest)
         || source.get(span.start as usize..span.end as usize) != Some(function.bytes.as_str())
     {
         return Err(

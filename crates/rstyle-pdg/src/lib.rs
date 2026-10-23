@@ -93,6 +93,7 @@ pub mod scalar_result_propagation;
 pub mod size_calls;
 pub mod size_constants;
 pub mod source_evidence;
+pub mod source_identity;
 mod source_table;
 pub mod unit_store;
 pub mod validate;

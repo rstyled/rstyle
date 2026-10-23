@@ -1,6 +1,6 @@
 //! Observe direct builtin crate documentation expansion and its complete buffer.
 use super::{module_expansions::file_span, sources::Sources};
-use rstyle_pdg::{concrete_types::digest, nominal_boundary::census::documentation::Input};
+use rstyle_pdg::{nominal_boundary::census::documentation::Input, source_identity::checksum};
 use rustc_ast::token::DocFragmentKind;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
@@ -41,7 +41,7 @@ pub(super) fn capture(tcx: TyCtxt<'_>, sources: &Sources) -> Result<Vec<Input>, 
             input,
             physical_path,
             builtin: super::library_resolution::definition(tcx, definition),
-            expanded_digest: digest(comment.as_str().as_bytes()),
+            expanded_digest: checksum(comment.as_str().as_bytes()),
         });
     }
     Ok(inputs)

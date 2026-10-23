@@ -244,7 +244,7 @@ pub fn check_budget(census: &Census) -> Result<(), String> {
 fn checked_files<'a>(
     census: &'a Census,
     documentation: &BTreeSet<PathBuf>,
-) -> Result<BTreeMap<PathBuf, &'a crate::SourceSnapshot>, String> {
+) -> Result<BTreeMap<PathBuf, &'a UnitFile>, String> {
     census.context.transport()?;
     check_budget(census)?;
     if census.identity != IDENTITY || census.files.len() > MAX_FILES {
@@ -268,8 +268,8 @@ fn checked_files<'a>(
                     .components()
                     .any(|c| matches!(c, std::path::Component::ParentDir)))
             || !locations.insert(documentation::in_package(root, &file.path)?)
-            || file.digest != file.bytes.identity()
-            || files.insert(file.path.clone(), &file.bytes).is_some()
+            || !file.bytes.matches_identity(&file.digest)
+            || files.insert(file.path.clone(), file).is_some()
         {
             return Err("Invalid, duplicate, escaping or over-budget census file".into());
         }
@@ -284,7 +284,7 @@ struct Site<'a> {
 }
 
 struct Closure<'a> {
-    files: BTreeMap<PathBuf, &'a crate::SourceSnapshot>,
+    files: BTreeMap<PathBuf, &'a UnitFile>,
     visited: BTreeSet<PathBuf>,
     modules: Vec<Module>,
     constants: bool,
@@ -328,7 +328,10 @@ impl Closure<'_> {
             .files
             .get(site.path)
             .ok_or("Missing selected module source buffer")?;
-        let source = source.strip_prefix('\u{feff}').unwrap_or(source);
+        let source = source
+            .bytes
+            .strip_prefix('\u{feff}')
+            .unwrap_or(&source.bytes);
         let file = syn::parse_file(source).map_err(|e| e.to_string())?;
         if let Some(configuration) = &self.selected {
             selected_attributes(configuration, &file.attrs, true, self.module_lints)?;

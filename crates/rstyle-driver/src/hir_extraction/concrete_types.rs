@@ -609,7 +609,7 @@ impl<'tcx> Capture<'_, 'tcx> {
                 }
                 .to_string_lossy()
                 .into_owned(),
-                file_digest: snapshot.identity().to_owned(),
+                file_digest: snapshot.checksum().to_owned(),
                 file_bytes: snapshot.bytes.clone(),
                 declaration_span,
                 builtin_copy: copy::observe(self.ctx, id),
@@ -698,7 +698,7 @@ fn nominal(
             manifest_digest: context.package.manifest_digest.clone(),
             source_identity: Some(context.package.package_id.clone()),
             definition_path,
-            declaration_digest: source.identity().to_owned(),
+            declaration_digest: source.checksum().to_owned(),
         });
     }
     let package_name = std::env::var("CARGO_PKG_NAME")
@@ -716,9 +716,9 @@ fn nominal(
         package_name,
         source_identity: None,
         package_version,
-        manifest_digest: manifest.identity().to_owned(),
+        manifest_digest: manifest.checksum().to_owned(),
         definition_path,
-        declaration_digest: source.identity().to_owned(),
+        declaration_digest: source.checksum().to_owned(),
     })
 }
 

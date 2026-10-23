@@ -270,7 +270,7 @@ pub(crate) fn from_facts(facts: &HirFnFacts) -> Result<Resolution, String> {
 }
 
 struct Declaration {
-    identity: std::cell::OnceCell<String>,
+    identity: crate::source_identity::Memo,
     path: PathBuf,
     span: ByteSpan,
     namespace: Namespace,
@@ -1205,7 +1205,9 @@ impl Resolution {
             || nominal.package_name != package.name
             || nominal.package_version != package.version
             || nominal.manifest_digest != package.manifest_digest
-            || nominal.declaration_digest != self.environment.declaration_identity(declaration)?
+            || !self
+                .environment
+                .declaration_matches(declaration, &nominal.declaration_digest)?
         {
             return Err("Nominal owner contradicts the exact lexical declaration/package".into());
         }

@@ -433,7 +433,7 @@ fn check_identity(nominal: &Nominal, source: &crate::SourceText) -> Result<(), S
     if nominal.package_name.is_empty()
         || nominal.package_version.is_empty()
         || !is_digest(&nominal.manifest_digest)
-        || nominal.declaration_digest != source.identity()
+        || !source.matches_identity(&nominal.declaration_digest)
     {
         return Err(
             "Concrete nominal source/package identity is incomplete or inconsistent".into(),
@@ -493,11 +493,5 @@ pub fn field_declarations(source: &str) -> Result<Vec<(String, String)>, String>
 }
 
 fn is_digest(value: &str) -> bool {
-    let bytes = value.as_bytes();
-
-    bytes.len() == 71
-        && &bytes[..7] == b"sha256:"
-        && bytes[7..]
-            .iter()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+    crate::source_identity::Scheme::parse(value).is_some()
 }

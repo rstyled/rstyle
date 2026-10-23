@@ -1,6 +1,17 @@
 """Version 3 ownership and independently inactive definition checks against captured source and compilation contexts."""
 import hashlib
+import xxhash
 from pathlib import PurePosixPath
+
+
+def matches_source(text, claim):
+    """Check routine consistency independently of frozen SHA source identities."""
+    data = text.encode()
+    if isinstance(claim, str) and claim.startswith('xxh3-64:'):
+        return claim == 'xxh3-64:' + xxhash.xxh3_64_hexdigest(data)
+    if isinstance(claim, str) and claim.startswith('sha256:'):
+        return claim == 'sha256:' + hashlib.sha256(data).hexdigest()
+    return False
 
 
 def context_key(unit):
@@ -37,7 +48,8 @@ def verify(selected, record):
     actual = 'sha256:' + hashlib.sha256(source['bytes'].encode()).hexdigest()
     identifier = facts['build']['frontend_options'].get('source_identifier')
     return (source['bytes'] == selected['source']
-            and source.get('digest') == expected == actual
+            and expected == actual
+            and matches_source(source['bytes'], source.get('digest'))
             and identifier == selected['name'].removeprefix('r#'))
 
 
@@ -61,8 +73,9 @@ def verify_inactive(selected, entry):
             and entry.get('name', '').removeprefix('r#') == selected['name'].removeprefix('r#')
             and 0 <= start <= end <= len(source.encode())
             and source.encode()[start:end] == selected['source'].encode()
-            and entry.get('source_digest') == 'sha256:' + hashlib.sha256(source.encode()).hexdigest()
-            and entry.get('function_source_digest') == 'sha256:' + selected['sha256'])
+            and hashlib.sha256(selected['source'].encode()).hexdigest() == selected['sha256']
+            and matches_source(source, entry.get('source_digest'))
+            and matches_source(selected['source'], entry.get('function_source_digest')))
 
 
 def map_definition(selected, report, roster):

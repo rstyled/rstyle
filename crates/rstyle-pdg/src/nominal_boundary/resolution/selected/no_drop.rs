@@ -122,7 +122,7 @@ fn original_declaration(
         }
         _ => return Err("Cleanup declaration has an unsupported nominal kind".into()),
     }
-    if environment.declaration_identity(declaration)? != nominal.declaration_digest {
+    if !environment.declaration_matches(declaration, &nominal.declaration_digest)? {
         return Err("Cleanup declaration source identity disagrees".into());
     }
     Ok(key)

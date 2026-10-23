@@ -137,6 +137,7 @@ impl super::Closure<'_> {
         let source = self
             .files
             .get(site.path)
+            .map(|record| &record.bytes)
             .ok_or("Missing original import source")?;
         let span = crate::ByteSpan {
             start: crate::source_evidence::original_span(source, item.extern_token.span).start,
@@ -152,7 +153,7 @@ impl super::Closure<'_> {
         let [(index, record)] = matching.as_slice() else {
             return Err("Missing or duplicate original external macro import observation".into());
         };
-        if record.declaration.digest != source.identity()
+        if !source.matches_identity(&record.declaration.digest)
             || !self.used_external_imports.insert(*index)
         {
             return Err("External macro import source or unique ownership disagrees".into());

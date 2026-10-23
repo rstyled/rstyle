@@ -154,7 +154,7 @@ fn function_source<'tcx>(
         name: tcx.def_path_str(id.to_def_id()),
         fn_span,
         source: SourceFacts {
-            digest: source_bytes.identity().to_owned(),
+            digest: evidence::source_identity(&source_bytes, options.selected()),
             bytes: source_bytes,
         },
         signature: signature(&ctx, sig, params, id),
@@ -487,7 +487,7 @@ fn inventory_file(
             return Ok(vec![
                 serde_json::to_value(UnknownInventory {
                     source_file: path,
-                    source_digest: source.identity().to_owned(),
+                    source_digest: source.checksum().to_owned(),
                     inventory_status: "unknown",
                     reason,
                 })

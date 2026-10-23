@@ -5121,3 +5121,11 @@ The source-index/nominal-error retention increment preserves matching outcomes
 and reduces controlled equal-work native no-default replay16.27–16.79→12.14–12.65s.
 No admission gain is attributed to performance work; frozen counts remain
 unreassessed. [Evidence and remaining checksum migration](docs/rust-support-execution.md).
+
+
+Routine source consistency now uses existing XXH3 for fresh Data-v3 function
+claims and fresh manifest/file/declaration claims, with explicit legacy SHA
+verification and unchanged reviewed pins/r0 conformance. No semantic capability
+changes. Frozen sixty remain23 admitted/30 excluded/7 inactive (gain0/loss0);
+retained SHA and fresh XXH3 native Match owners preserve all six strict selected
+matching outcomes. [Current evidence](docs/rust-support-execution.md).

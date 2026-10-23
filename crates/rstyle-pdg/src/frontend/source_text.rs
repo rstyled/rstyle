@@ -3,7 +3,7 @@ use crate::{ByteSpan, SourceSnapshot};
 use serde::{Deserialize, Serialize};
 use std::{
     ops::{Deref, Range},
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
 
 /// An immutable UTF-8 range into an owned original source snapshot.
@@ -17,7 +17,7 @@ pub struct SourceText(Arc<TextRange>);
 struct TextRange {
     snapshot: SourceSnapshot,
     range: Range<usize>,
-    identity: OnceLock<String>,
+    identity: crate::source_identity::Memo,
 }
 
 impl SourceText {
@@ -31,7 +31,7 @@ impl SourceText {
         Ok(Self(Arc::new(TextRange {
             snapshot,
             range,
-            identity: OnceLock::new(),
+            identity: Default::default(),
         })))
     }
 
@@ -45,21 +45,30 @@ impl SourceText {
         &self.0.snapshot[self.0.range.clone()]
     }
 
-    /// SHA-256 of this exact immutable range, calculated at most once.
+    /// Legacy SHA-256, computed only for an explicit historical claim or pin.
     pub fn identity(&self) -> &str {
-        if self.0.range == (0..self.0.snapshot.len()) {
-            return self.0.snapshot.identity();
-        }
-        self.0
-            .identity
-            .get_or_init(|| crate::concrete_types::digest(self.as_bytes()))
+        self.identities().legacy(self.as_bytes())
     }
 
-    fn cached_identity(&self) -> Option<&String> {
+    pub fn checksum(&self) -> &str {
+        self.identities()
+            .actual(self.as_bytes(), crate::source_identity::Scheme::Xxh3)
+    }
+
+    pub fn identity_for(&self, claim: &str) -> Option<&str> {
+        crate::source_identity::Scheme::parse(claim)
+            .map(|scheme| self.identities().actual(self.as_bytes(), scheme))
+    }
+
+    pub fn matches_identity(&self, claim: &str) -> bool {
+        self.identity_for(claim) == Some(claim)
+    }
+
+    fn identities(&self) -> &crate::source_identity::Memo {
         if self.0.range == (0..self.0.snapshot.len()) {
-            self.0.snapshot.cached_identity()
+            self.0.snapshot.identities()
         } else {
-            self.0.identity.get()
+            &self.0.identity
         }
     }
 
@@ -75,10 +84,7 @@ impl SourceText {
         Ok(Self(Arc::new(TextRange {
             snapshot,
             range,
-            identity: self
-                .cached_identity()
-                .cloned()
-                .map_or_else(OnceLock::new, OnceLock::from),
+            identity: self.identities().clone(),
         })))
     }
 }
@@ -89,7 +95,7 @@ impl From<String> for SourceText {
         Self(Arc::new(TextRange {
             snapshot: bytes.into(),
             range,
-            identity: OnceLock::new(),
+            identity: Default::default(),
         }))
     }
 }
@@ -140,7 +146,7 @@ mod tests {
         let source = SourceText::from_snapshot(snapshot.clone(), range).unwrap();
         assert_eq!(source.as_str(), "fn f() {}");
         assert!(SourceSnapshot::ptr_eq(&snapshot, &source.0.snapshot));
-        assert!(source.0.identity.get().is_none());
+        assert!(source.0.identity.is_empty());
         assert_eq!(
             source.identity(),
             crate::concrete_types::digest(b"fn f() {}")
@@ -169,9 +175,10 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(snapshot.cached_identity().is_none());
+        assert!(snapshot.identities().is_empty());
         assert!(std::ptr::eq(source.identity(), snapshot.identity()));
-        assert!(source.0.identity.get().is_none());
+        assert!(std::ptr::eq(source.checksum(), snapshot.checksum()));
+        assert!(source.0.identity.is_empty());
     }
 
     #[test]
@@ -179,7 +186,7 @@ mod tests {
         let snapshot: SourceSnapshot = "\u{feff}// π\r\nfn f() {}\r\n".into();
         let start = snapshot.find("fn").unwrap();
         let text = SourceText::from("fn f() {}");
-        assert!(text.0.identity.get().is_none());
+        assert!(text.0.identity.is_empty());
         let identity = text.identity().to_owned();
         let view = text
             .in_snapshot(
@@ -192,14 +199,14 @@ mod tests {
             .unwrap();
         assert!(SourceSnapshot::ptr_eq(&view.0.snapshot, &snapshot));
         assert_eq!(view.as_ptr(), snapshot[start..].as_ptr());
-        assert!(view.0.identity.get().is_some());
+        assert!(!view.0.identity.is_empty());
         assert_eq!(view.identity(), identity);
         let cloned = view.clone();
         assert!(std::ptr::eq(view.identity(), cloned.identity()));
         assert_eq!(serde_json::to_string(&view).unwrap(), "\"fn f() {}\"");
         let loaded: SourceText = serde_json::from_str("\"fn f() {}\"").unwrap();
         assert_eq!(loaded, view);
-        assert!(loaded.0.identity.get().is_none());
+        assert!(loaded.0.identity.is_empty());
         assert_ne!(SourceText::from("fn f() {1}").identity(), view.identity());
         for span in [
             ByteSpan { start: 1, end: 3 },

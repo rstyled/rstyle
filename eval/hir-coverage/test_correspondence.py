@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import unittest
+import xxhash
 
 import assess
 import correspondence
@@ -89,6 +90,19 @@ class CorrespondenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.assess([definition], [captured], [unit(), unit()])
 
+    def test_xxh3_capture_preserves_frozen_sha_and_checks_bytes(self):
+        definition = selected('fn f() { /* π */ }')
+        captured = record(definition)
+        claim = 'xxh3-64:' + xxhash.xxh3_64_hexdigest(definition['source'].encode())
+        captured['facts']['source']['digest'] = claim
+        self.assertEqual(self.assess([definition], [captured])['counts'], {'admitted': 1})
+        frozen = copy.deepcopy(definition)
+        frozen['sha256'] = '0' * 64
+        self.assertEqual(self.assess([frozen], [captured])['counts'], {'failed': 1})
+        for claim in ['xxh3-64:0000000000000000', 'xxh3-64:bad', 'other:0000000000000000']:
+            captured['facts']['source']['digest'] = claim
+            self.assertEqual(self.assess([definition], [captured])['counts'], {'failed': 1})
+
     def test_missing_context_roster_is_failed_evidence(self):
         definition = selected('fn f() {}')
         self.assertEqual(self.assess([definition], [record(definition)], [])['counts'], {'failed': 1})
@@ -107,6 +121,20 @@ def inactive_inventory(definition, test=False):
 
 
 class InactiveCorrespondenceTests(unittest.TestCase):
+    def test_inactive_xxh3_claims_preserve_independent_frozen_identity(self):
+        definition = selected('fn f() {}', start=12)
+        inventory = inactive_inventory(definition)
+        entry = inventory['source_functions'][0]
+        entry['source_digest'] = 'xxh3-64:' + xxhash.xxh3_64_hexdigest(entry['source'].encode())
+        entry['function_source_digest'] = 'xxh3-64:' + xxhash.xxh3_64_hexdigest(definition['source'].encode())
+        self.assertTrue(correspondence.verify_inactive(definition, entry))
+        for field in ['source_digest', 'function_source_digest']:
+            wrong = copy.deepcopy(entry)
+            wrong[field] = 'xxh3-64:0000000000000000'
+            self.assertFalse(correspondence.verify_inactive(definition, wrong))
+        definition['sha256'] = '0' * 64
+        self.assertFalse(correspondence.verify_inactive(definition, entry))
+
     def test_exact_inactive_and_mixed_contexts(self):
         definition = selected('fn f() {}', start=12)
         captured = report([], [unit(), unit(True)])

@@ -106,7 +106,7 @@ fn files(census: &census::Census) -> Result<BTreeMap<&Path, &str>> {
                 .path
                 .components()
                 .any(|part| matches!(part, Component::ParentDir | Component::CurDir))
-            || file.digest != file.bytes.identity()
+            || !file.bytes.matches_identity(&file.digest)
             || files
                 .insert(file.path.as_path(), file.bytes.as_ref())
                 .is_some()

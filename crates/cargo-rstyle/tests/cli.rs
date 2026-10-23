@@ -3536,7 +3536,7 @@ fn check_nominal_unit_binding(function: &Value, report: &Value) {
         serde_json::from_value(report["expected_targets"][0]["package_context"].clone()).unwrap();
     assert_eq!(
         context.manifest_digest,
-        rstyle_pdg::concrete_types::digest(context.manifest_bytes.as_bytes())
+        rstyle_pdg::source_identity::checksum(context.manifest_bytes.as_bytes())
     );
     let actual = nominal_binding::bind_unit(std::slice::from_ref(&facts), &context).unwrap();
     checked_build_context(function, report);
@@ -3557,7 +3557,7 @@ fn check_nominal_unit_binding(function: &Value, report: &Value) {
             "manifest" => {
                 changed.manifest_bytes = format!("{}\n# changed", changed.manifest_bytes).into();
                 changed.manifest_digest =
-                    rstyle_pdg::concrete_types::digest(changed.manifest_bytes.as_bytes());
+                    rstyle_pdg::source_identity::checksum(changed.manifest_bytes.as_bytes());
             }
             "root" => changed.manifest_path = PathBuf::from("/different/package/Cargo.toml"),
             _ => unreachable!(),
@@ -3598,7 +3598,7 @@ fn check_nominal_evidence_corruption(
             .to_owned()
             + "\n// changed file";
         value["declarations"][0]["file_digest"] =
-            serde_json::json!(concrete_types::digest(file.as_bytes()));
+            serde_json::json!(rstyle_pdg::source_identity::checksum(file.as_bytes()));
         value["declarations"][0]["file_bytes"] = serde_json::json!(file);
         assert!(nominal_binding::bind_unit(&[facts.clone(), changed], context).is_err());
     }
@@ -3758,7 +3758,7 @@ fn check_nested_concrete_type(tree: &rstyle_pdg::concrete_types::TypeTree) {
     assert!(source.contains("\r\n"));
     assert_eq!(
         nominal.declaration_digest,
-        rstyle_pdg::concrete_types::digest(source.as_bytes())
+        rstyle_pdg::source_identity::checksum(source.as_bytes())
     );
     assert_eq!(
         fields

@@ -309,7 +309,7 @@ pub fn verify(
     if observations.possibly_aliasing_formals != aliases(&interface) {
         return Err("Shared formal alias uncertainty is incomplete or inconsistent".into());
     }
-    if facts.source.bytes.identity() != facts.source.digest {
+    if !facts.source.bytes.matches_identity(&facts.source.digest) {
         return Err("Field observations lack exact captured source identity".into());
     }
 

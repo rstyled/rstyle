@@ -143,9 +143,13 @@ pub fn validate_source_text(
         match source
             .content_identity
             .known_value()
-            .filter(|claim| is_sha256(claim))
+            .filter(|claim| crate::source_identity::Scheme::parse(claim).is_some())
         {
-            Some(claimed) => compare_digest(source, claimed, text.identity()),
+            Some(claimed) => compare_digest(
+                source,
+                claimed,
+                text.identity_for(claimed).expect("checked scheme"),
+            ),
             None => Vec::new(),
         }
     });
@@ -1220,10 +1224,16 @@ fn dangling_origin_span_issues(node: &PdgNode, sources: &BTreeSet<String>) -> Ve
 
 /// Source byte identities must be checkable; compiler evidence needs digests.
 fn check_source_identities(doc: &PdgDocument, ctx: &ValidationContext) -> CheckOutput {
-    check_records(&doc.sources, |source| source_identity_issues(source, ctx))
+    check_records(&doc.sources, |source| {
+        source_identity_issues(source, ctx, &doc.profile)
+    })
 }
 
-fn source_identity_issues(source: &Source, ctx: &ValidationContext) -> Vec<Issue> {
+fn source_identity_issues(
+    source: &Source,
+    ctx: &ValidationContext,
+    profile: &ProfileId,
+) -> Vec<Issue> {
     if !source.content_identity.shape_ok() {
         return vec![issue(
             "pdg.fact-shape",
@@ -1233,20 +1243,29 @@ fn source_identity_issues(source: &Source, ctx: &ValidationContext) -> Vec<Issue
     if ctx.is_fixture_only() {
         return Vec::new();
     }
-    if source.content_identity.known_value().is_some_and(is_sha256) {
+
+    let scheme = source
+        .content_identity
+        .known_value()
+        .and_then(crate::source_identity::Scheme::parse);
+    let supported = match scheme {
+        Some(crate::source_identity::Scheme::LegacySha256) => true,
+        Some(crate::source_identity::Scheme::Xxh3) => {
+            profile.id == crate::extraction_profile::DATA_ID
+        }
+        None => false,
+    };
+    if supported {
         Vec::new()
     } else {
         vec![issue(
             "pdg.source-identity",
-            format!("source {:?} lacks a known sha256 identity", source.id),
+            format!(
+                "source {:?} lacks a known supported byte identity",
+                source.id
+            ),
         )]
     }
-}
-
-fn is_sha256(value: &str) -> bool {
-    let digest = value.strip_prefix("sha256:").unwrap_or("");
-
-    digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// All spans that must be bound-checked: function, node spans, provenance
@@ -1294,9 +1313,9 @@ fn digest_issues(
         return Vec::new();
     };
 
-    if !is_sha256(claimed) {
+    let Some(scheme) = crate::source_identity::Scheme::parse(claimed) else {
         return Vec::new();
-    }
+    };
 
     match source_bytes.bytes(&source.id) {
         None => {
@@ -1309,7 +1328,7 @@ fn digest_issues(
                 )]
             }
         }
-        Some(bytes) => compare_digest(source, claimed, &sha256_hex(bytes)),
+        Some(bytes) => compare_digest(source, claimed, &scheme.digest(bytes)),
     }
 }
 
@@ -1325,12 +1344,6 @@ fn compare_digest(source: &Source, claimed: &str, actual: &str) -> Vec<Issue> {
             ),
         )]
     }
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    use sha2::{Digest, Sha256};
-
-    format!("sha256:{:x}", Sha256::digest(bytes))
 }
 
 /// Production admission fails closed when required build evidence was not

@@ -60,7 +60,8 @@ impl Sources {
 
 impl CheckedFile {
     fn new(origin: &Origin) -> Result<Self, String> {
-        if origin.source_file.is_empty() || origin.file_digest != origin.file_bytes.identity() {
+        if origin.source_file.is_empty() || !origin.file_bytes.matches_identity(&origin.file_digest)
+        {
             return Err("Declaration origin file identity or original byte range disagrees".into());
         }
         let source = origin

@@ -89,7 +89,7 @@ impl Closure<'_> {
             .files
             .get(&binding.site.path)
             .ok_or("Missing macro definition source")?;
-        let file = syn::parse_file(source).map_err(|error| error.to_string())?;
+        let file = syn::parse_file(&source.bytes).map_err(|error| error.to_string())?;
         Ok(file.items.into_iter().find_map(|item| match item {
             syn::Item::Macro(item)
                 if self.span(&binding.site.path, item.span()).ok().as_ref()
@@ -142,13 +142,14 @@ impl Closure<'_> {
         path: &std::path::Path,
         span: proc_macro2::Span,
     ) -> Result<expansions::FileSpan, String> {
-        let source = self.files.get(path).ok_or("Missing original span source")?;
+        let record = self.files.get(path).ok_or("Missing original span source")?;
+        let source = &record.bytes;
         let text = source.strip_prefix('\u{feff}').unwrap_or(source);
 
         let prefix = source.len() - text.len();
         Ok(expansions::FileSpan {
             path: path.into(),
-            digest: source.identity().to_owned(),
+            digest: record.digest.clone(),
             span: crate::ByteSpan {
                 start: (crate::source_evidence::byte_offset(text, span.start()) + prefix)
                     .try_into()

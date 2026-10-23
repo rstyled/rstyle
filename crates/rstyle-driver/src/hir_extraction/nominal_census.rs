@@ -88,7 +88,7 @@ fn original_file(
 
     Ok(UnitFile {
         path,
-        digest: snapshot.identity().to_owned(),
+        digest: snapshot.checksum().to_owned(),
         bytes: snapshot.bytes.clone(),
     })
 }

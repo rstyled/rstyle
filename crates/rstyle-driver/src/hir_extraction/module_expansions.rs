@@ -107,7 +107,7 @@ pub(super) fn file_span(
 
     Ok(FileSpan {
         path: absolute(path)?,
-        digest: snapshot.identity().into(),
+        digest: snapshot.checksum().into(),
         span,
     })
 }

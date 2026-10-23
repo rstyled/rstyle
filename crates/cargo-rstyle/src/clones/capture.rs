@@ -224,8 +224,8 @@ fn package_context(
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,
 ) -> Result<Option<rstyle_pdg::nominal_binding::PackageContext>, String> {
     use rstyle_pdg::{
-        concrete_types::digest,
         nominal_binding::{PACKAGE_IDENTITY, PackageContext},
+        source_identity::checksum,
     };
     if !profile.supports("rust.verified-helper-calls") {
         return Ok(None);
@@ -251,7 +251,7 @@ fn package_context(
             .ok_or("Missing resolved package version")?
             .into(),
         manifest_path,
-        manifest_digest: digest(manifest_bytes.as_bytes()),
+        manifest_digest: checksum(manifest_bytes.as_bytes()),
         manifest_bytes: manifest_bytes.into(),
     };
     context.validate()?;

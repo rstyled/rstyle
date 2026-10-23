@@ -36,7 +36,7 @@ fn verify_pair(
     if crate::verification_policy::is_generated() {
         return observation.finish(validate_boundary(pair, facts));
     }
-    if facts.source.bytes.identity() != facts.source.digest {
+    if !facts.source.bytes.matches_identity(&facts.source.digest) {
         return Err(vec!["Captured source identity is inconsistent".to_string()]);
     }
     let graph = lower(facts).map_err(|e| {
