@@ -1,4 +1,4 @@
-//! Check original mutable-formal evidence without claiming memory admission.
+//! Strictly verify the complete original bounded mutable-memory function.
 use rstyle_pdg::{field_locations, unit_store::UnitStore};
 use serde_json::Value;
 
@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     })?;
     check(&store, &selection)?;
     println!(
-        "Original scalar-formal source/access evidence verified; memory admission remains closed"
+        "Original scalar-formal source/access evidence and connected memory pair strictly verified"
     );
     Ok(())
 }
@@ -48,9 +48,17 @@ fn check(store: &UnitStore, selection: &Value) -> Result<(), String> {
     if accesses.accesses.len() != 8 || accesses.possibly_aliasing_formals.len() != 10 {
         return Err("Selected source lacks its complete eight accesses / ten alias pairs".into());
     }
-    if store.pair(*ordinal).is_some() || rstyle_pdg::producer::produce(*facts).is_ok() {
-        return Err("Readiness evidence unexpectedly authorized memory admission".into());
-    }
+    let pair = store
+        .pair(*ordinal)
+        .ok_or("Original function lacks its admitted memory pair")?;
+    let analysis = store.analysis();
+    let view = analysis
+        .function(*ordinal)
+        .ok_or("Missing owning function view")?;
+    rstyle_pdg::verification_policy::strict(|| {
+        rstyle_pdg::producer::verify_view(pair.as_view(), &view).map_err(|errors| errors.join("; "))
+    })?;
+    rstyle_pdg::data_documents::verify(pair, &view)?;
     println!(
         "Retained owner: {} definitions; selected function: {}",
         store.functions().len(),

@@ -718,6 +718,10 @@ fn source_type<'a>(
         return Ok(Some(ty));
     }
 
+    if mutable_bounds_check(node, facts)? {
+        return Ok(Some("unit"));
+    }
+
     if callback_environment(node, facts)? {
         return Ok(Some("unit"));
     }
@@ -752,6 +756,20 @@ fn source_type<'a>(
             .as_ref()
             .and_then(|ty| ty.normalized.as_deref()),
     })
+}
+
+fn mutable_bounds_check(
+    node: &PdgNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    if node.attributes.construct.as_deref() != Some("data.mutable-index-check") {
+        return Ok(false);
+    }
+    if !crate::mutable_scalars::enabled(facts) || node.category != NodeCategory::Computation {
+        return Err("Mutable bounds check requires its checked memory family".into());
+    }
+    crate::mutable_scalars::index_root(source_node(node, facts)?, facts)?;
+    Ok(true)
 }
 
 fn propagation_return(

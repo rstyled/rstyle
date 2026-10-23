@@ -549,3 +549,48 @@ the second compound load and cause a later checked failure; an attached panic
 annotation cannot preserve that stored state. The oracle's distinct cursor objects
 do not discharge captured alias uncertainty. D20/D21 and the full family remain
 incomplete; do not continue with unrelated capture-only increments.
+
+### Data3.93 — complete bounded mutable backtracking
+
+Connects unchanged safe `lz4_flex0.14.0::backtrack_match` through explicit scalar
+referent loads/stores, alias-conservative cyclic RAW/WAR/WAW and terminal checked
+failure exits with complete per-root post-state. A source/CFG document verifier
+independently reconstructs memory flow; resealed attacks and local-ID renaming
+exercise strict replay. Direct mutable callees (including unused named formals)
+cannot export read-only summaries; their callers remain excluded.
+
+Fresh frozen inventory `target/hir-coverage/run-ng8slil8`: all60 identities and
+denominators unchanged;24 admitted/29 excluded/7 inactive, gain1/loss0 versus
+`run-gdz69t4m`. The only change is the selected safe backtracking function.
+Full lz4 owner:9 admitted/141 excluded versus8/142. Native strict original/replay
+matching:one complete Accepted pair, score1, retained150-definition owner.
+Native private-body oracle:48,856 cases, zero mismatches. Its distinct cursors do
+not prove captured disjointness; the abstract alias model retains failure after
+the first store. Evidence:`/tmp/rstyle-399-{natural-strict.log,frozen-comparison.json,oracle.log}`.
+
+Next resolution target is source-audited `Match::must<Span/Range<usize>>`, not
+implementation-ready: it also needs the generated PatternID→SmallIndex fallible
+constructor chain, error/expect ownership, actual instance links and evaluation
+order. Source audit:`/tmp/rstyle-399-next-resolution.md`. Lead owns shared interfaces;
+resolution owns instance-link leaves, error lane owns selected error/expect proof
+and oracle, source lane owns relevant generated-callable capture proof, memory
+lane audits original `Line::take` before borrowing/storage/view activation.
+No caller gain is attributed to private owning-instance sidecars. Plain stores,
+reborrows, local reference storage, stateful helper summaries and general cleanup
+remain outside this milestone. Broader P01–P22 work stays active.
+
+Checkpoint gates:all1,601 workspace tests/five existing skips and doctests pass;
+fmt and warning-denied Clippy pass;style0/5,383 and patterns0/15 unchanged ignores.
+Logs:`/tmp/rstyle-399-final4-{clippy,style,patterns}.log` and
+`/tmp/rstyle-399-final5-{fmtcheck,tests}.log`. Routine consistency uses existing
+XXH3; this activation adds no SHA or serialized lookup keys. Worklist/state,
+root/access and dependency budgets bound memory analysis. Diagnostic strict CLI
+compositions take2.18s/4.48s with a prebuilt driver; no controlled speedup claim.
+
+Fresh complete unchanged150-definition owners in all three declared default-feature
+contexts (ARM Linux, x86 Linux, ARM macOS) now pass strict source/build/access and
+producer/document checks, strict original/replay admission and complete selected
+matching:one Accepted score1 pair per context. Evidence:
+`target/backtrack-match-399/{aarch64-unknown-linux-gnu,x86_64-unknown-linux-gnu,aarch64-apple-darwin}/`
+and`/tmp/rstyle-399-final5-cross.log`. Native foreign-target execution remains
+pending; cross-target metadata capture does not claim it.

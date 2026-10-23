@@ -125,11 +125,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
         function_identity_schema: super::identity::SCHEMA,
         unit_contexts: &ctx.handoff.unit_contexts,
         extraction_selection: extraction_selection(ctx.args),
-        extraction_policy: Policy {
-            id: ctx.args.extraction_profile.policy().id,
-            version: ctx.args.extraction_profile.policy().version,
-            semantics: "bounded normal flow; exceptional transfers and cleanup omitted",
-        },
+        extraction_policy: extraction_policy(ctx.args),
         extraction_capabilities: ctx.args.extraction_profile.capabilities(),
         call_summaries: ctx.args.extraction_profile.summaries(),
         schema_versions: SchemaVersions {
@@ -229,6 +225,21 @@ impl Report<'_> {
 fn write_to(mut writer: impl std::io::Write, report: &impl Serialize) -> Result<(), String> {
     serde_json::to_writer(&mut writer, report).map_err(|error| error.to_string())?;
     writer.flush().map_err(|error| error.to_string())
+}
+
+fn extraction_policy(args: &super::Args) -> Policy {
+    Policy {
+        id: args.extraction_profile.policy().id,
+        version: args.extraction_profile.policy().version,
+        semantics: if args
+            .extraction_profile
+            .supports("rust.mutable-scalar-formals")
+        {
+            "bounded flow; explicit checked failures for supported mutable scalar formals; general cleanup omitted"
+        } else {
+            "bounded normal flow; exceptional transfers and cleanup omitted"
+        },
+    }
 }
 
 #[cfg(test)]

@@ -32,6 +32,7 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
     crate::range_values::verify_function(facts)?;
     crate::concrete_results::verify_function(facts)?;
     crate::checked_option_products::verify_function(facts)?;
+    crate::mutable_scalars::verify(facts)?;
     let interface = interface(facts)?;
     let source: syn::ItemFn =
         syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
@@ -101,6 +102,13 @@ fn verify_value_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    crate::extraction_profile::require_document(
+        profile,
+        crate::mutable_scalars::CAPABILITY,
+        || crate::mutable_scalars::enabled(facts),
+        "Mutable scalar memory flow requires its registered document policy",
+    )?;
+
     crate::extraction_profile::require_document(
         profile,
         crate::range_values::CONSUMING_CAPABILITY,

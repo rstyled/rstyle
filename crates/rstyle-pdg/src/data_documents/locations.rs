@@ -9,6 +9,7 @@ fn abstraction(path: &[Projection]) -> &'static str {
     path.iter()
         .rev()
         .find_map(|step| match step {
+            Projection::MutableReferent => Some("rstyle.formal-mutable-scalar/1"),
             Projection::IteratorPrefix { .. } => Some("rstyle.formal-iterator-prefix/1"),
             Projection::ByteWindow { .. } => Some("rstyle.formal-byte-window/1"),
             Projection::HelperIndex { .. } => Some("rstyle.formal-helper-index/1"),
@@ -211,14 +212,13 @@ impl<'a> LocationContext<'a> {
         let location = MemoryLocation {
             id: id.clone(),
             abstraction: abstraction(&key.path).into(),
-            description: "Read-only formal projection; shared roots may alias".into(),
+            description: formal_description(path).into(),
             evidence: crate::Capability {
                 policy: Some(
                     crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?.policy(),
                 ),
                 status: crate::CapabilityStatus::Supported,
-                description: "Independent source projection and immutable concrete type proof"
-                    .into(),
+                description: formal_evidence(path).into(),
             },
             extensions: BTreeMap::from([(
                 LOCATION_KEY.into(),
@@ -257,6 +257,22 @@ pub(crate) fn correspondence(
             Ok((entry.id.wire(), other.id.wire()))
         })
         .collect()
+}
+
+fn formal_description(path: &[Projection]) -> &'static str {
+    if path.contains(&Projection::MutableReferent) {
+        "Mutable scalar referent; formal roots retain conservative possible aliases"
+    } else {
+        "Read-only formal projection; shared roots may alias"
+    }
+}
+
+fn formal_evidence(path: &[Projection]) -> &'static str {
+    if path.contains(&Projection::MutableReferent) {
+        "Independent source mutable scalar access and compiler referent proof"
+    } else {
+        "Independent source projection and immutable concrete type proof"
+    }
 }
 
 #[cfg(test)]

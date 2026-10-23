@@ -131,6 +131,11 @@ fn correspondence(
             }
             Ok(())
         }
+        (syn::Type::Reference(source), TypeTree::MutableScalar(scalar))
+            if source.mutability.is_some() && scalar == "usize" =>
+        {
+            correspondence(&source.elem, &TypeTree::Scalar(scalar.clone()), resolution)
+        }
         (syn::Type::Reference(source), TypeTree::Shared(element)) => {
             correspondence(&source.elem, element, resolution)
         }

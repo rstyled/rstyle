@@ -26,6 +26,8 @@ mod indirect_reads;
 mod iterator_position;
 mod locals;
 mod locations;
+mod memory_flow;
+mod mutable_scalars;
 pub(crate) mod named_callbacks;
 mod option_if_let;
 pub(crate) mod option_propagation;
@@ -58,8 +60,12 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const LOCATION_KEY: &str = "rstyle.data:formal-location";
 pub const POLICY_KEY: &str = "rstyle.data:matching-profile";
 
-pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, String> {
-    let pair = install_locations(pair, facts)?;
+pub fn apply(
+    pair: Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    graph: &crate::producer::Graph,
+) -> Result<Pair, String> {
+    let pair = install_locations(pair, facts, graph)?;
     let mut pair = install_value_contracts(pair, facts)?;
     install_evidence(&mut pair.pdg, facts)?;
     origins::install(&mut pair, facts)?;
@@ -150,6 +156,7 @@ fn install_annotations<'a>(
 fn install_locations(
     mut pair: Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
+    graph: &crate::producer::Graph,
 ) -> Result<Pair, String> {
     let fields = observations(facts)?;
     let mut context = LocationContext::new(facts);
@@ -161,10 +168,53 @@ fn install_locations(
         .collect::<Result<BTreeMap<_, _>, _>>()?;
 
     let derived = install_derived_reads(&mut pair, &mut context)?;
+    let memory = install_memory(&mut pair, &mut context, graph)?;
     finish_locations(
         pair,
-        crate::helper_reads::merge_locations(locations, derived)?,
+        crate::helper_reads::merge_locations(
+            crate::helper_reads::merge_locations(locations, derived)?,
+            memory,
+        )?,
     )
+}
+
+fn install_memory(
+    pair: &mut Pair,
+    context: &mut LocationContext<'_>,
+    graph: &crate::producer::Graph,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    let accesses = mutable_scalars::install(pair, context)?;
+    let roots = memory_flow::install(pair, context, graph)?;
+
+    crate::helper_reads::merge_locations(accesses, roots)
+}
+
+fn verify_memory(
+    pair: PairView<'_>,
+    context: &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    verify_location_passes(
+        pair,
+        context,
+        &[mutable_scalars::verify, memory_flow::verify],
+    )
+}
+
+type LocationVerifier = fn(
+    PairView<'_>,
+    &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String>;
+
+fn verify_location_passes(
+    pair: PairView<'_>,
+    context: &mut LocationContext<'_>,
+    passes: &[LocationVerifier],
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    passes
+        .iter()
+        .try_fold(BTreeMap::new(), |locations, verify| {
+            crate::helper_reads::merge_locations(locations, verify(pair, context)?)
+        })
 }
 
 type ReadInstaller = fn(
@@ -271,7 +321,11 @@ fn memory_evidence(
     Ok(crate::Capability {
         policy: Some(crate::extraction_profile::ExtractionProfile::from_facts(facts)?.policy()),
         status: crate::CapabilityStatus::Supported,
-        description: "Verified formal read locations; shared inputs may alias; no disjointness or memory writes".into(),
+        description: if crate::mutable_scalars::enabled(facts) {
+            "Verified formal read/write locations; conservative reference aliases and explicit normal/failure post-state".into()
+        } else {
+            "Verified formal read locations; shared inputs may alias; no disjointness or memory writes".into()
+        },
     })
 }
 
@@ -394,6 +448,7 @@ pub fn verify<'a>(
         verify_field(pair, &mut context, field, &mut expected)?;
     }
     expected.extend(verify_derived_reads(pair, &mut context, &calls)?);
+    expected.extend(verify_memory(pair, &mut context)?);
 
     let actual: BTreeMap<_, _> = pair
         .pdg
@@ -511,10 +566,11 @@ fn verify_projection_reads(
     pair: crate::producer::PairView<'_>,
     context: &mut LocationContext<'_>,
 ) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
-    let indirect = indirect_reads::verify_dereferences(pair, context)?;
-    let indexed = index_reads::verify(pair, context)?;
-
-    crate::helper_reads::merge_locations(indirect, indexed)
+    verify_location_passes(
+        pair,
+        context,
+        &[indirect_reads::verify_dereferences, index_reads::verify],
+    )
 }
 
 fn verify_field(
@@ -580,6 +636,7 @@ fn serialized_operation_mut<'a>(
             node.category,
             NodeCategory::Read | NodeCategory::Computation | NodeCategory::Call
         ) && node.original_kind.known_value() == Some(source.kind.as_str())
+            && node.attributes.construct.as_deref() != Some("data.mutable-index-check")
     })?
     .id
     .clone();
@@ -662,6 +719,14 @@ fn verify_reads(pair: crate::producer::PairView<'_>, fields: usize) -> Result<()
 }
 
 fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<'_>) -> bool {
+    if mutable_scalars::is_access(node)
+        && crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            crate::mutable_scalars::CAPABILITY,
+        )
+    {
+        return false;
+    }
     let field = node.category == NodeCategory::Read
         && (node.original_kind.known_value() == Some("expr_field")
             || node.attributes.construct.as_deref() == Some("data.indirect-deref")
@@ -672,17 +737,7 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<
     let indexed = node.category == NodeCategory::Read
         && node.original_kind.known_value() == Some("expr_index")
         && crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.scalar-index-reads");
-    let call = node.category == NodeCategory::Call
-        && (node.original_kind.known_value() == Some("expr_call")
-            || node.original_kind.known_value() == Some("expr_method_call")
-                && crate::extraction_profile::policy_supports(
-                    &pair.pdg.profile,
-                    "rust.verified-inherent-helper-calls",
-                ))
-        && crate::extraction_profile::policy_supports(
-            &pair.pdg.profile,
-            "rust.verified-read-only-helper-calls",
-        );
+    let call = read_only_call(node, pair);
     let payload = node.attributes.construct.as_deref() == Some("data.option-payload")
         && crate::extraction_profile::policy_supports(
             &pair.pdg.profile,
@@ -708,6 +763,20 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<
                 .reads
                 .iter()
                 .any(|access| access.location_id.is_some())
+}
+
+fn read_only_call(node: &crate::PdgNode, pair: crate::producer::PairView<'_>) -> bool {
+    node.category == NodeCategory::Call
+        && (node.original_kind.known_value() == Some("expr_call")
+            || node.original_kind.known_value() == Some("expr_method_call")
+                && crate::extraction_profile::policy_supports(
+                    &pair.pdg.profile,
+                    "rust.verified-inherent-helper-calls",
+                ))
+        && crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            "rust.verified-read-only-helper-calls",
+        )
 }
 
 fn read_count(pair: crate::producer::PairView<'_>) -> Result<u64, String> {
@@ -952,11 +1021,15 @@ pub(crate) fn verify_saved_operands(
         .map(|(position, value)| (Some(position as u64), value.id.as_str()))
         .collect();
     if actual != expected
-        || pair
-            .pdg
-            .edges
-            .iter()
-            .any(|edge| edge.target == node.id && edge.subkind == "reaching_definition")
+        || pair.pdg.edges.iter().any(|edge| {
+            edge.target == node.id
+                && edge.subkind == "reaching_definition"
+                && !(crate::extraction_profile::policy_supports(
+                    &pair.pdg.profile,
+                    crate::mutable_scalars::CAPABILITY,
+                ) && edge.location_id.is_some()
+                    && edge.symbol_id.is_none())
+        })
     {
         return Err("Operation loses its exact ordered saved value operands".into());
     }

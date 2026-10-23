@@ -24,6 +24,7 @@ pub struct FieldResolution {
 #[serde(tag = "kind", deny_unknown_fields)]
 pub enum Projection {
     SharedReferent,
+    MutableReferent,
     /// Complete UTF-8 storage as bytes, preserving length, lifetime and identity.
     /// Introduced only by an independently checked string-to-byte view operation.
     Utf8Bytes,

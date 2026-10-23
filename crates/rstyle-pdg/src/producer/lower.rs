@@ -9,6 +9,7 @@ mod enums;
 mod helper_option_callbacks;
 mod iterator_position;
 mod loops;
+mod mutable_scalars;
 mod named_callbacks;
 mod option_if_let;
 mod option_propagation;
@@ -159,6 +160,7 @@ impl Builder<'_> {
             operation.definition = Some(format!("d{}", self.nodes.len()));
         }
         self.connect(&flow.ends, &id);
+        self.checked_failure(&operation);
         self.nodes.push(operation);
         let terms = if flow.ends.is_empty() {
             vec![Vec::new()]
@@ -442,7 +444,12 @@ impl Builder<'_> {
             vec![first_value, second_value]
         };
 
+        self.indexed_value(node, values, flow)
+    }
+
+    fn indexed_value(&mut self, node: &HirNode, values: Vec<String>, flow: Flow) -> Flow {
         let shared = crate::data_index_reads::shared_base(node);
+        let flow = self.index_check(node, &values, flow);
         let operation = Operation {
             operands: values,
             construct: Some(
@@ -496,6 +503,9 @@ impl Builder<'_> {
     }
 
     fn unary(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if let Some(root) = crate::mutable_scalars::root(node, self.facts) {
+            return self.scalar_referent(node, root, flow);
+        }
         if node
             .dispatch
             .as_ref()
@@ -890,6 +900,13 @@ impl Builder<'_> {
     }
 
     fn compound(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if let Some(root) = crate::mutable_scalars::root(&node.children[0], self.facts) {
+            return self.scalar_compound(node, root, flow);
+        }
+        self.lexical_compound(node, flow)
+    }
+
+    fn lexical_compound(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let evaluated = self.compound_values(node, flow);
         let dispatch = node.dispatch.as_ref().expect("builtin compound dispatch");
         let operation = Operation {

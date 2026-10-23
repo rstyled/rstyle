@@ -154,8 +154,8 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D17 | Checked access and concrete Option | Partial | `xs.get(i)`, `Some(x)`, `None` | Data-v3 3.36.0 connects immutable scalar-slice get, exhaustive Some(&scalar)/None, saved Option flow and scalar helper composition through [strict graph verification](docs/extraction-profiles/checked-slice-option-v1.md). Data-v3 3.42.0 adds [owned bool/integer Option construction and consumption](docs/extraction-profiles/scalar-option-byte-widths-v1.md). Data-v3 3.48.0 adds exact core is_some on owned bool/integer Options with checked shared-autoref evidence, composing through tagged-unit helpers. Data-v3 3.80 connects checked `Option<&u8>` propagation into independently proved Copy-product Options, preserving guarded reference origins and fresh output-typed None exits. Data-v3 3.81 adds checked `get(..end)` with saved receiver/end, guarded shared-prefix origins and eager no-drop error conversion. General payload matching, mutable/array access, other checked ranges and broader Result propagation remain open. |
 | D18 | Reference-bearing array element origins | Missing | `refs: [&S; 2]` | Type observation alone lacks the per-element origin evidence needed for by-value reference-bearing arrays. |
 | D19 | General enums and variants | Partial | `enum E { A(u32), B }` | Data-v3 3.47.0 connects checked-Copy local enums with 1–16 single bool/integer tuple payloads, exact constructor tags, complete disjoint unguarded matches, conditional payload bindings and helper composition; see [tagged-unit contract](docs/extraction-profiles/tagged-units-v1.md). Data-v3 3.60 adds [fieldless flag enums](docs/extraction-profiles/look-flags-v1.md) with complete source-checked literal/shift discriminants, variants, casts and helper composition. Data-v3 3.81 inventories named scalar error variants and proves complete no-drop ownership for fresh unit-error Result transport. Data-v3 3.82 adds complete lexical and compiler proof for bounded explicit-u8 fieldless enums through the [calendar chain](docs/extraction-profiles/cross-unit-scalar-helpers-v1.md). General mixed constructors/matches, named/reference/generic payload flow, discriminant expressions, moves/drop and general Result remain missing. |
-| D20 | Mutable references and reborrowing | Missing | `x: &mut S`, `&mut *x` | Mutable locations, alias/reborrow relationships and read/write effects; beyond the current read-only milestone. |
-| D21 | Field/index/dereference memory writes | Missing | `s.value = x;`, `xs[i] += 1;`, `*r = x;` | Memory reaching definitions, alias-sensitive dependencies, address/value evaluation order and invalidation. Local scalar writes already work. |
+| D20 | Mutable references and reborrowing | Partial | `x: &mut S`, `&mut *x` | Data3.93: direct `&mut usize` formal roots with conservative aliases and complete bounded loop memory flow. Reborrows, local storage and escaping mutable results remain unsupported. |
+| D21 | Field/index/dereference memory writes | Partial | `s.value = x;`, `xs[i] += 1;`, `*r = x;` | Data3.93: direct mutable-scalar compound writes, cyclic RAW/WAR/WAW and normal/checked-failure post-state. Plain, field and indexed stores, reborrows and general cleanup remain unsupported. |
 | D22 | Heap-backed containers and allocation | Missing | `Vec<u8>`, `String`, `Box<S>`, `HashMap<K, V>` | Types, allocation/reallocation, ownership, library effects and drop; no general container summaries exist. |
 | D23 | Moves, partial moves, and nontrivial ownership | Missing | `let field = owned.field;` | Current finite drop-free values are not a general ownership/move model; track storage validity and subsequent uses. |
 | D24 | Destructors and scope cleanup | Missing | `impl Drop for S { ... }`, `drop(value)` | Implicit/explicit drop on normal/early/panic paths; current supported nominal boundary excludes these effects. |
@@ -5137,3 +5137,13 @@ zero with15 existing ignores unchanged. Next connect cyclic memory dependencies
 and explicit normal/failure post-state through strict replay; the distinct-cursor
 oracle does not prove captured disjointness. D20/D21 remain missing.
 [Contract](docs/extraction-profiles/mutable-scalar-formals-v1.md).
+
+Data3.93 admits complete unchanged safe `lz4_flex0.14.0::backtrack_match` with
+alias-conservative loop memory dependencies and explicit checked-failure
+post-state. Frozen60:24 admitted/29 excluded/7 inactive, gain1/loss0, unchanged
+identities/denominators; native150-definition owner passes strict original/replay
+matching (one Accepted pair, score1). D20/D21 become Partial within the direct
+`&mut usize` compound-write contract; stateful helper summaries, local storage,
+reborrows, plain/field/indexed writes and general cleanup remain unfinished.
+[Contract and validation](docs/extraction-profiles/mutable-scalar-formals-v1.md);
+[next connected caller frontier](docs/rust-support-execution.md).

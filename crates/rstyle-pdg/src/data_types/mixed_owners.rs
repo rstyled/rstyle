@@ -7,15 +7,11 @@ pub(super) fn token(
 ) -> TypeToken {
     TypeToken::MixedEnum {
         nominal: nominal.clone(),
-        variants: variants
-            .iter()
-            .map(|variant| {
-                (
-                    variant.name.clone(),
-                    variant.shape.map(|field| TypeToken::from_tree(&field.ty)),
-                )
-            })
-            .collect(),
+        variants: named_tokens(
+            variants,
+            |variant| &variant.name,
+            |variant| variant.shape.map(|field| TypeToken::from_tree(&field.ty)),
+        ),
     }
 }
 

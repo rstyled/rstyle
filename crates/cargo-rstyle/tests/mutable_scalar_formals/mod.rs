@@ -1,4 +1,7 @@
-//! Memory readiness evidence must not authorize a supported syntax prefix.
+//! Complete mutable memory admission retains source and resealed proof attacks.
+mod matching;
+mod memory_checks;
+mod mutations;
 use crate::*;
 use rstyle_pdg::field_locations::{self, FieldObservations, scalar_formals};
 
@@ -7,6 +10,10 @@ fn alias(cur: &mut usize) { let saved = cur; *saved -= 1; }
 fn escape(cur: &mut usize) { consume(cur); }
 fn closure(cur: &mut usize) -> usize { let read = || *cur; read() }
 fn consume(_: &mut usize) {}
+fn helper(cur: &mut usize) { *cur -= 1; }
+fn noop(_cur: &mut usize) {}
+fn caller() -> usize { let mut value = 2; helper(&mut value); value }
+fn noop_caller() -> usize { let mut value = 2; noop(&mut value); value }
 fn rebind<'a>(mut cur: &'a mut usize, other: &'a mut usize) { cur = other; *cur = 1; }
 fn other_type(cur: &mut u32) { *cur -= 1; }
 fn mutable_slice(cur: &mut [u8]) { cur[0] = 1; }
@@ -15,7 +22,7 @@ fn unrelated() -> usize { 3 }
 "#;
 
 #[test]
-fn mutable_scalar_formals_capture_complete_original_accesses_without_admission() {
+fn mutable_scalar_formals_verify_complete_original_memory_and_reject_corruptions() {
     let selection: Value = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../eval/coverage-development/backtrack-match/selection.json"
@@ -41,12 +48,14 @@ fn mutable_scalar_formals_capture_complete_original_accesses_without_admission()
         .find(|function| function["facts"]["name"] == "backtrack_match")
         .unwrap();
     assert_eq!(function["facts"]["source"]["bytes"], source);
-    assert_eq!(function["outcome"], "excluded");
+    assert_eq!(function["outcome"], "admitted", "{}", function["reasons"]);
     let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
     check_original_access_inventory(&facts);
     check_access_corruptions(&facts);
     check_missing_and_contradictory_evidence(&facts);
     check_unsupported_controls(&report);
+    check_helper_boundary(&report);
+    check_verified_pair(function);
 }
 
 fn check_unsupported_controls(report: &Value) {
@@ -89,6 +98,31 @@ fn check_unsupported_controls(report: &Value) {
     }
 }
 
+fn check_helper_boundary(report: &Value) {
+    for function in report["functions"].as_array().unwrap() {
+        let name = function["facts"]["name"].as_str().unwrap();
+        match name {
+            "helper" | "noop" => {
+                assert_eq!(function["outcome"], "admitted", "{name}");
+                let wire = shared_evidence::wire(function);
+                assert!(
+                    wire["certified"][shared_evidence::index(function)].is_null(),
+                    "{name} exported a read-only helper summary"
+                );
+            }
+            "caller" | "noop_caller" => {
+                assert_eq!(function["outcome"], "excluded", "{name}");
+                assert!(
+                    function["reasons"].to_string().contains("helper"),
+                    "{name}: {}",
+                    function["reasons"]
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
 fn check_original_access_inventory(facts: &rstyle_pdg::HirFnFacts) {
     let fields = facts
         .build
@@ -117,7 +151,7 @@ fn check_original_access_inventory(facts: &rstyle_pdg::HirFnFacts) {
         ]
     );
     field_locations::verify(facts, &fields).unwrap();
-    assert!(rstyle_pdg::producer::produce(facts).is_err());
+
     let observation = facts
         .build
         .frontend_options
@@ -126,9 +160,14 @@ fn check_original_access_inventory(facts: &rstyle_pdg::HirFnFacts) {
     for index in [1, 4] {
         assert!(matches!(
             observation.parameters[index],
-            rstyle_pdg::concrete_types::Observation::Unsupported { .. }
+            rstyle_pdg::concrete_types::Observation::Captured {
+                ref ty
+            } if *ty == rstyle_pdg::concrete_types::TypeTree::MutableScalar("usize".into())
         ));
-        assert!(facts.signature.params[index].ty.normalized.is_none());
+        assert_eq!(
+            facts.signature.params[index].ty.normalized.as_deref(),
+            Some(r#"{"kind":"mutable_scalar","value":"usize"}"#)
+        );
     }
 }
 
@@ -235,4 +274,21 @@ fn remove_first_deref_dispatch(node: &mut rstyle_pdg::HirNode) -> bool {
         return true;
     }
     node.children.iter_mut().any(remove_first_deref_dispatch)
+}
+
+fn check_verified_pair(function: &Value) {
+    let (store, index) = data_unit(function);
+    let analysis = store.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = shared_evidence::pair(&store, function);
+    assert_eq!(facts.build.overflow_checks.value, Some(true));
+    assert_eq!(pair.pdg.profile.version, "3.93.0");
+    rstyle_pdg::verification_policy::strict(|| {
+        rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts)
+    })
+    .unwrap();
+    rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
+    rstyle_ccgraph::admit_produced(pair, &facts).unwrap();
+    memory_checks::check(pair);
+    mutations::check(pair, &facts);
 }

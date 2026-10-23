@@ -9,6 +9,7 @@ mod graph;
 mod hazards;
 mod lower;
 pub mod matching_build;
+pub mod memory;
 mod profile;
 mod summaries;
 mod unsigned_ranges;

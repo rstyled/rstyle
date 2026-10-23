@@ -129,7 +129,11 @@ impl Inventory<'_> {
             || dispatch.result_ty != "usize"
             || node_type != ("usize", Some("usize"))
             || node.expansion.is_some()
-            || base_type != ("&mut usize", None)
+            || base_type.0 != "&mut usize"
+            || base_type.1.is_some_and(|token| {
+                crate::data_types::parse(token).ok()
+                    != Some(crate::data_types::TypeToken::MutableScalar("usize".into()))
+            })
             || base.expansion.is_some()
             || !base.children.is_empty()
         {

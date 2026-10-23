@@ -39,6 +39,8 @@ pub enum TypeTree {
         length: u64,
     },
     Shared(Box<TypeTree>),
+    /// Root-only mutable scalar descriptor; memory permission is checked separately.
+    MutableScalar(String),
     Slice(Box<TypeTree>),
     Str,
     Option(Box<TypeTree>),
@@ -313,6 +315,8 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
         TypeTree::SliceArrayResult { length, .. } if *length > MAX_FIELDS as u64 => {
             Err("Slice conversion result exceeds supported array length".into())
         }
+        TypeTree::MutableScalar(token) if token == "usize" => Ok(()),
+        TypeTree::MutableScalar(_) => Err("Mutable scalar observations support only usize".into()),
         TypeTree::Scalar(token) if scalar(token) => Ok(()),
         TypeTree::Scalar(_) => Err("Unsupported scalar in concrete type observation".into()),
         TypeTree::Struct {
@@ -495,3 +499,6 @@ pub fn field_declarations(source: &str) -> Result<Vec<(String, String)>, String>
 fn is_digest(value: &str) -> bool {
     crate::source_identity::Scheme::parse(value).is_some()
 }
+
+#[cfg(test)]
+mod mutable_scalar_tests;

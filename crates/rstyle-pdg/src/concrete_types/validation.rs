@@ -36,6 +36,9 @@ impl<'a> Validation<'a> {
         if depth > MAX_DEPTH || self.entries > MAX_ENTRIES {
             return Err("Concrete type observation exceeds depth/entry budget".into());
         }
+        if depth != 0 && matches!(tree, TypeTree::MutableScalar(_)) {
+            return Err("Mutable scalar descriptors require a complete root observation".into());
+        }
         if depth != 0
             && matches!(
                 tree,

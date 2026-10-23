@@ -37,31 +37,24 @@ A normal first comparison makes all later decreasing indices valid; therefore an
 bounds panic in this particular source occurs before any store. This source fact
 does not establish a general exceptional-memory or unwind-cleanup model.
 
-The historical bundle in `selection.json` retains complete original HIR but lacks
-mutable-location evidence. Fresh captures now independently verify the five-formal
-roster, eight ordered scalar accesses and ten conservative reference-root alias
-pairs under the [observation contract](../../../docs/extraction-profiles/mutable-scalar-formals-v1.md).
-Mutable interface observations remain Unsupported; neither these records nor the
-existing cyclic normal CFG establish location-aware mutable state or admission.
-Next connect loads/stores to cyclic memory dependencies and normal/failure
-post-state. Stateful helper export and public compressor behavior remain outside
-this increment.
+Data3.93 connects the complete selected function through formal memory locations,
+ordered loads/stores, cyclic RAW/WAR/WAW dependencies, and explicit checked-failure
+post-state. Strict producer/document verification and original/replay matching pass
+on the fresh native full 150-definition owner. Frozen identities and denominators
+are unchanged: 24 admitted / 29 excluded / 7 inactive, gain 1 / loss 0;
+`backtrack_match` is the only changed outcome. Full lz4 owner: 9 admitted / 141
+excluded (previously 8 / 142). Evidence: `target/hir-coverage/run-ng8slil8` and
+`/tmp/rstyle-399-{frozen-comparison.json,natural-strict.log}`.
 
-The oracle's distinct valid cursors do not establish captured disjointness. In the
-conservative abstract alias model, the first cursor store can change the second
-cursor before its compound load; checked subtraction could then fail after a
-store. Preserve that ordering and failure post-state rather than applying the
-distinct-cursor oracle's pre-store panic conclusion to all abstract aliases.
+The native oracle passes 48,856 cases with zero mismatches. Its distinct valid
+cursors do not establish captured disjointness: conservative aliasing permits
+checked failure after the first store. Strict corruption tests independently
+require 46 memory edges, four roots, ten alias pairs and six checked exits,
+including that post-store failure. Historical profiles remain closed.
 
-Validated capture: `target/hir-coverage/run-gdz69t4m` (native default features).
-The strict readiness probe verifies the original 150-definition owner and selected
-unchanged function; it remains excluded. Frozen sixty remain 23 admitted / 30
-excluded / 7 inactive, gain 0 / loss 0. Native oracle: 48,856 cases, zero mismatches.
-Other declared target captures remain pending for connected memory activation.
-
-Neither source checks nor this oracle currently claim a new admission. Future
-positive expectations are the complete selected safe function in each of the
-three declared default-feature build contexts. Unsupported unsafe siblings,
-reordered accesses/stores, stale loop states, omitted writes and merged roots must
-remain negative; these are production corruption-test obligations, not assertions
-that the present oracle independently tests serialized evidence.
+Fresh full-owner captures, strict replay/admission and selected matching pass in
+all three declared target contexts (`target/backtrack-match-399/`). Native
+foreign-target execution remains pending; cross-target capture does not prove it. Stateful helper
+export, local reference storage, reborrows, plain stores, owned cleanup and public
+compressor callers remain unsupported. This completes one bounded mutable-formal
+family, not general memory or ownership coverage.

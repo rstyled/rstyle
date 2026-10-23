@@ -5,6 +5,8 @@ mod node_names;
 mod normalization;
 use node_names::node_names;
 #[cfg(test)]
+mod checked_failure_tests;
+#[cfg(test)]
 mod tests;
 use normalization::normalize;
 
@@ -260,13 +262,7 @@ fn add_cfg_names(
         actual.cfg.entry_node_id.clone(),
         expected.cfg.entry_node_id.clone(),
     );
-    if actual.cfg.exit_node_ids.len() != 1 {
-        return Err(vec!["R0 has exactly one normal exit".to_string()]);
-    }
-    names.insert(
-        actual.cfg.exit_node_ids[0].clone(),
-        expected.cfg.exit_node_ids[0].clone(),
-    );
+    add_exit_names(actual.cfg, expected.cfg, names)?;
 
     Ok(())
 }
@@ -303,16 +299,18 @@ fn compare_document<T: serde::Serialize + PartialEq>(
     if renaming.iter().all(|(actual, expected)| actual == expected) && actual == expected {
         return Ok(());
     }
-    let actual = normalize(
+    let mut actual = normalize(
         serde_json::to_value(actual).map_err(|e| vec![e.to_string()])?,
         "",
         renaming,
     );
-    let expected = normalize(
+    let mut expected = normalize(
         serde_json::to_value(expected).map_err(|e| vec![e.to_string()])?,
         "",
         &BTreeMap::new(),
     );
+    sort_exit_ids(&mut actual);
+    sort_exit_ids(&mut expected);
     if actual != expected {
         return Err(vec![format!(
             "Serialized extraction facts disagree with captured source/build/normal-flow evidence: {}",
@@ -336,4 +334,111 @@ fn first_difference(actual: &Value, expected: &Value, path: &str) -> String {
     }
 
     path.to_string()
+}
+
+fn add_exit_names(
+    actual: &CfgDocument,
+    expected: &CfgDocument,
+    names: &mut BTreeMap<String, String>,
+) -> Result<(), Vec<String>> {
+    if actual.exit_node_ids.len() != expected.exit_node_ids.len() {
+        return Err(vec!["Normal/checked-failure exit inventory differs".into()]);
+    }
+    if expected.exit_node_ids.len() == 1 {
+        names.insert(
+            actual.exit_node_ids[0].clone(),
+            expected.exit_node_ids[0].clone(),
+        );
+        return Ok(());
+    }
+    let expected_exits = exit_index(expected, &BTreeMap::new())?;
+    let actual_exits = exit_index(actual, names)?;
+    if actual_exits.keys().ne(expected_exits.keys()) {
+        return Err(vec!["Checked-failure exit sources or kinds differ".into()]);
+    }
+    for (key, actual) in actual_exits {
+        let expected = expected_exits[&key];
+        if names
+            .get(actual)
+            .is_some_and(|previous| previous != expected)
+        {
+            return Err(vec![
+                "Exit boundary collides with another local reference".into(),
+            ]);
+        }
+        names.insert(actual.into(), expected.into());
+    }
+
+    Ok(())
+}
+
+type ExitKey = (u8, Vec<String>);
+
+fn exit_index<'a>(
+    cfg: &'a CfgDocument,
+    names: &BTreeMap<String, String>,
+) -> Result<BTreeMap<ExitKey, &'a str>, Vec<String>> {
+    let nodes: BTreeMap<_, _> = cfg
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect();
+    let mut incoming: BTreeMap<&str, Vec<&CfgEdge>> = BTreeMap::new();
+    for edge in &cfg.edges {
+        incoming.entry(&edge.target).or_default().push(edge);
+    }
+    let mut exits = BTreeMap::new();
+    for id in &cfg.exit_node_ids {
+        let node = nodes
+            .get(id.as_str())
+            .ok_or_else(|| vec!["Exit boundary is absent".into()])?;
+        if node.kind != CfgNodeKind::Exit || !node.operations.is_empty() {
+            return Err(vec!["Exit boundary must be an operation-free exit".into()]);
+        }
+        let key = match node.exit_kind {
+            Some(CfgExitKind::Normal) => (0, Vec::new()),
+            Some(CfgExitKind::Exceptional) => (
+                1,
+                exception_sources(
+                    incoming.get(id.as_str()).map(Vec::as_slice).unwrap_or(&[]),
+                    names,
+                )?,
+            ),
+            _ => return Err(vec!["Unsupported or missing exit boundary kind".into()]),
+        };
+        if exits.insert(key, id.as_str()).is_some() {
+            return Err(vec!["Ambiguous or duplicated exit boundary".into()]);
+        }
+    }
+
+    Ok(exits)
+}
+
+fn exception_sources(
+    incoming: &[&CfgEdge],
+    names: &BTreeMap<String, String>,
+) -> Result<Vec<String>, Vec<String>> {
+    let mut sources = Vec::new();
+    for edge in incoming {
+        if edge.kind != CfgEdgeKind::Exception || edge.loop_role.is_some() {
+            return Err(vec![
+                "Checked-failure exit has a nonexception incoming transfer".into(),
+            ]);
+        }
+        sources.push(names.get(&edge.source).unwrap_or(&edge.source).clone());
+    }
+    if sources.is_empty() {
+        return Err(vec![
+            "Checked-failure exit has no checked operation source".into(),
+        ]);
+    }
+    sources.sort();
+
+    Ok(sources)
+}
+
+fn sort_exit_ids(document: &mut Value) {
+    if let Some(Value::Array(exits)) = document.get_mut("exit_node_ids") {
+        exits.sort_by(|left, right| left.as_str().cmp(&right.as_str()));
+    }
 }

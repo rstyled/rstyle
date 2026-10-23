@@ -16,6 +16,11 @@ pub(super) fn check(source: &syn::Type, resolved: &TypeTree) -> Result<(), Strin
         (syn::Type::Tuple(source), TypeTree::Tuple(elements)) => {
             check_tuple(&source.elems, elements)
         }
+        (syn::Type::Reference(source), TypeTree::MutableScalar(scalar))
+            if source.mutability.is_some() && scalar == "usize" =>
+        {
+            check(&source.elem, &TypeTree::Scalar(scalar.clone()))
+        }
         (syn::Type::Reference(source), TypeTree::Shared(referent))
             if source.mutability.is_none() =>
         {

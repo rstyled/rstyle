@@ -1,5 +1,6 @@
 //! Serialized cyclic-flow proof using finite fixed points, never bounded paths.
 
+use crate::mutable_scalars::lexical_reaching;
 use crate::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -235,7 +236,7 @@ fn check_reads(
     let mut actual: Vec<_> = pdg
         .edges
         .iter()
-        .filter(|edge| edge.subkind == "reaching_definition")
+        .filter(|edge| lexical_reaching(edge, &pdg.profile))
         .map(|edge| {
             (
                 edge.source.clone(),

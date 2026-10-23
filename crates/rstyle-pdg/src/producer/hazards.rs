@@ -4,7 +4,7 @@
 
 use super::{Analysis, Graph, Operation};
 use crate::NodeCategory;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 mod views;
 
 #[derive(serde::Serialize)]
@@ -28,6 +28,7 @@ pub fn assess(
     analysis: &Analysis,
 ) -> Result<Assessment, String> {
     let views = views::Views::new(facts)?;
+    let failures = explicit_failures(graph);
     let mut values = Values::new(facts, graph, analysis);
     let mut assessment = Assessment {
         limitations: Vec::new(),
@@ -55,18 +56,63 @@ pub fn assess(
         let relevant = relevant(node)
             || views.relevant(node, graph)
             || values.ranges.is_some() && node.construct.as_deref() == Some("data.value-index");
-        if relevant && !safe {
+        if relevant && !safe && !failures.contains(node.id.as_str()) {
             assessment.limitations.push(limitation(facts, node));
         }
         if relevant {
+            let evidence = proof(node, &operands, ordinary, bounded);
             assessment
                 .checked_operations
-                .push(proof(node, &operands, ordinary, bounded));
+                .push(with_failure(evidence, failures.contains(node.id.as_str())));
         }
         values.observe(node, value);
     }
 
     Ok(assessment)
+}
+
+fn with_failure(proof: Proof, explicit: bool) -> Proof {
+    if explicit {
+        Proof {
+            method: "Explicit checked-failure CFG transfer before memory effect; failure memory state retained",
+            ..proof
+        }
+    } else {
+        proof
+    }
+}
+
+fn explicit_failures(graph: &Graph) -> BTreeSet<&str> {
+    let exceptional: BTreeSet<_> = graph
+        .transfers
+        .iter()
+        .filter(|edge| edge.kind == "exception")
+        .map(|edge| edge.source.as_str())
+        .collect();
+    let nodes: BTreeMap<_, _> = graph
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect();
+    let mut failures = exceptional.clone();
+
+    for edge in graph.transfers.iter().filter(|edge| edge.kind == "normal") {
+        let (Some(check), Some(read)) = (
+            nodes.get(edge.source.as_str()),
+            nodes.get(edge.target.as_str()),
+        ) else {
+            continue;
+        };
+        if exceptional.contains(check.id.as_str())
+            && check.construct.as_deref() == Some("data.mutable-index-check")
+            && read.construct.as_deref() == Some("data.index")
+            && check.span == read.span
+            && check.operands == read.operands
+        {
+            failures.insert(read.id.as_str());
+        }
+    }
+    failures
 }
 
 struct Values<'a> {

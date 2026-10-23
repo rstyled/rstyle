@@ -981,7 +981,7 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         "expr_struct" if ctx.profile.supports("rust.named-struct-values") => Some(ty()),
         "expr_field" | "expr_addr_of" => Some(ty()),
         "expr_index" if crate::data_index_reads::candidate(node, ctx.facts) => Some(ty()),
-        "expr_unary" if crate::data_dereferences::candidate(node, ctx.facts) => Some(ty()),
+        "expr_unary" if data_dereference(node, ctx) => Some(ty()),
         "expr_block" if !node.is_unsafe_block => Some(ty()),
         "expr_ret" | "ty_annotation" => Some(ty()),
         "expr_if"
@@ -1005,6 +1005,11 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         "expr_path" => Some(check_data_path(node, ctx)),
         _ => None,
     }
+}
+
+fn data_dereference(node: &HirNode, ctx: &Ctx<'_>) -> bool {
+    crate::mutable_scalars::root(node, ctx.facts).is_some()
+        || crate::data_dereferences::candidate(node, ctx.facts)
 }
 
 fn check_result_constructor(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
@@ -1848,6 +1853,9 @@ fn check_assign_op(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         return evidence_gap(node, "compound shape");
     };
 
+    if crate::mutable_scalars::root(target, ctx.facts).is_some() {
+        return check_expr_ty(node, "mutable_compound_assignment");
+    }
     if target.kind != "expr_path" {
         return error(
             "rust.abstract-memory",

@@ -37,7 +37,7 @@ pub(super) fn verify(
         let derived = checked.locations(facts)?;
         let (reads, entries) = context.read_accesses(derived)?;
         verify_effects(node, &checked, &reads)?;
-        verify_operands(pair, node, &checked)?;
+        verify_operands(pair, node, &checked, source)?;
         locations.extend(entries);
     }
 
@@ -74,12 +74,19 @@ fn verify_operands(
     pair: PairView<'_>,
     node: &PdgNode,
     checked: &Checked<'_>,
+    source: &crate::HirNode,
 ) -> Result<(), String> {
     let base = super::value_operation(pair, checked.base)?;
     let index = super::value_operation(pair, checked.index)?;
     let mut actual = Vec::new();
     for edge in pair.pdg.edges.iter().filter(|edge| edge.target == node.id) {
-        if edge.subkind == "reaching_definition" {
+        if edge.subkind == "reaching_definition"
+            && !(crate::extraction_profile::policy_supports(
+                &pair.pdg.profile,
+                crate::mutable_scalars::CAPABILITY,
+            ) && edge.location_id.is_some()
+                && edge.symbol_id.is_none())
+        {
             return Err("Indexed read invents a lexical read".into());
         }
         if edge.kind == crate::EdgeFamily::Data && edge.subkind == "value_operand" {
@@ -87,6 +94,7 @@ fn verify_operands(
         }
     }
 
+    verify_bounds_check(pair, source, &[base, index])?;
     actual.sort();
     if actual != [(Some(0), &base.id), (Some(1), &index.id)] {
         return Err("Index operation loses its ordered base/index snapshot operands".into());
@@ -94,11 +102,46 @@ fn verify_operands(
     Ok(())
 }
 
+fn verify_bounds_check(
+    pair: PairView<'_>,
+    source: &crate::HirNode,
+    values: &[&PdgNode],
+) -> Result<(), String> {
+    if !crate::extraction_profile::policy_supports(
+        &pair.pdg.profile,
+        crate::mutable_scalars::CAPABILITY,
+    ) || !pair.pdg.extensions.contains_key(super::memory_flow::KEY)
+    {
+        return Ok(());
+    }
+    let check = super::typed_operation(pair, source, "data.mutable-index-check", "unit")?;
+    if check.category != NodeCategory::Computation
+        || !check.attributes.reads.is_empty()
+        || !check.attributes.writes.is_empty()
+        || !check.attributes.defines.is_empty()
+        || !check.attributes.symbol_ids.is_empty()
+        || check.attributes.operator.is_some()
+        || check.attributes.literal.is_some()
+        || check.attributes.callee.is_some()
+        || check
+            .attributes
+            .extensions
+            .get("compat.rust.hir-r0:source-operation")
+            .and_then(|source| source.get("role"))
+            .and_then(serde_json::Value::as_str)
+            != Some("index_bounds_check")
+    {
+        return Err("Mutable index check changes its source, role or memory effects".into());
+    }
+    super::verify_saved_operands(pair, check, values)
+}
+
 fn operation(node: &PdgNode) -> bool {
-    node.attributes.construct.as_deref() != Some("data.subslice-place")
-        && matches!(
-            node.category,
-            NodeCategory::Read | NodeCategory::Computation
-        )
-        && node.original_kind.known_value() == Some("expr_index")
+    !matches!(
+        node.attributes.construct.as_deref(),
+        Some("data.subslice-place" | "data.mutable-index-check")
+    ) && matches!(
+        node.category,
+        NodeCategory::Read | NodeCategory::Computation
+    ) && node.original_kind.known_value() == Some("expr_index")
 }

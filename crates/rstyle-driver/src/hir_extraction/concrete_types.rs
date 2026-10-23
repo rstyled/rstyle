@@ -249,6 +249,13 @@ impl<'tcx> Capture<'_, 'tcx> {
 
     fn composite(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
         match ty.kind() {
+            ty::Ref(_, referent, Mutability::Mut)
+                if depth == 0
+                    && matches!(referent.kind(), ty::Uint(ty::UintTy::Usize))
+                    && self.ctx.profile.supports("rust.mutable-scalar-formals") =>
+            {
+                Ok(TypeTree::MutableScalar("usize".into()))
+            }
             ty::Tuple(elements) => self.tuple(elements, depth),
             ty::Ref(_, referent, Mutability::Not) | ty::Slice(referent) => {
                 self.referent(*referent, depth, matches!(ty.kind(), ty::Slice(_)))

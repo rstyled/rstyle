@@ -222,7 +222,7 @@ pub struct SignatureFacts {
 pub struct SourceFacts {
     /// Exact UTF-8 bytes of the assessed function (no added newline).
     pub bytes: SourceText,
-    /// `sha256:<lowercase hex>` of those bytes.
+    /// Explicitly tagged byte checksum: XXH3 for new Data-v3 captures; SHA for historical claims.
     pub digest: String,
 }
 

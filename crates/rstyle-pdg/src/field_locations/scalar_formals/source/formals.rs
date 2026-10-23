@@ -149,7 +149,14 @@ fn compiled_type(
     let observed: syn::Type = syn::parse_str(&parameter.ty.observed)
         .map_err(|_| Failure::Unknown("Compiler formal type is not available as a type".into()))?;
     reference(&observed, observation)?;
-    let expected = expected_type(observation);
+    let mut expected = expected_type(observation);
+    if matches!(observation, FormalObservation::Mutable { .. }) && parameter.ty.normalized.is_some()
+    {
+        expected = Some((
+            "&mut usize",
+            Some("{\"kind\":\"mutable_scalar\",\"value\":\"usize\"}"),
+        ));
+    }
     if let Some((observed, normalized)) = expected
         && (parameter.ty.observed != observed || parameter.ty.normalized.as_deref() != normalized)
     {

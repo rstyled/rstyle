@@ -28,6 +28,7 @@ pub enum TypeToken {
         length: u64,
     },
     Shared(Box<TypeToken>),
+    MutableScalar(String),
     Slice(Box<TypeToken>),
     Str,
     Option(Box<TypeToken>),
@@ -71,6 +72,7 @@ impl TypeToken {
                 length: *length,
             },
             TypeTree::Shared(value) => Self::Shared(Box::new(Self::from_tree(value))),
+            TypeTree::MutableScalar(value) => Self::MutableScalar(value.clone()),
             TypeTree::Slice(value) => Self::Slice(Box::new(Self::from_tree(value))),
             TypeTree::Str => Self::Str,
             TypeTree::IntConversionResult(value) => Self::IntConversionResult(value.clone()),
@@ -83,14 +85,24 @@ impl TypeToken {
                 length: *length,
                 borrowed: *borrowed,
             },
+            TypeTree::Struct { .. }
+            | TypeTree::FieldlessEnum { .. }
+            | TypeTree::MixedEnum { .. }
+            | TypeTree::Enum { .. } => Self::from_nominal(tree),
+        }
+    }
+
+    fn from_nominal(tree: &TypeTree) -> Self {
+        match tree {
             TypeTree::Struct {
                 nominal, fields, ..
             } => Self::Struct {
                 nominal: nominal.clone(),
-                fields: fields
-                    .iter()
-                    .map(|field| (field.name.clone(), Self::from_tree(&field.ty)))
-                    .collect(),
+                fields: named_tokens(
+                    fields,
+                    |field| &field.name,
+                    |field| Self::from_tree(&field.ty),
+                ),
             },
             TypeTree::FieldlessEnum {
                 nominal, variants, ..
@@ -105,11 +117,13 @@ impl TypeToken {
                 nominal, variants, ..
             } => Self::Enum {
                 nominal: nominal.clone(),
-                variants: variants
-                    .iter()
-                    .map(|variant| (variant.name.clone(), Self::from_tree(&variant.payload.ty)))
-                    .collect(),
+                variants: named_tokens(
+                    variants,
+                    |variant| &variant.name,
+                    |variant| Self::from_tree(&variant.payload.ty),
+                ),
             },
+            _ => unreachable!("Nominal conversion requires a nominal tree"),
         }
     }
 
@@ -132,7 +146,8 @@ impl TypeToken {
             Self::Scalar(value) | Self::IntConversionResult(value) => {
                 matches!(value.as_str(), "isize" | "usize")
             }
-            Self::FieldlessEnum { .. }
+            Self::MutableScalar(_)
+            | Self::FieldlessEnum { .. }
             | Self::RangeUsize
             | Self::RangeToUsize
             | Self::RangeFromUsize => true,
@@ -153,6 +168,18 @@ impl TypeToken {
             _ => false,
         }
     }
+}
+
+/// Preserve declaration order and names while converting concrete member evidence.
+fn named_tokens<T, U>(
+    members: &[T],
+    name: impl Fn(&T) -> &str,
+    token: impl Fn(&T) -> U,
+) -> Vec<(String, U)> {
+    members
+        .iter()
+        .map(|member| (name(member).to_owned(), token(member)))
+        .collect()
 }
 
 pub fn token(tree: &TypeTree) -> Result<String, String> {
@@ -231,6 +258,11 @@ fn parse_context(
     checked_product: bool,
 ) -> Result<TypeToken, String> {
     let ty = parse(text)?;
+    if matches!(&ty, TypeToken::MutableScalar(_))
+        && !profile.supports("rust.mutable-scalar-formals")
+    {
+        return Err("Mutable scalar formals require their registered capability".into());
+    }
     check_fresh_capabilities(text, profile)?;
     check_checked_capabilities(&ty, profile)?;
 
@@ -381,6 +413,7 @@ fn check(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), Str
 
 fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {
     match token {
+        TypeToken::MutableScalar(value) if depth == 0 && value == "usize" => Ok(()),
         TypeToken::Scalar(value)
             if scalar(value) || depth == 0 && matches!(value.as_str(), "char" | "f32" | "f64") =>
         {

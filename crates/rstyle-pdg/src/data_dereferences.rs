@@ -5,6 +5,11 @@ use syn::spanned::Spanned;
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
     node.kind == "expr_unary"
+        && !node.children.first().is_some_and(|base| {
+            base.ty
+                .as_ref()
+                .is_some_and(|ty| ty.observed == "&mut usize")
+        })
         && node
             .dispatch
             .as_ref()
