@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 def escape(value):
     return (value.replace('%', '%25').replace('\r', '%0D')
-            .replace('\n', '%0A').replace(':', '%3A').replace(',', '%2C'))
+            .replace('\n', '%0A'))
 
 
 def annotate(path):
@@ -20,7 +20,8 @@ def annotate(path):
             title = case.get('classname', '') + '::' + case.get('name', '')
             output = [failure.get('message', ''), failure.text or '']
             output.extend(case.findtext(tag, '') for tag in ['system-out', 'system-err'])
-            print('::error title=' + escape(title) + '::' + escape('\n'.join(output)[:12000]))
+            title = escape(title).replace(':', '%3A').replace(',', '%2C')
+            print('::error title=' + title + '::' + escape('\n'.join(output)[:12000]))
 
 
 if __name__ == '__main__':

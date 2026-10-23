@@ -28,7 +28,7 @@ fn directory() -> PathBuf {
         std::env::temp_dir().join(format!("rstyle-hir-{}-{serial}", std::process::id()));
     std::fs::create_dir_all(&directory).expect("create isolated rustc run");
 
-    directory
+    directory.canonicalize().expect("resolve isolated rustc run")
 }
 
 fn compile(source: &str) -> (Output, Option<Vec<HirFnFacts>>) {
