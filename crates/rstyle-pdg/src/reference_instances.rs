@@ -5,11 +5,15 @@
 pub(crate) mod activation;
 mod body;
 mod forwarder;
+pub(crate) mod forwarder_activation;
 mod materialize;
 mod operations;
 pub(crate) mod products;
 mod provenance;
 mod view_types;
+pub use forwarder::materialize::{
+    CheckedForwarderProjection, verify as verify_forwarder_projection,
+};
 pub use materialize::{CheckedProjection, Haystack, verify as verify_constructor_projection};
 
 use crate::{HirFnFacts, extraction_profile::ExtractionProfile};

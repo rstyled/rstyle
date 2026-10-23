@@ -258,6 +258,11 @@ fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
         Ok(false) => {}
         Err(reason) => return evidence_gap(&facts.body, &reason),
     }
+    match crate::reference_instances::forwarder_activation::verify(facts) {
+        Ok(true) => return Outcome::ok(),
+        Ok(false) => {}
+        Err(reason) => return evidence_gap(&facts.body, &reason),
+    }
     let source = Outcome {
         diagnostics: facts.source_diagnostics.clone(),
         gap: false,

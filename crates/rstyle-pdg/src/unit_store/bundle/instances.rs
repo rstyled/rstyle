@@ -33,6 +33,7 @@ pub(super) fn checked_original_owner(
 ) -> Result<Arc<UnitStore>, String> {
     if owner.instance.is_some()
         || owner.reference_instance.is_some()
+        || owner.reference_forwarder.is_some()
         || !owner.dependencies.is_empty()
     {
         return Err("Instance replay requires an original unlinked definition owner".into());

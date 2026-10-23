@@ -4,9 +4,11 @@ use super::*;
 use std::io::Write;
 mod diagnostic;
 mod instances;
+mod reference_forwarders;
 mod reference_instances;
 pub use diagnostic::{read_diagnostic_snapshot, write_diagnostic_snapshot};
 pub use instances::ScalarInstanceReplay;
+pub use reference_forwarders::ReferenceForwarderReplay;
 pub use reference_instances::ReferenceConstructorReplay;
 mod function_sources;
 mod graph_sources;
@@ -88,7 +90,10 @@ impl Import {
 impl UnitStore {
     /// Stream shared records directly; no frontend/proof trees are expanded.
     pub fn write_bundle(&self, writer: impl Write) -> Result<(), String> {
-        if self.instance.is_some() || self.reference_instance.is_some() {
+        if self.instance.is_some()
+            || self.reference_instance.is_some()
+            || self.reference_forwarder.is_some()
+        {
             return Err("Instance requires original-owner and projection replay".into());
         }
         if !self.dependencies.is_empty() {
@@ -255,6 +260,7 @@ impl Decoded {
             external_links: vec![BTreeMap::new(); function_count],
             instance: None,
             reference_instance: None,
+            reference_forwarder: None,
         };
         store.validate_roots()?;
         store.validate_certifications()?;

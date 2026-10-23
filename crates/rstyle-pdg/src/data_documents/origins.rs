@@ -241,7 +241,7 @@ impl Graph<'_> {
             {
                 return Some(self.reference_instance_origins(node, selectors, visiting));
             }
-            if crate::helper_calls::direct_resolution(source).is_some() {
+            if crate::helper_calls::selected_resolution(source, self.facts).is_some() {
                 if crate::helper_component_outputs::call_used(source, self.facts) {
                     return Some(crate::helper_component_outputs::map(
                         source,

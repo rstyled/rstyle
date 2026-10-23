@@ -121,6 +121,11 @@ pub(crate) fn verify_formal(
             .ok_or("Missing returned helper formal type")?,
     )?;
 
+    if origin.path.contains(&Projection::Utf8Bytes) && facts.reference_forwarder().is_some() {
+        return crate::reference_instances::forwarder_activation::verify_returned_origin(
+            origin, facts, result,
+        );
+    }
     if origin.path.contains(&Projection::Utf8Bytes) {
         return crate::reference_instances::activation::verify_returned_origin(
             origin, facts, result,

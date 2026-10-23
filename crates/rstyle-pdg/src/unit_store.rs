@@ -2,13 +2,14 @@
 mod bundle;
 pub use bundle::BUNDLE_SCHEMA;
 pub use bundle::{
-    ReferenceConstructorReplay, ScalarInstanceReplay, read_diagnostic_snapshot,
-    write_diagnostic_snapshot,
+    ReferenceConstructorReplay, ReferenceForwarderReplay, ScalarInstanceReplay,
+    read_diagnostic_snapshot, write_diagnostic_snapshot,
 };
 mod dependency_closure;
 mod derived;
 mod instance_links;
 mod instances;
+mod reference_forwarders;
 mod reference_instances;
 pub use dependency_closure::DependencyClosure;
 mod manifest;
@@ -58,6 +59,13 @@ pub trait EvidenceFacts: sealed::Sealed {
 
     /// Only the separately checked original reference constructor owner grants this witness.
     fn reference_instance(&self) -> Option<&crate::reference_instances::CheckedProjection> {
+        None
+    }
+
+    /// Only the independently proved original forwarding owner supplies this witness.
+    fn reference_forwarder(
+        &self,
+    ) -> Option<&crate::reference_instances::CheckedForwarderProjection> {
         None
     }
 
@@ -138,6 +146,12 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn reference_forwarder(
+        &self,
+    ) -> Option<&crate::reference_instances::CheckedForwarderProjection> {
+        T::reference_forwarder(*self)
+    }
+
     fn reference_instance(&self) -> Option<&crate::reference_instances::CheckedProjection> {
         T::reference_instance(*self)
     }
@@ -249,6 +263,7 @@ pub struct UnitStore {
     external_links: Vec<BTreeMap<Site, ExternalTarget>>,
     instance: Option<instances::InstanceRecord>,
     reference_instance: Option<reference_instances::ReferenceInstanceRecord>,
+    reference_forwarder: Option<reference_forwarders::ForwarderRecord>,
 }
 
 /// A proof cache belongs to this exact immutable store and this analysis only.
@@ -303,6 +318,7 @@ struct Tables<'a> {
     external_links: &'a [BTreeMap<Site, ExternalTarget>],
     instance: Option<&'a instances::InstanceRecord>,
     reference_instance: Option<&'a reference_instances::ReferenceInstanceRecord>,
+    reference_forwarder: Option<&'a reference_forwarders::ForwarderRecord>,
 }
 
 pub struct FunctionView<'a> {
@@ -324,6 +340,14 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn reference_forwarder(
+        &self,
+    ) -> Option<&crate::reference_instances::CheckedForwarderProjection> {
+        (self.id.0 == 0)
+            .then_some(self.resolver.tables().reference_forwarder?)
+            .map(|instance| &instance.checked)
+    }
+
     fn reference_instance(&self) -> Option<&crate::reference_instances::CheckedProjection> {
         (self.id.0 == 0)
             .then_some(self.resolver.tables().reference_instance?)
@@ -669,6 +693,7 @@ impl UnitStore {
             external_links: &self.external_links,
             instance: self.instance.as_ref(),
             reference_instance: self.reference_instance.as_ref(),
+            reference_forwarder: self.reference_forwarder.as_ref(),
         }
     }
 }
@@ -736,6 +761,7 @@ impl Builder {
                 external_links: vec![BTreeMap::new(); pending.len()],
                 instance: None,
                 reference_instance: None,
+                reference_forwarder: None,
             },
             dependencies: Vec::new(),
             pending,

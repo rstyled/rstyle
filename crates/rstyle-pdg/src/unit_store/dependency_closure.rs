@@ -330,7 +330,10 @@ fn check_association(edge: &Value, callee: &UnitStore) -> Result<(), String> {
 
 fn unique_namespaces(units: &[UnitStore]) -> Result<(), String> {
     for (index, unit) in units.iter().enumerate() {
-        if unit.instance.is_some() || unit.reference_instance.is_some() {
+        if unit.instance.is_some()
+            || unit.reference_instance.is_some()
+            || unit.reference_forwarder.is_some()
+        {
             return Err("Instances require checked caller-instance associations".into());
         }
         if !unit.dependencies.is_empty()

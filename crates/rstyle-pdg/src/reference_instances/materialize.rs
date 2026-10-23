@@ -20,7 +20,7 @@ impl Haystack {
         }
     }
 
-    fn token(self) -> TypeToken {
+    pub(in crate::reference_instances) fn token(self) -> TypeToken {
         let referent = match self {
             Self::Str => TypeToken::Str,
             Self::Bytes => TypeToken::Slice(Box::new(TypeToken::Scalar("u8".into()))),
@@ -94,7 +94,7 @@ fn concrete_facts(canonical: &HirFnFacts, haystack: Haystack) -> Result<HirFnFac
     Ok(facts)
 }
 
-fn normalize_formal(
+pub(in crate::reference_instances) fn normalize_formal(
     facts: &mut HirFnFacts,
     formal: &HirRef,
     normalized: &str,
@@ -109,7 +109,11 @@ fn normalize_formal(
     Ok(())
 }
 
-fn normalize_node(node: &mut HirNode, formal: &HirRef, normalized: &str) -> Result<(), String> {
+pub(in crate::reference_instances) fn normalize_node(
+    node: &mut HirNode,
+    formal: &HirRef,
+    normalized: &str,
+) -> Result<(), String> {
     let formal_read = node.res.as_ref().is_some_and(|resolution| {
         resolution.kind == "local" && resolution.target.as_ref() == Some(formal)
     });

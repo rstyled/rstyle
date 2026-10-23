@@ -204,6 +204,13 @@ pub(crate) fn parse_in(
             crate::reference_instances::activation::CAPABILITY,
         ) && parse(text).is_ok_and(|ty| instance.products().permits(&ty))
     });
+    let permitted = permitted
+        || facts.reference_forwarder().is_some_and(|instance| {
+            crate::extraction_profile::facts_support(
+                facts,
+                crate::reference_instances::forwarder_activation::CAPABILITY,
+            ) && parse(text).is_ok_and(|ty| instance.constructor().products().permits(&ty))
+        });
     parse_context(
         text,
         crate::extraction_profile::ExtractionProfile::from_facts(facts)?,

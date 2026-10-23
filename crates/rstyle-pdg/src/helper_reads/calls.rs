@@ -312,12 +312,9 @@ pub(crate) fn verify_locations(
         let dependency = crate::helper_calls::verify_use(call, context.facts)?;
         let effects = expected(dependency.summary(), call, context)?;
         verify_snapshot_policy(pair, &effects)?;
-        check_effects(
-            source_call(pair, call)?,
-            call,
-            dependency.summary(),
-            &effects,
-        )?;
+        let node = source_call(pair, call)?;
+        verify_result_type(node, dependency.summary())?;
+        effects.verify_source(node, call, context.facts)?;
         for (id, location) in effects.locations {
             insert_location(locations, id, location)?;
         }
@@ -351,7 +348,8 @@ pub(crate) fn verify_effects(
     context: &mut LocationContext<'_>,
 ) -> Result<(), String> {
     let effects = expected(summary, call, context)?;
-    check_effects(node, call, summary, &effects)
+    verify_result_type(node, summary)?;
+    effects.verify_source(node, call, context.facts)
 }
 
 const SNAPSHOT_KEY: &str = "rstyle.data:owned-receiver-reads";
@@ -365,34 +363,42 @@ fn snapshot_annotation(effects: &Effects) -> Result<Option<serde_json::Value>, S
         .map_err(|error| error.to_string())
 }
 
-fn check_effects(
-    node: &PdgNode,
-    call: &HirNode,
-    summary: &Summary,
-    effects: &Effects,
-) -> Result<(), String> {
-    if node.synthetic
-        || node.provenance.origin != crate::ProvenanceOrigin::Source
-        || node.original_kind.known_value() != Some(call.kind.as_str())
-        || node.attributes.reads != effects.reads
-        || node.annotations.get(SNAPSHOT_KEY) != snapshot_annotation(effects)?.as_ref()
-        || !node.attributes.writes.is_empty()
-        || !node.attributes.defines.is_empty()
-        || !node.attributes.symbol_ids.is_empty()
-        || node.attributes.exit_kind.is_some()
-        || node
-            .attributes
-            .operator
-            .as_ref()
-            .and_then(crate::StringFact::known_value)
-            != call.dispatch.as_ref().map(|dispatch| dispatch.op.as_str())
-        || node.annotations["compat.rust.hir-r0:type"]["value"] != summary.result_type
-    {
-        return Err(
-            "Serialized helper CALL reads, effects, type or source identity disagree".into(),
-        );
+fn verify_result_type(node: &PdgNode, summary: &Summary) -> Result<(), String> {
+    if node.annotations["compat.rust.hir-r0:type"]["value"] != summary.result_type {
+        return Err("Serialized helper CALL result type disagrees with its checked summary".into());
     }
     Ok(())
+}
+
+impl Effects {
+    fn verify_source(
+        &self,
+        node: &PdgNode,
+        call: &HirNode,
+        facts: &dyn crate::unit_store::EvidenceFacts,
+    ) -> Result<(), String> {
+        if node.synthetic
+            || node.provenance.origin != crate::ProvenanceOrigin::Source
+            || node.original_kind.known_value() != Some(call.kind.as_str())
+            || node.attributes.reads != self.reads
+            || node.annotations.get(SNAPSHOT_KEY) != snapshot_annotation(self)?.as_ref()
+            || !node.attributes.writes.is_empty()
+            || !node.attributes.defines.is_empty()
+            || !node.attributes.symbol_ids.is_empty()
+            || node.attributes.exit_kind.is_some()
+            || node
+                .attributes
+                .operator
+                .as_ref()
+                .and_then(crate::StringFact::known_value)
+                != crate::helper_calls::callee(call, facts).as_deref()
+        {
+            return Err(
+                "Serialized helper CALL reads, effects, type or source identity disagree".into(),
+            );
+        }
+        Ok(())
+    }
 }
 
 fn source_call<'a>(

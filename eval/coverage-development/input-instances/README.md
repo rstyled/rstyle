@@ -104,3 +104,11 @@ single returned reference component: Input field0, shared `[u8]`, formal0, with
 `SharedReferent` for bytes and `SharedReferent → Utf8Bytes` for strings. Both From
 instances remain unsupported. This brings each unchanged native selection to
 2/4 admitted; no cross-target or foreign-caller admission is claimed.
+
+Data3.87 connects both original From callers to the exact checked constructor at
+the same substitution. Both native contexts admit4/4 on the unchanged selection,
+with2 gains/0 losses from3.86. Strict nested-proof replay, producer admission,
+component-origin expectations, identity matching and call/dependency/policy
+attacks are required by the same probe. Replay reuses an inspected immutable
+owner, and nested proof inputs avoid JSON re-encoding. Ordinary foreign caller
+linking is still pending; generic definition rosters are unchanged.

@@ -76,12 +76,12 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.86.0");
+    assert_eq!(profile.policy().version, "3.87.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 106);
+    assert_eq!(profile.capabilities().len(), 107);
     assert!(profile.supports("rust.checked-scalar-instances"));
     assert!(profile.supports("rust.component-helper-results"));
     let mut previous = profile.policy();
@@ -209,5 +209,24 @@ fn float_vocabulary_requires_standalone_widths_and_current_policy() {
             let serialized = serde_json::to_string(&TypeToken::from_tree(&structured)).unwrap();
             assert!(data_types::parse(&serialized).is_err(), "{serialized}");
         }
+    }
+}
+
+#[test]
+fn original_from_authority_requires_its_new_document_policy() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let current = ExtractionProfile::DataV3.policy();
+    assert!(policy_supports(
+        &current,
+        "rust.checked-reference-forwarder-instances"
+    ));
+    let mut previous = current;
+    previous.version = "3.86.0".into();
+    assert!(!policy_supports(
+        &previous,
+        "rust.checked-reference-forwarder-instances"
+    ));
+    for profile in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
+        assert!(!profile.supports("rust.checked-reference-forwarder-instances"));
     }
 }

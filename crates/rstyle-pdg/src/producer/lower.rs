@@ -733,7 +733,11 @@ impl Builder<'_> {
             NodeCategory::Computation
         };
         let operation = Operation {
-            operator: node.dispatch.as_ref().map(|d| d.op.clone()),
+            operator: node
+                .dispatch
+                .as_ref()
+                .map(|d| d.op.clone())
+                .or_else(|| crate::helper_calls::callee(node, self.facts)),
             construct: if crate::reference_instances::activation::operation(node, self.facts)
                 .expect("verified reference operation")
                 .is_some()

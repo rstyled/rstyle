@@ -1,7 +1,7 @@
 //! Replay complete captured originals through checked constructor admission.
 use rstyle_pdg::{
     reference_instances::Haystack,
-    unit_store::{self, ReferenceConstructorReplay, UnitStore},
+    unit_store::{self, ReferenceConstructorReplay, ReferenceForwarderReplay, UnitStore},
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -30,7 +30,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for haystack in [Haystack::Bytes, Haystack::Str] {
         check_constructor(&session, &inventory, ordinal, haystack)?;
     }
-    remaining_selection(&owner, &inventory)?;
+    let session = ReferenceForwarderReplay::from_constructor(session);
+    check_forwarders(&session, &inventory, ordinal)?;
     Ok(())
 }
 
@@ -227,45 +228,182 @@ fn mutate(
     Ok(())
 }
 
-fn remaining_selection(owner: &Arc<UnitStore>, inventory: &Value) -> Result<(), String> {
-    let requests = inventory["requests"]
-        .as_array()
-        .ok_or("Missing reference requests")?;
+fn check_forwarders(
+    session: &ReferenceForwarderReplay,
+    inventory: &Value,
+    constructor_ordinal: usize,
+) -> Result<(), String> {
+    let requests = inventory["requests"].as_array().ok_or("Missing requests")?;
     let selected: Vec<_> = requests
         .iter()
         .filter(|request| request["status"] == "observed")
         .collect();
     if selected.len() != 4 {
-        return Err("Original four-instance development selection changed".into());
+        return Err("Original four-instance selection changed".into());
     }
     for request in selected {
-        let name = request["request"]["function"]
-            .as_str()
-            .ok_or("Missing original name")?;
-        let argument = request["request"]["haystack"]
-            .as_str()
-            .ok_or("Missing substitution")?;
-        if name == CONSTRUCTOR {
-            continue;
-        }
-        let haystack = match argument {
-            "str" => Haystack::Str,
-            "[u8]" => Haystack::Bytes,
-            _ => return Err("Undeclared reference instance argument".into()),
-        };
-        let ordinal = owner
-            .functions()
-            .iter()
-            .position(|facts| facts.name == name)
-            .ok_or("Selected original definition is missing")?;
-        let error =
-            UnitStore::capture_reference_constructor(Arc::clone(owner), ordinal, request, haystack)
-                .err()
-                .ok_or(
-                    "An unsupported selected reference instance unexpectedly gained authority",
-                )?;
-        println!("Unsupported selected instance {name}<{argument}>: {error}");
+        check_forwarder(session, inventory, constructor_ordinal, request)?;
     }
-    println!("Unchanged development selection: 2 admitted, 2 unsupported, out of 4");
+    println!("Unchanged development selection: 4 admitted out of 4");
+    Ok(())
+}
+
+fn check_forwarder(
+    session: &ReferenceForwarderReplay,
+    inventory: &Value,
+    constructor_ordinal: usize,
+    request: &Value,
+) -> Result<(), String> {
+    let owner = session.owner();
+    let name = request["request"]["function"]
+        .as_str()
+        .ok_or("Missing function")?;
+    if name == CONSTRUCTOR {
+        return Ok(());
+    }
+    let haystack = match request["request"]["haystack"].as_str() {
+        Some("str") => Haystack::Str,
+        Some("[u8]") => Haystack::Bytes,
+        _ => return Err("Unexpected substitution".into()),
+    };
+    let ordinal = owner
+        .functions()
+        .iter()
+        .position(|facts| facts.name == name)
+        .ok_or("Missing From")?;
+    let constructor = Arc::new(UnitStore::capture_reference_constructor(
+        Arc::clone(owner),
+        constructor_ordinal,
+        constructor(inventory, haystack)?,
+        haystack,
+    )?);
+    let instance = UnitStore::capture_reference_forwarder(
+        Arc::clone(owner),
+        ordinal,
+        request,
+        Arc::clone(&constructor),
+    )?;
+    let wrong_owner = Arc::new(UnitStore::capture(Vec::new())?);
+    if UnitStore::capture_reference_forwarder(wrong_owner, ordinal, request, constructor).is_ok() {
+        return Err("From accepted constructor from another original owner".into());
+    }
+    require_admission(&instance)?;
+    expected_component(&instance, haystack)?;
+    let mut sidecar = Vec::new();
+    instance.write_reference_forwarder_sidecar(&mut sidecar)?;
+    let replayed = session.replay(&sidecar)?;
+    require_admission(&replayed)?;
+    expected_component(&replayed, haystack)?;
+    matching(&instance, &replayed)?;
+    forwarder_attacks(session, &sidecar, &replayed)?;
+    println!(
+        "Original From<{}> admitted with exact constructor dependency and independently specified component origin",
+        haystack.spelling()
+    );
+    Ok(())
+}
+
+fn forwarder_attacks(
+    session: &ReferenceForwarderReplay,
+    sidecar: &[u8],
+    instance: &UnitStore,
+) -> Result<(), String> {
+    attack_forwarder_sidecar(session, sidecar)?;
+    let analysis = instance.analysis();
+    let view = analysis.function(0).ok_or("Missing From")?;
+    let pair = instance.pair(0).ok_or("Missing From pair")?;
+    for attack in ["callee", "origin", "dependency", "policy"] {
+        let mut forged = rstyle_pdg::producer::Pair {
+            pdg: pair.pdg.clone(),
+            cfg: pair.cfg.clone(),
+        };
+        mutate_forwarder_pair(&mut forged, attack)?;
+        if rstyle_pdg::verification_policy::strict(|| rstyle_pdg::producer::verify(&forged, &view))
+            .is_ok()
+        {
+            return Err(format!("From graph accepted {attack} attack"));
+        }
+    }
+    if rstyle_pdg::producer::verify(pair, &*view).is_ok() {
+        return Err("Raw From facts acquired private authority".into());
+    }
+    println!(
+        "From sidecar substitution/ordinal/dependency/owner and graph callee/dependency/historical/raw-authority attacks rejected"
+    );
+    Ok(())
+}
+
+fn attack_forwarder_sidecar(
+    session: &ReferenceForwarderReplay,
+    sidecar: &[u8],
+) -> Result<(), String> {
+    let original: Value = serde_json::from_slice(sidecar).map_err(|e| e.to_string())?;
+    for attack in ["substitution", "ordinal", "constructor", "namespace"] {
+        let mut forged = original.clone();
+        match attack {
+            "substitution" => {
+                forged["haystack"] = Value::String(
+                    if original["haystack"] == "str" {
+                        "[u8]"
+                    } else {
+                        "str"
+                    }
+                    .into(),
+                );
+            }
+            "ordinal" => {
+                forged["definition_ordinal"] = forged["constructor"]["definition_ordinal"].clone()
+            }
+            "constructor" => {
+                forged["constructor"]["definition_ordinal"] = forged["definition_ordinal"].clone()
+            }
+            "namespace" => forged["owner_namespace"] = Value::Null,
+            _ => unreachable!(),
+        }
+        let bytes = serde_json::to_vec(&forged).map_err(|e| e.to_string())?;
+        if session.replay(&bytes).is_ok() {
+            return Err(format!("From sidecar accepted {attack} attack"));
+        }
+    }
+    Ok(())
+}
+
+fn mutate_forwarder_pair(
+    forged: &mut rstyle_pdg::producer::Pair,
+    attack: &str,
+) -> Result<(), String> {
+    match attack {
+        "callee" | "origin" => {
+            let node = forged
+                .pdg
+                .nodes
+                .iter_mut()
+                .find(|node| node.category == rstyle_pdg::NodeCategory::Call)
+                .ok_or("Missing From CALL")?;
+            if attack == "origin" {
+                node.annotations
+                    .insert(rstyle_pdg::data_origins::KEY.into(), serde_json::json!([]));
+            } else {
+                node.attributes.callee =
+                    Some(rstyle_pdg::StringFact::known("another::constructor"));
+            }
+        }
+        "dependency" => {
+            forged
+                .pdg
+                .extensions
+                .get_mut(rstyle_pdg::call_summaries::KEY)
+                .ok_or("Missing calls")?[0]["dependency"] = Value::Null;
+            forged.cfg.extensions.insert(
+                rstyle_pdg::call_summaries::KEY.into(),
+                forged.pdg.extensions[rstyle_pdg::call_summaries::KEY].clone(),
+            );
+        }
+        "policy" => {
+            forged.pdg.profile.version = "3.86.0".into();
+            forged.cfg.profile.version = "3.86.0".into();
+        }
+        _ => unreachable!(),
+    }
     Ok(())
 }

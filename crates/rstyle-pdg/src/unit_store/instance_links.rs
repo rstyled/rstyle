@@ -62,7 +62,10 @@ fn selected(
     definition: FunctionId,
     argument: ScalarArgument,
 ) -> Result<&Value, String> {
-    if owner.instance.is_some() || owner.reference_instance.is_some() {
+    if owner.instance.is_some()
+        || owner.reference_instance.is_some()
+        || owner.reference_forwarder.is_some()
+    {
         return Err("Scalar linking requires the immutable original definition owner".into());
     }
     let facts = owner

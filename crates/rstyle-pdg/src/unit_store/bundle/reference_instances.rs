@@ -9,7 +9,7 @@ use serde_json::Value;
 const SCHEMA: &str = "rstyle.reference-constructor-sidecar/1";
 
 #[derive(Serialize)]
-struct Export<'a> {
+pub(super) struct Export<'a> {
     schema: &'static str,
     owner_namespace: &'a UnitNamespace,
     definition_ordinal: usize,
@@ -19,7 +19,7 @@ struct Export<'a> {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Import {
+pub(super) struct Import {
     schema: String,
     owner_namespace: UnitNamespace,
     definition_ordinal: usize,
@@ -50,6 +50,10 @@ impl ReferenceConstructorReplay {
     /// Recompute the source, effects, origins and graph under strict policy.
     pub fn replay(&self, bytes: &[u8]) -> Result<UnitStore, String> {
         let import: Import = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+        self.replay_inputs(import)
+    }
+
+    pub(super) fn replay_inputs(&self, import: Import) -> Result<UnitStore, String> {
         if import.schema != SCHEMA || import.owner_namespace != self.owner.namespace {
             return Err("Reference sidecar differs from its independently selected owner".into());
         }
@@ -79,6 +83,11 @@ fn argument(value: &str) -> Result<Haystack, String> {
 impl UnitStore {
     /// Export the exact retained proof inputs after independently rechecking them.
     pub fn write_reference_constructor_sidecar(&self, writer: impl Write) -> Result<(), String> {
+        let export = self.reference_constructor_inputs()?;
+        serde_json::to_writer(writer, &export).map_err(|error| error.to_string())
+    }
+
+    pub(super) fn reference_constructor_inputs(&self) -> Result<Export<'_>, String> {
         let instance = self
             .reference_instance
             .as_ref()
@@ -106,13 +115,12 @@ impl UnitStore {
             self.validate_evidence()
         })?;
 
-        let export = Export {
+        Ok(Export {
             schema: SCHEMA,
             owner_namespace: &owner.namespace,
             definition_ordinal: ordinal,
             haystack: haystack.spelling(),
             observation,
-        };
-        serde_json::to_writer(writer, &export).map_err(|error| error.to_string())
+        })
     }
 }

@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.86.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.87.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -40,8 +40,9 @@ and independently proved explicit-u8 enum ownership.
 Data-v3 3.83 connects checked scalar instances across selected packages; 3.84
 adds local component-specific shared-reference helper results. Data-v3 3.85
 activates the original byte Input constructor as a separately owned checked
-instance; 3.86 adds exact string-to-byte origin projection. From activation and
-foreign aggregate callers remain pending. See the
+instance; 3.86 adds exact string-to-byte origin projection. 3.87 connects both
+original From callers to their checked constructor and component summaries.
+Foreign aggregate callers remain pending. See the
 [constructor contract](docs/extraction-profiles/reference-constructor-instances-v1.md).
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
@@ -4955,3 +4956,36 @@ unchanged ignores. Composition1.546s. Frozen `run-6jdco7wi` versus `run-mj68hs_m
 all60 identities/denominators unchanged,23/30/7, zero gains/losses,116 schema-checked
 documents. Evidence: `/tmp/rstyle-386-*`; no additional strict frozen replay,
 cross-target activation, foreign-caller gain or broad completion is claimed.
+
+
+### Data3.87: original From callers and constructor dependencies
+
+The same four original regex-automata0.4.18 Input instances now connect through
+checked constructor/From owners, exact same-substitution helper links and
+component origins. Fresh native default/no-default Cargo-owner probes admit4/4
+(previously2/4), with2 gains and0 losses/context; original generic rosters remain
+2,582/590. Both proofs replay strictly and pass producer admission and complete
+identity matching. Ordinary foreign reference/component linking remains pending.
+Private exact-call authority preserves unresolved raw dispatch and complete
+source/trait/impl/no-drop proof. Sidecars carry typed nested proof inputs without
+JSON round trips; replay sessions reuse their inspected immutable original owner.
+No new hash operation, serialized lookup key, threshold or ignore is introduced.
+Tampering with substitution, owner, definition, callee, dependency or historical
+policy rejects. Evidence and final checkpoint results: `/tmp/rstyle-387-*`.
+
+Next delivery: original base64ct `Line::slice_tail → len`, independently frozen
+in `eval/coverage-development/line-tail/`: eager scalar ok_or, checked subtraction
+Result payload `?`, suffix get, actual fieldless Copy error/import ownership and
+borrowed-result origins. The public Decoder chain still needs loops/mutation.
+Foreign Input linking needs production instance/artifact inventory and caller
+component authority; audited foreign originals additionally require substantial
+search/state foundations. Keep that lane separate from natural admission claims.
+The fixed sixty and all existing selections remain unchanged.
+
+Checkpoint:1,442 tests/five existing skips and doctests pass; fmt/Clippy pass;
+rstyle0/4,641, patterns0 with15 existing ignores unchanged. Fresh frozen
+`run-26yohht4` preserves all60 identities/denominators and23/30/7 against
+`run-6jdco7wi`, with116 schema-checked documents and0 gains/losses. Native Input
+oracle132,736 observations/context has0 mismatches. Four original/replayed identity
+comparisons/context pass. Fresh complete probes take136.63s/default and20.22s/no-default;
+these include additional From work and do not establish a controlled speedup.

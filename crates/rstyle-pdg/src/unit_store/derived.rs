@@ -177,7 +177,7 @@ pub(super) fn receivers<'a>(
 
 impl FunctionView<'_> {
     pub(super) fn source_inputs(&self) -> Result<(), String> {
-        if self.reference_instance().is_some() {
+        if self.reference_instance().is_some() || self.reference_forwarder().is_some() {
             // Minting the private token verified the complete retained original
             // source owner. Immutable instance queries cannot change that proof.
             return Ok(());

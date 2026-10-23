@@ -21,6 +21,7 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
         crate::diagnostics::Stage::new("source.data_frontend", &facts.name, None).enter();
     if crate::scalar_instances::activation::verify(facts)?
         || crate::reference_instances::activation::verify(facts)?
+        || crate::reference_instances::forwarder_activation::verify(facts)?
     {
         let places = crate::data_places::Places::verify(facts)?;
         return observation.finish(verify_nodes(&facts.body, facts, &places));
@@ -105,6 +106,12 @@ fn verify_value_document_policy(
         crate::reference_instances::activation::CAPABILITY,
         || facts.reference_instance().is_some(),
         "Reference constructor requires its registered document policy",
+    )?;
+    crate::extraction_profile::require_document(
+        profile,
+        crate::reference_instances::forwarder_activation::CAPABILITY,
+        || facts.reference_forwarder().is_some(),
+        "Reference forwarder requires its registered document policy",
     )?;
     crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
     crate::primitive_constants::verify_document_policy(profile, facts)?;

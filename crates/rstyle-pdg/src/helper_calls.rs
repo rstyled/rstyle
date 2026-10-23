@@ -7,6 +7,7 @@ use serde_json::Value;
 
 mod external;
 pub(crate) mod instances;
+mod reference_forwarders;
 pub(crate) mod transport;
 mod transport_lexical;
 
@@ -225,7 +226,7 @@ fn node_native_width(
     let children = node.children.iter().try_fold(false, |native, child| {
         node_native_width(child, data, facts).map(|seen| native | seen)
     })?;
-    let callee = if direct_resolution(node).is_some() {
+    let callee = if selected_resolution(node, facts).is_some() {
         native_dependency(node, facts)?
     } else {
         false
@@ -260,6 +261,18 @@ pub fn direct_resolution(node: &HirNode) -> Option<Value> {
     }
 
     serde_json::from_str(&node.res.as_ref()?.description).ok()
+}
+
+/// Ordinary compiler resolution or the exact call retained by a private From proof.
+pub fn selected_resolution(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Value> {
+    direct_resolution(node).or_else(|| reference_forwarders::resolution(node, facts))
+}
+
+pub(crate) fn callee(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<String> {
+    node.dispatch
+        .as_ref()
+        .map(|dispatch| dispatch.op.clone())
+        .or_else(|| reference_forwarders::callee(node, facts))
 }
 
 pub(crate) fn call_nodes(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
@@ -383,16 +396,19 @@ fn verify_shared(
     helper: &crate::unit_store::HelperView<'_>,
 ) -> Result<(), String> {
     let callee = helper.frontend();
-    let resolution = direct_resolution(node).ok_or("Unresolved direct helper call")?;
+    let selected = reference_forwarders::verify(node, caller, &callee)?;
+    let resolution = selected_resolution(node, caller).ok_or("Unresolved direct helper call")?;
 
     if helper.depth() + 1 > MAX_DEPTH {
         return Err("Helper dependencies exceed explicit depth budget 8".into());
     }
-    check_signature(node, caller, &resolution, &callee)?;
-    if resolution["local"] == false {
-        external::summary(helper.summary())?;
+    if !selected {
+        check_signature(node, caller, &resolution, &callee)?;
+        if resolution["local"] == false {
+            external::summary(helper.summary())?;
+        }
+        crate::inherent_calls::verify(node, caller, &callee, &resolution)?;
     }
-    crate::inherent_calls::verify(node, caller, &callee, &resolution)?;
     if !helper.verified() {
         verify_shared_callee(helper, &callee)?;
         helper.remember();
@@ -733,16 +749,21 @@ fn verify_document_call(
     };
 
     crate::helper_reads::verify_effects(node, call, dependency.summary(), locations)?;
-    verify_call_metadata(node, call, record, dependency)?;
+    verify_call_metadata(
+        SummaryOperands { node, call, record },
+        dependency,
+        locations.facts,
+    )?;
     verify_call_operands(pair, node, call, record)
 }
 
 fn verify_call_metadata(
-    node: &crate::PdgNode,
-    call: &HirNode,
-    record: &Value,
+    operands: SummaryOperands<'_>,
     dependency: VerifiedDependency<'_>,
+    facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
+    let SummaryOperands { node, call, record } = operands;
+
     if record["dependency"] != dependency.wire()?
         || record["source_span"]
             != serde_json::to_value(call.span).map_err(|error| error.to_string())?
@@ -751,7 +772,7 @@ fn verify_call_metadata(
             .callee
             .as_ref()
             .and_then(crate::StringFact::known_value)
-            != call.dispatch.as_ref().map(|dispatch| dispatch.op.as_str())
+            != callee(call, facts).as_deref()
         || node.attributes.call_form != Some(crate::CallForm::Direct)
     {
         return Err(

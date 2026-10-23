@@ -25,7 +25,9 @@ pub struct Output {
 pub fn used(facts: &dyn EvidenceFacts) -> bool {
     crate::helper_calls::call_nodes(facts)
         .into_iter()
-        .any(|call| crate::helper_calls::direct_resolution(call).is_some() && aggregate_call(call))
+        .any(|call| {
+            crate::helper_calls::selected_resolution(call, facts).is_some() && aggregate_call(call)
+        })
 }
 
 fn aggregate_call(call: &HirNode) -> bool {

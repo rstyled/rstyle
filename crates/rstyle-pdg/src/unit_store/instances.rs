@@ -40,7 +40,10 @@ pub(super) fn capture_instance<P: InstanceProof>(
     definition: usize,
     proof: P,
 ) -> Result<UnitStore, String> {
-    if owner.instance.is_some() || owner.reference_instance.is_some() {
+    if owner.instance.is_some()
+        || owner.reference_instance.is_some()
+        || owner.reference_forwarder.is_some()
+    {
         return Err(format!(
             "{} requires an original definition owner",
             P::LABEL

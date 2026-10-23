@@ -1,5 +1,6 @@
 //! Complete bounded From forwarder proof, separate from concrete-owner admission.
 mod association;
+pub(super) mod materialize;
 mod source;
 #[cfg(test)]
 mod tests;

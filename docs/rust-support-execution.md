@@ -266,3 +266,49 @@ Native oracle132,736 observations/context; both constructor identity comparisons
 and strict graph attacks pass. Evidence: `/tmp/rstyle-386-*`. Next connect the
 two original From callers and their constructor dependency; no ordinary foreign
 caller admission or full-library matching completion is claimed.
+
+
+Data3.87 connects the two original From bodies to their exact checked constructor
+at the same [u8]/str substitution. The unchanged native selections gain2 each,
+lose0, and reach4/4; rosters stay2,582/590. Strict forwarder replay reconstructs
+both proofs and the sole typed dependency/site; producer admission, independent
+component origins, complete identity matching and semantic attacks pass in the
+fresh Cargo owners. No raw dispatch is invented. Typed nested sidecars remove JSON
+round trips; checked immutable owner sessions are reused. No new hash/key format.
+Evidence: `/tmp/rstyle-387-*`.
+
+Next delivery: base64ct Line::slice_tail → len, independently source-frozen under
+`eval/coverage-development/line-tail/`. Its complete chain needs eager scalar
+ok_or, usize success propagation into a borrowed Result, checked suffix access,
+and actual fieldless Copy Error/import ownership. Shared Line origins/len are
+existing controls; verify the newly demanded Error source closure in real Cargo.
+Do not force this Copy error into MixedEnum/no-drop authority. Independent attacks
+cover saved operands/guards, import shadowing, offsets, backing pointers and policy.
+
+Foreign Input linking remains a foundation lane: production reference inventories,
+loaded artifact/selected-impl evidence and caller component authority are absent.
+Audited regex/bstr/globset callers additionally require local mutation/borrowing,
+search dispatch or owned state; none is a ready Input-only natural admission.
+Do not claim the four foreign mechanism probes as natural-source gains. Prioritize
+the complete error-flow family over this larger foundation. Public Decoder loops
+and mutation remain separate. Broader P01–P22 execution stays active.
+
+
+| Next error-family assignment | Readiness and exclusive leaf scope |
+| --- | --- |
+| Copy error / eager scalar ok_or | Original Error is fieldless Copy; extend Result/error leaves using actual Copy authority and exact imported InvalidLength resolution. Keep complete source/reexport/derive checks; root owns shared type gates. |
+| Scalar success propagation | Prove saved Result<usize,E> success and same-error early return into Result<&[u8],E>. Separate scalar payload construct from the existing reference-payload rule; root coordinates driver/lowering/document registrations. |
+| Checked suffix | Prove original RangeFrom identity, saved receiver/start, Some iff start≤length, exact len−start and backing origin, including empty end pointer. Dedicated source/view semantics; root owns shared range/type changes. |
+| Integration / independent oracle | Root captures unchanged complete base64ct owners before activation, checks all Error source obligations, integrates the three leaves, then runs strict replay/admission/matching and unchanged-selection deltas. Native witness passed1,209,654 queries/context; whole-original admission remains pending. |
+
+These are the next readiness-gated assignments, not claims of delivered support.
+Avoid overlapping edits to Result vocabulary, source resolution, origins or policy.
+
+Data3.87 checkpoint:1,442 tests/five existing skips, doctests/fmt/Clippy pass;
+rstyle0/4,641; patterns0/15 unchanged ignores. Fresh frozen `run-26yohht4`
+versus `run-6jdco7wi`:60 unchanged identities/denominators,23/30/7,0 changes,
+116 schema-checked documents (not an additional frozen semantic replay).
+Fresh full Input probes:136.63/20.22s default/no-default,1,607,372/281,300KiB
+peak RSS; workload includes both From instances, so no speedup claim. Native
+Input oracle132,736 observations/context and Line witness1,209,654/context
+have0 mismatches; the latter still has no whole-original admission evidence.
