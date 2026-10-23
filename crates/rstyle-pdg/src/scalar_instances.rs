@@ -2,18 +2,19 @@
 //!
 //! This proves source/substitution, resolved bounds, assertions and operations.
 //! It grants no caller/request, artifact, helper-summary or admission authority.
+pub(crate) mod activation;
 mod comparisons;
 mod owner;
 mod provenance;
 mod source;
 
 use crate::{BindingFact, ByteSpan, HirFnFacts, HirNode, HirRef, SignatureFacts, SourceFacts};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const CAPABILITY: &str = "rust.checked-scalar-instances";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Projection {
     definition: Definition,
@@ -28,7 +29,7 @@ pub struct Projection {
     provenance: provenance::Observation,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Definition {
     path: String,
@@ -39,7 +40,7 @@ struct Definition {
     local: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Argument {
     kind: String,
@@ -50,7 +51,7 @@ struct Argument {
     identity: ScalarType,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum ScalarType {
     Builtin { name: String },

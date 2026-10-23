@@ -55,11 +55,51 @@ struct Edge<'a> {
 struct Inputs<'a> {
     edges: Vec<BTreeMap<&'a str, Edge<'a>>>,
     definitions: Vec<BTreeMap<&'a str, FunctionId>>,
+    units: &'a [UnitStore],
+}
+
+struct Call<'a> {
+    caller: usize,
+    facts: &'a HirFnFacts,
+    node: &'a HirNode,
+}
+
+struct SelectedTarget<'a> {
+    edge: &'a Edge<'a>,
+    definition: FunctionId,
+}
+
+impl Inputs<'_> {
+    fn selected(
+        &self,
+        caller: usize,
+        node: &HirNode,
+    ) -> Result<Option<SelectedTarget<'_>>, String> {
+        let Some(resolution) = crate::helper_calls::direct_resolution(node) else {
+            return Ok(None);
+        };
+        if resolution["local"] != false {
+            return Ok(None);
+        }
+        let Some(stable_id) = resolution["compiled_dependency"]["stable_crate_id"].as_str() else {
+            return Ok(None);
+        };
+        let Some(edge) = self.edges[caller].get(stable_id) else {
+            return Ok(None);
+        };
+        if resolution["compiled_dependency"] != edge.observation["compiled_dependency"] {
+            return Err("External call contradicts checked compiled dependency observation".into());
+        }
+
+        Ok(target(self, edge.callee, &resolution)?
+            .map(|definition| SelectedTarget { edge, definition }))
+    }
 }
 
 struct Plan {
     dependencies: Vec<Vec<usize>>,
     links: Vec<Vec<BTreeMap<Site, ExternalTarget>>>,
+    instances: Vec<BTreeMap<super::instance_links::Key, usize>>,
 }
 
 struct Schedule {
@@ -126,6 +166,7 @@ impl Plan {
         unique_namespaces(units)?;
         let mut plan = Self {
             dependencies: vec![Vec::new(); units.len()],
+            instances: vec![BTreeMap::new(); units.len()],
             links: units
                 .iter()
                 .map(|unit| vec![BTreeMap::new(); unit.functions.len()])
@@ -156,7 +197,11 @@ impl Plan {
             .iter()
             .map(|unit| super::definitions(&unit.functions))
             .collect::<Result<_, _>>()?;
-        let inputs = Inputs { edges, definitions };
+        let inputs = Inputs {
+            edges,
+            definitions,
+            units,
+        };
         for (caller, unit) in units.iter().enumerate() {
             for (function, facts) in unit.functions.iter().enumerate() {
                 plan.function(&inputs, (caller, function), facts)?;
@@ -178,41 +223,53 @@ impl Plan {
             return Ok(());
         }
         for node in crate::helper_calls::call_nodes(facts) {
-            let Some(resolution) = crate::helper_calls::direct_resolution(node) else {
+            let Some(selected) = inputs.selected(caller, node)? else {
                 continue;
             };
-            if resolution["local"] != false {
-                continue;
-            }
-            let Some(stable_id) = resolution["compiled_dependency"]["stable_crate_id"].as_str()
-            else {
-                continue;
+            let call = Call {
+                caller,
+                facts,
+                node,
             };
-            let Some(edge) = inputs.edges[caller].get(stable_id) else {
-                continue;
-            };
-            if resolution["compiled_dependency"] != edge.observation["compiled_dependency"] {
-                return Err(
-                    "External call contradicts checked compiled dependency observation".into(),
-                );
-            }
-            let Some(target) = target(inputs, edge.callee, &resolution)? else {
+            let Some(target) = self.call_target(inputs, call, selected)? else {
                 continue;
             };
             if self.links[caller][function]
-                .insert(
-                    site(node),
-                    ExternalTarget {
-                        dependency: edge.dependency,
-                        function: target,
-                    },
-                )
+                .insert(site(node), target)
                 .is_some()
             {
                 return Err("Ambiguous external helper call association".into());
             }
         }
         Ok(())
+    }
+
+    fn call_target(
+        &mut self,
+        inputs: &Inputs<'_>,
+        call: Call<'_>,
+        selected: SelectedTarget<'_>,
+    ) -> Result<Option<ExternalTarget>, String> {
+        let SelectedTarget { edge, definition } = selected;
+        let Some(argument) = super::instance_links::argument(call.facts, call.node)? else {
+            return Ok(Some(ExternalTarget {
+                dependency: edge.dependency,
+                function: definition,
+            }));
+        };
+        if !super::instance_links::available(&inputs.units[edge.callee], definition, argument)? {
+            return Ok(None);
+        }
+
+        let caller = call.caller;
+        let next = self.instances[caller].len();
+        let slot = *self.instances[caller]
+            .entry((edge.callee, definition, argument))
+            .or_insert(next);
+        Ok(Some(ExternalTarget {
+            dependency: self.dependencies[caller].len() + slot,
+            function: FunctionId(0),
+        }))
     }
 }
 
@@ -298,18 +355,46 @@ fn rebuild(
     }
 
     let mut builder = Builder::in_namespace(store.functions, store.namespace)?;
-    builder.store.dependencies = plan.dependencies[index]
+    builder.store.dependencies = linked_dependencies(index, plan, completed)?;
+
+    builder.store.external_links = plan.links[index].clone();
+    builder.dependencies = dependency_analyses(&builder.store.dependencies);
+    builder.capture()
+}
+
+fn linked_dependencies(
+    index: usize,
+    plan: &Plan,
+    completed: &[Option<Arc<UnitStore>>],
+) -> Result<Vec<Arc<UnitStore>>, String> {
+    let mut dependencies = plan.dependencies[index]
         .iter()
         .map(|target| {
             completed[*target]
                 .clone()
                 .ok_or_else(|| "Missing completed dependency owner".into())
         })
-        .collect::<Result<_, String>>()?;
+        .collect::<Result<Vec<_>, String>>()?;
+    let mut instances = vec![None; plan.instances[index].len()];
 
-    builder.store.external_links = plan.links[index].clone();
-    builder.dependencies = dependency_analyses(&builder.store.dependencies);
-    builder.capture()
+    for ((unit, definition, argument), slot) in &plan.instances[index] {
+        let owner = Arc::clone(
+            completed[*unit]
+                .as_ref()
+                .ok_or("Missing original instance owner")?,
+        );
+        instances[*slot] = Some(
+            super::instance_links::capture(owner, *definition, *argument)?
+                .ok_or("Projected scalar instance became unavailable during immutable replay")?,
+        );
+    }
+    dependencies.extend(
+        instances
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .ok_or("Incomplete scalar instance dependency inventory")?,
+    );
+    Ok(dependencies)
 }
 
 #[cfg(test)]
@@ -322,11 +407,13 @@ mod tests {
         let plan = Plan {
             dependencies: vec![vec![1, 2], vec![3], vec![3], vec![]],
             links: Vec::new(),
+            instances: Vec::new(),
         };
         assert_eq!(plan.order().unwrap(), vec![3, 1, 2, 0]);
         let cycle = Plan {
             dependencies: vec![vec![1], vec![0]],
             links: Vec::new(),
+            instances: Vec::new(),
         };
         assert!(cycle.order().unwrap_err().contains("Cyclic"));
     }

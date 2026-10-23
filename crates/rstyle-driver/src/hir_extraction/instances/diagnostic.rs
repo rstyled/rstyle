@@ -33,7 +33,7 @@ struct Inventory {
 }
 
 #[derive(Serialize)]
-struct Entry {
+pub(super) struct Entry {
     request: Request,
     #[serde(flatten)]
     outcome: Outcome,
@@ -154,6 +154,27 @@ fn owners(tcx: TyCtxt<'_>) -> BTreeMap<String, Option<LocalDefId>> {
 struct Owner<'tcx> {
     tcx: TyCtxt<'tcx>,
     id: Option<LocalDefId>,
+}
+
+/// Original-owner scalar observations reused by normal bundle capture. The
+/// resulting records remain inputs to independent verification, never authority.
+pub(super) fn projected(
+    tcx: TyCtxt<'_>,
+    id: LocalDefId,
+    scanned: &[source::Function],
+    options: &Options<'_>,
+) -> Vec<Entry> {
+    ["i32", "u32"]
+        .into_iter()
+        .map(|scalar| {
+            let request = Request {
+                function: tcx.def_path_str(id.to_def_id()),
+                arguments: vec![scalar.into()],
+            };
+            let outcome = project(Owner { tcx, id: Some(id) }, scanned, options, &request);
+            Entry { request, outcome }
+        })
+        .collect()
 }
 
 fn project(

@@ -76,16 +76,18 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.82.0");
+    assert_eq!(profile.policy().version, "3.83.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 102);
+    assert_eq!(profile.capabilities().len(), 103);
+    assert!(profile.supports("rust.checked-scalar-instances"));
     assert!(profile.supports("rust.verified-inherent-helper-calls"));
     assert!(profile.supports("rust.verified-cross-unit-scalar-helpers"));
     assert!(profile.supports("rust.explicit-u8-fieldless-enums"));
     for earlier in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
+        assert!(!earlier.supports("rust.checked-scalar-instances"));
         assert!(!earlier.supports("rust.verified-inherent-helper-calls"));
         assert!(!earlier.supports("rust.verified-cross-unit-scalar-helpers"));
         assert!(!earlier.supports("rust.explicit-u8-fieldless-enums"));

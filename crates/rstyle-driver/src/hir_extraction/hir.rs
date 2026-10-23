@@ -312,6 +312,14 @@ impl<'tcx> Context<'tcx> {
 
     fn expression_fields(&self, expr: &Expr<'tcx>, node: HirNode) -> HirNode {
         let children = self.children(expr);
+        if let Some((resolution, dispatch)) = self.scalar_instance_call(expr) {
+            return HirNode {
+                children,
+                res: Some(resolution),
+                dispatch: Some(dispatch),
+                ..node
+            };
+        }
         let res = self.expression_resolution(expr, &node.kind);
         let lit = matches!(expr.kind, ExprKind::Lit(_)).then(|| self.snippet(expr.span));
         let is_unsafe_block = matches!(expr.kind, ExprKind::Block(block, _) if matches!(block.rules, hir::BlockCheckMode::UnsafeBlock(_)));

@@ -3,7 +3,9 @@
 use super::*;
 use std::io::Write;
 mod diagnostic;
+mod instances;
 pub use diagnostic::{read_diagnostic_snapshot, write_diagnostic_snapshot};
+pub use instances::ScalarInstanceReplay;
 mod function_sources;
 mod graph_sources;
 

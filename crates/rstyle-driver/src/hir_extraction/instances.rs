@@ -10,10 +10,13 @@ use rustc_middle::ty::{self, GenericArgsRef, TyCtxt, TypeVisitableExt};
 use serde::Serialize;
 
 mod adjustments;
+mod calls;
 mod comparisons;
 pub(super) mod diagnostic;
 mod projection;
 mod provenance;
+pub(super) mod publication;
+pub(super) use publication::capture as capture_projections;
 mod types;
 
 const KEY: &str = "rstyle.rust.call-instances";
@@ -62,6 +65,8 @@ struct Observation {
     expanded: bool,
     requested: Definition,
     requested_arguments: types::Arguments,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    compiled_dependency: Option<super::crate_association::Dependency>,
     #[serde(flatten)]
     outcome: Outcome,
 }
@@ -162,17 +167,28 @@ fn observe<'tcx>(
     arguments: GenericArgsRef<'tcx>,
 ) -> Observation {
     let environment = ty::TypingEnv::post_analysis(context.tcx, expression.hir_id.owner.def_id);
-    let (requested_arguments, outcome) =
+    let (requested_arguments, outcome, compiled_dependency) =
         match select(context.tcx, environment, definition, arguments) {
             Ok((arguments, instance)) => {
                 let requested = types::arguments(context.tcx, arguments);
                 let outcome =
                     selected_outcome(context.tcx, environment, instance, requested.complete());
-                (requested, outcome)
+                let artifact = (matches!(outcome.status, Status::Resolved)
+                    && instance.def_id() == definition)
+                    .then(|| {
+                        super::crate_association::scalar_dependency(
+                            context.tcx,
+                            instance.def_id(),
+                            instance.args,
+                        )
+                    })
+                    .flatten();
+                (requested, outcome, artifact)
             }
             Err((status, reason)) => (
                 types::arguments(context.tcx, arguments),
                 failure(status, reason),
+                None,
             ),
         };
 
@@ -182,6 +198,7 @@ fn observe<'tcx>(
         expanded: expression.span.from_expansion(),
         requested: definition_record(context.tcx, definition),
         requested_arguments,
+        compiled_dependency,
         outcome,
     }
 }

@@ -1,7 +1,7 @@
 //! Exact resolved source-bound and assertion identities; no admission authority.
 use super::source;
 use crate::{ByteSpan, HirNode, HirRef};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use syn::spanned::Spanned;
 
@@ -15,7 +15,7 @@ mod pins;
 #[cfg(test)]
 mod tests;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Observation {
     identity: String,
@@ -26,7 +26,7 @@ pub(super) struct Observation {
     assertions: Vec<Assertion>,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Definition {
     path: String,
@@ -38,7 +38,7 @@ struct Definition {
     crate_hash: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Bound {
     status: String,
@@ -54,7 +54,7 @@ struct Bound {
     substituted_arguments: Vec<Argument>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct GenericParameter {
     index: u32,
@@ -65,7 +65,7 @@ struct GenericParameter {
     definition: LocalDefinition,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct LocalDefinition {
     #[serde(rename = "path")]
@@ -78,7 +78,7 @@ struct LocalDefinition {
     local: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct CompilerBound {
     status: String,
@@ -88,7 +88,7 @@ struct CompilerBound {
     substituted_arguments: Vec<Argument>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Parameter {
     kind: String,
@@ -96,7 +96,7 @@ struct Parameter {
     name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Argument {
     kind: String,
@@ -107,13 +107,13 @@ struct Argument {
     identity: Scalar,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Scalar {
     Builtin { name: String },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Assertion {
     status: String,

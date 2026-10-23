@@ -1,4 +1,5 @@
 //! Requested owner-local projections are diagnostic, never concrete admissions.
+mod artifacts;
 mod provenance;
 
 use super::*;

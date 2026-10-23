@@ -1,14 +1,14 @@
 # Rust support execution frontier
 
 Authority: [delivery plan](rust-support-parallel-delivery.md) and repository-root
-[roadmap](../rust-feature-coverage.md). Updated 2026-10-22. All P01–P22 routes
+[roadmap](../rust-feature-coverage.md). Updated 2026-10-23. All P01–P22 routes
 remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; Data3.82 connects the original calendar
-wrappers across selected dependency units, following the Data3.81 lz4 block-header
-parser. See the family contract and roadmap gate record.
+Branch `feature/rust-feature-coverage`; Data3.83 connects bounded original scalar
+generic instances through exact cross-package call links and strict replay,
+following Data3.82 calendar wrappers and the Data3.81 lz4 block-header parser.
 The root roadmap records validated checkpoints; broader P01–P22 work remains
 active and historical evidence stays unchanged.
 
@@ -191,14 +191,23 @@ including4921 expected panics in each assertion-enabled context and custom trait
 order controls. This avoids Input's owned-reference/mixed-enum/cleanup blockers;
 it does not replace the Input selection or establish instance admissions.
 
-| Next assignment | Readiness gate / exclusive leaf focus |
-| --- | --- |
-| Scalar body projection | Owner-local diagnostic projection now captures all six clamp instances in four native contexts, preserving source/HIR and definition rosters. Next prove source/substitution independently; diagnostic output has no admission authority |
-| Primitive trait operations | 56 concrete method/impl selections observed in original contexts. Next prove macro-defined core bodies and structural adjustments; overloaded dispatch remains unchanged |
-| Instance linking/replay | Join caller observations to a separately captured owning-library body using exact artifact/build/structural arguments; current scalar linker requires empty substitutions |
-| Source ownership/oracles | Prove original T declaration/bound correspondence, imports and debug_assert/clippy metadata; keep custom/stateful traits, wrong substitutions, missing comparison proof and debug-mode swaps closed |
+Data3.83 now connects the six original clamp scalar instances in all four native
+feature/assertion contexts. All 24 strict instance sidecars admit; all 48 contextual
+callers strictly replay and all 264 caller-pair evaluations complete. Original
+2,212/1,965 owner rosters remain unchanged, with generic definitions still excluded.
+The bounded contract and reproducible commands are in the clamp selection README.
+There is no fresh frozen-inventory delta or native macOS/x86 execution claim.
 
-These are dependency-gated assignments, not four concurrent production edits.
+Next dependency frontier:
+
+| Assignment | Readiness gate |
+| --- | --- |
+| Concrete reference/aggregate instances | Preserve the four original Input instances and oracle; prove body/type substitution, static/blanket impl ownership and lifetime obligations before extending scalar-only capture |
+| Exact trait summaries | Prove the actual [u8]/str AsRef implementations and their returned origins; stateful, static-origin and panicking implementations stay negative controls |
+| Complete result ownership | Audit every Input/Anchored field/variant, PatternID/SmallIndex, relevant derives/imports and no-drop transfer; existing getters and one chosen variant do not certify the constructor |
+| Component summaries and performance | Bind each foreign returned component to exact source operands and lifetimes. Measure complete captures/replays; retain XXH3 byte seals and typed keys, with no serialized cache keys or new SHA format |
+
+These are readiness-gated assignments, not four concurrent production edits.
 Shared registrations, instance keys, origins and summaries remain lead-owned.
-Cross-unit reference/aggregate transport, local borrowing, mutation/cleanup and
-broader P01–P22 work remain active; no admission forecast or completion claim.
+Broader P01–P22 work remains active; scalar instance delivery does not establish
+general traits, reference transport, mutation/cleanup or completion.

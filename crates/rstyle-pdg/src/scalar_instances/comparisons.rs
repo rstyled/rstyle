@@ -3,7 +3,7 @@
 //! The owning instance/source bridge must separately verify substitution and
 //! whole-body correspondence. This leaf authorizes only the recorded operation.
 use crate::HirNode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 mod pins;
 #[cfg(test)]
@@ -72,7 +72,7 @@ pub(super) struct Checked {
     pub operator: Operator,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Observation {
     identity: String,
@@ -96,7 +96,7 @@ pub(super) struct Observation {
     operand_adjustments: [Adjustments; 2],
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Definition {
     path: String,
@@ -108,7 +108,7 @@ struct Definition {
     crate_hash: String,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Argument {
     kind: String,
@@ -133,7 +133,7 @@ impl PartialEq for Argument {
 
 impl Eq for Argument {}
 
-#[derive(Clone, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Type {
     Builtin {
@@ -146,14 +146,14 @@ enum Type {
     },
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Signature {
     inputs: Vec<Argument>,
     output: Vec<Argument>,
 }
 
-#[derive(Clone, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Adjustments {
     pub(super) hir: crate::HirRef,
@@ -163,7 +163,7 @@ pub(super) struct Adjustments {
     adjusted_type: Vec<Argument>,
 }
 
-#[derive(Clone, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Step {
     kind: String,

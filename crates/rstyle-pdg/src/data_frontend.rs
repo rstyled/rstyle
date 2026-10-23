@@ -19,10 +19,7 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
 pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     let observation =
         crate::diagnostics::Stage::new("source.data_frontend", &facts.name, None).enter();
-    if facts.scalar_instance().is_some() {
-        if !crate::extraction_profile::facts_support(facts, crate::scalar_instances::CAPABILITY) {
-            return Err("Scalar instances require their registered frontend capability".into());
-        }
+    if crate::scalar_instances::activation::verify(facts)? {
         let places = crate::data_places::Places::verify(facts)?;
         return observation.finish(verify_nodes(&facts.body, facts, &places));
     }

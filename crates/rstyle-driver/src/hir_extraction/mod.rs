@@ -79,6 +79,7 @@ pub fn raw_crate_facts(
     for function in &mut facts {
         capture_correspondence(function, options.selected(), &sources);
     }
+    instances::capture_projections(tcx, scanned, options, &mut facts)?;
     Ok(facts)
 }
 

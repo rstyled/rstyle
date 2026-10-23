@@ -1,9 +1,10 @@
 //! Unit-local ownership and borrowed analysis. Dense IDs are handles, not names.
 mod bundle;
 pub use bundle::BUNDLE_SCHEMA;
-pub use bundle::{read_diagnostic_snapshot, write_diagnostic_snapshot};
+pub use bundle::{ScalarInstanceReplay, read_diagnostic_snapshot, write_diagnostic_snapshot};
 mod dependency_closure;
 mod derived;
+mod instance_links;
 mod instances;
 pub use dependency_closure::DependencyClosure;
 mod manifest;

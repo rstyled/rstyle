@@ -1,5 +1,6 @@
 //! Explicit dependency capture preserves unit boundaries without granting call trust.
 mod replay;
+mod scalar_instances;
 use super::*;
 
 fn workspace() -> TempDir {

@@ -1,7 +1,7 @@
 //! Independently reopen the exact dependency closure, including artifact attacks.
 use super::*;
 
-fn replay(directory: &Path, run: &str) -> (Output, Value) {
+pub(super) fn replay(directory: &Path, run: &str) -> (Output, Value) {
     let output = rstyle(
         directory,
         &[

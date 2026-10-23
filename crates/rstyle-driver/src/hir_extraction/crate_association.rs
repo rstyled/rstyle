@@ -41,6 +41,30 @@ pub(super) fn dependency(tcx: TyCtxt<'_>, callee: DefId) -> Option<Dependency> {
     if callee.is_local() || tcx.generics_of(callee).count() != 0 {
         return None;
     }
+    external_artifact(tcx, callee)
+}
+
+/// The artifact identifies a compiled crate, independently of its function's
+/// scalar substitution. This observation grants no generic helper permission.
+pub(super) fn scalar_dependency<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    callee: DefId,
+    arguments: rustc_middle::ty::GenericArgsRef<'tcx>,
+) -> Option<Dependency> {
+    use rustc_middle::ty::{GenericArgKind, TyKind};
+    if callee.is_local()
+        || tcx.def_kind(callee) != rustc_hir::def::DefKind::Fn
+        || arguments.len() != 1
+        || !matches!(arguments[0].kind(), GenericArgKind::Type(ty)
+            if matches!(ty.kind(), TyKind::Int(rustc_middle::ty::IntTy::I32)
+                | TyKind::Uint(rustc_middle::ty::UintTy::U32)))
+    {
+        return None;
+    }
+    external_artifact(tcx, callee)
+}
+
+fn external_artifact(tcx: TyCtxt<'_>, callee: DefId) -> Option<Dependency> {
     let rmeta = tcx.used_crate_source(callee.krate).rmeta.clone()?;
     Some(Dependency {
         compiled: observed(tcx, callee.krate),

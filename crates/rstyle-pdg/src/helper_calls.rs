@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 mod external;
+pub(crate) mod instances;
 pub(crate) mod transport;
 mod transport_lexical;
 
@@ -231,8 +232,10 @@ fn native_dependency(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, 
 
 pub fn direct_resolution(node: &HirNode) -> Option<Value> {
     let direct = node.kind == "expr_call"
-        && node.res.as_ref()?.kind == "resolved_direct_callee"
-        && node.dispatch.as_ref()?.kind == "resolved_direct";
+        && ((node.res.as_ref()?.kind == "resolved_direct_callee"
+            && node.dispatch.as_ref()?.kind == "resolved_direct")
+            || (node.res.as_ref()?.kind == "resolved_scalar_instance_callee"
+                && node.dispatch.as_ref()?.kind == "resolved_scalar_instance"));
     let inherent = node.kind == "expr_method_call"
         && node.res.as_ref()?.kind == "resolved_inherent_callee"
         && node.dispatch.as_ref()?.kind == "resolved_method";
@@ -510,6 +513,9 @@ fn check_signature(
         .dispatch
         .as_ref()
         .ok_or("Missing resolved helper signature")?;
+    if callee.scalar_instance().is_some() {
+        instances::signature(node, caller, callee)?;
+    }
     let signature = if crate::named_callbacks::function_item(node) {
         crate::named_callbacks::signature(node, caller, callee)?;
         true

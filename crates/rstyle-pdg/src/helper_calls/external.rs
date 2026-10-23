@@ -75,7 +75,8 @@ fn scalar_signature(facts: &dyn EvidenceFacts) -> bool {
         && !facts.signature.is_async
         && !facts.signature.is_unsafe
         && !facts.signature.is_variadic
-        && facts.signature.generics.is_empty()
+        && (facts.signature.generics.is_empty()
+            || crate::scalar_instances::activation::verify(facts).unwrap_or(false))
         && facts
             .signature
             .params

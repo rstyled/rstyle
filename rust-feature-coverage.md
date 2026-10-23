@@ -4810,3 +4810,41 @@ failing; after fixing it, all 48 affected checks and doctests pass. Fmt and
 warning-denied Clippy pass; rstyle reports zero violations across 4,271
 functions, patterns zero unignored candidates, with all 15 ignores unchanged.
 Comparison-site traversal reuses one stack instead of copying a path per node.
+
+### Data-v3 3.83: original scalar generic instances through callers
+
+Original num-traits0.2.19 `clamp`, `clamp_min`, `clamp_max` at i32/u32 now
+connect owning-compiler substitution, independently checked source/bounds/
+primitive comparison/assertion evidence, private instance owners, exact Cargo
+artifact/call binding and strict replay. All 24 original instances admit across
+four native feature/assertion contexts. Original generic definitions retain
+source and ordinals in unchanged 2,212/1,965 definition rosters; instances are
+separate owners. All 48 contextual caller fixtures admit, four u8 controls remain
+excluded, and 264 pair evaluations complete, including all 24 identical peer pairs.
+These are current observations, not a fresh measured revision/frozen-inventory
+delta. [Contract and runner](eval/coverage-development/clamp-instances/README.md).
+
+Dependency selection now distinguishes explicit build-script compile/run units
+from the library while still rejecting multiple reachable library contexts.
+Generic functions with different result shapes remain excluded without breaking
+complete capture. Ordinary bundles cannot manufacture instance/caller authority;
+missing/duplicated/unknown projection inventories and resealed source, substitution,
+owner, artifact and provenance attacks remain closed. No general trait, reference,
+aggregate, generic-method or cleanup support is claimed.
+
+Native original oracle evidence remains 272,852 cases/context with 4,921 expected
+assertion-enabled panics and six custom trait controls; exact selected source
+bytes are rechecked by the composition runner. Evidence:
+`/tmp/rstyle-clamp-connected/{summary,owned-replay}.json`. Captures 5.4–6.0s and
+strict closure replays 1.9–2.1s locally; these are timings, not controlled speedups.
+A profiled replay spends 1.6ms hashing source snapshots, versus 2.10s handoff;
+there is no new SHA or serialized lookup key. The focused Cargo instance
+regression initially runs 0.68s. Native macOS/x86 and fresh frozen comparison
+remain pending. Next: the original Input constructor/From instance chain through
+concrete AsRef evidence, complete result ownership and component-specific foreign
+summaries, with all known blockers retained in the execution frontier.
+
+Local integrated gates: 1,338 tests / five existing skips and doctests pass
+(123.183s nextest). Fmt and warning-denied Clippy pass; rstyle zero violations
+across 4,304 functions; patterns zero unignored candidates, with all 15 existing
+ignores unchanged. The complete Cargo instance regression runs 0.67s.

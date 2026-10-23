@@ -460,7 +460,10 @@ fn visit_calls(
     visit: &mut impl FnMut(&Value) -> Result<(), String>,
 ) -> Result<(), String> {
     if let Some(resolution) = &node.res
-        && resolution.kind == "resolved_direct_callee"
+        && matches!(
+            resolution.kind.as_str(),
+            "resolved_direct_callee" | "resolved_scalar_instance_callee"
+        )
     {
         let resolution: Value =
             serde_json::from_str(&resolution.description).map_err(|error| error.to_string())?;
