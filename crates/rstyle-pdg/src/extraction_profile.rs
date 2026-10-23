@@ -117,6 +117,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.verified-cross-unit-scalar-helpers",
     "rust.checked-scalar-instances",
     "rust.component-helper-results",
+    "rust.checked-reference-constructor-instances",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -158,6 +159,7 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.data.option.ok-or-fresh-error/1",
     "rstyle.data.bytes.little-u32/1",
     "rstyle.helper.component-return/1",
+    "rstyle.reference-instance.byte-as-ref/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -266,7 +268,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.84.0", 104)),
+            Self::DataV3 => Some(("3.85.0", 105)),
         }
     }
 

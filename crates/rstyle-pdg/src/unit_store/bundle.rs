@@ -4,8 +4,10 @@ use super::*;
 use std::io::Write;
 mod diagnostic;
 mod instances;
+mod reference_instances;
 pub use diagnostic::{read_diagnostic_snapshot, write_diagnostic_snapshot};
 pub use instances::ScalarInstanceReplay;
+pub use reference_instances::ReferenceConstructorReplay;
 mod function_sources;
 mod graph_sources;
 
@@ -86,8 +88,8 @@ impl Import {
 impl UnitStore {
     /// Stream shared records directly; no frontend/proof trees are expanded.
     pub fn write_bundle(&self, writer: impl Write) -> Result<(), String> {
-        if self.instance.is_some() {
-            return Err("Scalar instance requires original-owner and projection replay".into());
+        if self.instance.is_some() || self.reference_instance.is_some() {
+            return Err("Instance requires original-owner and projection replay".into());
         }
         if !self.dependencies.is_empty() {
             return Err("Dependency closure requires separate owning bundle replay".into());
@@ -252,6 +254,7 @@ impl Decoded {
             dependencies: Vec::new(),
             external_links: vec![BTreeMap::new(); function_count],
             instance: None,
+            reference_instance: None,
         };
         store.validate_roots()?;
         store.validate_certifications()?;

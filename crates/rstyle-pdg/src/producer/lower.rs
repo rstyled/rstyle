@@ -276,6 +276,19 @@ impl Builder<'_> {
         }
     }
 
+    fn reference_unit(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let unit = crate::reference_instances::products::unit(node, self.facts)
+            .expect("verified complete mixed unit variant");
+        self.emit(
+            Operation {
+                construct: Some(crate::reference_instances::products::UNIT.into()),
+                operator: Some(unit.name.into()),
+                ..template(node, NodeCategory::Computation)
+            },
+            flow,
+        )
+    }
+
     fn fieldless_value(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let (tag, value) =
             crate::fieldless_enums::value(node, self.facts).expect("verified fieldless variant");
@@ -721,7 +734,12 @@ impl Builder<'_> {
         };
         let operation = Operation {
             operator: node.dispatch.as_ref().map(|d| d.op.clone()),
-            construct: if let Some(construct) = crate::float_scalars::construct(node) {
+            construct: if crate::reference_instances::activation::operation(node, self.facts)
+                .expect("verified reference operation")
+                .is_some()
+            {
+                Some(crate::reference_instances::activation::CONSTRUCT.into())
+            } else if let Some(construct) = crate::float_scalars::construct(node) {
                 Some(construct.into())
             } else if crate::bool_usize::candidate(node) {
                 Some(crate::bool_usize::CONSTRUCT.into())
@@ -1416,6 +1434,9 @@ fn path_lowerer<'a>(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
+    if crate::reference_instances::products::unit_candidate(node, facts) {
+        return Builder::reference_unit;
+    }
     match node.res.as_ref().map(|resolution| resolution.kind.as_str()) {
         Some("resolved_fieldless_variant")
             if crate::borrowed_result_errors::error_candidate(node, facts) =>

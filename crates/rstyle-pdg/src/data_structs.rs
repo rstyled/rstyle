@@ -9,6 +9,9 @@ pub(crate) fn slots(
     node: &HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<Option<usize>>, String> {
+    if crate::reference_instances::products::struct_candidate(node, facts) {
+        return crate::reference_instances::products::slots(node, facts);
+    }
     let source = facts
         .source
         .bytes

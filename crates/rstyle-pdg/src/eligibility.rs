@@ -217,10 +217,13 @@ fn check_data_frontend(
     }
 }
 
-fn accepted_type(ty: &str, profile: crate::extraction_profile::ExtractionProfile) -> bool {
+fn accepted_type(ty: &str, facts: &dyn crate::unit_store::EvidenceFacts) -> bool {
+    let Ok(profile) = crate::extraction_profile::ExtractionProfile::from_facts(facts) else {
+        return false;
+    };
     PRIMITIVE_TYS.contains(&ty)
         || profile.supports("rust.concrete-read-only-data")
-            && crate::data_types::parse_for(ty, profile).is_ok()
+            && crate::data_types::parse_in(ty, facts).is_ok()
 }
 
 fn context(
@@ -250,6 +253,11 @@ fn context(
 }
 
 fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
+    match crate::reference_instances::activation::source_findings(facts) {
+        Ok(true) => return Outcome::ok(),
+        Ok(false) => {}
+        Err(reason) => return evidence_gap(&facts.body, &reason),
+    }
     let source = Outcome {
         diagnostics: facts.source_diagnostics.clone(),
         gap: false,
@@ -310,7 +318,7 @@ fn check_signature(facts: &dyn crate::unit_store::EvidenceFacts, ctx: &Ctx<'_>) 
         check_sig_subject(&facts.signature, ctx.profile),
         check_sig_header(&facts.signature, ctx.profile),
         check_sig_params(&facts.signature, ctx),
-        check_sig_return(&facts.signature, ctx.profile),
+        check_sig_return(&facts.signature, ctx.facts),
     ])
 }
 
@@ -455,10 +463,10 @@ fn check_sig_params(signature: &SignatureFacts, ctx: &Ctx<'_>) -> Outcome {
 
 fn check_sig_return(
     signature: &SignatureFacts,
-    profile: crate::extraction_profile::ExtractionProfile,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Outcome {
     match norm(&signature.return_ty) {
-        Some(ty) if accepted_type(ty, profile) => Outcome::ok(),
+        Some(ty) if accepted_type(ty, facts) => Outcome::ok(),
         _ => Outcome::reject(diagnostic(
             "rust.additional-types",
             "return_type",
@@ -474,7 +482,7 @@ fn check_sig_return(
 fn check_param(param: &ParamFact, ctx: &Ctx<'_>) -> Outcome {
     let pat = check_pat_node(&param.pat, ctx);
     let ty = match norm(&param.ty) {
-        Some(ty) if accepted_type(ty, ctx.profile) => Outcome::ok(),
+        Some(ty) if accepted_type(ty, ctx.facts) => Outcome::ok(),
         _ => Outcome::reject(diagnostic(
             "rust.additional-types",
             "parameter_type",
@@ -512,7 +520,7 @@ fn check_bindings(facts: &dyn crate::unit_store::EvidenceFacts, ctx: &Ctx<'_>) -
             evidence_gap(&binding_node(binding), "binding table entry")
         };
         let ty = match norm(&binding.ty) {
-            Some(ty) if accepted_type(ty, ctx.profile) => Outcome::ok(),
+            Some(ty) if accepted_type(ty, ctx.facts) => Outcome::ok(),
             // Parameter interface types are diagnosed at the signature;
             // the table keeps the entry so reads still resolve.
             _ if binding.is_param => Outcome::ok(),
@@ -903,27 +911,34 @@ fn check_method(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 }
 
 fn enum_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
-    let (capability, kind, checked) = if crate::fieldless_enums::value_candidate(node, ctx.facts) {
-        (
-            crate::fieldless_enums::CAPABILITY,
-            "fieldless_value",
-            crate::fieldless_enums::value(node, ctx.facts).map(|_| ()),
-        )
-    } else if crate::fieldless_enums::cast_candidate(node, ctx.facts) {
-        (
-            crate::fieldless_enums::CAPABILITY,
-            "fieldless_cast",
-            crate::fieldless_enums::cast(node, ctx.facts),
-        )
-    } else if crate::data_enums::constructor_candidate(node, ctx.facts) {
-        (
-            crate::data_enums::CAPABILITY,
-            "enum_constructor",
-            crate::data_enums::constructor(node, ctx.facts).map(|_| ()),
-        )
-    } else {
-        return None;
-    };
+    let (capability, kind, checked) =
+        if crate::reference_instances::products::unit_candidate(node, ctx.facts) {
+            (
+                crate::reference_instances::activation::CAPABILITY,
+                "reference_unit",
+                crate::reference_instances::products::unit(node, ctx.facts).map(|_| ()),
+            )
+        } else if crate::fieldless_enums::value_candidate(node, ctx.facts) {
+            (
+                crate::fieldless_enums::CAPABILITY,
+                "fieldless_value",
+                crate::fieldless_enums::value(node, ctx.facts).map(|_| ()),
+            )
+        } else if crate::fieldless_enums::cast_candidate(node, ctx.facts) {
+            (
+                crate::fieldless_enums::CAPABILITY,
+                "fieldless_cast",
+                crate::fieldless_enums::cast(node, ctx.facts),
+            )
+        } else if crate::data_enums::constructor_candidate(node, ctx.facts) {
+            (
+                crate::data_enums::CAPABILITY,
+                "enum_constructor",
+                crate::data_enums::constructor(node, ctx.facts).map(|_| ()),
+            )
+        } else {
+            return None;
+        };
     Some(match checked {
         Ok(()) => Outcome::ok(),
         Err(reason) => error(capability, kind, node, &reason),
@@ -942,7 +957,7 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
     }
 
     let ty = || match node_norm(node) {
-        Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
+        Some(token) if accepted_type(token, ctx.facts) => Outcome::ok(),
         _ => check_expr_ty(node, "data_value"),
     };
     match node.kind.as_str() {
@@ -1006,7 +1021,7 @@ fn check_data_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
                 .contains_key(&(target.krate, target.owner, target.local)) =>
         {
             match node_norm(node) {
-                Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
+                Some(token) if accepted_type(token, ctx.facts) => Outcome::ok(),
                 _ => check_expr_ty(node, "data_value"),
             }
         }
@@ -1964,7 +1979,7 @@ fn check_option_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 fn check_option_result(node: &HirNode, ctx: &Ctx<'_>, construct: &str) -> Outcome {
     if crate::checked_options::scalar_enabled(ctx.facts) && crate::checked_options::owned(node) {
         match node_norm(node) {
-            Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
+            Some(token) if accepted_type(token, ctx.facts) => Outcome::ok(),
             _ => check_expr_ty(node, construct),
         }
     } else {
@@ -1976,7 +1991,7 @@ fn check_enum_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     match crate::data_enums::matched(node, ctx.facts) {
         Ok(checked) => {
             let result = match node_norm(node) {
-                Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
+                Some(token) if accepted_type(token, ctx.facts) => Outcome::ok(),
                 _ => check_expr_ty(node, "enum_match_result"),
             };
             Outcome::combine(

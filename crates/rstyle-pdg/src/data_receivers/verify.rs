@@ -21,6 +21,15 @@ pub fn verify_capture(facts: &dyn EvidenceFacts) -> Result<std::borrow::Cow<'_, 
 
 pub(crate) fn check(facts: &dyn EvidenceFacts, original_source: bool) -> Result<Capture, String> {
     let observation = crate::diagnostics::Stage::new("source.receivers", &facts.name, None).enter();
+    if crate::reference_instances::activation::verify(facts)? {
+        // The private constructor proof checks the complete AsRef/length roster,
+        // receiver identities, concrete length adjustments and generic selection.
+        return facts
+            .build
+            .frontend_options
+            .data::<Capture>()
+            .map(|capture| capture.into_owned());
+    }
     let present = facts.build.frontend_options.contains_key(KEY);
     if !ExtractionProfile::from_facts(facts)?.is_data() {
         return if !present {

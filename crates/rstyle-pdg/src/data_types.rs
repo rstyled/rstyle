@@ -191,6 +191,31 @@ pub(crate) fn parse_for(
     text: &str,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<TypeToken, String> {
+    parse_context(text, profile, false)
+}
+
+pub(crate) fn parse_in(
+    text: &str,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<TypeToken, String> {
+    let permitted = facts.reference_instance().is_some_and(|instance| {
+        crate::extraction_profile::facts_support(
+            facts,
+            crate::reference_instances::activation::CAPABILITY,
+        ) && parse(text).is_ok_and(|ty| instance.products().permits(&ty))
+    });
+    parse_context(
+        text,
+        crate::extraction_profile::ExtractionProfile::from_facts(facts)?,
+        permitted,
+    )
+}
+
+fn parse_context(
+    text: &str,
+    profile: crate::extraction_profile::ExtractionProfile,
+    checked_product: bool,
+) -> Result<TypeToken, String> {
     let ty = parse(text)?;
     check_fresh_capabilities(text, profile)?;
     if (contains_option(&ty, &shared_byte_slice) || crate::borrowed_result_types::uses_result(&ty))
@@ -200,6 +225,7 @@ pub(crate) fn parse_for(
     }
 
     if text.contains("\"kind\":\"mixed_enum\"")
+        && !checked_product
         && (!profile.supports("rust.borrowed-mixed-owners")
             || !(mixed_owners::borrowed_use(&ty)
                 || profile.supports(crate::borrowed_result_types::CAPABILITY)

@@ -301,6 +301,22 @@ impl Resolver<'_> {
         node: &HirNode,
         visiting: &mut Visiting,
     ) -> Option<Result<Vec<Origin>, String>> {
+        match crate::reference_instances::activation::operation(node, self.facts) {
+            Ok(Some(operation)) => {
+                return Some((|| {
+                    let roots = self.source(operation.receiver, &[], visiting)?;
+                    if roots != [operation.origin] {
+                        return Err(
+                            "Checked AsRef flow operand loses its exact shared formal origin"
+                                .into(),
+                        );
+                    }
+                    Ok(roots)
+                })());
+            }
+            Err(error) => return Some(Err(error)),
+            Ok(None) => {}
+        }
         if let Some(receiver) = checked_receiver(node, self.facts) {
             return Some((|| {
                 let (receiver, element) = receiver?;

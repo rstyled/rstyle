@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.82.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.85.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -37,6 +37,11 @@ checked prefix access, a no-drop non-Copy error, borrowed Result `?` and suffix
 origins through the original lz4_flex block-header parser. Data-v3 3.82 connects
 the original calendar wrappers through selected dependency-library scalar helpers
 and independently proved explicit-u8 enum ownership.
+Data-v3 3.83 connects checked scalar instances across selected packages; 3.84
+adds local component-specific shared-reference helper results. Data-v3 3.85
+activates the original byte Input constructor as a separately owned checked
+instance; string conversion, From activation and foreign aggregate callers remain
+pending. See the [constructor contract](docs/extraction-profiles/reference-constructor-instances-v1.md).
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -4908,3 +4913,30 @@ Fresh frozen `run-8o5jdd1c` matches `run-0qhwddyy`: all60 identities/denominator
 23 admitted/30 excluded/7 inactive, zero gains/losses and116 schema-checked graph
 documents; no additional strict frozen replay claimed. Full original native
 proofs: `/tmp/rstyle-384-original-{default,no-default}-proof.log`. Broad goal active.
+
+### Data3.85: original checked byte constructor
+
+The unchanged original `Input::new::<[u8]>` now admits in default/no-default
+native contexts, with strict owning sidecar replay, producer admission, complete
+identity matching and tag/literal/origin/summary/historical-policy attacks.
+Each fixed four-instance selection gains one admission/zero losses; the string
+constructor and both From instances remain unsupported. Original generic rosters
+remain2,582/590; no foreign caller admission is claimed.
+
+The exact AsRef source finding stays visible. Its checked summary saves one
+receiver and preserves its shared byte origin; complete Input/Span/Anchored
+products and no-drop ownership are required. Immutable source proof is reused
+after minting; export/replay independently recheck it. No new SHA operation,
+serialized lookup key, scoring change or ignore was introduced.
+
+Gates:1,423 tests/five existing skips, doctests/fmt/Clippy pass; rstyle0/4,600,
+patterns0 unignored/15 unchanged ignores. Component composition1.568s. Fresh
+original native oracle132,736 observations/context, zero mismatches. Evidence:
+`/tmp/rstyle-385-{final-*,input-capture,fresh-*-activation.log,input-oracle.json}`.
+Next: explicit string-to-byte origin typing, complete From materialization and
+instance/caller linking, then the original lz4 error/data chain. The broader goal
+and full-library matching remain incomplete.
+
+Fresh frozen `run-mj68hs_m` matches `run-8o5jdd1c`: all60 source identities and
+denominators,23 admitted/30 excluded/7 inactive, zero gains/losses and116
+schema-checked documents. This does not claim an additional strict frozen replay.

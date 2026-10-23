@@ -33,6 +33,8 @@ impl Haystack {
 pub struct CheckedProjection {
     facts: HirFnFacts,
     haystack: Haystack,
+    as_ref: HirNode,
+    products: super::products::Products,
 }
 
 impl CheckedProjection {
@@ -43,6 +45,14 @@ impl CheckedProjection {
     pub fn haystack(&self) -> Haystack {
         self.haystack
     }
+
+    pub(crate) fn products(&self) -> &super::products::Products {
+        &self.products
+    }
+
+    pub(super) fn as_ref(&self) -> &HirNode {
+        &self.as_ref
+    }
 }
 
 pub fn verify(
@@ -52,8 +62,23 @@ pub fn verify(
 ) -> Result<CheckedProjection, String> {
     super::verify_constructor_body_observations(canonical, observation, haystack.spelling())?;
     crate::nominal_boundary::resolution::probe_reference_product_result(canonical)?;
+
     let facts = concrete_facts(canonical, haystack)?;
-    Ok(CheckedProjection { facts, haystack })
+    let products = super::products::Products::checked(&facts)?;
+    let as_ref = facts
+        .body
+        .children
+        .first()
+        .and_then(|statement| statement.children.get(1))
+        .ok_or("Checked constructor lost its exact saved AsRef operation")?
+        .clone();
+
+    Ok(CheckedProjection {
+        facts,
+        haystack,
+        as_ref,
+        products,
+    })
 }
 
 fn concrete_facts(canonical: &HirFnFacts, haystack: Haystack) -> Result<HirFnFacts, String> {

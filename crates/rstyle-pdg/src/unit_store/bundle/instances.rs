@@ -27,18 +27,30 @@ pub struct ScalarInstanceReplay {
     owner: Arc<UnitStore>,
 }
 
+pub(super) fn checked_original_owner(
+    owner: Arc<UnitStore>,
+    inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,
+) -> Result<Arc<UnitStore>, String> {
+    if owner.instance.is_some()
+        || owner.reference_instance.is_some()
+        || !owner.dependencies.is_empty()
+    {
+        return Err("Instance replay requires an original unlinked definition owner".into());
+    }
+    inspect(&owner.functions)?;
+    crate::verification_policy::strict(|| owner.validate_evidence())?;
+
+    Ok(owner)
+}
+
 impl ScalarInstanceReplay {
     pub fn new(
         owner: Arc<UnitStore>,
         inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,
     ) -> Result<Self, String> {
-        if owner.instance.is_some() || !owner.dependencies.is_empty() {
-            return Err("Scalar replay requires an original unlinked definition owner".into());
-        }
-        inspect(&owner.functions)?;
-        crate::verification_policy::strict(|| owner.validate_evidence())?;
-
-        Ok(Self { owner })
+        Ok(Self {
+            owner: checked_original_owner(owner, inspect)?,
+        })
     }
 
     /// Decode structural proof inputs and recompute the body and graph strictly.

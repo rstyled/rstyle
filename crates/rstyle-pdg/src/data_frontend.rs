@@ -19,7 +19,9 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
 pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     let observation =
         crate::diagnostics::Stage::new("source.data_frontend", &facts.name, None).enter();
-    if crate::scalar_instances::activation::verify(facts)? {
+    if crate::scalar_instances::activation::verify(facts)?
+        || crate::reference_instances::activation::verify(facts)?
+    {
         let places = crate::data_places::Places::verify(facts)?;
         return observation.finish(verify_nodes(&facts.body, facts, &places));
     }
@@ -98,6 +100,12 @@ fn verify_value_document_policy(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
+    crate::extraction_profile::require_document(
+        profile,
+        crate::reference_instances::activation::CAPABILITY,
+        || facts.reference_instance().is_some(),
+        "Reference constructor requires its registered document policy",
+    )?;
     crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
     crate::primitive_constants::verify_document_policy(profile, facts)?;
     crate::concrete_results::verify_document_policy(profile, facts)?;
@@ -402,10 +410,7 @@ impl SourceProof<'_> {
             return Err("Unsupported concrete data type".into());
         };
         let token = data_types::token(ty)?;
-        data_types::parse_for(
-            &token,
-            crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?,
-        )?;
+        data_types::parse_in(&token, self.facts)?;
         if normalized != Some(token.as_str()) {
             return Err("Resolved data interface token disagrees with captured tree".into());
         }
@@ -534,10 +539,7 @@ fn verify_node_type(
         if token.contains("\"kind\":\"option\"") && !crate::checked_options::enabled(facts) {
             return Err("Checked Option types require their registered capability".into());
         }
-        data_types::parse_for(
-            token,
-            crate::extraction_profile::ExtractionProfile::from_facts(facts)?,
-        )?;
+        data_types::parse_in(token, facts)?;
         if node.kind == "expr_path"
             && !crate::checked_options::constructor_candidate(node, facts)
             && !crate::borrowed_result_errors::error_candidate(node, facts)
@@ -552,6 +554,9 @@ fn verify_value_operations(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::reference_instances::products::unit_candidate(node, facts) {
+        return crate::reference_instances::products::unit(node, facts).map(|_| ());
+    }
     if crate::checked_options::if_let_candidate(node, facts) {
         crate::checked_options::verify_if_let(node, facts)?;
     }
@@ -659,6 +664,9 @@ fn verify_path(
     facts: &dyn crate::unit_store::EvidenceFacts,
     token: &str,
 ) -> Result<(), String> {
+    if crate::reference_instances::products::unit_candidate(node, facts) {
+        return crate::reference_instances::products::unit(node, facts).map(|_| ());
+    }
     if node
         .res
         .as_ref()

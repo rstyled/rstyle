@@ -3,9 +3,98 @@ use super::*;
 use crate::scalar_instances::{CheckedProjection, Projection, ScalarArgument};
 
 pub(super) struct InstanceRecord {
+    origin: OriginalInstance<ScalarArgument>,
+    pub(super) checked: CheckedProjection,
+}
+
+pub(super) struct OriginalInstance<A> {
     owner: Arc<UnitStore>,
     definition: FunctionId,
-    pub(super) checked: CheckedProjection,
+    argument: A,
+}
+
+impl<A: Copy> OriginalInstance<A> {
+    pub(super) fn get(&self) -> (&Arc<UnitStore>, usize, A) {
+        (&self.owner, self.definition.0 as usize, self.argument)
+    }
+}
+
+pub(super) trait InstanceProof {
+    type Checked;
+    type Argument: Copy;
+    const LABEL: &'static str;
+
+    fn verify(&self, original: &HirFnFacts) -> Result<Self::Checked, String>;
+    fn facts(checked: &Self::Checked) -> &HirFnFacts;
+    fn argument(checked: &Self::Checked) -> Self::Argument;
+    fn install(
+        self,
+        store: &mut UnitStore,
+        origin: OriginalInstance<Self::Argument>,
+        checked: Self::Checked,
+    );
+}
+
+pub(super) fn capture_instance<P: InstanceProof>(
+    owner: Arc<UnitStore>,
+    definition: usize,
+    proof: P,
+) -> Result<UnitStore, String> {
+    if owner.instance.is_some() || owner.reference_instance.is_some() {
+        return Err(format!(
+            "{} requires an original definition owner",
+            P::LABEL
+        ));
+    }
+    let original = owner
+        .functions
+        .get(definition)
+        .ok_or_else(|| format!("{} names an absent original definition", P::LABEL))?;
+    let checked = proof.verify(original)?;
+
+    let mut builder = Builder::new(vec![P::facts(&checked).clone()])?;
+    if builder.store.functions[0] != *P::facts(&checked) {
+        return Err(format!(
+            "{} normalization changed its checked evidence",
+            P::LABEL
+        ));
+    }
+    let origin = OriginalInstance {
+        owner,
+        definition: local_id(definition, FunctionId)?,
+        argument: P::argument(&checked),
+    };
+    proof.install(&mut builder.store, origin, checked);
+    builder.capture()
+}
+
+impl InstanceProof for &Projection {
+    type Checked = CheckedProjection;
+    type Argument = ScalarArgument;
+    const LABEL: &'static str = "Scalar instance";
+
+    fn verify(&self, original: &HirFnFacts) -> Result<CheckedProjection, String> {
+        let checked = crate::scalar_instances::verify(original, self)?;
+        crate::scalar_instances::verify_owner(original, &checked)?;
+        Ok(checked)
+    }
+
+    fn facts(checked: &CheckedProjection) -> &HirFnFacts {
+        checked.facts()
+    }
+
+    fn argument(checked: &CheckedProjection) -> ScalarArgument {
+        checked.scalar_argument()
+    }
+
+    fn install(
+        self,
+        store: &mut UnitStore,
+        origin: OriginalInstance<ScalarArgument>,
+        checked: CheckedProjection,
+    ) {
+        store.instance = Some(InstanceRecord { origin, checked });
+    }
 }
 
 impl UnitStore {
@@ -18,38 +107,12 @@ impl UnitStore {
         definition: usize,
         projection: &Projection,
     ) -> Result<Self, String> {
-        if owner.instance.is_some() {
-            return Err("Scalar instance requires an original definition owner".into());
-        }
-
-        let original = owner
-            .functions
-            .get(definition)
-            .ok_or("Scalar instance names an absent original definition")?;
-        let checked = crate::scalar_instances::verify(original, projection)?;
-        crate::scalar_instances::verify_owner(original, &checked)?;
-
-        let mut builder = Builder::new(vec![checked.facts().clone()])?;
-        if builder.store.functions[0] != *checked.facts() {
-            return Err("Scalar instance normalization changed its checked evidence".into());
-        }
-
-        builder.store.instance = Some(InstanceRecord {
-            owner,
-            definition: local_id(definition, FunctionId)?,
-            checked,
-        });
-        builder.capture()
+        capture_instance(owner, definition, projection)
     }
 
     /// Exact source owner and ordered structural argument; neither a namespace
     /// nor a display string substitutes for the original compiler definition.
     pub fn scalar_instance_origin(&self) -> Option<(&Arc<UnitStore>, usize, ScalarArgument)> {
-        let instance = self.instance.as_ref()?;
-        Some((
-            &instance.owner,
-            instance.definition.0 as usize,
-            instance.checked.scalar_argument(),
-        ))
+        self.instance.as_ref().map(|instance| instance.origin.get())
     }
 }

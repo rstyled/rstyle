@@ -1,11 +1,15 @@
 //! Unit-local ownership and borrowed analysis. Dense IDs are handles, not names.
 mod bundle;
 pub use bundle::BUNDLE_SCHEMA;
-pub use bundle::{ScalarInstanceReplay, read_diagnostic_snapshot, write_diagnostic_snapshot};
+pub use bundle::{
+    ReferenceConstructorReplay, ScalarInstanceReplay, read_diagnostic_snapshot,
+    write_diagnostic_snapshot,
+};
 mod dependency_closure;
 mod derived;
 mod instance_links;
 mod instances;
+mod reference_instances;
 pub use dependency_closure::DependencyClosure;
 mod manifest;
 mod namespace;
@@ -49,6 +53,11 @@ pub trait EvidenceFacts: sealed::Sealed {
     /// Only an immutable, separately verified instance owner supplies this
     /// witness. Raw frontend records and serialized flags supply none.
     fn scalar_instance(&self) -> Option<&crate::scalar_instances::CheckedProjection> {
+        None
+    }
+
+    /// Only the separately checked original reference constructor owner grants this witness.
+    fn reference_instance(&self) -> Option<&crate::reference_instances::CheckedProjection> {
         None
     }
 
@@ -129,6 +138,10 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn reference_instance(&self) -> Option<&crate::reference_instances::CheckedProjection> {
+        T::reference_instance(*self)
+    }
+
     fn scalar_instance(&self) -> Option<&crate::scalar_instances::CheckedProjection> {
         T::scalar_instance(*self)
     }
@@ -235,6 +248,7 @@ pub struct UnitStore {
     dependencies: Vec<Arc<UnitStore>>,
     external_links: Vec<BTreeMap<Site, ExternalTarget>>,
     instance: Option<instances::InstanceRecord>,
+    reference_instance: Option<reference_instances::ReferenceInstanceRecord>,
 }
 
 /// A proof cache belongs to this exact immutable store and this analysis only.
@@ -288,6 +302,7 @@ struct Tables<'a> {
     certified: &'a [Option<HelperId>],
     external_links: &'a [BTreeMap<Site, ExternalTarget>],
     instance: Option<&'a instances::InstanceRecord>,
+    reference_instance: Option<&'a reference_instances::ReferenceInstanceRecord>,
 }
 
 pub struct FunctionView<'a> {
@@ -309,6 +324,12 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn reference_instance(&self) -> Option<&crate::reference_instances::CheckedProjection> {
+        (self.id.0 == 0)
+            .then_some(self.resolver.tables().reference_instance?)
+            .map(|instance| &instance.checked)
+    }
+
     fn scalar_instance(&self) -> Option<&crate::scalar_instances::CheckedProjection> {
         (self.id.0 == 0)
             .then_some(self.resolver.tables().instance?)
@@ -647,6 +668,7 @@ impl UnitStore {
             certified: &self.certified,
             external_links: &self.external_links,
             instance: self.instance.as_ref(),
+            reference_instance: self.reference_instance.as_ref(),
         }
     }
 }
@@ -713,6 +735,7 @@ impl Builder {
                 dependencies: Vec::new(),
                 external_links: vec![BTreeMap::new(); pending.len()],
                 instance: None,
+                reference_instance: None,
             },
             dependencies: Vec::new(),
             pending,

@@ -177,6 +177,11 @@ pub(super) fn receivers<'a>(
 
 impl FunctionView<'_> {
     pub(super) fn source_inputs(&self) -> Result<(), String> {
+        if self.reference_instance().is_some() {
+            // Minting the private token verified the complete retained original
+            // source owner. Immutable instance queries cannot change that proof.
+            return Ok(());
+        }
         if self.scalar_instance().is_some() {
             // The private instance constructor checks the exact original owner
             // after the complete scalar/body/bound/assertion proof succeeds.

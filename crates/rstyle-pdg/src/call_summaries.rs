@@ -79,6 +79,9 @@ pub fn resolve_for(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<Summary>, String> {
+    if let Some(summary) = reference_constructor(node, facts)? {
+        return Ok(Some(summary));
+    }
     if crate::checked_lengths::kind(node, facts).is_some() {
         return crate::checked_lengths::resolve(node, facts);
     }
@@ -111,6 +114,35 @@ pub fn resolve_for(
         return crate::checked_options::resolve(node, facts).map(Some);
     }
     crate::data_library::resolve(node, facts)
+}
+
+/// The generic callee is preserved; authority comes from its checked owning site.
+pub(crate) fn reference_constructor(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<Summary>, String> {
+    let Some(operation) = crate::reference_instances::activation::operation(node, facts)? else {
+        return Ok(None);
+    };
+    let input = crate::data_aggregates::token(operation.receiver)?;
+    let output = crate::data_aggregates::token(node)?;
+    if crate::data_types::parse(input)? != crate::data_types::parse(output)? {
+        return Err("Checked byte AsRef changes its exact shared byte-slice type".into());
+    }
+
+    Ok(Some(Summary {
+        id: "rstyle.reference-instance.byte-as-ref".into(),
+        version: "1.0.0".into(),
+        callee_path: "core::convert::AsRef::as_ref".into(),
+        callee_crate: "core".into(),
+        argument_types: vec![input.into()],
+        result_type: output.into(),
+        memory_effects: false,
+        mutates_arguments: false,
+        may_panic: false,
+        always_returns: true,
+        overflow_behavior: "not-applicable".into(),
+    }))
 }
 
 pub(crate) fn verify_build(

@@ -2,10 +2,12 @@
 //!
 //! These checks grant no body substitution, returned-origin, cleanup, callable,
 //! artifact, or admission authority. Canonical original facts remain unchanged.
+pub(crate) mod activation;
 mod body;
 mod forwarder;
 mod materialize;
 mod operations;
+pub(crate) mod products;
 mod provenance;
 mod view_types;
 pub use materialize::{CheckedProjection, Haystack, verify as verify_constructor_projection};

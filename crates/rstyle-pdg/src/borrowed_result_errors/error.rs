@@ -9,15 +9,16 @@ pub(crate) struct Error {
 }
 
 pub(crate) fn error_candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::gated_node(node, facts, CAPABILITY, |node| {
-        node.kind == "expr_path"
-            && node
-                .res
-                .as_ref()
-                .is_some_and(|resolution| resolution.kind == "resolved_fieldless_variant")
-            && crate::data_aggregates::parsed_type(node)
-                .is_ok_and(|token| matches!(token, TypeToken::MixedEnum { .. }))
-    })
+    !crate::reference_instances::products::unit_candidate(node, facts)
+        && crate::extraction_profile::gated_node(node, facts, CAPABILITY, |node| {
+            node.kind == "expr_path"
+                && node
+                    .res
+                    .as_ref()
+                    .is_some_and(|resolution| resolution.kind == "resolved_fieldless_variant")
+                && crate::data_aggregates::parsed_type(node)
+                    .is_ok_and(|token| matches!(token, TypeToken::MixedEnum { .. }))
+        })
 }
 
 pub(crate) fn verify_error(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Error, String> {

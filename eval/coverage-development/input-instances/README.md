@@ -73,3 +73,27 @@ preserving its diagnostics, source census and declaration origins. Test-only
 cleanup witnesses cover the complete modeled product and resealed drop/Copy
 attacks; cleanup of the actual complete original module remains pending. Outer
 From trait/impl association and owned component summaries are also still required.
+
+Data3.85 activates the original byte constructor in both native feature contexts
+through a separate checked owner and strict reference sidecar. Each unchanged
+four-instance selection gains one admission with no losses; str and both From
+instances remain unsupported. The generic definition rosters remain2,582/590.
+Complete original cleanup and outer From association proofs are now available;
+From still needs checked body/call materialization and component summaries.
+[Bounded activation contract](../../../docs/extraction-profiles/reference-constructor-instances-v1.md).
+After a fresh capture, reproduce strict replay, producer admission, identity
+matching and graph attacks with prebuilt binaries:
+
+```sh
+cargo build --locked -p rstyle-ccgraph --example reference_constructor_activation
+for context in no-default default; do
+  timeout 240 target/debug/examples/reference_constructor_activation \
+    /tmp/input-owner-diagnostics/"$context"/snapshots/*-pre-helper-certification.json \
+    /tmp/input-owner-diagnostics/"$context"/snapshots/*-reference-instances.json
+done
+```
+
+The default/no-default full-owner replay probes took98.93/13.57s and peaked at
+1,213,460/208,636KiB on the native runner; these include complete owner analysis,
+not just the constructor. Identity matching is a control, not detector-quality
+evidence. Cross-target activation and actual foreign caller linking remain pending.

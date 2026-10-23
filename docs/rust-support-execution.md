@@ -240,3 +240,21 @@ active after this chain; no additional narrow numeric kernels are prioritized.
 The next milestone must deliver original constructor admission through this
 connected chain, rather than another diagnostic-only increment. Reassess if
 activation uncovers a new foundation that cannot finish the declared family.
+
+Data3.85 delivers the original `Input::new::<[u8]>` through checked construction,
+strict sidecar replay, producer admission and complete identity matching in both
+native feature contexts. Each unchanged four-instance selection gains1/4, loses0;
+original rosters remain2,582/590. The other three instances remain unsupported.
+Fresh captures/probes: `/tmp/rstyle-385-input-capture` and
+`/tmp/rstyle-385-fresh-{default,no-default}-activation.log`.
+No new SHA operation or serialized lookup key. The whole family remains incomplete.
+
+| Next assignment | Readiness gate and exclusive leaf work |
+| --- | --- |
+| String byte-view origins | Source/dispatch proof exists. Add exact `str → [u8]` origin typing and independent source/flow/graph transformation; Unicode byte lengths and malformed projection negatives. Lead owns shared Projection/origin interfaces. |
+| Original From activation | Association proof exists. Materialize the complete checked forwarding body and exact constructor dependency at identical substitution; derive each returned component and replay both proofs. Separate token/site proof from constructor body assumptions. |
+| Actual reference caller links | Requires production proof-input inventory and typed instance key, exact compiled-artifact/definition association and foreign reference/component summaries. Diagnostic observations alone grant no linkage. Follow the preceding activation boundaries. |
+| Original lz4 error/data chain | Preserve `uncompressed_size` selection. Establish complete no-drop error ownership, checked range/ok_or, differing-success residual, four-byte LE decode and suffix/reference-tuple transport before activation. No new numeric leaf detour. |
+
+Coordinate shared edits serially; leaf audits/oracles may proceed independently.
+Keep the existing four-instance denominator and the separate frozen sixty intact.

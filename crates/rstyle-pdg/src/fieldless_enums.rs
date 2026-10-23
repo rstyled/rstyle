@@ -12,7 +12,8 @@ fn selected(node: &HirNode, facts: &dyn EvidenceFacts, kind: &str) -> bool {
 }
 
 pub(crate) fn value_candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    selected(node, facts, "expr_path")
+    !crate::reference_instances::products::unit_candidate(node, facts)
+        && selected(node, facts, "expr_path")
         && node
             .res
             .as_ref()

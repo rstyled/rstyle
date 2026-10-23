@@ -30,6 +30,8 @@ pub(crate) mod option_propagation;
 pub(crate) mod origins;
 mod propagation;
 mod read_accesses;
+mod reference_instances;
+mod reference_products;
 pub(crate) mod result_propagation;
 mod scalar_enums;
 mod scalar_from;
@@ -316,6 +318,8 @@ fn verify_call_operations(
     facts: &dyn crate::unit_store::EvidenceFacts,
     calls: &[&crate::HirNode],
 ) -> Result<(), String> {
+    reference_instances::verify(pair, facts)?;
+    reference_products::verify(pair, facts)?;
     scalar_from::verify(pair, facts, calls)?;
     character_ascii::verify(pair, facts, calls)?;
     float_scalars::verify(pair, facts)?;

@@ -233,6 +233,14 @@ impl Graph<'_> {
                 Ok(source) => source,
                 Err(error) => return Some(Err(error)),
             };
+            if source
+                .dispatch
+                .as_ref()
+                .is_some_and(|dispatch| dispatch.op == "core::convert::AsRef::as_ref")
+                && self.facts.reference_instance().is_some()
+            {
+                return Some(self.reference_instance_origins(node, selectors, visiting));
+            }
             if crate::helper_calls::direct_resolution(source).is_some() {
                 if crate::helper_component_outputs::call_used(source, self.facts) {
                     return Some(crate::helper_component_outputs::map(
@@ -257,6 +265,27 @@ impl Graph<'_> {
             }
         }
         None
+    }
+
+    fn reference_instance_origins(
+        &self,
+        node: &PdgNode,
+        selectors: &[usize],
+        visiting: &mut BTreeSet<String>,
+    ) -> Result<Vec<Origin>, String> {
+        let source = source_node(node, self.facts)?;
+        let operation = crate::reference_instances::activation::operation(source, self.facts)?
+            .ok_or("Unproved AsRef site in checked constructor graph")?;
+        if !selectors.is_empty() {
+            return Err("Checked byte AsRef has no aggregate selector".into());
+        }
+
+        let roots = self.origins(self.operand(node, 0)?, &[], visiting)?;
+        if roots != [operation.origin] {
+            return Err("Checked AsRef graph operand loses its exact shared formal origin".into());
+        }
+
+        Ok(roots)
     }
 
     fn byte_call_operation(
