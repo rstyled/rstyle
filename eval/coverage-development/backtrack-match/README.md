@@ -37,15 +37,27 @@ A normal first comparison makes all later decreasing indices valid; therefore an
 bounds panic in this particular source occurs before any store. This source fact
 does not establish a general exceptional-memory or unwind-cleanup model.
 
-Current readiness evidence retains the complete original HIR in the bundle named
-in `selection.json`: direct builtin dereferences and two ordered builtin compound
-assignments, with mutable input observations still Unsupported. Its absent mutable
-alias pairs are missing evidence, not independence. `source_scan_complete=false`
-remains unchanged. Existing cyclic normal CFG and scalar reaching definitions do
-not establish location-aware mutable state. The bounded next contract needs exact
-mutable scalar formal locations, loads/stores, alias-conservative loop state and
-post-state verification; stateful helper export and public compressor behavior
-remain outside this increment.
+The historical bundle in `selection.json` retains complete original HIR but lacks
+mutable-location evidence. Fresh captures now independently verify the five-formal
+roster, eight ordered scalar accesses and ten conservative reference-root alias
+pairs under the [observation contract](../../../docs/extraction-profiles/mutable-scalar-formals-v1.md).
+Mutable interface observations remain Unsupported; neither these records nor the
+existing cyclic normal CFG establish location-aware mutable state or admission.
+Next connect loads/stores to cyclic memory dependencies and normal/failure
+post-state. Stateful helper export and public compressor behavior remain outside
+this increment.
+
+The oracle's distinct valid cursors do not establish captured disjointness. In the
+conservative abstract alias model, the first cursor store can change the second
+cursor before its compound load; checked subtraction could then fail after a
+store. Preserve that ordering and failure post-state rather than applying the
+distinct-cursor oracle's pre-store panic conclusion to all abstract aliases.
+
+Validated capture: `target/hir-coverage/run-gdz69t4m` (native default features).
+The strict readiness probe verifies the original 150-definition owner and selected
+unchanged function; it remains excluded. Frozen sixty remain 23 admitted / 30
+excluded / 7 inactive, gain 0 / loss 0. Native oracle: 48,856 cases, zero mismatches.
+Other declared target captures remain pending for connected memory activation.
 
 Neither source checks nor this oracle currently claim a new admission. Future
 positive expectations are the complete selected safe function in each of the

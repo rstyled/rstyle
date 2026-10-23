@@ -24,6 +24,7 @@ pub(crate) fn capture_instance_diagnostics(
 }
 mod library_resolution;
 mod module_expansions;
+mod mutable_scalar_formals;
 mod nominal_census;
 mod option_propagation;
 mod options;
@@ -112,9 +113,18 @@ fn function(
     };
     concrete_types::capture(&ctx, &mut facts)?;
     inherent::capture(&ctx, id, &mut facts)?;
-    rstyle_pdg::field_locations::capture(&mut facts)?;
+    capture_locations(&ctx, &mut facts)?;
 
     instances::capture(&ctx, id, facts).map(Some)
+}
+
+fn capture_locations(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
+    rstyle_pdg::field_locations::capture(facts)?;
+    if ctx.profile == ExtractionProfile::DataV3 {
+        mutable_scalar_formals::capture(ctx, facts)?;
+    }
+
+    Ok(())
 }
 
 fn function_source<'tcx>(

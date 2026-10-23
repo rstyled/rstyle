@@ -17,6 +17,7 @@ fn interface() -> InterfaceObservations {
 fn fields() -> FieldObservations {
     FieldObservations {
         identity: crate::field_locations::IDENTITY.into(),
+        scalar_formal_accesses: None,
         operations: vec![FieldOperation {
             hir: crate::HirRef {
                 krate: 0,

@@ -2,6 +2,7 @@
 
 mod aliases;
 pub(crate) mod derived;
+pub mod scalar_formals;
 mod source;
 
 use crate::{ByteSpan, HirFnFacts, HirNode, HirRef, concrete_types::*};
@@ -84,6 +85,9 @@ pub struct FieldObservations {
     pub operations: Vec<FieldOperation>,
     /// Every captured shared formal may alias every other captured shared formal.
     pub possibly_aliasing_formals: Vec<[u32; 2]>,
+    /// Observational mutable-scalar evidence; absence supplies no memory proof.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scalar_formal_accesses: Option<scalar_formals::ScalarFormalAccesses>,
 }
 
 pub fn capture(facts: &mut HirFnFacts) -> Result<(), String> {
@@ -116,6 +120,7 @@ pub fn capture(facts: &mut HirFnFacts) -> Result<(), String> {
     }
     let observations = FieldObservations {
         identity: IDENTITY.into(),
+        scalar_formal_accesses: None,
         operations: nodes
             .into_iter()
             .map(|node| operation(node, facts, &interface))
@@ -313,7 +318,12 @@ pub fn verify(
         return Err("Field observations lack exact captured source identity".into());
     }
 
-    source::verify(facts, observations, &interface)
+    source::verify(facts, observations, &interface)?;
+    if let Some(accesses) = &observations.scalar_formal_accesses {
+        scalar_formals::verify(facts.facts(), accesses)?;
+    }
+
+    Ok(())
 }
 
 pub(crate) fn fields(node: &HirNode) -> Vec<&HirNode> {

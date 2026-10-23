@@ -516,3 +516,36 @@ identical decisions/scores. Diagnostic replay samples12.16/12.05s do not establi
 a controlled speedup. Evidence:`/tmp/rstyle-397-{gates,frozen-comparison,matching-results}.json`.
 No new admission capability. Ordinary generic callers and the mutable backtracking
 blocker chain remain outstanding; the P01–P22 goal stays active.
+
+### Mutable scalar formal evidence — backtracking prerequisite
+
+Fresh Data-v3 capture observes `&mut usize` formals without activating mutable
+types or admission. Independent source/HIR verification checks five parameters,
+eight ordered accesses and ten conservative alias pairs for the unchanged safe
+`lz4_flex 0.14.0::block::compress::backtrack_match`. Historical absence remains
+absence; other mutable types, escapes, aliases, rebindings and reborrows stay
+unsupported. HIR size/identity checks precede source indexing. The existing source
+interval index is reused; no serialization key or SHA computation is added.
+[Bounded contract](extraction-profiles/mutable-scalar-formals-v1.md).
+
+All1,578 tests/five existing skips and doctests pass; fmt/Clippy pass,
+style0/5,237 and patterns0/15 unchanged ignores. The composition test takes0.294s
+in this diagnostic run, not a controlled speedup estimate. Native private-body
+oracle:48,856 cases, zero mismatches (38,363 normal/10,493 bounds panics).
+Evidence:`/tmp/rstyle-398-*-bounded.log`.
+
+Fresh frozen sixty retain23 admitted/30 excluded/7 inactive, gain0/loss0 and all
+identities/denominators/outcomes unchanged versus`run-d4nnwn0k`. New capture:
+`target/hir-coverage/run-gdz69t4m`. Strict original150-definition lz4 owner
+readiness passes; the selected full original remains excluded. Evidence:
+`/tmp/rstyle-398-{frozen-comparison.json,readiness.log}`. This supplies prerequisite
+evidence, not admitted pair or matching coverage.
+
+Next activation must connect formal locations, cyclic RAW/WAR/WAW dependencies,
+weak updates, and normal/failure post-state through emission and strict replay.
+The schema supports exceptional exits, but current producer emission/verification
+assumes one normal exit. Under possible aliases, the first cursor store can alter
+the second compound load and cause a later checked failure; an attached panic
+annotation cannot preserve that stored state. The oracle's distinct cursor objects
+do not discharge captured alias uncertainty. D20/D21 and the full family remain
+incomplete; do not continue with unrelated capture-only increments.

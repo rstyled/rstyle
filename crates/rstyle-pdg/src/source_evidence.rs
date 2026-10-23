@@ -2,6 +2,7 @@
 
 mod attributes;
 mod candidates;
+pub(crate) use candidates::Candidates;
 pub(crate) mod checked_activation;
 mod positions;
 pub(crate) use attributes::single_identifier_attribute;

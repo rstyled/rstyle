@@ -12,6 +12,7 @@ mod diagnostic_process;
 mod fresh_product_results;
 mod inherent_expansions;
 mod loop_merge_target;
+mod mutable_scalar_formals;
 mod native_prefix_readers;
 mod nominal_copy;
 mod option_sources;

@@ -27,6 +27,7 @@
     "features": [
       "alloc",
       "checked-decode",
+      "default",
       "frame",
       "safe-decode",
       "safe-encode",

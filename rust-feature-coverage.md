@@ -5129,3 +5129,11 @@ verification and unchanged reviewed pins/r0 conformance. No semantic capability
 changes. Frozen sixty remain23 admitted/30 excluded/7 inactive (gain0/loss0);
 retained SHA and fresh XXH3 native Match owners preserve all six strict selected
 matching outcomes. [Current evidence](docs/rust-support-execution.md).
+
+Mutable backtracking now has independently checked formal/access evidence
+(five parameters/eight accesses/ten conservative alias pairs), without mutable
+admission or a new profile capability. All1,578 tests pass; style/patterns remain
+zero with15 existing ignores unchanged. Next connect cyclic memory dependencies
+and explicit normal/failure post-state through strict replay; the distinct-cursor
+oracle does not prove captured disjointness. D20/D21 remain missing.
+[Contract](docs/extraction-profiles/mutable-scalar-formals-v1.md).

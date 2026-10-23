@@ -2,13 +2,13 @@
 use super::{ByteSpan, HirNode, HirRef, corresponding_span};
 use std::collections::HashMap;
 
-pub(super) struct Candidates<'a> {
+pub(crate) struct Candidates<'a> {
     kinds: HashMap<&'a str, Vec<Candidate<'a>>>,
 }
 
 #[derive(Default)]
 struct Matches<'a> {
-    first: Option<&'a HirRef>,
+    first: Option<&'a HirNode>,
     ambiguous: bool,
 }
 
@@ -18,7 +18,7 @@ struct Candidate<'a> {
 }
 
 impl<'a> Candidates<'a> {
-    pub(super) fn new(body: &'a HirNode) -> Self {
+    pub(crate) fn new(body: &'a HirNode) -> Self {
         let mut kinds = HashMap::new();
         collect(body, &mut kinds);
         for nodes in kinds.values_mut() {
@@ -33,6 +33,25 @@ impl<'a> Candidates<'a> {
     }
 
     fn search(&self, source: &str, kind: &str, span: ByteSpan) -> (Option<HirRef>, usize) {
+        let (node, visited) = self.search_node(source, kind, span);
+        (node.map(|node| node.hir.clone()), visited)
+    }
+
+    pub(crate) fn unique_node(
+        &self,
+        source: &str,
+        kind: &str,
+        span: ByteSpan,
+    ) -> Option<&'a HirNode> {
+        self.search_node(source, kind, span).0
+    }
+
+    fn search_node(
+        &self,
+        source: &str,
+        kind: &str,
+        span: ByteSpan,
+    ) -> (Option<&'a HirNode>, usize) {
         let mut query = Query {
             source,
             span,
@@ -45,7 +64,7 @@ impl<'a> Candidates<'a> {
         let result = if query.matches.ambiguous {
             None
         } else {
-            query.matches.first.cloned()
+            query.matches.first
         };
         (result, query.visited)
     }
@@ -125,7 +144,7 @@ impl<'hir> Query<'_, 'hir> {
             && corresponding_span(self.source, self.span, root.node.span)
         {
             self.matches.ambiguous = self.matches.first.is_some();
-            self.matches.first = Some(&root.node.hir);
+            self.matches.first = Some(root.node);
         }
     }
 }
