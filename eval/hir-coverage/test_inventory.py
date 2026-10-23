@@ -24,7 +24,7 @@ class InventoryTests(unittest.TestCase):
     def test_sealed_bundle_verification_rejects_tampering_and_missing_roots(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'unit.evidence.json'
-            bundle = dict(namespace={'ordinal': 0}, roots=[0],
+            bundle = dict(schema='rstyle.shared-unit/5', namespace={'ordinal': 0}, roots=[0],
                           graphs=[dict(cfg={}, pdg={})])
             report = dict(functions=[dict(outcome='admitted', unit_evidence=dict(
                 bundle=str(path), namespace=bundle['namespace'], function=0))])

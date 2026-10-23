@@ -93,10 +93,18 @@ def map_definition(selected, report, roster):
                         captured_records=len(records),
                         active=len(records) == 1 and verify(selected, records[0]))
         if decision['active']:
-            decision.update(function_key=records[0]['key'], build=records[0]['facts']['build'],
-                            document_manifest=records[0].get('document_manifest'))
+            decision.update(function_key=records[0]['key'], **evidence_navigation(records[0]))
         decisions.append(decision)
     return decisions, matched
+
+
+def evidence_navigation(record):
+    # Do not copy census/origin/HIR option payloads into every selected outcome.
+    # The reference identifies the complete build, source and semantic evidence.
+    return dict(build_settings={key: value for key, value in record['facts']['build'].items()
+                                if key != 'frontend_options'},
+                unit_evidence=record.get('unit_evidence'),
+                document_manifest=record.get('document_manifest'))
 
 
 def aggregate(decisions):

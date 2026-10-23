@@ -319,3 +319,12 @@ constructors add generic decoding, loops, arrays/byte writes and iterator state.
 Source/expectation audit is complete; product activation has not started. Do not
 invent generic instance authority for this nongeneric constructor. No new SHA
 operation or serialized lookup key. Broader P01–P22 scope stays active.
+
+Inventory performance boundary: existing compact reports and one-bundle-at-a-time
+projection replace full JSON duplication; assessment v4 retains complete evidence
+navigation. Fresh `run-gp8bnmsf` preserves all60 identities/outcomes/denominators
+and116 graph schema checks versus `run-9bjlp2ny`. Regex-syntax stdout1.85GB→3.99MB;
+assessment115.36MB→0.70MB. All21 Python checks pass; no Rust semantic change or new
+hash. Single fresh run50.36s/1,235,844KiB max RSS; no controlled speedup claim.
+Next activate the source-frozen LineReader ownership bridge with coordinated
+nominal/type/origin interfaces above.

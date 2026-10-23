@@ -35,6 +35,28 @@ Generated outputs include:
 - `summary.json`: newly admitted/lost functions and remaining blocker combinations.
 - `failure.txt`: an explicit runner error if reproduction did not complete.
 
+New captures request `--report-detail compact` and write stdout directly to its
+artifact file. Assessment version 4 retains every selected outcome and context,
+but replaces repeated full `build` objects with `build_settings` (build facts
+excluding `frontend_options`) and explicit `unit_evidence` navigation. Follow its
+`bundle`, `namespace` and `function` fields to the complete build, source, HIR and
+graph evidence. No source/body omission establishes support: Cargo still performs
+capture/admission, and the harness checks source correspondence independently.
+This schema/source check does not replace a separate strict semantic replay.
+Each referenced bundle is checked against its XXH3 manifest and decoded once;
+admitted graphs still pass the pinned schemas. Only the narrow source facts needed
+for correspondence are projected, without expanding census/origin option tables.
+Historical raw reports and assessments are unchanged; full reports remain readable.
+
+Measured against `run-9bjlp2ny`, fresh `run-gp8bnmsf` preserves all60 selected
+identities, outcomes, blockers, ordinary build settings and denominators:
+23 admitted/30 excluded/7 inactive,116 schema-checked graph documents. Comparison
+normalizes temporary source roots and excludes navigation and producer revision.
+The regex-syntax stdout shrinks1,847,891,504→3,989,102 bytes; the selected assessment
+shrinks115,363,045→697,259 bytes. The fresh run takes50.36s with1,235,844KiB
+maximum child/process RSS; this is a single observation, not a controlled speedup.
+All21 Python tests pass. Evidence: `/tmp/rstyle-compact-{parity.json,frozen.log,frozen-time.txt}`.
+
 Upload this generated directory as a CI artifact when diagnostics are useful;
 remove it locally when finished. It is never an evidence cache or an extraction
 input. Temporary downloaded sources are cleaned up; their exact contents remain

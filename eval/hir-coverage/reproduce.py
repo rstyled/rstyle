@@ -15,13 +15,13 @@ import tempfile
 import tomllib
 import urllib.request
 
-import xxhash
 import jsonschema
 from tree_sitter import Language, Parser
 import tree_sitter_rust
 
 import assess
 import summarize
+from bundle_records import verify_documents
 
 ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parents[1]
@@ -109,35 +109,6 @@ def check_capture(report, exit_code):
         raise ValueError("Exit 2 was not the explicit zero-pair inventory budget")
 
 
-def verify_documents(report, validators):
-    checked = 0
-    bundles = {}
-    for function in report["functions"]:
-        if function["outcome"] != "admitted":
-            continue
-        evidence = function["unit_evidence"]
-        path = Path(evidence["bundle"])
-        if path not in bundles:
-            data = path.read_bytes()
-            manifest = json.loads(path.with_suffix(".manifest.json").read_text())
-            if (manifest["schema"] != "rstyle.shared-unit.manifest/2" or
-                    manifest["bytes"] != len(data) or
-                    manifest["checksum"] != "xxh3-64:" + xxhash.xxh3_64_hexdigest(data)):
-                raise ValueError("Serialized unit does not match its exact manifest")
-            bundles[path] = json.loads(data)
-        bundle = bundles[path]
-        if bundle["namespace"] != evidence["namespace"]:
-            raise ValueError("Unit evidence namespace mismatch")
-        root = bundle["roots"][evidence["function"]]
-        if root is None:
-            raise ValueError("Admitted function has no graph root")
-        graph = bundle["graphs"][root]
-        for kind in ("cfg", "pdg"):
-            validators[kind].validate(graph[kind])
-            checked += 1
-    return checked
-
-
 def capture(package, profile, output, env, validators):
     directory = output / profile / package.name
     directory.mkdir(parents=True)
@@ -145,12 +116,15 @@ def capture(package, profile, output, env, validators):
                RSTYLE_DRIVER=str(WORKSPACE / "target/debug/rstyle-driver"))
     command = [str(WORKSPACE / "target/debug/cargo-rstyle"), "rstyle",
                "--manifest-path", str(package / "Cargo.toml"), "clones", "--locked",
-               "--format", "json", "--max-pairs", "0", "--extraction-profile", profile]
-    result = subprocess.run(command, cwd=package, env=env, capture_output=True)
-    (directory / "stdout.json").write_bytes(result.stdout)
-    (directory / "stderr.txt").write_bytes(result.stderr)
+               "--format", "json", "--report-detail", "compact", "--max-pairs", "0",
+               "--extraction-profile", profile]
+    with (directory / "stdout.json").open('wb') as stdout, (directory / "stderr.txt").open('wb') as stderr:
+        result = subprocess.run(command, cwd=package, env=env, stdout=stdout, stderr=stderr)
     write_json(directory / "command.json", dict(command=command, exit_code=result.returncode))
-    report = json.loads(result.stdout)
+    with (directory / "stdout.json").open() as stdout:
+        report = json.load(stdout)
+    if report.get('report_detail') != 'compact':
+        raise ValueError('Inventory command did not produce requested compact report')
     check_capture(report, result.returncode)
     checked = verify_documents(report, validators)
     print(f"{profile}: {package.name}: {checked} verified documents", flush=True)

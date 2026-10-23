@@ -67,15 +67,14 @@ def assess(selection, reports):
                         record["facts"]["source_scan_complete"] for record in records))
         if len(records) == 1:
             item.update(function_key=records[0]["key"], captured_source_digest=records[0]["facts"]["source"]["digest"],
-                        document_manifest=records[0].get("document_manifest"),
-                        build=records[0]["facts"]["build"])
+                        **correspondence.evidence_navigation(records[0]))
         outcomes.append(item)
     counts = collections.Counter(item["outcome"] for item in outcomes)
     combinations = collections.Counter(tuple(sorted(set(
         blocker["capability"] for blocker in item["source_blockers"]))) for item in outcomes)
     context_counts = collections.Counter(decision['outcome'] for item in outcomes
                                          for decision in item['compilation_contexts'])
-    return {"assessment_version": 3, "functions": outcomes, "counts": dict(counts),
+    return {"assessment_version": 4, "functions": outcomes, "counts": dict(counts),
             "denominators": dict(all_frozen_selected=len(selection),
                                  selected_function_contexts=sum(context_counts.values()),
                                  active_function_contexts=sum(decision['active'] for item in outcomes
