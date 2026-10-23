@@ -922,10 +922,7 @@ impl Context<'_> {
         }
         if !callee.is_local() && kind == rustc_hir::def::DefKind::AssocFn && self.profile.is_data()
         {
-            if let Some(resolution) = self.range_from_helper(expression, callee) {
-                return Some(resolution);
-            }
-            return Some(self.associated_callee(expression, callee));
+            return Some(self.external_associated_callee(expression, callee));
         }
         if kind == rustc_hir::def::DefKind::Fn
             && let Some(resolution) = self.size_callee(expression, callee)
@@ -949,6 +946,21 @@ impl Context<'_> {
                 compiled_dependency: dependency,
             },
         ))
+    }
+
+    fn external_associated_callee(
+        &self,
+        expression: &Expr<'_>,
+        callee: rustc_hir::def_id::DefId,
+    ) -> PathRes {
+        if let Some(resolution) = super::trait_members::default_call(self, expression, callee) {
+            return resolution;
+        }
+        if let Some(resolution) = self.range_from_helper(expression, callee) {
+            return resolution;
+        }
+
+        self.associated_callee(expression, callee)
     }
 
     fn associated_callee(

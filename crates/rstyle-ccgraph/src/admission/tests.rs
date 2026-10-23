@@ -19,6 +19,7 @@ fn current_data_policy_uses_call_aware_projection_without_extending_unknown_poli
         ("3.90.0", MatchingProfile::DataCallsV1),
         ("3.91.0", MatchingProfile::DataCallsV1),
         ("3.92.0", MatchingProfile::DataCallsV1),
+        ("3.93.0", MatchingProfile::DataCallsV1),
         ("3.28.0", MatchingProfile::DataV1),
         ("3.29.0", MatchingProfile::DataV1),
         ("999.0.0", MatchingProfile::DataV1),

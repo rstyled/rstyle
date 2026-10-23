@@ -8,16 +8,6 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::{self, GenericArgsRef, TyCtxt, TypeVisitableExt};
 use rustc_span::{Symbol, sym};
 
-pub(super) fn candidate(tcx: TyCtxt<'_>, owner: LocalDefId) -> bool {
-    tcx.opt_associated_item(owner.to_def_id())
-        .and_then(|item| item.trait_item_def_id())
-        .is_some_and(|method| {
-            ["from_fn", "try_from_fn"]
-                .iter()
-                .any(|name| tcx.get_diagnostic_item(Symbol::intern(name)) == Some(method))
-        })
-}
-
 pub(super) fn observe(
     context: &Context<'_>,
     owner: LocalDefId,
@@ -62,6 +52,8 @@ fn check_trait(tcx: TyCtxt<'_>, definition: DefId, method: DefId) -> Result<(), 
         "from_fn"
     } else if tcx.get_diagnostic_item(Symbol::intern("TryFrom")) == Some(definition) {
         "try_from_fn"
+    } else if tcx.get_diagnostic_item(Symbol::intern("Default")) == Some(definition) {
+        "default_fn"
     } else {
         return Err("Conversion trait lacks exact core diagnostic identity".into());
     };
@@ -75,7 +67,7 @@ fn check_trait(tcx: TyCtxt<'_>, definition: DefId, method: DefId) -> Result<(), 
     Ok(())
 }
 
-fn selected<'tcx>(
+pub(super) fn selected<'tcx>(
     tcx: TyCtxt<'tcx>,
     environment: ty::TypingEnv<'tcx>,
     method: DefId,
@@ -185,7 +177,7 @@ fn members(context: &Context<'_>, implementation: DefId) -> Result<Vec<model::Me
         .collect()
 }
 
-fn signature_observation<'tcx>(
+pub(super) fn signature_observation<'tcx>(
     tcx: TyCtxt<'tcx>,
     owner: LocalDefId,
     method: DefId,

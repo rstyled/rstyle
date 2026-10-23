@@ -60,6 +60,7 @@ pub(crate) fn verify_document_policy(
     {
         return Err("Scalar instances require their registered document policy".into());
     }
+    crate::default_calls::verify_document_policy(profile, facts)?;
     verify_value_document_policy(profile, facts)?;
     let capabilities = [
         crate::helper_stored_slices::CAPABILITY,

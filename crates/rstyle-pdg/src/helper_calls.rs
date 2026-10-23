@@ -580,6 +580,7 @@ fn check_signature(
     resolution: &Value,
     callee: &dyn EvidenceFacts,
 ) -> Result<(), String> {
+    crate::default_calls::verify_selection(node, caller, callee, resolution)?;
     let dispatch = node
         .dispatch
         .as_ref()

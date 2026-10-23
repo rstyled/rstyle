@@ -6,6 +6,7 @@ mod core_imports;
 mod enum_globs;
 mod imports;
 pub(super) use imports::glob_excludes;
+pub(super) use imports::{library_root, unshadowed_type_declarations};
 #[cfg(test)]
 mod explicit_u8_attacks;
 #[cfg(test)]

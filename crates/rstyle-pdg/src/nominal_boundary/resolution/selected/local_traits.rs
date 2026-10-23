@@ -204,7 +204,7 @@ impl Source<'_> {
         for length in 0..=module.namespace.len() {
             let scope = &module.namespace[..length];
             self.marker_imports(scope, &name)?;
-            self.marker_declarations(scope, &name)?;
+            imports::unshadowed_type_declarations(self.environment, scope, &name)?;
         }
         Ok(())
     }
@@ -218,22 +218,6 @@ impl Source<'_> {
             }
             if binding.starts_with("*::") {
                 imports::glob_excludes(self.environment, target, name, &self.configuration)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn marker_declarations(&self, scope: &[String], name: &str) -> Result<(), String> {
-        for owner in self
-            .environment
-            .modules
-            .iter()
-            .filter(|owner| owner.namespace == scope)
-        {
-            for item in &owner.items {
-                if super::super::builtin_options::type_name(item).as_deref() == Some(name) {
-                    return Err("Local trait prelude marker is shadowed".into());
-                }
             }
         }
         Ok(())

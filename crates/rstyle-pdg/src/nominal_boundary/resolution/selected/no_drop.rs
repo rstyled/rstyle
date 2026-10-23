@@ -11,6 +11,10 @@ mod library_macros;
 mod macros;
 pub(super) mod module_globs;
 mod prelude_traits;
+
+pub(in crate::nominal_boundary::resolution) fn default_prelude(facts: &HirFnFacts) -> bool {
+    crate::data_library::registry_for(facts).is_some_and(prelude_traits::pinned)
+}
 mod product_fields;
 pub(in crate::nominal_boundary::resolution) mod reference_products;
 mod source_imports;

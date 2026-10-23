@@ -272,7 +272,7 @@ fn source_bindings(items: &[syn::Item]) -> impl Iterator<Item = String> {
 }
 
 /// Source-root binding proof, separate from compiler --extern override checks.
-pub(super) fn library_root(
+pub(in crate::nominal_boundary::resolution) fn library_root(
     facts: &HirFnFacts,
     environment: &Environment,
     namespace: &[String],
@@ -317,6 +317,26 @@ fn library_root_imports(
         }
         if name.starts_with("*::") {
             glob(environment, target, configuration)?;
+        }
+    }
+    Ok(())
+}
+
+/// Check declarations in the exact lexical scope before using a prelude type.
+pub(in crate::nominal_boundary::resolution) fn unshadowed_type_declarations(
+    environment: &Environment,
+    scope: &[String],
+    name: &str,
+) -> Result<(), String> {
+    for module in environment
+        .modules
+        .iter()
+        .filter(|module| module.namespace == scope)
+    {
+        for item in &module.items {
+            if builtin_options::type_name(item).as_deref() == Some(name) {
+                return Err("Prelude type binding is shadowed by an original declaration".into());
+            }
         }
     }
     Ok(())

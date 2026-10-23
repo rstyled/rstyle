@@ -204,7 +204,7 @@ A compiler-resolved call is not automatically a verified call summary.
 
 | ID | Feature | Status | Small example | Current boundary / remaining work |
 | --- | --- | --- | --- | --- |
-| T01 | Concrete trait implementations and default methods | Missing | `impl Trait for S`, `s.trait_method()` | Exact trait/impl/default-body ownership, selected implementation, instantiated interface and effects. Inherent support does not cover this. |
+| T01 | Concrete trait implementations and default methods | Partial | `impl Trait for S`, `s.trait_method()` | Data3.94 connects original local nongeneric core Default implementations to zero-argument direct-prelude calls returning verified reference-free Copy products, through exact trait/impl/member selection and ordinary body/effect summaries. [Bounded family](eval/coverage-development/adler-default/README.md). Existing local From exceptions remain bounded; general trait dispatch, provided default bodies, generics and drop-sensitive results remain unavailable. |
 | T02 | Type-generic functions, structs and impls | Missing | `fn f<T>(x: T)`, `struct S<T>(T)` | Type parameter/substitution evidence and a declared choice of generic-body versus concrete-instantiation analysis. |
 | T03 | Bounds, where clauses, blanket and supertrait resolution | Missing | `fn f<T: Read>(x: T)`, `where T: Trait` | Obligation/selection evidence, body behavior and dependency identity; not just signature strings. |
 | T04 | Const generics | Missing | `fn f<const N: usize>(x: [u8; N])` | Constant arguments, array/type instantiation and source/value proof. |
@@ -5155,3 +5155,15 @@ diagnostic Copy/static-str source proof. No admission/profile capability changes
 Full-owner evidence exposes foreign globs and generated/multi-arm macro closure
 before mixed Result/payload/origin activation; the four-function family remains
 unavailable. [Selection, expectations and blocker chain](eval/coverage-development/time-error-conversions/README.md).
+
+Data3.94 connects unchanged `adler2 2.0.1::Adler32::new → Default::default`
+through exact core/local trait selection and existing verified Copy-product
+helper summaries. All six std/no_std target contexts gain both originals and
+lose none; complete owners retain17/16 definitions. Twelve strict original/replay
+comparisons pass; independent native public/field/dispatch expectations pass.
+Frozen60 remains24 admitted/29 excluded/7 inactive, unchanged identities and
+denominators. All1,618 tests/five skips, doctests, fmt/Clippy, style0/5,449 and
+patterns0/15 unchanged ignores pass. Generic/drop-sensitive/default-provided
+bodies remain outside the [bounded contract](eval/coverage-development/adler-default/README.md).
+No new SHA or serialized lookup keys. Broader P01–P22 coverage remains active;
+[next connected constructor frontier](docs/rust-support-execution.md).

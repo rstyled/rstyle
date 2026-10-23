@@ -12,6 +12,7 @@ use crate::{
 use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
 mod array_lengths;
 mod builtin_options;
+mod default_owners;
 pub(crate) mod environment;
 mod float_constants;
 mod fresh_products;
@@ -789,9 +790,22 @@ fn function_scope(
     resolution: &mut Resolution,
 ) -> Result<(), String> {
     let facts = input.facts();
+    if default_owners::bind(input, resolution)? {
+        return Ok(());
+    }
     if range_from::bind(facts, resolution)? {
         return Ok(());
     }
+    lexical_function_scope(input, modules, census, resolution)
+}
+
+fn lexical_function_scope(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    modules: &[census::Module],
+    census: &census::Census,
+    resolution: &mut Resolution,
+) -> Result<(), String> {
+    let facts = input.facts();
     let file = facts
         .build
         .frontend_options
@@ -1189,6 +1203,15 @@ impl Scoped<'_> {
 }
 
 impl Resolution {
+    pub(crate) fn default_call_owner(
+        &self,
+        facts: &HirFnFacts,
+        path: &syn::TypePath,
+        nominal: &concrete_types::Nominal,
+    ) -> Result<(), String> {
+        default_owners::call_owner(self, facts, path, nominal)
+    }
+
     pub fn matches_nominal(
         &self,
         path: &syn::TypePath,

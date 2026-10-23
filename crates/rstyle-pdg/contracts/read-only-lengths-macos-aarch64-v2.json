@@ -118,7 +118,10 @@
     "rstyle.option-propagation.ControlFlow::Continue": "DefPathHash(Fingerprint(9963928104983068931, 16487429325092438639))",
     "std::option::Option::<T>::ok_or": "DefPathHash(Fingerprint(9963928104983068931, 5380998906077289209))",
     "core::num::<impl u32>::from_le_bytes": "DefPathHash(Fingerprint(9963928104983068931, 17391203910829749712))",
-    "std::ops::RangeFrom": "DefPathHash(Fingerprint(9963928104983068931, 11458218263971255896))"
+    "std::ops::RangeFrom": "DefPathHash(Fingerprint(9963928104983068931, 11458218263971255896))",
+    "rust.concrete-default.trait": "DefPathHash(Fingerprint(9963928104983068931, 1522802064166531122))",
+    "rust.concrete-default.method": "DefPathHash(Fingerprint(9963928104983068931, 6989884626754441890))",
+    "rust.concrete-default.core-crate": "StableCrateId(9963928104983068931)"
   },
   "alloc_macro_exports": {
     "library": {

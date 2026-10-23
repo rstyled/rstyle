@@ -629,3 +629,56 @@ Logs:`/tmp/rstyle-400-final-*`. No natural admission gain is claimed. Before mor
 time metadata work, audit ordinary bidirectional Span/Range conversion ownership
 and its natural callers against the already proved private Match dependency;
 retain time's larger source prerequisite as a separate, explicit frontier.
+
+### Data3.94 — original Default initialization composition
+
+From `6a7df75`, connects unchanged adler2 2.0.1 `Adler32::new → Default::default`
+using exact reviewed core trait/member selection, independently captured raw call
+inventory and local impl/source/signature proof. Effects and returned fields come
+from the original callee body and existing zero-argument Copy-product summaries.
+[Selection, bounded contract and independent oracle](../eval/coverage-development/adler-default/README.md).
+
+Fresh complete std/no_std owners retain17/16 definitions in ARM Linux, x86 Linux
+and ARM macOS. Each context gains exactly `new` and `default` (2→4 admissions),
+zero losses; source/build selection identities match the3.93 baseline. All six
+ordinary pairs per owner are evaluated;12 strict original/replay identity pairs
+are Accepted, score1. Native oracle passes8 original public cases,2 copied-private
+field witnesses and3 dispatch controls per feature context. Foreign native
+execution remains pending. Frozen `run-bbmmkg_8` vs `run-ng8slil8`:all60 identities,
+outcomes and denominators preserved,24 admitted/29 excluded/7 inactive;118 schema
+checks, gain0/loss0. This inventory assessment is not a new strict semantic replay.
+
+Checkpoint:1,618 tests/five existing skips plus doctests; fmt and warning-denied
+Clippy pass;style0/5,449;patterns0/15 unchanged ignores. Explicit direct-document
+and strict-producer3.93 downgrades reject owning members and callers. Resealed raw
+inventory, dispatch, source/type and shadowing attacks remain closed. Evidence:
+`/tmp/rstyle-401-final{4,5}-*`, `/tmp/rstyle-401-final-{captures,strict}.json`,
+`/tmp/rstyle-401-frozen-comparison.json`, `/tmp/rstyle-401-adler-oracle.log`.
+
+Performance correction: the historical22.312s six-capture stored-slice composition
+spent0.03291s hashing sources; SHA was not the principal cost. Fresh fixed-binary
+samples8.953–9.008s and current full-suite10.126s pass. Workload includes six Cargo
+captures, verification and matching; these observations do not isolate a speedup.
+Routine consistency remains XXH3; historical SHA/pins retain compatibility.
+
+Next connected frontier is SmallIndex checked construction, then generated
+PatternID construction, advancing actual Match::must callers. Coordinate four
+scopes: error lane freezes original public API expectations/non-Copy error shape;
+resolution lane proves exact local Usize and selected core usize→u64 conversion;
+source lane proves generated callable/error ownership and ordered map/map_err;
+lead owns MAX/Result/summary/policy interfaces and integration. Full known chains
+must pass readiness before activation. Hasher::finish is deferred: no higher-level
+natural caller was found. Memory lane retains Line::take as unready: local storage
+alone cannot discharge split_at, static empty origin, mutable descriptor writes,
+tuple flow and stateful helper summaries. Audits:`/tmp/rstyle-401-next-{match,hasher,memory}.md`.
+
+Next [checked-index source selection/oracle](../eval/coverage-development/checked-index-construction/README.md)
+freezes six ordinary functions, three generated templates (not emitted identities)
+and full known blockers before admission evaluation. Actual public SmallIndex and
+PatternID oracle passes8,202 cases in each of four feature/debug contexts; copied
+private Usize controls are diagnostic only. Retained artifacts establish no current
+complete-owner admission baseline: old complete capture predates instance evidence,
+newer diagnostic capture is incomplete. MAX observation, debug total-conversion
+proof, non-Copy struct errors and generated callable/constructor callback ownership
+remain readiness prerequisites. Source/error lanes retain disjoint leaves; lead
+must schedule a current complete-owner capture before production activation.
