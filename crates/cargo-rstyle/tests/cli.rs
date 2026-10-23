@@ -14,6 +14,7 @@ mod native_prefix_readers;
 mod nominal_copy;
 mod option_sources;
 mod platform_regressions;
+mod reference_instance_diagnostics;
 mod scoped_imports;
 mod shared_evidence;
 mod try_capture;

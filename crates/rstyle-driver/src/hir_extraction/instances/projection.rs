@@ -143,7 +143,8 @@ impl<'tcx> Projection<'tcx> {
     }
 }
 
-fn normalize<'tcx, T>(
+/// Shared substitution mechanics; callers retain their own owner/type grammar.
+pub(super) fn normalize<'tcx, T>(
     tcx: TyCtxt<'tcx>,
     arguments: GenericArgsRef<'tcx>,
     original: T,

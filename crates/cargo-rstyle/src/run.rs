@@ -144,6 +144,10 @@ pub fn clear_rstyle_environment(command: &mut Command) {
 fn diagnostic_environment(key: &OsStr, value: &OsStr) -> bool {
     key == "RSTYLE_DIAGNOSTIC_FACTS_DIR"
         || (key == "RSTYLE_PERF" || key == "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY") && value == "1"
+        || (key == "RSTYLE_DIAGNOSTIC_REFERENCE_INSTANCE_REQUESTS"
+            || key == "RSTYLE_DIAGNOSTIC_SHARED_SOURCES" && value == "1")
+            && std::env::var_os("RSTYLE_DIAGNOSTIC_CAPTURE_ONLY").as_deref()
+                == Some(OsStr::new("1"))
 }
 
 /// Compiles the selected crates so the driver writes its facts files.

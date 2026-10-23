@@ -1,9 +1,12 @@
 //! Ordered compiler adjustments with structural projected endpoints, not authority.
 use super::super::hir::{Context, reference};
-use super::{projection::Projection, types};
+use super::{
+    projection::Projection,
+    types::{self, endpoint},
+};
 use rustc_hir::{Expr, Mutability};
 use rustc_middle::ty::{
-    self, Ty, TyCtxt,
+    self, Ty,
     adjustment::{Adjust, AutoBorrow, AutoBorrowMutability, DerefAdjustKind},
 };
 use serde::Serialize;
@@ -93,15 +96,4 @@ fn classify<'tcx>(kind: &Adjust, source: Ty<'tcx>, target: Ty<'tcx>) -> Result<K
             Err("Compiler adjustment is unsupported or contradicts its projected endpoints".into())
         }
     }
-}
-
-fn endpoint<'tcx>(tcx: TyCtxt<'tcx>, value: Ty<'tcx>) -> Result<types::Arguments, String> {
-    let observed = types::arguments(
-        tcx,
-        tcx.mk_args_from_iter(std::iter::once(ty::GenericArg::from(value))),
-    );
-    if !observed.complete() {
-        return Err("Projected adjustment endpoint lacks complete structural identity".into());
-    }
-    Ok(observed)
 }

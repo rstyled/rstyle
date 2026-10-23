@@ -80,6 +80,15 @@ pub(super) fn arguments<'tcx>(tcx: TyCtxt<'tcx>, arguments: GenericArgsRef<'tcx>
     )
 }
 
+/// Observe a single type with the same structural completeness contract at every site.
+pub(super) fn endpoint<'tcx>(tcx: TyCtxt<'tcx>, value: Ty<'tcx>) -> Result<Arguments, String> {
+    let observed = arguments(tcx, tcx.mk_args(&[value.into()]));
+    if !observed.complete() {
+        return Err("Projected type lacks complete structural identity".into());
+    }
+    Ok(observed)
+}
+
 fn argument_record<'tcx>(
     tcx: TyCtxt<'tcx>,
     argument: ty::GenericArg<'tcx>,

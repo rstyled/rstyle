@@ -56,3 +56,20 @@ baseline. Native oracle:132,736 constructor observations per feature context,
 zero mismatches. Evidence: `/tmp/rstyle-instance-input-validation.json` and
 `/tmp/rstyle-input-instances-native-oracle.json`. The instance inventory supplies
 no generic-body or foreign-helper admission authority.
+
+Owning diagnostics now observe all four original instances in both native feature
+contexts, retaining original impl/type/lifetime binders, inherited clauses,
+absolute source anchors, exact selected AsRef implementations and receiver
+adjustments, and the From-to-constructor link. The 2,582/590 original definition
+rosters are unchanged. Run against prebuilt binaries:
+
+```sh
+python3 eval/coverage-development/input-instances/capture.py --output /tmp/input-owner-diagnostics
+```
+
+This intentionally uses capture-only mode: no complete bundle or admission is
+published. Independent verification must bind to the canonical full raw owner,
+preserving its diagnostics, source census and declaration origins. Test-only
+cleanup witnesses cover the complete modeled product and resealed drop/Copy
+attacks; cleanup of the actual complete original module remains pending. Outer
+From trait/impl association and owned component summaries are also still required.

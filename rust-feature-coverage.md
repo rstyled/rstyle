@@ -4848,3 +4848,21 @@ Local integrated gates: 1,338 tests / five existing skips and doctests pass
 (123.183s nextest). Fmt and warning-denied Clippy pass; rstyle zero violations
 across 4,304 functions; patterns zero unignored candidates, with all 15 existing
 ignores unchanged. The complete Cargo instance regression runs 0.67s.
+
+The next owning diagnostic gate observes all eight selected original Input
+new/From instances across native default/no-default contexts, with exact original
+source/binders/inherited clauses, AsRef implementation/receiver evidence and
+From-to-constructor association. Definition rosters remain2,582/590. Independent
+verification, actual complete-module cleanup, outer From trait/impl proof and
+owned/component foreign summaries still gate admission; test-only cleanup
+witnesses cover the full modeled product and resealed Drop/Copy attacks.
+No capability or admission expansion. [Runner](eval/coverage-development/input-instances/capture.py);
+evidence: `/tmp/rstyle-input-reference-owners-final/summary.json`. Fresh frozen
+`run-0qhwddyy` preserves all60 identities/denominators and23/30/7 outcomes versus
+`run-etikyyi5`;116 graph documents pass schema checks, without an additional
+strict-replay claim.
+
+Local integrated gates: 1,349 tests / five existing skips and doctests pass
+(122.802s nextest). Fmt and warning-denied Clippy pass; rstyle zero violations
+across4,340 functions, patterns zero unignored candidates, all15 ignores unchanged.
+The real Cargo reference diagnostic regression runs0.25s; no admission gain is claimed.

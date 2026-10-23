@@ -176,7 +176,7 @@ impl HirExtract {
         let facts = hir_extraction::raw_crate_facts(tcx, &self.scanned, options)
             .expect("capture diagnostic raw facts");
         hir_extraction::capture_instance_diagnostics(tcx, &self.scanned, options)
-            .expect("capture requested scalar instance diagnostics");
+            .expect("capture requested instance diagnostics");
         Self::retain_diagnostic(&facts);
     }
 

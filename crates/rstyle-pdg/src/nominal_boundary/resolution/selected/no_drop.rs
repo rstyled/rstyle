@@ -9,6 +9,8 @@ mod library_macros;
 mod macros;
 pub(super) mod module_globs;
 mod prelude_traits;
+#[cfg(test)]
+mod reference_products;
 mod source_imports;
 #[cfg(test)]
 mod source_imports_tests;

@@ -1,13 +1,13 @@
 //! Explicit owner-local feasibility capture; never imported as admission evidence.
 use super::super::{Options, function_source, hir::Context, source};
 use super::{
-    adjustments, comparisons, definition_record, projection::Projection, provenance, types,
+    adjustments, comparisons, definition_record, diagnostic_support, projection::Projection,
+    provenance, types,
 };
 use rstyle_pdg::{HirNode, SignatureFacts};
 use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::{self, TyCtxt};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::PathBuf};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -116,7 +116,7 @@ pub(crate) fn capture(
         return Err("Scalar diagnostic requests name a different owning crate".into());
     }
 
-    let owners = owners(tcx);
+    let owners = diagnostic_support::owners(tcx, &[DefKind::Fn]);
     let inventory = Inventory {
         identity: "rstyle.diagnostic.scalar-instance-bodies/1",
         scope: "owner-local projection only; no caller/artifact binding, obligation proof or admission authority",
@@ -134,21 +134,11 @@ pub(crate) fn capture(
             })
             .collect(),
     };
-    persist(&inventory)
-}
-
-fn owners(tcx: TyCtxt<'_>) -> BTreeMap<String, Option<LocalDefId>> {
-    let mut owners = BTreeMap::new();
-    for id in tcx
-        .hir_body_owners()
-        .filter(|id| tcx.def_kind(*id) == DefKind::Fn)
-    {
-        owners
-            .entry(tcx.def_path_str(id.to_def_id()))
-            .and_modify(|existing| *existing = None)
-            .or_insert(Some(id));
-    }
-    owners
+    diagnostic_support::persist(
+        &inventory,
+        "scalar-instances",
+        "Scalar instance diagnostic requires a snapshot directory",
+    )
 }
 
 struct Owner<'tcx> {
@@ -320,7 +310,8 @@ struct View<'a, 'tcx> {
 
 impl<'tcx> View<'_, 'tcx> {
     fn node(&mut self, mut node: HirNode) -> Result<HirNode, Failure> {
-        let id = hir_id(&node.hir)?;
+        let id =
+            diagnostic_support::hir_id(&node.hir, "Projected HIR reference is not owner-local")?;
         if id.owner.def_id != self.context.typeck.hir_owner.def_id {
             return Err("Projected body contains a different HIR owner".into());
         }
@@ -404,32 +395,11 @@ fn projected_type<'tcx>(
     spelling: &str,
 ) -> Result<rstyle_pdg::ResolvedTy, Failure> {
     projection
-        .node_ty(context.tcx, context.typeck, hir_id(reference)?)
+        .node_ty(
+            context.tcx,
+            context.typeck,
+            diagnostic_support::hir_id(reference, "Projected HIR reference is not owner-local")?,
+        )
         .map(|ty| super::super::hir::resolved(ty, spelling.into()))
         .map_err(Failure::from)
-}
-
-fn hir_id(reference: &rstyle_pdg::HirRef) -> Result<hir::HirId, Failure> {
-    if reference.krate != 0 {
-        return Err("Projected HIR reference is not owner-local".into());
-    }
-    Ok(hir::HirId {
-        owner: hir::OwnerId {
-            def_id: LocalDefId {
-                local_def_index: hir::def_id::DefIndex::from_u32(reference.owner),
-            },
-        },
-        local_id: hir::ItemLocalId::from_u32(reference.local),
-    })
-}
-
-fn persist(inventory: &Inventory) -> Result<(), String> {
-    let directory = PathBuf::from(
-        std::env::var_os("RSTYLE_DIAGNOSTIC_FACTS_DIR")
-            .ok_or("Scalar instance diagnostic requires a snapshot directory")?,
-    );
-    std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
-    let path = directory.join(format!("{}-scalar-instances.json", std::process::id()));
-
-    super::super::diagnostics::persist_file(&path, inventory).map_err(|error| error.to_string())
 }

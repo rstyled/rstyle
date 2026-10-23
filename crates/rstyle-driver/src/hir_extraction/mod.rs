@@ -13,7 +13,14 @@ mod float_scalars;
 mod hir;
 mod inherent;
 mod instances;
-pub(crate) use instances::diagnostic::capture as capture_instance_diagnostics;
+pub(crate) fn capture_instance_diagnostics(
+    tcx: TyCtxt<'_>,
+    scanned: &[source::Function],
+    options: &Options<'_>,
+) -> Result<(), String> {
+    instances::diagnostic::capture(tcx, scanned, options)?;
+    instances::reference_diagnostic::capture(tcx, scanned, options)
+}
 mod library_resolution;
 mod module_expansions;
 mod nominal_census;

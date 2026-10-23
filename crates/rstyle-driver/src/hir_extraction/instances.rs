@@ -10,12 +10,16 @@ use rustc_middle::ty::{self, GenericArgsRef, TyCtxt, TypeVisitableExt};
 use serde::Serialize;
 
 mod adjustments;
+mod borrowed_operations;
 mod calls;
 mod comparisons;
 pub(super) mod diagnostic;
+mod diagnostic_support;
 mod projection;
 mod provenance;
 pub(super) mod publication;
+pub(super) mod reference_diagnostic;
+mod reference_owners;
 pub(super) use publication::capture as capture_projections;
 mod types;
 

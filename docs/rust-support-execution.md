@@ -196,7 +196,9 @@ feature/assertion contexts. All 24 strict instance sidecars admit; all 48 contex
 callers strictly replay and all 264 caller-pair evaluations complete. Original
 2,212/1,965 owner rosters remain unchanged, with generic definitions still excluded.
 The bounded contract and reproducible commands are in the clamp selection README.
-There is no fresh frozen-inventory delta or native macOS/x86 execution claim.
+Fresh frozen run `run-0qhwddyy` preserves all60 source identities/denominators and
+23/30/7 outcomes against `run-etikyyi5`, with116 schema-validated graph documents.
+This reproduction is not an additional strict semantic replay or native macOS/x86 claim.
 
 Next dependency frontier:
 
@@ -211,3 +213,14 @@ These are readiness-gated assignments, not four concurrent production edits.
 Shared registrations, instance keys, origins and summaries remain lead-owned.
 Broader P01–P22 work remains active; scalar instance delivery does not establish
 general traits, reference transport, mutation/cleanup or completion.
+
+Reference-owner diagnostic gate: all eight original Input new/From observations
+now retain inherited binders/clauses, absolute anchors, selected AsRef receiver
+adjustments and exact constructor linking; rosters remain2,582/590. Evidence:
+`/tmp/rstyle-input-reference-owners-final/summary.json`. Next integrate an independent
+reference projection witness against the full canonical owner, accounting for
+the exact deferred AsRef source finding without changing raw diagnostics. Reuse
+the complete original result tree, declaration origins and71-file source census
+for actual product cleanup; modeled cleanup witnesses alone do not establish it.
+Then connect outer From trait/impl proof, owned/component result transport and
+foreign summaries. No new capability, SHA operation or serialized lookup key.
