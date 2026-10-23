@@ -3,6 +3,11 @@ use rstyle_pdg::{product_instances, unit_store};
 use serde_json::Value;
 use std::sync::Arc;
 
+#[path = "product_instance_probe/attacks.rs"]
+mod attacks;
+#[path = "product_instance_probe/matching.rs"]
+mod matching;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args_os().skip(1);
     let raw = args.next().ok_or("Expected original raw snapshot")?;
@@ -15,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     probe(&facts, &inventory)?;
     rstyle_pdg::verification_policy::strict(|| owning_probe(facts, &inventory))?;
     println!(
-        "Both original constructor instances passed owning admission and strict sidecar replay"
+        "Both selected constructors passed strict admission/replay and all six matching pairs"
     );
     Ok(())
 }
@@ -29,22 +34,26 @@ fn owning_probe(facts: Vec<rstyle_pdg::HirFnFacts>, inventory: &Value) -> Result
         .iter()
         .position(|facts| facts.name == name)
         .ok_or("Missing owner")?;
+
     let owner = Arc::new(unit_store::UnitStore::capture(facts)?);
     eprintln!(
         "Original complete owner captured: {} definitions",
         owner.functions().len()
     );
+
     let replay = unit_store::ProductConstructorReplay::new(owner, |_| Ok(()))?;
-    for (index, argument) in [
+    let imports = [
         product_instances::SpanArgument::Span,
         product_instances::SpanArgument::RangeUsize,
     ]
     .into_iter()
     .enumerate()
-    {
-        owning_instance(&replay, ordinal, &request["instances"][index], argument)?;
-    }
-    Ok(())
+    .map(|(index, argument)| {
+        owning_instance(&replay, ordinal, &request["instances"][index], argument)
+    })
+    .collect::<Result<Vec<_>, _>>()?;
+
+    matching::check(imports.into_iter().flatten().collect())
 }
 
 fn owning_instance(
@@ -52,7 +61,7 @@ fn owning_instance(
     ordinal: usize,
     observation: &Value,
     argument: product_instances::SpanArgument,
-) -> Result<(), String> {
+) -> Result<[rstyle_ccgraph::ImportedFunction; 2], String> {
     let instance = unit_store::UnitStore::capture_product_constructor(
         Arc::clone(replay.owner()),
         ordinal,
@@ -61,11 +70,14 @@ fn owning_instance(
     )?;
     let analysis = instance.analysis();
     let view = analysis.function(0).ok_or("Missing checked instance")?;
-    let pair = admitted_pair(&view)?;
-    verify_call_attacks(&pair, &view, argument)?;
+    let pair = verified_pair(&view)?;
+
+    attacks::documents(&pair, &view, argument)?;
     eprintln!("Original {argument:?} owning pair independently verified");
     let mut sidecar = Vec::new();
     instance.write_product_constructor_sidecar(&mut sidecar)?;
+    attacks::sidecar(replay, &sidecar, argument)?;
+
     let restored = replay.replay(&sidecar)?;
     let restored_analysis = restored.analysis();
     let restored_view = restored_analysis
@@ -74,20 +86,28 @@ fn owning_instance(
     if rstyle_pdg::producer::verify(&pair, &restored_view).is_ok() {
         return Err("Original pair unexpectedly accepted a different instance namespace".into());
     }
-    admitted_pair(&restored_view)?;
+
+    let restored_pair = verified_pair(&restored_view)?;
     if instance.functions() != restored.functions() {
         return Err("Strict replay changed the complete checked function".into());
     }
-    Ok(())
+
+    Ok([
+        matching::admit(&pair, &view, format!("{argument:?}-original"))?,
+        matching::admit(
+            &restored_pair,
+            &restored_view,
+            format!("{argument:?}-replay"),
+        )?,
+    ])
 }
 
-fn admitted_pair(
+fn verified_pair(
     facts: &dyn unit_store::EvidenceFacts,
 ) -> Result<rstyle_pdg::producer::Pair, String> {
     let pair = rstyle_pdg::producer::produce(facts).map_err(|errors| errors.join("; "))?;
     let bytes = pair.serialize().map_err(|error| error.to_string())?;
     rstyle_pdg::producer::verify_serialized(&bytes, facts).map_err(|errors| errors.join("; "))?;
-    rstyle_ccgraph::admit_produced(&pair, facts).map_err(|errors| errors.join("; "))?;
     Ok(pair)
 }
 
@@ -136,45 +156,6 @@ fn probe(facts: &[rstyle_pdg::HirFnFacts], inventory: &Value) -> Result<(), Stri
     .is_ok()
     {
         return Err("Range unexpectedly acquired consuming ownership authority".into());
-    }
-    Ok(())
-}
-
-fn verify_call_attacks(
-    pair: &rstyle_pdg::producer::Pair,
-    facts: &dyn unit_store::EvidenceFacts,
-    argument: product_instances::SpanArgument,
-) -> Result<(), String> {
-    if argument != product_instances::SpanArgument::RangeUsize {
-        return Ok(());
-    }
-    for field in ["operator", "callee", "construct"] {
-        let mut changed = rstyle_pdg::producer::Pair {
-            pdg: pair.pdg.clone(),
-            cfg: pair.cfg.clone(),
-        };
-        let call = changed
-            .pdg
-            .nodes
-            .iter_mut()
-            .find(|node| {
-                node.attributes.construct.as_deref() == Some("data.product-instance.range-into")
-            })
-            .ok_or("Missing Range conversion CALL")?;
-        match field {
-            "operator" => {
-                call.attributes.operator =
-                    Some(rstyle_pdg::StringFact::known("different operation"))
-            }
-            "callee" => {
-                call.attributes.callee = Some(rstyle_pdg::StringFact::known("different callee"))
-            }
-            _ => call.attributes.construct = Some("data.product-instance.identity-into".into()),
-        }
-        let sealed = changed.serialize().map_err(|error| error.to_string())?;
-        if rstyle_pdg::producer::verify_serialized(&sealed, facts).is_ok() {
-            return Err(format!("Resealed changed Range {field} was accepted"));
-        }
     }
     Ok(())
 }

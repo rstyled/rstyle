@@ -4,8 +4,9 @@ Data-v3 3.91 adds a private owning projection for the original regex-automata
 0.4.18 `Match::new<Span>`. The separate
 [development selection](../../eval/coverage-development/match-construction/selection.json)
 includes `Match::new<Range<usize>>`; Data-v3 3.92 now connects that second
-private owning instance. Fresh six-context capture and complete selected matching
-remain pending, so the family is not yet delivered.
+private owning instance. Both selected instances now pass fresh default/no-default
+capture and strict replay on ARM Linux, x86 Linux and ARM macOS; the complete
+private-instance selection passes all six original/replay matching pairs.
 
 The projection checks the complete original source/body roster, nominal fields,
 builtin Copy derives, neighboring source closure, actual blanket Into delegation
@@ -27,8 +28,9 @@ key and preserves existing source identities and historical policies.
 
 `cargo run -p rstyle-ccgraph --example product_instance_probe -- RAW INVENTORY`
 checks original/projection negatives, owning production, serialized verification,
-strict matcher admission and sidecar replay. It does not establish selected-pair
-matching completeness or native execution on captured foreign targets.
+strict matcher admission, sidecar replay and all six selected original/replay pairs
+at unchanged matcher defaults. Output retains pair identities, decisions and scores.
+Cross-target replay does not establish native execution on foreign targets.
 
 The Range path proves the actual original `From<Range<usize>> for Span` body
 and lexical implementation owner, its complete ordered `start`/`end` selectors,
@@ -40,10 +42,13 @@ permit only checked concrete normalization and redundant parameter-pattern type
 spelling equal to the original captured source type.
 
 Both instances pass owning production, serialized verification, strict admission
-and replay on the retained ARM Linux/x86 Linux/macOS 590-definition captures.
-Three resealed CALL attacks change the Range operator, callee or construct and
-must reject. These are cross-target evidence replays, not native foreign runs.
+and replay on fresh ARM Linux/x86 Linux/macOS captures, preserving the590-definition
+no-default and2,582-definition default owners. Resealed CALL, historical-policy,
+dependency and operand attacks reject; replay also rejects omitted/retargeted From
+definitions and changed conversion source. These are cross-target evidence replays.
 The original From also passes strict production/admission in each complete owner.
 The selected owning instances gain one/lose zero against the preceding Span-only
 checkpoint; ordinary caller and frozen admission counts have not been reassessed.
+The native unchanged public-API oracle passes22,475 cases per default/no-default
+context, including conversion order/panic/drop controls and Range's non-Copy check.
 No general trait dispatch, destructor model or ordinary generic admission is added.
