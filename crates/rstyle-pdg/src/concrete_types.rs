@@ -354,6 +354,10 @@ fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
             &crate::data_types::TypeToken::from_tree(ok),
             &crate::data_types::TypeToken::from_tree(err),
         )
+        || crate::concrete_results::scalar_errors::GRAMMAR.permits(
+            &crate::data_types::TypeToken::from_tree(ok),
+            &crate::data_types::TypeToken::from_tree(err),
+        )
     {
         return Ok(());
     }

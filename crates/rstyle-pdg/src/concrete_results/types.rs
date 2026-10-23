@@ -4,6 +4,12 @@ use super::*;
 pub(super) fn return_error(tree: &TypeTree) -> Option<&TypeTree> {
     match tree {
         TypeTree::Result { ok, err }
+            if scalar_errors::GRAMMAR
+                .permits(&TypeToken::from_tree(ok), &TypeToken::from_tree(err)) =>
+        {
+            Some(err)
+        }
+        TypeTree::Result { ok, err }
             if copy_errors::GRAMMAR
                 .permits(&TypeToken::from_tree(ok), &TypeToken::from_tree(err)) =>
         {
@@ -35,6 +41,9 @@ pub(super) fn checked_error(tree: &TypeTree, facts: &dyn EvidenceFacts) -> Resul
     let token = TypeToken::from_tree(tree);
     if copy_errors::error(&token).is_some() {
         return copy_errors::checked_error(&token, facts);
+    }
+    if scalar_errors::error(&token).is_some() {
+        return scalar_errors::checked_error(&token, facts);
     }
     if let Some(nominal) = crate::borrowed_result_types::error(&token) {
         if !crate::extraction_profile::facts_support(
@@ -77,6 +86,10 @@ pub(crate) fn payload(
         if *ok != boundary.ok || *err != boundary.error {
             return Err("Fresh product constructor differs from its whole return boundary".into());
         }
+        return Ok((*ok, *err));
+    }
+    if scalar_errors::GRAMMAR.permits(&ok, &err) {
+        scalar_errors::result_boundary(facts)?.verify_payload(&ok, &err)?;
         return Ok((*ok, *err));
     }
     if copy_errors::GRAMMAR.permits(&ok, &err) {
@@ -136,6 +149,14 @@ pub(super) fn contains_owned(ty: &TypeToken, error: &TypeToken) -> bool {
 }
 
 pub(super) fn used(facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    usage(facts, false)
+}
+
+pub(super) fn scalar_used(facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    usage(facts, true)
+}
+
+fn usage(facts: &dyn EvidenceFacts, scalar_only: bool) -> Result<bool, String> {
     for ty in facts
         .signature
         .params
@@ -144,21 +165,21 @@ pub(super) fn used(facts: &dyn EvidenceFacts) -> Result<bool, String> {
         .chain([&facts.signature.return_ty])
         .chain(facts.bindings.iter().map(|binding| &binding.ty))
     {
-        if used_type(ty, facts)? {
+        if used_type(ty, facts, scalar_only)? {
             return Ok(true);
         }
     }
-    used_node(&facts.body, facts)
+    used_node(&facts.body, facts, scalar_only)
 }
 
-fn used_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+fn used_node(node: &HirNode, facts: &dyn EvidenceFacts, scalar_only: bool) -> Result<bool, String> {
     if let Some(ty) = &node.ty
-        && used_type(ty, facts)?
+        && used_type(ty, facts, scalar_only)?
     {
         return Ok(true);
     }
     for child in &node.children {
-        if used_node(child, facts)? {
+        if used_node(child, facts, scalar_only)? {
             return Ok(true);
         }
     }
@@ -166,7 +187,11 @@ fn used_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, String> 
     Ok(false)
 }
 
-fn used_type(ty: &crate::ResolvedTy, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+fn used_type(
+    ty: &crate::ResolvedTy,
+    facts: &dyn EvidenceFacts,
+    scalar_only: bool,
+) -> Result<bool, String> {
     let Some(text) = &ty.normalized else {
         return Ok(false);
     };
@@ -176,30 +201,50 @@ fn used_type(ty: &crate::ResolvedTy, facts: &dyn EvidenceFacts) -> Result<bool, 
     {
         return Ok(false);
     }
-    used_token(&crate::data_types::parse(text)?, facts)
+    used_token(&crate::data_types::parse(text)?, facts, scalar_only)
 }
 
-fn used_token(token: &TypeToken, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+fn used_token(
+    token: &TypeToken,
+    facts: &dyn EvidenceFacts,
+    scalar_only: bool,
+) -> Result<bool, String> {
+    if scalar_errors::owned_error(token, facts)? {
+        return Ok(true);
+    }
+
     match token {
-        TypeToken::Result { .. } => Ok(true),
+        TypeToken::Result { .. } => Ok(!scalar_only || scalar_errors::contains_result(token)),
         TypeToken::MixedEnum { .. } if crate::borrowed_result_types::error(token).is_some() => {
-            Ok(true)
+            Ok(!scalar_only)
         }
         TypeToken::Struct { nominal, fields }
             if fields == &[("0".into(), TypeToken::Scalar("unit".into()))] =>
         {
-            Ok(facts.nominal_resolution()?.checked_no_drop(nominal))
+            Ok(!scalar_only && facts.nominal_resolution()?.checked_no_drop(nominal))
         }
-        TypeToken::Tuple(values) => used_children(values.iter(), facts),
-        TypeToken::Struct { fields, .. } => used_children(fields.iter().map(|(_, ty)| ty), facts),
-        TypeToken::Enum { variants, .. } => used_children(variants.iter().map(|(_, ty)| ty), facts),
-        TypeToken::MixedEnum { variants, .. } => {
-            used_children(variants.iter().flat_map(|(_, shape)| shape.fields()), facts)
+        TypeToken::Tuple(values) => used_children(values.iter(), facts, scalar_only),
+        TypeToken::Struct { fields, .. } => {
+            used_children(fields.iter().map(|(_, ty)| ty), facts, scalar_only)
         }
-        TypeToken::Array { element, .. } | TypeToken::Option(element) => used_token(element, facts),
+        TypeToken::Enum { variants, .. } => {
+            used_children(variants.iter().map(|(_, ty)| ty), facts, scalar_only)
+        }
+        TypeToken::MixedEnum { variants, .. } => used_children(
+            variants.iter().flat_map(|(_, shape)| shape.fields()),
+            facts,
+            scalar_only,
+        ),
+        TypeToken::Array { element, .. } | TypeToken::Option(element) => {
+            used_token(element, facts, scalar_only)
+        }
         // Borrowed owner permission remains separate. No borrowed Result was
         // previously supported, so it cannot acquire fresh-result permission.
-        TypeToken::Shared(element) | TypeToken::Slice(element) => Ok(contains_result(element)),
+        TypeToken::Shared(element) | TypeToken::Slice(element) => Ok(if scalar_only {
+            scalar_errors::contains_result(element)
+        } else {
+            contains_result(element)
+        }),
         _ => Ok(false),
     }
 }
@@ -207,9 +252,10 @@ fn used_token(token: &TypeToken, facts: &dyn EvidenceFacts) -> Result<bool, Stri
 fn used_children<'a>(
     children: impl Iterator<Item = &'a TypeToken>,
     facts: &dyn EvidenceFacts,
+    scalar_only: bool,
 ) -> Result<bool, String> {
     for child in children {
-        if used_token(child, facts)? {
+        if used_token(child, facts, scalar_only)? {
             return Ok(true);
         }
     }

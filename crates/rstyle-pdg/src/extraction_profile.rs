@@ -132,6 +132,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.checked-copy-owner-source",
     "rust.local-value-trait-calls",
     "rust.lossless-usize-u64-calls",
+    "rust.fresh-scalar-error-results",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -291,7 +292,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.96.0", 119)),
+            Self::DataV3 => Some(("3.97.0", 120)),
         }
     }
 

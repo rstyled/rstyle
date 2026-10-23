@@ -750,3 +750,33 @@ Result-aware original owner closure and fresh whole-result helper transport.
 Existing scalar-error leaf remains unregistered. Generated PatternID additionally
 needs emitted callable/error ownership and ordered constructor callbacks.
 Readiness/write-set audits:`/tmp/rstyle-405-{max-ready,scalar-error-ready}.md`.
+
+Data3.97 foundation (checked-index error chain): fresh named direct-scalar errors
+in a captured Result return receive an independent original declaration/full-source
+no-drop receipt, without Copy permission. Standalone owned constructors retain
+their existing restrictions. `Result<CopyScalarProduct, NamedScalarError>` supports fresh
+construction, explicit early error returns and whole helper transport. Storage,
+owned Result parameters/reuse, nested ownership and payload binding remain closed.
+The existing bounded source receipt store now distinguishes ordinary/scalar-error
+proof modes while retaining source/cfg/profile/verification-policy separation;
+routine checks remain XXH3, with no serialized lookup key or new cache substrate.
+
+Fresh unchanged native owner:110→110/590, zero gains/losses and identical function
+identities; capture/assessment complete, full-library matching explicitly
+zero-budget incomplete. The Cargo constructor→forwarder composition, independent
+boundary-value oracle, strict serialized verification and3.96 downgrade negatives
+pass (0.567s final-suite sample excluding compilation). Natural checked construction
+remains incomplete behind MAX value/source/dependency evidence and exact core
+TryFrom/Error/source-owner linking. Source-first selection remains unchanged.
+Evidence:`/tmp/rstyle-406-{composition.log,native-delta.json,tryfrom-ready.md}`.
+
+Checkpoint:1,659 tests/five existing skips and doctests; fmt, warning-denied Clippy,
+style0/5,559 and patterns0/15 unchanged ignores pass. Four x86 Linux/ARM macOS
+std/no_std diagnostic Cargo contexts retain all three selected positives and
+three negatives; strict original/replay verification/admission and complete
+selected matching pass. Foreign native execution is not claimed. Frozen
+`run-8c5r6fna` preserves all60 identities/denominators/outcomes at24/29/7 and118
+document checks. Evidence:`/tmp/rstyle-406-{full-tests-final2.log,cross-results.json,
+frozen-comparison.json}`. Next delivery must join MAX source/type/dependency
+adapters and exact TryFrom/Error/source-owner receipts through the original
+constructor chain; no separate nominal-constant coverage gain is claimed.

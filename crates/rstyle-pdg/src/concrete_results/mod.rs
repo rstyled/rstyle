@@ -6,6 +6,8 @@ mod constructors;
 pub(crate) mod copy_errors;
 pub(crate) mod documents;
 pub(crate) mod fresh_products;
+mod interface;
+pub(crate) mod scalar_errors;
 pub(crate) mod source;
 mod types;
 
@@ -41,12 +43,21 @@ pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {
     let error = types::return_error(ty)
         .ok_or("Fresh Result/error values require a whole supported function result")?;
     types::checked_error(error, facts)?;
+    let scalar_boundary: Option<scalar_errors::Boundary> = match TypeToken::from_tree(ty) {
+        TypeToken::Result { ok, err } if scalar_errors::GRAMMAR.permits(&ok, &err) => {
+            Some(scalar_errors::result_boundary(facts)?)
+        }
+        _ => None,
+    };
     if !crate::extraction_profile::facts_support(facts, CAPABILITY) {
         return Err("Fresh concrete Results require their registered capability".into());
     }
 
     constructors::verify_core(facts)?;
-    let result = crate::data_types::token(ty)?;
+    let result = match scalar_boundary {
+        Some(boundary) => boundary.result.text()?,
+        None => crate::data_types::token(ty)?,
+    };
     if facts.signature.return_ty.normalized.as_deref() != Some(result.as_str()) {
         return Err("Fresh result interface disagrees with captured return type".into());
     }
@@ -107,6 +118,12 @@ fn fresh(
         return fresh(checked.operand, true, error, facts);
     }
 
+    // An explicit return owns its operand even inside a non-tail branch.
+    // Historical Result families keep their original boundary.
+    let returning = returning
+        || node.kind == "expr_ret"
+            && scalar_errors::error(error).is_some()
+            && crate::extraction_profile::facts_support(facts, scalar_errors::CAPABILITY);
     verify_fresh_use(node, returning, error, facts)?;
 
     let constructor = constructor_candidate(node, facts);
@@ -152,9 +169,10 @@ fn verify_fresh_use(
                     crate::result_propagation::CAPABILITY,
                 )))
     {
-        return Err(
-            "Result/error value is not a fresh constructor/helper result forwarded whole".into(),
-        );
+        return Err(format!(
+            "Result/error {} at {}..{} is not a fresh constructor/helper result forwarded whole (returning={returning})",
+            node.kind, node.span.start, node.span.end,
+        ));
     }
 
     Ok(())
@@ -205,6 +223,11 @@ pub(crate) fn verify_document_policy(
 ) -> Result<(), String> {
     fresh_products::verify_document_policy(profile, facts)?;
     verify_copy_document_policy(profile, facts)?;
+    crate::extraction_profile::require_capability(
+        crate::extraction_profile::policy_supports(profile, scalar_errors::CAPABILITY),
+        || types::scalar_used(facts),
+        "Fresh scalar error Result requires its registered document capability",
+    )?;
 
     crate::extraction_profile::require_capability(
         crate::extraction_profile::policy_supports(profile, CAPABILITY),

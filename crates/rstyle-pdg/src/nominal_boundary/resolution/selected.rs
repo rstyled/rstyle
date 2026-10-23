@@ -198,6 +198,13 @@ fn requested_no_drop(facts: &HirFnFacts, tree: &TypeTree) -> Result<bool, String
         _ => return Ok(false),
     };
     if error == tree
+        && matches!(ty, TypeTree::Result { .. })
+        && supports(facts, no_drop::scalar_errors::CAPABILITY)?
+        && no_drop::scalar_errors::supported(tree)
+    {
+        return Ok(true);
+    }
+    if error == tree
         && supports(facts, no_drop::enum_errors::CAPABILITY)?
         && no_drop::enum_errors::supported(tree)
     {

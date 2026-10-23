@@ -312,6 +312,11 @@ fn check_checked_capabilities(
     {
         return Err("Fresh product Result requires its registered capability".into());
     }
+    if crate::concrete_results::scalar_errors::contains_result(ty)
+        && !profile.supports(crate::concrete_results::scalar_errors::CAPABILITY)
+    {
+        return Err("Fresh scalar-error Result requires its registered capability".into());
+    }
     if crate::concrete_results::copy_errors::contains_copy_result(ty)
         && !profile.supports(crate::concrete_results::copy_errors::CAPABILITY)
     {
@@ -472,6 +477,7 @@ fn check_result(
         && !crate::borrowed_result_types::GRAMMAR.permits(ok, err)
         && !crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err)
         && !crate::concrete_results::fresh_products::GRAMMAR.permits(ok, err)
+        && !crate::concrete_results::scalar_errors::GRAMMAR.permits(ok, err)
     {
         return Err(
             "Concrete Result token requires unit success and a unit tuple error struct".into(),

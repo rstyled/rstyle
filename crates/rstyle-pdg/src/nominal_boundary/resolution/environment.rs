@@ -25,20 +25,26 @@ pub(crate) struct Environment {
     cleanup_sources: std::cell::RefCell<std::collections::BTreeSet<CleanupSource>>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum CleanupMode {
+    Ordinary(&'static str),
+    ScalarError(&'static str),
+}
+
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 struct CleanupSource {
     cfgs: Vec<String>,
     target: Namespace,
-    profile: &'static str,
+    mode: CleanupMode,
     generated: bool,
 }
 
 impl CleanupSource {
-    fn new(cfgs: &[String], target: &Namespace, profile: &'static str) -> Self {
+    fn new(cfgs: &[String], target: &Namespace, mode: CleanupMode) -> Self {
         Self {
             cfgs: cfgs.to_vec(),
             target: target.clone(),
-            profile,
+            mode,
             generated: crate::verification_policy::is_generated(),
         }
     }
@@ -146,22 +152,22 @@ impl Environment {
         &self,
         cfgs: &[String],
         target: &Namespace,
-        profile: &'static str,
+        mode: CleanupMode,
     ) -> bool {
         self.cleanup_sources
             .borrow()
-            .contains(&CleanupSource::new(cfgs, target, profile))
+            .contains(&CleanupSource::new(cfgs, target, mode))
     }
 
     pub(super) fn cache_cleanup_source(
         &self,
         cfgs: &[String],
         target: &Namespace,
-        profile: &'static str,
+        mode: CleanupMode,
     ) {
         let mut cache = self.cleanup_sources.borrow_mut();
         if cache.len() < 256 {
-            cache.insert(CleanupSource::new(cfgs, target, profile));
+            cache.insert(CleanupSource::new(cfgs, target, mode));
         }
     }
 
@@ -443,21 +449,32 @@ pub(crate) mod tests {
         let second = Environment::new(census()).unwrap();
         let target = vec!["sample".into(), "Data".into()];
         let cfgs = vec!["feature=one".into()];
-        assert!(!first.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
-        first.cache_cleanup_source(&cfgs, &target, "hir-data-v3");
-        assert!(first.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
-        assert!(!first.checked_cleanup_source(&[], &target, "hir-data-v3"));
+        let ordinary = CleanupMode::Ordinary("hir-data-v3");
+        let scalar = CleanupMode::ScalarError("hir-data-v3");
+        assert!(!first.checked_cleanup_source(&cfgs, &target, ordinary));
+        first.cache_cleanup_source(&cfgs, &target, ordinary);
+        assert!(first.checked_cleanup_source(&cfgs, &target, ordinary));
+        assert!(!first.checked_cleanup_source(&cfgs, &target, scalar));
+        assert!(!first.checked_cleanup_source(&[], &target, ordinary));
         assert!(!first.checked_cleanup_source(
             &cfgs,
             &vec!["sample".into(), "Other".into()],
-            "hir-data-v3"
+            ordinary,
         ));
-        assert!(!first.checked_cleanup_source(&cfgs, &target, "hir-data-v2"));
+        assert!(!first.checked_cleanup_source(
+            &cfgs,
+            &target,
+            CleanupMode::Ordinary("hir-data-v2"),
+        ));
         crate::verification_policy::generated(|| {
-            assert!(!first.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
-            first.cache_cleanup_source(&cfgs, &target, "hir-data-v3");
-            assert!(first.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
+            assert!(!first.checked_cleanup_source(&cfgs, &target, ordinary));
+            first.cache_cleanup_source(&cfgs, &target, ordinary);
+            assert!(first.checked_cleanup_source(&cfgs, &target, ordinary));
+            assert!(!first.checked_cleanup_source(&cfgs, &target, scalar));
         });
-        assert!(!second.checked_cleanup_source(&cfgs, &target, "hir-data-v3"));
+        assert!(!second.checked_cleanup_source(&cfgs, &target, ordinary));
+        second.cache_cleanup_source(&cfgs, &target, scalar);
+        assert!(second.checked_cleanup_source(&cfgs, &target, scalar));
+        assert!(!second.checked_cleanup_source(&cfgs, &target, ordinary));
     }
 }

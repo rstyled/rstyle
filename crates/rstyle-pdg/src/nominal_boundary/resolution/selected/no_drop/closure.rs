@@ -37,11 +37,20 @@ pub(super) fn verify_copy_owner(
     verify_mode(environment, facts, target, SourceMode::CopyOwner)
 }
 
+pub(super) fn verify_scalar_error(
+    environment: &Environment,
+    facts: &HirFnFacts,
+    target: &Namespace,
+) -> Result<(), String> {
+    verify_mode(environment, facts, target, SourceMode::ScalarError)
+}
+
 #[derive(Clone, Copy)]
 enum SourceMode {
     Cleanup,
     Product,
     CopyOwner,
+    ScalarError,
 }
 
 fn verify_mode(
@@ -73,7 +82,7 @@ fn verify_mode(
         nested_context: 0,
         generated_context: 0,
         reference_product,
-        copy_owner: matches!(mode, SourceMode::CopyOwner),
+        scalar_bindings: matches!(mode, SourceMode::CopyOwner | SourceMode::ScalarError),
         checked_external_imports: supports(facts, super::super::fresh_products::CAPABILITY)?,
     };
     for collecting in [true, false] {
@@ -200,6 +209,7 @@ pub(super) fn inspect_with_library(
             closed_imports: false,
             test_marker: false,
             reference_product: false,
+            scalar_bindings: false,
             edition: None,
         },
     )
@@ -219,6 +229,7 @@ pub(super) fn inspect_closed_imports(
             closed_imports: true,
             test_marker: true,
             reference_product: false,
+            scalar_bindings: false,
             edition: None,
         },
     )
@@ -231,6 +242,7 @@ struct Inspection<'a> {
     closed_imports: bool,
     test_marker: bool,
     reference_product: bool,
+    scalar_bindings: bool,
     edition: Option<&'a str>,
 }
 
@@ -259,7 +271,25 @@ pub(super) fn inspect_reference_product_edition(
             closed_imports: true,
             test_marker: true,
             reference_product: true,
+            scalar_bindings: false,
             edition,
+        },
+    )
+}
+
+#[cfg(test)]
+pub(super) fn inspect_scalar_error(items: &[&syn::Item], target: &Namespace) -> Result<(), String> {
+    inspect_policy(
+        items,
+        target,
+        Inspection {
+            cfgs: &[],
+            library: crate::data_library::registries().first(),
+            closed_imports: true,
+            test_marker: true,
+            reference_product: true,
+            scalar_bindings: true,
+            edition: Some("2021"),
         },
     )
 }
@@ -276,6 +306,7 @@ fn inspect_policy(
         closed_imports,
         test_marker,
         reference_product,
+        scalar_bindings,
         edition,
     } = policy;
     let mut visitor = Closure {
@@ -294,7 +325,7 @@ fn inspect_policy(
         nested_context: 0,
         generated_context: 0,
         reference_product,
-        copy_owner: false,
+        scalar_bindings,
         checked_external_imports: false,
     };
     visitor.scopes = vec![visitor.scope(items.iter().copied())?];
@@ -333,7 +364,7 @@ struct Closure<'a> {
     nested_context: usize,
     generated_context: usize,
     reference_product: bool,
-    copy_owner: bool,
+    scalar_bindings: bool,
     checked_external_imports: bool,
 }
 
@@ -562,7 +593,7 @@ impl Closure<'_> {
         self.definitions.insert(name, item.clone());
     }
     fn collect_item(&mut self, item: &syn::Item) -> Result<(), String> {
-        if self.copy_owner && shadows_primitive(item) {
+        if self.scalar_bindings && shadows_primitive(item) {
             return Err("Copy source declaration shadows an unresolved primitive binding".into());
         }
         self.collect_declaration_name(item)?;
@@ -619,14 +650,14 @@ impl Closure<'_> {
         Ok(())
     }
     fn collect_import(&mut self, item: &syn::ItemUse) -> Result<(), String> {
-        if self.copy_owner
+        if self.scalar_bindings
             && self.generated_context > 0
             && source_imports::has_glob(&item.tree)
             && !self.enums.only_original_enum_globs(&item.tree)
         {
             return Err("Copy source expansion has unresolved glob bindings".into());
         }
-        if self.copy_owner
+        if self.scalar_bindings
             && source_imports::bindings(&item.tree)
                 .iter()
                 .any(|(name, _)| concrete_types::scalar(name) || name == "str")

@@ -5186,3 +5186,12 @@ implementation, with the literal message retained as an evaluated operand.
 Native unchanged owners gain `Usize::as_u64` (109→110/590, no losses); frozen60
 remains24/29/7. General trait dispatch, arbitrary Result consumption and checked
 SmallIndex construction remain incomplete. [Validation and next blockers](docs/rust-support-execution.md).
+
+Data3.97 adds a bounded fresh `Result<CopyScalarProduct, NamedScalarError>`
+boundary, with independently proved original no-drop error ownership and captured Result
+error membership. Standalone owned constructors retain their restrictions. Explicit
+early error returns and whole helper forwarding compose; owned storage, reuse and
+payload binding remain outside this boundary. The unchanged natural owner stays
+110/590 admitted with zero gains/losses: MAX evidence and exact TryFrom/source
+ownership still block checked SmallIndex construction. This is a prerequisite,
+not completion of that family. [Validation/frontier](docs/rust-support-execution.md).

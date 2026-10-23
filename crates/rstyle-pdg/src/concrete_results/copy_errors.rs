@@ -35,25 +35,7 @@ pub(crate) const GRAMMAR: crate::data_types::ResultGrammar =
 
 /// Find the bounded Result shape even when an interface hides it in a product.
 pub(crate) fn contains_copy_result(token: &TypeToken) -> bool {
-    match token {
-        TypeToken::Result { ok, err } => {
-            GRAMMAR.permits(ok, err) || contains_copy_result(ok) || contains_copy_result(err)
-        }
-        TypeToken::Tuple(values) => values.iter().any(contains_copy_result),
-        TypeToken::Struct { fields, .. }
-        | TypeToken::Enum {
-            variants: fields, ..
-        } => fields.iter().any(|(_, value)| contains_copy_result(value)),
-        TypeToken::MixedEnum { variants, .. } => variants
-            .iter()
-            .flat_map(|(_, shape)| shape.fields())
-            .any(contains_copy_result),
-        TypeToken::Shared(value)
-        | TypeToken::Slice(value)
-        | TypeToken::Option(value)
-        | TypeToken::Array { element: value, .. } => contains_copy_result(value),
-        _ => false,
-    }
+    GRAMMAR.contains(token)
 }
 
 pub(crate) fn checked_error(token: &TypeToken, facts: &dyn EvidenceFacts) -> Result<(), String> {

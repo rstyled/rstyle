@@ -12,6 +12,7 @@ mod library_macros;
 mod macros;
 pub(super) mod module_globs;
 mod prelude_traits;
+pub(super) mod scalar_errors;
 
 pub(in crate::nominal_boundary::resolution) fn default_prelude(facts: &HirFnFacts) -> bool {
     crate::data_library::registry_for(facts).is_some_and(prelude_traits::pinned)
@@ -76,7 +77,10 @@ pub(super) fn verify(
     let (nominal, _) = tree
         .nominal_parts()
         .ok_or("Cleanup proof requires an original nominal type")?;
+    let scalar_error =
+        supports(facts, scalar_errors::CAPABILITY)? && scalar_errors::supported(tree);
     match tree {
+        _ if scalar_error => {}
         TypeTree::Struct { fields, .. }
             if fields.len() == 1 && fields[0].ty == TypeTree::Scalar("unit".into()) => {}
         TypeTree::MixedEnum { .. }
@@ -94,14 +98,33 @@ pub(super) fn verify(
         return Err("Cleanup source macro pin is incomplete".into());
     }
     let key = original_declaration(nominal, tree, environment)?;
-    let profile = crate::extraction_profile::ExtractionProfile::from_facts(facts)?.token();
-    if !environment.checked_cleanup_source(&facts.build.cfgs, &key, profile) {
-        closure::verify(environment, facts, &key)?;
-        environment.cache_cleanup_source(&facts.build.cfgs, &key, profile);
-    }
+    verify_source(facts, environment, &key, scalar_error)?;
     Ok(CheckedNoDrop {
         nominal: nominal.clone(),
     })
+}
+
+fn verify_source(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    key: &Namespace,
+    scalar_error: bool,
+) -> Result<(), String> {
+    let profile = crate::extraction_profile::ExtractionProfile::from_facts(facts)?.token();
+    let mode = if scalar_error {
+        environment::CleanupMode::ScalarError(profile)
+    } else {
+        environment::CleanupMode::Ordinary(profile)
+    };
+    if !environment.checked_cleanup_source(&facts.build.cfgs, key, mode) {
+        if scalar_error {
+            closure::verify_scalar_error(environment, facts, key)?;
+        } else {
+            closure::verify(environment, facts, key)?;
+        }
+        environment.cache_cleanup_source(&facts.build.cfgs, key, mode);
+    }
+    Ok(())
 }
 
 fn original_declaration(
@@ -122,6 +145,9 @@ fn original_declaration(
 
     let item = &environment.modules[declaration.module_index].items[declaration.item_index];
     match (item, tree) {
+        (syn::Item::Struct(item), _) if scalar_errors::supported(tree) => {
+            scalar_errors::declaration(item, tree)?
+        }
         (syn::Item::Struct(item), TypeTree::Struct { .. }) => unit_declaration(item)?,
         (syn::Item::Enum(item), TypeTree::MixedEnum { .. }) => {
             enum_errors::declaration(item, tree)?
