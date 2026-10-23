@@ -76,9 +76,10 @@ fn verify_owner(canonical: &HirFnFacts, provenance: &Value, haystack: &str) -> R
 }
 
 fn verify_source(canonical: &HirFnFacts) -> Result<(), String> {
-    if ExtractionProfile::from_facts(canonical)? != ExtractionProfile::DataV3 {
-        return Err("Reference observation proof requires original DataV3 facts".into());
-    }
+    ExtractionProfile::DataV3.require(
+        canonical,
+        "Reference observation proof requires original DataV3 facts",
+    )?;
     crate::nominal_boundary::resolution::verify_source_inputs(canonical)?;
     crate::source_evidence::verify(canonical)
 }

@@ -253,6 +253,11 @@ fn context(
 }
 
 fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
+    match crate::product_instances::activation::source_findings(facts) {
+        Ok(true) => return Outcome::ok(),
+        Ok(false) => {}
+        Err(reason) => return evidence_gap(&facts.body, &reason),
+    }
     match crate::reference_instances::activation::source_findings(facts) {
         Ok(true) => return Outcome::ok(),
         Ok(false) => {}

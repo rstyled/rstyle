@@ -27,13 +27,23 @@ pub(super) fn verify(
     facts: &HirFnFacts,
     origins: &Origins,
     resolution: &Resolution,
+    owner: Option<&crate::product_instances::CheckedProjection>,
 ) -> Result<Selection, String> {
     let trees = &resolution.trees;
     let environment = &resolution.environment;
     if trees.is_empty() && !supports(facts, "rust.accelerator-packing")? {
         return Err("Mixed-unit boundary requires selected Copy declarations".into());
     }
+    if let Some(owner) = owner {
+        if owner.facts() != facts
+            || !supports(facts, crate::product_instances::activation::CAPABILITY)?
+        {
+            return Err("Product source receipt requires its exact owning active instance".into());
+        }
+        owner.copy_source().verify_owner(facts, environment)?;
+    }
     let checker = DeclarationChecker {
+        owner,
         facts,
         origins,
         environment,
@@ -75,6 +85,7 @@ struct DeclarationChecker<'a> {
     origins: &'a Origins,
     environment: &'a Environment,
     resolution: &'a Resolution,
+    owner: Option<&'a crate::product_instances::CheckedProjection>,
 }
 
 impl DeclarationChecker<'_> {
@@ -128,13 +139,25 @@ impl DeclarationChecker<'_> {
         tree: &TypeTree,
         copy: bool,
     ) -> Result<Option<no_drop::CheckedNoDrop>, String> {
-        if copy || !requested_no_drop(self.facts, tree)? {
-            return Ok(None);
-        }
-        let checked = if super::fresh_products::eligible(tree) {
-            no_drop::reference_products::verify(self.facts, tree, self.resolution, self.origins)?
+        let retained = self
+            .owner
+            .and_then(|owner| owner.copy_source().declaration(tree));
+        let checked = if let Some(checked) = retained {
+            checked.clone()
         } else {
-            no_drop::verify(self.facts, tree, self.environment)?
+            if copy || !requested_no_drop(self.facts, tree)? {
+                return Ok(None);
+            }
+            if super::fresh_products::eligible(tree) {
+                no_drop::reference_products::verify(
+                    self.facts,
+                    tree,
+                    self.resolution,
+                    self.origins,
+                )?
+            } else {
+                no_drop::verify(self.facts, tree, self.environment)?
+            }
         };
         if tree.nominal_parts().map(|(nominal, _)| nominal) != Some(checked.nominal()) {
             return Err("Cleanup certificate identifies another declaration".into());
@@ -606,18 +629,35 @@ fn module_attribute(
 }
 
 pub(super) fn check_namespace(
-    facts: &HirFnFacts,
+    input: &dyn crate::unit_store::EvidenceFacts,
     environment: &Environment,
     namespace: &[String],
 ) -> Result<(), String> {
-    let source_closure = function_cleanup_certificate(facts, environment)?;
-    check_namespace_with_closure(facts, environment, namespace, source_closure.as_ref())
+    let source_closure = function_cleanup_certificate(input, environment, namespace)?;
+    check_namespace_with_closure(
+        input.facts(),
+        environment,
+        namespace,
+        source_closure.as_ref(),
+    )
 }
 
 fn function_cleanup_certificate(
-    facts: &HirFnFacts,
+    input: &dyn crate::unit_store::EvidenceFacts,
     environment: &Environment,
+    namespace: &[String],
 ) -> Result<Option<no_drop::CheckedNoDrop>, String> {
+    let facts = input.facts();
+    if crate::product_instances::activation::verify(input)? {
+        let owner = input
+            .product_instance()
+            .ok_or("Missing checked product owner")?;
+        owner.copy_source().verify_owner(facts, environment)?;
+        return owner
+            .copy_source()
+            .function_namespace(facts, environment, namespace)
+            .map(|certificate| certificate.cloned());
+    }
     if !supports(facts, crate::borrowed_result_types::CAPABILITY)? {
         return Ok(None);
     }
@@ -651,7 +691,7 @@ pub(super) fn lexical_glob_excludes(
     original: LexicalGlob<'_>,
     name: &str,
 ) -> Result<bool, String> {
-    if function_cleanup_certificate(facts, environment)?.is_none() {
+    if function_cleanup_certificate(facts, environment, original.namespace)?.is_none() {
         return Ok(false);
     }
     let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);

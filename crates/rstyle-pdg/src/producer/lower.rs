@@ -746,7 +746,11 @@ impl Builder<'_> {
                 .as_ref()
                 .map(|d| d.op.clone())
                 .or_else(|| crate::helper_calls::callee(node, self.facts)),
-            construct: if crate::reference_instances::activation::operation(node, self.facts)
+            construct: if crate::product_instances::activation::operation(node, self.facts)
+                .expect("verified product operation")
+            {
+                Some(crate::product_instances::activation::CONSTRUCT.into())
+            } else if crate::reference_instances::activation::operation(node, self.facts)
                 .expect("verified reference operation")
                 .is_some()
             {

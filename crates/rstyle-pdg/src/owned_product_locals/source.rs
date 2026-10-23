@@ -1,5 +1,6 @@
 //! Complete original statement inventory for the bounded affine local family.
 use super::*;
+use crate::source_evidence::plain_value_path as plain_local;
 use syn::spanned::Spanned;
 
 pub(super) struct Plan {
@@ -141,11 +142,6 @@ fn terminal_move(statement: &syn::Stmt, name: &str) -> Result<(), String> {
         return Err("Owned terminal must move its whole local once".into());
     }
     Ok(())
-}
-
-fn plain_local(expression: &syn::Expr, name: &str) -> bool {
-    matches!(expression, syn::Expr::Path(path) if path.attrs.is_empty()
-        && path.qself.is_none() && path.path.is_ident(name))
 }
 
 pub(super) fn statement_expression(statement: &syn::Stmt) -> Result<&syn::Expr, String> {

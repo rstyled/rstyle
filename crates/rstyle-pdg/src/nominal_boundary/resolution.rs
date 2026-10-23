@@ -22,6 +22,7 @@ mod reference_owners;
 mod scalar_aliases;
 mod selected;
 pub(crate) use environment::{Environment, SourceOptions};
+pub(crate) use selected::no_drop::copy_products::CheckedCopyProductSource;
 mod import_chains;
 mod variants;
 use syn::spanned::Spanned;
@@ -83,8 +84,9 @@ impl Resolution {
         &mut self,
         facts: &HirFnFacts,
         origins: &declaration_origins::Origins,
+        owner: Option<&crate::product_instances::CheckedProjection>,
     ) -> Result<(), String> {
-        let selected = selected::verify(facts, origins, self)?;
+        let selected = selected::verify(facts, origins, self, owner)?;
         self.copy_trees = selected.copies;
         self.no_drop_trees = selected.no_drop;
         self.passive_copy_dependencies = selected.passive_dependencies;
@@ -313,20 +315,27 @@ pub(crate) fn constant_context(facts: &HirFnFacts) -> Result<bool, String> {
 }
 
 pub(crate) fn verify_in(
-    facts: &HirFnFacts,
+    input: &dyn crate::unit_store::EvidenceFacts,
     interface: &InterfaceObservations,
     environment: Rc<Environment>,
 ) -> Result<Resolution, String> {
+    let facts = input.facts();
+    let owner = if crate::product_instances::activation::verify(input)? {
+        input.product_instance()
+    } else {
+        None
+    };
+
     let mut resolution = declaration_resolution(facts, interface, Rc::clone(&environment))?;
     if environment.copy_boundary || resolution.range_value.is_some() {
         let origins = facts
             .build
             .frontend_options
             .data::<declaration_origins::Origins>()?;
-        resolution.select_copies(facts, &origins)?;
+        resolution.select_copies(facts, &origins, owner)?;
     }
     function_scope(
-        facts,
+        input,
         &environment.modules,
         environment.census(),
         &mut resolution,
@@ -337,12 +346,37 @@ pub(crate) fn verify_in(
 /// Check the complete captured result's cleanup obligations without authorizing
 /// construction, calls, source finding coverage, or admission.
 pub fn probe_reference_product_result(facts: &HirFnFacts) -> Result<(), String> {
+    probe_product_result(facts, selected::no_drop::ProductProof::Reference)
+}
+
+/// Check complete scalar Copy-product source and cleanup evidence without
+/// granting generic-instance, function, construction or call authority.
+pub fn probe_copy_product_result(facts: &HirFnFacts) -> Result<(), String> {
+    probe_product_result(facts, selected::no_drop::ProductProof::Copy)
+}
+
+/// Retain actual per-nominal proof receipts for an owning checked instance.
+pub(crate) fn checked_copy_product_source(
+    facts: &HirFnFacts,
+) -> Result<CheckedCopyProductSource, String> {
     let interface = facts
         .build
         .frontend_options
         .data::<InterfaceObservations>()?;
     let resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
-    selected::no_drop::reference_products::probe(facts, &resolution)
+    selected::no_drop::copy_products::capture(facts, &resolution)
+}
+
+fn probe_product_result(
+    facts: &HirFnFacts,
+    proof: selected::no_drop::ProductProof,
+) -> Result<(), String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
+    selected::no_drop::probe_product(facts, &resolution, proof)
 }
 
 fn declaration_resolution(
@@ -734,11 +768,12 @@ fn verify_declarations(
 }
 
 fn function_scope(
-    facts: &HirFnFacts,
+    input: &dyn crate::unit_store::EvidenceFacts,
     modules: &[census::Module],
     census: &census::Census,
     resolution: &mut Resolution,
 ) -> Result<(), String> {
+    let facts = input.facts();
     if range_from::bind(facts, resolution)? {
         return Ok(());
     }
@@ -767,7 +802,7 @@ fn function_scope(
     };
     resolution.namespace = namespace.clone();
     if resolution.environment.copy_boundary {
-        selected::check_namespace(facts, &resolution.environment, namespace)?;
+        selected::check_namespace(input, &resolution.environment, namespace)?;
     }
     if let Some(receiver) = receiver {
         resolve_receiver(resolution, receiver, facts)?;

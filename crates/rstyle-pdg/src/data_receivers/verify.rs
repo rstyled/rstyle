@@ -62,15 +62,27 @@ pub(crate) fn check(facts: &dyn EvidenceFacts, original_source: bool) -> Result<
             check_correspondence(node, source.as_ref())
                 .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
         }
-        if crate::character_ascii::verify_receiver(record, node, facts)? {
-            continue;
-        }
-        check_types(record, node)
-            .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
-        check_adjustments(record)?;
+        check_concrete_receiver(record, node, facts)?;
     }
 
     observation.finish(Ok(capture.into_owned()))
+}
+
+fn check_concrete_receiver(
+    record: &Method,
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    if crate::character_ascii::verify_receiver(record, node, facts)?
+        || crate::product_instances::activation::operation(node, facts)?
+    {
+        // Product projection checked the complete raw inventory before substituting
+        // S. Its private conversion proof supplies the concrete no-adjustment link.
+        return Ok(());
+    }
+    check_types(record, node)
+        .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
+    check_adjustments(record)
 }
 
 fn empty() -> Capture {

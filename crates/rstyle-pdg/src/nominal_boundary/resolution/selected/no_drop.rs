@@ -1,6 +1,7 @@
 //! Source-derived cleanup proof, distinct from Copy and borrowed ownership.
 use super::*;
 mod closure;
+pub(in crate::nominal_boundary::resolution) mod copy_products;
 pub(super) mod enum_errors;
 mod enum_globs;
 mod function_imports;
@@ -9,6 +10,7 @@ mod library_macros;
 mod macros;
 pub(super) mod module_globs;
 mod prelude_traits;
+mod product_fields;
 pub(in crate::nominal_boundary::resolution) mod reference_products;
 mod source_imports;
 #[cfg(test)]
@@ -16,14 +18,44 @@ mod source_imports_tests;
 #[cfg(test)]
 mod tests;
 
+/// Select the separately bounded source/cleanup grammar; grants no value authority.
+pub(in crate::nominal_boundary::resolution) enum ProductProof {
+    Reference,
+    Copy,
+}
+
+pub(in crate::nominal_boundary::resolution) fn probe_product(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    proof: ProductProof,
+) -> Result<(), String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let Observation::Captured { ty } = &interface.result else {
+        return Err(match proof {
+            ProductProof::Reference => "Product cleanup probe requires a captured complete result",
+            ProductProof::Copy => "Copy product probe requires a captured complete result",
+        }
+        .into());
+    };
+    let origins = facts.build.frontend_options.data::<Origins>()?;
+    match proof {
+        ProductProof::Reference => reference_products::verify(facts, ty, resolution, &origins),
+        ProductProof::Copy => copy_products::verify(facts, ty, resolution, &origins),
+    }
+    .map(|_| ())
+}
+
 /// Only this module constructs the witness; serialized negative flags cannot.
 #[derive(Clone, Debug)]
-pub(super) struct CheckedNoDrop {
+pub(in crate::nominal_boundary::resolution) struct CheckedNoDrop {
     nominal: concrete_types::Nominal,
 }
 
 impl CheckedNoDrop {
-    pub(super) fn nominal(&self) -> &concrete_types::Nominal {
+    pub(in crate::nominal_boundary::resolution) fn nominal(&self) -> &concrete_types::Nominal {
         &self.nominal
     }
 }

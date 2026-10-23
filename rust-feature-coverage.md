@@ -5081,3 +5081,14 @@ observations. This grants no admission. Remaining chain: active Copy/source
 closure → verified blanket Into→From forwarding → complete scalar-product and
 assertion composition → affine Range consumption. Data3.90 Linux ARM/x86 native
 CI passed; macOS Tests failed, with detailed failure output still unavailable.
+
+Data3.91 connects the separately owned original `Match::new<Span>` through
+production, serialized verification, strict matcher admission and sidecar replay
+on retained ARM Linux, x86 Linux and macOS captures (590 definitions each).
+[Bounded contract](docs/extraction-profiles/product-constructor-instances-v1.md).
+Raw generic/projected facts still reject; ordinary caller gains and the frozen
+inventory have not been reassessed here. Both selected substitutions remain:
+Range still needs its consuming formal, ordered endpoint projections, verified
+local From body and an Into-to-From dependency adapter. Complete selected matching,
+fresh six-context captures and native execution remain pending; this is an
+owning-instance boundary, not completion of the two-instance family.

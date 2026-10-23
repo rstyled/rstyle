@@ -63,6 +63,7 @@ impl Case {
             facts: &self.facts,
             origins: &self.origins,
             environment: &self.environment,
+            owner: None,
         }
         .verify(&vec!["Month".into()], &self.tree)
         .map(|_| ())

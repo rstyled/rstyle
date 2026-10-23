@@ -407,3 +407,20 @@ failed and its failing-test log remains required (unauthenticated log API403).
 Preparation checkpoint:1,499 tests/five existing skips and doctests pass;
 fmt/Clippy pass; style0/4,878, patterns0 with15 existing ignores unchanged.
 This is capture readiness, not strict instance replay/admission or matching.
+
+Data3.91 private Span checkpoint (base `8a60512`): original `Match::new<Span>`
+passes owning production, serialized verification, strict matcher admission and
+sidecar replay on each retained ARM Linux/x86 Linux/macOS capture (590 original
+definitions each). Raw generic/projected facts and Range remain unavailable.
+Both selected instances remain in scope; ordinary caller/frozen admission deltas
+are unmeasured. Foreign capture replay ran on ARM, not native foreign execution.
+Gates:1,541 tests pass/five existing skips in128.423s plus doctests; fmt/Clippy,
+style0/5,075, patterns0 with15 unchanged ignores, diff check pass. Source-only
+oracle checks pass; this checkpoint did not rerun the native value oracle.
+Evidence:`/tmp/rstyle-394-{suite,style,patterns,clippy}-final.log` and
+`/tmp/rstyle-394-strict-probe-{native,x86,macos}-final.log`.
+Next: Range's consuming formal/ordered endpoints and exact original From body,
+then an owner-backed Into-to-From helper dependency using existing strict replay.
+Adapter audit:`/tmp/rstyle-394-range-dependency-adapter.md`; shared registration
+and owner integration stay lead-owned. Fresh six-context capture and complete
+selected matching remain pending. [Contract](extraction-profiles/product-constructor-instances-v1.md).

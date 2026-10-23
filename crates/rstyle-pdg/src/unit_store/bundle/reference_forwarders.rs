@@ -1,4 +1,5 @@
 //! Strict original From replay includes its exact constructor proof inputs.
+use super::super::instances::RetainedConstructor;
 #[cfg(test)]
 mod tests;
 

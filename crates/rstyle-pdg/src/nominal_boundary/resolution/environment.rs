@@ -182,6 +182,10 @@ impl Environment {
         &self.census
     }
 
+    pub(super) fn census_owner(&self) -> Arc<census::Census> {
+        Arc::clone(&self.census)
+    }
+
     pub(super) fn source(&self, path: &Path) -> Result<SnapshotView<'_>, String> {
         let id = self
             .sources

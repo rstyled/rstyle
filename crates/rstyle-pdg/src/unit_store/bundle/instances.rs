@@ -31,11 +31,7 @@ pub(super) fn checked_original_owner(
     owner: Arc<UnitStore>,
     inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,
 ) -> Result<Arc<UnitStore>, String> {
-    if owner.instance.is_some()
-        || owner.reference_instance.is_some()
-        || owner.reference_forwarder.is_some()
-        || !owner.dependencies.is_empty()
-    {
+    if owner.has_instance() || !owner.dependencies.is_empty() {
         return Err("Instance replay requires an original unlinked definition owner".into());
     }
     inspect(&owner.functions)?;
@@ -84,17 +80,18 @@ impl UnitStore {
         writer: impl Write,
         projection: &Projection,
     ) -> Result<(), String> {
-        let instance = self
-            .instance
-            .as_ref()
-            .ok_or("Store is not a scalar instance")?;
-        let (owner, ordinal, _) = self
-            .scalar_instance_origin()
-            .ok_or("Missing scalar instance origin")?;
-        let original = owner
-            .functions
-            .get(ordinal)
-            .ok_or("Missing scalar instance origin")?;
+        write_inputs(writer, self.scalar_instance_inputs(projection))
+    }
+
+    fn scalar_instance_inputs<'a>(
+        &'a self,
+        projection: &'a Projection,
+    ) -> Result<Export<'a>, String> {
+        let input = super::super::instances::retained_input::<
+            super::super::instances::InstanceRecord,
+        >(self)?;
+        let instance = input.record;
+        let original = input.original;
         crate::verification_policy::strict(|| -> Result<(), String> {
             let checked = crate::scalar_instances::verify(original, projection)?;
             crate::scalar_instances::verify_owner(original, &checked)?;
@@ -109,15 +106,61 @@ impl UnitStore {
             Ok(())
         })?;
 
-        let export = Export {
+        Ok(Export {
             schema: SCHEMA,
-            owner_namespace: &owner.namespace,
-            definition_ordinal: ordinal,
+            owner_namespace: &input.owner.namespace,
+            definition_ordinal: input.ordinal,
             projection,
-        };
-        serde_json::to_writer(writer, &export).map_err(|error| error.to_string())
+        })
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+pub(super) fn decode_and_replay<I: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    replay: impl FnOnce(I) -> Result<UnitStore, String>,
+) -> Result<UnitStore, String> {
+    let import = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+    replay(import)
+}
+
+pub(super) fn write_inputs<T: Serialize>(
+    writer: impl Write,
+    inputs: Result<T, String>,
+) -> Result<(), String> {
+    let export = inputs?;
+    serde_json::to_writer(writer, &export).map_err(|error| error.to_string())
+}
+
+pub(super) fn checked_constructor_input<R: super::super::instances::RetainedConstructor>(
+    store: &UnitStore,
+) -> Result<super::super::instances::RetainedInput<'_, R>, String> {
+    let input = super::super::instances::retained_input::<R>(store)?;
+    crate::verification_policy::strict(|| {
+        input.record.reverify(input.original, &store.functions)?;
+        store.validate_evidence()
+    })?;
+    Ok(input)
+}
+
+pub(super) trait ConstructorSidecar: super::super::instances::RetainedConstructor {
+    type Export<'a>: Serialize
+    where
+        Self: 'a;
+    fn export<'a>(input: super::super::instances::RetainedInput<'a, Self>) -> Self::Export<'a>;
+}
+
+pub(super) fn constructor_inputs<R: ConstructorSidecar>(
+    store: &UnitStore,
+) -> Result<R::Export<'_>, String> {
+    checked_constructor_input::<R>(store).map(R::export)
+}
+
+pub(super) fn write_constructor<R: ConstructorSidecar>(
+    store: &UnitStore,
+    writer: impl Write,
+) -> Result<(), String> {
+    write_inputs(writer, constructor_inputs::<R>(store))
+}

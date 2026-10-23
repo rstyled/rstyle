@@ -1,4 +1,5 @@
 //! Exact checked From owners retain their constructor and immutable original owner.
+use super::instances::RetainedConstructor;
 use super::*;
 use crate::reference_instances::{CheckedForwarderProjection, Haystack, ReferenceObservation};
 use serde_json::Value;
@@ -63,11 +64,7 @@ impl UnitStore {
     }
 
     fn require_original_forwarder_owner(&self) -> Result<(), String> {
-        if self.instance.is_some()
-            || self.reference_instance.is_some()
-            || self.reference_forwarder.is_some()
-            || !self.dependencies.is_empty()
-        {
+        if self.has_instance() || !self.dependencies.is_empty() {
             return Err("Reference forwarder requires its original unlinked owner".into());
         }
         Ok(())

@@ -43,7 +43,7 @@ impl EvidenceFacts for SourceAnalysis<'_> {
 
     fn nominal_resolution(&self) -> Result<resolution::ResolutionView<'_>, String> {
         self.nominal
-            .get(|| self.sources.resolve(self.facts))
+            .get(|| self.sources.resolve(self))
             .map(resolution::ResolutionView::borrowed)
     }
 

@@ -79,6 +79,9 @@ pub fn resolve_for(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<Summary>, String> {
+    if let Some(summary) = crate::product_instances::activation::summary(node, facts)? {
+        return Ok(Some(summary));
+    }
     if let Some(summary) = reference_constructor(node, facts)? {
         return Ok(Some(summary));
     }

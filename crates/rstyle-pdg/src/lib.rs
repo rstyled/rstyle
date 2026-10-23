@@ -78,6 +78,7 @@ mod owned_product_locals;
 mod owned_product_values;
 pub mod primitive_constants;
 pub mod producer;
+pub mod product_instances;
 pub mod product_result_propagation;
 pub mod range_values;
 pub mod reference_instances;

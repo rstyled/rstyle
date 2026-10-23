@@ -1,24 +1,9 @@
 //! Source-closed cleanup proof for fresh products containing shared byte views.
 //! This witness grants no construction, return-origin, Copy or call permission.
+use super::product_fields::Proof;
 use super::*;
 use crate::concrete_types::VariantShape;
 use crate::nominal_boundary::resolution::{Resolution, verify_declarations};
-
-/// Exercise cleanup evidence without installing an owned-value permission.
-pub(in crate::nominal_boundary::resolution) fn probe(
-    facts: &HirFnFacts,
-    resolution: &Resolution,
-) -> Result<(), String> {
-    let interface = facts
-        .build
-        .frontend_options
-        .data::<InterfaceObservations>()?;
-    let Observation::Captured { ty } = &interface.result else {
-        return Err("Product cleanup probe requires a captured complete result".into());
-    };
-    let origins = facts.build.frontend_options.data::<Origins>()?;
-    verify(facts, ty, resolution, &origins).map(|_| ())
-}
 
 pub(in crate::nominal_boundary::resolution::selected) fn supported(tree: &TypeTree) -> bool {
     fields(tree).is_some_and(|fields| {
@@ -92,11 +77,7 @@ pub(in crate::nominal_boundary::resolution::selected) fn verify(
         .data::<InterfaceObservations>()?;
     crate::declaration_origins::verify_in(&interface, origins, environment)?;
     verify_declarations(resolution, origins, facts)?;
-    let checker = Proof {
-        facts,
-        resolution,
-        origins,
-    };
+    let checker = Proof::reference(facts, resolution, origins);
     let key = checker.declaration(tree)?;
     let item = checker.item(&key)?;
     let syn::Item::Struct(item) = item else {
@@ -157,95 +138,6 @@ fn explicit_view(ty: &syn::Type, lifetime: &syn::Lifetime) -> bool {
             && matches!(reference.elem.as_ref(), syn::Type::Slice(slice)
                 if matches!(slice.elem.as_ref(), syn::Type::Path(path)
                     if path.qself.is_none() && path.path.is_ident("u8"))))
-}
-
-struct Proof<'a> {
-    facts: &'a HirFnFacts,
-    resolution: &'a Resolution,
-    origins: &'a Origins,
-}
-
-impl Proof<'_> {
-    fn declaration(&self, tree: &TypeTree) -> Result<Namespace, String> {
-        let (nominal, _) = tree
-            .nominal_parts()
-            .ok_or("Missing product dependency nominal")?;
-        let key: Namespace = nominal
-            .definition_path
-            .split("::")
-            .map(str::to_owned)
-            .collect();
-        if self.resolution.trees.get(&key) != Some(tree) {
-            return Err(
-                "Cleanup product differs from the independently resolved complete tree".into(),
-            );
-        }
-
-        let environment = &self.resolution.environment;
-        let declaration = environment
-            .index
-            .declarations
-            .get(&key)
-            .ok_or("Missing cleanup product declaration")?;
-        if environment.declaration_identity(declaration)? != nominal.declaration_digest {
-            return Err("Cleanup product original declaration identity disagrees".into());
-        }
-        Ok(key)
-    }
-
-    fn item(&self, key: &Namespace) -> Result<&syn::Item, String> {
-        let environment = &self.resolution.environment;
-        let declaration = environment
-            .index
-            .declarations
-            .get(key)
-            .ok_or("Missing cleanup declaration")?;
-        Ok(&environment.modules[declaration.module_index].items[declaration.item_index])
-    }
-
-    fn copy(&self, tree: &TypeTree) -> Result<(), String> {
-        if matches!(tree, TypeTree::Scalar(_)) {
-            return Ok(());
-        }
-        if let TypeTree::Option(payload) = tree {
-            return super::super::super::builtin_options::scalar_copy(self.facts, payload);
-        }
-        let key = self.declaration(tree)?;
-        let item = self.item(&key)?;
-        let attributes = super::super::declaration_attributes(item, tree)?;
-        if !super::super::checked_copy(self.facts, self.origins, tree, attributes)? {
-            return Err(
-                "Cleanup product dependency lacks exact positive builtin Copy proof".into(),
-            );
-        }
-
-        match item {
-            syn::Item::Struct(item) => super::super::structure(self.facts, item, true)?,
-            syn::Item::Enum(item) => super::super::scalar_enum(self.facts, item)?,
-            _ => return Err("Cleanup dependency is not a complete struct or enum".into()),
-        }
-        for field in tree.nominal_fields() {
-            self.copy(&field.ty)?;
-        }
-        self.closure(&key)
-    }
-
-    fn closure(&self, key: &Namespace) -> Result<(), String> {
-        crate::data_library::verify_sysroot_roots(
-            self.facts,
-            &["alloc", "core", "std"],
-            "Product cleanup source",
-        )?;
-        let registry = crate::data_library::registry_for(self.facts)
-            .ok_or("Product cleanup requires pinned compiler/target")?;
-        if !library_macros::pinned_native(registry) {
-            return Err("Product cleanup macro source pins are incomplete".into());
-        }
-
-        let environment = &self.resolution.environment;
-        // This evidence-only mode must not share ordinary admission caches.
-        closure::verify_reference_product(environment, self.facts, key)
-    }
 }
 
 #[cfg(test)]

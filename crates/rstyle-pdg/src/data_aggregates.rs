@@ -1,5 +1,8 @@
 //! Source-ordered aggregate literal values with exact typed component slots.
 
+mod node_type;
+pub(crate) use node_type::verify_node_type;
+
 use crate::{ByteSpan, HirNode, data_types::TypeToken, unit_store::EvidenceFacts};
 use syn::spanned::Spanned;
 

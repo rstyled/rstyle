@@ -2,7 +2,10 @@
 #[cfg(test)]
 mod tests;
 
-use super::instances::{InstanceProof, OriginalInstance, capture_instance};
+use super::instances::{
+    ConstructorProjection, InstanceProof, OriginalInstance, RetainedConstructor, RetainedInstance,
+    capture_instance,
+};
 use super::*;
 use crate::reference_instances::{CheckedProjection, Haystack};
 use serde_json::Value;
@@ -53,9 +56,37 @@ impl InstanceProof for ConstructorProof<'_> {
     }
 }
 
-impl ReferenceInstanceRecord {
-    pub(super) fn observation(&self) -> &Value {
+impl ConstructorProjection for CheckedProjection {
+    type Argument = Haystack;
+
+    fn facts(&self) -> &HirFnFacts {
+        CheckedProjection::facts(self)
+    }
+
+    fn argument(&self) -> Haystack {
+        self.haystack()
+    }
+}
+
+impl RetainedConstructor for ReferenceInstanceRecord {
+    type Checked = CheckedProjection;
+    const RETAINED_ERROR: &'static str =
+        "Reference sidecar differs from its retained checked instance";
+
+    fn observation(&self) -> &Value {
         &self.observation
+    }
+
+    fn checked(&self) -> &CheckedProjection {
+        &self.checked
+    }
+
+    fn verify_original(&self, original: &HirFnFacts) -> Result<CheckedProjection, String> {
+        crate::reference_instances::verify_constructor_projection(
+            original,
+            &self.observation,
+            self.origin.get().2,
+        )
     }
 }
 
@@ -83,5 +114,19 @@ impl UnitStore {
         self.reference_instance
             .as_ref()
             .map(|instance| instance.origin.get())
+    }
+}
+
+impl RetainedInstance for ReferenceInstanceRecord {
+    type Argument = Haystack;
+    const STORE_ERROR: &'static str = "Store is not a reference constructor instance";
+    const ORIGINAL_ERROR: &'static str = "Missing original constructor";
+
+    fn select(store: &UnitStore) -> Option<&Self> {
+        store.reference_instance.as_ref()
+    }
+
+    fn origin(&self) -> (&Arc<UnitStore>, usize, Haystack) {
+        self.origin.get()
     }
 }

@@ -125,6 +125,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.checked-suffix-result-views",
     "rust.fresh-reference-product-results",
     "rust.linear-product-result-flow",
+    "rust.checked-product-constructor-instances",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -168,6 +169,7 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.helper.component-return/1",
     "rstyle.reference-instance.byte-as-ref/1",
     "rstyle.reference-instance.str-as-bytes/1",
+    "rstyle.product-instance.span-identity/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -246,6 +248,13 @@ impl ExtractionProfile {
         }
     }
 
+    /// Require one exact extraction mode while preserving malformed-evidence errors.
+    pub(crate) fn require(self, facts: &HirFnFacts, mismatch: &str) -> Result<(), String> {
+        (Self::from_facts(facts)? == self)
+            .then_some(())
+            .ok_or_else(|| mismatch.into())
+    }
+
     pub fn token(self) -> &'static str {
         match self {
             Self::R0 => "r0",
@@ -276,7 +285,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.90.0", 112)),
+            Self::DataV3 => Some(("3.91.0", 113)),
         }
     }
 

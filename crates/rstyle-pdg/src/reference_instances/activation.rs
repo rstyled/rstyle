@@ -1,6 +1,7 @@
 //! Owning checked tokens activate only the proved original byte/view constructor.
 //! Raw generic facts, diagnostic observations and matching names grant nothing.
 use super::{CheckedProjection, Haystack, shared_bytes};
+use crate::source_evidence::checked_activation::deferred_call as findings;
 use crate::unit_store::EvidenceFacts;
 use crate::{HirFnFacts, HirNode, data_origins::Origin, field_locations::Projection};
 
@@ -15,7 +16,7 @@ pub const STRING_SUMMARY: &str = "rstyle.reference-instance.str-as-bytes";
 /// Absence stays ordinary source evidence. String views require their separate
 /// bounded capability and the same complete private constructor proof.
 pub fn verify(facts: &dyn EvidenceFacts) -> Result<bool, String> {
-    Ok(checked(facts)?.is_some())
+    crate::source_evidence::checked_activation::presence(facts, checked)
 }
 
 fn checked(facts: &dyn EvidenceFacts) -> Result<Option<&CheckedProjection>, String> {
@@ -45,26 +46,6 @@ fn owning(checked: &CheckedProjection, facts: &HirFnFacts) -> Result<(), String>
 /// Coverage of the exact preserved finding, never deletion of raw diagnostics.
 pub fn source_findings(facts: &dyn EvidenceFacts) -> Result<bool, String> {
     verify(facts)
-}
-
-fn findings(facts: &HirFnFacts, call: &HirNode) -> Result<(), String> {
-    let [finding] = facts.source_diagnostics.as_slice() else {
-        return Err("Checked constructor requires its exact deferred AsRef finding roster".into());
-    };
-    if facts.source_scan_complete
-        || finding.capability != "rust.call-summaries"
-        || finding.construct != "expr_method_call"
-        || finding.span != call.span
-        || finding.snippet != call.snippet
-        || finding.severity != "error"
-        || finding.reason
-            != "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder."
-    {
-        return Err(
-            "Checked constructor deferred AsRef finding differs from its proved source site".into(),
-        );
-    }
-    Ok(())
 }
 
 /// One checked conversion; evaluates operand zero exactly once and preserves its

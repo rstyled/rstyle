@@ -21,6 +21,9 @@ use rstyle_pdg::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(test)]
+mod tests;
+
 /// Resolved-type extension carrying the normalized primitive.
 pub const RESOLVED_TYPE_KEY: &str = "compat.rust.hir-r0:resolved-type";
 
@@ -276,7 +279,7 @@ fn assemble_function(
     let (width, native) = import_widths(pdg, ctx)?;
 
     Ok(ImportedFunction {
-        matching_profile: imported_matching_profile(pdg),
+        matching_profile: imported_matching_profile(&pdg.profile),
         extraction_context: local_context(pdg)?,
         key,
         nodes: nodes.unwrap_or_default(),
@@ -290,9 +293,12 @@ fn assemble_function(
     })
 }
 
-fn imported_matching_profile(pdg: &PdgDocument) -> crate::graph::MatchingProfile {
+fn imported_matching_profile(profile: &rstyle_pdg::ProfileId) -> crate::graph::MatchingProfile {
     use crate::graph::MatchingProfile;
-    match (pdg.profile.id.as_str(), pdg.profile.version.as_str()) {
+    if *profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3.policy() {
+        return MatchingProfile::DataCallsV1;
+    }
+    match (profile.id.as_str(), profile.version.as_str()) {
         (
             rstyle_pdg::extraction_profile::DATA_ID,
             "2.0.0" | "3.0.0" | "3.1.0" | "3.2.0" | "3.3.0" | "3.4.0" | "3.5.0" | "3.6.0" | "3.7.0"

@@ -2,6 +2,8 @@
 #[cfg(test)]
 mod tests;
 
+use super::super::instances::RetainedConstructor;
+use super::super::reference_instances::ReferenceInstanceRecord;
 use super::*;
 use crate::reference_instances::Haystack;
 use serde_json::Value;
@@ -49,8 +51,7 @@ impl ReferenceConstructorReplay {
 
     /// Recompute the source, effects, origins and graph under strict policy.
     pub fn replay(&self, bytes: &[u8]) -> Result<UnitStore, String> {
-        let import: Import = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
-        self.replay_inputs(import)
+        super::instances::decode_and_replay(bytes, |import| self.replay_inputs(import))
     }
 
     pub(super) fn replay_inputs(&self, import: Import) -> Result<UnitStore, String> {
@@ -83,44 +84,24 @@ fn argument(value: &str) -> Result<Haystack, String> {
 impl UnitStore {
     /// Export the exact retained proof inputs after independently rechecking them.
     pub fn write_reference_constructor_sidecar(&self, writer: impl Write) -> Result<(), String> {
-        let export = self.reference_constructor_inputs()?;
-        serde_json::to_writer(writer, &export).map_err(|error| error.to_string())
+        super::instances::write_constructor::<ReferenceInstanceRecord>(self, writer)
     }
 
     pub(super) fn reference_constructor_inputs(&self) -> Result<Export<'_>, String> {
-        let instance = self
-            .reference_instance
-            .as_ref()
-            .ok_or("Store is not a reference constructor instance")?;
-        let (owner, ordinal, haystack) = self
-            .reference_instance_origin()
-            .ok_or("Missing original reference constructor owner")?;
-        let observation = instance.observation();
-        let original = owner
-            .functions
-            .get(ordinal)
-            .ok_or("Missing original constructor")?;
-        crate::verification_policy::strict(|| -> Result<(), String> {
-            let checked = crate::reference_instances::verify_constructor_projection(
-                original,
-                observation,
-                haystack,
-            )?;
-            if checked.facts() != instance.checked.facts()
-                || checked.haystack() != instance.checked.haystack()
-                || self.functions.as_slice() != std::slice::from_ref(checked.facts())
-            {
-                return Err("Reference sidecar differs from its retained checked instance".into());
-            }
-            self.validate_evidence()
-        })?;
+        super::instances::constructor_inputs::<ReferenceInstanceRecord>(self)
+    }
+}
 
-        Ok(Export {
+impl super::instances::ConstructorSidecar for ReferenceInstanceRecord {
+    type Export<'a> = Export<'a>;
+
+    fn export<'a>(input: super::super::instances::RetainedInput<'a, Self>) -> Export<'a> {
+        Export {
             schema: SCHEMA,
-            owner_namespace: &owner.namespace,
-            definition_ordinal: ordinal,
-            haystack: haystack.spelling(),
-            observation,
-        })
+            owner_namespace: &input.owner.namespace,
+            definition_ordinal: input.ordinal,
+            haystack: input.argument.spelling(),
+            observation: input.record.observation(),
+        }
     }
 }

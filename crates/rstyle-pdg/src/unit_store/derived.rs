@@ -127,12 +127,13 @@ impl Sources {
             .map_err(Clone::clone)
     }
 
-    pub(super) fn resolve(&self, facts: &HirFnFacts) -> Result<Resolution, String> {
+    pub(super) fn resolve(&self, input: &dyn EvidenceFacts) -> Result<Resolution, String> {
+        let facts = input.facts();
         let interface = facts
             .build
             .frontend_options
             .data::<crate::concrete_types::InterfaceObservations>()?;
-        crate::nominal_boundary::resolution::verify_in(facts, &interface, self.environment(facts)?)
+        crate::nominal_boundary::resolution::verify_in(input, &interface, self.environment(facts)?)
     }
 }
 
@@ -177,7 +178,10 @@ pub(super) fn receivers<'a>(
 
 impl FunctionView<'_> {
     pub(super) fn source_inputs(&self) -> Result<(), String> {
-        if self.reference_instance().is_some() || self.reference_forwarder().is_some() {
+        if self.reference_instance().is_some()
+            || self.reference_forwarder().is_some()
+            || self.product_instance().is_some()
+        {
             // Minting the private token verified the complete retained original
             // source owner. Immutable instance queries cannot change that proof.
             return Ok(());
@@ -228,7 +232,7 @@ impl FunctionView<'_> {
         let result = self
             .derived()
             .nominal
-            .get(|| self.resolver.sources().resolve(self.facts()))?;
+            .get(|| self.resolver.sources().resolve(self))?;
         Ok(ResolutionView::borrowed(result))
     }
 

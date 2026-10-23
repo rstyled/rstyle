@@ -1,7 +1,12 @@
 //! Independent original-source inventory checks; graph extraction remains HIR-only.
 
 mod attributes;
+pub(crate) mod checked_activation;
 pub(crate) use attributes::single_identifier_attribute;
+mod exact_pairs;
+pub(crate) use exact_pairs::exact_pairs;
+mod syntax;
+pub(crate) use syntax::{plain_type_path, plain_value_path};
 mod variant_paths;
 pub(crate) use variant_paths::qualified_variant;
 

@@ -100,12 +100,8 @@ pub(crate) fn scalar_enabled(facts: &dyn EvidenceFacts) -> bool {
 }
 
 fn data_v3(facts: &dyn EvidenceFacts) -> Result<(), String> {
-    if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
-        != crate::extraction_profile::ExtractionProfile::DataV3
-    {
-        return Err("Checked Option contracts require Data-v3".into());
-    }
-    Ok(())
+    crate::extraction_profile::ExtractionProfile::DataV3
+        .require(facts, "Checked Option contracts require Data-v3")
 }
 
 fn authority(callee: &Callee, expected: &str, facts: &dyn EvidenceFacts) -> Result<(), String> {

@@ -117,7 +117,7 @@ def check_instance(instance, selection):
             'local_from_source_diagnostics': body['source_diagnostics'] if body else None}
 
 
-def summarize(directory, selection, context, exit_code):
+def summarize(directory, selection, context, exit_code, expected_target=None):
     require(exit_code == 2, 'capture-only invocation must exit two')
     report = json.loads((directory / 'stdout.json').read_text())
     require(report['capture_complete'] is False and not report['functions'],
@@ -133,8 +133,13 @@ def summarize(directory, selection, context, exit_code):
             'original request unavailable')
     original_source(entry['original'], selection['functions'][0])
     build = entry['original']['build']
+    require(expected_target is None or build['frontend_options']['target'] == expected_target,
+            'captured target differs from explicit selection')
     require(build['rustc_commit']['value'] == selection['build_selection']['rustc_commit']
-            and build['target_triple']['value'] in selection['build_selection']['targets']
+            and build['frontend_options']['target'] in selection['build_selection']['targets']
+            and build['target_triple']['value'] == {
+                'aarch64-apple-darwin': 'arm64-apple-macosx',
+            }.get(build['frontend_options']['target'], build['frontend_options']['target'])
             and build['features'] == context['expected_feature_closure'], 'build context differs')
     instances = entry['instances']
     require([item['argument'] for item in instances] == ['Span', 'Range<usize>'],
@@ -146,7 +151,8 @@ def summarize(directory, selection, context, exit_code):
     count = 2582 if context['default_features'] else 590
     require(roster.get('schema') == 'rstyle.diagnostic.raw-facts/2'
             and len(roster['facts']) == count, 'complete raw definition roster differs')
-    return {'context': context['name'], 'definition_count': count, 'instances': observations,
+    return {'context': context['name'], 'target': build['frontend_options']['target'],
+            'definition_count': count, 'instances': observations,
             'admission_authority': False, 'capture_complete': False,
             'unchanged_selected_source': True,
             'original_source_scan_complete': entry['original']['source_scan_complete'],
@@ -158,6 +164,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--context', choices=['no-default', 'default'], default='no-default')
+    parser.add_argument('--target', help='capture an explicitly selected target; no native execution claim')
     parser.add_argument('--summarize', action='store_true', help='validate retained snapshot; do not run Cargo')
     parser.add_argument('--exit-code', type=int, default=2, help='recorded invocation exit code for --summarize')
     parser.add_argument('--cli', type=Path, default=Path('target/debug/cargo-rstyle'))
@@ -165,6 +172,8 @@ def main():
     args = parser.parse_args()
     directory = Path(__file__).resolve().parent
     selection = json.loads((directory / 'selection.json').read_text())
+    require(args.target is None or args.target in selection['build_selection']['targets'],
+            'target is outside the frozen selection')
     context = next(item for item in selection['build_selection']['contexts'] if item['name'] == args.context)
     verify_sources(directory, selection)
     output = args.output.resolve()
@@ -193,11 +202,13 @@ def main():
                    '--extraction-profile', 'hir-data-v3', '--max-pairs', '0']
         if not context['default_features']:
             command.append('--no-default-features')
+        if args.target:
+            command.extend(['--target', args.target])
         with (output / 'stdout.json').open('w') as stdout, (output / 'stderr.log').open('w') as stderr:
             completed = subprocess.run(command, env=environment, stdout=stdout, stderr=stderr, timeout=240)
         exit_code = completed.returncode
     verify_sources(directory, selection)
-    result = summarize(output, selection, context, exit_code)
+    result = summarize(output, selection, context, exit_code, args.target)
     print(json.dumps(result))
     if not args.summarize:
         (output / 'summary.json').write_text(json.dumps(result, indent=2) + '\n')

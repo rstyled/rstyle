@@ -78,14 +78,12 @@ fn check_tuple(
     source: &syn::punctuated::Punctuated<syn::Type, syn::Token![,]>,
     resolved: &[TypeTree],
 ) -> Result<(), String> {
-    if source.len() != resolved.len() {
-        return Err("Declared tuple field arity contradicts resolved type evidence".into());
-    }
-    for (source, resolved) in source.iter().zip(resolved) {
-        check(source, resolved)?;
-    }
-
-    Ok(())
+    crate::source_evidence::exact_pairs(
+        source.iter(),
+        resolved.iter(),
+        "Declared tuple field arity contradicts resolved type evidence",
+        check,
+    )
 }
 
 fn check_array(source: &syn::TypeArray, element: &TypeTree, length: u64) -> Result<(), String> {

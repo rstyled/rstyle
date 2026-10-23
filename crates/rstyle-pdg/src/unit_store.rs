@@ -2,13 +2,14 @@
 mod bundle;
 pub use bundle::BUNDLE_SCHEMA;
 pub use bundle::{
-    ReferenceConstructorReplay, ReferenceForwarderReplay, ScalarInstanceReplay,
-    read_diagnostic_snapshot, write_diagnostic_snapshot,
+    ProductConstructorReplay, ReferenceConstructorReplay, ReferenceForwarderReplay,
+    ScalarInstanceReplay, read_diagnostic_snapshot, write_diagnostic_snapshot,
 };
 mod dependency_closure;
 mod derived;
 mod instance_links;
 mod instances;
+mod product_instances;
 mod reference_forwarders;
 mod reference_instances;
 pub use dependency_closure::DependencyClosure;
@@ -59,6 +60,11 @@ pub trait EvidenceFacts: sealed::Sealed {
 
     /// Only the separately checked original reference constructor owner grants this witness.
     fn reference_instance(&self) -> Option<&crate::reference_instances::CheckedProjection> {
+        None
+    }
+
+    /// Only a separately verified original product constructor supplies this witness.
+    fn product_instance(&self) -> Option<&crate::product_instances::CheckedProjection> {
         None
     }
 
@@ -146,6 +152,10 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn product_instance(&self) -> Option<&crate::product_instances::CheckedProjection> {
+        T::product_instance(*self)
+    }
+
     fn reference_forwarder(
         &self,
     ) -> Option<&crate::reference_instances::CheckedForwarderProjection> {
@@ -264,6 +274,7 @@ pub struct UnitStore {
     instance: Option<instances::InstanceRecord>,
     reference_instance: Option<reference_instances::ReferenceInstanceRecord>,
     reference_forwarder: Option<reference_forwarders::ForwarderRecord>,
+    product_instance: Option<product_instances::ProductInstanceRecord>,
 }
 
 /// A proof cache belongs to this exact immutable store and this analysis only.
@@ -319,6 +330,7 @@ struct Tables<'a> {
     instance: Option<&'a instances::InstanceRecord>,
     reference_instance: Option<&'a reference_instances::ReferenceInstanceRecord>,
     reference_forwarder: Option<&'a reference_forwarders::ForwarderRecord>,
+    product_instance: Option<&'a product_instances::ProductInstanceRecord>,
 }
 
 pub struct FunctionView<'a> {
@@ -340,6 +352,12 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn product_instance(&self) -> Option<&crate::product_instances::CheckedProjection> {
+        (self.id.0 == 0)
+            .then_some(self.resolver.tables().product_instance?)
+            .map(|instance| &instance.checked)
+    }
+
     fn reference_forwarder(
         &self,
     ) -> Option<&crate::reference_instances::CheckedForwarderProjection> {
@@ -534,6 +552,13 @@ impl UnitStore {
         &self.namespace
     }
 
+    fn has_instance(&self) -> bool {
+        self.instance.is_some()
+            || self.reference_instance.is_some()
+            || self.reference_forwarder.is_some()
+            || self.product_instance.is_some()
+    }
+
     pub fn functions(&self) -> &[HirFnFacts] {
         &self.functions
     }
@@ -694,6 +719,7 @@ impl UnitStore {
             instance: self.instance.as_ref(),
             reference_instance: self.reference_instance.as_ref(),
             reference_forwarder: self.reference_forwarder.as_ref(),
+            product_instance: self.product_instance.as_ref(),
         }
     }
 }
@@ -762,6 +788,7 @@ impl Builder {
                 instance: None,
                 reference_instance: None,
                 reference_forwarder: None,
+                product_instance: None,
             },
             dependencies: Vec::new(),
             pending,

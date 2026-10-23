@@ -12,6 +12,7 @@ mod byte_calls;
 mod byte_scalars;
 mod callbacks;
 mod character_ascii;
+mod checked_instances;
 mod checked_lengths;
 mod checked_options;
 mod checked_slice_views;
@@ -30,6 +31,7 @@ mod option_if_let;
 pub(crate) mod option_propagation;
 pub(crate) mod origins;
 mod owned_product_values;
+mod product_instances;
 pub(crate) mod product_result_propagation;
 mod propagation;
 mod read_accesses;
@@ -339,7 +341,8 @@ fn verify_call_operations(
     facts: &dyn crate::unit_store::EvidenceFacts,
     calls: &[&crate::HirNode],
 ) -> Result<(), String> {
-    reference_instances::verify(pair, facts)?;
+    checked_instances::verify::<reference_instances::Operations>(pair, facts)?;
+    checked_instances::verify::<product_instances::Operations>(pair, facts)?;
     reference_products::verify(pair, facts)?;
     scalar_from::verify(pair, facts, calls)?;
     character_ascii::verify(pair, facts, calls)?;

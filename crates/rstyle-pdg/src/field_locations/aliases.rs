@@ -112,8 +112,9 @@ fn loaded(location: Location) -> Result<Referent, String> {
 
 fn check_type(node: &HirNode, referent: &TypeTree) -> Result<(), String> {
     let expected = TypeToken::Shared(Box::new(TypeToken::from_tree(referent)));
-    if crate::data_types::parse(crate::data_aggregates::token(node)?)? != expected {
-        return Err("Shared alias value disagrees with its formal referent type".into());
-    }
-    Ok(())
+    crate::data_aggregates::verify_node_type(
+        node,
+        &expected,
+        "Shared alias value disagrees with its formal referent type",
+    )
 }

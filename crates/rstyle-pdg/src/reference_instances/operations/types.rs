@@ -97,13 +97,12 @@ impl Argument {
 }
 
 pub(super) fn arguments(observed: &[Argument], expected: &[Type]) -> Result<(), String> {
-    if observed.len() != expected.len() {
-        return Err("AsRef structural argument arity disagrees".into());
-    }
-    for (observed, expected) in observed.iter().zip(expected) {
-        observed.verify(expected)?;
-    }
-    Ok(())
+    crate::source_evidence::exact_pairs(
+        observed.iter(),
+        expected.iter(),
+        "AsRef structural argument arity disagrees",
+        Argument::verify,
+    )
 }
 
 #[derive(Deserialize)]

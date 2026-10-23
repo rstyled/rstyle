@@ -19,6 +19,16 @@ pub(super) fn verify_reference_product(
     verify_mode(environment, facts, target, true)
 }
 
+/// Exact Copy-product callers separately prove every field and builtin Copy.
+/// This shares the exhaustive product-source grammar, never proof caches.
+pub(super) fn verify_copy_product(
+    environment: &Environment,
+    facts: &HirFnFacts,
+    target: &Namespace,
+) -> Result<(), String> {
+    verify_mode(environment, facts, target, true)
+}
+
 fn verify_mode(
     environment: &Environment,
     facts: &HirFnFacts,

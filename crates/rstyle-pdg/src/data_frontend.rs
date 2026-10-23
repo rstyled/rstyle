@@ -19,7 +19,8 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
 pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     let observation =
         crate::diagnostics::Stage::new("source.data_frontend", &facts.name, None).enter();
-    if crate::scalar_instances::activation::verify(facts)?
+    if crate::product_instances::activation::verify(facts)?
+        || crate::scalar_instances::activation::verify(facts)?
         || crate::reference_instances::activation::verify(facts)?
         || crate::reference_instances::forwarder_activation::verify(facts)?
     {
@@ -101,6 +102,20 @@ fn verify_value_document_policy(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     crate::nominal_boundary::census::policy::verify_documents(profile, facts)?;
+    verify_instance_document_policy(profile, facts)?;
+    verify_result_document_policy(profile, facts)
+}
+
+fn verify_instance_document_policy(
+    profile: &crate::ProfileId,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    crate::extraction_profile::require_document(
+        profile,
+        crate::product_instances::activation::CAPABILITY,
+        || facts.product_instance().is_some(),
+        "Product constructor requires its registered document policy",
+    )?;
     crate::extraction_profile::require_document(
         profile,
         crate::reference_instances::activation::CAPABILITY,
@@ -112,7 +127,13 @@ fn verify_value_document_policy(
         crate::reference_instances::forwarder_activation::CAPABILITY,
         || facts.reference_forwarder().is_some(),
         "Reference forwarder requires its registered document policy",
-    )?;
+    )
+}
+
+fn verify_result_document_policy(
+    profile: &crate::ProfileId,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
     crate::primitive_constants::verify_document_policy(profile, facts)?;
     crate::concrete_results::verify_document_policy(profile, facts)?;

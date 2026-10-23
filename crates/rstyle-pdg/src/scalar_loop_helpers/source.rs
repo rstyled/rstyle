@@ -159,16 +159,12 @@ fn signature(function: &syn::ItemFn) -> Result<(), String> {
         || !signature.generics.params.is_empty()
         || signature.generics.where_clause.is_some()
         || signature.inputs.len() != 1
-        || !matches!(signature.inputs.first(), Some(syn::FnArg::Typed(parameter)) if plain_u32(&parameter.ty))
-        || !matches!(&signature.output, syn::ReturnType::Type(_, ty) if plain_u32(ty))
+        || !matches!(signature.inputs.first(), Some(syn::FnArg::Typed(parameter)) if crate::source_evidence::plain_type_path(&parameter.ty, "u32"))
+        || !matches!(&signature.output, syn::ReturnType::Type(_, ty) if crate::source_evidence::plain_type_path(ty, "u32"))
     {
         return Err("Bounded scalar helper requires a plain concrete Rust function".into());
     }
     Ok(())
-}
-
-fn plain_u32(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("u32"))
 }
 
 fn pattern(pattern: &syn::Pat) -> Result<&syn::PatIdent, String> {

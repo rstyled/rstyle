@@ -40,10 +40,7 @@ pub(super) fn capture_instance<P: InstanceProof>(
     definition: usize,
     proof: P,
 ) -> Result<UnitStore, String> {
-    if owner.instance.is_some()
-        || owner.reference_instance.is_some()
-        || owner.reference_forwarder.is_some()
-    {
+    if owner.has_instance() {
         return Err(format!(
             "{} requires an original definition owner",
             P::LABEL
@@ -117,5 +114,76 @@ impl UnitStore {
     /// nor a display string substitutes for the original compiler definition.
     pub fn scalar_instance_origin(&self) -> Option<(&Arc<UnitStore>, usize, ScalarArgument)> {
         self.instance.as_ref().map(|instance| instance.origin.get())
+    }
+}
+
+/// A retained projection always binds to one immutable original owner and ordinal.
+pub(super) trait RetainedInstance: Sized {
+    type Argument: Copy + PartialEq;
+    const STORE_ERROR: &'static str;
+    const ORIGINAL_ERROR: &'static str;
+    fn select(store: &UnitStore) -> Option<&Self>;
+    fn origin(&self) -> (&Arc<UnitStore>, usize, Self::Argument);
+}
+
+pub(super) trait ConstructorProjection {
+    type Argument: PartialEq;
+    fn facts(&self) -> &HirFnFacts;
+    fn argument(&self) -> Self::Argument;
+}
+
+pub(super) trait RetainedConstructor: RetainedInstance {
+    type Checked: ConstructorProjection<Argument = Self::Argument>;
+    const RETAINED_ERROR: &'static str;
+    fn observation(&self) -> &serde_json::Value;
+    fn checked(&self) -> &Self::Checked;
+    fn verify_original(&self, original: &HirFnFacts) -> Result<Self::Checked, String>;
+
+    fn reverify(&self, original: &HirFnFacts, functions: &[HirFnFacts]) -> Result<(), String> {
+        let checked = self.verify_original(original)?;
+        if checked.facts() != self.checked().facts()
+            || checked.argument() != self.checked().argument()
+            || functions != std::slice::from_ref(checked.facts())
+        {
+            return Err(Self::RETAINED_ERROR.into());
+        }
+        Ok(())
+    }
+}
+
+pub(super) struct RetainedInput<'a, R: RetainedInstance> {
+    pub record: &'a R,
+    pub owner: &'a Arc<UnitStore>,
+    pub ordinal: usize,
+    pub argument: R::Argument,
+    pub original: &'a HirFnFacts,
+}
+
+pub(super) fn retained_input<R: RetainedInstance>(
+    store: &UnitStore,
+) -> Result<RetainedInput<'_, R>, String> {
+    let record = R::select(store).ok_or(R::STORE_ERROR)?;
+    let (owner, ordinal, argument) = record.origin();
+    let original = owner.functions.get(ordinal).ok_or(R::ORIGINAL_ERROR)?;
+    Ok(RetainedInput {
+        record,
+        owner,
+        ordinal,
+        argument,
+        original,
+    })
+}
+
+impl RetainedInstance for InstanceRecord {
+    type Argument = ScalarArgument;
+    const STORE_ERROR: &'static str = "Store is not a scalar instance";
+    const ORIGINAL_ERROR: &'static str = "Missing scalar instance origin";
+
+    fn select(store: &UnitStore) -> Option<&Self> {
+        store.instance.as_ref()
+    }
+
+    fn origin(&self) -> (&Arc<UnitStore>, usize, ScalarArgument) {
+        self.origin.get()
     }
 }
