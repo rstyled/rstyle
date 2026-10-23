@@ -76,12 +76,12 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.85.0");
+    assert_eq!(profile.policy().version, "3.86.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 105);
+    assert_eq!(profile.capabilities().len(), 106);
     assert!(profile.supports("rust.checked-scalar-instances"));
     assert!(profile.supports("rust.component-helper-results"));
     let mut previous = profile.policy();
@@ -103,6 +103,26 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     }
     assert!(rstyle_pdg::extraction_profile::registered(
         &profile.policy()
+    ));
+}
+
+#[test]
+fn string_byte_view_authority_is_new_and_keeps_the_existing_byte_contract() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let current = ExtractionProfile::DataV3.policy();
+    assert!(policy_supports(
+        &current,
+        "rust.checked-string-byte-view-instances"
+    ));
+    assert!(policy_supports(
+        &current,
+        "rust.checked-reference-constructor-instances"
+    ));
+    let mut historical = current;
+    historical.version = "3.85.0".into();
+    assert!(!policy_supports(
+        &historical,
+        "rust.checked-string-byte-view-instances"
     ));
 }
 

@@ -499,6 +499,14 @@ pub(super) fn origin_value<'a>(
     value: &'a TypeTree,
     path: &[Projection],
 ) -> Result<std::borrow::Cow<'a, TypeTree>, String> {
+    if let Some((Projection::Utf8Bytes, prefix)) = path.split_last() {
+        if base_value(value, prefix)? != &TypeTree::Str {
+            return Err("UTF-8 byte projection requires the exact string referent".into());
+        }
+        return Ok(std::borrow::Cow::Owned(TypeTree::Slice(Box::new(
+            TypeTree::Scalar("u8".into()),
+        ))));
+    }
     if let Some((
         Projection::ByteWindow {
             operand_position: 0,

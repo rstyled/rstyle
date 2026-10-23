@@ -78,3 +78,11 @@ fn verify_source(canonical: &HirFnFacts) -> Result<(), String> {
     crate::nominal_boundary::resolution::verify_source_inputs(canonical)?;
     crate::source_evidence::verify(canonical)
 }
+
+/// Shared byte storage used by original type proof and concrete activation.
+pub(crate) fn shared_bytes() -> crate::data_types::TypeToken {
+    use crate::data_types::TypeToken;
+    TypeToken::Shared(Box::new(TypeToken::Slice(Box::new(TypeToken::Scalar(
+        "u8".into(),
+    )))))
+}

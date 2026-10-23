@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.85.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.86.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -40,8 +40,9 @@ and independently proved explicit-u8 enum ownership.
 Data-v3 3.83 connects checked scalar instances across selected packages; 3.84
 adds local component-specific shared-reference helper results. Data-v3 3.85
 activates the original byte Input constructor as a separately owned checked
-instance; string conversion, From activation and foreign aggregate callers remain
-pending. See the [constructor contract](docs/extraction-profiles/reference-constructor-instances-v1.md).
+instance; 3.86 adds exact string-to-byte origin projection. From activation and
+foreign aggregate callers remain pending. See the
+[constructor contract](docs/extraction-profiles/reference-constructor-instances-v1.md).
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -4934,9 +4935,23 @@ patterns0 unignored/15 unchanged ignores. Component composition1.568s. Fresh
 original native oracle132,736 observations/context, zero mismatches. Evidence:
 `/tmp/rstyle-385-{final-*,input-capture,fresh-*-activation.log,input-oracle.json}`.
 Next: explicit string-to-byte origin typing, complete From materialization and
-instance/caller linking, then the original lz4 error/data chain. The broader goal
+instance/caller linking, then the next source-selected error/data chain. The broader goal
 and full-library matching remain incomplete.
 
 Fresh frozen `run-mj68hs_m` matches `run-8o5jdd1c`: all60 source identities and
 denominators,23 admitted/30 excluded/7 inactive, zero gains/losses and116
 schema-checked documents. This does not claim an additional strict frozen replay.
+
+### Data3.86: original string constructor
+
+`Input::new::<str>` now strictly admits/replays with an explicit whole-string
+UTF-8 byte-view projection and independent returned-component expectations.
+Each unchanged native four-instance selection gains1/loses0, now2 admitted/2
+unsupported; both From callers still need checked body/dependency linking.
+Fresh complete rosters remain2,582/590. Native oracle132,736 observations/context;
+strict producer admission, identity matching and graph/policy attacks pass.
+Gates1,427 tests/five skips, doctests/fmt/Clippy, rstyle0/4,605, patterns0/15
+unchanged ignores. Composition1.546s. Frozen `run-6jdco7wi` versus `run-mj68hs_m`:
+all60 identities/denominators unchanged,23/30/7, zero gains/losses,116 schema-checked
+documents. Evidence: `/tmp/rstyle-386-*`; no additional strict frozen replay,
+cross-target activation, foreign-caller gain or broad completion is claimed.

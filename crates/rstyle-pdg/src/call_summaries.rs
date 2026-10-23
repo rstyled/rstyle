@@ -126,12 +126,10 @@ pub(crate) fn reference_constructor(
     };
     let input = crate::data_aggregates::token(operation.receiver)?;
     let output = crate::data_aggregates::token(node)?;
-    if crate::data_types::parse(input)? != crate::data_types::parse(output)? {
-        return Err("Checked byte AsRef changes its exact shared byte-slice type".into());
-    }
+    operation.verify_types(input, output)?;
 
     Ok(Some(Summary {
-        id: "rstyle.reference-instance.byte-as-ref".into(),
+        id: operation.summary_id().into(),
         version: "1.0.0".into(),
         callee_path: "core::convert::AsRef::as_ref".into(),
         callee_crate: "core".into(),

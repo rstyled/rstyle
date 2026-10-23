@@ -236,6 +236,9 @@ fn project(value: TypeToken, projection: &Projection) -> Result<TypeToken, Strin
             | Projection::ByteWindow { .. }),
         ) => indexed::project(value, selector),
         (TypeToken::Shared(value), Projection::SharedReferent) => Ok(*value),
+        (TypeToken::Str, Projection::Utf8Bytes) => {
+            Ok(TypeToken::Slice(Box::new(TypeToken::Scalar("u8".into()))))
+        }
         (TypeToken::Slice(value), Projection::CheckedElement)
             if matches!(value.as_ref(), TypeToken::Scalar(_)) =>
         {

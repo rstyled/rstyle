@@ -97,3 +97,10 @@ The default/no-default full-owner replay probes took98.93/13.57s and peaked at
 1,213,460/208,636KiB on the native runner; these include complete owner analysis,
 not just the constructor. Identity matching is a control, not detector-quality
 evidence. Cross-target activation and actual foreign caller linking remain pending.
+
+Data3.86 adds the string constructor with an explicit UTF-8 byte-view origin.
+The same probe now requires both constructors and independently checks their
+single returned reference component: Input field0, shared `[u8]`, formal0, with
+`SharedReferent` for bytes and `SharedReferent → Utf8Bytes` for strings. Both From
+instances remain unsupported. This brings each unchanged native selection to
+2/4 admitted; no cross-target or foreign-caller admission is claimed.

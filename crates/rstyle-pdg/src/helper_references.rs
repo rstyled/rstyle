@@ -120,6 +120,12 @@ pub(crate) fn verify_formal(
             .as_deref()
             .ok_or("Missing returned helper formal type")?,
     )?;
+
+    if origin.path.contains(&Projection::Utf8Bytes) {
+        return crate::reference_instances::activation::verify_returned_origin(
+            origin, facts, result,
+        );
+    }
     if token != *result || origin.path != [Projection::SharedReferent] {
         if crate::helper_stored_slices::verify_origin(origin, facts, result).is_ok() {
             return Ok(());

@@ -251,10 +251,18 @@ No new SHA operation or serialized lookup key. The whole family remains incomple
 
 | Next assignment | Readiness gate and exclusive leaf work |
 | --- | --- |
-| String byte-view origins | Source/dispatch proof exists. Add exact `str → [u8]` origin typing and independent source/flow/graph transformation; Unicode byte lengths and malformed projection negatives. Lead owns shared Projection/origin interfaces. |
+| String byte-view origins | Delivered3.86: original str constructor admits and strictly replays in both native contexts. Exact `str → [u8]` origin typing, independent component expectations and malformed projection/type/formal negatives; both constructors now admit, both From instances remain unsupported. |
 | Original From activation | Association proof exists. Materialize the complete checked forwarding body and exact constructor dependency at identical substitution; derive each returned component and replay both proofs. Separate token/site proof from constructor body assumptions. |
 | Actual reference caller links | Requires production proof-input inventory and typed instance key, exact compiled-artifact/definition association and foreign reference/component summaries. Diagnostic observations alone grant no linkage. Follow the preceding activation boundaries. |
-| Original lz4 error/data chain | Preserve `uncompressed_size` selection. Establish complete no-drop error ownership, checked range/ok_or, differing-success residual, four-byte LE decode and suffix/reference-tuple transport before activation. No new numeric leaf detour. |
+| Next connected error/data chain | `uncompressed_size` was delivered in3.81 and remains a regression control. Source audit selects base64ct1.7.3 `Line::slice_tail → len`: scalar Result payload propagation, exact fieldless error ownership/imports, checked suffix get and shared Line field origins. Freeze expectations/build contexts before evaluation; public Decoder callers still need loops/mutation. |
 
 Coordinate shared edits serially; leaf audits/oracles may proceed independently.
 Keep the existing four-instance denominator and the separate frozen sixty intact.
+
+Data3.86 checkpoint:1,427 tests/five skips, doctests/fmt/Clippy pass;
+rstyle0/4,605, patterns0/15 unchanged ignores. Fresh frozen `run-6jdco7wi`
+preserves all60 identities/denominators and23/30/7 against `run-mj68hs_m`.
+Native oracle132,736 observations/context; both constructor identity comparisons
+and strict graph attacks pass. Evidence: `/tmp/rstyle-386-*`. Next connect the
+two original From callers and their constructor dependency; no ordinary foreign
+caller admission or full-library matching completion is claimed.

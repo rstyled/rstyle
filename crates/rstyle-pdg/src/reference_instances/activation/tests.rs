@@ -24,11 +24,17 @@ fn raw_generic_facts_and_observations_never_activate_an_instance() {
 fn retained_conversion_has_one_exact_operand_and_shared_formal_origin() {
     let facts = canonical();
     let node = call(&facts);
-    let checked = checked_operation(node, node).unwrap().unwrap();
+    let checked = checked_operation(node, node, Haystack::Bytes)
+        .unwrap()
+        .unwrap();
     assert_eq!(checked.receiver, &node.children[0]);
-    assert_eq!(checked.origin.parameter, 0);
-    assert_eq!(checked.origin.path, [Projection::SharedReferent]);
-    assert!(checked_operation(&facts.body, node).unwrap().is_none());
+    assert_eq!(checked.input_origin.parameter, 0);
+    assert_eq!(checked.input_origin.path, [Projection::SharedReferent]);
+    assert!(
+        checked_operation(&facts.body, node, Haystack::Bytes)
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]
@@ -55,7 +61,10 @@ fn same_site_edits_cannot_reuse_the_checked_operation() {
             "duplicate" => changed.children.push(expected.children[0].clone()),
             _ => unreachable!(),
         }
-        assert!(checked_operation(&changed, expected).is_err(), "{mode}");
+        assert!(
+            checked_operation(&changed, expected, Haystack::Bytes).is_err(),
+            "{mode}"
+        );
     }
 }
 
@@ -99,4 +108,99 @@ fn exact_retained_deferred_finding_is_covered_without_rewriting_it() {
             assert!(findings(&changed, call(&facts)).is_err(), "{mode}");
         }
     }
+}
+
+#[test]
+fn string_view_preserves_one_root_and_adds_exactly_one_byte_projection() {
+    let facts = canonical();
+    let node = call(&facts);
+    let checked = checked_operation(node, node, Haystack::Str)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        checked.input_origin,
+        Origin {
+            parameter: 0,
+            path: vec![Projection::SharedReferent]
+        }
+    );
+    let expected = Origin {
+        parameter: 0,
+        path: vec![Projection::SharedReferent, Projection::Utf8Bytes],
+    };
+    assert_eq!(
+        checked.project(vec![checked.input_origin.clone()]).unwrap(),
+        std::slice::from_ref(&expected)
+    );
+    for roots in [
+        vec![],
+        vec![expected],
+        vec![Origin {
+            parameter: 1,
+            path: vec![Projection::SharedReferent],
+        }],
+        vec![checked.input_origin.clone(), checked.input_origin.clone()],
+    ] {
+        assert!(checked.project(roots).is_err());
+    }
+}
+
+#[test]
+fn byte_view_types_and_summary_do_not_conflate_strings_with_slices() {
+    let facts = canonical();
+    let node = call(&facts);
+    let string = checked_operation(node, node, Haystack::Str)
+        .unwrap()
+        .unwrap();
+    let bytes = checked_operation(node, node, Haystack::Bytes)
+        .unwrap()
+        .unwrap();
+    let str_ty = r#"{"kind":"shared","value":{"kind":"str"}}"#;
+    let byte_ty =
+        r#"{"kind":"shared","value":{"kind":"slice","value":{"kind":"scalar","value":"u8"}}}"#;
+    assert_eq!(
+        string.summary_id(),
+        "rstyle.reference-instance.str-as-bytes"
+    );
+    assert_eq!(bytes.summary_id(), "rstyle.reference-instance.byte-as-ref");
+    string.verify_types(str_ty, byte_ty).unwrap();
+    bytes.verify_types(byte_ty, byte_ty).unwrap();
+    for (input, output) in [(byte_ty, byte_ty), (str_ty, str_ty), (str_ty, "usize")] {
+        assert!(string.verify_types(input, output).is_err());
+    }
+    assert!(bytes.verify_types(str_ty, byte_ty).is_err());
+}
+
+#[test]
+fn utf8_origin_typing_rejects_wrong_roots_and_duplicate_views() {
+    use crate::data_types::TypeToken;
+    let mut facts = canonical();
+    facts.signature.params[0].ty.normalized =
+        Some(r#"{"kind":"shared","value":{"kind":"str"}}"#.into());
+    let path = [Projection::SharedReferent, Projection::Utf8Bytes];
+    assert_eq!(
+        crate::helper_reads::type_at(&facts, 0, &path).unwrap(),
+        TypeToken::Slice(Box::new(TypeToken::Scalar("u8".into())))
+    );
+    assert!(crate::helper_reads::type_at(&facts, 0, &[Projection::Utf8Bytes]).is_err());
+    assert!(
+        crate::helper_reads::type_at(
+            &facts,
+            0,
+            &[
+                Projection::SharedReferent,
+                Projection::Utf8Bytes,
+                Projection::Utf8Bytes
+            ]
+        )
+        .is_err()
+    );
+    assert!(crate::helper_reads::type_at(&facts, 1, &path).is_err());
+    let origin = Origin {
+        parameter: 0,
+        path: path.to_vec(),
+    };
+    assert!(verify_returned_origin(&origin, &facts, &shared_bytes()).is_err());
+    facts.signature.params[0].ty.normalized = Some(shared_bytes().text().unwrap());
+    assert!(crate::helper_reads::type_at(&facts, 0, &path).is_err());
 }

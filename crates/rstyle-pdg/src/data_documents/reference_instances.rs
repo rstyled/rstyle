@@ -43,6 +43,17 @@ fn verify_operation(
 ) -> Result<(), String> {
     let summary = crate::call_summaries::reference_constructor(source, facts)?
         .ok_or("Checked AsRef lost its independent call summary")?;
+    if summary.id == activation::STRING_SUMMARY
+        && !crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            activation::STRING_CAPABILITY,
+        )
+    {
+        return Err(
+            "String byte-view CALL requires its registered serialized document policy".into(),
+        );
+    }
+
     let node = super::typed_operation(pair, source, activation::CONSTRUCT, &summary.result_type)?;
     if node.category != NodeCategory::Call {
         return Err("Checked AsRef must retain its exact CALL operation".into());

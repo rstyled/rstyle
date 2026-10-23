@@ -54,10 +54,7 @@ pub fn origins(
 
     if let Some(operation) = crate::reference_instances::activation::operation(node, facts)? {
         let roots = origins(operation.receiver, facts)?;
-        if roots != [operation.origin] {
-            return Err("Checked AsRef source operand loses its exact shared formal origin".into());
-        }
-        return Ok(roots);
+        return operation.project(roots);
     }
 
     if crate::option_propagation::candidate(node, facts) {

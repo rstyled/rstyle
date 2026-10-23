@@ -37,14 +37,14 @@ fn failed_observation_cannot_replace_the_original_owner_or_grant_an_instance() {
 }
 
 #[test]
-fn str_constructor_activation_stays_explicitly_unsupported() {
+fn str_constructor_requires_the_same_complete_original_owner() {
     let owner = Arc::new(UnitStore::capture(Vec::new()).unwrap());
     let error = UnitStore::capture_reference_constructor(owner, 0, &json!({}), Haystack::Str)
         .err()
         .unwrap();
     assert_eq!(
         error,
-        "Str constructor activation requires an explicit byte-view origin proof"
+        "Reference constructor names an absent original definition"
     );
 }
 

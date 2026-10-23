@@ -305,13 +305,7 @@ impl Resolver<'_> {
             Ok(Some(operation)) => {
                 return Some((|| {
                     let roots = self.source(operation.receiver, &[], visiting)?;
-                    if roots != [operation.origin] {
-                        return Err(
-                            "Checked AsRef flow operand loses its exact shared formal origin"
-                                .into(),
-                        );
-                    }
-                    Ok(roots)
+                    operation.project(roots)
                 })());
             }
             Err(error) => return Some(Err(error)),

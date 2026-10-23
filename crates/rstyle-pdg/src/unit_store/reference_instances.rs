@@ -68,11 +68,6 @@ impl UnitStore {
         observation: &Value,
         haystack: Haystack,
     ) -> Result<Self, String> {
-        if haystack == Haystack::Str {
-            return Err(
-                "Str constructor activation requires an explicit byte-view origin proof".into(),
-            );
-        }
         capture_instance(
             owner,
             definition,

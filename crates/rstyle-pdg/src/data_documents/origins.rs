@@ -281,11 +281,7 @@ impl Graph<'_> {
         }
 
         let roots = self.origins(self.operand(node, 0)?, &[], visiting)?;
-        if roots != [operation.origin] {
-            return Err("Checked AsRef graph operand loses its exact shared formal origin".into());
-        }
-
-        Ok(roots)
+        operation.project(roots)
     }
 
     fn byte_call_operation(

@@ -3,11 +3,7 @@ use super::{Nominals, Result, Role, Site};
 use crate::{HirFnFacts, HirNode, ResolvedTy, data_types::TypeToken};
 use std::collections::BTreeMap;
 
-pub(super) fn shared_bytes() -> TypeToken {
-    TypeToken::Shared(Box::new(TypeToken::Slice(Box::new(TypeToken::Scalar(
-        "u8".into(),
-    )))))
-}
+pub(super) use crate::reference_instances::shared_bytes;
 
 pub(super) fn verify(
     canonical: &HirFnFacts,

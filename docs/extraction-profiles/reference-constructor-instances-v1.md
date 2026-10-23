@@ -1,7 +1,8 @@
 # Checked reference constructor instances
 
 Data-v3 3.85 activates the unchanged regex-automata 0.4.18
-`util::search::Input::new::<[u8]>` in the native pinned compiler/target,
+`util::search::Input::new::<[u8]>`; 3.86 adds `Input::new::<str>` with explicit
+string-byte-view evidence. Both use the native pinned compiler/target,
 default and no-default-features contexts selected in
 [the development corpus](../../eval/coverage-development/input-instances/selection.json).
 Original generic definitions and frozen inventory membership remain unchanged.
@@ -37,6 +38,14 @@ instance and independently validates its complete graph. Ordinary bundles,
 scalar instances and dependency closures cannot acquire reference authority.
 No new checksum format, SHA operation or serialized lookup key is introduced.
 
+The string operation preserves the same shared lifetime and storage through
+`SharedReferent → Utf8Bytes`, with exact `str → [u8]` typing. It returns all UTF-8
+bytes without allocation, mutation or a boundary check. Its distinct summary and
+new capability leave 3.85 byte-only. Source, reaching-value and graph origins
+check the input root before projecting; component summaries independently require
+the exact projected output type/path. Missing/duplicate projections, slice inputs,
+changed element types and wrong formals reject. Unicode lengths count bytes.
+
 Expected positive behavior is unchanged original field values and saved input
 origins. Existing independent original-source oracles cover byte/text values,
 stateful/static-origin and panicking AsRef controls. Natural activation probes
@@ -44,7 +53,7 @@ require strict producer admission, complete identity matching under unchanged
 thresholds and rejection of tag, literal, origin, summary and policy corruption.
 Raw concrete facts alone must remain unavailable.
 
-String-to-byte origin conversion, From activation, foreign reference-instance
-links and foreign component summaries remain separate connected blockers.
+From activation, foreign reference-instance links and foreign component summaries
+remain separate connected blockers.
 General generic/trait selection, arbitrary mixed-enum operations, mutable memory,
 owned allocation and destructor/unwind support are outside this contract.
