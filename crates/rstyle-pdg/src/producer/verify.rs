@@ -1,7 +1,9 @@
 //! Producer handoff checks using captured source/build evidence and the real
 //! interchange boundary. Producer conformance flags are never an input proof.
 
+mod node_names;
 mod normalization;
+use node_names::node_names;
 #[cfg(test)]
 mod tests;
 use normalization::normalize;
@@ -192,52 +194,6 @@ fn add_binding_names(
 ) -> Result<(), Vec<String>> {
     add_symbols(actual, expected, names)?;
     add_definitions(actual, expected, names)
-}
-
-fn node_names(
-    actual: PairView<'_>,
-    expected: PairView<'_>,
-) -> Result<BTreeMap<String, String>, Vec<String>> {
-    if actual.pdg.nodes.len() != expected.pdg.nodes.len() {
-        return Err(vec!["Source/value operation inventory differs".to_string()]);
-    }
-    let mut names = BTreeMap::new();
-    for node in &actual.pdg.nodes {
-        let candidates: Vec<_> = expected
-            .pdg
-            .nodes
-            .iter()
-            .filter(|e| {
-                node.category == e.category
-                    && node.attributes.construct == e.attributes.construct
-                    && node.source_span.as_ref().map(|s| (s.start, s.end))
-                        == e.source_span.as_ref().map(|s| (s.start, s.end))
-                    && node.original_kind == e.original_kind
-                    && node.attributes.position == e.attributes.position
-                    && node
-                        .attributes
-                        .extensions
-                        .get("compat.rust.hir-r0:source-operation")
-                        == e.attributes
-                            .extensions
-                            .get("compat.rust.hir-r0:source-operation")
-            })
-            .collect();
-        let [candidate] = candidates.as_slice() else {
-            return Err(vec![format!(
-                "No unique source-backed correspondence for node {}",
-                node.id
-            )]);
-        };
-        if names.values().any(|id| id == &candidate.id) {
-            return Err(vec![
-                "Two nodes claim the same source operation".to_string(),
-            ]);
-        }
-        names.insert(node.id.clone(), candidate.id.clone());
-    }
-
-    Ok(names)
 }
 
 fn add_symbols(
