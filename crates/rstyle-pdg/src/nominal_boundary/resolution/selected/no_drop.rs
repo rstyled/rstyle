@@ -1,6 +1,7 @@
 //! Source-derived cleanup proof, distinct from Copy and borrowed ownership.
 use super::*;
 mod closure;
+pub(in crate::nominal_boundary::resolution) mod copy_components;
 pub(in crate::nominal_boundary::resolution) mod copy_products;
 pub(super) mod enum_errors;
 mod enum_globs;

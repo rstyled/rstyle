@@ -22,7 +22,7 @@ pub(super) mod publication;
 pub(super) mod reference_diagnostic;
 mod reference_owners;
 pub(super) use publication::capture as capture_projections;
-mod types;
+pub(in crate::hir_extraction) mod types;
 
 const KEY: &str = "rstyle.rust.call-instances";
 
@@ -77,7 +77,7 @@ struct Observation {
 }
 
 #[derive(Serialize)]
-pub(super) struct Definition {
+pub(in crate::hir_extraction) struct Definition {
     path: String,
     definition_identity: String,
     #[serde(rename = "crate")]
@@ -312,7 +312,10 @@ fn failure(status: Status, reason: &'static str) -> Outcome {
     }
 }
 
-fn definition_record(tcx: TyCtxt<'_>, definition: DefId) -> Definition {
+pub(in crate::hir_extraction) fn definition_record(
+    tcx: TyCtxt<'_>,
+    definition: DefId,
+) -> Definition {
     Definition {
         path: tcx.def_path_str(definition),
         definition_identity: format!("{:?}", tcx.def_path_hash(definition)),

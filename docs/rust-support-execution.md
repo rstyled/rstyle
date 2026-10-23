@@ -594,3 +594,38 @@ matching:one Accepted score1 pair per context. Evidence:
 `target/backtrack-match-399/{aarch64-unknown-linux-gnu,x86_64-unknown-linux-gnu,aarch64-apple-darwin}/`
 and`/tmp/rstyle-399-final5-cross.log`. Native foreign-target execution remains
 pending; cross-target metadata capture does not claim it.
+
+
+Time error-conversion readiness at `b35a98a`: freeze four unchanged original
+constructors/conversions in a separate [selection and oracle](../eval/coverage-development/time-error-conversions/README.md).
+Native default+parsing/no-default+parsing captures retain1,288/1,080 complete
+raw definitions. Both selected conversion members now retain exact core trait,
+local impl/member/source, signature and nominal DifferentVariant Error projection
+observations. A diagnostic-only recursive Copy/static-str source probe preserves
+whole-source cleanup obligations; neither increment grants admission or a new
+profile capability. Original public conversion oracle7 cases/context and copied
+private-constructor diagnostic15/context pass; the latter is not natural
+constructor execution. No SHA or serialized cache key is introduced.
+
+The full blocker chain is larger than the four bodies suggest: foreign anonymous
+trait glob `num_conv::prelude`, generated namespace `time_core::convert` reexported
+by time, lexical enum/parent globs, time's multi-arm/generated macro closure,
+then complete mixed Copy/Result payloads, guarded reference origins and lexical
+trait-body/call proof. Existing snapshots contain no foreign export footprint.
+The probe rejects the unresolved neighboring date-module glob rather than
+omitting it. Reassess this source prerequisite before further observation-only
+increments; do not claim a cheap four-function unlock. Strict admission/matching,
+foreign-target capture/native execution and natural gains remain pending. Frozen
+60 membership is unchanged;24/29/7 is the last measured result, not a rerun here.
+Evidence:`target/time-error-conversions-400/`, `/tmp/rstyle-400-time-oracle.log`,
+`/tmp/rstyle-400-time-readiness-before.json`; full contract/blockers are bundled
+with the selection rather than another extraction-profile report.
+
+Checkpoint:1,609 workspace tests/five existing skips plus doctests pass
+(`/tmp/rstyle-400-tests.log`, nextest129.483s). Final diagnostic predicate
+simplification separately passes all six source/adversarial tests. Warning-denied
+Clippy and fmt pass; style0/5,410; patterns0 unignored/15 unchanged ignores.
+Logs:`/tmp/rstyle-400-final-*`. No natural admission gain is claimed. Before more
+time metadata work, audit ordinary bidirectional Span/Range conversion ownership
+and its natural callers against the already proved private Match dependency;
+retain time's larger source prerequisite as a separate, explicit frontier.

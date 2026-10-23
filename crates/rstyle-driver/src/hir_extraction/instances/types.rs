@@ -6,7 +6,7 @@ use std::cell::Cell;
 
 #[derive(Serialize)]
 #[serde(untagged)]
-pub(super) enum Arguments {
+pub(in crate::hir_extraction) enum Arguments {
     Listed(Vec<Argument>),
     Oversized {
         identity_status: &'static str,
@@ -16,13 +16,13 @@ pub(super) enum Arguments {
 }
 
 impl Arguments {
-    pub(super) fn complete(&self) -> bool {
+    pub(in crate::hir_extraction) fn complete(&self) -> bool {
         matches!(self, Self::Listed(arguments) if arguments.iter().all(|argument| matches!(argument.identity, Identity::Known { .. })))
     }
 }
 
 #[derive(Serialize)]
-pub(super) struct Argument {
+pub(in crate::hir_extraction) struct Argument {
     kind: &'static str,
     value: String,
     display_only: bool,
@@ -62,7 +62,10 @@ enum Structural {
     ErasedRegion,
 }
 
-pub(super) fn arguments<'tcx>(tcx: TyCtxt<'tcx>, arguments: GenericArgsRef<'tcx>) -> Arguments {
+pub(in crate::hir_extraction) fn arguments<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    arguments: GenericArgsRef<'tcx>,
+) -> Arguments {
     if arguments.len() > 256 {
         return Arguments::Oversized {
             identity_status: "unsupported",
@@ -81,7 +84,10 @@ pub(super) fn arguments<'tcx>(tcx: TyCtxt<'tcx>, arguments: GenericArgsRef<'tcx>
 }
 
 /// Observe a single type with the same structural completeness contract at every site.
-pub(super) fn endpoint<'tcx>(tcx: TyCtxt<'tcx>, value: Ty<'tcx>) -> Result<Arguments, String> {
+pub(in crate::hir_extraction) fn endpoint<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    value: Ty<'tcx>,
+) -> Result<Arguments, String> {
     let observed = arguments(tcx, tcx.mk_args(&[value.into()]));
     if !observed.complete() {
         return Err("Projected type lacks complete structural identity".into());

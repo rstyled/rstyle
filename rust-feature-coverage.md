@@ -5147,3 +5147,11 @@ matching (one Accepted pair, score1). D20/D21 become Partial within the direct
 reborrows, plain/field/indexed writes and general cleanup remain unfinished.
 [Contract and validation](docs/extraction-profiles/mutable-scalar-formals-v1.md);
 [next connected caller frontier](docs/rust-support-execution.md).
+
+
+Time error-family readiness now captures exact concrete core From/TryFrom members
+and the nominal Error projection in both original parsing contexts, plus a
+diagnostic Copy/static-str source proof. No admission/profile capability changes.
+Full-owner evidence exposes foreign globs and generated/multi-arm macro closure
+before mixed Result/payload/origin activation; the four-function family remains
+unavailable. [Selection, expectations and blocker chain](eval/coverage-development/time-error-conversions/README.md).

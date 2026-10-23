@@ -19,6 +19,9 @@ mod compiled_association;
 #[path = "call_instances/mod.rs"]
 mod call_instances;
 
+#[path = "trait_members/mod.rs"]
+mod trait_members;
+
 #[path = "scalar_instances/mod.rs"]
 mod scalar_instances;
 

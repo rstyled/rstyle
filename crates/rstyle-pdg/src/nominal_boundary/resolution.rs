@@ -355,6 +355,21 @@ pub fn probe_copy_product_result(facts: &HirFnFacts) -> Result<(), String> {
     probe_product_result(facts, selected::no_drop::ProductProof::Copy)
 }
 
+/// Check complete bounded Copy components and their original source closure.
+/// Diagnostic only: this grants no value, function, trait or call permission.
+pub fn probe_copy_components_interface(facts: &HirFnFacts) -> Result<(), String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
+    let origins = facts
+        .build
+        .frontend_options
+        .data::<declaration_origins::Origins>()?;
+    selected::no_drop::copy_components::verify_interface(facts, &resolution, &origins)
+}
+
 /// Retain actual per-nominal proof receipts for an owning checked instance.
 pub(crate) fn checked_copy_product_source(
     facts: &HirFnFacts,

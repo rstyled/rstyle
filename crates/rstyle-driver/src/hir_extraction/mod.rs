@@ -36,6 +36,7 @@ mod scalar_constants;
 mod size_calls;
 pub mod source;
 mod sources;
+mod trait_members;
 mod tuple_assignment;
 mod variant_patterns;
 
@@ -112,10 +113,19 @@ fn function(
         return Ok(None);
     };
     concrete_types::capture(&ctx, &mut facts)?;
-    inherent::capture(&ctx, id, &mut facts)?;
+    capture_callable_owner(&ctx, id, &mut facts)?;
     capture_locations(&ctx, &mut facts)?;
 
     instances::capture(&ctx, id, facts).map(Some)
+}
+
+fn capture_callable_owner(
+    ctx: &hir::Context<'_>,
+    id: LocalDefId,
+    facts: &mut HirFnFacts,
+) -> Result<(), String> {
+    inherent::capture(ctx, id, facts)?;
+    trait_members::capture(ctx, id, facts)
 }
 
 fn capture_locations(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
