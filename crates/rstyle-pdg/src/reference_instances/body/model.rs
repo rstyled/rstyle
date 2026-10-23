@@ -5,7 +5,7 @@ use serde_json::Value;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Observation {
+pub(in crate::reference_instances) struct Observation {
     pub request: Request,
     pub status: String,
     pub definition: Definition,
@@ -16,18 +16,20 @@ pub(super) struct Observation {
     pub nodes: Vec<Node>,
     pub conversions: Vec<Value>,
     pub calls: Vec<Value>,
+    #[serde(default)]
+    pub outer_trait_association: Option<Value>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Request {
+pub(in crate::reference_instances) struct Request {
     pub function: String,
     pub haystack: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Definition {
+pub(in crate::reference_instances) struct Definition {
     pub path: String,
     pub definition_identity: String,
     #[serde(rename = "crate")]
@@ -38,7 +40,7 @@ pub(super) struct Definition {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Node {
+pub(in crate::reference_instances) struct Node {
     pub hir: HirRef,
     pub kind: String,
     pub ty: Vec<Argument>,
@@ -46,7 +48,7 @@ pub(super) struct Node {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Argument {
+pub(in crate::reference_instances) struct Argument {
     pub kind: String,
     #[serde(rename = "value")]
     pub _display: String,
@@ -57,7 +59,7 @@ pub(super) struct Argument {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub(super) enum Type {
+pub(in crate::reference_instances) enum Type {
     Builtin {
         name: String,
     },

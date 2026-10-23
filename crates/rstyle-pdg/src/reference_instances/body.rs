@@ -1,7 +1,7 @@
 //! Complete bounded constructor source/value-flow checks; no admission authority.
 mod library;
-mod model;
-mod preserved;
+pub(super) mod model;
+pub(super) mod preserved;
 mod projection;
 mod source;
 #[cfg(test)]

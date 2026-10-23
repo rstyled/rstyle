@@ -224,3 +224,19 @@ the complete original result tree, declaration origins and71-file source census
 for actual product cleanup; modeled cleanup witnesses alone do not establish it.
 Then connect outer From trait/impl proof, owned/component result transport and
 foreign summaries. No new capability, SHA operation or serialized lookup key.
+
+
+Data3.84 integrates bounded local component summaries and the actual outer From
+association proof. Full original constructor cleanup and selected conversion/body
+proof are available; canonical opaque compiler IDs need no new capture format.
+The next connected activation retains a private checked reference owner, covers
+only its exact deferred AsRef finding, lowers that proved operation with saved
+operand origins, and proves concrete Input slots plus the complete mixed Anchored
+type. Then connect owning artifact/caller links and foreign component summaries.
+Current mechanism fixtures do not establish original Input admission. Keep the
+error-flow frontier (original lz4_flex::uncompressed_size) and broader memory work
+active after this chain; no additional narrow numeric kernels are prioritized.
+
+The next milestone must deliver original constructor admission through this
+connected chain, rather than another diagnostic-only increment. Reassess if
+activation uncovers a new foundation that cannot finish the declared family.

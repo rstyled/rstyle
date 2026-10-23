@@ -1,5 +1,5 @@
 //! Owning-compiler reference-instance provenance; diagnostic evidence only.
-mod original;
+pub(super) mod original;
 mod projection;
 
 use super::{Definition, definition_record, types};

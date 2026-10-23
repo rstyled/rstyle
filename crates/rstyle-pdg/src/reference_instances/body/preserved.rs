@@ -29,11 +29,21 @@ pub(super) fn verify(
         || record.request.haystack != haystack
         || !matches!(haystack, "str" | "[u8]")
         || !record.calls.is_empty()
+        || record.outer_trait_association.is_some()
     {
         return Err(
             "Constructor body proof requires its exact observed Input::new instance".into(),
         );
     }
+    snapshot(canonical, record, raw, haystack)
+}
+
+pub(in crate::reference_instances) fn snapshot(
+    canonical: &HirFnFacts,
+    record: &Observation,
+    raw: &Value,
+    haystack: &str,
+) -> Result<()> {
     let original = &record.original;
     if original.name != canonical.name
         || original.fn_span != canonical.fn_span

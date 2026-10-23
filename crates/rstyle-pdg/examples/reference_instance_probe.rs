@@ -40,7 +40,7 @@ fn observations(facts: &[HirFnFacts], inventory: &Value) -> Result<(), String> {
             }
             _ => return Err("Unknown or incomplete reference observation outcome".into()),
         }
-        observation(facts, request)?;
+        observation(facts, inventory, request)?;
         observed += 1;
     }
     if observed != 4 {
@@ -49,7 +49,7 @@ fn observations(facts: &[HirFnFacts], inventory: &Value) -> Result<(), String> {
     Ok(())
 }
 
-fn observation(facts: &[HirFnFacts], request: &Value) -> Result<(), String> {
+fn observation(facts: &[HirFnFacts], inventory: &Value, request: &Value) -> Result<(), String> {
     let name = request["request"]["function"]
         .as_str()
         .ok_or("Missing function")?;
@@ -61,11 +61,55 @@ fn observation(facts: &[HirFnFacts], request: &Value) -> Result<(), String> {
         return Err(format!("Missing or ambiguous canonical original: {name}"));
     };
     let result = if name == "util::search::Input::<'h>::new" {
-        reference_instances::verify_constructor_body_observations(owner, request, haystack)
+        let argument = match haystack {
+            "str" => reference_instances::Haystack::Str,
+            "[u8]" => reference_instances::Haystack::Bytes,
+            _ => return Err("Unsupported constructor argument".into()),
+        };
+        reference_instances::verify_constructor_projection(owner, request, argument).map(|_| ())
     } else {
-        reference_instances::verify_forwarder_owner(owner, &request["provenance"], haystack)
+        forwarder(
+            facts,
+            inventory,
+            reference_instances::ReferenceObservation {
+                canonical: owner,
+                observation: request,
+            },
+            haystack,
+        )
     };
     result.map_err(|error| format!("{name}<{haystack}>: {error}"))?;
     println!("{name}<{haystack}>: observation checks passed; no admission authority");
     Ok(())
+}
+
+fn forwarder(
+    facts: &[HirFnFacts],
+    inventory: &Value,
+    forwarder: reference_instances::ReferenceObservation<'_>,
+    haystack: &str,
+) -> Result<(), String> {
+    let name = "util::search::Input::<'h>::new";
+    let originals: Vec<_> = facts.iter().filter(|facts| facts.name == name).collect();
+    let observations: Vec<_> = inventory["requests"]
+        .as_array()
+        .ok_or("Missing request inventory")?
+        .iter()
+        .filter(|entry| {
+            entry["request"]["function"] == name
+                && entry["request"]["haystack"] == haystack
+                && entry["status"] == "observed"
+        })
+        .collect();
+    let ([constructor], [observed]) = (originals.as_slice(), observations.as_slice()) else {
+        return Err("Missing or ambiguous original constructor instance".into());
+    };
+    reference_instances::verify_forwarder_body_observations(
+        forwarder,
+        reference_instances::ReferenceObservation {
+            canonical: constructor,
+            observation: observed,
+        },
+        haystack,
+    )
 }

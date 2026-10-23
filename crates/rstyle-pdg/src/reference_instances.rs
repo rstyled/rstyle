@@ -3,9 +3,12 @@
 //! These checks grant no body substitution, returned-origin, cleanup, callable,
 //! artifact, or admission authority. Canonical original facts remain unchanged.
 mod body;
+mod forwarder;
+mod materialize;
 mod operations;
 mod provenance;
 mod view_types;
+pub use materialize::{CheckedProjection, Haystack, verify as verify_constructor_projection};
 
 use crate::{HirFnFacts, extraction_profile::ExtractionProfile};
 use serde_json::Value;
@@ -30,6 +33,23 @@ pub fn verify_forwarder_owner(
     haystack: &str,
 ) -> Result<(), String> {
     verify_owner(canonical, provenance, haystack)
+}
+
+/// Verify the complete original forwarding body and selected blanket From impl.
+/// Concrete owner creation, caller links and component summaries remain separate.
+pub fn verify_forwarder_body_observations(
+    forwarder: ReferenceObservation<'_>,
+    constructor: ReferenceObservation<'_>,
+    haystack: &str,
+) -> Result<(), String> {
+    forwarder::verify(forwarder, constructor, haystack)
+}
+
+/// Original facts paired with a captured concrete reference observation.
+/// This borrowed input carries no verification authority.
+pub struct ReferenceObservation<'a> {
+    pub canonical: &'a HirFnFacts,
+    pub observation: &'a Value,
 }
 
 /// Check the complete original constructor's saved-value flow and projected

@@ -4882,3 +4882,29 @@ Integrated checkpoint:1,385 tests pass/five existing skips, doctests/fmt/Clippy
 pass; rstyle zero violations/4,496 functions and zero unignored patterns, all15
 ignores unchanged. Existing Result composition takes5.816s in this run; no
 controlled speedup or fresh admission measurement is claimed.
+
+
+Data3.84 adds component-specific local helper results for complete memory-free
+functions returning nested tuples/named products with shared-reference leaves
+from shared formals. By-value reference-bearing formals and foreign component
+summaries remain outside this contract. Each selected return component independently agrees between source origins and
+serialized value operands; saved actuals, later rebinding, nested projections and
+reads compose through real Cargo capture, strict replay and all55 fixture pairs.
+Omitted/duplicate/wrong/spliced summaries and operand swaps remain rejected.
+This is Input-chain mechanism coverage, not a newly admitted natural family.
+
+The original Input proof now checks the selected outer From trait/method/impl
+and exact constructor substitution in default/no-default slice/string captures.
+A private constructor projection normalizes only the proved formal and reads,
+preserving original source findings, generic resolution and nonformal types.
+Next activation must connect the exact AsRef operation/source finding, concrete
+struct slots and complete mixed Anchored type to an owning reference instance;
+foreign aggregate linking remains separate. No new SHA or serialized lookup keys.
+
+Integrated validation:1,406 tests/five existing skips, doctests/fmt/Clippy pass;
+rstyle zero violations/4,543 functions; patterns zero unignored candidates,
+all15 ignores unchanged. Composition1.583s, with no controlled speedup claim.
+Fresh frozen `run-8o5jdd1c` matches `run-0qhwddyy`: all60 identities/denominators,
+23 admitted/30 excluded/7 inactive, zero gains/losses and116 schema-checked graph
+documents; no additional strict frozen replay claimed. Full original native
+proofs: `/tmp/rstyle-384-original-{default,no-default}-proof.log`. Broad goal active.

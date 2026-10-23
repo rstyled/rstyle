@@ -1,4 +1,5 @@
 //! Owning reference-instance observations, never an admission or lifetime proof.
+mod association;
 use super::super::{Options, function_source, hir::Context, source};
 use super::{
     borrowed_operations, definition_record, diagnostic_support, reference_owners,
@@ -57,6 +58,8 @@ struct Body {
     nodes: Vec<Node>,
     conversions: Vec<borrowed_operations::Observation>,
     calls: Vec<Call>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    outer_trait_association: Option<association::Observation>,
 }
 
 #[derive(Serialize)]
@@ -166,6 +169,7 @@ fn body<'tcx>(
     let tcx = context.tcx;
     let projection = reference_owners::Projection::new(tcx, owner, &request.haystack)?;
     let provenance = reference_owners::capture(&context, owner, &projection)?;
+    let outer_trait_association = association::capture(tcx, owner, &projection)?;
     let projected_result = endpoint(tcx, projection.ty(tcx, context.result)?)?;
 
     let mut scan = Scan {
@@ -190,6 +194,7 @@ fn body<'tcx>(
         conversions: scan.conversions,
         calls: scan.calls,
         original: facts,
+        outer_trait_association,
     })
 }
 

@@ -6,7 +6,7 @@ use serde::Serialize;
 
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub(super) enum Type {
+pub(in crate::hir_extraction::instances) enum Type {
     Parameter {
         index: u32,
         name: String,
@@ -34,21 +34,21 @@ pub(super) enum Type {
 
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub(super) enum Region {
+pub(in crate::hir_extraction::instances) enum Region {
     Parameter { index: u32, name: String },
     Static,
 }
 
 #[derive(Serialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-pub(super) enum Argument {
+pub(in crate::hir_extraction::instances) enum Argument {
     Type(Type),
     Lifetime(Region),
 }
 
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub(super) enum Clause {
+pub(in crate::hir_extraction::instances) enum Clause {
     Trait {
         trait_definition: comparisons::CompilerDefinition,
         positive: bool,
@@ -153,7 +153,7 @@ fn tree<'tcx>(tcx: TyCtxt<'tcx>, value: Ty<'tcx>, depth: usize) -> Result<Type, 
     })
 }
 
-fn arguments<'tcx>(
+pub(in crate::hir_extraction::instances) fn arguments<'tcx>(
     tcx: TyCtxt<'tcx>,
     original: GenericArgsRef<'tcx>,
     depth: usize,
