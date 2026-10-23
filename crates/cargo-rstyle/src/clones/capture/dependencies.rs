@@ -160,6 +160,7 @@ fn select_unit(
         .iter()
         .copied()
         .filter(|index| inventory.units[*index]["pkg_id"] == identity)
+        .filter(|index| !build_script_unit(&inventory.units[*index]))
         .collect();
     let [selected] = matches.as_slice() else {
         return Err(format!(
@@ -178,6 +179,12 @@ fn select_unit(
         unit: unit.clone(),
         target: target_record(package, target, package_context(package, profile)?)?,
     })
+}
+
+fn build_script_unit(unit: &Value) -> bool {
+    unit["target"]["kind"] == serde_json::json!(["custom-build"])
+        && unit["target"]["crate_types"] == serde_json::json!(["bin"])
+        && matches!(unit["mode"].as_str(), Some("build" | "run-custom-build"))
 }
 
 fn check_unit(unit: &Value, target: Option<&str>) -> Result<(), String> {
@@ -341,6 +348,33 @@ mod tests {
         assert!(choose(&metadata, &graph, &["calendar@0.3.47"]).is_ok());
         metadata["packages"][3]["version"] = json!("0.3.47");
         assert!(choose(&metadata, &graph, &["calendar@0.3.47"]).is_err());
+    }
+
+    #[test]
+    fn build_script_units_do_not_make_a_library_selection_ambiguous() {
+        let (metadata, mut graph) = fixture();
+        for mode in ["build", "run-custom-build"] {
+            let mut script = unit(&metadata["packages"][1], &[]);
+            script["target"]["kind"] = json!(["custom-build"]);
+            script["target"]["crate_types"] = json!(["bin"]);
+            script["mode"] = json!(mode);
+            let index = graph["units"].as_array().unwrap().len();
+            graph["units"].as_array_mut().unwrap().push(script);
+            graph["units"][1]["dependencies"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({"index":index}));
+        }
+        let selected = choose(&metadata, &graph, &["calendar"]).unwrap();
+        assert_eq!(selected[0].unit, graph["units"][1]);
+        let mut duplicate = graph["units"][1].clone();
+        duplicate["features"] = json!(["other"]);
+        graph["units"].as_array_mut().unwrap().push(duplicate);
+        graph["units"][0]["dependencies"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"index":5}));
+        assert!(choose(&metadata, &graph, &["calendar"]).is_err());
     }
 
     #[test]
