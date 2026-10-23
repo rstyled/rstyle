@@ -166,14 +166,7 @@ fn substituted_arguments<'tcx>(
     projection: &Projection<'tcx>,
     arguments: ty::GenericArgsRef<'tcx>,
 ) -> Result<types::Arguments, String> {
-    let substituted = projection
-        .args(tcx, arguments)
-        .map_err(|error| error.to_string())?;
-    let result = types::arguments(tcx, substituted);
-    if !result.complete() {
-        return Err("Incomplete substituted bound arguments".into());
-    }
-    Ok(result)
+    Ok(super::projection::complete_arguments(tcx, projection.args(tcx, arguments))?.observation)
 }
 
 fn compiler_bounds<'tcx>(

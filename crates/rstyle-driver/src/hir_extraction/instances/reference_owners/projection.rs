@@ -71,15 +71,9 @@ impl<'tcx> Projection<'tcx> {
         typeck: &TypeckResults<'tcx>,
         node: HirId,
     ) -> Result<Ty<'tcx>, String> {
-        if typeck.hir_owner.def_id != self.owner || node.owner.def_id != self.owner {
-            return Err("Reference projection typeck/HIR owner differs".into());
-        }
-        self.ty(
-            tcx,
-            typeck
-                .node_type_opt(node)
-                .ok_or("Reference projection lacks original node type")?,
-        )
+        super::super::projection::project_node(self.owner, typeck, node, |original| {
+            self.ty(tcx, original)
+        })
     }
 
     pub(in crate::hir_extraction::instances) fn args(
@@ -87,11 +81,10 @@ impl<'tcx> Projection<'tcx> {
         tcx: TyCtxt<'tcx>,
         original: GenericArgsRef<'tcx>,
     ) -> Result<GenericArgsRef<'tcx>, String> {
-        let projected = self.normalize(tcx, original)?;
-        if !types::arguments(tcx, projected).complete() {
-            return Err("Projected reference arguments lack bounded structural identity".into());
-        }
-        Ok(projected)
+        Ok(
+            super::super::projection::complete_arguments(tcx, self.normalize(tcx, original))?
+                .arguments,
+        )
     }
 
     pub(in crate::hir_extraction::instances) fn select(

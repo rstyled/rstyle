@@ -107,11 +107,7 @@ impl<'tcx> Projection<'tcx> {
         typeck: &TypeckResults<'tcx>,
         node: HirId,
     ) -> Result<Ty<'tcx>, Error> {
-        if typeck.hir_owner.def_id != self.owner || node.owner.def_id != self.owner {
-            return Err(Error::OwnerMismatch);
-        }
-
-        let original = typeck.node_type_opt(node).ok_or(Error::MissingNodeType)?;
+        let original = original_node_type(self.owner, typeck, node)?;
         self.ty(tcx, original)
     }
 
@@ -141,6 +137,53 @@ impl<'tcx> Projection<'tcx> {
         self.args(tcx, instance.args)?;
         Ok(instance)
     }
+}
+
+/// Look up only original owner-local node types, before applying a lens grammar.
+fn original_node_type<'tcx>(
+    owner: LocalDefId,
+    typeck: &TypeckResults<'tcx>,
+    node: HirId,
+) -> Result<Ty<'tcx>, Error> {
+    if typeck.hir_owner.def_id != owner || node.owner.def_id != owner {
+        return Err(Error::OwnerMismatch);
+    }
+
+    typeck.node_type_opt(node).ok_or(Error::MissingNodeType)
+}
+
+/// Associated lenses share lookup mechanics, while the callback retains each
+/// lens's own normalized type grammar and evidence requirements.
+pub(super) fn project_node<'tcx>(
+    owner: LocalDefId,
+    typeck: &TypeckResults<'tcx>,
+    node: HirId,
+    project: impl FnOnce(Ty<'tcx>) -> Result<Ty<'tcx>, String>,
+) -> Result<Ty<'tcx>, String> {
+    let original = original_node_type(owner, typeck, node).map_err(|error| error.to_string())?;
+    project(original)
+}
+
+/// Preserve the caller's substitution grammar, then require complete structural
+/// identities before publishing any observed argument roster.
+pub(super) struct CheckedArguments<'tcx> {
+    pub(super) arguments: GenericArgsRef<'tcx>,
+    pub(super) observation: super::types::Arguments,
+}
+
+pub(super) fn complete_arguments<'tcx, E: fmt::Display>(
+    tcx: TyCtxt<'tcx>,
+    normalized: Result<GenericArgsRef<'tcx>, E>,
+) -> Result<CheckedArguments<'tcx>, String> {
+    let arguments = normalized.map_err(|error| error.to_string())?;
+    let observation = super::types::arguments(tcx, arguments);
+    if !observation.complete() {
+        return Err("Substituted arguments lack complete bounded structural identities".into());
+    }
+    Ok(CheckedArguments {
+        arguments,
+        observation,
+    })
 }
 
 /// Shared substitution mechanics; callers retain their own owner/type grammar.

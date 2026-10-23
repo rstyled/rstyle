@@ -15,6 +15,7 @@ mod calls;
 mod comparisons;
 pub(super) mod diagnostic;
 mod diagnostic_support;
+pub(super) mod product_diagnostic;
 mod projection;
 mod provenance;
 pub(super) mod publication;

@@ -5072,3 +5072,12 @@ mutable memory, escaping storage and drop/unwind remain separate. Next source
 readiness audit prioritizes exact `Match::new<Span/Range<usize>>` Into→From chains;
 error-payload and mutable-formal alternatives remain in the execution frontier.
 Broader P01–P22 work and native x86/macOS execution checks remain outstanding.
+
+Match preparation now freezes both concrete substitutions in a separate
+[development corpus](eval/coverage-development/match-construction/README.md).
+Original-library oracle passes default/no-default (22,475 cases/context);
+no-default owning diagnostics retain590 definitions and both concrete conversion
+observations. This grants no admission. Remaining chain: active Copy/source
+closure → verified blanket Into→From forwarding → complete scalar-product and
+assertion composition → affine Range consumption. Data3.90 Linux ARM/x86 native
+CI passed; macOS Tests failed, with detailed failure output still unavailable.

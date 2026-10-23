@@ -390,3 +390,20 @@ All three candidates have unresolved capture/interface questions; reassess if a
 large prerequisite chain yields no useful originals. Preserve all earlier owners,
 foreign/linking restrictions and frozen membership. Native x86/macOS execution,
 full-library matching, general cleanup and broader P01–P22 routes remain active.
+
+Match readiness now has a separate frozen two-instance
+[development corpus](../eval/coverage-development/match-construction/README.md).
+Native default/no-default original-library oracle:11,448 successes,11,024 exact
+assertion panics and3 conversion/drop adversaries per context,0 mismatches;
+Range:Copy independently fails. Native no-default owning diagnostics retain590
+original definitions and both16-node concrete observations, including the selected
+local From body. No new admission capability or gain is claimed. The enriched
+roster already captures complete Match/PatternID/SmallIndex/Span trees and Copy
+origins; activation still needs source closure, verified blanket Into delegation,
+full scalar-product composition and separate affine Range consumption. Bare
+diagnostic source_scan_complete=false remains preserved, not treated as clean.
+Evidence:`/tmp/rstyle-391-*`. Data3.90 native Linux ARM/x86 CI passed; macOS Tests
+failed and its failing-test log remains required (unauthenticated log API403).
+Preparation checkpoint:1,499 tests/five existing skips and doctests pass;
+fmt/Clippy pass; style0/4,878, patterns0 with15 existing ignores unchanged.
+This is capture readiness, not strict instance replay/admission or matching.

@@ -19,7 +19,8 @@ pub(crate) fn capture_instance_diagnostics(
     options: &Options<'_>,
 ) -> Result<(), String> {
     instances::diagnostic::capture(tcx, scanned, options)?;
-    instances::reference_diagnostic::capture(tcx, scanned, options)
+    instances::reference_diagnostic::capture(tcx, scanned, options)?;
+    instances::product_diagnostic::capture(tcx, scanned, options)
 }
 mod library_resolution;
 mod module_expansions;
