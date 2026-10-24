@@ -1,4 +1,4 @@
-//! Complete observations cannot grant unproved tagged reference operations.
+//! Checked original conversions admit; unproved tagged reference callers stay excluded.
 use super::float_kernels::function;
 use super::*;
 use rstyle_pdg::concrete_types::{InterfaceObservations, Observation, TypeTree};
@@ -9,7 +9,7 @@ mod component_range { pub struct ComponentRange { unrelated: usize } }
 mod error {
     mod component_range {
         #[derive(Clone, Copy)]
-        pub struct ComponentRange { name: &'static str, conditional: bool }
+        pub struct ComponentRange { name: &'static str, is_conditional: bool }
     }
     mod different_variant {
         #[derive(Clone, Copy)]
@@ -115,7 +115,7 @@ fn verify_source_probes(report: &Value) {
         .collect();
     assert_eq!(entries.len(), 2);
     for entry in entries {
-        assert_eq!(entry["outcome"], "excluded");
+        assert_eq!(entry["outcome"], "admitted", "{}", entry["reasons"]);
         let (store, index) = shared_evidence::load(entry);
         let facts = &store.functions()[index];
         rstyle_pdg::nominal_boundary::resolution::probe_copy_conversion_source(facts)

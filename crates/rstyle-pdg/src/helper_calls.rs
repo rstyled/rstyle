@@ -310,6 +310,7 @@ pub(crate) fn call_nodes(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
             && !crate::checked_options::constructor_candidate(node, facts)
             && !crate::concrete_results::constructor_candidate(node, facts)
             && !crate::data_enums::constructor_candidate(node, facts)
+            && !crate::copy_tagged_values::body_operation(node, facts)
     });
 
     let mut methods = Vec::new();
@@ -685,7 +686,10 @@ fn ordinary_signature(
             }))
 }
 
-fn same_build(caller: &dyn EvidenceFacts, callee: &dyn EvidenceFacts) -> Result<bool, String> {
+pub(crate) fn same_build(
+    caller: &dyn EvidenceFacts,
+    callee: &dyn EvidenceFacts,
+) -> Result<bool, String> {
     let profile = crate::extraction_profile::ExtractionProfile::from_facts(caller)?;
     let compatible = caller.build.overflow_checks == callee.build.overflow_checks
         && caller.build.debug_assertions == callee.build.debug_assertions

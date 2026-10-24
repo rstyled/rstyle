@@ -18,6 +18,7 @@ mod checked_options;
 mod checked_slice_views;
 mod checked_suffix_views;
 mod conditional_payloads;
+pub(crate) mod copy_tagged_values;
 mod fieldless_enums;
 mod float_scalars;
 mod helper_option_callbacks;
@@ -47,6 +48,7 @@ pub(crate) mod scalar_result_propagation;
 mod size_calls;
 mod subslice_views;
 mod summary_records;
+mod value_consumers;
 mod value_fields;
 pub(crate) use locations::{LocationContext, correspondence as location_correspondence};
 
@@ -443,7 +445,7 @@ pub fn verify<'a>(
     aggregates::verify(pair, facts)?;
     byte_scalars::verify(pair, facts)?;
     bool_constants::verify(pair, facts)?;
-    scalar_enums::verify(pair, facts)?;
+    verify_enum_values(pair, facts)?;
     locals::verify(pair, facts)?;
     verify_interface(pair, facts)?;
 
@@ -477,6 +479,22 @@ pub fn verify<'a>(
     verify_reads(pair, fields.operations.len())?;
     borrows::verify(pair, facts)?;
     origins::verify(pair, facts)
+}
+
+fn verify_enum_values(
+    pair: PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    if crate::copy_tagged_values::candidate(facts) {
+        let resolution = facts.nominal_resolution()?;
+        let receipt = resolution
+            .copy_conversion_source(facts.facts())?
+            .ok_or("Missing checked original conversion graph authority")?;
+        copy_tagged_values::verify(pair, facts, receipt)?;
+    } else {
+        scalar_enums::verify(pair, facts)?;
+    }
+    Ok(())
 }
 
 fn verify_registration(

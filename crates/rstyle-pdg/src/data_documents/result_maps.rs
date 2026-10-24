@@ -1,4 +1,5 @@
 //! Independent replay of tag guards, exact constructors and conserved payloads.
+use super::value_consumers::verify as consumers;
 use super::*;
 use crate::{
     CfgEdgeKind,
@@ -439,34 +440,6 @@ fn operands(
         &[ops.results[selected]],
         "value_operand",
     )
-}
-
-fn consumers(
-    pair: PairView<'_>,
-    saved: &PdgNode,
-    expected: &[&PdgNode],
-    kind: &str,
-) -> Result<(), String> {
-    let actual: Vec<_> = pair
-        .pdg
-        .edges
-        .iter()
-        .filter(|edge| edge.source == saved.id && edge.kind == crate::EdgeFamily::Data)
-        .collect();
-    if actual.len() != expected.len()
-        || expected.iter().any(|node| {
-            actual
-                .iter()
-                .filter(|edge| edge.target == node.id && edge.subkind == kind)
-                .count()
-                != 1
-        })
-    {
-        return Err(
-            "Result transport payload has missing, duplicated or unrelated consumers".into(),
-        );
-    }
-    Ok(())
 }
 
 fn order(pair: PairView<'_>, checked: &CheckedMap<'_>, ops: &Operations<'_>) -> Result<(), String> {

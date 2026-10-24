@@ -5266,3 +5266,13 @@ observations and proves the two original time From/TryFrom members in both nativ
 feature contexts. Guarded values and caller summaries remain closed. The unchanged
 selection stays22/1,407 admitted; strict replay completes231 pairs and frozen60
 is unchanged. [Validation and the connected frontier](docs/rust-support-execution.md#tagged-copy-conversion-prerequisite-data3102-no-activation).
+
+Data3.103 connects the two original time Copy conversion methods through exact
+member/source ownership, saved tagged inputs, guarded payload bindings and
+component-specific reference origins. The nominal unit error remains distinct
+from `()`, with an explicit empty-reference failure alternative. Fresh native
+default/parsing capture on the unchanged 1,407-function selection gains exactly
+the original `From` and inverse `TryFrom`: 22→24 admitted, zero losses, unchanged
+remaining outcomes/reasons, and complete matching. Caller summaries still require
+actual/formal substitution and caller-scoped guards; parser callers additionally
+require their concrete instance, callback and Result composition dependencies.

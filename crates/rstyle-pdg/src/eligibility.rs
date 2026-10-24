@@ -612,9 +612,36 @@ fn check_result_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 }
 
+fn check_copy_conversion_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    (node.hir == ctx.facts.body.hir
+        && node.span == ctx.facts.body.span
+        && crate::copy_tagged_values::candidate(ctx.facts))
+    .then(|| check_copy_conversion(node, ctx))
+}
+
+fn check_copy_conversion(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::copy_tagged_values::verify_function(ctx.facts) {
+        Ok(true) => Outcome::ok(),
+        result => {
+            let reason = result
+                .err()
+                .unwrap_or_else(|| "Missing complete original conversion proof".into());
+            error(
+                crate::copy_tagged_values::CAPABILITY,
+                "conversion",
+                node,
+                &reason,
+            )
+        }
+    }
+}
+
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if let Some(outcome) = check_copy_conversion_body(node, ctx) {
+        return outcome;
+    }
     if let Some(outcome) = check_transport_body(node, ctx) {
         return outcome;
     }

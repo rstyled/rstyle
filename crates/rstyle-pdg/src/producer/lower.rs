@@ -5,6 +5,7 @@ mod borrowed_result_propagation;
 mod callbacks;
 mod checked_slice_views;
 mod checked_suffix_views;
+mod copy_tagged_values;
 mod enums;
 mod helper_option_callbacks;
 mod iterator_position;
@@ -218,15 +219,24 @@ impl Builder<'_> {
     }
 
     fn expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        if crate::data_enums::constructor_candidate(node, self.facts) {
-            return self.structure(node, flow);
+        if crate::copy_tagged_values::body_operation(node, self.facts) {
+            return self.copy_tagged_value(node, flow);
         }
-        if crate::checked_options::constructor_candidate(node, self.facts)
+        if crate::data_enums::constructor_candidate(node, self.facts)
+            || crate::checked_options::constructor_candidate(node, self.facts)
             || crate::concrete_results::constructor_candidate(node, self.facts)
         {
-            return self.variant_constructor(node, flow);
+            return self.data_constructor(node, flow);
         }
         lowerer(node, self.facts)(self, node, flow)
+    }
+
+    fn data_constructor(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_enums::constructor_candidate(node, self.facts) {
+            self.structure(node, flow)
+        } else {
+            self.variant_constructor(node, flow)
+        }
     }
 
     fn compile_time_item(&mut self, _: &HirNode, flow: Flow) -> Flow {

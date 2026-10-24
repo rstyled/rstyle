@@ -1,13 +1,20 @@
 //! Original tagged Copy conversion source and target cleanup only.
 //! Core trait selection, namespace permission, values and origins are separate.
+mod checked;
 mod owner;
 mod source;
 mod targets;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use checked::CheckedConversion;
+pub(in crate::nominal_boundary::resolution) use checked::capture_checked;
+
 use super::*;
-use crate::nominal_boundary::{census::expansions::FileSpan, resolution::Resolution};
+use crate::nominal_boundary::{
+    census::expansions::FileSpan,
+    resolution::{Namespace, Resolution},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::nominal_boundary::resolution) enum Direction {
@@ -55,6 +62,8 @@ impl Endpoints {
 /// namespace certificate. It retains only the exact conversion source anchors.
 pub(in crate::nominal_boundary::resolution) struct CheckedSource {
     endpoints: Endpoints,
+    namespace: Namespace,
+    targets: Vec<targets::Target>,
     implementation: FileSpan,
     method: FileSpan,
     associated_error: Option<FileSpan>,
@@ -87,7 +96,7 @@ pub(in crate::nominal_boundary::resolution) fn capture(
     interface.validate()?;
     let endpoints = targets::endpoints(&interface)?;
     resolution.verify_transport_origins(&interface, origins)?;
-    targets::verify(facts, resolution, origins, &endpoints)?;
+    let targets = targets::verify(facts, resolution, origins, &endpoints)?;
 
     let function = crate::data_frontend::source_function(facts, Some(resolution))?;
     source::function(&function, &endpoints)?;
@@ -96,6 +105,8 @@ pub(in crate::nominal_boundary::resolution) fn capture(
 
     Ok(CheckedSource {
         endpoints,
+        namespace: site.namespace,
+        targets,
         implementation: site.implementation,
         method: site.method,
         associated_error: site.associated_error,

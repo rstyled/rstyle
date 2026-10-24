@@ -27,6 +27,10 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
         let places = crate::data_places::Places::verify(facts)?;
         return observation.finish(verify_nodes(&facts.body, facts, &places));
     }
+    if crate::copy_tagged_values::verify_function(facts)? {
+        verify_fields(facts)?;
+        return observation.finish(Ok(()));
+    }
     crate::character_scalars::verify_function(facts)?;
     crate::float_scalars::verify_function(facts)?;
     crate::range_values::verify_function(facts)?;
@@ -71,6 +75,12 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    crate::extraction_profile::require_document(
+        profile,
+        crate::copy_tagged_values::CAPABILITY,
+        || crate::copy_tagged_values::candidate(facts),
+        "Tagged Copy conversions require their registered document policy",
+    )?;
     if facts.scalar_instance().is_some()
         && !crate::extraction_profile::policy_supports(profile, crate::scalar_instances::CAPABILITY)
     {

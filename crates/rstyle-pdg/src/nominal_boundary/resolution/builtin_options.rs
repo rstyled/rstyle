@@ -4,6 +4,7 @@
 use super::selected::no_drop::scalar_result_owners::CheckedScalarResultSource;
 use super::*;
 use syn::visit::Visit;
+mod copy_conversions;
 
 /// Original Result path and its optional selected constructor tag.
 pub(super) struct ResultSource<'a> {

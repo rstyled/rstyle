@@ -13,6 +13,13 @@ pub(super) fn install(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::copy_tagged_values::candidate(facts) {
+        let resolution = facts.nominal_resolution()?;
+        let receipt = resolution
+            .copy_conversion_source(facts.facts())?
+            .ok_or("Missing checked original conversion origins authority")?;
+        return super::copy_tagged_values::origins::install(pair, facts, receipt);
+    }
     for node in &mut pair.pdg.nodes {
         if reference(node)? {
             let origins = source_origins(node, facts)?;
@@ -29,6 +36,13 @@ pub(super) fn verify(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::copy_tagged_values::candidate(facts) {
+        let resolution = facts.nominal_resolution()?;
+        let receipt = resolution
+            .copy_conversion_source(facts.facts())?
+            .ok_or("Missing checked original conversion origins authority")?;
+        return super::copy_tagged_values::origins::verify(pair, facts, receipt);
+    }
     for node in &pair.pdg.nodes {
         verify_type(node, facts)?;
         if !reference(node)? {

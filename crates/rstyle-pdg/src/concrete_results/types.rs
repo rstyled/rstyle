@@ -81,6 +81,10 @@ pub(crate) fn payload(
     let TypeToken::Result { ok, err } = crate::data_aggregates::parsed_type(node)? else {
         return Err("Result construction requires its concrete two-child type".into());
     };
+    if crate::copy_tagged_values::candidate(facts) {
+        verify_conversion_payload(&ok, &err, facts)?;
+        return Ok((*ok, *err));
+    }
     if fresh_products::GRAMMAR.permits(&ok, &err) {
         let boundary = fresh_products::product_boundary(facts)?;
         if *ok != boundary.ok || *err != boundary.error {
@@ -109,11 +113,21 @@ pub(crate) fn payload(
         }
         return Ok((*ok, *err));
     }
-    if !matches!(ok.as_ref(), TypeToken::Scalar(unit) if unit == "unit") {
+    verify_unit_payload(&ok, &err, facts)?;
+
+    Ok((*ok, *err))
+}
+
+fn verify_unit_payload(
+    ok: &TypeToken,
+    err: &TypeToken,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    if !matches!(ok, TypeToken::Scalar(unit) if unit == "unit") {
         return Err("Initial concrete Result supports only a unit success payload".into());
     }
 
-    let TypeToken::Struct { nominal, fields } = err.as_ref() else {
+    let TypeToken::Struct { nominal, fields } = err else {
         return Err("Initial concrete Result requires a nominal unit-field error".into());
     };
     if fields != &[("0".into(), TypeToken::Scalar("unit".into()))]
@@ -122,7 +136,26 @@ pub(crate) fn payload(
         return Err("Result construction lacks exact no-drop error identity".into());
     }
 
-    Ok((*ok, *err))
+    Ok(())
+}
+
+fn verify_conversion_payload(
+    ok: &TypeToken,
+    err: &TypeToken,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let resolution = facts.nominal_resolution()?;
+    let receipt = resolution
+        .copy_conversion_source(facts.facts())?
+        .ok_or("Missing exact conversion Result proof")?;
+    if (TypeToken::Result {
+        ok: Box::new(ok.clone()),
+        err: Box::new(err.clone()),
+    }) != TypeToken::from_tree(receipt.output())
+    {
+        return Err("Conversion Result differs from its exact checked output".into());
+    }
+    Ok(())
 }
 
 pub(super) fn contains_owned(ty: &TypeToken, error: &TypeToken) -> bool {

@@ -5,6 +5,7 @@ use crate::source_evidence::trait_members::{self, AttributePolicy};
 use syn::spanned::Spanned;
 
 pub(super) struct Site {
+    pub namespace: Namespace,
     pub implementation: FileSpan,
     pub method: FileSpan,
     pub associated_error: Option<FileSpan>,
@@ -123,6 +124,7 @@ impl Owner<'_> {
         };
 
         Ok(Site {
+            namespace: module.namespace.clone(),
             implementation: anchor(implementation_source_span(bytes, item)),
             method: anchor(self.facts.fn_span),
             associated_error: associated_error

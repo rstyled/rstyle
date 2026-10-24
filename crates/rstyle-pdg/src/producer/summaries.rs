@@ -68,16 +68,20 @@ impl SummaryCapture<'_> {
         if crate::named_callbacks::function_item(node) {
             records.push(self.record(node)?);
         }
-        if matches!(node.kind.as_str(), "expr_call" | "expr_method_call")
-            && !crate::checked_options::constructor_candidate(node, self.facts)
-            && !crate::concrete_results::constructor_candidate(node, self.facts)
-            && !crate::data_enums::constructor_candidate(node, self.facts)
-            && !crate::option_callbacks::candidate(node, self.facts)
-        {
+        if self.helper_call(node) {
             records.push(self.record(node)?);
         }
 
         Ok(records)
+    }
+
+    fn helper_call(&self, node: &HirNode) -> bool {
+        matches!(node.kind.as_str(), "expr_call" | "expr_method_call")
+            && !crate::checked_options::constructor_candidate(node, self.facts)
+            && !crate::concrete_results::constructor_candidate(node, self.facts)
+            && !crate::data_enums::constructor_candidate(node, self.facts)
+            && !crate::copy_tagged_values::body_operation(node, self.facts)
+            && !crate::option_callbacks::candidate(node, self.facts)
     }
 
     fn record(&self, node: &HirNode) -> Result<Value, String> {

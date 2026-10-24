@@ -58,13 +58,20 @@ pub(super) fn vocabulary(endpoints: &Endpoints) -> Result<(), String> {
     Ok(())
 }
 
+pub(super) struct Target {
+    pub tree: TypeTree,
+    pub namespace: Namespace,
+    pub cleanup: CheckedNoDrop,
+}
+
 pub(super) fn verify(
     facts: &HirFnFacts,
     resolution: &Resolution,
     origins: &Origins,
     endpoints: &Endpoints,
-) -> Result<(), String> {
+) -> Result<Vec<Target>, String> {
     let proof = product_fields::Proof::copy_product(facts, resolution, origins);
+    let mut targets = Vec::new();
 
     for tree in [
         Some(endpoints.product()),
@@ -78,21 +85,25 @@ pub(super) fn verify(
         let item = proof.item(&key)?;
         copy_components::verify_target_source(item, tree)?;
         original_payload(item, resolution, &key, endpoints)?;
-        let attributes = super::super::super::declaration_attributes(item, tree)?;
-        if !super::super::super::checked_copy(facts, origins, tree, attributes)? {
-            return Err(
-                "Copy conversion target lacks its exact positive builtin Copy proof".into(),
-            );
-        }
-        match item {
-            syn::Item::Struct(item) => super::super::super::structure(facts, item, true)?,
-            syn::Item::Enum(item) => super::super::super::scalar_enum(facts, item)?,
-            _ => {
-                return Err("Copy conversion target is not an original nominal declaration".into());
-            }
-        }
+        verify_copy(facts, origins, item, tree)?;
+        let declaration = resolution
+            .environment
+            .index
+            .declarations
+            .get(&key)
+            .ok_or("Missing exact Copy conversion target declaration")?;
+        let (nominal, _) = tree
+            .nominal_parts()
+            .ok_or("Missing Copy conversion target nominal")?;
+        targets.push(Target {
+            tree: tree.clone(),
+            namespace: declaration.namespace.clone(),
+            cleanup: CheckedNoDrop {
+                nominal: nominal.clone(),
+            },
+        });
     }
-    Ok(())
+    Ok(targets)
 }
 
 fn original_payload(
@@ -149,4 +160,39 @@ pub(super) fn nominal_unit(item: &syn::ItemStruct) -> Result<(), String> {
         return Err("Copy conversion error must be its original nominal unit struct".into());
     }
     Ok(())
+}
+
+fn verify_copy(
+    facts: &HirFnFacts,
+    origins: &Origins,
+    item: &syn::Item,
+    tree: &TypeTree,
+) -> Result<(), String> {
+    let attributes = super::super::super::declaration_attributes(item, tree)?;
+    if !super::super::super::checked_copy(facts, origins, tree, attributes)? {
+        return Err("Copy conversion target lacks its exact positive builtin Copy proof".into());
+    }
+    match item {
+        syn::Item::Struct(item) => super::super::super::structure(facts, item, true),
+        syn::Item::Enum(item) => super::super::super::scalar_enum(facts, item),
+        _ => Err("Copy conversion target is not an original nominal declaration".into()),
+    }
+}
+
+pub(super) fn find<'a>(targets: &'a [Target], tree: &TypeTree) -> Option<&'a Target> {
+    targets.iter().find(|target| target.tree == *tree)
+}
+
+pub(super) fn namespace(
+    targets: &[Target],
+    tree: &TypeTree,
+    namespace: &[String],
+) -> Result<bool, String> {
+    let Some(target) = find(targets, tree) else {
+        return Ok(false);
+    };
+    if target.namespace != namespace {
+        return Err("Copy conversion target differs from its exact declaration namespace".into());
+    }
+    Ok(true)
 }

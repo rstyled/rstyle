@@ -22,7 +22,7 @@ fn field(position: usize, name: &str, ty: TypeTree) -> Field {
     }
 }
 
-fn endpoints(direction: Direction) -> Endpoints {
+pub(super) fn endpoints(direction: Direction) -> Endpoints {
     let product = TypeTree::Struct {
         nominal: nominal("ComponentRange"),
         source: "source-only".into(),

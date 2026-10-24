@@ -28,6 +28,7 @@ mod selected;
 pub(crate) use selected::no_drop::{expand_local_ident_macro, expand_local_ident_source};
 pub(crate) mod value_traits;
 pub(crate) use environment::{Environment, SourceOptions};
+pub(crate) use selected::no_drop::copy_conversion_sites::CheckedConversion as CheckedCopyConversion;
 pub(crate) use selected::no_drop::copy_products::CheckedCopyProductSource;
 mod import_chains;
 mod variants;
@@ -67,6 +68,7 @@ pub struct Resolution {
     copy_owner_source: Option<selected::no_drop::copy_owners::CheckedCopyOwnerSource>,
     scalar_result_source:
         Option<selected::no_drop::scalar_result_owners::CheckedScalarResultSource>,
+    copy_conversion_source: Option<CheckedCopyConversion>,
     transport_sources: Option<result_maps::TransportSources>,
 }
 
@@ -90,6 +92,18 @@ fn requires_mixed_owner(tree: &TypeTree) -> bool {
 }
 
 impl Resolution {
+    /// A receipt is reusable only for the same immutable source/member inputs.
+    pub(crate) fn copy_conversion_source(
+        &self,
+        facts: &HirFnFacts,
+    ) -> Result<Option<&CheckedCopyConversion>, String> {
+        let Some(receipt) = &self.copy_conversion_source else {
+            return Ok(None);
+        };
+        receipt.checked_namespace(facts, &self.environment)?;
+        Ok(Some(receipt))
+    }
+
     pub(crate) fn verify_transport_origins(
         &self,
         interface: &InterfaceObservations,
@@ -142,6 +156,16 @@ impl Resolution {
         if path.qself.is_some() {
             return Err("Result type cannot use a qualified trait path".into());
         }
+        if let Some(receipt) = &self.copy_conversion_source {
+            return self.environment.verify_conversion_result_source(
+                facts,
+                builtin_options::ResultSource {
+                    path: &path.path,
+                    variant: None,
+                },
+                receipt,
+            );
+        }
         if let Some(receipt) = &self.scalar_result_source {
             return self.environment.verify_checked_result_source(
                 facts,
@@ -152,6 +176,7 @@ impl Resolution {
                 receipt,
             );
         }
+
         if self.transport_source().is_some() {
             return self.verify_transport_result_type(facts, &path.path);
         }
@@ -165,6 +190,16 @@ impl Resolution {
         path: &syn::Path,
         variant: &str,
     ) -> Result<(), String> {
+        if let Some(receipt) = &self.copy_conversion_source {
+            return self.environment.verify_conversion_result_source(
+                facts.facts(),
+                builtin_options::ResultSource {
+                    path,
+                    variant: Some(variant),
+                },
+                receipt,
+            );
+        }
         if let Some(receipt) = &self.scalar_result_source {
             return self.environment.verify_checked_result_source(
                 facts.facts(),
@@ -411,6 +446,7 @@ fn capture_function_sources(
     resolution: &mut Resolution,
 ) -> Result<(), String> {
     capture_owner_sources(input.facts(), resolution)?;
+    capture_copy_conversion(input.facts(), resolution)?;
     capture_transport_sources(input, resolution)
 }
 
@@ -486,6 +522,19 @@ fn capture_owner_sources(facts: &HirFnFacts, resolution: &mut Resolution) -> Res
     Ok(())
 }
 
+fn capture_copy_conversion(facts: &HirFnFacts, resolution: &mut Resolution) -> Result<(), String> {
+    if crate::copy_tagged_values::candidate(facts) {
+        let origins = facts
+            .build
+            .frontend_options
+            .data::<declaration_origins::Origins>()?;
+        resolution.copy_conversion_source = Some(
+            selected::no_drop::copy_conversion_sites::capture_checked(facts, resolution, &origins)?,
+        );
+    }
+    Ok(())
+}
+
 /// Check the complete captured result's cleanup obligations without authorizing
 /// construction, calls, source finding coverage, or admission.
 pub fn probe_reference_product_result(facts: &HirFnFacts) -> Result<(), String> {
@@ -516,37 +565,36 @@ pub fn probe_copy_components_interface(facts: &HirFnFacts) -> Result<(), String>
 /// Check exact original tagged conversions, positive target Copy cleanup and
 /// selected core conversion membership. Grants no values, origins or admission.
 pub fn probe_copy_conversion_source(facts: &HirFnFacts) -> Result<(), String> {
-    use selected::no_drop::copy_conversion_sites;
+    let _checked = checked_copy_conversion_source(facts)?;
+    Ok(())
+}
 
+/// Retain the exact original conversion's source, cleanup and selected member.
+/// This receipt alone grants no value, origin or callable-summary permission.
+pub(crate) fn checked_copy_conversion_source(
+    facts: &HirFnFacts,
+) -> Result<CheckedCopyConversion, String> {
+    use selected::no_drop::copy_conversion_sites;
     let interface = facts
         .build
         .frontend_options
         .data::<InterfaceObservations>()?;
-    let resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
+    let mut resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
     let origins = facts
         .build
         .frontend_options
         .data::<declaration_origins::Origins>()?;
-    let source = copy_conversion_sites::capture(facts, &resolution, &origins)?;
-    let endpoints = source.endpoints();
-    let direction = match endpoints.direction() {
-        copy_conversion_sites::Direction::Wrap => crate::copy_conversion_members::Direction::Wrap,
-        copy_conversion_sites::Direction::Unwrap => {
-            crate::copy_conversion_members::Direction::Unwrap
-        }
-    };
-    crate::copy_conversion_members::verify(
+
+    resolution.copy_conversion_source = Some(copy_conversion_sites::capture_checked(
         facts,
-        crate::copy_conversion_members::Contract {
-            direction,
-            input: endpoints.input(),
-            output: endpoints.output(),
-            implementation_source: source.implementation(),
-            method_source: source.method(),
-            error_source: source.associated_error(),
-        },
-    )?;
-    Ok(())
+        &resolution,
+        &origins,
+    )?);
+    resolution.select_copies(facts, &origins, None)?;
+    bind_copy_conversion_function(facts, &mut resolution)?;
+    resolution
+        .copy_conversion_source
+        .ok_or_else(|| "Missing retained Copy conversion source proof".into())
 }
 
 /// Retain actual per-nominal proof receipts for an owning checked instance.
@@ -600,6 +648,7 @@ fn declaration_resolution(
         source_requirements: Default::default(),
         copy_owner_source: None,
         scalar_result_source: None,
+        copy_conversion_source: None,
         transport_sources: None,
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
@@ -1024,7 +1073,7 @@ fn bind_selected_function(
     input: &dyn crate::unit_store::EvidenceFacts,
     resolution: &mut Resolution,
 ) -> Result<bool, String> {
-    if resolution.bind_transport_function(input.facts())? {
+    if bind_exact_source_function(input.facts(), resolution)? {
         return Ok(true);
     }
     if bind_value_trait_function(input, resolution)? {
@@ -1034,11 +1083,55 @@ fn bind_selected_function(
     range_from::bind(input.facts(), resolution)
 }
 
+fn bind_exact_source_function(
+    facts: &HirFnFacts,
+    resolution: &mut Resolution,
+) -> Result<bool, String> {
+    if bind_copy_conversion_function(facts, resolution)? {
+        return Ok(true);
+    }
+    resolution.bind_transport_function(facts)
+}
+
+fn bind_copy_conversion_function(
+    facts: &HirFnFacts,
+    resolution: &mut Resolution,
+) -> Result<bool, String> {
+    let Some(receipt) = &resolution.copy_conversion_source else {
+        return Ok(false);
+    };
+
+    let namespace = receipt
+        .checked_namespace(facts, &resolution.environment)?
+        .to_vec();
+    receipt.function_namespace(facts, &resolution.environment, &namespace)?;
+    let owner = receipt.self_type().clone();
+    if !resolution.checked_owned_copy(&owner) {
+        return Err("Copy conversion owner lacks its independently selected Copy proof".into());
+    }
+    let nominal = owner
+        .nominal_identity()
+        .ok_or("Missing Copy conversion owner identity")?;
+
+    resolution.owner_path = Some(
+        nominal
+            .definition_path
+            .split("::")
+            .map(str::to_owned)
+            .collect(),
+    );
+    resolution.namespace = namespace;
+    resolution.receiver = Some(owner);
+    Ok(true)
+}
+
 fn bind_value_trait_function(
     input: &dyn crate::unit_store::EvidenceFacts,
     resolution: &mut Resolution,
 ) -> Result<bool, String> {
-    Ok(tryfrom_owners::bind(input, resolution)? || default_owners::bind(input, resolution)?)
+    Ok(bind_copy_conversion_function(input.facts(), resolution)?
+        || tryfrom_owners::bind(input, resolution)?
+        || default_owners::bind(input, resolution)?)
 }
 
 fn lexical_function_scope(

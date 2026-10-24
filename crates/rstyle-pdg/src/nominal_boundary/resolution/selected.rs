@@ -125,13 +125,23 @@ struct DeclarationChecker<'a> {
 
 impl DeclarationChecker<'_> {
     fn verify(&self, key: &Namespace, tree: &TypeTree) -> Result<CheckedDeclaration, String> {
-        let static_product = no_drop::copy_components::verify_product(
-            self.facts,
-            self.resolution,
-            self.origins,
-            tree,
-        )?;
-        verify_type(self.facts, tree, static_product.as_ref())?;
+        let conversion = self
+            .resolution
+            .copy_conversion_source
+            .as_ref()
+            .is_some_and(|source| source.permits_type(tree));
+        let static_product = if conversion {
+            None
+        } else {
+            no_drop::copy_components::verify_product(
+                self.facts,
+                self.resolution,
+                self.origins,
+                tree,
+            )?
+        };
+
+        verify_type(self.facts, tree, static_product.as_ref(), conversion)?;
         if matches!(tree, TypeTree::GeneratedStruct { .. }) {
             return self.generated(tree);
         }
@@ -190,6 +200,17 @@ impl DeclarationChecker<'_> {
         tree: &TypeTree,
         cleanup: DeclarationCleanup<'_>,
     ) -> Result<bool, String> {
+        if self
+            .resolution
+            .copy_conversion_source
+            .as_ref()
+            .map_or(Ok(false), |source| {
+                source.declaration_namespace(tree, namespace)
+            })?
+        {
+            return Ok(false);
+        }
+
         match check_namespace_with_closure(
             self.facts,
             self.environment,
@@ -252,9 +273,15 @@ impl DeclarationChecker<'_> {
 impl DeclarationChecker<'_> {
     fn retained_cleanup(&self, tree: &TypeTree) -> Option<&no_drop::CheckedNoDrop> {
         self.resolution
-            .transport_sources
+            .copy_conversion_source
             .as_ref()
             .and_then(|source| source.declaration(tree))
+            .or_else(|| {
+                self.resolution
+                    .transport_sources
+                    .as_ref()
+                    .and_then(|source| source.declaration(tree))
+            })
             .or_else(|| {
                 self.owner
                     .and_then(|owner| owner.copy_source().declaration(tree))
@@ -367,6 +394,7 @@ fn verify_type(
     facts: &HirFnFacts,
     tree: &TypeTree,
     static_product: Option<&no_drop::copy_components::CheckedProduct>,
+    copy_conversion: bool,
 ) -> Result<(), String> {
     if matches!(tree, TypeTree::MixedEnum { .. }) && !supports(facts, "rust.borrowed-mixed-owners")?
     {
@@ -386,6 +414,7 @@ fn verify_type(
         .nominal_fields()
         .any(|field| !supported_field(facts, &field.ty))
         && !static_product.is_some_and(|receipt| receipt.permits(tree))
+        && !copy_conversion
     {
         return Err("Mixed-unit Copy fields require supported complete values".into());
     }
@@ -786,6 +815,9 @@ pub(super) fn check_function_namespace(
     resolution: &Resolution,
     namespace: &[String],
 ) -> Result<(), String> {
+    if let Some(source) = &resolution.copy_conversion_source {
+        return source.function_namespace(input.facts(), &resolution.environment, namespace);
+    }
     if resolution.source_requirements.copy_constructor_sites {
         let facts = input.facts();
         let interface = facts

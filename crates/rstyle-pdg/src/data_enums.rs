@@ -66,13 +66,13 @@ pub(crate) fn constructor(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<S
     if crate::data_aggregates::token(&node.children[0])? != payload.text()? {
         return Err("Enum constructor payload type disagrees".into());
     }
-    verify_constructor_dispatch(node, &payload)?;
+    verify_constructor_dispatch(node, &payload.text()?)?;
 
     context.correspondence(call.args[0].span(), &node.children[0])?;
     Ok(tag)
 }
 
-fn verify_constructor_dispatch(node: &HirNode, payload: &TypeToken) -> Result<(), String> {
+pub(crate) fn verify_constructor_dispatch(node: &HirNode, payload: &str) -> Result<(), String> {
     let dispatch = node
         .dispatch
         .as_ref()
@@ -86,7 +86,7 @@ fn verify_constructor_dispatch(node: &HirNode, payload: &TypeToken) -> Result<()
 
     if dispatch.kind != "resolved_direct"
         || dispatch.op != identity.path
-        || dispatch.operand_tys != [payload.text()?]
+        || dispatch.operand_tys != [payload]
         || dispatch.result_ty != crate::data_aggregates::token(node)?
     {
         return Err("Enum constructor dispatch disagrees with its exact scalar evaluation".into());

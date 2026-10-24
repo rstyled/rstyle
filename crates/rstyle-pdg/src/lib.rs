@@ -29,6 +29,7 @@ mod concrete_calls;
 pub mod concrete_results;
 pub mod concrete_types;
 mod copy_conversion_members;
+mod copy_tagged_values;
 mod cyclic_values;
 mod data_aggregates;
 mod data_bounds;
