@@ -962,3 +962,40 @@ reasons and blocker combinations:24 admitted/29 excluded/7 inactive, gain0/loss0
 warning-denied locked Clippy pass, style0/6,113 and patterns0/15 unchanged ignores.
 Suite observations: constructor composition1.442s, six-context stored slices9.384s;
 no speedup claim. Logs: `/tmp/rstyle-416-{tests2.log,clippy-final3.log,style-final.json,patterns.log,frozen.log,frozen-comparison.json}`.
+
+### Data3.101: supplied static-string Copy products
+
+Connect the existing Copy-component source diagnostic to exact private value and
+cleanup receipts, aggregate origins and ordinary helper summaries. No new lowering,
+origin vocabulary, SHA computation or serialized lookup key. Original fields and
+direct string formals must prove explicit immutable static lifetimes; unchecked
+aggregate string formals remain excluded. Neighboring source and historical
+policies retain their barriers. [Contract](extraction-profiles/static-string-copy-products-v1.md).
+
+Development constructors/callers, saved-reference rebinding and two selected
+nominal declarations admit, strictly replay and match. Native oracle checks
+distinct equal-content backing, pointer/length preservation, flags and no drop.
+Lifetime/Copy/unknown-expansion/origin/policy adversaries reject. Fresh unchanged
+time/num-conv capture preserves all1,363 original identities and all outcomes:
+6 admitted, gain0/loss0;25 reason lists advance to source-closure blockers. The
+two selected ComponentRange constructors reach the unresolved convert glob;
+nominal enum/Result payload/member work remains. Large-roster matching is still
+explicitly budget-incomplete. Evidence: `/tmp/rstyle-417-time-{current.json,comparison.json}`.
+
+Reassessment after two prerequisites without natural gains: prioritize the actual
+time_core::convert source chain before adding more value features. Its compiler
+footprint contains8 Struct and8 distinct Ctor exports, plus time's original public
+reexport; select time-core explicitly, prove the complete original expansion
+footprint and join the exact local reexport. This receipt must discharge only
+proved namespace ambiguity; remaining local globs/macros and cleanup still prove.
+Do not treat these observations as source authority or another delivered family.
+
+Checkpoint: all1,811 tests/5 existing skips plus doctests pass; fmt and locked
+warning-denied Clippy pass, style0/6,122 and patterns0/15 unchanged ignores.
+The previously failing four borrowed-owner regressions pass. Static composition
+0.619s and ownership/history controls0.855s are suite observations, not speedup
+claims. Current strict replay preserves all1,363 natural identities, outcomes and
+reasons with complete capture/assessment; large-roster matching remains incomplete.
+Fresh frozen run-b2ehei6f preserves all60 identities, denominators, semantic records
+and blocker combinations:24 admitted/29 excluded/7 inactive, gain0/loss0;
+118 schema checks pass. Logs: `/tmp/rstyle-417-{tests-final.log,clippy-final4.log,style-final.json,patterns-final.log,frozen-final.log,frozen-comparison.json,time-replay-comparison.json}`.

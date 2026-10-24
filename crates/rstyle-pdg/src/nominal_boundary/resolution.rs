@@ -63,7 +63,7 @@ pub struct Resolution {
     array_views: bool,
     scalar_aliases: bool,
     local_import_chains: bool,
-    passive_copy_dependencies: bool,
+    source_requirements: selected::SourceRequirements,
     copy_owner_source: Option<selected::no_drop::copy_owners::CheckedCopyOwnerSource>,
     scalar_result_source:
         Option<selected::no_drop::scalar_result_owners::CheckedScalarResultSource>,
@@ -107,7 +107,7 @@ impl Resolution {
         let selected = selected::verify(facts, origins, self, owner)?;
         self.copy_trees = selected.copies;
         self.no_drop_trees = selected.no_drop;
-        self.passive_copy_dependencies = selected.passive_dependencies;
+        self.source_requirements = selected.requirements;
 
         Ok(())
     }
@@ -183,8 +183,12 @@ impl Resolution {
         self.copy_owner_source.is_some()
     }
 
+    pub(crate) fn requires_static_string_products(&self) -> bool {
+        self.source_requirements.static_string_products
+    }
+
     pub(crate) fn requires_passive_copy_dependencies(&self) -> bool {
-        self.passive_copy_dependencies
+        self.source_requirements.passive_dependencies
     }
 
     pub(crate) fn requires_borrowed_mixed_owners(&self) -> bool {
@@ -375,7 +379,14 @@ pub(crate) fn verify_in(
     if owner.is_none() {
         capture_function_sources(input, &mut resolution)?;
     }
-    if environment.copy_boundary || resolution.range_value.is_some() {
+    if environment.copy_boundary
+        || resolution.range_value.is_some()
+        || supports(facts, selected::no_drop::copy_components::CAPABILITY)?
+            && resolution
+                .trees
+                .values()
+                .any(selected::no_drop::copy_components::required)
+    {
         let origins = facts
             .build
             .frontend_options
@@ -546,7 +557,7 @@ fn declaration_resolution(
         trees: BTreeMap::new(),
         copy_trees: Default::default(),
         no_drop_trees: Default::default(),
-        passive_copy_dependencies: false,
+        source_requirements: Default::default(),
         copy_owner_source: None,
         scalar_result_source: None,
         transport_sources: None,

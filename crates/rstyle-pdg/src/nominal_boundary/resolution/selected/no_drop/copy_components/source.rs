@@ -127,3 +127,46 @@ pub(super) fn interface(tree: &TypeTree, spelling: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// This first activation takes supplied string backing only from explicitly
+/// static formals. Erased Shared(Str) observations cannot prove that lifetime.
+pub(super) fn parameters(
+    function: &syn::ItemFn,
+    interface: &InterfaceObservations,
+) -> Result<(), String> {
+    if function.sig.inputs.len() != interface.parameters.len() {
+        return Err("Static product original parameter inventory disagrees".into());
+    }
+    for (parameter, observed) in function.sig.inputs.iter().zip(&interface.parameters) {
+        let Observation::Captured { ty } = observed else {
+            return Err("Static product requires complete original parameter types".into());
+        };
+        if matches!(ty, TypeTree::Shared(inner) if inner.as_ref() == &TypeTree::Str) {
+            let syn::FnArg::Typed(parameter) = parameter else {
+                return Err(
+                    "Static string product requires an original typed string formal".into(),
+                );
+            };
+            field_type(&parameter.ty, ty)?;
+        } else if wrapped_string(ty) {
+            return Err(
+                "Static product string formals require direct static or checked nominal backing"
+                    .into(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn wrapped_string(tree: &TypeTree) -> bool {
+    match tree {
+        // Nominal leaves have their own exact original field/Copy proof. A
+        // receiver borrow does not change its independently proved static field.
+        TypeTree::Shared(inner) => inner.as_ref() == &TypeTree::Str || wrapped_string(inner),
+        TypeTree::Tuple(elements) => elements.iter().any(wrapped_string),
+        TypeTree::Option(inner) | TypeTree::Slice(inner) => wrapped_string(inner),
+        TypeTree::Array { element, .. } => wrapped_string(element),
+        TypeTree::Result { ok, err } => wrapped_string(ok) || wrapped_string(err),
+        _ => false,
+    }
+}

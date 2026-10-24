@@ -92,6 +92,7 @@ pub(crate) fn verify_document_policy(
         "rust.borrowed-copy-child-fields",
         crate::fieldless_enums::CAPABILITY,
         "rust.checked-copy-owner-source",
+        "rust.static-string-copy-products",
     ];
     if capabilities
         .iter()
@@ -226,6 +227,12 @@ fn verify_source_owner_policy(
         "rust.checked-copy-owner-source",
         || resolution.requires_copy_owner_source(),
         "Copy owner source requires its registered document policy",
+    )?;
+    crate::extraction_profile::require_document(
+        profile,
+        "rust.static-string-copy-products",
+        || resolution.requires_static_string_products(),
+        "Static string Copy products require their registered document policy",
     )
 }
 

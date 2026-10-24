@@ -614,7 +614,7 @@ mod tests {
             array_views: false,
             scalar_aliases: false,
             local_import_chains: false,
-            passive_copy_dependencies: false,
+            source_requirements: Default::default(),
             copy_owner_source: None,
             scalar_result_source: None,
             transport_sources: None,

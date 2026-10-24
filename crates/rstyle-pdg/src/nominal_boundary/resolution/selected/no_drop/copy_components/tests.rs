@@ -66,7 +66,20 @@ fn check(mut tree: TypeTree, extra: &str, alter: impl FnOnce(&mut Origins)) -> R
     let facts = facts(&tree);
     let mut origins = origins(&resolution, &facts);
     alter(&mut origins);
-    verify_interface(&facts, &resolution, &origins)
+    let diagnostic = verify_interface(&facts, &resolution, &origins);
+    if matches!(tree, TypeTree::Struct { .. }) && required(&tree) {
+        let active = verify_product(&facts, &resolution, &origins, &tree);
+        assert_eq!(diagnostic.is_ok(), active.is_ok());
+        if let Ok(Some(receipt)) = active {
+            assert!(receipt.permits(&tree));
+            assert_eq!(
+                Some(receipt.cleanup().nominal()),
+                tree.nominal_parts().map(|(nominal, _)| nominal)
+            );
+            assert!(!receipt.permits(&mixed()));
+        }
+    }
+    diagnostic
 }
 
 #[test]
@@ -92,7 +105,45 @@ fn erased_shared_type_does_not_prove_static_source_lifetime() {
 }
 
 #[test]
+fn parameter_source_cannot_erase_or_hide_the_supplied_string_lifetime() {
+    let string = TypeTree::Shared(Box::new(TypeTree::Str));
+    for (parameter, tree, expected) in [
+        ("&'static str", string.clone(), true),
+        ("&str", string.clone(), false),
+        ("&'a str", string.clone(), false),
+        ("Alias", string.clone(), false),
+        ("(&str,)", TypeTree::Tuple(vec![string.clone()]), false),
+        (
+            "Option<&str>",
+            TypeTree::Option(Box::new(string.clone())),
+            false,
+        ),
+        ("&&str", TypeTree::Shared(Box::new(string)), false),
+    ] {
+        let function = syn::parse_str(&format!("fn f(value: {parameter}) {{}}")).unwrap();
+        let interface = InterfaceObservations {
+            identity: concrete_types::IDENTITY.into(),
+            parameters: vec![Observation::Captured { ty: tree }],
+            result: Observation::Captured {
+                ty: TypeTree::Scalar("unit".into()),
+            },
+        };
+        assert_eq!(
+            source::parameters(&function, &interface).is_ok(),
+            expected,
+            "{parameter}"
+        );
+    }
+}
+
+#[test]
 fn every_nested_copy_derive_needs_positive_unforged_authority() {
+    assert!(
+        check(product("'static"), "", |origins| {
+            origins.declarations[0].builtin_copy = None;
+        })
+        .is_err()
+    );
     for name in ["ParseError", "RangeError"] {
         assert!(
             check(mixed(), "", |origins| {

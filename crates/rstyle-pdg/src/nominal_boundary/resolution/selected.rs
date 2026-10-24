@@ -21,7 +21,22 @@ mod scalar_leaf;
 pub(super) struct Selection {
     pub copies: std::collections::BTreeSet<Namespace>,
     pub no_drop: std::collections::BTreeSet<Namespace>,
+    pub requirements: SourceRequirements,
+}
+
+#[derive(Default)]
+pub(super) struct SourceRequirements {
     pub passive_dependencies: bool,
+    pub static_string_products: bool,
+}
+
+impl SourceRequirements {
+    fn including(&self, checked: &CheckedDeclaration) -> Self {
+        Self {
+            passive_dependencies: self.passive_dependencies || checked.passive_dependencies,
+            static_string_products: self.static_string_products || checked.static_string_products,
+        }
+    }
 }
 
 pub(super) fn verify(
@@ -51,11 +66,21 @@ pub(super) fn verify(
         resolution,
     };
     let mut selection = Selection::default();
+    // A closed source unit already proves its historical nominal grammar.
+    // Activate only new static products there; mixed units still require every
+    // selected declaration to pass the existing complete ownership boundary.
+    let static_only = !environment.copy_boundary && resolution.range_value.is_none();
     for (key, tree) in trees {
+        if static_only && !no_drop::copy_components::required(tree) {
+            continue;
+        }
         selection.record(key, checker.verify(key, tree)?);
     }
 
     for (key, tree) in trees {
+        if static_only && !no_drop::copy_components::required(tree) {
+            continue;
+        }
         if !selection.copies.contains(key) && !selection.no_drop.contains(key) {
             borrowed::verify(facts, tree, &selection.copies)?;
         }
@@ -67,6 +92,7 @@ struct CheckedDeclaration {
     copy: bool,
     no_drop: bool,
     passive_dependencies: bool,
+    static_string_products: bool,
 }
 
 impl Selection {
@@ -77,7 +103,7 @@ impl Selection {
         if checked.no_drop {
             self.no_drop.insert(key.clone());
         }
-        self.passive_dependencies |= checked.passive_dependencies;
+        self.requirements = self.requirements.including(&checked);
     }
 }
 
@@ -91,7 +117,13 @@ struct DeclarationChecker<'a> {
 
 impl DeclarationChecker<'_> {
     fn verify(&self, key: &Namespace, tree: &TypeTree) -> Result<CheckedDeclaration, String> {
-        verify_type(self.facts, tree)?;
+        let static_product = no_drop::copy_components::verify_product(
+            self.facts,
+            self.resolution,
+            self.origins,
+            tree,
+        )?;
+        verify_type(self.facts, tree, static_product.as_ref())?;
         if matches!(tree, TypeTree::GeneratedStruct { .. }) {
             return self.generated(tree);
         }
@@ -105,7 +137,10 @@ impl DeclarationChecker<'_> {
             &self.environment.modules[declaration.module_index].items[declaration.item_index];
         let attributes = declaration_attributes(item, tree)?;
         let copy = checked_copy(self.facts, self.origins, tree, attributes)?;
-        let source_closure = self.cleanup_certificate(tree, copy)?;
+        let source_closure = match &static_product {
+            Some(product) => Some(product.cleanup()),
+            None => self.cleanup_certificate(tree, copy)?,
+        };
         let passive_dependencies = match check_namespace_with_closure(
             self.facts,
             self.environment,
@@ -121,19 +156,24 @@ impl DeclarationChecker<'_> {
             }
         };
 
-        match item {
-            syn::Item::Struct(item) => structure(self.facts, item, copy)?,
-            syn::Item::Enum(item) => {
-                explicit_u8_owner(self.facts, item, tree)?;
-                scalar_enum(self.facts, item)?;
-            }
-            _ => unreachable!(),
-        }
+        self.verify_item(item, tree, copy)?;
         Ok(CheckedDeclaration {
             copy,
             no_drop: source_closure.is_some(),
             passive_dependencies,
+            static_string_products: static_product.is_some(),
         })
+    }
+
+    fn verify_item(&self, item: &syn::Item, tree: &TypeTree, copy: bool) -> Result<(), String> {
+        match item {
+            syn::Item::Struct(item) => structure(self.facts, item, copy),
+            syn::Item::Enum(item) => {
+                explicit_u8_owner(self.facts, item, tree)?;
+                scalar_enum(self.facts, item)
+            }
+            _ => Err("Selected declaration has an unsupported nominal kind".into()),
+        }
     }
 }
 
@@ -162,6 +202,7 @@ impl DeclarationChecker<'_> {
             copy: false,
             no_drop: true,
             passive_dependencies: false,
+            static_string_products: false,
         })
     }
 }
@@ -280,7 +321,11 @@ fn declaration_attributes<'a>(
     }
 }
 
-fn verify_type(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> {
+fn verify_type(
+    facts: &HirFnFacts,
+    tree: &TypeTree,
+    static_product: Option<&no_drop::copy_components::CheckedProduct>,
+) -> Result<(), String> {
     if matches!(tree, TypeTree::MixedEnum { .. }) && !supports(facts, "rust.borrowed-mixed-owners")?
     {
         return Err("Mixed enum child requires its registered borrowed-owner capability".into());
@@ -298,6 +343,7 @@ fn verify_type(facts: &HirFnFacts, tree: &TypeTree) -> Result<(), String> {
     if tree
         .nominal_fields()
         .any(|field| !supported_field(facts, &field.ty))
+        && !static_product.is_some_and(|receipt| receipt.permits(tree))
     {
         return Err("Mixed-unit Copy fields require supported complete values".into());
     }

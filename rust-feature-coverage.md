@@ -5239,3 +5239,14 @@ value/ownership and payload-shape blockers; no natural-family admission gain is
 claimed. Frozen60 remains24/29/7 with identical identities, denominators and
 reasons. [Contract](docs/extraction-profiles/anonymous-dependency-namespaces-v1.md);
 [validation and remaining chain](docs/rust-support-execution.md).
+
+Data3.101 connects supplied static-string Copy product constructors, ordinary
+callers and saved-reference composition through existing aggregate/component
+origins. Exact original lifetime, recursive Copy and exhaustive source proof are
+required; erased reference tokens grant nothing. Development composition admits,
+strictly verifies and matches. The unchanged natural time/num-conv roster remains
+6/1,363 admitted, gain0/loss0: the two selected constructors now reach the unresolved
+foreign generated export/source boundary. Complete conversion-family admission
+still requires that source chain and nominal payload/member summaries.
+[Contract](docs/extraction-profiles/static-string-copy-products-v1.md) and
+[validation/frontier](docs/rust-support-execution.md).

@@ -1,4 +1,4 @@
-//! Diagnostic positive Copy/source proof, without value or admission authority.
+//! Positive Copy/source proof with an exact, private static-string product receipt.
 mod shape;
 mod source;
 #[cfg(test)]
@@ -7,6 +7,78 @@ mod tests;
 use super::product_fields::Proof;
 use super::*;
 use crate::nominal_boundary::resolution::Resolution;
+
+pub(in crate::nominal_boundary::resolution) const CAPABILITY: &str =
+    "rust.static-string-copy-products";
+
+/// Regions are erased in TypeTree. Only the original declaration, complete
+/// recursive Copy proof and source closure may mint this local permission.
+pub(in crate::nominal_boundary::resolution) struct CheckedProduct(TypeTree);
+
+impl CheckedProduct {
+    pub(in crate::nominal_boundary::resolution) fn permits(&self, tree: &TypeTree) -> bool {
+        &self.0 == tree
+    }
+
+    pub(in crate::nominal_boundary::resolution) fn cleanup(&self) -> CheckedNoDrop {
+        CheckedNoDrop {
+            nominal: self
+                .0
+                .nominal_parts()
+                .expect("Checked product nominal")
+                .0
+                .clone(),
+        }
+    }
+}
+
+pub(in crate::nominal_boundary::resolution) fn required(tree: &TypeTree) -> bool {
+    let TypeTree::Struct { source, fields, .. } = tree else {
+        return false;
+    };
+
+    // Ordinary scalar products take the typed fast path without parsing source.
+    fields.iter().any(|field| {
+        matches!(&field.ty, TypeTree::Shared(inner) if inner.as_ref() == &TypeTree::Str)
+            || required(&field.ty)
+    }) && concrete_types::lifetimes::declaration_count(source) == Ok(0)
+}
+
+pub(in crate::nominal_boundary::resolution) fn verify_product(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    origins: &Origins,
+    tree: &TypeTree,
+) -> Result<Option<CheckedProduct>, String> {
+    if !required(tree) {
+        return Ok(None);
+    }
+
+    if !supports(facts, CAPABILITY)? || !matches!(tree, TypeTree::Struct { .. }) {
+        return Err(
+            "Static string products require their registered concrete struct contract".into(),
+        );
+    }
+    if !shape::supported(tree) {
+        return Err("Static string product has unsupported complete components".into());
+    }
+
+    let mut checker = Checker {
+        facts,
+        origins,
+        proof: Proof::copy_product(facts, resolution, origins),
+        checked: Vec::new(),
+    };
+    checker.nominal(tree)?;
+
+    let function = crate::data_frontend::source_function(facts, Some(resolution))?;
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    source::parameters(&function, &interface)?;
+    Ok(Some(CheckedProduct(tree.clone())))
+}
 
 /// Every interface observation must be complete. Result carriers are inspected
 /// recursively; their concrete nominal children need their own positive proof.
