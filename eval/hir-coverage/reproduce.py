@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["tree-sitter==0.25.2", "tree-sitter-rust==0.24.0", "jsonschema==4.25.1"]
+# dependencies = ["tree-sitter==0.25.2", "tree-sitter-rust==0.24.0", "jsonschema==4.25.1", "xxhash==3.6.0"]
 # ///
 """Recreate the frozen eligibility inventory; generated evidence stays in target/."""
 import argparse
@@ -21,12 +21,13 @@ import tree_sitter_rust
 
 import assess
 import summarize
+from bundle_records import verify_documents
 
 ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parents[1]
 HOST = "aarch64-unknown-linux-gnu"
 COMPILER = "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
-PROFILES = ("r0", "hir-expanded-v1")
+PROFILES = ("r0", "hir-expanded-v1", "hir-data-v3")
 
 
 def digest(data):
@@ -108,26 +109,6 @@ def check_capture(report, exit_code):
         raise ValueError("Exit 2 was not the explicit zero-pair inventory budget")
 
 
-def verify_documents(report, validators):
-    checked = 0
-    for function in report["functions"]:
-        if function["outcome"] != "admitted":
-            continue
-        prefix = function["artifact_prefix"]
-        manifest = json.loads(Path(prefix + ".manifest.json").read_text())
-        documents = manifest["documents"]
-        kinds = [document["key"].rsplit(":", 1)[1] for document in documents]
-        if sorted(kinds) != ["cfg", "pdg"]:
-            raise ValueError("Paired-document manifest must contain exactly CFG and PDG")
-        for document, kind in zip(documents, kinds):
-            data = Path(prefix + f".{kind}.json").read_bytes()
-            if document["sha256"] != "sha256:" + digest(data):
-                raise ValueError("Serialized document does not match its exact manifest")
-            validators[kind].validate(json.loads(data))
-            checked += 1
-    return checked
-
-
 def capture(package, profile, output, env, validators):
     directory = output / profile / package.name
     directory.mkdir(parents=True)
@@ -135,12 +116,15 @@ def capture(package, profile, output, env, validators):
                RSTYLE_DRIVER=str(WORKSPACE / "target/debug/rstyle-driver"))
     command = [str(WORKSPACE / "target/debug/cargo-rstyle"), "rstyle",
                "--manifest-path", str(package / "Cargo.toml"), "clones", "--locked",
-               "--format", "json", "--max-pairs", "0", "--extraction-profile", profile]
-    result = subprocess.run(command, cwd=package, env=env, capture_output=True)
-    (directory / "stdout.json").write_bytes(result.stdout)
-    (directory / "stderr.txt").write_bytes(result.stderr)
+               "--format", "json", "--report-detail", "compact", "--max-pairs", "0",
+               "--extraction-profile", profile]
+    with (directory / "stdout.json").open('wb') as stdout, (directory / "stderr.txt").open('wb') as stderr:
+        result = subprocess.run(command, cwd=package, env=env, stdout=stdout, stderr=stderr)
     write_json(directory / "command.json", dict(command=command, exit_code=result.returncode))
-    report = json.loads(result.stdout)
+    with (directory / "stdout.json").open() as stdout:
+        report = json.load(stdout)
+    if report.get('report_detail') != 'compact':
+        raise ValueError('Inventory command did not produce requested compact report')
     check_capture(report, result.returncode)
     checked = verify_documents(report, validators)
     print(f"{profile}: {package.name}: {checked} verified documents", flush=True)

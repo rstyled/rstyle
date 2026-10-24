@@ -1,7 +1,23 @@
 //! Bounded, observational concrete type evidence. Never authorizes admission.
 
+pub(crate) mod byte_views;
 mod declarations;
+mod fieldless_enums;
+pub use fieldless_enums::{
+    EXPLICIT_U8_CAPABILITY, explicit_u8_fieldless_declaration, explicit_u8_fieldless_variants,
+    explicit_u8_repr, explicit_u8_variant_expect, fieldless_variants,
+};
 pub mod lifetimes;
+mod mixed_enums;
+mod option_spelling;
+pub(crate) use option_spelling::result_arguments;
+mod scalar_enums;
+pub(crate) mod static_string_results;
+pub use static_string_results::observed_success as observed_static_string_result_success;
+mod validation;
+pub(crate) use mixed_enums::closed_payload;
+pub use mixed_enums::mixed_variant_declarations;
+pub use scalar_enums::variant_declarations;
 pub mod source_proof;
 
 use crate::source_evidence::byte_offset;
@@ -11,9 +27,9 @@ use sha2::{Digest, Sha256};
 pub const KEY: &str = "concrete_type_observations";
 pub const IDENTITY: &str = "rstyle.rust.concrete-type-capture/1";
 pub const MAX_DEPTH: usize = 16;
+pub const MAX_VARIANTS: usize = 16;
 pub const MAX_ENTRIES: usize = 4096;
 pub const MAX_FIELDS: usize = 128;
-pub const MAX_ARRAY: u64 = 4096;
 pub const MAX_SOURCE_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,13 +42,224 @@ pub enum TypeTree {
         length: u64,
     },
     Shared(Box<TypeTree>),
+    /// Root-only mutable scalar descriptor; memory permission is checked separately.
+    MutableScalar(String),
     Slice(Box<TypeTree>),
     Str,
+    Option(Box<TypeTree>),
+    /// Observed core Result shape; contextual source/drop/effect proof is separate.
+    Result {
+        ok: Box<TypeTree>,
+        err: Box<TypeTree>,
+    },
+    /// Core Result<T, TryFromIntError>; no error layout is inferred.
+    IntConversionResult(String),
+    /// Pinned non-Copy Range<usize>; fresh result use is checked separately.
+    RangeUsize {
+        observation: crate::range_values::authority::Observation,
+    },
+    /// Observed non-Copy checked suffix carrier; no standalone value permission.
+    RangeFromUsize {
+        observation: crate::range_values::authority::Observation,
+    },
+    RangeToUsize {
+        observation: crate::range_values::authority::Observation,
+    },
+    SliceArrayResult {
+        length: u64,
+        borrowed: bool,
+    },
     Struct {
         nominal: Nominal,
         source: crate::SourceText,
         fields: Vec<Field>,
     },
+    /// Exact scalar substitution in an original generic tuple declaration.
+    /// Shape capture grants no ownership, cleanup or value-use permission.
+    ScalarProductInstance(Box<crate::scalar_product_instances::Observation>),
+    /// Raw local expansion observation. The template is original input bytes,
+    /// not emitted Rust source; generated ownership must be checked separately.
+    GeneratedStruct {
+        nominal: Nominal,
+        template: crate::SourceText,
+        definition: Box<crate::generated_sources::capture::Definition>,
+        fields: Vec<Field>,
+    },
+    FieldlessEnum {
+        nominal: Nominal,
+        source: crate::SourceText,
+        variants: Vec<(String, i64)>,
+    },
+    Enum {
+        nominal: Nominal,
+        source: crate::SourceText,
+        variants: Vec<Variant>,
+    },
+    MixedEnum {
+        nominal: Nominal,
+        source: crate::SourceText,
+        variants: Vec<MixedVariant>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Variant {
+    pub position: usize,
+    pub name: String,
+    pub payload: Field,
+}
+
+/// A mandatory tagged shape; missing payload evidence never denotes a unit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", deny_unknown_fields)]
+pub enum VariantShape<T> {
+    Unit {},
+    SingleTuple { field: T },
+    Named { fields: Vec<(String, T)> },
+}
+
+impl<T> VariantShape<T> {
+    pub fn field(&self) -> Option<&T> {
+        match self {
+            Self::Unit {} | Self::Named { .. } => None,
+            Self::SingleTuple { field } => Some(field),
+        }
+    }
+
+    /// Every payload child, including named fields in declaration order.
+    pub fn fields(&self) -> impl Iterator<Item = &T> {
+        let single = match self {
+            Self::SingleTuple { field } => Some(field),
+            _ => None,
+        };
+        let named = match self {
+            Self::Named { fields } => Some(fields),
+            _ => None,
+        };
+        single
+            .into_iter()
+            .chain(named.into_iter().flatten().map(|(_, field)| field))
+    }
+
+    pub fn map<U>(&self, mut transform: impl FnMut(&T) -> U) -> VariantShape<U> {
+        match self {
+            Self::Unit {} => VariantShape::Unit {},
+            Self::SingleTuple { field } => VariantShape::SingleTuple {
+                field: transform(field),
+            },
+            Self::Named { fields } => VariantShape::Named {
+                fields: fields
+                    .iter()
+                    .map(|(name, field)| (name.clone(), transform(field)))
+                    .collect(),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MixedVariant {
+    pub position: usize,
+    pub name: String,
+    pub shape: VariantShape<Field>,
+}
+
+impl TypeTree {
+    pub(crate) fn wrapped(self, wrapper: impl FnOnce(Box<Self>) -> Self) -> Self {
+        wrapper(Box::new(self))
+    }
+
+    pub(crate) fn nominal_parts(&self) -> Option<(&Nominal, &crate::SourceText)> {
+        match self {
+            Self::ScalarProductInstance(instance) => Some((&instance.nominal, &instance.source)),
+            Self::Struct {
+                nominal, source, ..
+            }
+            | Self::FieldlessEnum {
+                nominal, source, ..
+            }
+            | Self::Enum {
+                nominal, source, ..
+            }
+            | Self::MixedEnum {
+                nominal, source, ..
+            } => Some((nominal, source)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn generated_parts(
+        &self,
+    ) -> Option<(
+        &Nominal,
+        &crate::generated_sources::capture::Definition,
+        &crate::SourceText,
+        &[Field],
+    )> {
+        match self {
+            Self::GeneratedStruct {
+                nominal,
+                definition,
+                template,
+                fields,
+            } => Some((nominal, definition, template, fields)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn nominal_identity(&self) -> Option<&Nominal> {
+        self.nominal_parts()
+            .map(|(nominal, _)| nominal)
+            .or_else(|| self.generated_parts().map(|(nominal, ..)| nominal))
+    }
+
+    /// Ordered children of the two supported multi-component container forms.
+    pub(crate) fn components(&self) -> impl Iterator<Item = &Self> {
+        let tuple = match self {
+            Self::Tuple(values) => values.as_slice(),
+            _ => &[],
+        };
+        let result = match self {
+            Self::Result { ok, err } => Some((ok.as_ref(), err.as_ref())),
+            _ => None,
+        };
+        tuple
+            .iter()
+            .chain(result.into_iter().flat_map(|(ok, err)| [ok, err]))
+    }
+
+    pub(crate) fn nominal_fields(&self) -> impl Iterator<Item = &Field> {
+        let fields = match self {
+            Self::ScalarProductInstance(instance) => Some(&instance.fields),
+            Self::Struct { fields, .. } | Self::GeneratedStruct { fields, .. } => Some(fields),
+            _ => None,
+        };
+        let variants = match self {
+            Self::Enum { variants, .. } => Some(variants),
+            _ => None,
+        };
+        let mixed = match self {
+            Self::MixedEnum { variants, .. } => Some(variants),
+            _ => None,
+        };
+        fields
+            .into_iter()
+            .flatten()
+            .chain(
+                variants
+                    .into_iter()
+                    .flatten()
+                    .map(|variant| &variant.payload),
+            )
+            .chain(
+                mixed
+                    .into_iter()
+                    .flatten()
+                    .flat_map(|variant| variant.shape.fields()),
+            )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -76,18 +303,7 @@ impl InterfaceObservations {
         if self.identity != IDENTITY {
             return Err("Unregistered concrete type observation identity".into());
         }
-        let mut entries = 0;
-        for observation in self.parameters.iter().chain([&self.result]) {
-            match observation {
-                Observation::Captured { ty } => check(ty, 0, &mut entries)?,
-                Observation::Unsupported { reason } if reason.is_empty() => {
-                    return Err("Unsupported concrete type lacks a reason".into());
-                }
-                Observation::Unsupported { .. } => {}
-            }
-        }
-
-        Ok(())
+        validation::observations(self.parameters.iter().chain([&self.result]))
     }
 }
 
@@ -116,60 +332,125 @@ pub fn scalar(token: &str) -> bool {
 }
 
 pub fn validate(tree: &TypeTree) -> Result<(), String> {
-    check(tree, 0, &mut 0)
+    validation::tree(tree)
 }
 
-fn check(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), String> {
-    *entries += 1;
-    if depth > MAX_DEPTH || *entries > MAX_ENTRIES {
-        return Err("Concrete type observation exceeds depth/entry budget".into());
-    }
-    check_shape(tree)?;
-    check_children(tree, depth + 1, entries)
+pub(crate) fn validate_observations<'a>(
+    observations: impl Iterator<Item = &'a Observation>,
+) -> Result<(), String> {
+    validation::observations(observations)
 }
 
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
+        TypeTree::ScalarProductInstance(instance) => instance.check_shape(),
+        TypeTree::RangeUsize { observation } => crate::range_values::authority::shape(observation),
+        TypeTree::RangeFromUsize { observation } => crate::range_values::authority::range_from_shape(observation),
+        TypeTree::RangeToUsize { observation } => crate::range_values::authority::range_to_shape(observation),
+        TypeTree::Result { ok, err } => result_shape(ok, err),
+        TypeTree::IntConversionResult(value) if !matches!(value.as_str(), "usize" | "u16" | "u64") => {
+            Err("Integer conversion Result requires a registered scalar payload".into())
+        }
+        TypeTree::Option(payload) if !option_payload(payload) => {
+            Err("Option observation requires a registered scalar, shared scalar, or reference-free product payload".into())
+        }
+        TypeTree::SliceArrayResult { length, .. } if *length > MAX_FIELDS as u64 => {
+            Err("Slice conversion result exceeds supported array length".into())
+        }
+        TypeTree::MutableScalar(token) if token == "usize" => Ok(()),
+        TypeTree::MutableScalar(_) => Err("Mutable scalar observations support only usize".into()),
         TypeTree::Scalar(token) if scalar(token) => Ok(()),
         TypeTree::Scalar(_) => Err("Unsupported scalar in concrete type observation".into()),
-        TypeTree::Array { length, .. } => {
-            if *length > MAX_ARRAY {
-                return Err("Concrete array exceeds length budget".into());
-            }
-            Ok(())
-        }
         TypeTree::Struct {
             nominal,
             source,
             fields,
         } => check_declaration(nominal, source, fields),
+        TypeTree::GeneratedStruct { .. } => crate::declaration_origins::generated::shape(tree),
+        TypeTree::Enum {
+            nominal,
+            source,
+            variants,
+        } => scalar_enums::check(nominal, source, variants),
+        TypeTree::MixedEnum {
+            nominal,
+            source,
+            variants,
+        } => mixed_enums::check(nominal, source, variants),
+        TypeTree::FieldlessEnum {
+            nominal,
+            source,
+            variants,
+        } => fieldless_enums::check_with_explicit_u8(nominal, source, variants),
         _ => Ok(()),
     }
 }
 
-fn check_children(tree: &TypeTree, depth: usize, entries: &mut usize) -> Result<(), String> {
-    match tree {
-        TypeTree::Tuple(elements) => check_many(elements.iter(), depth, entries),
-        TypeTree::Struct { fields, .. } => {
-            check_many(fields.iter().map(|field| &field.ty), depth, entries)
-        }
-        TypeTree::Array { element, .. } | TypeTree::Shared(element) | TypeTree::Slice(element) => {
-            check(element, depth, entries)
-        }
-        _ => Ok(()),
+/// This bounded shape grants neither Copy, drop freedom nor value permission.
+fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
+    if static_string_results::observed(ok, err)
+        || crate::result_maps::types::observed_result(ok, err)
+        || crate::borrowed_result_types::tree_result(ok, err)
+        || crate::concrete_results::fresh_products::GRAMMAR.permits(
+            &crate::data_types::TypeToken::from_tree(ok),
+            &crate::data_types::TypeToken::from_tree(err),
+        )
+        || crate::concrete_results::copy_errors::GRAMMAR.permits(
+            &crate::data_types::TypeToken::from_tree(ok),
+            &crate::data_types::TypeToken::from_tree(err),
+        )
+        || crate::concrete_results::scalar_errors::GRAMMAR.permits(
+            &crate::data_types::TypeToken::from_tree(ok),
+            &crate::data_types::TypeToken::from_tree(err),
+        )
+    {
+        return Ok(());
     }
-}
+    let TypeTree::Struct {
+        nominal,
+        source,
+        fields,
+    } = err
+    else {
+        return Err("Concrete Result requires a complete local error struct".into());
+    };
+    if !matches!(ok, TypeTree::Scalar(value) if value == "unit")
+        || !matches!(fields.as_slice(), [Field { position: 0, name, ty: TypeTree::Scalar(value), .. }] if name == "0" && value == "unit")
+        || !nominal
+            .source_identity
+            .as_ref()
+            .is_some_and(|identity| !identity.is_empty())
+    {
+        return Err(
+            "Concrete Result requires unit success and a single unit tuple error field".into(),
+        );
+    }
 
-fn check_many<'a>(
-    types: impl Iterator<Item = &'a TypeTree>,
-    depth: usize,
-    entries: &mut usize,
-) -> Result<(), String> {
-    for ty in types {
-        check(ty, depth, entries)?;
+    check_declaration(nominal, source, fields)?;
+    let syntax: syn::ItemStruct = syn::parse_str(source).map_err(|error| error.to_string())?;
+    if !syntax.generics.params.is_empty()
+        || syntax.generics.where_clause.is_some()
+        || !matches!(syntax.fields, syn::Fields::Unnamed(_))
+    {
+        return Err("Concrete Result error requires a nongeneric tuple struct declaration".into());
     }
 
     Ok(())
+}
+
+fn option_payload(tree: &TypeTree) -> bool {
+    match tree {
+        TypeTree::ScalarProductInstance(_) => true,
+        TypeTree::Scalar(value) => scalar(value) && value != "unit",
+        TypeTree::Shared(value) => {
+            matches!(value.as_ref(), TypeTree::Scalar(value) if scalar(value) && value != "unit")
+                || matches!(value.as_ref(), TypeTree::Slice(element) if matches!(element.as_ref(), TypeTree::Scalar(value) if value == "u8"))
+        }
+        TypeTree::Tuple(_) | TypeTree::Struct { .. } => {
+            crate::data_types::option_product(&crate::data_types::TypeToken::from_tree(tree))
+        }
+        _ => false,
+    }
 }
 
 pub(crate) fn check_declaration_budget(source: &str, fields: &[Field]) -> Result<(), String> {
@@ -185,15 +466,7 @@ fn check_declaration(
     fields: &[Field],
 ) -> Result<(), String> {
     check_declaration_budget(source, fields)?;
-    if nominal.package_name.is_empty()
-        || nominal.package_version.is_empty()
-        || !is_digest(&nominal.manifest_digest)
-        || nominal.declaration_digest != source.identity()
-    {
-        return Err(
-            "Concrete nominal source/package identity is incomplete or inconsistent".into(),
-        );
-    }
+    check_identity(nominal, source)?;
     let declaration: syn::ItemStruct = syn::parse_str(source)
         .map_err(|error| format!("Invalid concrete struct declaration: {error}"))?;
     if nominal.definition_path.rsplit("::").next() != Some(declaration.ident.to_string().as_str())
@@ -207,6 +480,19 @@ fn check_declaration(
         check_field(source, position, declared, captured)?;
     }
 
+    Ok(())
+}
+
+fn check_identity(nominal: &Nominal, source: &crate::SourceText) -> Result<(), String> {
+    if nominal.package_name.is_empty()
+        || nominal.package_version.is_empty()
+        || !is_digest(&nominal.manifest_digest)
+        || !source.matches_identity(&nominal.declaration_digest)
+    {
+        return Err(
+            "Concrete nominal source/package identity is incomplete or inconsistent".into(),
+        );
+    }
     Ok(())
 }
 
@@ -261,11 +547,8 @@ pub fn field_declarations(source: &str) -> Result<Vec<(String, String)>, String>
 }
 
 fn is_digest(value: &str) -> bool {
-    let bytes = value.as_bytes();
-
-    bytes.len() == 71
-        && &bytes[..7] == b"sha256:"
-        && bytes[7..]
-            .iter()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+    crate::source_identity::Scheme::parse(value).is_some()
 }
+
+#[cfg(test)]
+mod mutable_scalar_tests;

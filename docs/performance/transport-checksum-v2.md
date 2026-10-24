@@ -26,8 +26,14 @@ the verified snapshot.
 One dependency, `xxhash-rust` with its `xxh3` feature, supplies the streaming and
 single-buffer implementations. It can also serve the separate matching lookup
 evaluation; this change does not alter matching interning. Source identities,
-source-pack fingerprints, compiler evidence, standalone PDG/CFG document hashes,
-historical Python snapshots and frozen contract meanings remain SHA-256.
+source-pack fingerprints, compiler evidence, historical Python snapshots and
+frozen contract meanings remain SHA-256.
+
+Standalone paired PDG/CFG manifests now publish the same `checksum` value.
+Their reader also accepts historical `sha256` fields and verifies those with
+SHA-256 only when encountered. Exact paired keys and the complete two-document
+inventory remain required. This compatibility reader is separate from the unit
+transport version rule above; neither checksum grants semantic admission.
 
 Regressions cover published XXH3 vectors, streaming/single-buffer equality across
 chunk boundaries, partial writes, failed flush, same-length corruption, truncated

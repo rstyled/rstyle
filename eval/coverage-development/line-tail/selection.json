@@ -1,0 +1,209 @@
+{
+  "identity": "rstyle.development.base64ct-line-tail/1",
+  "status": "source and independent expectations frozen before admission evaluation; no admission or native result claimed",
+  "selection_basis": "Complete original checked tail method and len helper, separate from the fixed sixty and all existing development selections.",
+  "package": {
+    "name": "base64ct",
+    "version": "1.7.3",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/base64ct-1.7.3",
+    "historical_source_identity": {
+      "selection": "../base64ct-std-import-selection.json",
+      "files": {
+        "Cargo.toml": "e1d351e3b0da5410a327430a53dc4ac81b59f798bd3981c1611f4a89e7305497",
+        "src/lib.rs": "71312148bc3e761e0d66297e774373fa4f6567f65dcf042cfc0a3a4acc392d7a",
+        "src/encoding.rs": "18828be1ed13a89e3cf723675b30addf8703be5c78583eb41bbea7b08de4b03f",
+        "src/decoder.rs": "52376bcc17b4b83cfd85e78dba41169e1ea0ee89a8d93539e3da32abfb9d884f"
+      },
+      "meaning": "Existing historical identities reused verbatim; no new digest. Oracle checks exact selected bytes/ranges, not whole-package identity."
+    }
+  },
+  "build_selection": {
+    "edition": "2021",
+    "target": "base64ct library; test=false; doctest=false",
+    "profile": "Cargo debug; no custom rustflags or extern replacements",
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "pointer_width": 64,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic_strategy": "unwind",
+    "opt_level": "No",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "contexts": [
+      {
+        "cargo_arguments": [],
+        "features": [],
+        "name": "default"
+      },
+      {
+        "cargo_arguments": [
+          "--features",
+          "std"
+        ],
+        "features": [
+          "alloc",
+          "std"
+        ],
+        "name": "std"
+      }
+    ],
+    "product": "Two feature contexts x three pinned targets = six future original library capture contexts. Native oracle exercises only its host and does not certify these captures."
+  },
+  "functions": [
+    {
+      "name": "decoder::Line::<'i>::slice_tail",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 11839,
+        "end": 12042
+      },
+      "source": "fn slice_tail(&self, nbytes: usize) -> Result<&'i [u8], Error> {\n        let offset = self.len().checked_sub(nbytes).ok_or(InvalidLength)?;\n        self.remaining.get(offset..).ok_or(InvalidLength)\n    }",
+      "role": "complete original target"
+    },
+    {
+      "name": "decoder::Line::<'i>::len",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 12104,
+        "end": 12163
+      },
+      "source": "fn len(&self) -> usize {\n        self.remaining.len()\n    }",
+      "role": "required original helper; already historically selected",
+      "historical_identity": {
+        "selection": "../base64ct-std-import-selection.json",
+        "function": "decoder::Line::<'i>::len",
+        "sha256": "89e36c670bf5e3e99f8ccdc46194335266a9f6002e264824f3a84d8fe5347e35"
+      }
+    }
+  ],
+  "source_obligations": [
+    {
+      "name": "decoder::Line<'i>",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 11103,
+        "end": 11210
+      },
+      "source": "#[derive(Clone, Debug)]\npub struct Line<'i> {\n    /// Remaining data in the line\n    remaining: &'i [u8],\n}",
+      "role": "complete nominal owner declaration, including original derives"
+    },
+    {
+      "name": "decoder lexical imports",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 30,
+        "end": 350
+      },
+      "source": "use crate::{\n    Encoding,\n    Error::{self, InvalidLength},\n    MIN_LINE_WIDTH, encoding,\n    line_ending::{CHAR_CR, CHAR_LF},\n};\nuse core::{cmp, marker::PhantomData};\n\n#[cfg(feature = \"alloc\")]\nuse {alloc::vec::Vec, core::iter};\n\n#[cfg(feature = \"std\")]\nuse std::io;\n\n#[cfg(doc)]\nuse crate::{Base64, Base64Unpadded};\n\n",
+      "role": "complete original lexical import region"
+    },
+    {
+      "name": "Line default impl",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 11212,
+        "end": 11299
+      },
+      "source": "impl Default for Line<'_> {\n    fn default() -> Self {\n        Self::new(&[])\n    }\n}\n\n",
+      "role": "uncalled neighboring trait impl; source obligation, not oracle method"
+    },
+    {
+      "name": "complete Line inherent impl",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 11299,
+        "end": 12578
+      },
+      "source": "impl<'i> Line<'i> {\n    /// Create a new line which wraps the given input data.\n    fn new(bytes: &'i [u8]) -> Self {\n        Self { remaining: bytes }\n    }\n\n    /// Take up to `nbytes` from this line buffer.\n    fn take(&mut self, nbytes: usize) -> &'i [u8] {\n        let (bytes, rest) = if nbytes < self.remaining.len() {\n            self.remaining.split_at(nbytes)\n        } else {\n            (self.remaining, [].as_ref())\n        };\n\n        self.remaining = rest;\n        bytes\n    }\n\n    /// Slice off a tail of a given length.\n    fn slice_tail(&self, nbytes: usize) -> Result<&'i [u8], Error> {\n        let offset = self.len().checked_sub(nbytes).ok_or(InvalidLength)?;\n        self.remaining.get(offset..).ok_or(InvalidLength)\n    }\n\n    /// Get the number of bytes remaining in this line.\n    fn len(&self) -> usize {\n        self.remaining.len()\n    }\n\n    /// Is the buffer for this line empty?\n    fn is_empty(&self) -> bool {\n        self.len() == 0\n    }\n\n    /// Trim the newline off the end of this line.\n    fn trim_end(&self) -> Self {\n        Line::new(match self.remaining {\n            [line @ .., CHAR_CR, CHAR_LF] => line,\n            [line @ .., CHAR_CR] => line,\n            [line @ .., CHAR_LF] => line,\n            line => line,\n        })\n    }\n}\n\n",
+      "role": "all original private methods retained as source obligations; only slice_tail/len assembled"
+    },
+    {
+      "name": "complete original error module",
+      "file": "src/errors.rs",
+      "span": {
+        "start": 0,
+        "end": 2116
+      },
+      "source": "//! Error types\n\nuse core::fmt;\n\nconst INVALID_ENCODING_MSG: &str = \"invalid Base64 encoding\";\nconst INVALID_LENGTH_MSG: &str = \"invalid Base64 length\";\n\n/// Insufficient output buffer length.\n#[derive(Copy, Clone, Debug, Eq, PartialEq)]\npub struct InvalidLengthError;\n\nimpl fmt::Display for InvalidLengthError {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {\n        f.write_str(INVALID_LENGTH_MSG)\n    }\n}\n\nimpl core::error::Error for InvalidLengthError {}\n\n/// Invalid encoding of provided Base64 string.\n#[derive(Copy, Clone, Debug, Eq, PartialEq)]\npub struct InvalidEncodingError;\n\nimpl fmt::Display for InvalidEncodingError {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {\n        f.write_str(INVALID_ENCODING_MSG)\n    }\n}\n\nimpl core::error::Error for InvalidEncodingError {}\n\n/// Generic error, union of [`InvalidLengthError`] and [`InvalidEncodingError`].\n#[derive(Copy, Clone, Debug, Eq, PartialEq)]\npub enum Error {\n    /// Invalid encoding of provided Base64 string.\n    InvalidEncoding,\n\n    /// Insufficient output buffer length.\n    InvalidLength,\n}\n\nimpl fmt::Display for Error {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {\n        let s = match self {\n            Self::InvalidEncoding => INVALID_ENCODING_MSG,\n            Self::InvalidLength => INVALID_LENGTH_MSG,\n        };\n        f.write_str(s)\n    }\n}\n\nimpl From<InvalidEncodingError> for Error {\n    #[inline]\n    fn from(_: InvalidEncodingError) -> Error {\n        Error::InvalidEncoding\n    }\n}\n\nimpl From<InvalidLengthError> for Error {\n    #[inline]\n    fn from(_: InvalidLengthError) -> Error {\n        Error::InvalidLength\n    }\n}\n\nimpl From<core::str::Utf8Error> for Error {\n    #[inline]\n    fn from(_: core::str::Utf8Error) -> Error {\n        Error::InvalidEncoding\n    }\n}\n\n#[cfg(feature = \"std\")]\nimpl From<Error> for std::io::Error {\n    fn from(err: Error) -> std::io::Error {\n        // TODO(tarcieri): better customize `ErrorKind`?\n        std::io::Error::new(std::io::ErrorKind::InvalidData, err)\n    }\n}\n\nimpl core::error::Error for Error {}\n",
+      "role": "Error enum plus derives, Display/From/Error neighbors, cfg and imports",
+      "complete_file": true
+    },
+    {
+      "name": "crate root declarations/reexports",
+      "file": "src/lib.rs",
+      "span": {
+        "start": 2083,
+        "end": 2686
+      },
+      "source": "#[cfg(feature = \"alloc\")]\n#[macro_use]\nextern crate alloc;\n#[cfg(feature = \"std\")]\nextern crate std;\n\nmod alphabet;\nmod decoder;\nmod encoder;\nmod encoding;\nmod errors;\nmod line_ending;\n\n#[cfg(test)]\nmod test_vectors;\n\npub use crate::{\n    alphabet::{\n        bcrypt::Base64Bcrypt,\n        crypt::Base64Crypt,\n        shacrypt::Base64ShaCrypt,\n        standard::{Base64, Base64Unpadded},\n        url::{Base64Url, Base64UrlUnpadded},\n    },\n    decoder::Decoder,\n    encoder::Encoder,\n    encoding::Encoding,\n    errors::{Error, InvalidEncodingError, InvalidLengthError},\n    line_ending::LineEnding,\n};\n\n",
+      "role": "original macro imports, module declarations and public Error reexport"
+    }
+  ],
+  "dependency_chain": [
+    "slice_tail -> len -> exact shared Line.remaining slice length",
+    "checked_sub(nbytes) -> Option<usize>::ok_or(Error::InvalidLength) -> Result<usize, Error> -> exact same-error ?",
+    "saved offset -> original shared Line.remaining.get(offset..) -> Option<&'i [u8]>::ok_or(Error::InvalidLength)",
+    "Retain complete Cargo/root/module/import/cfg/source census, all Line methods and all error neighbors; witness assembly does not discharge these."
+  ],
+  "known_blockers": [
+    "Scalar usize Result payload and guarded same-error residual early return into Result<&'i [u8], Error>; never expose success payload on Err.",
+    "Checked suffix range get and borrowed success payload: tie returned reference to exact remaining field origin and saved offset, independent of receiver borrow lifetime.",
+    "Lifetime-only inherent owner, shared reference field, exact Error::{self, InvalidLength} import, fieldless Copy Error ownership and complete derives/trait/source neighbors.",
+    "Current support of checked subtraction, earlier unit Result propagation or len alone is not proof of this complete method."
+  ],
+  "bounded_contract": {
+    "positive": [
+      "For every valid shared byte slice and usize nbytes, return Err(Error::InvalidLength) iff nbytes exceeds its length; otherwise return the exact last nbytes with original backing origin.",
+      "Read-only Line receiver; no loop, mutation, allocation, user conversion, or panic required by these two methods.",
+      "Line is Clone/Debug and deliberately not assumed Copy; Error has two fieldless variants and derives Copy/Clone/Debug/Eq/PartialEq."
+    ],
+    "negative": [
+      "Wrong saved operand/offset/receiver/field, missing checked-sub success guard, Result tag or Error variant swap.",
+      "Return equal bytes from another backing slice, return prefix/full slice, mishandle empty tail/end pointer, or shorten return lifetime to temporary receiver.",
+      "Invent purity/conversion for custom Try/FromResidual/ok_or/get; changed compiler/target/source authority or historical policy activation.",
+      "Omitted imports/derives/source neighbors or supported-prefix emission cannot certify the complete original method."
+    ],
+    "deferred": [
+      "Public Decoder chains require additional loops/mutation/generics and are not selected.",
+      "Other Line methods, general Result payload binding, arbitrary conversions, mutable views, moves/drop and full-library matching."
+    ]
+  },
+  "independent_expectations": {
+    "len": "len equals the exact remaining slice element count.",
+    "slice_tail": "Err(Error::InvalidLength) iff nbytes > remaining length. Otherwise Ok with length nbytes, pointer remaining.as_ptr() + (remaining length - nbytes), and bytes equal the last nbytes. No panic; receiver unchanged.",
+    "native_cases": {
+      "lengths_inclusive": [
+        0,
+        512
+      ],
+      "backing_offsets": [
+        0,
+        1,
+        7
+      ],
+      "byte_patterns": [
+        "index modulo256",
+        "255 minus index modulo256",
+        "constant0xa5"
+      ],
+      "nbytes": "Every0..=len plus len+1, usize::MAX/2, usize::MAX-1, usize::MAX.",
+      "ordinary_queries_per_context": 1205037,
+      "lifetime_queries_per_context": 4617,
+      "total_slice_tail_calls_per_context": 1209654,
+      "checks": "Every ordinary query checks len before/after and receiver pointer/length. Each backing view additionally returns a tail beyond the lifetime of its temporary Line owner."
+    },
+    "matching": "Predeclared future roster: both selected original methods self-compared within each of six exact contexts (12 identity comparisons), expected complete Accepted after activation. No cross-feature/target equivalence or unrelated peer expected. Full-library matching remains separate.",
+    "evidence_distinction": "Private original methods are inaccessible through unchanged public API. Native oracle assembles exact original Line declaration and two methods, linked to unchanged original base64ct Error dependency. This is a transparent exact-source witness, not unchanged full original-crate admission or public Decoder execution."
+  },
+  "validation": {
+    "source_selection": "frozen; exact original byte ranges checked during selection",
+    "native_oracle": "not run",
+    "original_captures": "not run",
+    "strict_admission": "not run",
+    "matching": "not run"
+  }
+}

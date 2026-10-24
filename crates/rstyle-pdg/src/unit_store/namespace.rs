@@ -11,7 +11,7 @@ use std::{
 /// One local producer process and allocation ordinal. Independently loaded
 /// copies retain the wire namespace but own separate views and proof caches.
 /// These values are neither authentication nor globally persistent identities.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UnitNamespace {
     process: u32,
@@ -79,7 +79,7 @@ mod store_tests {
         let imported = UnitStore::from_bundle(&wire).unwrap();
         assert_eq!(first.namespace(), imported.namespace());
         let mut document: serde_json::Value = serde_json::from_slice(&wire).unwrap();
-        assert_eq!(document["schema"], "rstyle.shared-unit/4");
+        assert_eq!(document["schema"], crate::unit_store::BUNDLE_SCHEMA);
         assert!(document.get("identity").is_none());
         document["identity"] = "retired fingerprint".into();
         assert!(UnitStore::from_bundle(&serde_json::to_vec(&document).unwrap()).is_err());

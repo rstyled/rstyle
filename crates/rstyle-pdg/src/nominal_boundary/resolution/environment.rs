@@ -1,9 +1,20 @@
 //! Checked original source snapshots and lexical tables for one immutable census.
 use super::*;
 use std::path::Path;
+mod dependency_namespaces;
+mod functions;
 
 #[derive(Clone, Copy)]
 struct SourceId(u32);
+
+#[derive(Clone, Copy)]
+pub(crate) struct SourceOptions<'a> {
+    pub constants: bool,
+    pub cfgs: Option<&'a [String]>,
+    pub expansions: bool,
+    pub module_lints: bool,
+    pub generated_namespaces: bool,
+}
 
 /// Construction checks every source fingerprint and the closed module inventory.
 /// No serialized record or unchecked bool can construct this view.
@@ -11,7 +22,37 @@ pub(crate) struct Environment {
     census: Arc<census::Census>,
     sources: BTreeMap<PathBuf, SourceId>,
     pub(super) modules: Vec<census::Module>,
+    functions: functions::Index,
+    compiler_cfgs: Option<Vec<String>>,
     pub(super) index: Index,
+    pub(super) copy_boundary: bool,
+    cleanup_sources: std::cell::RefCell<std::collections::BTreeSet<CleanupSource>>,
+    dependency_namespaces: dependency_namespaces::Namespaces,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum CleanupMode {
+    Ordinary(&'static str),
+    ScalarError(&'static str),
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct CleanupSource {
+    cfgs: Vec<String>,
+    target: Namespace,
+    mode: CleanupMode,
+    generated: bool,
+}
+
+impl CleanupSource {
+    fn new(cfgs: &[String], target: &Namespace, mode: CleanupMode) -> Self {
+        Self {
+            cfgs: cfgs.to_vec(),
+            target: target.clone(),
+            mode,
+            generated: crate::verification_policy::is_generated(),
+        }
+    }
 }
 
 pub(super) struct SnapshotView<'a> {
@@ -24,37 +65,140 @@ impl<'a> SnapshotView<'a> {
     }
 
     pub fn range(&self, span: ByteSpan) -> Result<&'a str, String> {
-        self.bytes()
-            .get(span.start as usize..span.end as usize)
-            .ok_or_else(|| "Source range is out of bounds or splits UTF-8".into())
+        crate::source_evidence::byte_range(self.bytes(), span)
     }
 }
 
 impl Environment {
+    #[cfg(test)]
     pub(crate) fn new(census: Arc<census::Census>) -> Result<Self, String> {
-        let modules = census::verify(&census)?;
-        let index = build_index(&modules, &census)?;
-        let sources = census
-            .files
-            .iter()
-            .enumerate()
-            .map(|(index, file)| {
-                u32::try_from(index)
-                    .map(|index| (file.path.clone(), SourceId(index)))
-                    .map_err(|_| "Oversized source table".to_owned())
-            })
-            .collect::<Result<_, _>>()?;
+        Self::with_constants(census, false)
+    }
 
+    #[cfg(test)]
+    pub(crate) fn with_constants(
+        census: Arc<census::Census>,
+        constants: bool,
+    ) -> Result<Self, String> {
+        Self::with_options(census, constants, None, false)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_options(
+        census: Arc<census::Census>,
+        constants: bool,
+        cfgs: Option<&[String]>,
+        expansions: bool,
+    ) -> Result<Self, String> {
+        Self::with_source_options(
+            census,
+            SourceOptions {
+                constants,
+                cfgs,
+                expansions,
+                module_lints: false,
+                generated_namespaces: false,
+            },
+        )
+    }
+
+    pub(crate) fn with_source_options(
+        census: Arc<census::Census>,
+        options: SourceOptions<'_>,
+    ) -> Result<Self, String> {
+        let SourceOptions {
+            constants,
+            cfgs,
+            expansions,
+            module_lints,
+            generated_namespaces: _,
+        } = options;
+        let closed = if !census.external_imports.is_empty()
+            || !census.documentation.is_empty()
+            || expansions && !census.expansions.is_empty()
+        {
+            Err("Module expansion records require independent expanded closure".into())
+        } else {
+            census::verify_with_constants(&census, constants)
+        }
+        .and_then(|modules| build_index(&modules, &census, None).map(|index| (modules, index)));
+        let (modules, index, copy_boundary, compiler_cfgs) = match closed {
+            Ok((modules, index)) => (modules, index, false, None),
+            Err(error) => {
+                let Some(cfgs) = cfgs else { return Err(error) };
+                let modules = selected_modules(&census, cfgs, options)?;
+                let index = build_index(&modules, &census, Some(cfgs))?;
+                (
+                    modules,
+                    index,
+                    true,
+                    (module_lints && expansions).then(|| cfgs.to_vec()),
+                )
+            }
+        };
+        let sources = source_ids(&census)?;
+
+        let functions = functions::Index::new(&modules, &census)?;
         Ok(Self {
             census,
             sources,
             modules,
+            functions,
+            compiler_cfgs,
             index,
+            copy_boundary,
+            cleanup_sources: Default::default(),
+            dependency_namespaces: Default::default(),
         })
     }
 
-    pub(super) fn census(&self) -> &census::Census {
+    pub(super) fn checked_cleanup_source(
+        &self,
+        cfgs: &[String],
+        target: &Namespace,
+        mode: CleanupMode,
+    ) -> bool {
+        self.cleanup_sources
+            .borrow()
+            .contains(&CleanupSource::new(cfgs, target, mode))
+    }
+
+    pub(super) fn cache_cleanup_source(
+        &self,
+        cfgs: &[String],
+        target: &Namespace,
+        mode: CleanupMode,
+    ) {
+        let mut cache = self.cleanup_sources.borrow_mut();
+        if cache.len() < 256 {
+            cache.insert(CleanupSource::new(cfgs, target, mode));
+        }
+    }
+
+    pub(super) fn function_candidates(
+        &self,
+        module: usize,
+        span: ByteSpan,
+    ) -> impl Iterator<Item = &syn::ItemFn> {
+        self.owner_candidates(module, span)
+            .filter_map(|(item, method)| match (item, method) {
+                (syn::Item::Fn(function), None) => Some(function),
+                _ => None,
+            })
+    }
+
+    pub(crate) fn census(&self) -> &census::Census {
         &self.census
+    }
+
+    /// Only the exact selected module-lint and expansion closure is reusable by
+    /// compiler source normalization. Other constructor modes retain fallback.
+    pub(crate) fn generated_source_modules(&self, cfgs: &[String]) -> Option<&[census::Module]> {
+        (self.compiler_cfgs.as_deref() == Some(cfgs)).then_some(self.modules.as_slice())
+    }
+
+    pub(super) fn census_owner(&self) -> Arc<census::Census> {
+        Arc::clone(&self.census)
     }
 
     pub(super) fn source(&self, path: &Path) -> Result<SnapshotView<'_>, String> {
@@ -70,10 +214,51 @@ impl Environment {
         Ok(SnapshotView { record })
     }
 
+    /// Actual checksums belong to the immutable declaration, never a wire claim.
+    pub(super) fn declaration_matches(
+        &self,
+        declaration: &Declaration,
+        claim: &str,
+    ) -> Result<bool, String> {
+        let Some(scheme) = crate::source_identity::Scheme::parse(claim) else {
+            return Ok(false);
+        };
+        Ok(self.declaration_value(declaration, scheme)? == claim)
+    }
+
+    fn declaration_value<'a>(
+        &self,
+        declaration: &'a Declaration,
+        scheme: crate::source_identity::Scheme,
+    ) -> Result<&'a str, String> {
+        let source = self.source(&declaration.path)?;
+        let bytes = source.range(declaration.span)?;
+        Ok(declaration.identity.actual(bytes.as_bytes(), scheme))
+    }
+
+    #[cfg(test)]
+    fn declaration_identity<'a>(&self, declaration: &'a Declaration) -> Result<&'a str, String> {
+        self.declaration_value(declaration, crate::source_identity::Scheme::LegacySha256)
+    }
+
     pub(crate) fn check_context(&self, facts: &HirFnFacts) -> Result<(), String> {
         let context: UnitContext = evidence(facts, CONTEXT_KEY)?;
         if context != self.census.context {
             return Err("Nominal census belongs to another selected unit".into());
+        }
+        Ok(())
+    }
+
+    pub(crate) fn check_input_owner(&self, facts: &HirFnFacts) -> Result<(), String> {
+        self.check_context(facts)?;
+        let path = facts
+            .build
+            .frontend_options
+            .get("source_file")
+            .and_then(serde_json::Value::as_str)
+            .ok_or("Missing source-input function owner")?;
+        if self.source(Path::new(path))?.range(facts.fn_span)? != &facts.source.bytes[..] {
+            return Err("Source inputs disagree with the exact captured function range".into());
         }
         Ok(())
     }
@@ -104,6 +289,45 @@ impl Environment {
     }
 }
 
+fn selected_modules(
+    census: &census::Census,
+    cfgs: &[String],
+    options: SourceOptions<'_>,
+) -> Result<Vec<census::Module>, String> {
+    let SourceOptions {
+        module_lints,
+        expansions,
+        generated_namespaces,
+        ..
+    } = options;
+    if generated_namespaces {
+        census::verify_generated_namespace(census, cfgs, expansions)
+    } else if module_lints {
+        census::verify_with_module_lints(census, cfgs, expansions)
+    } else if !census.external_imports.is_empty() {
+        census::verify_imported(census, cfgs, expansions)
+    } else if !census.documentation.is_empty() {
+        census::verify_documented(census, cfgs, expansions)
+    } else if expansions {
+        census::verify_expanded(census, cfgs)
+    } else {
+        census::verify_selected(census, cfgs)
+    }
+}
+
+fn source_ids(census: &census::Census) -> Result<BTreeMap<PathBuf, SourceId>, String> {
+    census
+        .files
+        .iter()
+        .enumerate()
+        .map(|(index, file)| {
+            u32::try_from(index)
+                .map(|index| (file.path.clone(), SourceId(index)))
+                .map_err(|_| "Oversized source table".to_owned())
+        })
+        .collect()
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -111,6 +335,9 @@ pub(crate) mod tests {
     pub(crate) fn census() -> Arc<census::Census> {
         let bytes = "\u{feff}// π\r\npub struct Data { pub value: i32 }\r\n";
         Arc::new(census::Census {
+            expansions: Vec::new(),
+            documentation: Vec::new(),
+            external_imports: Vec::new(),
             identity: census::IDENTITY.into(),
             context: crate::nominal_boundary::tests::context(),
             files: vec![census::UnitFile {
@@ -119,6 +346,37 @@ pub(crate) mod tests {
                 digest: crate::concrete_types::digest(bytes.as_bytes()),
             }],
         })
+    }
+
+    #[test]
+    fn declaration_identity_is_memoized_only_for_its_immutable_index() {
+        let original = census();
+        let environment = Environment::new(Arc::clone(&original)).unwrap();
+        let declaration = environment.index.declarations.values().next().unwrap();
+        assert!(declaration.identity.is_empty());
+        let identity = environment.declaration_identity(declaration).unwrap();
+        assert_eq!(
+            identity,
+            concrete_types::digest(b"pub struct Data { pub value: i32 }")
+        );
+        assert!(std::ptr::eq(
+            identity,
+            environment.declaration_identity(declaration).unwrap()
+        ));
+
+        let mut changed = (*original).clone();
+        changed.files[0].bytes = changed.files[0].bytes.replace("i32", "u32").into();
+        changed.files[0].digest = changed.files[0].bytes.identity().to_owned();
+        let other = Environment::new(Arc::new(changed)).unwrap();
+        let declaration = other.index.declarations.values().next().unwrap();
+        assert!(declaration.identity.is_empty());
+        assert_ne!(identity, other.declaration_identity(declaration).unwrap());
+        assert_eq!(
+            identity,
+            environment
+                .declaration_identity(environment.index.declarations.values().next().unwrap())
+                .unwrap()
+        );
     }
 
     #[test]
@@ -158,6 +416,7 @@ pub(crate) mod tests {
         let bytes = &census.files[0].bytes;
         let start = bytes.find(declaration).unwrap() as u32;
         let mut origin = declaration_origins::Origin {
+            builtin_copy: None,
             nominal: crate::concrete_types::Nominal {
                 source_identity: Some(census.context.package.package_id.clone()),
                 package_name: "sample".into(),
@@ -219,5 +478,39 @@ pub(crate) mod tests {
                 .unwrap(),
             "\u{feff}"
         );
+    }
+    #[test]
+    fn cleanup_cache_does_not_cross_source_target_or_cfg() {
+        let first = Environment::new(census()).unwrap();
+        let second = Environment::new(census()).unwrap();
+        let target = vec!["sample".into(), "Data".into()];
+        let cfgs = vec!["feature=one".into()];
+        let ordinary = CleanupMode::Ordinary("hir-data-v3");
+        let scalar = CleanupMode::ScalarError("hir-data-v3");
+        assert!(!first.checked_cleanup_source(&cfgs, &target, ordinary));
+        first.cache_cleanup_source(&cfgs, &target, ordinary);
+        assert!(first.checked_cleanup_source(&cfgs, &target, ordinary));
+        assert!(!first.checked_cleanup_source(&cfgs, &target, scalar));
+        assert!(!first.checked_cleanup_source(&[], &target, ordinary));
+        assert!(!first.checked_cleanup_source(
+            &cfgs,
+            &vec!["sample".into(), "Other".into()],
+            ordinary,
+        ));
+        assert!(!first.checked_cleanup_source(
+            &cfgs,
+            &target,
+            CleanupMode::Ordinary("hir-data-v2"),
+        ));
+        crate::verification_policy::generated(|| {
+            assert!(!first.checked_cleanup_source(&cfgs, &target, ordinary));
+            first.cache_cleanup_source(&cfgs, &target, ordinary);
+            assert!(first.checked_cleanup_source(&cfgs, &target, ordinary));
+            assert!(!first.checked_cleanup_source(&cfgs, &target, scalar));
+        });
+        assert!(!second.checked_cleanup_source(&cfgs, &target, ordinary));
+        second.cache_cleanup_source(&cfgs, &target, scalar);
+        assert!(second.checked_cleanup_source(&cfgs, &target, scalar));
+        assert!(!second.checked_cleanup_source(&cfgs, &target, ordinary));
     }
 }

@@ -2,10 +2,21 @@
 //! dense IDs survive a round trip but are never global persistent identities.
 use super::*;
 use std::io::Write;
+mod diagnostic;
+mod instances;
+mod product_instances;
+mod reference_forwarders;
+mod reference_instances;
+pub use diagnostic::{read_diagnostic_snapshot, write_diagnostic_snapshot};
+pub use instances::ScalarInstanceReplay;
+pub use product_instances::ProductConstructorReplay;
+pub use reference_forwarders::ReferenceForwarderReplay;
+pub use reference_instances::ReferenceConstructorReplay;
 mod function_sources;
 mod graph_sources;
 
-const SCHEMA: &str = "rstyle.shared-unit/4";
+pub const BUNDLE_SCHEMA: &str = "rstyle.shared-unit/5";
+const LEGACY_SCHEMA: &str = "rstyle.shared-unit/4";
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -19,6 +30,7 @@ struct Export<'a> {
     schema: &'static str,
     namespace: &'a UnitNamespace,
     sources: Vec<&'a str>,
+    inherent_units: crate::frontend::option_bundle::Inventories<'a>,
     functions: Vec<function_sources::Export<'a>>,
     helpers: &'a [HelperRecord],
     graphs: &'a [Pair],
@@ -33,12 +45,20 @@ struct Import {
     schema: String,
     namespace: UnitNamespace,
     sources: Vec<crate::SourceSnapshot>,
+    #[serde(default, deserialize_with = "present_inventories")]
+    inherent_units: Option<Vec<serde_json::Value>>,
     functions: Vec<function_sources::Import>,
     helpers: Vec<HelperRecord>,
     graphs: Vec<Pair>,
     roots: Vec<Option<GraphId>>,
     links: Vec<Vec<CallLink>>,
     certified: Vec<Option<HelperId>>,
+}
+
+fn present_inventories<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Vec<serde_json::Value>>, D::Error> {
+    Vec::deserialize(deserializer).map(Some)
 }
 
 struct Decoded {
@@ -49,16 +69,21 @@ struct Decoded {
 impl Import {
     fn decode(bytes: &[u8]) -> Result<Decoded, String> {
         let mut wire: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
-        if wire.schema != SCHEMA {
+        if ![BUNDLE_SCHEMA, LEGACY_SCHEMA].contains(&wire.schema.as_str()) {
             return Err("Unsupported shared unit schema".into());
         }
 
+        let mut inventories = crate::frontend::option_bundle::ImportedInventories::new(
+            wire.inherent_units.take(),
+            wire.schema == LEGACY_SCHEMA,
+        )?;
         let mut sources = crate::source_table::Imported::new(&wire.sources);
         let functions = std::mem::take(&mut wire.functions)
             .into_iter()
-            .map(|function| function.into_facts(&mut sources))
+            .map(|function| function.into_facts(&mut sources, &mut inventories))
             .collect::<Result<_, _>>()?;
         sources.finish()?;
+        inventories.finish()?;
 
         Ok(Decoded { wire, functions })
     }
@@ -67,11 +92,18 @@ impl Import {
 impl UnitStore {
     /// Stream shared records directly; no frontend/proof trees are expanded.
     pub fn write_bundle(&self, writer: impl Write) -> Result<(), String> {
+        if self.has_instance() {
+            return Err("Instance requires original-owner and projection replay".into());
+        }
+        if !self.dependencies.is_empty() {
+            return Err("Dependency closure requires separate owning bundle replay".into());
+        }
         let sources = function_sources::encode(&self.functions)?;
         let export = Export {
-            schema: SCHEMA,
+            schema: BUNDLE_SCHEMA,
             namespace: &self.namespace,
             sources: sources.snapshots,
+            inherent_units: sources.inventories,
             functions: sources.functions,
             helpers: &self.helpers,
             graphs: &self.graphs,
@@ -151,10 +183,12 @@ impl UnitStore {
 
         for index in 0..self.helpers.len() {
             let helper = HelperView {
+                foreign: false,
                 resolver: &analysis,
                 id: local_id(index, HelperId)?,
             };
-            crate::helper_calls::verify_shared_callee(&helper, &helper.frontend())?;
+            crate::helper_calls::verify_shared_callee(&helper, &helper.frontend())
+                .map_err(|error| format!("Imported helper {}: {error}", helper.frontend().name))?;
             helper.remember();
         }
         self.validate_root_evidence(&analysis)?;
@@ -164,13 +198,33 @@ impl UnitStore {
                 && crate::extraction_profile::ExtractionProfile::from_facts(&view)?
                     .supports("rust.verified-helper-calls")
                 && crate::classify(&view).status == crate::EligibilityVerdict::Eligible
-                && crate::helper_calls::certify_view(&view)?.is_some()
+                && self.requires_tagged_helper(index, &view)
+                && crate::helper_calls::certify_view(&view)
+                    .map_err(|error| format!("Imported function {}: {error}", view.name))?
+                    .is_some()
             {
                 return Err("Incomplete unit helper certification inventory".into());
             }
         }
         Ok(())
     }
+    /// Newly callable families do not retroactively require historical helper records.
+    fn requires_tagged_helper(&self, index: usize, view: &dyn EvidenceFacts) -> bool {
+        !crate::helper_calls::tagged_conversions::candidate(view)
+            || self.pair(index).is_some_and(|pair| {
+                let cfg_policy = crate::ProfileId {
+                    id: pair.cfg.profile.name.clone(),
+                    version: pair.cfg.profile.version.clone(),
+                };
+                [&pair.pdg.profile, &cfg_policy].iter().all(|profile| {
+                    crate::extraction_profile::policy_supports(
+                        profile,
+                        crate::helper_calls::tagged_conversions::CAPABILITY,
+                    )
+                })
+            })
+    }
+
     fn validate_root_evidence(&self, analysis: &UnitAnalysis<'_>) -> Result<(), String> {
         for (index, root) in self.roots.iter().enumerate() {
             let view = analysis.function(index).ok_or("Missing graph frontend")?;
@@ -213,6 +267,7 @@ impl Decoded {
         }
         u32::try_from(self.wire.helpers.len()).map_err(|_| "Oversized helper table")?;
         u32::try_from(self.wire.graphs.len()).map_err(|_| "Oversized graph table")?;
+        let function_count = store.functions.len();
         let mut store = UnitStore {
             namespace: store.namespace,
             functions: store.functions,
@@ -221,6 +276,13 @@ impl Decoded {
             roots: self.wire.roots,
             helpers: self.wire.helpers,
             certified: self.wire.certified,
+            dependencies: Vec::new(),
+            namespace_associations: Vec::new(),
+            external_links: vec![BTreeMap::new(); function_count],
+            instance: None,
+            reference_instance: None,
+            reference_forwarder: None,
+            product_instance: None,
         };
         store.validate_roots()?;
         store.validate_certifications()?;

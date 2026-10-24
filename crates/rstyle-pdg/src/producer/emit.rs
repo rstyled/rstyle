@@ -5,8 +5,11 @@ use crate::unit_store::EvidenceFacts;
 use crate::{cfg::*, frontend::*, model::*};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+
+#[cfg(test)]
+mod checked_failure_tests;
+mod identities;
 
 pub const PREFIX: &str = "compat.rust.hir-r0";
 pub const TYPE_KEY: &str = "compat.rust.hir-r0:type";
@@ -16,7 +19,8 @@ pub const SITES_KEY: &str = "compat.rust.hir-r0:value-sites";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentIdentity {
     pub key: String,
-    pub sha256: String,
+    #[serde(alias = "sha256")]
+    pub checksum: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,16 +144,13 @@ impl SerializedPair {
 impl SerializedPairView<'_> {
     pub fn verify_identities(&self, pair: &Pair) -> Result<(), String> {
         let links = read_paired_graph(&pair.pdg.extensions)?;
-        let mut actual: Vec<_> = self.manifest.documents.iter().collect();
-        let mut expected = [
-            identity(links.pdg_document_key, self.pdg_bytes),
-            identity(links.cfg_document_key, self.cfg_bytes),
-        ];
-        actual.sort_by(|a, b| a.key.cmp(&b.key));
-        expected.sort_by(|a, b| a.key.cmp(&b.key));
-        if !actual.into_iter().eq(expected.iter()) {
-            return Err("External document byte identities or paired keys disagree".to_string());
-        }
+        identities::verify_manifest(
+            self.manifest,
+            [
+                (links.pdg_document_key, self.pdg_bytes),
+                (links.cfg_document_key, self.cfg_bytes),
+            ],
+        )?;
 
         Ok(())
     }
@@ -162,8 +163,8 @@ impl Pair {
         let links = read_paired_graph(&self.pdg.extensions).expect("producer paired links");
         let manifest = Manifest {
             documents: vec![
-                identity(links.pdg_document_key, &pdg_bytes),
-                identity(links.cfg_document_key, &cfg_bytes),
+                identities::identity(links.pdg_document_key, &pdg_bytes),
+                identities::identity(links.cfg_document_key, &cfg_bytes),
             ],
         };
 
@@ -175,21 +176,15 @@ impl Pair {
     }
 }
 
-fn identity(key: String, bytes: &[u8]) -> DocumentIdentity {
-    DocumentIdentity {
-        key,
-        sha256: format!("sha256:{:x}", Sha256::digest(bytes)),
-    }
-}
-
 pub fn emit(
     facts: &dyn EvidenceFacts,
     graph: &Graph,
     analysis: &Analysis,
     revision: &str,
 ) -> Result<Pair, String> {
-    let assessment = super::hazards::assess(facts, graph, analysis);
-    let producer = producer(facts, revision)?;
+    validate_exception_transfers(graph)?;
+    let assessment = super::hazards::assess(facts, graph, analysis)?;
+    let producer = emission_producer(facts, graph, revision)?;
     let mut extensions = extensions(facts, graph, analysis)?;
     if crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         .supports("rust.integer-casts")
@@ -219,7 +214,7 @@ pub fn emit(
     let pdg = pdg_document(facts, graph, analysis, &metadata);
     let cfg = cfg_document(facts, graph, metadata);
 
-    super::profile::apply(Pair { pdg, cfg }, facts)
+    super::profile::apply(Pair { pdg, cfg }, facts, graph)
 }
 
 fn pdg_document(
@@ -604,9 +599,12 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
             "calls" if graph.nodes.iter().any(|node| node.category == NodeCategory::Call) => CapabilityStatus::Supported,
             "branch_merges" if !graph.value_sites.is_empty() => CapabilityStatus::Supported,
             "exceptional_flow" if !limitations.is_empty() => CapabilityStatus::Unsupported,
+            "exceptional_flow" if graph.transfers.iter().any(|transfer| transfer.kind == "exception") => CapabilityStatus::Supported,
             _ => CapabilityStatus::NotApplicable,
         };
-        let description = if key == "exceptional_flow" && !limitations.is_empty() { limitations.join("; ") } else { format!("R0 bounded normal-flow {key}: {status:?}; validated only within demonstrated subset") };
+        let description = if key == "exceptional_flow" && !limitations.is_empty() { limitations.join("; ") }
+            else if key == "exceptional_flow" && status == CapabilityStatus::Supported { "Explicit bounded checked failures; cleanup remains outside this subset".into() }
+            else { format!("R0 bounded normal-flow {key}: {status:?}; validated only within demonstrated subset") };
         (key.to_string(), Capability { policy: Some(ProfileId::hir_r0()), status, description })
     }).collect();
     let diagnostics = limitations
@@ -729,7 +727,7 @@ fn cfg_document(
 
     CfgDocument {
         schema_version: CFG_SCHEMA_VERSION.to_string(),
-        profile: r0_profile(),
+        profile: cfg_profile(graph),
         producer: CfgProducer {
             name: producer.name,
             version: producer.version,
@@ -747,7 +745,9 @@ fn cfg_document(
             }),
         },
         entry_node_id: "E".to_string(),
-        exit_node_ids: vec!["X".to_string()],
+        exit_node_ids: std::iter::once("X".to_string())
+            .chain(exception_exit_ids(graph).into_iter().map(str::to_string))
+            .collect(),
         nodes,
         edges,
         extraction_evidence: CfgExtractionEvidence {
@@ -777,6 +777,11 @@ fn cfg_nodes(graph: &Graph, facts: &dyn EvidenceFacts) -> Vec<CfgNode> {
         boundary("X", CfgNodeKind::Exit),
     ];
     nodes.extend(
+        exception_exit_ids(graph)
+            .into_iter()
+            .map(exception_boundary),
+    );
+    nodes.extend(
         graph
             .nodes
             .iter()
@@ -801,6 +806,7 @@ fn cfg_edges(graph: &Graph) -> Vec<CfgEdge> {
                 "return" => CfgEdgeKind::Return,
                 "break" => CfgEdgeKind::Break,
                 "continue" => CfgEdgeKind::Continue,
+                "exception" => CfgEdgeKind::Exception,
                 _ => CfgEdgeKind::Normal,
             },
             case_value: None,
@@ -841,4 +847,96 @@ fn cfg_node(node: &Operation, facts: &dyn EvidenceFacts) -> CfgNode {
             source_span: span(node.span),
         }],
     }
+}
+
+fn exception_exit_ids(graph: &Graph) -> BTreeSet<&str> {
+    graph
+        .transfers
+        .iter()
+        .filter(|transfer| transfer.kind == "exception")
+        .map(|transfer| transfer.target.as_str())
+        .collect()
+}
+
+fn exception_boundary(id: &str) -> CfgNode {
+    CfgNode {
+        id: id.into(),
+        kind: CfgNodeKind::Exit,
+        origin: "Bounded checked-failure boundary; no cleanup operations".into(),
+        exit_kind: Some(CfgExitKind::Exceptional),
+        operations: Vec::new(),
+    }
+}
+
+fn cfg_profile(graph: &Graph) -> CfgProfile {
+    let mut profile = r0_profile();
+    if graph
+        .transfers
+        .iter()
+        .any(|transfer| transfer.kind == "exception")
+    {
+        profile.exceptional_flow = ExceptionalFlow::Explicit;
+        profile.exit_policy = "one normal exit; bounded checked-failure exits; cleanup omitted; no fabricated divergent fallthrough".into();
+    }
+
+    profile
+}
+
+fn validate_exception_transfers(graph: &Graph) -> Result<(), String> {
+    if !graph.transfers.iter().any(|transfer| {
+        transfer.kind == "exception"
+            || transfer.source.starts_with("P:")
+            || transfer.target.starts_with("P:")
+    }) {
+        return Ok(());
+    }
+    let operations: BTreeSet<_> = graph
+        .nodes
+        .iter()
+        .filter(|node| {
+            !matches!(
+                node.category,
+                NodeCategory::FormalInput | NodeCategory::Merge
+            )
+        })
+        .map(|node| node.id.as_str())
+        .collect();
+    for transfer in &graph.transfers {
+        if transfer.source.starts_with("P:")
+            || (transfer.target.starts_with("P:") && transfer.kind != "exception")
+        {
+            return Err("Checked-failure boundaries are terminal exception targets".into());
+        }
+        if transfer.kind == "exception"
+            && (!transfer.target.starts_with("P:")
+                || transfer.target.len() == 2
+                || !operations.contains(transfer.source.as_str())
+                || operations.contains(transfer.target.as_str())
+                || transfer.loop_role.is_some())
+        {
+            return Err("Checked failure requires an operation source and a distinct P: exit without loop role".into());
+        }
+    }
+
+    Ok(())
+}
+
+fn emission_producer(
+    facts: &dyn EvidenceFacts,
+    graph: &Graph,
+    revision: &str,
+) -> Result<Producer, String> {
+    let mut producer = producer(facts, revision)?;
+    if graph
+        .transfers
+        .iter()
+        .any(|transfer| transfer.kind == "exception")
+    {
+        producer.configuration.insert(
+            "normal_flow_scope".into(),
+            json!("compat.rust.hir-r0/0.1.0; bounded checked failures explicit; cleanup omitted"),
+        );
+    }
+
+    Ok(producer)
 }

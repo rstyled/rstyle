@@ -29,7 +29,7 @@ fn target_id(plan: &Plan, target: &Target) -> Result<TargetId, String> {
     ))
 }
 
-pub(super) fn path(
+pub(in crate::clones) fn path(
     plan: &Plan,
     root: &Path,
     target: &Target,
@@ -66,6 +66,7 @@ mod tests {
             compiler_identity: "compiler".into(),
             cargo_identity: "cargo".into(),
             primary_units: Vec::new(),
+            dependency_units: Vec::new(),
         }
     }
 

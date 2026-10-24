@@ -32,8 +32,8 @@ impl Snapshot {
         Ok(bytes)
     }
 
-    pub fn identity(&self) -> &str {
-        self.bytes.identity()
+    pub fn checksum(&self) -> &str {
+        self.bytes.checksum()
     }
 }
 
@@ -134,7 +134,7 @@ mod tests {
         let borrowed = sources.clone().file(&file).unwrap();
         assert_eq!(first.bytes.as_ref(), original);
         assert!(Rc::ptr_eq(&first, &borrowed));
-        assert!(std::ptr::eq(first.identity(), borrowed.identity()));
+        assert!(std::ptr::eq(first.checksum(), borrowed.checksum()));
         assert_eq!(sources.files.borrow().len(), 1);
 
         let span = ByteSpan {
@@ -150,10 +150,10 @@ mod tests {
 
         let independent = Sources::default().file(&file).unwrap();
         assert!(!Rc::ptr_eq(&first, &independent));
-        assert_eq!(first.identity(), independent.identity());
+        assert_eq!(first.checksum(), independent.checksum());
         let edited = map.new_source_file(FileName::Custom("edited".into()), "fn f() {1}".into());
         let edited = sources.file(&edited).unwrap();
-        assert_ne!(first.identity(), edited.identity());
+        assert_ne!(first.checksum(), edited.checksum());
         assert_eq!(sources.files.borrow().len(), 2);
     }
 

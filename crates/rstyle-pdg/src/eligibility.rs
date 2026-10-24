@@ -217,9 +217,13 @@ fn check_data_frontend(
     }
 }
 
-fn accepted_type(ty: &str, profile: crate::extraction_profile::ExtractionProfile) -> bool {
+fn accepted_type(ty: &str, facts: &dyn crate::unit_store::EvidenceFacts) -> bool {
+    let Ok(profile) = crate::extraction_profile::ExtractionProfile::from_facts(facts) else {
+        return false;
+    };
     PRIMITIVE_TYS.contains(&ty)
-        || profile.supports("rust.concrete-read-only-data") && crate::data_frontend::accepted(ty)
+        || profile.supports("rust.concrete-read-only-data")
+            && crate::data_types::parse_in(ty, facts).is_ok()
 }
 
 fn context(
@@ -249,6 +253,24 @@ fn context(
 }
 
 fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
+    if let Some(outcome) = check_transport_source(facts) {
+        return outcome;
+    }
+    match crate::product_instances::activation::source_findings(facts) {
+        Ok(true) => return Outcome::ok(),
+        Ok(false) => {}
+        Err(reason) => return evidence_gap(&facts.body, &reason),
+    }
+    match crate::reference_instances::activation::source_findings(facts) {
+        Ok(true) => return Outcome::ok(),
+        Ok(false) => {}
+        Err(reason) => return evidence_gap(&facts.body, &reason),
+    }
+    match crate::reference_instances::forwarder_activation::verify(facts) {
+        Ok(true) => return Outcome::ok(),
+        Ok(false) => {}
+        Err(reason) => return evidence_gap(&facts.body, &reason),
+    }
     let source = Outcome {
         diagnostics: facts.source_diagnostics.clone(),
         gap: false,
@@ -270,6 +292,35 @@ fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
             &facts.body,
             "complete pre-expansion source and conditional-source resolution",
         ))
+    }
+}
+
+fn check_transport_source(facts: &dyn crate::unit_store::EvidenceFacts) -> Option<Outcome> {
+    match crate::result_maps::verify_source(facts) {
+        Ok(true) => Some(transport_source_findings(facts)),
+        Ok(false) => None,
+        Err(reason) => Some(
+            Outcome {
+                diagnostics: facts.source_diagnostics.clone(),
+                gap: false,
+                rejected: !facts.source_diagnostics.is_empty(),
+            }
+            .merge(evidence_gap(&facts.body, &reason)),
+        ),
+    }
+}
+
+fn transport_source_findings(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
+    let diagnostics: Vec<_> = facts
+        .source_diagnostics
+        .iter()
+        .filter(|finding| !crate::result_maps::covers_source_finding(facts, finding))
+        .cloned()
+        .collect();
+    Outcome {
+        rejected: !diagnostics.is_empty(),
+        diagnostics,
+        gap: false,
     }
 }
 
@@ -309,7 +360,7 @@ fn check_signature(facts: &dyn crate::unit_store::EvidenceFacts, ctx: &Ctx<'_>) 
         check_sig_subject(&facts.signature, ctx.profile),
         check_sig_header(&facts.signature, ctx.profile),
         check_sig_params(&facts.signature, ctx),
-        check_sig_return(&facts.signature, ctx.profile),
+        check_sig_return(&facts.signature, ctx.facts),
     ])
 }
 
@@ -454,10 +505,10 @@ fn check_sig_params(signature: &SignatureFacts, ctx: &Ctx<'_>) -> Outcome {
 
 fn check_sig_return(
     signature: &SignatureFacts,
-    profile: crate::extraction_profile::ExtractionProfile,
+    facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Outcome {
     match norm(&signature.return_ty) {
-        Some(ty) if accepted_type(ty, profile) => Outcome::ok(),
+        Some(ty) if accepted_type(ty, facts) => Outcome::ok(),
         _ => Outcome::reject(diagnostic(
             "rust.additional-types",
             "return_type",
@@ -473,7 +524,7 @@ fn check_sig_return(
 fn check_param(param: &ParamFact, ctx: &Ctx<'_>) -> Outcome {
     let pat = check_pat_node(&param.pat, ctx);
     let ty = match norm(&param.ty) {
-        Some(ty) if accepted_type(ty, ctx.profile) => Outcome::ok(),
+        Some(ty) if accepted_type(ty, ctx.facts) => Outcome::ok(),
         _ => Outcome::reject(diagnostic(
             "rust.additional-types",
             "parameter_type",
@@ -511,7 +562,7 @@ fn check_bindings(facts: &dyn crate::unit_store::EvidenceFacts, ctx: &Ctx<'_>) -
             evidence_gap(&binding_node(binding), "binding table entry")
         };
         let ty = match norm(&binding.ty) {
-            Some(ty) if accepted_type(ty, ctx.profile) => Outcome::ok(),
+            Some(ty) if accepted_type(ty, ctx.facts) => Outcome::ok(),
             // Parameter interface types are diagnosed at the signature;
             // the table keeps the entry so reads still resolve.
             _ if binding.is_param => Outcome::ok(),
@@ -549,9 +600,94 @@ fn binding_node(binding: &BindingFact) -> HirNode {
     }
 }
 
+fn check_result_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::result_propagation::verify(node, ctx.facts) {
+        Ok(checked) => check_node(checked.operand, false, ctx),
+        Err(reason) => error(
+            crate::result_propagation::CAPABILITY,
+            "result_propagation",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_copy_conversion_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    (node.hir == ctx.facts.body.hir
+        && node.span == ctx.facts.body.span
+        && crate::copy_tagged_values::candidate(ctx.facts))
+    .then(|| check_copy_conversion(node, ctx))
+}
+
+fn check_copy_conversion(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::copy_tagged_values::verify_function(ctx.facts) {
+        Ok(true) => Outcome::ok(),
+        result => {
+            let reason = result
+                .err()
+                .unwrap_or_else(|| "Missing complete original conversion proof".into());
+            error(
+                crate::copy_tagged_values::CAPABILITY,
+                "conversion",
+                node,
+                &reason,
+            )
+        }
+    }
+}
+
+fn check_tagged_forwarder_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if node.hir != ctx.facts.body.hir
+        || node.span != ctx.facts.body.span
+        || !crate::copy_tagged_values::call_wrappers::candidate(ctx.facts)
+    {
+        return None;
+    }
+    Some(
+        match crate::copy_tagged_values::call_wrappers::verify(ctx.facts) {
+            Ok(Some(_)) => Outcome::ok(),
+            result => error(
+                "rust.copy-tagged-conversion-helper-calls",
+                "tagged_call",
+                node,
+                &result
+                    .err()
+                    .unwrap_or_else(|| "Missing exact tagged forwarding proof".into()),
+            ),
+        },
+    )
+}
+
+fn check_special_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    check_tagged_forwarder_body(node, ctx)
+        .or_else(|| check_copy_conversion_body(node, ctx))
+        .or_else(|| check_transport_body(node, ctx))
+}
+
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if let Some(outcome) = check_special_body(node, ctx) {
+        return outcome;
+    }
+    if let Some(operands) = crate::data_frontend::borrowed_results::operands(node, ctx.facts) {
+        return check_borrowed_operands(node, operands, ctx);
+    }
+    if crate::option_propagation::candidate(node, ctx.facts) {
+        return check_option_propagation(node, ctx);
+    }
+    if crate::result_propagation::candidate(node, ctx.facts) {
+        return check_result_propagation(node, ctx);
+    }
+    if let Some(outcome) = check_data_contract(node, ctx) {
+        return outcome;
+    }
+    if crate::data_subslices::candidate(node, ctx.facts) {
+        return check_subslice(node, in_expansion, ctx);
+    }
+    if node.kind == "expr_assert" && ctx.profile.supports("rust.scalar-assertions") {
+        return check_assertion(node, ctx);
+    }
     if !in_expansion && let Some(site) = &node.expansion {
         return macro_diagnostic(node, site);
     }
@@ -566,9 +702,51 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     {
         return check_loop_exit(node, ctx);
     }
+    if crate::data_enums::match_candidate(node, ctx.facts) {
+        return check_enum_match(node, ctx);
+    }
+    if crate::checked_options::match_candidate(node, ctx.facts) {
+        return check_option_match(node, ctx);
+    }
     if node.kind == "expr_match" && ctx.profile.supports("rust.scalar-match") {
         return check_match(node, ctx);
     }
+    check_ordinary_node(node, in_expansion, ctx)
+}
+
+fn check_transport_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if node != &ctx.facts.body || node.expansion.is_none() {
+        return None;
+    }
+    match crate::result_maps::verify_source(ctx.facts) {
+        Ok(true) => Some(Outcome::ok()),
+        Ok(false) => None,
+        Err(reason) => Some(evidence_gap(node, &reason)),
+    }
+}
+
+fn check_borrowed_operands(
+    node: &HirNode,
+    operands: Result<Vec<&HirNode>, String>,
+    ctx: &Ctx<'_>,
+) -> Outcome {
+    match operands {
+        Ok(operands) => Outcome::combine(
+            operands
+                .into_iter()
+                .map(|operand| check_node(operand, false, ctx))
+                .collect(),
+        ),
+        Err(reason) => error(
+            crate::borrowed_result_types::CAPABILITY,
+            "checked_borrowed_result",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_ordinary_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     let own = check_kind(node, ctx);
 
     if node.kind == "expr_closure" || node.kind == "stmt_item" {
@@ -586,6 +764,171 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
     own.merge(children)
 }
 
+fn check_option_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::option_propagation::verify(node, ctx.facts) {
+        Ok(checked) => check_node(checked.operand, false, ctx),
+        Err(reason) => error(
+            crate::option_propagation::CAPABILITY,
+            "option_propagation",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if crate::result_maps::candidate(node, ctx.facts) {
+        return Some(check_result_map(node, ctx));
+    }
+    if crate::checked_options::if_let_candidate(node, ctx.facts) {
+        return Some(check_option_if_let(node, ctx));
+    }
+    if crate::bool_constants::candidate(node) {
+        return Some(match crate::bool_constants::verify_node(node, ctx.facts) {
+            Ok(()) => Outcome::ok(),
+            Err(reason) => error(
+                crate::bool_constants::CAPABILITY,
+                "const_table",
+                node,
+                &reason,
+            ),
+        });
+    }
+
+    if crate::iterator_position::candidate(node, ctx.facts) {
+        return Some(match crate::iterator_position::verify(node, ctx.facts) {
+            Ok(checked) => check_node(checked.receiver, false, ctx),
+            Err(reason) => error(
+                crate::iterator_position::CAPABILITY,
+                "byte_position",
+                node,
+                &reason,
+            ),
+        });
+    }
+    if crate::named_callbacks::candidate(node, ctx.facts) {
+        return Some(check_named_callback(node, ctx));
+    }
+    if crate::helper_option_callbacks::candidate(node, ctx.facts) {
+        return Some(check_helper_callback(node, ctx));
+    }
+    if crate::option_callbacks::candidate(node, ctx.facts) {
+        return Some(check_callback(node, ctx));
+    }
+    if crate::data_discards::candidate(node, ctx.facts) {
+        return Some(match crate::data_discards::verify(node, ctx.facts) {
+            Ok(()) => Outcome::ok(),
+            Err(reason) => error("rust.scalar-enum-values", "copy_discard", node, &reason),
+        });
+    }
+    None
+}
+
+fn check_result_map(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::result_maps::verify(node, ctx.facts) {
+        Ok(checked) => check_node(checked.receiver, false, ctx),
+        Err(reason) => error(
+            crate::result_maps::CAPABILITY,
+            "constructor_result_map",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_named_callback(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::named_callbacks::verify(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(vec![
+            check_node(checked.receiver, false, ctx),
+            check_node(checked.default, false, ctx),
+        ]),
+        Err(reason) => error(
+            crate::named_callbacks::CAPABILITY,
+            "named_callback",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_helper_callback(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::helper_option_callbacks::verify(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(vec![
+            check_node(checked.arguments.receiver, false, ctx),
+            check_node(checked.arguments.default, false, ctx),
+            check_node(checked.binding, false, ctx),
+            check_node(checked.body, false, ctx),
+        ]),
+        Err(reason) => error(
+            crate::helper_option_callbacks::CAPABILITY,
+            "shared_helper_callback",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_callback(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::option_callbacks::verify_map_or(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(vec![
+            check_node(checked.receiver, false, ctx),
+            check_node(checked.default, false, ctx),
+            check_node(checked.predicate.binding, false, ctx),
+            check_node(checked.predicate.body, false, ctx),
+        ]),
+        Err(reason) => error(
+            "rust.immediate-option-callbacks",
+            "immediate_callback",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_subslice(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    match crate::data_subslices::verify(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(
+            checked
+                .operands()
+                .map(|operand| check_node(operand, in_expansion, ctx))
+                .collect(),
+        ),
+        Err(reason) => error("rust.shared-subslice-views", "subslice", node, &reason),
+    }
+}
+
+fn check_assertion(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    let verified = ctx
+        .facts
+        .source
+        .bytes
+        .get(node.span.start as usize..node.span.end as usize)
+        .ok_or_else(|| "Missing original assertion source".to_string())
+        .and_then(|source| {
+            crate::assertions::verify(
+                node,
+                source,
+                ctx.facts.build.debug_assertions.value,
+                ctx.profile,
+            )
+        });
+    let own = match verified {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error(
+            "rust.scalar-assertions",
+            "assertion_evidence",
+            node,
+            &reason,
+        ),
+    };
+    own.merge(Outcome::combine(
+        node.children
+            .iter()
+            .map(|child| check_node(child, false, ctx))
+            .collect(),
+    ))
+}
+
 fn macro_diagnostic(node: &HirNode, site: &ExpansionSite) -> Outcome {
     Outcome::reject(diagnostic(
         "rust.macros",
@@ -599,6 +942,18 @@ fn macro_diagnostic(node: &HirNode, site: &ExpansionSite) -> Outcome {
 }
 
 fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if matches!(
+        node.kind.as_str(),
+        "expr_binary" | "expr_unary" | "expr_cast"
+    ) && crate::float_scalars::uses(node)
+    {
+        return checked_operation(
+            node,
+            crate::float_scalars::verify_node(node, ctx.facts),
+            crate::float_scalars::CAPABILITY,
+            "float_operation",
+        );
+    }
     if ctx.profile.supports("rust.concrete-read-only-data")
         && let Some(outcome) = data_kind(node, ctx)
     {
@@ -614,7 +969,16 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     match node.kind.as_str() {
+        "stmt_size_const" => checked_operation(
+            node,
+            crate::size_constants::verify(node, ctx.facts),
+            "rust.native-borrowed-byte-readers",
+            "local_size",
+        ),
         "expr_call" if ctx.profile.supports("rust.verified-helper-calls") => {
+            if crate::call_summaries::static_intrinsic(node, ctx.facts) {
+                return check_method(node, ctx);
+            }
             match crate::helper_calls::verify_use(node, ctx.facts) {
                 Ok(_) => Outcome::ok(),
                 Err(reason) => error("rust.call-summaries", "unverified_helper", node, &reason),
@@ -625,15 +989,27 @@ fn check_kind(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         }
         "expr_cast" if ctx.profile.supports("rust.integer-casts") => check_supported(node, ctx),
         "expr_block" | "stmt_expr" | "stmt_semi" | "stmt_let" | "expr_path" | "expr_lit"
-        | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_assign_op"
-        | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
+        | "expr_tup" | "expr_binary" | "expr_unary" | "expr_assign" | "expr_tuple_assign"
+        | "expr_assign_op" | "expr_if" | "expr_ret" | "expr_let" => check_supported(node, ctx),
         _ => check_deferred(node),
+    }
+}
+
+fn checked_operation(
+    node: &HirNode,
+    verification: Result<(), String>,
+    capability: &str,
+    code: &str,
+) -> Outcome {
+    match verification {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error(capability, code, node, &reason),
     }
 }
 
 fn check_method(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     if ctx.profile.supports("rust.verified-inherent-helper-calls")
-        && crate::helper_calls::direct_resolution(node).is_some()
+        && crate::helper_calls::selected_resolution(node, ctx.facts).is_some()
     {
         return match crate::helper_calls::verify_use(node, ctx.facts) {
             Ok(_) => Outcome::ok(),
@@ -657,13 +1033,81 @@ fn check_method(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 }
 
+fn enum_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    let (capability, kind, checked) =
+        if crate::reference_instances::products::unit_candidate(node, ctx.facts) {
+            (
+                crate::reference_instances::activation::CAPABILITY,
+                "reference_unit",
+                crate::reference_instances::products::unit(node, ctx.facts).map(|_| ()),
+            )
+        } else if crate::fieldless_enums::value_candidate(node, ctx.facts) {
+            (
+                crate::fieldless_enums::CAPABILITY,
+                "fieldless_value",
+                crate::fieldless_enums::value(node, ctx.facts).map(|_| ()),
+            )
+        } else if crate::fieldless_enums::cast_candidate(node, ctx.facts) {
+            (
+                crate::fieldless_enums::CAPABILITY,
+                "fieldless_cast",
+                crate::fieldless_enums::cast(node, ctx.facts),
+            )
+        } else if crate::data_enums::constructor_candidate(node, ctx.facts) {
+            (
+                crate::data_enums::CAPABILITY,
+                "enum_constructor",
+                crate::data_enums::constructor(node, ctx.facts).map(|_| ()),
+            )
+        } else {
+            return None;
+        };
+    Some(match checked {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error(capability, kind, node, &reason),
+    })
+}
+
+fn data_constructor_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if let Some(outcome) = enum_kind(node, ctx) {
+        return Some(outcome);
+    }
+    if crate::checked_options::constructor_candidate(node, ctx.facts) {
+        return Some(check_option_constructor(node, ctx));
+    }
+    if crate::concrete_results::constructor_candidate(node, ctx.facts) {
+        return Some(check_result_constructor(node, ctx));
+    }
+
+    None
+}
+
 fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if let Some(outcome) = data_constructor_kind(node, ctx) {
+        return Some(outcome);
+    }
     let ty = || match node_norm(node) {
-        Some(token) if accepted_type(token, ctx.profile) => Outcome::ok(),
+        Some(token) if accepted_type(token, ctx.facts) => Outcome::ok(),
         _ => check_expr_ty(node, "data_value"),
     };
     match node.kind.as_str() {
+        "expr_lit"
+            if crate::lossless_integer_calls::message::verify(node, ctx.facts)
+                .is_ok_and(|value| value) =>
+        {
+            Some(Outcome::ok())
+        }
+        "expr_lit" if node_norm(node).is_some_and(|ty| matches!(ty, "char" | "f32" | "f64")) => {
+            Some(ty())
+        }
+        "expr_tup" | "expr_array" if ctx.profile.supports("rust.aggregate-literal-values") => {
+            Some(ty())
+        }
+        "expr_repeat" if ctx.profile.supports("rust.repeat-array-values") => Some(ty()),
+        "expr_struct" if ctx.profile.supports("rust.named-struct-values") => Some(ty()),
         "expr_field" | "expr_addr_of" => Some(ty()),
+        "expr_index" if crate::data_index_reads::candidate(node, ctx.facts) => Some(ty()),
+        "expr_unary" if data_dereference(node, ctx) => Some(ty()),
         "expr_block" if !node.is_unsafe_block => Some(ty()),
         "expr_ret" | "ty_annotation" => Some(ty()),
         "expr_if"
@@ -674,29 +1118,81 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         {
             Some(ty())
         }
-        "expr_path" => Some(
-            match node.res.as_ref().and_then(|resolution| {
-                (resolution.kind == "local")
-                    .then_some(resolution.target.as_ref())
-                    .flatten()
-            }) {
-                Some(target)
-                    if ctx
-                        .bindings
-                        .contains_key(&(target.krate, target.owner, target.local)) =>
-                {
-                    ty()
-                }
-                _ => evidence_gap(node, "resolved data binding read"),
-            },
-        ),
+        "expr_path" if resolved_data_constant(node) => Some(check_path(node, ctx)),
+        "expr_path" => Some(check_data_path(node, ctx)),
         _ => None,
+    }
+}
+
+fn resolved_data_constant(node: &HirNode) -> bool {
+    matches!(
+        node.resolution_kind(),
+        Some(
+            crate::scalar_constants::RESOLUTION
+                | crate::primitive_constants::RESOLUTION
+                | crate::nominal_constants::RESOLUTION
+        )
+    )
+}
+
+fn data_dereference(node: &HirNode, ctx: &Ctx<'_>) -> bool {
+    crate::mutable_scalars::root(node, ctx.facts).is_some()
+        || crate::data_dereferences::candidate(node, ctx.facts)
+}
+
+fn check_result_constructor(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::concrete_results::verify_constructor(node, ctx.facts) {
+        Ok(_) => Outcome::ok(),
+        Err(reason) => error(
+            crate::concrete_results::CAPABILITY,
+            "result_constructor",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_data_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match node.res.as_ref().and_then(|resolution| {
+        (resolution.kind == "local")
+            .then_some(resolution.target.as_ref())
+            .flatten()
+    }) {
+        Some(target)
+            if ctx
+                .bindings
+                .contains_key(&(target.krate, target.owner, target.local)) =>
+        {
+            match node_norm(node) {
+                Some(token) if accepted_type(token, ctx.facts) => Outcome::ok(),
+                _ => check_expr_ty(node, "data_value"),
+            }
+        }
+        _ => evidence_gap(node, "resolved data binding read"),
+    }
+}
+
+fn check_option_constructor(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::checked_options::verify_constructor(node, ctx.facts) {
+        Ok(_) => Outcome::ok(),
+        Err(reason) => error(
+            "rust.scalar-option-values",
+            "option_constructor",
+            node,
+            &reason,
+        ),
     }
 }
 
 /// Constructs that may be admitted once their evidence checks pass.
 fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     match node.kind.as_str() {
+        "expr_cast" if crate::bool_usize::candidate(node) => checked_operation(
+            node,
+            crate::bool_usize::verify(node, ctx.facts),
+            crate::bool_usize::CAPABILITY,
+            "bool_cast",
+        ),
         "expr_cast" if ctx.profile.supports("rust.integer-casts") => check_cast(node),
         "expr_block" => check_block(node),
         "stmt_expr" | "stmt_semi" => Outcome::ok(),
@@ -704,9 +1200,29 @@ fn check_supported(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         "expr_path" => check_path(node, ctx),
         "expr_lit" => check_expr_ty(node, "literal"),
         "expr_tup" => check_tup(node),
-        "expr_binary" => check_binary(node),
+        "expr_binary"
+            if ctx.profile.supports(crate::character_scalars::CAPABILITY)
+                && node
+                    .children
+                    .iter()
+                    .any(|child| node_norm(child) == Some("char")) =>
+        {
+            checked_operation(
+                node,
+                crate::character_scalars::comparison(node),
+                crate::character_scalars::CAPABILITY,
+                "comparison",
+            )
+        }
+        "expr_binary" => check_binary(node, ctx),
         "expr_unary" => check_unary(node),
         "expr_assign" => check_assign(node, ctx),
+        "expr_tuple_assign" => checked_operation(
+            node,
+            crate::tuple_assignment::verify(node, ctx.facts),
+            "rust.scalar-tuple-assignment",
+            "tuple_assignment",
+        ),
         "expr_assign_op" => check_assign_op(node, ctx),
         "expr_if" => check_if(node),
         "expr_ret" => check_expr_ty(node, "return"),
@@ -890,6 +1406,10 @@ fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         Some(res) => res,
     };
 
+    if let Some(outcome) = constant_path(node, ctx) {
+        return outcome;
+    }
+
     if resolution.kind != "local" {
         return error(
             "rust.additional-types",
@@ -905,10 +1425,51 @@ fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
                 .bindings
                 .contains_key(&(target.krate, target.owner, target.local)) =>
         {
-            check_expr_ty(node, "read")
+            if node_norm(node).is_some_and(|token| {
+                crate::data_locals::supported(token, ctx.profile)
+                    || token == "char" && ctx.profile.supports(crate::character_scalars::CAPABILITY)
+                    || crate::float_scalars::is_float(token)
+                        && ctx.profile.supports(crate::float_scalars::CAPABILITY)
+            }) {
+                Outcome::ok()
+            } else {
+                check_expr_ty(node, "read")
+            }
         }
         _ => evidence_gap(node, "binding target"),
     }
+}
+
+fn constant_path(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    let resolution = node.res.as_ref()?;
+    let (capability, result) = match resolution.kind.as_str() {
+        crate::nominal_constants::RESOLUTION => (
+            crate::product_constant_values::CAPABILITY,
+            crate::product_constant_values::verify(node, ctx.facts).map(|_| ()),
+        ),
+        crate::primitive_constants::RESOLUTION => (
+            crate::primitive_constants::CAPABILITY,
+            crate::primitive_constants::verify(node, ctx.facts).map(|_| ()),
+        ),
+        crate::scalar_constants::RESOLUTION
+            if ctx.profile.supports("rust.resolved-scalar-constants") =>
+        {
+            (
+                "rust.resolved-scalar-constants",
+                crate::scalar_constants::ScalarConstant::verify(
+                    node,
+                    ctx.facts.build.pointer_width.value,
+                )
+                .map(|_| ()),
+            )
+        }
+        _ => return None,
+    };
+
+    Some(match result {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error(capability, "constant_evidence", node, &reason),
+    })
 }
 
 fn builtin_or_reject(node: &HirNode, what: &str) -> Outcome {
@@ -933,13 +1494,21 @@ fn check_loop_values(
     node: &HirNode,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Outcome {
-    if !profile.supports("rust.scalar-loops") || !contains_loop(node) {
+    if !profile.supports("rust.scalar-loops")
+        || !contains_loop(node)
+        || profile.supports("rust.cyclic-value-merges")
+    {
         return Outcome::ok();
     }
-    check_no_loop_merges(node)
+    check_no_loop_merges(
+        node,
+        false,
+        profile.supports("rust.outside-loop-value-merges"),
+    )
 }
 
-fn check_no_loop_merges(node: &HirNode) -> Outcome {
+fn check_no_loop_merges(node: &HirNode, inside_loop: bool, outside: bool) -> Outcome {
+    let inside_loop = inside_loop || matches!(node.kind.as_str(), "expr_loop" | "expr_while");
     let branching = matches!(node.kind.as_str(), "expr_if" | "expr_match")
         && !matches!(node_norm(node), Some("unit") | None)
         && node.ty.as_ref().is_none_or(|ty| ty.observed != "!");
@@ -947,7 +1516,8 @@ fn check_no_loop_merges(node: &HirNode) -> Outcome {
         .dispatch
         .as_ref()
         .is_some_and(|dispatch| matches!(dispatch.op.as_str(), "&&" | "||"));
-    let own = if branching || short {
+
+    let own = if (branching || short) && (inside_loop || !outside) {
         error(
             "rust.scalar-loops",
             "loop_value_merges",
@@ -958,7 +1528,10 @@ fn check_no_loop_merges(node: &HirNode) -> Outcome {
         Outcome::ok()
     };
     own.merge(Outcome::combine(
-        node.children.iter().map(check_no_loop_merges).collect(),
+        node.children
+            .iter()
+            .map(|child| check_no_loop_merges(child, inside_loop, outside))
+            .collect(),
     ))
 }
 
@@ -1009,10 +1582,14 @@ fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         return evidence_gap(node, "match source/HIR correspondence");
     };
     let mut checks = vec![
-        check_expr_ty(node, "match_result"),
+        check_option_result(node, ctx, "match_result"),
         check_node(scrutinee, false, ctx),
     ];
-    if !node_norm(scrutinee).is_some_and(|ty| is_int(ty) || ty == "bool") {
+    if !node_norm(scrutinee).is_some_and(|ty| {
+        is_int(ty)
+            || ty == "bool"
+            || ty == "char" && ctx.profile.supports(crate::character_scalars::CAPABILITY)
+    }) {
         checks.push(error(
             "rust.scalar-match",
             "scrutinee",
@@ -1020,17 +1597,12 @@ fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
             "Match requires a resolved integer or bool scrutinee.",
         ));
     }
-    if arms.is_empty()
-        || arms.len() > 16
-        || !arms
-            .last()
-            .is_some_and(|arm| arm.children.len() == 2 && arm.children[0].kind == "pat_wild")
-    {
+    if arms.is_empty() || arms.len() > 16 || !match_exhaustive(node, arms, ctx) {
         checks.push(error(
             "rust.scalar-match",
             "match_boundary",
             node,
-            "Bounded match requires 1..=16 arms and a final unguarded wildcard.",
+            "Bounded match requires 1..=16 arms and independently exhaustive unguarded patterns under its registered policy.",
         ));
     }
     for (index, arm) in arms.iter().enumerate() {
@@ -1045,17 +1617,29 @@ fn check_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     Outcome::combine(checks)
 }
 
+fn match_exhaustive(node: &HirNode, arms: &[HirNode], ctx: &Ctx<'_>) -> bool {
+    if ctx.profile.supports("rust.exhaustive-scalar-match") {
+        return crate::scalar_exhaustiveness::closing_arm(
+            node,
+            ctx.facts.build.pointer_width.value,
+        )
+        .is_some();
+    }
+    arms.last()
+        .is_some_and(|arm| arm.children.len() == 2 && arm.children[0].kind == "pat_wild")
+}
+
 fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>) -> Outcome {
     let Some((pattern, children)) = arm.children.split_first() else {
         return evidence_gap(arm, "match arm correspondence");
     };
     let guarded = children.len() == 2 && children[0].kind == "match_guard";
     let shape = arm.kind == "match_arm" && (children.len() == 1 || guarded);
-    let pattern_valid = (pattern.kind == "pat_literal"
-        && pattern.lit.is_some()
-        && node_norm(pattern) == node_norm(scrutinee))
+    let pattern_valid = scalar_match_pattern(pattern, scrutinee, ctx)
         || (pattern.kind == "pat_wild"
-            && (last || (guarded && ctx.profile.supports("rust.scalar-match-guards"))));
+            && (last
+                || ctx.profile.supports("rust.exhaustive-scalar-match")
+                || (guarded && ctx.profile.supports("rust.scalar-match-guards"))));
     let valid =
         shape && pattern_valid && (!guarded || ctx.profile.supports("rust.scalar-match-guards"));
     let own = if valid {
@@ -1065,7 +1649,7 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
             "rust.scalar-match",
             "arm_shape",
             arm,
-            "Only literal arms and a final unguarded wildcard are supported; guards and other patterns require another registered slice.",
+            "Only registered scalar literal/range/OR/wildcard arms with supported guards are admitted.",
         )
     };
     let body = Outcome::combine(
@@ -1082,6 +1666,88 @@ fn check_match_arm(arm: &HirNode, scrutinee: &HirNode, last: bool, ctx: &Ctx<'_>
     );
 
     own.merge(body)
+}
+
+fn scalar_match_pattern(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) -> bool {
+    let minimum = if ctx.profile.supports("rust.nested-scalar-or-patterns") {
+        1
+    } else {
+        2
+    };
+
+    scalar_pattern_leaf(pattern, scrutinee, ctx)
+        || (ctx.profile.supports("rust.scalar-or-patterns")
+            && pattern.kind == "pat_or"
+            && pattern.children.len() >= minimum
+            && node_norm(pattern) == node_norm(scrutinee)
+            && pattern.children.iter().all(|child| {
+                if ctx.profile.supports("rust.nested-scalar-or-patterns") {
+                    scalar_match_pattern(child, scrutinee, ctx)
+                } else {
+                    scalar_pattern_leaf(child, scrutinee, ctx)
+                }
+            }))
+}
+
+fn scalar_pattern_leaf(pattern: &HirNode, scrutinee: &HirNode, ctx: &Ctx<'_>) -> bool {
+    if (pattern.kind != "pat_range" && !pattern.children.is_empty())
+        || node_norm(pattern) != node_norm(scrutinee)
+    {
+        return false;
+    }
+    if pattern.kind == "pat_wild" {
+        return ctx.profile.supports("rust.nested-scalar-or-patterns");
+    }
+    if pattern.kind == "pat_literal" {
+        return pattern.lit.is_some()
+            && (!ctx.profile.supports("rust.exhaustive-scalar-match")
+                || ctx
+                    .facts
+                    .source
+                    .bytes
+                    .get(pattern.span.start as usize..pattern.span.end as usize)
+                    == pattern.lit.as_deref());
+    }
+    if pattern.kind == "pat_constant" {
+        return ctx.profile.supports("rust.scalar-constant-patterns")
+            && crate::scalar_constants::ScalarConstant::verify_pattern(
+                pattern,
+                ctx.facts.build.pointer_width.value,
+            )
+            .is_ok();
+    }
+
+    scalar_range_evidence(pattern, ctx)
+}
+
+fn scalar_range_evidence(pattern: &HirNode, ctx: &Ctx<'_>) -> bool {
+    if pattern.kind == "pat_range" && node_norm(pattern) == Some("char") {
+        return crate::character_ranges::verify_node(pattern, ctx.facts).is_ok();
+    }
+    ctx.profile.supports("rust.scalar-range-patterns")
+        && pattern.kind == "pat_range"
+        && node_norm(pattern)
+            .is_some_and(|ty| crate::concrete_types::scalar(ty) && !matches!(ty, "bool" | "unit"))
+        && ctx
+            .facts
+            .source
+            .bytes
+            .get(pattern.span.start as usize..pattern.span.end as usize)
+            .and_then(|source| {
+                let resolve = if ctx.profile.supports(crate::byte_literals::CAPABILITY) {
+                    crate::scalar_patterns::IntegerRange::from_byte_pattern
+                } else {
+                    crate::scalar_patterns::IntegerRange::from_pattern
+                };
+                resolve(
+                    source,
+                    pattern,
+                    ctx.facts.build.pointer_width.value,
+                    ctx.profile.supports("rust.scalar-constant-range-bounds"),
+                )
+                .ok()
+            })
+            .is_some_and(|range| pattern.lit.as_deref() == Some(range.text().as_str()))
 }
 
 fn check_match_guard(wrapper: &HirNode, ctx: &Ctx<'_>) -> Outcome {
@@ -1164,7 +1830,15 @@ fn check_cast(node: &HirNode) -> Outcome {
     Outcome::ok()
 }
 
-fn check_binary(node: &HirNode) -> Outcome {
+fn check_binary(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if ctx.profile.supports(crate::scalar_instances::CAPABILITY)
+        && ctx
+            .facts
+            .scalar_instance()
+            .is_some_and(|instance| instance.comparison_site(node))
+    {
+        return check_expr_ty(node, "checked_instance_comparison");
+    }
     let dispatch = builtin_or_reject(node, "binary");
     if !dispatch.diagnostics.is_empty() || dispatch.gap {
         return dispatch;
@@ -1259,6 +1933,17 @@ fn check_unary(node: &HirNode) -> Outcome {
 
 /// Direct assignment target must be a lexical binding path (never a read).
 fn check_assign(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    if let Some(result) = crate::owned_product_locals::update_for(node, ctx.facts).transpose() {
+        return match result {
+            Ok(_) => Outcome::ok(),
+            Err(reason) => error(
+                "rust.linear-product-result-flow",
+                "owned_update",
+                node,
+                &reason,
+            ),
+        };
+    }
     let [target, _value] = node.children.as_slice() else {
         return evidence_gap(node, "assignment shape");
     };
@@ -1300,6 +1985,9 @@ fn check_assign_op(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         return evidence_gap(node, "compound shape");
     };
 
+    if crate::mutable_scalars::root(target, ctx.facts).is_some() {
+        return check_expr_ty(node, "mutable_compound_assignment");
+    }
     if target.kind != "expr_path" {
         return error(
             "rust.abstract-memory",
@@ -1315,6 +2003,19 @@ fn check_assign_op(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 
     check_expr_ty(node, "compound_assignment")
+}
+
+fn check_option_if_let(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::checked_options::verify_if_let(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(vec![
+            check_node(checked.scrutinee, false, ctx),
+            check_node(checked.binding, false, ctx),
+            check_node(checked.then_branch, false, ctx),
+            check_node(checked.else_branch, false, ctx),
+            check_kind(node, ctx),
+        ]),
+        Err(reason) => error("rust.scalar-option-if-let", "if_let", node, &reason),
+    }
 }
 
 fn check_if(node: &HirNode) -> Outcome {
@@ -1414,4 +2115,55 @@ fn shape_outcome(node: &HirNode) -> Outcome {
 /// Function-relative span constructor for tests and signature facts.
 pub fn span(start: u32, end: u32) -> ByteSpan {
     ByteSpan { start, end }
+}
+
+fn check_option_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::checked_options::verify_match(node, ctx.facts) {
+        Ok(checked) => {
+            let mut checks = vec![
+                check_option_result(node, ctx, "option_match_result"),
+                check_node(checked.scrutinee, false, ctx),
+            ];
+            for arm in &node.children[1..] {
+                checks.push(check_node(
+                    arm.children.last().expect("verified Option arm"),
+                    false,
+                    ctx,
+                ));
+            }
+            Outcome::combine(checks)
+        }
+        Err(reason) => error("rust.checked-slice-option", "option_match", node, &reason),
+    }
+}
+
+fn check_option_result(node: &HirNode, ctx: &Ctx<'_>, construct: &str) -> Outcome {
+    if crate::checked_options::scalar_enabled(ctx.facts) && crate::checked_options::owned(node) {
+        match node_norm(node) {
+            Some(token) if accepted_type(token, ctx.facts) => Outcome::ok(),
+            _ => check_expr_ty(node, construct),
+        }
+    } else {
+        check_expr_ty(node, construct)
+    }
+}
+
+fn check_enum_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::data_enums::matched(node, ctx.facts) {
+        Ok(checked) => {
+            let result = match node_norm(node) {
+                Some(token) if accepted_type(token, ctx.facts) => Outcome::ok(),
+                _ => check_expr_ty(node, "enum_match_result"),
+            };
+            Outcome::combine(
+                std::iter::once(result)
+                    .chain(std::iter::once(check_node(checked.scrutinee, false, ctx)))
+                    .chain(node.children[1..].iter().map(|arm| {
+                        check_node(arm.children.last().expect("verified enum arm"), false, ctx)
+                    }))
+                    .collect(),
+            )
+        }
+        Err(reason) => error(crate::data_enums::CAPABILITY, "enum_match", node, &reason),
+    }
 }

@@ -1,0 +1,146 @@
+{
+  "identity": "rstyle.development.base64ct-std-import/1",
+  "baseline_revision": "53d35be",
+  "selection_basis": "continue the original preselected length helper into unchanged std builds; source-audited Line getters depend on the same boundary",
+  "original_selection": "base64ct-length-selection.json",
+  "package": {
+    "name": "base64ct",
+    "version": "1.7.3",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/base64ct-1.7.3",
+    "file_sha256": {
+      "Cargo.toml": "e1d351e3b0da5410a327430a53dc4ac81b59f798bd3981c1611f4a89e7305497",
+      "src/lib.rs": "71312148bc3e761e0d66297e774373fa4f6567f65dcf042cfc0a3a4acc392d7a",
+      "src/encoding.rs": "18828be1ed13a89e3cf723675b30addf8703be5c78583eb41bbea7b08de4b03f",
+      "src/decoder.rs": "52376bcc17b4b83cfd85e78dba41169e1ea0ee89a8d93539e3da32abfb9d884f"
+    }
+  },
+  "build_selection": {
+    "edition": "2021",
+    "target": "base64ct library; test=false",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "contexts": [
+      {
+        "cargo_arguments": [],
+        "features": []
+      },
+      {
+        "cargo_arguments": [
+          "--features",
+          "std"
+        ],
+        "features": [
+          "alloc",
+          "std"
+        ]
+      }
+    ]
+  },
+  "functions": [
+    {
+      "name": "encoding::encoded_len_inner",
+      "span": {
+        "start": 12371,
+        "end": 12684
+      },
+      "sha256": "7bb0979d70147ea20426901fcc848bbbc3eca27b01baee4740931e51e18e2d94",
+      "expected": "admitted under std with exact imported macro inventory; existing default context remains admitted",
+      "semantics": "None iff 4*n exceeds usize::MAX; otherwise padded4*ceil(n/3), unpadded ceil(4*n/3)",
+      "file": "src/encoding.rs"
+    },
+    {
+      "name": "decoder::Line::<'i>::len",
+      "span": {
+        "start": 12104,
+        "end": 12163
+      },
+      "sha256": "89e36c670bf5e3e99f8ccdc46194335266a9f6002e264824f3a84d8fe5347e35",
+      "expected": "admitted under std with exact imported macro inventory; existing default context remains admitted",
+      "semantics": "remaining slice element count",
+      "file": "src/decoder.rs"
+    },
+    {
+      "name": "decoder::Line::<'i>::is_empty",
+      "span": {
+        "start": 12212,
+        "end": 12270
+      },
+      "sha256": "c5a0fd522f6cb56f883c5ca64ad2f1c5ee69fef781d430e7cea3961f78a81f90",
+      "expected": "admitted under std with exact imported macro inventory; existing default context remains admitted",
+      "semantics": "remaining slice element count equals zero",
+      "file": "src/decoder.rs"
+    }
+  ],
+  "baseline": {
+    "default": {
+      "functions": 141,
+      "admitted": 6
+    },
+    "std": {
+      "functions": 150,
+      "admitted": 3
+    },
+    "blocker": "Selected source item has unsupported attributes: active #[macro_use] extern crate alloc; previous proof cannot account for imported names"
+  },
+  "support_contract": {
+    "positive": [
+      "original unrenamed private root extern crate alloc with one active path-form macro_use",
+      "exact pinned compiler/target/library/root identity and complete public bang-macro inventory format,vec",
+      "retained source declaration/configuration and all census/source ownership obligations",
+      "existing read-only and checked Option/bool composition through full original package contexts"
+    ],
+    "negative": [
+      "missing/duplicate/extra imported macros or declarations",
+      "changed declaration path/span/digest, library/root/macro identity, visibility or kind",
+      "custom alloc substitute, renamed/selective/nested/expanded imports",
+      "imported macro body invocation receives no new support; allocation, formatting, hidden calls and drop remain independently checked",
+      "neighboring source macros/derives/unsafe behavior cannot be omitted",
+      "historical policy cannot authorize external import records"
+    ],
+    "initial_unknowns": [
+      "Further original std blockers may emerge after the import proof; all outcomes remain visible."
+    ],
+    "unknowns": []
+  },
+  "pinned_source_audit": {
+    "path": "library/alloc/src/macros.rs",
+    "sha256": "b715e2178e8be2fc602f01adad208866cd2595a53f45b6da16c32176477746df",
+    "exports": [
+      "format",
+      "vec"
+    ],
+    "probes": "/tmp/rstyle-macro-import-probe-*.log",
+    "observation": "compiler root children include exactly two public exported bang macros; neither shadows cfg_if, builtins, primitive type names or derives",
+    "reviewed_display_aliases": {
+      "format": [
+        "alloc::format",
+        "std::format"
+      ],
+      "vec": [
+        "alloc::vec",
+        "std::vec"
+      ]
+    }
+  },
+  "independent_expectations": {
+    "native": "reuse unchanged full-package integer-length oracle and separately labeled extreme private-helper witness",
+    "matching": "original length helper self-comparison accepts; base64 peer comparison rejects due independently known overflow difference",
+    "controls": "default contexts preserve all outcomes/source/build identities; frozen membership/denominators stay unchanged"
+  },
+  "validation": {
+    "target_chain": "all three selected originals admit in every declared context; no remaining target-chain blocker",
+    "strict": "36 base64ct plus 12 distinct contextual peer admissions; 30 predeclared comparisons complete",
+    "peer_context": "same-target base64 default-feature context for both base64ct default and std comparisons",
+    "remaining_boundaries": [
+      "allocation/format macro invocation remains excluded",
+      "selective/renamed/nested/generated imports and general macros remain outside the bounded contract",
+      "full-library matching remains explicitly incomplete under max-pairs zero"
+    ],
+    "evidence_prefix": "/tmp/rstyle-alloc-integrated-",
+    "native": "ARM Linux unchanged-library length oracle; private-source witnesses labeled separately; other target results are cross-target capture/replay"
+  }
+}

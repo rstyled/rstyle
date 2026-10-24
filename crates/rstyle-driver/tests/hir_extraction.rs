@@ -13,6 +13,18 @@ static RUN: AtomicU64 = AtomicU64::new(0);
 #[path = "support/oracle.rs"]
 mod oracle;
 
+#[path = "compiled_association/mod.rs"]
+mod compiled_association;
+
+#[path = "call_instances/mod.rs"]
+mod call_instances;
+
+#[path = "trait_members/mod.rs"]
+mod trait_members;
+
+#[path = "scalar_instances/mod.rs"]
+mod scalar_instances;
+
 fn directory() -> PathBuf {
     let serial = RUN.fetch_add(1, Ordering::Relaxed);
     let directory =
@@ -20,6 +32,8 @@ fn directory() -> PathBuf {
     std::fs::create_dir_all(&directory).expect("create isolated rustc run");
 
     directory
+        .canonicalize()
+        .expect("resolve isolated rustc run")
 }
 
 fn compile(source: &str) -> (Output, Option<Vec<HirFnFacts>>) {
@@ -924,7 +938,7 @@ fn serialized_manifest_policies_guards_and_frontiers_are_checked() {
     for mutation in 0..8 {
         let mut serialized = baseline.serialize().unwrap();
         if mutation == 0 {
-            serialized.manifest.documents[0].sha256 = "sha256:wrong".to_string();
+            serialized.manifest.documents[0].checksum = "sha256:wrong".to_string();
             assert!(rstyle_pdg::producer::verify_serialized(&serialized, facts).is_err());
             continue;
         }
@@ -1435,7 +1449,7 @@ fn integer_casts_reject_tampered_facts_and_documents() {
         .unwrap()
         .serialize()
         .unwrap();
-    serialized.manifest.documents[0].sha256 = "sha256:0000".into();
+    serialized.manifest.documents[0].checksum = "sha256:0000".into();
     assert!(rstyle_pdg::producer::verify_serialized(&serialized, &facts).is_err());
 }
 

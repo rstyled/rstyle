@@ -21,6 +21,9 @@ use rstyle_pdg::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(test)]
+mod tests;
+
 /// Resolved-type extension carrying the normalized primitive.
 pub const RESOLVED_TYPE_KEY: &str = "compat.rust.hir-r0:resolved-type";
 
@@ -115,8 +118,10 @@ fn admit_checked(
     } else {
         check_local_producer(pdg, cfg)?
     };
+    // Only the produced handoff owns these exact immutable source bytes.
+    // Imported documents must still check the caller-supplied byte map.
+    check_pdg_eligibility(pdg, ctx, *source_bytes, frontend)?;
     let frontend = frontend.or_else(|| imported.as_ref().map(|facts| facts as &dyn EvidenceFacts));
-    check_pdg_eligibility(pdg, ctx, *source_bytes)?;
 
     let admitted = AdmittedPair { pdg, cfg };
     admitted.check_cfg()?;
@@ -189,8 +194,12 @@ fn check_pdg_eligibility(
     pdg: &PdgDocument,
     ctx: &ValidationContext,
     source_bytes: &dyn rstyle_pdg::validate::SourceBytes,
+    produced: Option<&dyn EvidenceFacts>,
 ) -> Result<(), Vec<String>> {
-    let report = rstyle_pdg::validate::validate_sources(pdg, ctx, source_bytes);
+    let report = match produced {
+        Some(facts) => rstyle_pdg::validate::validate_source_text(pdg, ctx, &facts.source.bytes),
+        None => rstyle_pdg::validate::validate_sources(pdg, ctx, source_bytes),
+    };
 
     if report.matching == rstyle_pdg::Eligibility::Eligible {
         return Ok(());
@@ -270,7 +279,7 @@ fn assemble_function(
     let (width, native) = import_widths(pdg, ctx)?;
 
     Ok(ImportedFunction {
-        matching_profile: imported_matching_profile(pdg),
+        matching_profile: imported_matching_profile(&pdg.profile),
         extraction_context: local_context(pdg)?,
         key,
         nodes: nodes.unwrap_or_default(),
@@ -284,12 +293,27 @@ fn assemble_function(
     })
 }
 
-fn imported_matching_profile(pdg: &PdgDocument) -> crate::graph::MatchingProfile {
+fn imported_matching_profile(profile: &rstyle_pdg::ProfileId) -> crate::graph::MatchingProfile {
     use crate::graph::MatchingProfile;
-    match (pdg.profile.id.as_str(), pdg.profile.version.as_str()) {
-        (rstyle_pdg::extraction_profile::DATA_ID, "2.0.0" | "3.0.0") => {
-            MatchingProfile::DataCallsV1
-        }
+    if *profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3.policy() {
+        return MatchingProfile::DataCallsV1;
+    }
+    match (profile.id.as_str(), profile.version.as_str()) {
+        (
+            rstyle_pdg::extraction_profile::DATA_ID,
+            "2.0.0" | "3.0.0" | "3.1.0" | "3.2.0" | "3.3.0" | "3.4.0" | "3.5.0" | "3.6.0" | "3.7.0"
+            | "3.8.0" | "3.9.0" | "3.10.0" | "3.11.0" | "3.12.0" | "3.13.0" | "3.14.0" | "3.15.0"
+            | "3.16.0" | "3.17.0" | "3.18.0" | "3.19.0" | "3.20.0" | "3.21.0" | "3.22.0" | "3.23.0"
+            | "3.24.0" | "3.25.0" | "3.26.0" | "3.27.0" | "3.30.0" | "3.31.0" | "3.32.0" | "3.33.0"
+            | "3.34.0" | "3.35.0" | "3.36.0" | "3.37.0" | "3.38.0" | "3.39.0" | "3.40.0" | "3.41.0"
+            | "3.42.0" | "3.43.0" | "3.44.0" | "3.45.0" | "3.46.0" | "3.47.0" | "3.48.0" | "3.49.0"
+            | "3.50.0" | "3.51.0" | "3.52.0" | "3.53.0" | "3.54.0" | "3.55.0" | "3.56.0" | "3.57.0"
+            | "3.58.0" | "3.59.0" | "3.60.0" | "3.61.0" | "3.62.0" | "3.63.0" | "3.64.0" | "3.65.0"
+            | "3.66.0" | "3.67.0" | "3.68.0" | "3.69.0" | "3.70.0" | "3.71.0" | "3.72.0" | "3.73.0"
+            | "3.74.0" | "3.75.0" | "3.76.0" | "3.77.0" | "3.78.0" | "3.79.0" | "3.80.0" | "3.81.0"
+            | "3.82.0" | "3.83.0" | "3.84.0" | "3.85.0" | "3.86.0" | "3.87.0" | "3.88.0" | "3.89.0"
+            | "3.90.0" | "3.91.0" | "3.92.0" | "3.93.0" | "3.94.0" | "3.95.0",
+        ) => MatchingProfile::DataCallsV1,
         (rstyle_pdg::extraction_profile::DATA_ID, _) => MatchingProfile::DataV1,
         _ => MatchingProfile::ScalarV1,
     }
@@ -371,21 +395,18 @@ fn import_nodes(
     reachability: &BTreeMap<String, bool>,
     value_sites: &BTreeSet<String>,
 ) -> Result<Vec<ImportedNode>, Vec<String>> {
-    collect_results(pdg.nodes.iter().map(|node| {
-        import_node(
-            node,
-            reachability,
-            value_sites,
-            pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID,
-        )
-    }))
+    collect_results(
+        pdg.nodes
+            .iter()
+            .map(|node| import_node(node, reachability, value_sites, pdg)),
+    )
 }
 
 fn import_node(
     node: &rstyle_pdg::PdgNode,
     reachability: &BTreeMap<String, bool>,
     value_sites: &BTreeSet<String>,
-    data: bool,
+    pdg: &PdgDocument,
 ) -> Result<ImportedNode, String> {
     let procedural = matches!(
         node.category,
@@ -415,8 +436,8 @@ fn import_node(
         defines_binding: !node.attributes.defines.is_empty(),
         reads_or_writes: !node.attributes.reads.is_empty() || !node.attributes.writes.is_empty(),
         value_site_reachable: value_sites.contains(&node.id),
-        read_symbols: if data {
-            rstyle_pdg::data_documents::read_keys(node)
+        read_symbols: if pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID {
+            rstyle_pdg::data_documents::read_keys(node, &pdg.memory_locations)
         } else {
             read_symbols(node)
         },

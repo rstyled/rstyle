@@ -10,17 +10,317 @@ use crate::{
     declaration_origins,
 };
 use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
+mod array_lengths;
+mod builtin_options;
+mod default_owners;
 pub(crate) mod environment;
-pub(crate) use environment::Environment;
+mod float_constants;
+mod fresh_products;
+pub(crate) mod nominal_constants;
+pub(crate) mod tryfrom_owners;
+pub(crate) use fresh_products::CheckedFreshProduct;
+mod primitive_constants;
+mod range_from;
+mod reference_owners;
+mod result_maps;
+mod scalar_aliases;
+mod scalar_products;
+mod selected;
+pub(crate) use selected::no_drop::{expand_local_ident_macro, expand_local_ident_source};
+pub(crate) mod value_traits;
+pub(crate) use environment::{Environment, SourceOptions};
+pub(crate) use selected::no_drop::copy_conversion_sites::CheckedConversion as CheckedCopyConversion;
+pub(crate) use selected::no_drop::copy_products::CheckedCopyProductSource;
+mod import_chains;
+mod variants;
 use syn::spanned::Spanned;
 
 type Namespace = Vec<String>;
 
+#[derive(Clone, Copy)]
+enum EnumShape {
+    Fieldless,
+    ScalarTuple,
+    Mixed,
+}
+
+pub(crate) fn verify_option_type(
+    facts: &HirFnFacts,
+    path: &syn::TypePath,
+    scalar: &str,
+) -> Result<(), String> {
+    standalone_environment(facts)?.verify_option_type(facts, path, scalar)
+}
+
 pub struct Resolution {
     pub namespace: Namespace,
     pub receiver: Option<TypeTree>,
+    owner_path: Option<Namespace>,
+    range_value: Option<TypeTree>,
+    range_owner: Option<(ByteSpan, TypeTree)>,
     trees: BTreeMap<Namespace, TypeTree>,
     environment: Rc<Environment>,
+    copy_trees: std::collections::BTreeSet<Namespace>,
+    no_drop_trees: std::collections::BTreeSet<Namespace>,
+    array_views: bool,
+    scalar_aliases: bool,
+    local_import_chains: bool,
+    source_requirements: selected::SourceRequirements,
+    copy_owner_source: Option<selected::no_drop::copy_owners::CheckedCopyOwnerSource>,
+    scalar_result_source:
+        Option<selected::no_drop::scalar_result_owners::CheckedScalarResultSource>,
+    copy_conversion_source: Option<CheckedCopyConversion>,
+    scalar_product_source:
+        Option<selected::no_drop::scalar_product_instances::CheckedScalarProductInstance>,
+    transport_sources: Option<result_maps::TransportSources>,
+}
+
+fn requires_mixed_owner(tree: &TypeTree) -> bool {
+    match tree {
+        TypeTree::MixedEnum { .. } => true,
+        TypeTree::Struct { source, fields, .. } => {
+            concrete_types::lifetimes::declaration_count(source).is_ok_and(|count| count > 0)
+                || syn::parse_str::<syn::ItemStruct>(source).is_ok_and(|item| {
+                    item.attrs
+                        .iter()
+                        .any(|attribute| attribute.path().is_ident("repr"))
+                })
+                || fields.iter().any(|field| {
+                    matches!(&field.ty,
+                    TypeTree::Shared(inner) if matches!(inner.as_ref(), TypeTree::Slice(_)))
+                })
+        }
+        _ => false,
+    }
+}
+
+impl Resolution {
+    /// A receipt is reusable only for the same immutable source/member inputs.
+    pub(crate) fn copy_conversion_source(
+        &self,
+        facts: &HirFnFacts,
+    ) -> Result<Option<&CheckedCopyConversion>, String> {
+        let Some(receipt) = &self.copy_conversion_source else {
+            return Ok(None);
+        };
+        receipt.checked_namespace(facts, &self.environment)?;
+        Ok(Some(receipt))
+    }
+
+    pub(crate) fn verify_transport_origins(
+        &self,
+        interface: &InterfaceObservations,
+        origins: &declaration_origins::Origins,
+    ) -> Result<(), String> {
+        declaration_origins::verify_in(interface, origins, &self.environment)
+    }
+
+    fn select_copies(
+        &mut self,
+        facts: &HirFnFacts,
+        origins: &declaration_origins::Origins,
+        owner: Option<&crate::product_instances::CheckedProjection>,
+    ) -> Result<(), String> {
+        let selected = selected::verify(facts, origins, self, owner)?;
+        self.copy_trees = selected.copies;
+        self.no_drop_trees = selected.no_drop;
+        self.source_requirements = selected.requirements;
+
+        Ok(())
+    }
+
+    pub(crate) fn checked_no_drop(&self, nominal: &concrete_types::Nominal) -> bool {
+        self.checked_nominal(nominal, &self.no_drop_trees).is_some()
+    }
+
+    fn checked_nominal(
+        &self,
+        nominal: &concrete_types::Nominal,
+        permissions: &std::collections::BTreeSet<Namespace>,
+    ) -> Option<&TypeTree> {
+        let key: Namespace = nominal
+            .definition_path
+            .split("::")
+            .map(str::to_owned)
+            .collect();
+        let tree = self.trees.get(&key)?;
+        (permissions.contains(&key)
+            && tree
+                .nominal_identity()
+                .is_some_and(|checked| checked == nominal))
+        .then_some(tree)
+    }
+
+    pub(crate) fn verify_result_type_source(
+        &self,
+        facts: &HirFnFacts,
+        path: &syn::TypePath,
+    ) -> Result<(), String> {
+        if path.qself.is_some() {
+            return Err("Result type cannot use a qualified trait path".into());
+        }
+        if let Some(receipt) = &self.copy_conversion_source {
+            return self.environment.verify_conversion_result_source(
+                facts,
+                builtin_options::ResultSource {
+                    path: &path.path,
+                    variant: None,
+                },
+                receipt,
+            );
+        }
+        if let Some(receipt) = &self.scalar_result_source {
+            return self.environment.verify_checked_result_source(
+                facts,
+                builtin_options::ResultSource {
+                    path: &path.path,
+                    variant: None,
+                },
+                receipt,
+            );
+        }
+
+        if self.transport_source().is_some() {
+            return self.verify_transport_result_type(facts, &path.path);
+        }
+        self.environment
+            .verify_result_source(facts, &path.path, None)
+    }
+
+    pub(crate) fn verify_result_constructor_source(
+        &self,
+        facts: &dyn crate::unit_store::EvidenceFacts,
+        path: &syn::Path,
+        variant: &str,
+    ) -> Result<(), String> {
+        if let Some(receipt) = &self.copy_conversion_source {
+            return self.environment.verify_conversion_result_source(
+                facts.facts(),
+                builtin_options::ResultSource {
+                    path,
+                    variant: Some(variant),
+                },
+                receipt,
+            );
+        }
+        if let Some(receipt) = &self.scalar_result_source {
+            return self.environment.verify_checked_result_source(
+                facts.facts(),
+                builtin_options::ResultSource {
+                    path,
+                    variant: Some(variant),
+                },
+                receipt,
+            );
+        }
+        self.environment
+            .verify_result_source(facts.facts(), path, Some(variant))
+    }
+
+    pub(crate) fn requires_copy_owner_source(&self) -> bool {
+        self.copy_owner_source.is_some()
+    }
+
+    pub(crate) fn requires_static_string_products(&self) -> bool {
+        self.source_requirements.static_string_products
+    }
+
+    pub(crate) fn requires_copy_constructor_sites(&self) -> bool {
+        self.source_requirements.copy_constructor_sites
+    }
+
+    pub(crate) fn requires_passive_copy_dependencies(&self) -> bool {
+        self.source_requirements.passive_dependencies
+    }
+
+    pub(crate) fn requires_borrowed_mixed_owners(&self) -> bool {
+        self.has_mixed_owners()
+            || self.environment.copy_boundary && self.trees.values().any(requires_mixed_owner)
+    }
+
+    pub(crate) fn has_mixed_owners(&self) -> bool {
+        self.has_enum_shape(EnumShape::Mixed)
+    }
+
+    fn has_enum_shape(&self, shape: EnumShape) -> bool {
+        self.trees.values().any(|tree| {
+            matches!(
+                (tree, shape),
+                (TypeTree::FieldlessEnum { .. }, EnumShape::Fieldless)
+                    | (TypeTree::Enum { .. }, EnumShape::ScalarTuple)
+                    | (TypeTree::MixedEnum { .. }, EnumShape::Mixed)
+            )
+        })
+    }
+
+    pub(crate) fn requires_borrowed_copy_child_fields(&self) -> bool {
+        self.environment.copy_boundary
+            && self.trees.iter().any(|(key, tree)| {
+                !self.copy_trees.contains(key)
+                    && tree
+                        .nominal_fields()
+                        .any(|field| matches!(field.ty, TypeTree::Struct { .. }))
+            })
+    }
+
+    pub(crate) fn requires_borrowed_array_views(&self) -> bool {
+        self.trees.iter().any(|(key, tree)| {
+            tree.nominal_fields().any(|field| {
+                matches!(field.ty, TypeTree::Array { .. })
+                    && (self.environment.copy_boundary && !self.copy_trees.contains(key)
+                        || !matches!(syn::parse_str::<syn::Type>(&field.declaration),
+                            Ok(syn::Type::Array(array)) if matches!(array.len, syn::Expr::Lit(_))))
+            })
+        })
+    }
+
+    pub(crate) fn requires_enum_values(&self, fieldless: bool) -> bool {
+        self.has_enum_shape(if fieldless {
+            EnumShape::Fieldless
+        } else {
+            EnumShape::ScalarTuple
+        })
+    }
+
+    pub(crate) fn requires_scoped_imports(&self) -> bool {
+        self.environment.copy_boundary
+            && self
+                .environment
+                .index
+                .unresolved_expansions
+                .iter()
+                .any(|namespace| {
+                    self.namespace.starts_with(namespace)
+                        || self
+                            .trees
+                            .keys()
+                            .any(|declaration| declaration.starts_with(namespace))
+                })
+    }
+
+    pub(crate) fn requires_copy_array_fields(&self) -> bool {
+        self.environment.copy_boundary && self.trees.values().any(|tree| {
+            matches!(tree, TypeTree::Struct { fields, .. } if fields.iter().any(|field| matches!(field.ty, TypeTree::Array { .. })))
+        })
+    }
+
+    pub(crate) fn checked_copy_token(&self, token: &crate::data_types::TypeToken) -> bool {
+        let nominal = match token {
+            crate::data_types::TypeToken::Struct { nominal, .. }
+            | crate::data_types::TypeToken::Enum { nominal, .. }
+            | crate::data_types::TypeToken::FieldlessEnum { nominal, .. } => nominal,
+            _ => return false,
+        };
+        self.checked_nominal(nominal, &self.copy_trees)
+            .is_some_and(|tree| crate::data_types::TypeToken::from_tree(tree) == *token)
+    }
+
+    pub(crate) fn checked_owned_copy(&self, tree: &TypeTree) -> bool {
+        let Some((nominal, _)) = tree.nominal_parts() else {
+            return false;
+        };
+        self.checked_nominal(nominal, &self.copy_trees) == Some(tree)
+    }
 }
 
 /// Borrow a checked immutable lexical environment, or own the standalone result.
@@ -56,22 +356,291 @@ pub(crate) fn from_facts(facts: &HirFnFacts) -> Result<Resolution, String> {
         .build
         .frontend_options
         .data::<InterfaceObservations>()?;
-    verify(facts, &interface)
+    crate::diagnostics::Stage::new("source.nominal_standalone", &facts.name, None)
+        .observe(|| verify(facts, &interface))
 }
 
 struct Declaration {
+    identity: crate::source_identity::Memo,
     path: PathBuf,
     span: ByteSpan,
     namespace: Namespace,
+    module_index: usize,
+    item_index: usize,
 }
 
 pub fn verify(facts: &HirFnFacts, interface: &InterfaceObservations) -> Result<Resolution, String> {
+    verify_in(facts, interface, standalone_environment(facts)?)
+}
+
+pub(crate) fn verify_source_inputs(facts: &HirFnFacts) -> Result<(), String> {
+    standalone_environment(facts)?.check_input_owner(facts)
+}
+
+/// Resolve original constructor paths in the exact checked impl-method scope.
+/// No function, instance, cleanup or caller permission escapes this check.
+pub(crate) fn verify_reference_paths(
+    facts: &HirFnFacts,
+    paths: &[(syn::TypePath, concrete_types::Nominal)],
+) -> Result<(), String> {
+    reference_owners::verify(facts, paths)
+}
+
+fn standalone_environment(facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
+    crate::nominal_boundary::census::policy::authority(facts)?;
     let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
-    let environment = Rc::new(Environment::new(Arc::clone(&census))?);
-    verify_in(facts, interface, environment)
+    Environment::with_source_options(
+        Arc::clone(&census),
+        SourceOptions {
+            constants: constant_context(facts)?,
+            cfgs: selected_cfgs(facts)?,
+            expansions: supports(facts, "rust.cfg-if-module-ownership")?,
+            module_lints: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,
+            generated_namespaces: supports(
+                facts,
+                crate::dependency_namespaces::GENERATED_CAPABILITY,
+            )?,
+        },
+    )
+    .map(Rc::new)
+}
+
+pub(crate) fn constant_context(facts: &HirFnFacts) -> Result<bool, String> {
+    supports(facts, "rust.nominal-constant-context")
 }
 
 pub(crate) fn verify_in(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    interface: &InterfaceObservations,
+    environment: Rc<Environment>,
+) -> Result<Resolution, String> {
+    let facts = input.facts();
+    let owner = if crate::product_instances::activation::verify(input)? {
+        input.product_instance()
+    } else {
+        None
+    };
+
+    let mut resolution = declaration_resolution(facts, interface, Rc::clone(&environment))?;
+    if owner.is_none() {
+        capture_function_sources(input, &mut resolution)?;
+    }
+    if environment.copy_boundary
+        || resolution.range_value.is_some()
+        || supports(facts, selected::no_drop::copy_components::CAPABILITY)?
+            && resolution
+                .trees
+                .values()
+                .any(selected::no_drop::copy_components::required)
+    {
+        let origins = facts
+            .build
+            .frontend_options
+            .data::<declaration_origins::Origins>()?;
+        resolution.select_copies(facts, &origins, owner)?;
+    }
+    function_scope(
+        input,
+        &environment.modules,
+        environment.census(),
+        &mut resolution,
+    )?;
+    Ok(resolution)
+}
+
+fn capture_function_sources(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<(), String> {
+    resolution.capture_scalar_product(input.facts())?;
+    if resolution.scalar_product_source.is_some() {
+        return Ok(());
+    }
+
+    capture_remaining_function_sources(input, resolution)
+}
+
+fn capture_remaining_function_sources(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<(), String> {
+    capture_owner_sources(input.facts(), resolution)?;
+    capture_copy_conversion(input.facts(), resolution)?;
+    capture_transport_sources(input, resolution)
+}
+
+fn capture_transport_sources(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<(), String> {
+    if !supports(input.facts(), crate::result_maps::CAPABILITY)?
+        || !input
+            .facts()
+            .body
+            .any(&|node| crate::result_maps::candidate(node, input))
+    {
+        return Ok(());
+    }
+
+    let Some(capture) = input.generated_source_capture()? else {
+        return Ok(());
+    };
+    if !has_transport_observation(input.facts(), &capture) {
+        return Ok(());
+    }
+
+    let member = crate::generated_sources::checked::verify_in(
+        crate::generated_sources::checked::Input {
+            facts: input.facts(),
+            census: resolution.environment.census(),
+            capture: &capture,
+        },
+        &resolution.environment,
+    )?;
+    let origins = input
+        .facts()
+        .build
+        .frontend_options
+        .data::<declaration_origins::Origins>()?;
+    resolution.transport_sources = result_maps::capture(result_maps::Input {
+        facts: input.facts(),
+        resolution,
+        origins: &origins,
+        member,
+        capture: &capture,
+    })?;
+    Ok(())
+}
+
+fn has_transport_observation(
+    facts: &HirFnFacts,
+    capture: &crate::generated_sources::capture::UnitCapture,
+) -> bool {
+    let identity = facts
+        .build
+        .frontend_options
+        .get("definition_identity")
+        .and_then(serde_json::Value::as_str);
+    capture.outcomes.iter().any(|outcome| match outcome {
+        crate::generated_sources::capture::Outcome::Observed { observation } => {
+            Some(observation.owner.definition_identity.as_str()) == identity
+        }
+        _ => false,
+    })
+}
+
+fn capture_owner_sources(facts: &HirFnFacts, resolution: &mut Resolution) -> Result<(), String> {
+    if supports(facts, "rust.checked-copy-owner-source")? {
+        resolution.copy_owner_source = selected::no_drop::copy_owners::capture(facts, resolution)?;
+    }
+    if supports(facts, crate::tryfrom_calls::CAPABILITY)? {
+        resolution.scalar_result_source =
+            selected::no_drop::scalar_result_owners::capture(facts, resolution)?;
+    }
+
+    Ok(())
+}
+
+fn capture_copy_conversion(facts: &HirFnFacts, resolution: &mut Resolution) -> Result<(), String> {
+    if crate::copy_tagged_values::candidate(facts) {
+        let origins = facts
+            .build
+            .frontend_options
+            .data::<declaration_origins::Origins>()?;
+        resolution.copy_conversion_source = Some(
+            selected::no_drop::copy_conversion_sites::capture_checked(facts, resolution, &origins)?,
+        );
+    }
+    Ok(())
+}
+
+/// Check the complete captured result's cleanup obligations without authorizing
+/// construction, calls, source finding coverage, or admission.
+pub fn probe_reference_product_result(facts: &HirFnFacts) -> Result<(), String> {
+    probe_product_result(facts, selected::no_drop::ProductProof::Reference)
+}
+
+/// Check complete scalar Copy-product source and cleanup evidence without
+/// granting generic-instance, function, construction or call authority.
+pub fn probe_copy_product_result(facts: &HirFnFacts) -> Result<(), String> {
+    probe_product_result(facts, selected::no_drop::ProductProof::Copy)
+}
+
+/// Check complete bounded Copy components and their original source closure.
+/// Diagnostic only: this grants no value, function, trait or call permission.
+pub fn probe_copy_components_interface(facts: &HirFnFacts) -> Result<(), String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
+    let origins = facts
+        .build
+        .frontend_options
+        .data::<declaration_origins::Origins>()?;
+    selected::no_drop::copy_components::verify_interface(facts, &resolution, &origins)
+}
+
+/// Check exact original tagged conversions, positive target Copy cleanup and
+/// selected core conversion membership. Grants no values, origins or admission.
+pub fn probe_copy_conversion_source(facts: &HirFnFacts) -> Result<(), String> {
+    let _checked = checked_copy_conversion_source(facts)?;
+    Ok(())
+}
+
+/// Retain the exact original conversion's source, cleanup and selected member.
+/// This receipt alone grants no value, origin or callable-summary permission.
+pub(crate) fn checked_copy_conversion_source(
+    facts: &HirFnFacts,
+) -> Result<CheckedCopyConversion, String> {
+    use selected::no_drop::copy_conversion_sites;
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let mut resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
+    let origins = facts
+        .build
+        .frontend_options
+        .data::<declaration_origins::Origins>()?;
+
+    resolution.copy_conversion_source = Some(copy_conversion_sites::capture_checked(
+        facts,
+        &resolution,
+        &origins,
+    )?);
+    resolution.select_copies(facts, &origins, None)?;
+    bind_copy_conversion_function(facts, &mut resolution)?;
+    resolution
+        .copy_conversion_source
+        .ok_or_else(|| "Missing retained Copy conversion source proof".into())
+}
+
+/// Retain actual per-nominal proof receipts for an owning checked instance.
+pub(crate) fn checked_copy_product_source(
+    facts: &HirFnFacts,
+) -> Result<CheckedCopyProductSource, String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
+    selected::no_drop::copy_products::capture(facts, &resolution)
+}
+
+fn probe_product_result(
+    facts: &HirFnFacts,
+    proof: selected::no_drop::ProductProof,
+) -> Result<(), String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
+    selected::no_drop::probe_product(facts, &resolution, proof)
+}
+
+fn declaration_resolution(
     facts: &HirFnFacts,
     interface: &InterfaceObservations,
     environment: Rc<Environment>,
@@ -81,32 +650,47 @@ pub(crate) fn verify_in(
         .build
         .frontend_options
         .data::<declaration_origins::Origins>()?;
-    declaration_origins::verify_in(interface, &origins, &environment)?;
+    let context = declaration_origins::context(facts, interface, &origins)?;
+    declaration_origins::verify_in(&context, &origins, &environment)?;
     let mut resolution = Resolution {
         namespace: Vec::new(),
         receiver: None,
+        owner_path: None,
+        range_value: range_from::observed(
+            facts,
+            context.parameters.iter().chain([&context.result]),
+        )?,
+        range_owner: None,
         trees: BTreeMap::new(),
+        copy_trees: Default::default(),
+        no_drop_trees: Default::default(),
+        source_requirements: Default::default(),
+        copy_owner_source: None,
+        scalar_result_source: None,
+        copy_conversion_source: None,
+        scalar_product_source: None,
+        transport_sources: None,
+        array_views: supports(facts, "rust.borrowed-array-views")?,
+        scalar_aliases: supports(facts, "rust.accelerator-packing")?,
+        local_import_chains: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,
         environment: Rc::clone(&environment),
     };
 
-    for observation in interface.parameters.iter().chain([&interface.result]) {
+    collect_interface(&context, &mut resolution.trees)?;
+    verify_declarations(&resolution, &origins, facts)?;
+    Ok(resolution)
+}
+
+fn collect_interface(
+    context: &InterfaceObservations,
+    trees: &mut BTreeMap<Namespace, TypeTree>,
+) -> Result<(), String> {
+    for observation in context.parameters.iter().chain([&context.result]) {
         if let Observation::Captured { ty } = observation {
-            collect(ty, &mut resolution.trees)?;
+            collect(ty, trees)?;
         }
     }
-    verify_declarations(
-        &resolution,
-        &environment.index.declarations,
-        &origins,
-        environment.census(),
-    )?;
-    function_scope(
-        facts,
-        &environment.modules,
-        environment.census(),
-        &mut resolution,
-    )?;
-    Ok(resolution)
+    Ok(())
 }
 
 fn file_bytes<'a>(census: &'a census::Census, path: &std::path::Path) -> Result<&'a str, String> {
@@ -119,100 +703,238 @@ fn file_bytes<'a>(census: &'a census::Census, path: &std::path::Path) -> Result<
 }
 
 fn source_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
-    let source = bytes.strip_prefix('\u{feff}').unwrap_or(bytes);
-    let prefix = bytes.len() - source.len();
-    ByteSpan {
-        start: (crate::source_evidence::byte_offset(source, span.start()) + prefix) as u32,
-        end: (crate::source_evidence::byte_offset(source, span.end()) + prefix) as u32,
-    }
+    crate::source_evidence::original_span(bytes, span)
 }
 
 struct Index {
+    unshadowed_u32: BTreeMap<Namespace, bool>,
     declarations: BTreeMap<Namespace, Declaration>,
     imports: BTreeMap<(Namespace, String), Namespace>,
+    unresolved_expansions: std::collections::BTreeSet<Namespace>,
+    ambiguous_module_imports: std::collections::BTreeSet<Namespace>,
 }
-fn build_index(modules: &[census::Module], census: &census::Census) -> Result<Index, String> {
+fn build_index(
+    modules: &[census::Module],
+    census: &census::Census,
+    cfgs: Option<&[String]>,
+) -> Result<Index, String> {
     let mut index = Index {
+        unshadowed_u32: BTreeMap::new(),
         declarations: BTreeMap::new(),
         imports: BTreeMap::new(),
+        unresolved_expansions: Default::default(),
+        ambiguous_module_imports: Default::default(),
     };
-    for module in modules {
-        index.items(module, file_bytes(census, &module.path)?)?;
-    }
-    for (namespace, name) in index.imports.keys() {
-        let key: Vec<_> = namespace.iter().cloned().chain([name.clone()]).collect();
-        if index.declarations.contains_key(&key) {
-            return Err("Import shadows a nominal declaration".into());
+
+    let loaded_modules = modules
+        .iter()
+        .map(|module| module.namespace.clone())
+        .collect();
+    for (module_index, module) in modules.iter().enumerate() {
+        index.items(&IndexSite {
+            module,
+            bytes: file_bytes(census, &module.path)?,
+            module_index,
+            selected: cfgs.is_some(),
+            loaded_modules: &loaded_modules,
+        })?;
+        if let Some(cfgs) = cfgs {
+            let configuration = crate::conditional_source::Configuration::new(cfgs);
+            if module
+                .items
+                .iter()
+                .any(|item| selected::module_item(item, &configuration).is_err())
+            {
+                index.unresolved_expansions.insert(module.namespace.clone());
+            }
         }
     }
+    index.verify_imports(cfgs.is_some(), &loaded_modules)?;
     Ok(index)
 }
+struct IndexSite<'a> {
+    module: &'a census::Module,
+    bytes: &'a str,
+    module_index: usize,
+    selected: bool,
+    loaded_modules: &'a std::collections::BTreeSet<Namespace>,
+}
+
 impl Index {
-    fn items(&mut self, module: &census::Module, bytes: &str) -> Result<(), String> {
-        for item in &module.items {
+    fn verify_imports(
+        &mut self,
+        selected: bool,
+        loaded_modules: &std::collections::BTreeSet<Namespace>,
+    ) -> Result<(), String> {
+        for (namespace, name) in self.imports.keys() {
+            if selected
+                && (selected::builtin_derive(name)
+                    || concrete_types::scalar(name)
+                    || name.starts_with("*::"))
+            {
+                self.unresolved_expansions.insert(namespace.clone());
+            }
+            let key: Vec<_> = namespace.iter().cloned().chain([name.clone()]).collect();
+            if self.declarations.contains_key(&key) {
+                return Err("Import shadows a nominal declaration".into());
+            }
+            if selected && loaded_modules.contains(&key) {
+                self.ambiguous_module_imports.insert(key);
+            }
+        }
+        Ok(())
+    }
+
+    fn items(&mut self, site: &IndexSite<'_>) -> Result<(), String> {
+        let unshadowed = !site
+            .module
+            .items
+            .iter()
+            .any(primitive_constants::shadowing_item);
+        self.unshadowed_u32
+            .entry(site.module.namespace.clone())
+            .and_modify(|previous| *previous &= unshadowed)
+            .or_insert(unshadowed);
+
+        for (item_index, item) in site.module.items.iter().enumerate() {
             match item {
-                syn::Item::Struct(item) => {
-                    let mut key = module.namespace.clone();
-                    key.push(item.ident.to_string());
-                    if concrete_types::lifetimes::parameter_count(&item.generics).is_err()
-                        || self
-                            .declarations
-                            .insert(
-                                key,
-                                Declaration {
-                                    path: module.path.clone(),
-                                    span: source_span(bytes, item.span()),
-                                    namespace: module.namespace.clone(),
-                                },
-                            )
-                            .is_some()
-                    {
-                        return Err("Generic or ambiguous nominal declaration".into());
+                syn::Item::Struct(_) | syn::Item::Enum(_) => {
+                    self.nominal_item(site, item_index, item)?
+                }
+                syn::Item::Use(item) => {
+                    let path = match (item.leading_colon.is_some(), site.selected) {
+                        (false, _) => Vec::new(),
+                        (true, true) => vec!["<external>".into()],
+                        (true, false) => {
+                            return Err("External import lacks captured nominal evidence".into());
+                        }
+                    };
+                    Imports {
+                        values: &mut self.imports,
+                        namespace: &site.module.namespace,
+                        selected: site.selected,
+                        loaded_modules: site.loaded_modules,
                     }
-                }
-                syn::Item::Use(item) if item.leading_colon.is_none() => {
-                    imports_tree(&item.tree, Vec::new(), &module.namespace, &mut self.imports)?;
-                }
-                syn::Item::Use(_) => {
-                    return Err("External import lacks captured nominal evidence".into());
+                    .tree(&item.tree, path)?;
                 }
                 _ => {}
             }
         }
         Ok(())
     }
+
+    fn nominal_item(
+        &mut self,
+        site: &IndexSite<'_>,
+        item_index: usize,
+        item: &syn::Item,
+    ) -> Result<(), String> {
+        let (ident, generics) = match item {
+            syn::Item::Struct(item) => (&item.ident, &item.generics),
+            syn::Item::Enum(item) => (&item.ident, &item.generics),
+            _ => return Err("Expected nominal declaration".into()),
+        };
+        let mut key = site.module.namespace.clone();
+        key.push(ident.to_string());
+        if !site.selected && concrete_types::lifetimes::parameter_count(generics).is_err() {
+            return Err("Generic nominal declaration".into());
+        }
+
+        let declaration = Declaration {
+            identity: Default::default(),
+            path: site.module.path.clone(),
+            span: if site.selected {
+                nominal_span(site.bytes, item)?
+            } else {
+                source_span(site.bytes, item.span())
+            },
+            namespace: site.module.namespace.clone(),
+            module_index: site.module_index,
+            item_index,
+        };
+        if self.declarations.insert(key, declaration).is_some() {
+            return Err("Ambiguous nominal declaration".into());
+        }
+        Ok(())
+    }
 }
 
-fn imports_tree(
-    tree: &syn::UseTree,
-    mut path: Namespace,
-    namespace: &Namespace,
-    imports: &mut BTreeMap<(Namespace, String), Namespace>,
-) -> Result<(), String> {
-    match tree {
-        syn::UseTree::Path(item) => {
-            path.push(item.ident.to_string());
-            imports_tree(&item.tree, path, namespace, imports)
-        }
-        syn::UseTree::Group(item) => {
-            for child in &item.items {
-                imports_tree(child, path.clone(), namespace, imports)?;
+struct Imports<'a> {
+    values: &'a mut BTreeMap<(Namespace, String), Namespace>,
+    namespace: &'a Namespace,
+    selected: bool,
+    loaded_modules: &'a std::collections::BTreeSet<Namespace>,
+}
+
+impl Imports<'_> {
+    fn tree(&mut self, tree: &syn::UseTree, mut path: Namespace) -> Result<(), String> {
+        match tree {
+            syn::UseTree::Path(item) => {
+                path.push(item.ident.to_string());
+                self.tree(&item.tree, path)
             }
-            Ok(())
+            syn::UseTree::Group(item) => self.group(item, path),
+            leaf => self.endpoint(leaf, path),
         }
-        leaf => {
-            let (name, alias) = match leaf {
-                syn::UseTree::Name(item) => (item.ident.to_string(), item.ident.to_string()),
-                syn::UseTree::Rename(item) => (item.ident.to_string(), item.rename.to_string()),
-                _ => {
-                    return Err(
-                        "Glob imports require unavailable lexical resolution evidence".into(),
-                    );
-                }
-            };
+    }
+
+    fn endpoint(&mut self, tree: &syn::UseTree, path: Namespace) -> Result<(), String> {
+        match tree {
+            syn::UseTree::Glob(_) if self.selected => self.glob(path),
+            leaf => self.leaf(leaf, path),
+        }
+    }
+
+    fn group(&mut self, item: &syn::UseGroup, path: Namespace) -> Result<(), String> {
+        for child in &item.items {
+            self.tree(child, path.clone())?;
+        }
+        Ok(())
+    }
+
+    fn glob(&mut self, path: Namespace) -> Result<(), String> {
+        // Retain the unresolved glob; it never supplies a selected type witness.
+        let key = (self.namespace.clone(), format!("*::{}", path.join("::")));
+        self.values
+            .entry(key)
+            .or_insert(anchored(path, self.namespace, true)?);
+        Ok(())
+    }
+
+    fn leaf(&mut self, leaf: &syn::UseTree, mut path: Namespace) -> Result<(), String> {
+        let (name, alias) = match leaf {
+            syn::UseTree::Name(item) => (item.ident.to_string(), item.ident.to_string()),
+            syn::UseTree::Rename(item) => (item.ident.to_string(), item.rename.to_string()),
+            _ => return Err("Glob imports require unavailable lexical resolution evidence".into()),
+        };
+        let alias = if name == "self" {
+            if alias == "self" {
+                path.last()
+                    .cloned()
+                    .ok_or("Self import lacks a parent path")?
+            } else {
+                alias
+            }
+        } else {
             path.push(name);
-            insert_import(alias, path, namespace, imports)
+            alias
+        };
+
+        let local_module = path.first().is_some_and(|head| {
+            !matches!(head.as_str(), "crate" | "self" | "super" | "<external>")
+                && self.loaded_modules.contains(
+                    &self
+                        .namespace
+                        .iter()
+                        .cloned()
+                        .chain([head.clone()])
+                        .collect::<Namespace>(),
+                )
+        });
+        if self.selected && local_module {
+            path.insert(0, "self".into());
         }
+        insert_import(alias, path, self.namespace, self.values)
     }
 }
 
@@ -224,7 +946,10 @@ fn insert_import(
 ) -> Result<(), String> {
     let path = anchored(path, namespace, true)?;
     if imports.insert((namespace.clone(), name), path).is_some() {
-        return Err("Ambiguous named import".into());
+        return Err(format!(
+            "Ambiguous named import in {}",
+            namespace.join("::")
+        ));
     }
     Ok(())
 }
@@ -258,15 +983,21 @@ fn anchored(path: Namespace, namespace: &Namespace, import: bool) -> Result<Name
 
 fn collect(tree: &TypeTree, trees: &mut BTreeMap<Namespace, TypeTree>) -> Result<(), String> {
     match tree {
-        TypeTree::Struct { .. } => collect_nominal(tree, trees)?,
-        TypeTree::Tuple(elements) => {
-            for element in elements {
+        TypeTree::Struct { .. }
+        | TypeTree::GeneratedStruct { .. }
+        | TypeTree::Enum { .. }
+        | TypeTree::FieldlessEnum { .. }
+        | TypeTree::ScalarProductInstance(_)
+        | TypeTree::MixedEnum { .. } => collect_nominal(tree, trees)?,
+        TypeTree::Tuple(_) | TypeTree::Result { .. } => {
+            for element in tree.components() {
                 collect(element, trees)?;
             }
         }
-        TypeTree::Shared(element) | TypeTree::Slice(element) | TypeTree::Array { element, .. } => {
-            collect(element, trees)?
-        }
+        TypeTree::Option(element)
+        | TypeTree::Shared(element)
+        | TypeTree::Slice(element)
+        | TypeTree::Array { element, .. } => collect(element, trees)?,
         _ => {}
     }
     Ok(())
@@ -276,12 +1007,9 @@ fn collect_nominal(
     tree: &TypeTree,
     trees: &mut BTreeMap<Namespace, TypeTree>,
 ) -> Result<(), String> {
-    let TypeTree::Struct {
-        nominal, fields, ..
-    } = tree
-    else {
-        return Err("Non-nominal type registry entry".into());
-    };
+    let nominal = tree
+        .nominal_identity()
+        .ok_or("Non-nominal type registry entry")?;
     let key = nominal
         .definition_path
         .split("::")
@@ -294,7 +1022,7 @@ fn collect_nominal(
         return Err("Contradictory nominal trees in one interface".into());
     }
 
-    for field in fields {
+    for field in tree.nominal_fields() {
         collect(&field.ty, trees)?;
     }
     Ok(())
@@ -302,17 +1030,17 @@ fn collect_nominal(
 
 fn verify_declarations(
     resolution: &Resolution,
-    declarations: &BTreeMap<Namespace, Declaration>,
     origins: &declaration_origins::Origins,
-    census: &census::Census,
+    facts: &HirFnFacts,
 ) -> Result<(), String> {
+    let declarations = &resolution.environment.index.declarations;
+    let census = resolution.environment.census();
     for (key, tree) in &resolution.trees {
-        let TypeTree::Struct {
-            nominal, fields, ..
-        } = tree
-        else {
-            return Err("Non-nominal registry entry".into());
-        };
+        if tree.generated_parts().is_some() {
+            result_maps::validate_generated(facts, origins, &resolution.environment, tree)?;
+            continue;
+        }
+        let (nominal, _) = tree.nominal_parts().ok_or("Non-nominal registry entry")?;
         let declaration = declarations
             .get(key)
             .ok_or("Nominal tree lacks lexical source declaration")?;
@@ -333,27 +1061,123 @@ fn verify_declarations(
                 "Nominal declaration source, namespace or selected package disagrees".into(),
             );
         }
-        let scoped = Scoped {
-            resolution,
-            namespace: &declaration.namespace,
-        };
-        for field in fields {
-            concrete_types::source_proof::verify_top_spelling(
-                &field.declaration,
-                &field.ty,
-                &scoped,
+        if let TypeTree::ScalarProductInstance(instance) = tree {
+            selected::no_drop::scalar_product_instances::verify_fields(
+                facts, resolution, instance, key,
             )?;
+            continue;
         }
+        verify_declaration_fields(resolution, facts, &declaration.namespace, tree)?;
+    }
+    Ok(())
+}
+
+fn verify_declaration_fields(
+    resolution: &Resolution,
+    facts: &HirFnFacts,
+    namespace: &[String],
+    tree: &TypeTree,
+) -> Result<(), String> {
+    let namespace = namespace.to_vec();
+    let scoped = builtin_options::DeclarationScope {
+        resolution,
+        namespace: &namespace,
+        facts,
+    };
+    for field in tree.nominal_fields() {
+        concrete_types::source_proof::verify_top_spelling(&field.declaration, &field.ty, &scoped)?;
     }
     Ok(())
 }
 
 fn function_scope(
-    facts: &HirFnFacts,
+    input: &dyn crate::unit_store::EvidenceFacts,
     modules: &[census::Module],
     census: &census::Census,
     resolution: &mut Resolution,
 ) -> Result<(), String> {
+    if bind_selected_function(input, resolution)? {
+        return Ok(());
+    }
+
+    lexical_function_scope(input, modules, census, resolution)
+}
+
+fn bind_selected_function(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<bool, String> {
+    if bind_exact_source_function(input.facts(), resolution)? {
+        return Ok(true);
+    }
+    if bind_value_trait_function(input, resolution)? {
+        return Ok(true);
+    }
+
+    range_from::bind(input.facts(), resolution)
+}
+
+fn bind_exact_source_function(
+    facts: &HirFnFacts,
+    resolution: &mut Resolution,
+) -> Result<bool, String> {
+    if bind_copy_conversion_function(facts, resolution)? {
+        return Ok(true);
+    }
+    if resolution.bind_scalar_product(facts)? {
+        return Ok(true);
+    }
+    resolution.bind_transport_function(facts)
+}
+
+fn bind_copy_conversion_function(
+    facts: &HirFnFacts,
+    resolution: &mut Resolution,
+) -> Result<bool, String> {
+    let Some(receipt) = &resolution.copy_conversion_source else {
+        return Ok(false);
+    };
+
+    let namespace = receipt
+        .checked_namespace(facts, &resolution.environment)?
+        .to_vec();
+    receipt.function_namespace(facts, &resolution.environment, &namespace)?;
+    let owner = receipt.self_type().clone();
+    if !resolution.checked_owned_copy(&owner) {
+        return Err("Copy conversion owner lacks its independently selected Copy proof".into());
+    }
+    let nominal = owner
+        .nominal_identity()
+        .ok_or("Missing Copy conversion owner identity")?;
+
+    resolution.owner_path = Some(
+        nominal
+            .definition_path
+            .split("::")
+            .map(str::to_owned)
+            .collect(),
+    );
+    resolution.namespace = namespace;
+    resolution.receiver = Some(owner);
+    Ok(true)
+}
+
+fn bind_value_trait_function(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<bool, String> {
+    Ok(bind_copy_conversion_function(input.facts(), resolution)?
+        || tryfrom_owners::bind(input, resolution)?
+        || default_owners::bind(input, resolution)?)
+}
+
+fn lexical_function_scope(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    modules: &[census::Module],
+    census: &census::Census,
+    resolution: &mut Resolution,
+) -> Result<(), String> {
+    let facts = input.facts();
     let file = facts
         .build
         .frontend_options
@@ -361,23 +1185,57 @@ fn function_scope(
         .and_then(serde_json::Value::as_str)
         .ok_or("Missing function source identity")?;
     let mut candidates = Vec::new();
-    for module in modules
+    for (module_index, module) in modules
         .iter()
-        .filter(|module| module.path.to_string_lossy() == file)
+        .enumerate()
+        .filter(|(_, module)| module.path.to_string_lossy() == file)
     {
         let bytes = file_bytes(census, &module.path)?;
-        candidates.extend(module_functions(module, bytes, facts));
+        candidates.extend(module_functions(
+            module_index,
+            bytes,
+            facts,
+            &resolution.environment,
+        )?);
     }
 
     let [(namespace, receiver)] = candidates.as_slice() else {
         return Err("Missing or ambiguous exact lexical function ownership".into());
     };
     resolution.namespace = namespace.clone();
+    if resolution.environment.copy_boundary {
+        selected::check_function_namespace(input, resolution, namespace)?;
+    }
     if let Some(receiver) = receiver {
-        let syn::Type::Path(path) = receiver.as_ref() else {
-            return Err("Unsupported inherent receiver type".into());
-        };
-        resolution.receiver = Some(resolution.resolve(path)?);
+        resolve_receiver(resolution, receiver, facts)?;
+    }
+    Ok(())
+}
+
+fn resolve_receiver(
+    resolution: &mut Resolution,
+    receiver: &syn::Type,
+    facts: &HirFnFacts,
+) -> Result<(), String> {
+    let syn::Type::Path(path) = receiver else {
+        return Err("Unsupported inherent receiver type".into());
+    };
+    resolution.owner_path = Some(
+        Scoped {
+            resolution,
+            namespace: &resolution.namespace,
+        }
+        .name(path)?,
+    );
+    match resolution.resolve(path) {
+        Ok(owner) => resolution.receiver = Some(owner),
+        Err(error)
+            if facts.signature.has_self
+                || !supports(facts, "rust.static-inherent-helper-calls")? =>
+        {
+            return Err(error);
+        }
+        Err(_) => {}
     }
     Ok(())
 }
@@ -400,6 +1258,18 @@ pub fn inherent_owner<'a>(
     implementation: &ByteSpan,
 ) -> Result<OwnerView<'a>, String> {
     let resolution = facts.nominal_resolution()?;
+    check_implementation(&resolution, facts, implementation)?;
+    if resolution.receiver.is_none() {
+        return Err("Missing independently resolved inherent owner".into());
+    }
+    Ok(OwnerView(resolution))
+}
+
+fn check_implementation(
+    resolution: &Resolution,
+    facts: &HirFnFacts,
+    implementation: &ByteSpan,
+) -> Result<(), String> {
     let file = facts
         .build
         .frontend_options
@@ -417,9 +1287,17 @@ pub fn inherent_owner<'a>(
         let bytes = resolution.environment.source(&module.path)?.bytes();
         for item in &module.items {
             if let syn::Item::Impl(item) = item
-                && source_span(bytes, item.span()) == *implementation
+                && implementation_source_span(bytes, item) == *implementation
                 && supported_inherent_member(item, bytes, facts)
             {
+                if !facts.signature.has_self
+                    && !item.generics.params.is_empty()
+                    && !supports(facts, "rust.linear-product-result-flow")?
+                {
+                    return Err(
+                        "Lifetime-only static helper requires its registered capability".into(),
+                    );
+                }
                 owners += 1;
             }
         }
@@ -429,38 +1307,100 @@ pub fn inherent_owner<'a>(
         return Err("Missing or ambiguous exact nongeneric inherent implementation".into());
     }
 
-    if resolution.receiver.is_none() {
-        return Err("Missing independently resolved inherent owner".into());
+    Ok(())
+}
+
+// rustc's implementation span excludes outer attributes; syn's item span
+// includes them. Attribute activity and semantics are checked by the closed
+// lexical environment before this exact implementation/member comparison.
+fn implementation_source_span(bytes: &str, item: &syn::ItemImpl) -> ByteSpan {
+    ByteSpan {
+        start: source_span(bytes, item.impl_token.span()).start,
+        end: source_span(bytes, item.brace_token.span.close()).end,
     }
-    Ok(OwnerView(resolution))
+}
+
+fn supports(facts: &HirFnFacts, capability: &str) -> Result<bool, String> {
+    Ok(crate::extraction_profile::ExtractionProfile::from_facts(facts)?.supports(capability))
+}
+
+pub fn static_owner(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    implementation: &ByteSpan,
+    nominal: &crate::concrete_types::Nominal,
+) -> Result<(), String> {
+    if facts.signature.has_self || !supports(facts, "rust.static-inherent-helper-calls")? {
+        return Err(
+            "Static inherent ownership requires its registered receiver-free boundary".into(),
+        );
+    }
+    let resolution = facts.nominal_resolution()?;
+    check_implementation(&resolution, facts, implementation)?;
+
+    let owner = resolution
+        .owner_path
+        .as_ref()
+        .ok_or("Missing exact static implementation owner")?;
+    resolution.check_nominal(owner, nominal)
 }
 
 fn supported_inherent_member(item: &syn::ItemImpl, bytes: &str, facts: &HirFnFacts) -> bool {
     if item.trait_.is_some()
         || item.unsafety.is_some()
-        || !item.generics.params.is_empty()
-        || item.generics.where_clause.is_some()
+        || !(if supports(facts, "rust.borrowed-mixed-owners").unwrap_or(false) {
+            crate::inherent_calls::lifetimes::implementation(item)
+        } else {
+            item.generics.params.is_empty() && item.generics.where_clause.is_none()
+        })
     {
         return false;
     }
     item.items.iter().any(|member| {
-        let syn::ImplItem::Fn(method) = member else { return false; };
-        (FunctionSource { vis: &method.vis, sig: &method.sig, body: &method.block }).exact(bytes, facts)
+        let syn::ImplItem::Fn(method) = member else {
+            return false;
+        };
+        (FunctionSource {
+            vis: &method.vis,
+            sig: &method.sig,
+            body: &method.block,
+        })
+        .exact(bytes, facts)
             && crate::concrete_types::lifetimes::parameter_count(&method.sig.generics).is_ok()
-            && matches!(method.sig.inputs.first(), Some(syn::FnArg::Receiver(receiver))
-                if receiver.reference.is_some() && receiver.mutability.is_none() && receiver.colon_token.is_none())
+            && (item.generics.params.is_empty() || method.sig.generics.params.is_empty())
+            && supported_receiver(&method.sig, facts)
     })
 }
 
+fn supported_receiver(signature: &syn::Signature, facts: &HirFnFacts) -> bool {
+    match signature.inputs.first() {
+        Some(syn::FnArg::Receiver(receiver)) => {
+            (receiver.reference.is_some()
+                || supports(facts, "rust.owned-copy-self").unwrap_or(false))
+                && receiver.mutability.is_none()
+                && receiver.colon_token.is_none()
+        }
+        _ => {
+            !facts.signature.has_self
+                && supports(facts, "rust.static-inherent-helper-calls").unwrap_or(false)
+        }
+    }
+}
+
+type FunctionOwner = (Namespace, Option<Box<syn::Type>>);
+
 fn module_functions(
-    module: &census::Module,
+    module_index: usize,
     bytes: &str,
     facts: &HirFnFacts,
-) -> Vec<(Namespace, Option<Box<syn::Type>>)> {
+    environment: &Environment,
+) -> Result<Vec<FunctionOwner>, String> {
+    let module = &environment.modules[module_index];
+    let selected = environment.copy_boundary;
     let mut candidates = Vec::new();
-    for item in &module.items {
-        match item {
-            syn::Item::Fn(item)
+
+    for (item, method) in environment.owner_candidates(module_index, facts.fn_span) {
+        match (item, method) {
+            (syn::Item::Fn(item), None)
                 if (FunctionSource {
                     vis: &item.vis,
                     sig: &item.sig,
@@ -468,26 +1408,37 @@ fn module_functions(
                 })
                 .exact(bytes, facts) =>
             {
-                candidates.push((module.namespace.clone(), None))
+                if !selected || selected::function_attributes(facts, &item.attrs).is_ok() {
+                    candidates.push((module.namespace.clone(), None))
+                }
             }
-            syn::Item::Impl(item) => {
-                for member in &item.items {
-                    if let syn::ImplItem::Fn(method) = member
-                        && (FunctionSource {
-                            vis: &method.vis,
-                            sig: &method.sig,
-                            body: &method.block,
-                        })
-                        .exact(bytes, facts)
-                    {
-                        candidates.push((module.namespace.clone(), Some(item.self_ty.clone())));
-                    }
+            (syn::Item::Impl(item), Some(method)) => {
+                if selected
+                    && !selected::implementation(facts, item)
+                    && !selected::local_traits::implementation(facts, environment, module, item)?
+                {
+                    continue;
+                }
+                if exact_method(method, bytes, facts, selected)
+                    && (item.generics.params.is_empty() || method.sig.generics.params.is_empty())
+                {
+                    candidates.push((module.namespace.clone(), Some(item.self_ty.clone())));
                 }
             }
             _ => {}
         }
     }
-    candidates
+    Ok(candidates)
+}
+
+fn exact_method(method: &syn::ImplItemFn, bytes: &str, facts: &HirFnFacts, selected: bool) -> bool {
+    (FunctionSource {
+        vis: &method.vis,
+        sig: &method.sig,
+        body: &method.block,
+    })
+    .exact(bytes, facts)
+        && (!selected || selected::function_attributes(facts, &method.attrs).is_ok())
 }
 
 struct FunctionSource<'a> {
@@ -496,16 +1447,20 @@ struct FunctionSource<'a> {
     body: &'a syn::Block,
 }
 impl FunctionSource<'_> {
-    fn exact(&self, bytes: &str, facts: &HirFnFacts) -> bool {
+    fn range(&self, bytes: &str) -> ByteSpan {
         let start = if matches!(self.vis, syn::Visibility::Inherited) {
             self.sig.span()
         } else {
             self.vis.span()
         };
-        let range = ByteSpan {
+        ByteSpan {
             start: source_span(bytes, start).start,
             end: source_span(bytes, self.body.span()).end,
-        };
+        }
+    }
+
+    fn exact(&self, bytes: &str, facts: &HirFnFacts) -> bool {
+        let range = self.range(bytes);
         range == facts.fn_span
             && bytes.get(range.start as usize..range.end as usize)
                 == Some(facts.source.bytes.as_str())
@@ -528,7 +1483,51 @@ impl PathResolution for Resolution {
 }
 
 impl PathResolution for Scoped<'_> {
+    fn array_length(&self, source: &syn::Expr, expected: u64) -> Result<(), String> {
+        array_lengths::verify(self, source, expected)
+    }
+
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
+        if let Some(tree) = range_from::resolve(path, self)? {
+            return Ok(tree);
+        }
+        if let Some(tree) = scalar_products::resolve(path, self)? {
+            return Ok(tree);
+        }
+        if path.qself.is_some() || path.path.leading_colon.is_some() {
+            return Err("Unsupported nominal type path".into());
+        }
+        concrete_types::lifetimes::arguments(path)?;
+
+        if path.path.is_ident("Self") {
+            return self
+                .resolution
+                .receiver
+                .clone()
+                .ok_or_else(|| "Self lacks exact owning impl proof".into());
+        }
+        if self.resolution.scalar_aliases
+            && let Some(tree) = scalar_aliases::resolve(self, path)?
+        {
+            return Ok(tree);
+        }
+        if let Some(tree) = self.resolution.transport_named_type(self.namespace, path) {
+            return Ok(tree);
+        }
+        let names = self.name(path)?;
+        let tree = self
+            .resolution
+            .trees
+            .get(&names)
+            .cloned()
+            .ok_or_else(|| "Named type lacks exact captured lexical declaration".to_string())?;
+        concrete_types::lifetimes::verify_path(path, &tree)?;
+        Ok(tree)
+    }
+}
+
+impl Scoped<'_> {
+    fn name(&self, path: &syn::TypePath) -> Result<Namespace, String> {
         if path.qself.is_some() || path.path.leading_colon.is_some() {
             return Err("Unsupported nominal type path".into());
         }
@@ -546,7 +1545,7 @@ impl PathResolution for Scoped<'_> {
             }
             return self
                 .resolution
-                .receiver
+                .owner_path
                 .clone()
                 .ok_or_else(|| "Self lacks exact owning impl proof".into());
         }
@@ -564,14 +1563,170 @@ impl PathResolution for Scoped<'_> {
             names = imported;
         } else {
             names = anchored(names, self.namespace, false)?;
+            // An unqualified local type does not traverse its canonical parent
+            // modules. A value import beside a parent module cannot shadow it.
+            if path.path.segments.len() == 1
+                && self
+                    .resolution
+                    .environment
+                    .index
+                    .declarations
+                    .contains_key(&names)
+            {
+                return Ok(names);
+            }
         }
-        let tree = self
+        self.checked_name(names)
+    }
+
+    fn checked_name(&self, names: Namespace) -> Result<Namespace, String> {
+        if self.resolution.local_import_chains {
+            return import_chains::resolve(names, &self.resolution.environment.index);
+        }
+        if !self
             .resolution
-            .trees
-            .get(&names)
-            .cloned()
-            .ok_or_else(|| "Named type lacks exact captured lexical declaration".to_string())?;
-        concrete_types::lifetimes::verify_path(path, &tree)?;
-        Ok(tree)
+            .environment
+            .index
+            .declarations
+            .contains_key(&names)
+        {
+            return Err("Named type lacks exact captured lexical declaration".into());
+        }
+        Ok(names)
+    }
+}
+
+impl Resolution {
+    pub(crate) fn default_call_owner(
+        &self,
+        facts: &HirFnFacts,
+        path: &syn::TypePath,
+        nominal: &concrete_types::Nominal,
+    ) -> Result<(), String> {
+        default_owners::call_owner(self, facts, path, nominal)
+    }
+
+    pub fn matches_nominal(
+        &self,
+        path: &syn::TypePath,
+        nominal: &crate::concrete_types::Nominal,
+    ) -> Result<(), String> {
+        let names = Scoped {
+            resolution: self,
+            namespace: &self.namespace,
+        }
+        .name(path)?;
+        self.check_nominal(&names, nominal)
+    }
+
+    fn check_nominal(
+        &self,
+        names: &Namespace,
+        nominal: &crate::concrete_types::Nominal,
+    ) -> Result<(), String> {
+        let declaration = self
+            .environment
+            .index
+            .declarations
+            .get(names)
+            .ok_or("Missing lexical nominal owner declaration")?;
+        let package = &self.environment.census().context.package;
+
+        if nominal.definition_path != names.join("::")
+            || nominal.source_identity.as_deref() != Some(package.package_id.as_str())
+            || nominal.package_name != package.name
+            || nominal.package_version != package.version
+            || nominal.manifest_digest != package.manifest_digest
+            || !self
+                .environment
+                .declaration_matches(declaration, &nominal.declaration_digest)?
+        {
+            return Err("Nominal owner contradicts the exact lexical declaration/package".into());
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn selected_cfgs(facts: &HirFnFacts) -> Result<Option<&[String]>, String> {
+    Ok(supports(facts, "rust.copy-nominal-boundary")?.then_some(facts.build.cfgs.as_slice()))
+}
+
+fn nominal_span(bytes: &str, item: &syn::Item) -> Result<ByteSpan, String> {
+    let (visibility, token) = match item {
+        syn::Item::Struct(item) => (&item.vis, item.struct_token.span),
+        syn::Item::Enum(item) => (&item.vis, item.enum_token.span),
+        _ => return Err("Expected nominal item span".into()),
+    };
+    let start = match visibility {
+        syn::Visibility::Inherited => token,
+        _ => visibility.span(),
+    };
+    Ok(ByteSpan {
+        start: source_span(bytes, start).start,
+        end: source_span(bytes, item.span()).end,
+    })
+}
+
+/// Exact source-only local From owner, after the normal checked resolution.
+/// Type/library/selected-implementation authority remains independently checked.
+pub(crate) fn range_from_owner(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<(ByteSpan, TypeTree)>, String> {
+    Ok(facts.nominal_resolution()?.range_owner.clone())
+}
+
+/// Lexical original-source proof only; selected trait/type authority is separate.
+pub(crate) fn range_from_call(
+    node: &crate::HirNode,
+    caller: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    range_from::call(node, caller)
+}
+
+#[cfg(test)]
+mod imports_tests {
+    use super::*;
+
+    #[test]
+    fn grouped_self_renames_and_external_roots_retain_exact_bindings() {
+        let mut values = BTreeMap::new();
+        let namespace = vec!["api".into()];
+        for source in [
+            "use core::fmt::{self, Debug};",
+            "use core::cmp::{self as compare, Ordering};",
+        ] {
+            let item: syn::ItemUse = syn::parse_str(source).unwrap();
+            Imports {
+                values: &mut values,
+                namespace: &namespace,
+                selected: true,
+                loaded_modules: &Default::default(),
+            }
+            .tree(&item.tree, Vec::new())
+            .unwrap();
+        }
+        assert_eq!(values[&(namespace.clone(), "fmt".into())], ["core", "fmt"]);
+        assert_eq!(
+            values[&(namespace.clone(), "compare".into())],
+            ["core", "cmp"]
+        );
+        assert_eq!(
+            values[&(namespace.clone(), "Debug".into())],
+            ["core", "fmt", "Debug"]
+        );
+        assert!(!values.contains_key(&(namespace.clone(), "self".into())));
+        let item: syn::ItemUse = syn::parse_str("use ::core::fmt as external;").unwrap();
+        Imports {
+            values: &mut values,
+            namespace: &namespace,
+            selected: true,
+            loaded_modules: &Default::default(),
+        }
+        .tree(&item.tree, vec!["<external>".into()])
+        .unwrap();
+        assert_eq!(
+            values[&(namespace, "external".into())],
+            ["<external>", "core", "fmt"]
+        );
     }
 }

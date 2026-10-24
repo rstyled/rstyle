@@ -89,9 +89,11 @@ fn concrete_type_budget_cannot_validate_a_truncated_tree() {
     assert!(validate(&tree).unwrap_err().contains("budget"));
     let array = TypeTree::Array {
         element: Box::new(TypeTree::Scalar("u8".into())),
-        length: MAX_ARRAY + 1,
+        length: u64::MAX,
     };
-    assert!(validate(&array).unwrap_err().contains("budget"));
+    validate(&array).unwrap();
+    let token = rstyle_pdg::data_types::token(&array).unwrap();
+    rstyle_pdg::data_types::parse(&token).unwrap();
     let tuple = TypeTree::Tuple(vec![TypeTree::Scalar("bool".into()); MAX_ENTRIES]);
     assert!(validate(&tuple).unwrap_err().contains("budget"));
 }
@@ -241,6 +243,7 @@ fn declaration_origins_require_exact_owned_struct_ranges() {
     let file = format!("\u{feff}{source}\r\nmod nested {{ pub struct Other; }}\r\n");
     let start = file.find(source).unwrap() as u32;
     let origin = Origin {
+        builtin_copy: None,
         nominal: nominal.clone(),
         source_file: "src/types.rs".into(),
         file_digest: digest(file.as_bytes()),
@@ -258,6 +261,7 @@ fn declaration_origins_require_exact_owned_struct_ranges() {
         },
     };
     let origins = Origins {
+        generated: Vec::new(),
         identity: IDENTITY.into(),
         declarations: vec![origin],
     };
@@ -346,4 +350,27 @@ fn strict_source_type_proofs_enforce_resource_and_rust_unit_boundaries() {
         source_proof::verify_spelling(&" ".repeat(MAX_SOURCE_BYTES + 1), &unit, &MissingResolution)
             .is_err()
     );
+}
+
+#[test]
+fn option_observations_and_bounded_scalar_semantic_types() {
+    for payload in [
+        TypeTree::Scalar("usize".into()),
+        TypeTree::Shared(Box::new(TypeTree::Scalar("u8".into()))),
+    ] {
+        let tree = TypeTree::Option(Box::new(payload));
+        validate(&tree).unwrap();
+        let encoded = serde_json::to_vec(&tree).unwrap();
+        assert_eq!(tree, serde_json::from_slice(&encoded).unwrap());
+        let token = rstyle_pdg::data_types::token(&tree).unwrap();
+        rstyle_pdg::data_types::parse(&token).unwrap();
+    }
+    for payload in [
+        TypeTree::Scalar("unit".into()),
+        TypeTree::Scalar("f32".into()),
+        TypeTree::Slice(Box::new(TypeTree::Scalar("u8".into()))),
+        TypeTree::Option(Box::new(TypeTree::Scalar("u8".into()))),
+    ] {
+        assert!(validate(&TypeTree::Option(Box::new(payload))).is_err());
+    }
 }

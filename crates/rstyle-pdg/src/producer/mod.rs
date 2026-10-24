@@ -9,8 +9,11 @@ mod graph;
 mod hazards;
 mod lower;
 pub mod matching_build;
+pub mod memory;
 mod profile;
 mod summaries;
+mod unsigned_ranges;
+pub(crate) use unsigned_ranges::{bounded_value_index, verify_range_policy};
 mod verify;
 pub use verify::{verify, verify_view};
 

@@ -19,9 +19,10 @@ fn concrete_data_interface_vocabulary_is_exact_and_bounded() {
     for token in [
         r#"{"kind":"shared", "value":{"kind":"scalar","value":"i32"}}"#,
         r#"{"kind":"mutable","value":{"kind":"scalar","value":"i32"}}"#,
-        r#"{"kind":"array","value":{"element":{"kind":"scalar","value":"u8"},"length":4097}}"#,
+        r#"{"kind":"array","value":{"element":{"kind":"scalar","value":"u8"},"length":18446744073709551616}}"#,
         r#"{"kind":"scalar","value":"i32"}"#,
-        "f32",
+        "f16",
+        "f128",
         "&i32",
     ] {
         assert!(data_types::parse(token).is_err(), "{token}");
@@ -75,19 +76,68 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.0.0");
+    assert_eq!(profile.policy().version, "3.108.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 12);
+    assert_eq!(profile.capabilities().len(), 132);
+    assert!(profile.supports("rust.checked-scalar-instances"));
+    assert!(profile.supports("rust.component-helper-results"));
+    let mut previous = profile.policy();
+    previous.version = "3.83.0".into();
+    assert!(!rstyle_pdg::extraction_profile::policy_supports(
+        &previous,
+        "rust.component-helper-results"
+    ));
     assert!(profile.supports("rust.verified-inherent-helper-calls"));
+    assert!(profile.supports("rust.verified-cross-unit-scalar-helpers"));
+    assert!(profile.supports("rust.explicit-u8-fieldless-enums"));
     for earlier in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
+        assert!(!earlier.supports("rust.checked-scalar-instances"));
+        assert!(!earlier.supports("rust.component-helper-results"));
         assert!(!earlier.supports("rust.verified-inherent-helper-calls"));
+        assert!(!earlier.supports("rust.verified-cross-unit-scalar-helpers"));
+        assert!(!earlier.supports("rust.explicit-u8-fieldless-enums"));
         assert_ne!(earlier.policy(), profile.policy());
     }
     assert!(rstyle_pdg::extraction_profile::registered(
         &profile.policy()
+    ));
+}
+
+#[test]
+fn tagged_conversion_authority_does_not_extend_historical_policies() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let capability = "rust.copy-tagged-conversion-values";
+    let current = ExtractionProfile::DataV3.policy();
+    assert!(policy_supports(&current, capability));
+
+    let mut historical = current;
+    historical.version = "3.102.0".into();
+    assert!(!policy_supports(&historical, capability));
+    for earlier in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
+        assert!(!earlier.supports(capability));
+    }
+}
+
+#[test]
+fn string_byte_view_authority_is_new_and_keeps_the_existing_byte_contract() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let current = ExtractionProfile::DataV3.policy();
+    assert!(policy_supports(
+        &current,
+        "rust.checked-string-byte-view-instances"
+    ));
+    assert!(policy_supports(
+        &current,
+        "rust.checked-reference-constructor-instances"
+    ));
+    let mut historical = current;
+    historical.version = "3.85.0".into();
+    assert!(!policy_supports(
+        &historical,
+        "rust.checked-string-byte-view-instances"
     ));
 }
 
@@ -119,4 +169,108 @@ fn nominal_tokens_preserve_namespace_fields_and_native_width_requirements() {
     );
     assert!(data_types::parse(&expected.replace("package-a", "")).is_err());
     assert!(data_types::parse(&expected.replace("\"flag\"", "\"length\"")).is_err());
+}
+
+#[test]
+fn character_vocabulary_preserves_a_distinct_standalone_domain() {
+    let character = TypeTree::Scalar("char".into());
+    assert!(!rstyle_pdg::concrete_types::scalar("char"));
+    assert_eq!(data_types::token(&character).unwrap(), "char");
+    assert_eq!(
+        data_types::parse("char").unwrap(),
+        TypeToken::Scalar("char".into())
+    );
+    for structured in [
+        TypeTree::Shared(Box::new(character.clone())),
+        TypeTree::Slice(Box::new(character.clone())),
+        TypeTree::Tuple(vec![character.clone()]),
+        TypeTree::Array {
+            element: Box::new(character.clone()),
+            length: 1,
+        },
+        TypeTree::Option(Box::new(character)),
+    ] {
+        assert!(rstyle_pdg::concrete_types::validate(&structured).is_err());
+        let serialized = serde_json::to_string(&TypeToken::from_tree(&structured)).unwrap();
+        assert!(data_types::parse(&serialized).is_err(), "{serialized}");
+    }
+}
+
+#[test]
+fn float_vocabulary_requires_standalone_widths_and_current_policy() {
+    use rstyle_pdg::extraction_profile::ExtractionProfile;
+    for width in ["f32", "f64"] {
+        let tree = TypeTree::Scalar(width.into());
+        assert!(!rstyle_pdg::concrete_types::scalar(width));
+        assert_eq!(data_types::token(&tree).unwrap(), width);
+        assert_eq!(
+            data_types::parse(width).unwrap(),
+            TypeToken::Scalar(width.into())
+        );
+        for earlier in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
+            assert!(!earlier.supports("rust.float-kernel-scalars"));
+        }
+        for structured in [
+            TypeTree::Shared(Box::new(tree.clone())),
+            TypeTree::Slice(Box::new(tree.clone())),
+            TypeTree::Tuple(vec![tree.clone()]),
+            TypeTree::Array {
+                element: Box::new(tree.clone()),
+                length: 1,
+            },
+            TypeTree::Option(Box::new(tree)),
+        ] {
+            assert!(rstyle_pdg::concrete_types::validate(&structured).is_err());
+            let serialized = serde_json::to_string(&TypeToken::from_tree(&structured)).unwrap();
+            assert!(data_types::parse(&serialized).is_err(), "{serialized}");
+        }
+    }
+}
+
+#[test]
+fn original_from_authority_requires_its_new_document_policy() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let current = ExtractionProfile::DataV3.policy();
+    assert!(policy_supports(
+        &current,
+        "rust.checked-reference-forwarder-instances"
+    ));
+    let mut previous = current;
+    previous.version = "3.86.0".into();
+    assert!(!policy_supports(
+        &previous,
+        "rust.checked-reference-forwarder-instances"
+    ));
+    for profile in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
+        assert!(!profile.supports("rust.checked-reference-forwarder-instances"));
+    }
+}
+
+#[test]
+fn tagged_helper_authority_does_not_extend_value_only_policy() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let current = ExtractionProfile::DataV3.policy();
+    let capability = "rust.copy-tagged-conversion-helper-calls";
+    assert!(policy_supports(&current, capability));
+    let mut historical = current;
+    historical.version = "3.103.0".into();
+    assert!(!policy_supports(&historical, capability));
+}
+
+#[test]
+fn slice_prefix_observations_do_not_extend_historical_policies() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let current = ExtractionProfile::DataV3.policy();
+    let capability = "rust.slice-prefix-product-results";
+    assert!(policy_supports(&current, capability));
+    let mut historical = current;
+    historical.version = "3.104.0".into();
+    assert!(!policy_supports(&historical, capability));
+    for profile in [
+        ExtractionProfile::R0,
+        ExtractionProfile::DataV1,
+        ExtractionProfile::DataV2,
+    ] {
+        assert!(!profile.supports(capability));
+    }
 }

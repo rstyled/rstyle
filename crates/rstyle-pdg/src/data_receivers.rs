@@ -1,7 +1,11 @@
 //! Observational method receiver evidence. This is not a call admission registry.
 
+mod dispatch;
+mod transport;
 mod verify;
-pub use verify::verify;
+pub(crate) use dispatch::{InvocationSyntax, candidate, verify_dispatch};
+pub(crate) use verify::check;
+pub use verify::{verify, verify_capture};
 
 use crate::{ByteSpan, HirRef, concrete_types::Observation};
 use serde::{Deserialize, Serialize};

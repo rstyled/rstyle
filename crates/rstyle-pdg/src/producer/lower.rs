@@ -1,6 +1,26 @@
 //! Operation lowering preserves source evaluation order and snapshot values.
 
+mod borrowed_result_errors;
+mod borrowed_result_propagation;
+mod callbacks;
+mod checked_slice_views;
+mod checked_suffix_views;
+mod copy_tagged_values;
+mod enums;
+mod helper_option_callbacks;
+mod iterator_position;
 mod loops;
+mod mutable_scalars;
+mod named_callbacks;
+mod option_if_let;
+mod option_propagation;
+mod options;
+mod owned_product_values;
+mod product_constants;
+mod product_result_propagation;
+mod result_maps;
+mod result_propagation;
+mod scalar_result_propagation;
 
 use super::graph::*;
 use crate::{NodeCategory, frontend::*};
@@ -95,10 +115,14 @@ fn incomplete_shape(node: &HirNode) -> Option<&HirNode> {
     let count = node.children.len();
     let complete = match node.kind.as_str() {
         "stmt_expr" | "stmt_semi" | "expr_unary" | "expr_cast" => count == 1,
-        "expr_binary" | "expr_assign" | "expr_assign_op" => count == 2,
+        "expr_binary" | "expr_assign" | "expr_tuple_assign" | "expr_assign_op" | "expr_index" => {
+            count == 2
+        }
         "expr_if" => (2..=3).contains(&count),
+        "expr_let" => count == 2,
         "expr_ret" => count <= 1,
-        "expr_path" | "expr_lit" | "expr_tup" | "pat_binding" | "ty_annotation" => count == 0,
+        "expr_path" | "expr_lit" | "pat_binding" | "ty_annotation" => count == 0,
+        "expr_tup" | "expr_array" | "expr_repeat" | "expr_struct" => true,
         _ => true,
     };
     if !complete {
@@ -139,6 +163,7 @@ impl Builder<'_> {
             operation.definition = Some(format!("d{}", self.nodes.len()));
         }
         self.connect(&flow.ends, &id);
+        self.checked_failure(&operation);
         self.nodes.push(operation);
         let terms = if flow.ends.is_empty() {
             vec![Vec::new()]
@@ -194,7 +219,28 @@ impl Builder<'_> {
     }
 
     fn expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        lowerer(node)(self, node, flow)
+        if crate::copy_tagged_values::body_operation(node, self.facts) {
+            return self.copy_tagged_value(node, flow);
+        }
+        if crate::data_enums::constructor_candidate(node, self.facts)
+            || crate::checked_options::constructor_candidate(node, self.facts)
+            || crate::concrete_results::constructor_candidate(node, self.facts)
+        {
+            return self.data_constructor(node, flow);
+        }
+        lowerer(node, self.facts)(self, node, flow)
+    }
+
+    fn data_constructor(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_enums::constructor_candidate(node, self.facts) {
+            self.structure(node, flow)
+        } else {
+            self.variant_constructor(node, flow)
+        }
+    }
+
+    fn compile_time_item(&mut self, _: &HirNode, flow: Flow) -> Flow {
+        flow
     }
 
     fn expression_statement(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -226,9 +272,137 @@ impl Builder<'_> {
 
     fn literal(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let mut operation = template(node, NodeCategory::Computation);
-        operation.literal = Some(node.lit.clone().unwrap_or_else(|| "()".to_string()));
+        if crate::lossless_integer_calls::message::verify(node, self.facts).unwrap_or(false) {
+            operation.construct = Some(crate::lossless_integer_calls::message::CONSTRUCT.into());
+        }
+        operation.literal = Some(if crate::float_scalars::computation(node) {
+            operation.construct = crate::float_scalars::construct(node).map(str::to_string);
+            crate::float_scalars::literal(node, self.facts)
+                .expect("verified float literal")
+                .bits
+        } else {
+            node.lit.clone().unwrap_or_else(|| "()".to_string())
+        });
 
         self.emit(operation, flow)
+    }
+
+    fn path(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        match node.res.as_ref().map(|res| res.kind.as_str()) {
+            Some(crate::nominal_constants::RESOLUTION) => self.product_constant(node, flow),
+            Some(crate::bool_constants::RESOLUTION) => self.bool_array_constant(node, flow),
+            _ => self.constant_or_read(node, flow),
+        }
+    }
+
+    fn constant_or_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        match node.res.as_ref().map(|res| res.kind.as_str()) {
+            Some(crate::scalar_constants::RESOLUTION | crate::primitive_constants::RESOLUTION) => {
+                self.constant(node, flow)
+            }
+            _ => self.read(node, flow),
+        }
+    }
+
+    fn reference_unit(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let unit = crate::reference_instances::products::unit(node, self.facts)
+            .expect("verified complete mixed unit variant");
+        self.emit(
+            Operation {
+                construct: Some(crate::reference_instances::products::UNIT.into()),
+                operator: Some(unit.name.into()),
+                ..template(node, NodeCategory::Computation)
+            },
+            flow,
+        )
+    }
+
+    fn fieldless_value(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let (tag, value) =
+            crate::fieldless_enums::value(node, self.facts).expect("verified fieldless variant");
+
+        self.emit(
+            Operation {
+                construct: Some(crate::fieldless_enums::VALUE.into()),
+                operator: Some(tag),
+                literal: Some(value.to_string()),
+                ..template(node, NodeCategory::Computation)
+            },
+            flow,
+        )
+    }
+
+    fn constant(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let resolution = node.res.as_ref().expect("constant resolution");
+        let (value, construct) = if resolution.kind == crate::primitive_constants::RESOLUTION {
+            let constant = crate::primitive_constants::decode(resolution)
+                .expect("verified primitive constant");
+            (constant.value, "constant.primitive")
+        } else {
+            let constant = crate::scalar_constants::ScalarConstant::decode(resolution)
+                .expect("verified scalar constant");
+            let construct = if crate::float_scalars::is_float(&constant.ty) {
+                crate::float_scalars::CONSTANT
+            } else {
+                "constant.value"
+            };
+            (constant.value, construct)
+        };
+        let operation = Operation {
+            literal: Some(value),
+            construct: Some(construct.into()),
+            ..template(node, NodeCategory::Computation)
+        };
+
+        self.emit(operation, flow)
+    }
+
+    fn bool_array_constant(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let record =
+            crate::bool_constants::BoolArray::decode(node.res.as_ref().expect("table resolution"))
+                .expect("verified bool table");
+        let operation = Operation {
+            literal: Some(record.literal()),
+            construct: Some("constant.bool-array".into()),
+            ..template(node, NodeCategory::Computation)
+        };
+        self.emit(operation, flow)
+    }
+
+    fn assertion(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if node.lit.as_deref() == Some("false") {
+            return Flow {
+                value: None,
+                ..flow
+            };
+        }
+        let evaluated = self.evaluate_sequence(&node.children, flow);
+        let assertion =
+            crate::assertions::Assertion::parse(&node.snippet).expect("verified assertion source");
+        let (construct, literal) = if let Some(diagnostic) = assertion.diagnostic {
+            (
+                format!("{}.scalar-format", node.res.as_ref().unwrap().description),
+                Some(diagnostic.message),
+            )
+        } else {
+            (node.res.as_ref().unwrap().description.clone(), None)
+        };
+        let operation = Operation {
+            operator: Some(
+                if assertion.right.is_some() {
+                    "assert-eq"
+                } else {
+                    "assert"
+                }
+                .into(),
+            ),
+            construct: Some(construct),
+            literal,
+            operands: evaluated.values,
+            ..template(node, NodeCategory::Computation)
+        };
+
+        self.emit(operation, evaluated.flow)
     }
 
     fn read(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -236,6 +410,16 @@ impl Builder<'_> {
     }
 
     fn field_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_value_fields::candidate(node, self.facts) {
+            return self.value_field(node, flow);
+        }
+        if crate::field_locations::derived::candidate(node, self.facts) {
+            return self.indirect_field(node, flow);
+        }
+        self.captured_field(node, flow)
+    }
+
+    fn captured_field(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.field_base(node, flow);
         let fields = self
             .facts
@@ -265,14 +449,146 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
+    fn scalar_index(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let [base, index] = node.children.as_slice() else {
+            unreachable!("eligible index operands")
+        };
+
+        let late = crate::data_index_reads::delayed_base(base);
+        let (first, second) = if late { (index, base) } else { (base, index) };
+        let flow = self.expression(first, flow);
+        let first_value = flow.value.clone().expect("eligible index operand value");
+        let flow = self.expression(second, flow);
+        let second_value = flow.value.clone().expect("eligible index operand value");
+        let values = if late {
+            vec![second_value, first_value]
+        } else {
+            vec![first_value, second_value]
+        };
+
+        self.indexed_value(node, values, flow)
+    }
+
+    fn indexed_value(&mut self, node: &HirNode, values: Vec<String>, flow: Flow) -> Flow {
+        let shared = crate::data_index_reads::shared_base(node);
+        let flow = self.index_check(node, &values, flow);
+        let operation = Operation {
+            operands: values,
+            construct: Some(
+                if shared {
+                    "data.index"
+                } else {
+                    "data.value-index"
+                }
+                .into(),
+            ),
+            ..template(
+                node,
+                if shared {
+                    NodeCategory::Read
+                } else {
+                    NodeCategory::Computation
+                },
+            )
+        };
+        self.emit(operation, flow)
+    }
+
+    fn subslice(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let checked = crate::data_subslices::verify(node, self.facts).expect("verified subslice");
+        let evaluated = if checked.array_length.is_some() {
+            self.array_subslice_operands(&checked, flow)
+        } else {
+            self.evaluate_sequence(checked.operands(), flow)
+        };
+        let operation = Operation {
+            operands: evaluated.values,
+            construct: Some("data.subslice-place".into()),
+            ..template(node, NodeCategory::Computation)
+        };
+
+        self.emit(operation, evaluated.flow)
+    }
+
+    fn array_subslice_operands(
+        &mut self,
+        checked: &crate::data_subslices::Checked<'_>,
+        flow: Flow,
+    ) -> Operands {
+        let base = self.field_place(checked.base, flow);
+        let saved = self.operand(&base.value);
+        let endpoints = self.evaluate_sequence(checked.start.into_iter().chain(checked.end), base);
+        Operands {
+            flow: endpoints.flow,
+            values: saved.into_iter().chain(endpoints.values).collect(),
+        }
+    }
+
+    fn unary(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if let Some(root) = crate::mutable_scalars::root(node, self.facts) {
+            return self.scalar_referent(node, root, flow);
+        }
+        if node
+            .dispatch
+            .as_ref()
+            .is_some_and(|dispatch| dispatch.op == "*")
+        {
+            self.indirect_field(node, flow)
+        } else {
+            self.computation(node, flow)
+        }
+    }
+
+    fn indirect_field(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let flow = self.field_base(node, flow);
+        let operation = Operation {
+            operands: self.operand(&flow.value),
+            construct: Some(
+                if node.kind == "expr_unary" {
+                    "data.indirect-deref"
+                } else {
+                    "data.indirect-field"
+                }
+                .into(),
+            ),
+            ..template(node, NodeCategory::Read)
+        };
+        self.emit(operation, flow)
+    }
+
+    fn value_field(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let flow = self.expression(&node.children[0], flow);
+        let operation = Operation {
+            construct: Some("data.value-field".into()),
+            literal: Some(
+                crate::data_value_fields::index(node, self.facts)
+                    .expect("verified aggregate component")
+                    .to_string(),
+            ),
+            operands: self.operand(&flow.value),
+            ..template(node, NodeCategory::Computation)
+        };
+
+        self.emit(operation, flow)
+    }
+
     fn borrow(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        let flow = self.field_place(&node.children[0], flow);
+        let flow = if crate::data_subslices::borrowed(node, self.facts) {
+            self.expression(&node.children[0], flow)
+        } else {
+            self.field_place(&node.children[0], flow)
+        };
         self.address_operation(node, flow, "data.borrow")
     }
 
     fn field_place(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let flow = self.field_base(node, flow);
-        self.address_operation(node, flow, "data.place")
+        let construct = if crate::field_locations::derived::candidate(node, self.facts) {
+            "data.indirect-place"
+        } else {
+            "data.place"
+        };
+        self.address_operation(node, flow, construct)
     }
 
     fn address_operation(&mut self, node: &HirNode, flow: Flow, construct: &str) -> Flow {
@@ -311,6 +627,17 @@ impl Builder<'_> {
     }
 
     fn declaration(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_discards::candidate(node, self.facts) {
+            return self.emit(
+                Operation {
+                    construct: Some("data.copy-discard".into()),
+                    ty: "unit".into(),
+                    ..template(node, NodeCategory::Computation)
+                },
+                flow,
+            );
+        }
+
         let initializer = node
             .children
             .iter()
@@ -333,29 +660,127 @@ impl Builder<'_> {
         self.emit(operation, flow)
     }
 
-    fn computation(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        let evaluated = node.children.iter().fold(
+    fn evaluate_sequence<'a>(
+        &mut self,
+        operands: impl IntoIterator<Item = &'a HirNode>,
+        flow: Flow,
+    ) -> Operands {
+        operands.into_iter().fold(
             Operands {
                 flow,
                 values: Vec::new(),
             },
-            |operands, child| {
-                let flow = self.expression(child, operands.flow);
-                let values = operands
+            |mut evaluated, operand| {
+                evaluated.flow = self.expression(operand, evaluated.flow);
+                evaluated
                     .values
-                    .into_iter()
-                    .chain(self.operand(&flow.value))
-                    .collect();
-                Operands { flow, values }
+                    .extend(evaluated.flow.value.iter().cloned());
+                evaluated
             },
-        );
+        )
+    }
+
+    fn evaluate_operands(&mut self, node: &HirNode, flow: Flow) -> Operands {
+        let preserve_unit = crate::data_aggregates::constructor(node)
+            || crate::concrete_results::constructor_candidate(node, self.facts);
+        let mut evaluated = Operands {
+            flow,
+            values: Vec::new(),
+        };
+        for child in &node.children {
+            evaluated.flow = self.expression(child, evaluated.flow);
+            if preserve_unit && evaluated.flow.normal && evaluated.flow.value.is_none() {
+                let unit = Operation {
+                    literal: Some("()".into()),
+                    construct: Some("unit.value".into()),
+                    ..template(child, NodeCategory::Computation)
+                };
+                evaluated.flow = self.emit(unit, evaluated.flow);
+            }
+            evaluated.values.extend(
+                evaluated
+                    .flow
+                    .value
+                    .iter()
+                    .filter(|id| preserve_unit || self.is_value(id))
+                    .cloned(),
+            );
+        }
+        evaluated
+    }
+
+    fn invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let lower: fn(&mut Self, &HirNode, Flow) -> Flow =
+            if crate::result_maps::candidate(node, self.facts) {
+                Self::result_map
+            } else if crate::checked_slice_views::suffix::candidate(node, self.facts) {
+                Self::checked_suffix_get
+            } else if crate::checked_slice_views::candidate(node, self.facts) {
+                Self::checked_prefix_get
+            } else if crate::borrowed_result_errors::candidate(node, self.facts) {
+                Self::borrowed_option_ok_or
+            } else {
+                Self::dispatched_invocation
+            };
+
+        lower(self, node, flow)
+    }
+
+    fn dispatched_invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::named_callbacks::candidate(node, self.facts) {
+            return self.callback_invocation(
+                callbacks::Target::Named(
+                    crate::named_callbacks::verify(node, self.facts)
+                        .expect("eligible named callback"),
+                ),
+                flow,
+            );
+        }
+        if crate::iterator_position::candidate(node, self.facts) {
+            return self.byte_position(
+                crate::iterator_position::verify(node, self.facts).expect("eligible byte position"),
+                flow,
+            );
+        }
+        self.ordinary_invocation(node, flow)
+    }
+
+    fn ordinary_invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::helper_option_callbacks::candidate(node, self.facts) {
+            return self.callback_invocation(
+                callbacks::Target::Helper(
+                    crate::helper_option_callbacks::verify(node, self.facts)
+                        .expect("eligible shared helper callback"),
+                ),
+                flow,
+            );
+        }
+        if node.kind == "expr_method_call"
+            && crate::extraction_profile::facts_support(
+                self.facts,
+                "rust.immediate-option-callbacks",
+            )
+            && let Ok(checked) = crate::option_callbacks::verify_map_or(node, self.facts)
+        {
+            return self.callback_invocation(callbacks::Target::Byte(checked), flow);
+        }
+        self.computation(node, flow)
+    }
+
+    fn computation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let evaluated = self.evaluate_operands(node, flow);
         let category = if matches!(node.kind.as_str(), "expr_method_call" | "expr_call") {
             NodeCategory::Call
         } else {
             NodeCategory::Computation
         };
         let operation = Operation {
-            operator: node.dispatch.as_ref().map(|d| d.op.clone()),
+            operator: node
+                .dispatch
+                .as_ref()
+                .map(|d| d.op.clone())
+                .or_else(|| crate::helper_calls::callee(node, self.facts)),
+            construct: self.computation_construct(node),
             operands: evaluated.values,
             ..template(node, category)
         };
@@ -363,7 +788,112 @@ impl Builder<'_> {
         self.emit(operation, evaluated.flow)
     }
 
+    fn computation_construct(&self, node: &HirNode) -> Option<String> {
+        if let Some(construct) = crate::product_instances::activation::construct(node, self.facts)
+            .expect("verified product operation")
+        {
+            Some(construct.into())
+        } else if crate::reference_instances::activation::operation(node, self.facts)
+            .expect("verified reference operation")
+            .is_some()
+        {
+            Some(crate::reference_instances::activation::CONSTRUCT.into())
+        } else if let Some(construct) = crate::float_scalars::construct(node) {
+            Some(construct.into())
+        } else if crate::bool_usize::candidate(node) {
+            Some(crate::bool_usize::CONSTRUCT.into())
+        } else if crate::character_ascii::candidate(node, self.facts) {
+            Some(crate::character_ascii::CONSTRUCT.into())
+        } else if crate::fieldless_enums::cast_candidate(node, self.facts) {
+            Some(crate::fieldless_enums::CAST.into())
+        } else if crate::size_calls::candidate(node, self.facts) {
+            Some(crate::size_calls::CONSTRUCT.into())
+        } else if let Some(kind) = crate::lossless_integer_calls::kind(node, self.facts) {
+            Some(kind.construct().into())
+        } else if let Some(kind) = crate::bitset_cardinality::kind(node, self.facts) {
+            Some(kind.construct().into())
+        } else if let Some(kind) = crate::checked_lengths::kind(node, self.facts) {
+            Some(kind.construct().into())
+        } else if crate::scalar_from::candidate(node, self.facts) {
+            Some(crate::scalar_from::CONSTRUCT.into())
+        } else if crate::checked_options::get_candidate(node, self.facts) {
+            Some("data.option-get".into())
+        } else {
+            crate::data_bytes::kind(node)
+                .filter(|_| crate::data_bytes::enabled(self.facts))
+                .map(|kind| kind.construct().into())
+        }
+    }
+
+    fn structure(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let operation = if crate::data_enums::constructor_candidate(node, self.facts) {
+            Operation {
+                construct: Some("data.enum-value".into()),
+                operator: Some(
+                    crate::data_enums::constructor(node, self.facts)
+                        .expect("verified enum constructor"),
+                ),
+                ..template(node, NodeCategory::Computation)
+            }
+        } else {
+            Operation {
+                construct: Some("data.struct".into()),
+                literal: Some(
+                    crate::data_structs::descriptor(node, self.facts)
+                        .expect("verified nominal field slots"),
+                ),
+                ..template(node, NodeCategory::Computation)
+            }
+        };
+        self.constructed_value(node, operation, flow)
+    }
+
+    fn constructed_value(&mut self, node: &HirNode, mut operation: Operation, flow: Flow) -> Flow {
+        let evaluated = self.evaluate_operands(node, flow);
+        operation.operands = evaluated.values;
+        self.emit(operation, evaluated.flow)
+    }
+
+    fn conditional_payload(
+        &mut self,
+        read: Operation,
+        mut declaration: Operation,
+        flow: Flow,
+    ) -> Flow {
+        let flow = self.emit(read, flow);
+        declaration.operands = self.operand(&flow.value);
+        self.emit(declaration, flow)
+    }
+
+    fn tuple_assignment(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let flow = self.computation(&node.children[1], flow);
+        let values = self
+            .nodes
+            .last()
+            .expect("RHS tuple computation")
+            .operands
+            .clone();
+        node.children[0]
+            .children
+            .iter()
+            .zip(values)
+            .fold(flow, |flow, (target, value)| {
+                let operation = Operation {
+                    operator: Some("=".into()),
+                    span: target.span,
+                    operands: vec![value],
+                    ..self.write_target(node, target, "tuple_reassignment")
+                };
+                self.emit(operation, flow)
+            })
+    }
+
     fn assignment(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if let Some(update) = crate::owned_product_locals::update_for(node, self.facts)
+            .expect("verified owned update")
+        {
+            return self.owned_product_update(update, flow);
+        }
         let flow = self.expression(&node.children[1], flow);
         let mut operation = self.write(node, "reassignment");
         operation.operator = Some("=".to_string());
@@ -373,8 +903,12 @@ impl Builder<'_> {
     }
 
     fn write(&self, node: &HirNode, form: &str) -> Operation {
+        self.write_target(node, &node.children[0], form)
+    }
+
+    fn write_target(&self, node: &HirNode, target: &HirNode, form: &str) -> Operation {
         let mut operation = template(node, NodeCategory::Assignment);
-        let target = node.children[0]
+        let target = target
             .res
             .as_ref()
             .and_then(|r| r.target.as_ref())
@@ -392,6 +926,13 @@ impl Builder<'_> {
     }
 
     fn compound(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if let Some(root) = crate::mutable_scalars::root(&node.children[0], self.facts) {
+            return self.scalar_compound(node, root, flow);
+        }
+        self.lexical_compound(node, flow)
+    }
+
+    fn lexical_compound(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let evaluated = self.compound_values(node, flow);
         let dispatch = node.dispatch.as_ref().expect("builtin compound dispatch");
         let operation = Operation {
@@ -436,9 +977,15 @@ impl Builder<'_> {
     fn operand(&self, value: &Option<String>) -> Vec<String> {
         value
             .iter()
-            .filter(|id| self.nodes.iter().any(|n| &n.id == *id && n.ty != "unit"))
+            .filter(|id| self.is_value(id))
             .cloned()
             .collect()
+    }
+
+    fn is_value(&self, id: &str) -> bool {
+        self.nodes
+            .iter()
+            .any(|node| node.id == id && node.ty != "unit")
     }
 
     fn predicate(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -463,6 +1010,15 @@ impl Builder<'_> {
     }
 
     fn branch(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::checked_options::if_let_candidate(node, self.facts) {
+            let checked = crate::checked_options::verify_if_let(node, self.facts)
+                .expect("eligible scalar Option if-let");
+            return self.option_if_let(node, checked, flow);
+        }
+        self.boolean_branch(node, flow)
+    }
+
+    fn boolean_branch(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let predicate = self.condition(node, flow).flow;
         let controller = predicate.value.clone().expect("predicate");
         let arms = self.branch_arms(node, &predicate);
@@ -581,8 +1137,29 @@ impl Builder<'_> {
         } = selection;
         let id = format!("n{}", self.nodes.len());
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
-        let mut merge = template(node, NodeCategory::Merge);
-        merge.id = id.clone();
+        let mut merge = Operation {
+            id: id.clone(),
+            construct: if crate::result_maps::candidate(node, self.facts) {
+                Some(crate::result_maps::RESULT.into())
+            } else if crate::helper_option_callbacks::candidate(node, self.facts) {
+                Some(crate::helper_option_callbacks::RESULT.into())
+            } else if crate::named_callbacks::candidate(node, self.facts) {
+                Some(crate::named_callbacks::RESULT.into())
+            } else if crate::option_callbacks::candidate(node, self.facts) {
+                Some("callback.option-result".into())
+            } else if crate::iterator_position::candidate(node, self.facts) {
+                Some("iterator.position-result".into())
+            } else {
+                None
+            },
+            ..template(node, NodeCategory::Merge)
+        };
+        if crate::result_maps::candidate(node, self.facts) {
+            merge.role = crate::result_maps::verify(node, self.facts)
+                .expect("checked constructor Result merge")
+                .role()
+                .into();
+        }
         merge.original_kind = if selection_kind.is_some() {
             "rstyle.hir-coverage.match_merge"
         } else {
@@ -604,6 +1181,16 @@ impl Builder<'_> {
     }
 
     fn scalar_match(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::data_enums::match_candidate(node, self.facts) {
+            return self.enum_match(node, flow);
+        }
+        if crate::checked_options::match_candidate(node, self.facts) {
+            return self.option_match(node, flow);
+        }
+        self.scalar_match_body(node, flow)
+    }
+
+    fn scalar_match_body(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let scrutinee = self.expression(&node.children[0], flow);
         let saved = scrutinee.value.clone().expect("eligible scalar scrutinee");
         let mut state = MatchState {
@@ -611,6 +1198,8 @@ impl Builder<'_> {
             completed: Vec::new(),
             controller: None,
         };
+        let closing =
+            crate::scalar_exhaustiveness::closing_arm(node, self.facts.build.pointer_width.value);
         for (index, arm_node) in node.children[1..].iter().enumerate() {
             state = self.match_arm(
                 MatchArm {
@@ -618,6 +1207,7 @@ impl Builder<'_> {
                     arm: arm_node,
                     saved: &saved,
                     index,
+                    exhaustive: closing == Some(index),
                 },
                 state,
             );
@@ -659,12 +1249,13 @@ impl Builder<'_> {
         let operation = self.match_selector(input);
         let selected = self.emit(operation, remaining);
         let controller = controller.or_else(|| selected.value.clone());
-        let remaining = if pattern.kind == "pat_literal" {
+        let remaining = if !input.exhaustive && !crate::scalar_exhaustiveness::irrefutable(pattern)
+        {
             arm(&selected, "false")
         } else {
             empty_flow()
         };
-        let matched = if pattern.kind == "pat_literal" {
+        let matched = if pattern.kind != "pat_wild" {
             arm(&selected, "true")
         } else {
             selected
@@ -727,20 +1318,15 @@ impl Builder<'_> {
         } = input;
         let pattern = &input.arm.children[0];
 
+        let (construct, literal) = match_predicate(pattern);
+
         Operation {
             construct_span: node.span,
             role: format!("match_pattern:{index}"),
             ty: "bool".into(),
-            construct: Some(
-                if pattern.kind == "pat_literal" {
-                    "match.literal"
-                } else {
-                    "match.wildcard"
-                }
-                .into(),
-            ),
-            literal: pattern.lit.clone(),
-            operands: if pattern.kind == "pat_literal" {
+            construct: Some(construct.into()),
+            literal,
+            operands: if pattern.kind != "pat_wild" {
                 vec![(*saved).into()]
             } else {
                 Vec::new()
@@ -876,14 +1462,26 @@ fn arm(predicate: &Flow, outcome: &str) -> Flow {
     }
 }
 
-fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
+fn lowerer<'a>(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
     match node.kind.as_str() {
         "expr_block" => Builder::block,
+        "expr_try_desugar" => propagation_lowerer(node),
+        "expr_assert" => Builder::assertion,
         "stmt_expr" | "stmt_semi" => Builder::expression_statement,
         "stmt_let" => Builder::declaration,
-        "expr_path" => Builder::read,
+        "stmt_size_const" | "stmt_bool_array" | "stmt_const_array_fn" => Builder::compile_time_item,
+        "expr_path" => path_lowerer(node, facts),
         "expr_field" => Builder::field_read,
+        "expr_index" if crate::data_subslices::candidate(node, facts) => Builder::subslice,
+        "expr_index" => Builder::scalar_index,
+        "expr_unary" => Builder::unary,
         "expr_addr_of" => Builder::borrow,
+        "expr_tup" if !node.children.is_empty() => Builder::computation,
+        "expr_struct" => Builder::structure,
+        "expr_array" | "expr_repeat" => Builder::computation,
         "expr_lit" | "expr_tup" => Builder::literal,
         "expr_binary"
             if node
@@ -893,10 +1491,10 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         {
             Builder::short_circuit
         }
-        "expr_binary" | "expr_unary" | "expr_cast" | "expr_method_call" | "expr_call" => {
-            Builder::computation
-        }
+        "expr_binary" | "expr_cast" => Builder::computation,
+        "expr_method_call" | "expr_call" => Builder::invocation,
         "expr_assign" => Builder::assignment,
+        "expr_tuple_assign" => Builder::tuple_assignment,
         "expr_assign_op" => Builder::compound,
         "expr_if" => Builder::branch,
         "expr_match" => Builder::scalar_match,
@@ -905,6 +1503,101 @@ fn lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
         "expr_break" | "expr_continue" => Builder::loop_exit,
         "expr_ret" => Builder::explicit_return,
         _ => unreachable!("eligibility rejects unsupported constructs"),
+    }
+}
+
+fn path_lowerer<'a>(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
+    if crate::reference_instances::products::unit_candidate(node, facts) {
+        return Builder::reference_unit;
+    }
+    match node.res.as_ref().map(|resolution| resolution.kind.as_str()) {
+        Some("resolved_fieldless_variant")
+            if crate::borrowed_result_errors::error_candidate(node, facts) =>
+        {
+            Builder::fresh_error_variant
+        }
+        Some("resolved_fieldless_variant") => Builder::fieldless_value,
+        _ => Builder::path,
+    }
+}
+
+fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flow) -> Flow {
+    if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::option_propagation::capture::RESOLUTION)
+    {
+        Builder::option_propagation
+    } else if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::borrowed_result_propagation::capture::RESOLUTION)
+    {
+        Builder::borrowed_result_propagation
+    } else if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::scalar_result_propagation::capture::RESOLUTION)
+    {
+        Builder::scalar_result_propagation
+    } else if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::product_result_propagation::capture::RESOLUTION)
+    {
+        Builder::product_result_propagation
+    } else {
+        Builder::result_propagation
+    }
+}
+
+fn match_predicate(pattern: &HirNode) -> (&'static str, Option<String>) {
+    match pattern.kind.as_str() {
+        "pat_literal" => ("match.literal", pattern.lit.clone()),
+        "pat_constant" => ("match.constant", pattern.lit.clone()),
+        "pat_range" => ("match.range", pattern.lit.clone()),
+        "pat_or" => match_alternatives(pattern),
+        _ => ("match.wildcard", None),
+    }
+}
+
+fn match_alternatives(pattern: &HirNode) -> (&'static str, Option<String>) {
+    if !pattern.children.iter().any(|child| child.kind == "pat_or") {
+        return encode_alternatives(pattern.children.iter());
+    }
+    let mut children = Vec::new();
+    flatten_alternatives(pattern, &mut children);
+    encode_alternatives(children.iter().copied())
+}
+
+fn encode_alternatives<'a>(
+    children: impl Iterator<Item = &'a HirNode> + Clone,
+) -> (&'static str, Option<String>) {
+    if children.clone().all(|child| child.kind == "pat_literal") {
+        let values: Vec<_> = children.map(|child| &child.lit).collect();
+        return (
+            "match.or",
+            Some(serde_json::to_string(&values).expect("literal alternatives")),
+        );
+    }
+    let values: Vec<_> = children.map(|child| (&child.kind, &child.lit)).collect();
+
+    (
+        "match.or-patterns",
+        Some(serde_json::to_string(&values).expect("pattern alternatives")),
+    )
+}
+
+fn flatten_alternatives<'a>(pattern: &'a HirNode, leaves: &mut Vec<&'a HirNode>) {
+    if pattern.kind == "pat_or" {
+        for child in &pattern.children {
+            flatten_alternatives(child, leaves);
+        }
+    } else {
+        leaves.push(pattern);
     }
 }
 
@@ -959,6 +1652,7 @@ struct MatchArm<'a> {
     arm: &'a HirNode,
     saved: &'a str,
     index: usize,
+    exhaustive: bool,
 }
 
 struct ArmSelection {

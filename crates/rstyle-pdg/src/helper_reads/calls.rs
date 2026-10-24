@@ -9,12 +9,16 @@ use std::collections::BTreeMap;
 struct Effects {
     reads: Vec<Access>,
     locations: BTreeMap<String, MemoryLocation>,
+    snapshot_reads: Vec<Read>,
 }
 
-struct ReadOccurrence<'a> {
-    read: &'a Read,
-    parameter: u32,
-    path: Vec<Projection>,
+enum ReadOccurrence<'a> {
+    Formal {
+        read: &'a Read,
+        parameter: u32,
+        path: Vec<Projection>,
+    },
+    Snapshot(&'a Read),
 }
 
 pub(crate) fn verify_arguments(
@@ -22,6 +26,7 @@ pub(crate) fn verify_arguments(
     call: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    copy_receivers::locations(call, facts)?;
     visit_reads(summary, call, facts, |_| Ok(()))
 }
 
@@ -31,10 +36,39 @@ fn expected(
     context: &mut LocationContext<'_>,
 ) -> Result<Effects, String> {
     let mut effects = Effects::default();
+    install_receiver_copy(call, context, &mut effects)?;
     visit_reads(summary, call, context.facts, |occurrence| {
         install_read(&mut effects, occurrence, context)
     })?;
+    if effects.reads.len() > crate::concrete_types::MAX_ENTRIES {
+        return Err(BUDGET_ERROR.into());
+    }
+
     Ok(effects)
+}
+
+fn install_receiver_copy(
+    call: &HirNode,
+    context: &mut LocationContext<'_>,
+    effects: &mut Effects,
+) -> Result<(), String> {
+    for (origin, value) in copy_receivers::locations(call, context.facts)? {
+        let (id, location) = context.formal_location(origin.parameter, &origin.path, value)?;
+        let root = context
+            .facts
+            .signature
+            .params
+            .get(origin.parameter as usize)
+            .ok_or("Missing Copy receiver formal")?;
+        effects.reads.push(Access {
+            symbol_id: Some(root.symbol.clone()),
+            location_id: Some(id.clone()),
+            unresolved_reason: None,
+            operand_position: Some(0),
+        });
+        insert_location(&mut effects.locations, id, location)?;
+    }
+    Ok(())
 }
 
 fn visit_reads(
@@ -52,12 +86,25 @@ fn visit_reads(
         return Err("Helper memory reads require the registered Data-calls profile".into());
     }
 
+    let owned = borrowed_snapshot(summary, call, facts)?;
+    let copy_deref = crate::owned_receiver::shared_copy(call, facts)?;
     let mut count = 0;
     for read in reads {
         let actual = call
             .children
             .get(read.parameter as usize)
             .ok_or("Helper read lacks its actual argument")?;
+        let copied = read.path.first() != Some(&Projection::SharedReferent)
+            && copied_input(summary, facts, read.parameter)?
+            && !(copy_deref && read.parameter == 0);
+        if owned && read.parameter == 0 || copied {
+            if count == crate::concrete_types::MAX_ENTRIES {
+                return Err(BUDGET_ERROR.into());
+            }
+            visit(snapshot_read(read, actual)?)?;
+            count += 1;
+            continue;
+        }
         let origins = crate::data_origins::origins(actual, facts)?;
         if origins.is_empty() {
             return Err("Helper read actual has no verified shared referent origin".into());
@@ -66,7 +113,7 @@ fn visit_reads(
             if count == crate::concrete_types::MAX_ENTRIES {
                 return Err(BUDGET_ERROR.into());
             }
-            let occurrence = checked_read(read, origin, facts)?;
+            let occurrence = checked_read(read, origin, call, facts)?;
             visit(occurrence)?;
             count += 1;
         }
@@ -74,20 +121,77 @@ fn visit_reads(
     Ok(())
 }
 
+fn borrowed_snapshot(
+    summary: &Summary,
+    call: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    let receiver_type = call
+        .children
+        .first()
+        .and_then(|child| child.ty.as_ref())
+        .and_then(|ty| ty.normalized.as_ref());
+    Ok(receiver_type != summary.argument_types.first()
+        && crate::owned_receiver::checked(call, facts)?)
+}
+
+fn copied_input(
+    summary: &Summary,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    parameter: u32,
+) -> Result<bool, String> {
+    Ok(
+        crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.copy-value-helper-reads")
+            && summary
+                .argument_types
+                .get(parameter as usize)
+                .and_then(|ty| crate::data_types::parse(ty).ok())
+                .is_some_and(|ty| matches!(ty, TypeToken::Struct { .. })),
+    )
+}
+
 fn checked_read<'a>(
     read: &'a Read,
     origin: crate::data_origins::Origin,
+    call: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<ReadOccurrence<'a>, String> {
-    let path = substituted_path(&read.path, &origin.path)?;
+    let path = if read.parameter == 0
+        && read.path.first() != Some(&Projection::SharedReferent)
+        && crate::owned_receiver::shared_copy(call, facts)?
+    {
+        origin.path.iter().chain(&read.path).cloned().collect()
+    } else {
+        indexed::substitute(read, &origin.path, call, facts)?
+    };
     if type_at(facts, origin.parameter, &path)? != read.value {
         return Err("Substituted helper location disagrees with actual referent type".into());
     }
-    Ok(ReadOccurrence {
+    Ok(ReadOccurrence::Formal {
         read,
         parameter: origin.parameter,
         path,
     })
+}
+
+fn snapshot_read<'a>(read: &'a Read, actual: &HirNode) -> Result<ReadOccurrence<'a>, String> {
+    let tail = read
+        .path
+        .strip_prefix(&[Projection::SharedReferent])
+        .unwrap_or(&read.path);
+    let mut value = crate::data_types::parse(crate::data_aggregates::token(actual)?)?;
+    for projection in tail {
+        if !matches!(projection, Projection::StructField { .. }) {
+            return Err("Owned receiver read requires exact Copy struct fields".into());
+        }
+        value = project(value, projection)?;
+    }
+
+    if value != read.value {
+        return Err("Owned receiver snapshot read contradicts its input type".into());
+    }
+    Ok(ReadOccurrence::Snapshot(read))
 }
 
 fn install_read(
@@ -95,28 +199,35 @@ fn install_read(
     occurrence: ReadOccurrence<'_>,
     context: &mut LocationContext<'_>,
 ) -> Result<(), String> {
+    let (read, parameter, path) = match occurrence {
+        ReadOccurrence::Snapshot(read) => {
+            effects.snapshot_reads.push(read.clone());
+            return Ok(());
+        }
+        ReadOccurrence::Formal {
+            read,
+            parameter,
+            path,
+        } => (read, parameter, path),
+    };
     let facts = context.facts;
-    let (id, location) = context.formal_location(
-        occurrence.parameter,
-        &occurrence.path,
-        occurrence.read.value.clone(),
-    )?;
+    let (id, location) = context.formal_location(parameter, &path, read.value.clone())?;
     let root = facts
         .signature
         .params
-        .get(occurrence.parameter as usize)
+        .get(parameter as usize)
         .ok_or("Missing actual formal root")?;
 
     effects.reads.push(Access {
         symbol_id: Some(root.symbol.clone()),
         location_id: Some(id.clone()),
         unresolved_reason: None,
-        operand_position: Some(u64::from(occurrence.read.parameter)),
+        operand_position: Some(u64::from(read.parameter)),
     });
     insert_location(&mut effects.locations, id, location)
 }
 
-fn substituted_path(
+pub(super) fn substituted_path(
     callee: &[Projection],
     actual: &[Projection],
 ) -> Result<Vec<Projection>, String> {
@@ -182,6 +293,12 @@ fn install_call(
         .find(|node| node.id == id)
         .ok_or("Missing source CALL during access installation")?;
     node.attributes.reads = effects.reads;
+    if !effects.snapshot_reads.is_empty() {
+        node.annotations.insert(
+            SNAPSHOT_KEY.into(),
+            serde_json::to_value(&effects.snapshot_reads).map_err(|error| error.to_string())?,
+        );
+    }
 
     Ok(effects.locations)
 }
@@ -194,15 +311,32 @@ pub(crate) fn verify_locations(
     for call in source_calls(context.facts) {
         let dependency = crate::helper_calls::verify_use(call, context.facts)?;
         let effects = expected(dependency.summary(), call, context)?;
-        check_effects(
-            source_call(pair, call)?,
-            call,
-            dependency.summary(),
-            &effects,
-        )?;
+        verify_snapshot_policy(pair, &effects)?;
+        let node = source_call(pair, call)?;
+        verify_result_type(node, dependency.summary())?;
+        effects.verify_source(node, call, context.facts)?;
         for (id, location) in effects.locations {
             insert_location(locations, id, location)?;
         }
+    }
+    Ok(())
+}
+
+fn verify_snapshot_policy(
+    pair: crate::producer::PairView<'_>,
+    effects: &Effects,
+) -> Result<(), String> {
+    indexed::verify_policy(pair, effects.locations.values())?;
+    if crate::extraction_profile::policy_supports(&pair.pdg.profile, "rust.copy-value-helper-reads")
+    {
+        return Ok(());
+    }
+    if effects
+        .snapshot_reads
+        .iter()
+        .any(|read| read.path.first() != Some(&Projection::SharedReferent))
+    {
+        return Err("Copy value helper reads require their registered document policy".into());
     }
     Ok(())
 }
@@ -214,58 +348,67 @@ pub(crate) fn verify_effects(
     context: &mut LocationContext<'_>,
 ) -> Result<(), String> {
     let effects = expected(summary, call, context)?;
-    check_effects(node, call, summary, &effects)
+    verify_result_type(node, summary)?;
+    effects.verify_source(node, call, context.facts)
 }
 
-fn check_effects(
-    node: &PdgNode,
-    call: &HirNode,
-    summary: &Summary,
-    effects: &Effects,
-) -> Result<(), String> {
-    if node.synthetic
-        || node.provenance.origin != crate::ProvenanceOrigin::Source
-        || node.original_kind.known_value() != Some(call.kind.as_str())
-        || node.attributes.reads != effects.reads
-        || !node.attributes.writes.is_empty()
-        || !node.attributes.defines.is_empty()
-        || !node.attributes.symbol_ids.is_empty()
-        || node.attributes.exit_kind.is_some()
-        || node
-            .attributes
-            .operator
-            .as_ref()
-            .and_then(crate::StringFact::known_value)
-            != call.dispatch.as_ref().map(|dispatch| dispatch.op.as_str())
-        || node.annotations["compat.rust.hir-r0:type"]["value"] != summary.result_type
-    {
-        return Err(
-            "Serialized helper CALL reads, effects, type or source identity disagree".into(),
-        );
+const SNAPSHOT_KEY: &str = "rstyle.data:owned-receiver-reads";
+
+fn snapshot_annotation(effects: &Effects) -> Result<Option<serde_json::Value>, String> {
+    if effects.snapshot_reads.is_empty() {
+        return Ok(None);
+    }
+    serde_json::to_value(&effects.snapshot_reads)
+        .map(Some)
+        .map_err(|error| error.to_string())
+}
+
+fn verify_result_type(node: &PdgNode, summary: &Summary) -> Result<(), String> {
+    if node.annotations["compat.rust.hir-r0:type"]["value"] != summary.result_type {
+        return Err("Serialized helper CALL result type disagrees with its checked summary".into());
     }
     Ok(())
+}
+
+impl Effects {
+    fn verify_source(
+        &self,
+        node: &PdgNode,
+        call: &HirNode,
+        facts: &dyn crate::unit_store::EvidenceFacts,
+    ) -> Result<(), String> {
+        if node.synthetic
+            || node.provenance.origin != crate::ProvenanceOrigin::Source
+            || node.original_kind.known_value() != Some(call.kind.as_str())
+            || node.attributes.reads != self.reads
+            || node.annotations.get(SNAPSHOT_KEY) != snapshot_annotation(self)?.as_ref()
+            || !node.attributes.writes.is_empty()
+            || !node.attributes.defines.is_empty()
+            || !node.attributes.symbol_ids.is_empty()
+            || node.attributes.exit_kind.is_some()
+            || node
+                .attributes
+                .operator
+                .as_ref()
+                .and_then(crate::StringFact::known_value)
+                != crate::helper_calls::callee(call, facts).as_deref()
+        {
+            return Err(
+                "Serialized helper CALL reads, effects, type or source identity disagree".into(),
+            );
+        }
+        Ok(())
+    }
 }
 
 fn source_call<'a>(
     pair: crate::producer::PairView<'a>,
     call: &HirNode,
 ) -> Result<&'a PdgNode, String> {
-    let nodes = pair
-        .pdg
-        .nodes
-        .iter()
-        .filter(|node| {
-            node.category == NodeCategory::Call
-                && node.original_kind.known_value() == Some(call.kind.as_str())
-                && node.source_span.as_ref().is_some_and(|span| {
-                    span.start == u64::from(call.span.start) && span.end == u64::from(call.span.end)
-                })
-        })
-        .collect::<Vec<_>>();
-    let [node] = nodes.as_slice() else {
-        return Err("Missing or ambiguous source-backed helper CALL".into());
-    };
-    Ok(node)
+    crate::data_documents::serialized_operation(pair, &call.span, |node| {
+        node.category == NodeCategory::Call
+            && node.original_kind.known_value() == Some(call.kind.as_str())
+    })
 }
 
 /// An unsupported call remains excluded; a read-evidence budget is incomplete capture.

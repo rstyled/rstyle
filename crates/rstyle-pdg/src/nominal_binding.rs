@@ -37,7 +37,7 @@ impl PackageContext {
             || self.name.is_empty()
             || self.version.is_empty()
             || self.manifest_bytes.len() > MAX_MANIFEST_BYTES
-            || self.manifest_digest != self.manifest_bytes.identity()
+            || !self.manifest_bytes.matches_identity(&self.manifest_digest)
             || !self.manifest_path.is_absolute()
             || self
                 .manifest_path
@@ -132,7 +132,9 @@ fn bind(facts: &HirFnFacts, unit: &mut BindingContext<'_>) -> Result<Option<Bind
         return Err("Missing original declaration evidence".into());
     }
     let origins = options.data::<Origins>()?;
-    unit.origins.verify(&interface, &origins)?;
+    let context = declaration_origins::context(facts, &interface, &origins)?;
+    unit.origins.verify(&context, &origins)?;
+    unit.origins.verify_copy(facts, &origins)?;
     let declarations = origins
         .declarations
         .iter()
@@ -215,7 +217,7 @@ fn check_range(
     span: crate::ByteSpan,
     function: &crate::SourceFacts,
 ) -> Result<(), String> {
-    if function.digest != function.bytes.identity()
+    if !function.bytes.matches_identity(&function.digest)
         || source.get(span.start as usize..span.end as usize) != Some(function.bytes.as_str())
     {
         return Err(
@@ -264,6 +266,7 @@ mod tests {
     fn origin(context: &PackageContext) -> declaration_origins::Origin {
         let source = "pub struct Counter;";
         declaration_origins::Origin {
+            builtin_copy: None,
             nominal: Nominal {
                 source_identity: None,
                 package_name: context.name.clone(),

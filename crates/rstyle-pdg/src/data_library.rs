@@ -2,7 +2,10 @@
 
 mod documents;
 mod resolve;
+mod roots;
+pub(crate) use roots::verify as verify_sysroot_roots;
 mod verify;
+pub(crate) use documents::verify_calls;
 pub use documents::{evidence, verify_documents};
 pub use resolve::resolve;
 pub(crate) use resolve::source_resolved;
@@ -35,6 +38,8 @@ pub struct Callee {
     pub crate_name: String,
     pub crate_hash: String,
     pub definition_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<Box<Callee>>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -45,7 +50,51 @@ pub struct Registry {
     pub pointer_width: u64,
     pub core_hash: String,
     pub source_digests: BTreeMap<String, String>,
+    #[serde(default)]
+    pub result_propagation_source_digests: BTreeMap<String, String>,
     pub operations: Vec<Operation>,
+    #[serde(default)]
+    pub definitions: BTreeMap<String, String>,
+    #[serde(default)]
+    pub alloc_macro_exports: Option<crate::nominal_boundary::census::external_imports::Exports>,
+    #[serde(default)]
+    pub cleanup_macro_source_digests: BTreeMap<String, String>,
+}
+
+impl Registry {
+    /// Check the reviewed core identity. Callers separately constrain allowed
+    /// source paths, including any explicitly supported core/std aliases.
+    pub(crate) fn exact_core_definition(&self, callee: &Callee, key: &str) -> bool {
+        callee.crate_name == "core"
+            && callee.crate_hash == self.core_hash
+            && self.definitions.get(key) == Some(&callee.definition_hash)
+            && callee.implementation.is_none()
+    }
+}
+
+pub(crate) struct CoreDefinition {
+    /// The first path is the registry key; other paths are reviewed aliases.
+    pub paths: &'static [&'static str],
+    pub unavailable: &'static str,
+    pub mismatch: &'static str,
+}
+
+pub(crate) fn verify_core_definition(
+    callee: &Callee,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    expected: CoreDefinition,
+) -> Result<(), String> {
+    let registry = registry_for(facts).ok_or(expected.unavailable)?;
+    let key = expected
+        .paths
+        .first()
+        .ok_or("Missing core definition path contract")?;
+    if !expected.paths.contains(&callee.path.as_str())
+        || !registry.exact_core_definition(callee, key)
+    {
+        return Err(expected.mismatch.into());
+    }
+    Ok(())
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -58,26 +107,27 @@ pub struct Operation {
 }
 
 pub fn registry() -> &'static Registry {
-    static REGISTRY: OnceLock<Registry> = OnceLock::new();
-    REGISTRY.get_or_init(|| {
-        serde_json::from_str(include_str!("../contracts/read-only-lengths-v2.json"))
-            .expect("independently tested read-only library registry")
+    &registries()[0]
+}
+
+pub fn registries() -> &'static [Registry] {
+    static REGISTRIES: OnceLock<Vec<Registry>> = OnceLock::new();
+    REGISTRIES.get_or_init(|| {
+        [
+            include_str!("../contracts/read-only-lengths-v2.json"),
+            include_str!("../contracts/read-only-lengths-x86_64-v2.json"),
+            include_str!("../contracts/read-only-lengths-macos-aarch64-v2.json"),
+        ]
+        .into_iter()
+        .map(|source| {
+            serde_json::from_str(source).expect("independently tested pinned library registry")
+        })
+        .collect()
     })
 }
 
-pub fn registries() -> [&'static Registry; 2] {
-    static X86_64: OnceLock<Registry> = OnceLock::new();
-    let x86_64 = X86_64.get_or_init(|| {
-        serde_json::from_str(include_str!(
-            "../contracts/read-only-lengths-x86_64-v2.json"
-        ))
-        .expect("independently tested x86_64 read-only library registry")
-    });
-    [registry(), x86_64]
-}
-
 pub fn registry_for(facts: &crate::HirFnFacts) -> Option<&'static Registry> {
-    registries().into_iter().find(|registry| {
+    registries().iter().find(|registry| {
         facts.build.rustc_commit.known_value() == Some(registry.rustc_commit.as_str())
             && facts.build.target_triple.known_value() == Some(registry.target.as_str())
             && facts.build.pointer_width.value == Some(registry.pointer_width)
@@ -89,7 +139,7 @@ pub fn operation(node: &HirNode) -> Option<&'static Operation> {
     (node.kind == "expr_method_call" && dispatch.kind == "resolved_method").then_some(())?;
     let authority = callee(node).ok().and_then(|callee| {
         registries()
-            .into_iter()
+            .iter()
             .find(|registry| registry.core_hash == callee.crate_hash)
     });
     authority
@@ -97,6 +147,24 @@ pub fn operation(node: &HirNode) -> Option<&'static Operation> {
         .operations
         .iter()
         .find(|op| op.path == dispatch.op)
+}
+
+/// Reviewed 64-bit target and exact core/std root ownership, without operation permission.
+pub(crate) fn verify_64bit_sysroot(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    label: &str,
+) -> Result<&'static Registry, String> {
+    let registry =
+        registry_for(facts.facts()).ok_or_else(|| format!("Unpinned {label} compiler/target"))?;
+    if facts.build.pointer_width.status != crate::FactStatus::Known
+        || facts.build.pointer_width.value != Some(64)
+        || registry.pointer_width != 64
+    {
+        return Err(format!("{label} requires its reviewed known 64-bit target"));
+    }
+
+    verify_sysroot_roots(facts, &["core", "std"], label)?;
+    Ok(registry)
 }
 
 pub fn callee(node: &HirNode) -> Result<Callee, String> {
@@ -128,19 +196,33 @@ mod tests {
 
     #[test]
     fn target_authorities_share_semantics_but_not_definition_identity() {
-        let [arm, x86] = registries();
-        assert_ne!(arm.identity, x86.identity);
-        assert_ne!(arm.target, x86.target);
-        assert_ne!(arm.core_hash, x86.core_hash);
-        assert_eq!(arm.rustc_commit, x86.rustc_commit);
-        assert_eq!(arm.source_digests, x86.source_digests);
-        assert_eq!(arm.operations.len(), x86.operations.len());
-        for (left, right) in arm.operations.iter().zip(&x86.operations) {
+        let arm = registry();
+        for other in &registries()[1..] {
+            assert_ne!(arm.identity, other.identity);
+            assert_ne!(arm.target, other.target);
+            assert_ne!(arm.core_hash, other.core_hash);
+            assert_eq!(arm.rustc_commit, other.rustc_commit);
+            assert_eq!(arm.source_digests, other.source_digests);
             assert_eq!(
-                (&left.id, &left.path, &left.referent, &left.result),
-                (&right.id, &right.path, &right.referent, &right.result)
+                arm.result_propagation_source_digests,
+                other.result_propagation_source_digests
             );
-            assert_ne!(left.definition_hash, right.definition_hash);
+            assert_eq!(arm.operations.len(), other.operations.len());
+            assert_eq!(arm.definitions.len(), 79);
+            assert_eq!(
+                arm.definitions.keys().collect::<Vec<_>>(),
+                other.definitions.keys().collect::<Vec<_>>()
+            );
+            for (path, hash) in &arm.definitions {
+                assert_ne!(Some(hash), other.definitions.get(path));
+            }
+            for (left, right) in arm.operations.iter().zip(&other.operations) {
+                assert_eq!(
+                    (&left.id, &left.path, &left.referent, &left.result),
+                    (&right.id, &right.path, &right.referent, &right.result)
+                );
+                assert_ne!(left.definition_hash, right.definition_hash);
+            }
         }
     }
 
@@ -153,10 +235,27 @@ mod tests {
         assert!(output.status.success());
         let sysroot = String::from_utf8(output.stdout).unwrap();
         for registry in registries() {
-            for (module, expected) in &registry.source_digests {
-                let path = std::path::Path::new(sysroot.trim()).join(format!(
-                    "lib/rustlib/src/rust/library/core/src/{module}/mod.rs"
-                ));
+            for (module, expected) in &registry.cleanup_macro_source_digests {
+                let path = std::path::Path::new(sysroot.trim())
+                    .join("lib/rustlib/src/rust/library")
+                    .join(module);
+                assert_eq!(
+                    &crate::concrete_types::digest(&std::fs::read(path).unwrap()),
+                    expected
+                );
+            }
+            for (module, expected) in registry
+                .source_digests
+                .iter()
+                .chain(&registry.result_propagation_source_digests)
+            {
+                let relative = if module.ends_with(".rs") {
+                    module.clone()
+                } else {
+                    format!("{module}/mod.rs")
+                };
+                let path = std::path::Path::new(sysroot.trim())
+                    .join(format!("lib/rustlib/src/rust/library/core/src/{relative}"));
                 let source = std::fs::read(path).unwrap();
                 assert_eq!(&crate::concrete_types::digest(&source), expected);
             }

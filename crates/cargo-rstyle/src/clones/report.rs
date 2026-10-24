@@ -1,5 +1,6 @@
 //! Reproducible evidence with independent completeness indicators.
 
+mod functions;
 mod matching;
 
 use super::{Args, Handoff, capture};
@@ -8,6 +9,13 @@ use rstyle_ccgraph::RunReport;
 use serde::Serialize;
 use serde_json::Value;
 use std::path::Path;
+
+#[derive(Clone, Copy, clap::ValueEnum, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Detail {
+    Full,
+    Compact,
+}
 
 pub struct Context<'a> {
     pub cli: &'a Cli,
@@ -29,6 +37,7 @@ struct Scope<'a> {
 
 #[derive(Serialize)]
 pub struct Report<'a> {
+    report_detail: Detail,
     scope: Scope<'a>,
     run_directory: &'a Path,
     toolchain: String,
@@ -49,11 +58,12 @@ pub struct Report<'a> {
     expected_targets: &'a [capture::Target],
     expected_compilation_units: &'a Value,
     intended_primary_units: &'a [Value],
+    intended_dependency_units: &'a [Value],
     observed_units: &'a [capture::Unit],
     capture_complete: bool,
     capture_failures: &'a [String],
     assessment_complete: bool,
-    functions: &'a [super::Function],
+    functions: functions::Functions<'a>,
     build_contexts: &'a [super::UnitBuildContexts],
     owned_source_inventory: &'a [Value],
     handoff_failures: &'a [String],
@@ -96,30 +106,26 @@ fn ctx_profile_is_data(args: &Args) -> bool {
 }
 
 pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
-    let scope = Scope {
-        packages: &ctx.cli.packages,
-        all_targets: ctx.cli.all_targets,
-        manifest_path: &ctx.cli.manifest_path,
-        build_options: ctx.args,
-    };
+    let scope = selected_scope(&ctx);
 
     Report {
-        verification_policy: "trusted-generated",
+        report_detail: ctx.args.report_detail,
+        verification_policy: if ctx.args.replay_run.is_some() {
+            "strict-replay"
+        } else {
+            "trusted-generated"
+        },
         scope,
         run_directory: &ctx.capture.directory,
         toolchain: crate::run::pinned_toolchain(),
         compiler_identity: &ctx.capture.plan.compiler_identity,
         cargo_identity: &ctx.capture.plan.cargo_identity,
         contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
-        unit_bundle_schema: "rstyle.shared-unit/4",
+        unit_bundle_schema: rstyle_pdg::unit_store::BUNDLE_SCHEMA,
         function_identity_schema: super::identity::SCHEMA,
         unit_contexts: &ctx.handoff.unit_contexts,
         extraction_selection: extraction_selection(ctx.args),
-        extraction_policy: Policy {
-            id: ctx.args.extraction_profile.policy().id,
-            version: ctx.args.extraction_profile.policy().version,
-            semantics: "bounded normal flow; exceptional transfers and cleanup omitted",
-        },
+        extraction_policy: extraction_policy(ctx.args),
         extraction_capabilities: ctx.args.extraction_profile.capabilities(),
         call_summaries: ctx.args.extraction_profile.summaries(),
         schema_versions: SchemaVersions {
@@ -131,11 +137,12 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
         expected_targets: &ctx.capture.plan.targets,
         expected_compilation_units: &ctx.capture.expected_unit_graph,
         intended_primary_units: &ctx.capture.plan.primary_units,
+        intended_dependency_units: &ctx.capture.plan.dependency_units,
         observed_units: &ctx.capture.units,
         capture_complete: ctx.capture.failures.is_empty(),
         capture_failures: &ctx.capture.failures,
         assessment_complete: ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty(),
-        functions: &ctx.handoff.assessed,
+        functions: functions::Functions::new(&ctx.handoff.assessed, ctx.args.report_detail),
         build_contexts: &ctx.handoff.build_contexts,
         owned_source_inventory: &ctx.handoff.source_inventory,
         handoff_failures: &ctx.handoff.failures,
@@ -143,6 +150,15 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
         pair_enumeration_complete: enumeration_complete(&ctx),
         matching: matching::Matching::new(ctx.matching, ctx.args.trace, ctx.partitions),
         claim: "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
+    }
+}
+
+fn selected_scope<'a>(ctx: &Context<'a>) -> Scope<'a> {
+    Scope {
+        packages: &ctx.cli.packages,
+        all_targets: ctx.cli.all_targets,
+        manifest_path: &ctx.cli.manifest_path,
+        build_options: ctx.args,
     }
 }
 
@@ -155,30 +171,22 @@ fn enumeration_complete(ctx: &Context<'_>) -> bool {
         && expected == Some(ctx.matching.pairs.len())
 }
 
-pub fn render(
-    format: Format,
-    report: &Report<'_>,
-    accepted: usize,
-    directory: &Path,
-) -> Result<String, String> {
-    match format {
-        Format::Json => serde_json::to_string_pretty(report).map_err(|e| e.to_string()),
-        Format::Text => Ok(format!(
-            "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
-            report.observed_units.len(),
-            coverage_summary(report),
-            report.matching.report.pairs.len(),
-            report.capture_complete,
-            report.assessment_complete,
-            report.pair_enumeration_complete,
-            report.pair_evaluation_complete,
-            directory.join("report.json").display()
-        )),
-    }
+fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String {
+    format!(
+        "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
+        report.observed_units.len(),
+        coverage_summary(report),
+        report.matching.report.pairs.len(),
+        report.capture_complete,
+        report.assessment_complete,
+        report.pair_enumeration_complete,
+        report.pair_evaluation_complete,
+        directory.join("report.json").display()
+    )
 }
 
 fn coverage_summary(report: &Report<'_>) -> String {
-    let functions = report.functions;
+    let functions = report.functions.items;
     let counts = ["admitted", "excluded", "unknown", "failed"].map(|outcome| {
         let count = functions
             .iter()
@@ -202,13 +210,36 @@ impl Report<'_> {
         rstyle_pdg::diagnostics::Stage::new("cli.report_write", "run", None)
             .observe(|| write(&self.run_directory.join("report.json"), self))?;
         rstyle_pdg::diagnostics::Stage::new("cli.report_render", "run", None)
-            .observe(|| render(format, self, accepted, self.run_directory))
+            .observe(|| self.render_published(format, accepted))
+    }
+
+    fn render_published(&self, format: Format, accepted: usize) -> Result<String, String> {
+        match format {
+            Format::Json => std::fs::read_to_string(self.run_directory.join("report.json"))
+                .map_err(|error| error.to_string()),
+            Format::Text => Ok(render_text(self, accepted, self.run_directory)),
+        }
     }
 }
 
 fn write_to(mut writer: impl std::io::Write, report: &impl Serialize) -> Result<(), String> {
-    serde_json::to_writer_pretty(&mut writer, report).map_err(|error| error.to_string())?;
+    serde_json::to_writer(&mut writer, report).map_err(|error| error.to_string())?;
     writer.flush().map_err(|error| error.to_string())
+}
+
+fn extraction_policy(args: &super::Args) -> Policy {
+    Policy {
+        id: args.extraction_profile.policy().id,
+        version: args.extraction_profile.policy().version,
+        semantics: if args
+            .extraction_profile
+            .supports("rust.mutable-scalar-formals")
+        {
+            "bounded flow; explicit checked failures for supported mutable scalar formals; general cleanup omitted"
+        } else {
+            "bounded normal flow; exceptional transfers and cleanup omitted"
+        },
+    }
 }
 
 #[cfg(test)]

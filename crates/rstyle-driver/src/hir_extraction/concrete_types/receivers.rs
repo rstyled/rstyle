@@ -5,6 +5,7 @@ use crate::hir_extraction::hir::reference;
 use rstyle_pdg::{HirFnFacts, HirNode, data_receivers as records};
 use rustc_hir::{Expr, ExprKind, Node};
 use rustc_middle::ty::adjustment::{Adjust, AutoBorrow, AutoBorrowMutability, DerefAdjustKind};
+use rustc_middle::ty::{self, Ty};
 
 struct ReceiverTypes {
     source: rstyle_pdg::concrete_types::Observation,
@@ -20,10 +21,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             identity: records::IDENTITY.into(),
             methods,
         };
-        facts.build.frontend_options.insert(
-            records::KEY.into(),
-            serde_json::to_value(capture).map_err(|error| error.to_string())?,
-        );
+        facts.build.frontend_options.insert_data(capture);
 
         Ok(())
     }
@@ -72,7 +70,16 @@ impl<'tcx> Capture<'_, 'tcx> {
             .fn_sig(callee)
             .instantiate(self.ctx.tcx, self.ctx.typeck.node_args(expression.hir_id))
             .skip_binder();
-        let types = self.receiver_types(receiver)?;
+        let character_ascii = matches!(self.ctx.typeck.expr_ty(receiver).kind(), ty::Char)
+            && self.ctx.profile.supports("rust.character-ascii-predicate")
+            && self
+                .ctx
+                .tcx
+                .is_diagnostic_item(rustc_span::Symbol::intern("char_is_ascii"), callee)
+            && matches!(signature.output().kind(), ty::Bool)
+            && signature.inputs().len() == 1
+            && shared_character(signature.inputs()[0]);
+        let types = self.receiver_types(receiver, character_ascii)?;
 
         Ok(records::Method {
             call: reference(expression.hir_id),
@@ -84,13 +91,52 @@ impl<'tcx> Capture<'_, 'tcx> {
             signature_inputs: signature
                 .inputs()
                 .iter()
-                .map(|ty| self.observe(*ty))
+                .map(|ty| self.signature_type(*ty, character_ascii))
                 .collect::<Result<Vec<_>, _>>()?,
-            signature_result: self.observe(signature.output())?,
+            signature_result: self.signature_type(signature.output(), character_ascii)?,
         })
     }
 
-    fn receiver_types(&mut self, receiver: &Expr<'tcx>) -> Result<ReceiverTypes, String> {
+    fn signature_type(
+        &mut self,
+        ty: rustc_middle::ty::Ty<'tcx>,
+        character_ascii: bool,
+    ) -> Result<rstyle_pdg::concrete_types::Observation, String> {
+        let environment = rustc_middle::ty::TypingEnv::post_analysis(
+            self.ctx.tcx,
+            self.ctx.typeck.hir_owner.def_id,
+        );
+        match self
+            .ctx
+            .tcx
+            .try_normalize_erasing_regions(environment, rustc_middle::ty::Unnormalized::new_wip(ty))
+        {
+            Ok(ty) => self.method_observation(ty, character_ascii),
+            Err(_) => Ok(rstyle_pdg::concrete_types::Observation::Unsupported {
+                reason: "Method signature type cannot be normalized".into(),
+            }),
+        }
+    }
+
+    fn method_observation(
+        &mut self,
+        ty: Ty<'tcx>,
+        character_ascii: bool,
+    ) -> Result<rstyle_pdg::concrete_types::Observation, String> {
+        if character_ascii && shared_character(ty) {
+            use rstyle_pdg::concrete_types::{Observation, TypeTree};
+            return Ok(Observation::Captured {
+                ty: TypeTree::Shared(Box::new(TypeTree::Scalar("char".into()))),
+            });
+        }
+        self.observe(ty)
+    }
+
+    fn receiver_types(
+        &mut self,
+        receiver: &Expr<'tcx>,
+        character_ascii: bool,
+    ) -> Result<ReceiverTypes, String> {
         let adjustments = self.ctx.typeck.expr_adjustments(receiver);
         if adjustments.len() > records::MAX_ADJUSTMENTS {
             return Err("Method receiver capture exceeds adjustment budget".into());
@@ -100,14 +146,15 @@ impl<'tcx> Capture<'_, 'tcx> {
             .map(|adjustment| {
                 Ok(records::Adjustment {
                     kind: adjustment_kind(&adjustment.kind),
-                    target: self.observe(adjustment.target)?,
+                    target: self.method_observation(adjustment.target, character_ascii)?,
                 })
             })
             .collect::<Result<Vec<_>, String>>()?;
 
         Ok(ReceiverTypes {
             source: self.observe(self.ctx.typeck.expr_ty(receiver))?,
-            adjusted: self.observe(self.ctx.typeck.expr_ty_adjusted(receiver))?,
+            adjusted: self
+                .method_observation(self.ctx.typeck.expr_ty_adjusted(receiver), character_ascii)?,
             adjustments,
         })
     }
@@ -133,4 +180,8 @@ fn adjustment_kind(kind: &Adjust) -> records::Kind {
             .into(),
         ),
     }
+}
+
+fn shared_character(ty: Ty<'_>) -> bool {
+    matches!(ty.kind(), ty::Ref(_, inner, rustc_hir::Mutability::Not) if matches!(inner.kind(), ty::Char))
 }

@@ -1,0 +1,305 @@
+{
+  "identity": "rstyle.development.base64-encoded-len/1",
+  "package": {
+    "name": "base64",
+    "version": "0.23.1",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/base64-0.23.1",
+    "upstream_revision": "069bf7067b949f5c0a92b6ceb82492920502f2c2",
+    "file_sha256": {
+      "Cargo.toml": "3951a99756ac9b339501a149c547ce0e24248287a10830298ea319c006090790",
+      "src/lib.rs": "181e64750ab1ddfc80e1c1f8e1fb4ce7ef63a21bc27d26d5a974b65454a66724",
+      "src/encode.rs": "77048ba481faa9ee8f69a2e50a455cf2054c4e4b568a7e2509954e904954345a"
+    }
+  },
+  "function": {
+    "name": "encode::encoded_len",
+    "public_path": "base64::encoded_len",
+    "file": "src/encode.rs",
+    "span": {
+      "start": 3091,
+      "end": 4063
+    },
+    "sha256": "51f3a6816dfc811c25f39444b55e5a335f0dfe47b554ef19741bc642f8c4db7b",
+    "expected": "complete strict admission after checked usize add/mul and branch-owned scalar Option if-let support"
+  },
+  "build_selection": {
+    "target": "base64 library; test=false",
+    "edition": "2021",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "pointer_width": 64,
+    "contexts": [
+      {
+        "cargo_arguments": [],
+        "features": [
+          "alloc",
+          "default",
+          "simd-unsafe",
+          "std"
+        ]
+      },
+      {
+        "cargo_arguments": [
+          "--no-default-features"
+        ],
+        "features": []
+      }
+    ],
+    "baseline_capture": "complete original native default context before activation; preserved 3.69 policy and producer_revision in baseline evidence"
+  },
+  "contract": {
+    "positive": [
+      "original exported const helper with full nested branch composition",
+      "checked usize add/mul produce Some exact mathematical value iff representable",
+      "Some payload binding available only on successful if-let edge",
+      "None early-return path terminates and cannot initialize continuation",
+      "complete Option result through constructors and checked calls"
+    ],
+    "negative": [
+      "missing initializer or payload pattern capture",
+      "wrong Some binding identity or use on None edge",
+      "changed checked operands, order, core authority or overflow semantics",
+      "hidden effect in either branch",
+      "historical policy certifying newly supported operations"
+    ],
+    "deferred": [
+      "let chains",
+      "let-else",
+      "guards",
+      "question mark",
+      "nested/reference Options",
+      "mutable payloads",
+      "general callbacks"
+    ]
+  },
+  "semantic_expectations": {
+    "padded": "4*ceil(n/3), arbitrary precision; None iff greater than usize::MAX",
+    "unpadded": "floor((8*n+5)/6), arbitrary precision; None iff greater than usize::MAX",
+    "scope": "all n0..4096; both flags; zero/max and \u00b112 around arithmetic and representability boundaries",
+    "native": "links unchanged full package; prints pointer width; no copied implementation"
+  },
+  "sample": {
+    "32": {
+      "cases": 8276,
+      "request_sha256": "08328f30b34e0d5e5bff2a13e8a8ba52b717fdd80ff23643b74b5fb89f88ef92"
+    },
+    "64": {
+      "cases": 8276,
+      "request_sha256": "686ea28a7a4f907b5a97716f1b17438aa41add65cf97bf0b30bfe2a5d3356282"
+    }
+  },
+  "baseline": {
+    "key": "function:u0:f144",
+    "compilation_unit": "path+file:///home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/base64-0.23.1#base64@0.23.1:base64:test=false",
+    "unit_evidence": {
+      "report_unit": 0,
+      "namespace": {
+        "process": 4011022,
+        "epoch_nanos": 1792617123553667066,
+        "ordinal": 0
+      },
+      "bundle": "/tmp/rstyle-base64-encoded-baseline-target/rstyle/clones/run-SqWGJE/invocation-kW96wr/unit.evidence.json",
+      "function": 144
+    },
+    "outcome": "excluded",
+    "reasons": [
+      "Missing data binding",
+      "Original owned source contains deferred rust.additional-types; cfg removal cannot certify a supported remainder.",
+      "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+      "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+      "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder.",
+      "Required Removed or unmatched owned-source operations lack independent resolved HIR evidence; semantics remain unknown evidence is unavailable; cannot certify this operation.",
+      "Required resolved data binding read evidence is unavailable; cannot certify this operation.",
+      "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary.",
+      "Missing or mismatched resolved primitive callee, type/signature, pinned compiler/target/core provenance or named summary."
+    ],
+    "roster": {
+      "functions": 167,
+      "admitted": 7,
+      "excluded": 160
+    },
+    "pair_matching": "max0 explicitly incomplete",
+    "report": "/tmp/rstyle-base64-encoded-baseline-report.json",
+    "build": {
+      "producer_revision": {
+        "status": "known",
+        "value": "95f467c24b89b82d80dbfca9701a331c0e5ac3a8+dirty"
+      },
+      "rustc_version": {
+        "status": "known",
+        "value": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)"
+      },
+      "rustc_commit": {
+        "status": "known",
+        "value": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
+      },
+      "edition": {
+        "status": "known",
+        "value": "2021"
+      },
+      "target_triple": {
+        "status": "known",
+        "value": "aarch64-unknown-linux-gnu"
+      },
+      "pointer_width": {
+        "status": "known",
+        "value": 64,
+        "policy": {
+          "id": "compat.rust.hir-r0",
+          "version": "0.1.0"
+        }
+      },
+      "data_layout": {
+        "status": "known",
+        "value": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"
+      },
+      "cfgs": [
+        "debug_assertions",
+        "feature=\"alloc\"",
+        "feature=\"default\"",
+        "feature=\"simd-unsafe\"",
+        "feature=\"std\"",
+        "fmt_debug=\"full\"",
+        "overflow_checks",
+        "panic=\"unwind\"",
+        "relocation_model=\"pic\"",
+        "target_abi=\"\"",
+        "target_arch=\"aarch64\"",
+        "target_endian=\"little\"",
+        "target_env=\"gnu\"",
+        "target_family=\"unix\"",
+        "target_feature=\"neon\"",
+        "target_feature=\"outline-atomics\"",
+        "target_has_atomic",
+        "target_has_atomic=\"128\"",
+        "target_has_atomic=\"16\"",
+        "target_has_atomic=\"32\"",
+        "target_has_atomic=\"64\"",
+        "target_has_atomic=\"8\"",
+        "target_has_atomic=\"ptr\"",
+        "target_has_atomic_load_store",
+        "target_has_atomic_load_store=\"128\"",
+        "target_has_atomic_load_store=\"16\"",
+        "target_has_atomic_load_store=\"32\"",
+        "target_has_atomic_load_store=\"64\"",
+        "target_has_atomic_load_store=\"8\"",
+        "target_has_atomic_load_store=\"ptr\"",
+        "target_has_atomic_primitive_alignment=\"128\"",
+        "target_has_atomic_primitive_alignment=\"16\"",
+        "target_has_atomic_primitive_alignment=\"32\"",
+        "target_has_atomic_primitive_alignment=\"64\"",
+        "target_has_atomic_primitive_alignment=\"8\"",
+        "target_has_atomic_primitive_alignment=\"ptr\"",
+        "target_has_reliable_f128",
+        "target_has_reliable_f128_math",
+        "target_has_reliable_f16",
+        "target_has_reliable_f16_math",
+        "target_has_reliable_f16b",
+        "target_has_threads",
+        "target_object_format=\"elf\"",
+        "target_os=\"linux\"",
+        "target_pointer_width=\"64\"",
+        "target_thread_local",
+        "target_vendor=\"unknown\"",
+        "ub_checks",
+        "unix"
+      ],
+      "features": [
+        "alloc",
+        "default",
+        "simd-unsafe",
+        "std"
+      ],
+      "overflow_checks": {
+        "status": "known",
+        "value": true
+      },
+      "debug_assertions": {
+        "status": "known",
+        "value": true
+      },
+      "panic_strategy": {
+        "status": "known",
+        "value": "unwind"
+      },
+      "opt_level": {
+        "status": "known",
+        "value": "No"
+      },
+      "captured_features": [
+        "alloc",
+        "default",
+        "simd-unsafe",
+        "std"
+      ]
+    }
+  },
+  "observed": {
+    "native_default_delta": {
+      "before": 7,
+      "after": 8,
+      "denominator": 167,
+      "new": [
+        "encode::encoded_len"
+      ],
+      "lost": [],
+      "source_build_identity": "unchanged"
+    },
+    "contexts": [
+      {
+        "context": "native-default",
+        "report": "/tmp/rstyle-base64-encoded-native-default-report.json",
+        "functions": 167,
+        "admitted": 8,
+        "pairs": 28,
+        "bundle": "/tmp/rstyle-base64-encoded-current-target/rstyle/clones/run-CfQ7TG/invocation-3m71KC/unit.evidence.json"
+      },
+      {
+        "context": "native-no-default",
+        "report": "/tmp/rstyle-base64-encoded-native-no-default-report.json",
+        "functions": 92,
+        "admitted": 4,
+        "pairs": 6,
+        "bundle": "/tmp/rstyle-base64-encoded-current-target/rstyle/clones/run-USbWyC/invocation-QPbqDY/unit.evidence.json"
+      },
+      {
+        "context": "x86_64-unknown-linux-gnu-default",
+        "report": "/tmp/rstyle-base64-encoded-x86_64-unknown-linux-gnu-default-report.json",
+        "functions": 169,
+        "admitted": 8,
+        "pairs": 28,
+        "bundle": "/tmp/rstyle-base64-encoded-current-target/rstyle/clones/run-sI46FY/invocation-SEUvlI/unit.evidence.json"
+      },
+      {
+        "context": "x86_64-unknown-linux-gnu-no-default",
+        "report": "/tmp/rstyle-base64-encoded-x86_64-unknown-linux-gnu-no-default-report.json",
+        "functions": 92,
+        "admitted": 4,
+        "pairs": 6,
+        "bundle": "/tmp/rstyle-base64-encoded-current-target/rstyle/clones/run-wJ1zYL/invocation-EMOIfw/unit.evidence.json"
+      },
+      {
+        "context": "aarch64-apple-darwin-default",
+        "report": "/tmp/rstyle-base64-encoded-aarch64-apple-darwin-default-report.json",
+        "functions": 167,
+        "admitted": 8,
+        "pairs": 28,
+        "bundle": "/tmp/rstyle-base64-encoded-current-target/rstyle/clones/run-elXyXu/invocation-8yMCtw/unit.evidence.json"
+      },
+      {
+        "context": "aarch64-apple-darwin-no-default",
+        "report": "/tmp/rstyle-base64-encoded-aarch64-apple-darwin-no-default-report.json",
+        "functions": 92,
+        "admitted": 4,
+        "pairs": 6,
+        "bundle": "/tmp/rstyle-base64-encoded-current-target/rstyle/clones/run-1nJcFC/invocation-c4ppOW/unit.evidence.json"
+      }
+    ],
+    "strict_replay": "all 36 admissions and 102 comparisons across six independent contexts; encoded_len rejects every fixed incompatible original peer",
+    "native_oracle": "8276 cases each for unchanged full default and no-default packages; native 64-bit"
+  }
+}

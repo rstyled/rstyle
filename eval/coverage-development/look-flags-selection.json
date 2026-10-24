@@ -1,0 +1,340 @@
+{
+  "schema": "rstyle.development-source-selection/1",
+  "package": "regex-automata",
+  "version": "0.4.18",
+  "path": "src/util/look.rs",
+  "file_sha256": "49026d8bcb6f9229b2d462e363eb6c6dc9d1e17de6acb190105b2d71ca5a9490",
+  "manifest_sha256": "25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+  "build": {
+    "features": [
+      "alloc",
+      "default",
+      "dfa",
+      "dfa-build",
+      "dfa-onepass",
+      "dfa-search",
+      "hybrid",
+      "meta",
+      "nfa",
+      "nfa-backtrack",
+      "nfa-pikevm",
+      "nfa-thompson",
+      "perf",
+      "perf-inline",
+      "perf-literal",
+      "perf-literal-multisubstring",
+      "perf-literal-substring",
+      "std",
+      "syntax",
+      "unicode",
+      "unicode-age",
+      "unicode-bool",
+      "unicode-case",
+      "unicode-gencat",
+      "unicode-perl",
+      "unicode-script",
+      "unicode-segment",
+      "unicode-word-boundary"
+    ],
+    "cfgs": [
+      "debug_assertions",
+      "feature=\"alloc\"",
+      "feature=\"default\"",
+      "feature=\"dfa\"",
+      "feature=\"dfa-build\"",
+      "feature=\"dfa-onepass\"",
+      "feature=\"dfa-search\"",
+      "feature=\"hybrid\"",
+      "feature=\"meta\"",
+      "feature=\"nfa\"",
+      "feature=\"nfa-backtrack\"",
+      "feature=\"nfa-pikevm\"",
+      "feature=\"nfa-thompson\"",
+      "feature=\"perf\"",
+      "feature=\"perf-inline\"",
+      "feature=\"perf-literal\"",
+      "feature=\"perf-literal-multisubstring\"",
+      "feature=\"perf-literal-substring\"",
+      "feature=\"std\"",
+      "feature=\"syntax\"",
+      "feature=\"unicode\"",
+      "feature=\"unicode-age\"",
+      "feature=\"unicode-bool\"",
+      "feature=\"unicode-case\"",
+      "feature=\"unicode-gencat\"",
+      "feature=\"unicode-perl\"",
+      "feature=\"unicode-script\"",
+      "feature=\"unicode-segment\"",
+      "feature=\"unicode-word-boundary\"",
+      "fmt_debug=\"full\"",
+      "overflow_checks",
+      "panic=\"unwind\"",
+      "relocation_model=\"pic\"",
+      "target_abi=\"\"",
+      "target_arch=\"aarch64\"",
+      "target_endian=\"little\"",
+      "target_env=\"gnu\"",
+      "target_family=\"unix\"",
+      "target_feature=\"neon\"",
+      "target_feature=\"outline-atomics\"",
+      "target_has_atomic",
+      "target_has_atomic=\"128\"",
+      "target_has_atomic=\"16\"",
+      "target_has_atomic=\"32\"",
+      "target_has_atomic=\"64\"",
+      "target_has_atomic=\"8\"",
+      "target_has_atomic=\"ptr\"",
+      "target_has_atomic_load_store",
+      "target_has_atomic_load_store=\"128\"",
+      "target_has_atomic_load_store=\"16\"",
+      "target_has_atomic_load_store=\"32\"",
+      "target_has_atomic_load_store=\"64\"",
+      "target_has_atomic_load_store=\"8\"",
+      "target_has_atomic_load_store=\"ptr\"",
+      "target_has_atomic_primitive_alignment=\"128\"",
+      "target_has_atomic_primitive_alignment=\"16\"",
+      "target_has_atomic_primitive_alignment=\"32\"",
+      "target_has_atomic_primitive_alignment=\"64\"",
+      "target_has_atomic_primitive_alignment=\"8\"",
+      "target_has_atomic_primitive_alignment=\"ptr\"",
+      "target_has_reliable_f128",
+      "target_has_reliable_f128_math",
+      "target_has_reliable_f16",
+      "target_has_reliable_f16_math",
+      "target_has_reliable_f16b",
+      "target_has_threads",
+      "target_object_format=\"elf\"",
+      "target_os=\"linux\"",
+      "target_pointer_width=\"64\"",
+      "target_thread_local",
+      "target_vendor=\"unknown\"",
+      "ub_checks",
+      "unix"
+    ],
+    "edition": {
+      "status": "known",
+      "value": "2021"
+    },
+    "target_triple": {
+      "status": "known",
+      "value": "aarch64-unknown-linux-gnu"
+    },
+    "rustc_commit": {
+      "status": "known",
+      "value": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
+    },
+    "pointer_width": {
+      "status": "known",
+      "value": 64,
+      "policy": {
+        "id": "compat.rust.hir-r0",
+        "version": "0.1.0"
+      }
+    },
+    "overflow_checks": {
+      "status": "known",
+      "value": true
+    },
+    "debug_assertions": {
+      "status": "known",
+      "value": true
+    },
+    "opt_level": {
+      "status": "known",
+      "value": "No"
+    },
+    "panic_strategy": {
+      "status": "known",
+      "value": "unwind"
+    },
+    "data_layout": {
+      "status": "known",
+      "value": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"
+    }
+  },
+  "expectation": "All thirteen declared target functions plus empty prerequisite are in scope; originals remain unchanged. Admission does not establish purity or rewrite safety.",
+  "functions": [
+    {
+      "name": "util::look::Look::as_repr",
+      "span": {
+        "start": 8626,
+        "end": 8788
+      },
+      "source_digest": "sha256:c7ddf00cd280c9ef362699194b91c27e9f380b3653ff44b259c5a65ee0894bd7",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::empty",
+      "span": {
+        "start": 12452,
+        "end": 12513
+      },
+      "source_digest": "sha256:c9cbe79eed4e75016572aa7206322e4654800e9f7c5e307c34ca3d4c053ba4af",
+      "role": "prerequisite"
+    },
+    {
+      "name": "util::look::LookSet::singleton",
+      "span": {
+        "start": 12937,
+        "end": 13022
+      },
+      "source_digest": "sha256:39e4b4205dbe74d66c94116abe14f0fc3aa1fe0910ce5a67b3f156b65b881653",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::contains",
+      "span": {
+        "start": 13576,
+        "end": 13665
+      },
+      "source_digest": "sha256:ca00c2c41b484a9d0ded828705c32824e24cfadc1a603b4896af334c21bcb038",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::contains_anchor",
+      "span": {
+        "start": 13838,
+        "end": 13954
+      },
+      "source_digest": "sha256:08d174e82a8ae07883e480c86bf1a6be10f23ec4d97c8a6b4db9f484e553b771",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::contains_anchor_haystack",
+      "span": {
+        "start": 14123,
+        "end": 14240
+      },
+      "source_digest": "sha256:9148cb9d39b018751e8dcb89bb155c87d7d4240978bb9a3515daa8e0cf61d2af",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::contains_anchor_line",
+      "span": {
+        "start": 14492,
+        "end": 14711
+      },
+      "source_digest": "sha256:07b6927c10d3ddf470fd44569f9dded5a98354b9058973a06fcdcd20b3104878",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::contains_anchor_lf",
+      "span": {
+        "start": 14942,
+        "end": 15057
+      },
+      "source_digest": "sha256:0b1090ec20bfc5b299bcb1366177fbf746c5b4b329179666b492e007e493fc57",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::contains_anchor_crlf",
+      "span": {
+        "start": 15282,
+        "end": 15403
+      },
+      "source_digest": "sha256:6799ca934761d08093e8dcae19a60f1648cac3bac6f54f578f49d0f196093521",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::contains_word",
+      "span": {
+        "start": 15601,
+        "end": 15710
+      },
+      "source_digest": "sha256:1205bb33aba9ec662f60c8291f210e49809d7333ef7c2a999b1dcff3cf7bc7a2",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::contains_word_unicode",
+      "span": {
+        "start": 15863,
+        "end": 16224
+      },
+      "source_digest": "sha256:504e2db72c941346b3f1643878800b19e55a32d2b046bb20c0ab11d6e96f638d",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::contains_word_ascii",
+      "span": {
+        "start": 16373,
+        "end": 16720
+      },
+      "source_digest": "sha256:1225a0ffbf1caee093c71a4d88181a2611620db2dfbae18c0bb6a187366c5d72",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::insert",
+      "span": {
+        "start": 17126,
+        "end": 17229
+      },
+      "source_digest": "sha256:4d4e24c5d73d2d6a4dbe306b28a54f846faa6c8c7b60826fd21cb085bf0347db",
+      "role": "target"
+    },
+    {
+      "name": "util::look::LookSet::remove",
+      "span": {
+        "start": 17670,
+        "end": 17774
+      },
+      "source_digest": "sha256:bc6af8f947a411c5e35b4cdffb092f0b55b1993f0e985443670b59ceb37382bb",
+      "role": "target"
+    }
+  ],
+  "negative_controls": [
+    {
+      "name": "util::look::Look::reversed",
+      "span": {
+        "start": 7256,
+        "end": 8302
+      },
+      "source_digest": "sha256:56001f4f18bc91073c1f3041fd3c3fc612c04ee9a5392abd05ab5e6839296b60",
+      "expectation": "excluded: outside declared contract"
+    },
+    {
+      "name": "util::look::Look::from_repr",
+      "span": {
+        "start": 8987,
+        "end": 10286
+      },
+      "source_digest": "sha256:e481af7f03453123e799d224db538ae82dfb01bc6bbcd01c55ba87c3c2753221",
+      "expectation": "excluded: outside declared contract"
+    },
+    {
+      "name": "util::look::Look::as_char",
+      "span": {
+        "start": 10677,
+        "end": 11470
+      },
+      "source_digest": "sha256:0059537874940838fc5be94455adee90c8ea42ab775f1e0f4acd848a98314c6c",
+      "expectation": "excluded: outside declared contract"
+    },
+    {
+      "name": "util::look::LookSet::iter",
+      "span": {
+        "start": 16820,
+        "end": 16894
+      },
+      "source_digest": "sha256:174eae70d9b92bdebf43aadca0132318c146bf3eeea1aac616b63ae65df7ad77",
+      "expectation": "excluded: outside declared contract"
+    },
+    {
+      "name": "util::look::LookSet::set_insert",
+      "span": {
+        "start": 17355,
+        "end": 17438
+      },
+      "source_digest": "sha256:22cc6f87a80968bb3cb309d775d8ece5816423eaea64fcd18aaf7339cf5305ef",
+      "expectation": "excluded: outside declared contract"
+    },
+    {
+      "name": "util::look::LookSet::set_remove",
+      "span": {
+        "start": 17899,
+        "end": 17982
+      },
+      "source_digest": "sha256:d0b7a3a245733a6536385153975052b69ad2628c45bba2ccc3c75b7070bc822b",
+      "expectation": "excluded: outside declared contract"
+    }
+  ]
+}

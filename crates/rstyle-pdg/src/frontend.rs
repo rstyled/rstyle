@@ -9,6 +9,7 @@
 //! reason and never becomes a fabricated default.
 
 mod options;
+pub(crate) mod unit_records;
 pub(crate) use options::bundle as option_bundle;
 mod source_snapshot;
 pub use source_snapshot::SourceSnapshot;
@@ -126,6 +127,18 @@ pub struct HirNode {
     pub children: Vec<HirNode>,
 }
 
+impl HirNode {
+    /// Observed resolution tag only; this accessor grants no semantic permission.
+    pub(crate) fn resolution_kind(&self) -> Option<&str> {
+        self.res.as_ref().map(|resolution| resolution.kind.as_str())
+    }
+
+    /// Search the complete recorded subtree, including its root, in source order.
+    pub(crate) fn any(&self, predicate: &impl Fn(&Self) -> bool) -> bool {
+        predicate(self) || self.children.iter().any(|child| child.any(predicate))
+    }
+}
+
 /// One lexical binding: identity is the declaring-token span plus scope.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -222,7 +235,7 @@ pub struct SignatureFacts {
 pub struct SourceFacts {
     /// Exact UTF-8 bytes of the assessed function (no added newline).
     pub bytes: SourceText,
-    /// `sha256:<lowercase hex>` of those bytes.
+    /// Explicitly tagged byte checksum: XXH3 for new Data-v3 captures; SHA for historical claims.
     pub digest: String,
 }
 
@@ -397,11 +410,15 @@ pub fn unknown_count(reason: &str) -> CountFact {
 }
 
 /// Shared exact-kind traversal for independent frontend inventory verifiers.
-pub(crate) fn collect_kind<'a>(node: &'a HirNode, kind: &str, result: &mut Vec<&'a HirNode>) {
+pub fn collect_kind<'a>(node: &'a HirNode, kind: &str, result: &mut Vec<&'a HirNode>) {
     if node.kind == kind {
         result.push(node);
     }
     for child in &node.children {
         collect_kind(child, kind, result);
     }
+}
+
+pub(crate) fn normalized(node: &HirNode) -> Option<&str> {
+    node.ty.as_ref()?.normalized.as_deref()
 }

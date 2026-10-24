@@ -178,3 +178,7 @@ fragments. Restore with bounded writes and verify complete byte equality before
 encoding. Object ordering is never normalized. Non-JSON source strings stay
 literal. Test unsorted keys, escaped quotes/backslashes, noncanonical Unicode
 escapes, BOM/CRLF and malformed/over-budget token tables independently.
+
+The current Data-v3 selection uses extraction 3.1.0, extending this inherent-call
+contract with [scalar literal OR patterns](scalar-or-patterns-v1.md). The call
+summary and matching identities remain unchanged.

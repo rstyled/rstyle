@@ -1,6 +1,17 @@
 //! Producer handoff checks using captured source/build evidence and the real
 //! interchange boundary. Producer conformance flags are never an input proof.
 
+mod node_names;
+mod normalization;
+use node_names::node_names;
+#[cfg(test)]
+mod binding_correspondence_tests;
+#[cfg(test)]
+mod checked_failure_tests;
+#[cfg(test)]
+mod tests;
+use normalization::normalize;
+
 use super::{Pair, PairView, analyze_facts, emit, lower};
 use crate::*;
 use serde_json::Value;
@@ -29,7 +40,7 @@ fn verify_pair(
     if crate::verification_policy::is_generated() {
         return observation.finish(validate_boundary(pair, facts));
     }
-    if facts.source.bytes.identity() != facts.source.digest {
+    if !facts.source.bytes.matches_identity(&facts.source.digest) {
         return Err(vec!["Captured source identity is inconsistent".to_string()]);
     }
     let graph = lower(facts).map_err(|e| {
@@ -44,9 +55,9 @@ fn verify_pair(
         .producer_revision
         .known_value()
         .ok_or_else(|| vec!["Missing captured producer revision".to_string()])?;
-    let expected = emit(facts, &graph, &analysis, revision).map_err(|e| vec![e])?;
+    let mut expected = emit(facts, &graph, &analysis, revision).map_err(|e| vec![e])?;
     let renaming = correspondence(pair, expected.as_view())?;
-    compare_documents(pair, expected.as_view(), &renaming)?;
+    compare_documents(pair, &mut expected, &renaming)?;
 
     if crate::extraction_profile::ExtractionProfile::from_facts(facts)
         .is_ok_and(|profile| profile.supports("rust.verified-helper-calls"))
@@ -189,51 +200,6 @@ fn add_binding_names(
     add_definitions(actual, expected, names)
 }
 
-fn node_names(
-    actual: PairView<'_>,
-    expected: PairView<'_>,
-) -> Result<BTreeMap<String, String>, Vec<String>> {
-    if actual.pdg.nodes.len() != expected.pdg.nodes.len() {
-        return Err(vec!["Source/value operation inventory differs".to_string()]);
-    }
-    let mut names = BTreeMap::new();
-    for node in &actual.pdg.nodes {
-        let candidates: Vec<_> = expected
-            .pdg
-            .nodes
-            .iter()
-            .filter(|e| {
-                node.category == e.category
-                    && node.source_span.as_ref().map(|s| (s.start, s.end))
-                        == e.source_span.as_ref().map(|s| (s.start, s.end))
-                    && node.original_kind == e.original_kind
-                    && node.attributes.position == e.attributes.position
-                    && node
-                        .attributes
-                        .extensions
-                        .get("compat.rust.hir-r0:source-operation")
-                        == e.attributes
-                            .extensions
-                            .get("compat.rust.hir-r0:source-operation")
-            })
-            .collect();
-        let [candidate] = candidates.as_slice() else {
-            return Err(vec![format!(
-                "No unique source-backed correspondence for node {}",
-                node.id
-            )]);
-        };
-        if names.values().any(|id| id == &candidate.id) {
-            return Err(vec![
-                "Two nodes claim the same source operation".to_string(),
-            ]);
-        }
-        names.insert(node.id.clone(), candidate.id.clone());
-    }
-
-    Ok(names)
-}
-
 fn add_symbols(
     actual: PairView<'_>,
     expected: PairView<'_>,
@@ -264,17 +230,29 @@ fn add_definitions(
     expected: PairView<'_>,
     names: &mut BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
+    let expected = first_by_key(&expected.pdg.definitions, |entry| &entry.node_id);
     for definition in &actual.pdg.definitions {
-        let candidate = expected
-            .pdg
-            .definitions
-            .iter()
-            .find(|e| names.get(&definition.node_id) == Some(&e.node_id))
+        let candidate = names
+            .get(&definition.node_id)
+            .and_then(|node| expected.get(node.as_str()))
             .ok_or_else(|| vec!["Definition source operation mismatch".to_string()])?;
         names.insert(definition.id.clone(), candidate.id.clone());
     }
 
     Ok(())
+}
+
+// Preserve the original first-match behavior, including malformed inventories;
+// complete document comparison and boundary validation still reject corruption.
+fn first_by_key<'a, T>(
+    entries: &'a [T],
+    key: impl Fn(&'a T) -> &'a str,
+) -> BTreeMap<&'a str, &'a T> {
+    let mut index = BTreeMap::new();
+    for entry in entries {
+        index.entry(key(entry)).or_insert(entry);
+    }
+    index
 }
 
 fn add_cfg_names(
@@ -284,10 +262,11 @@ fn add_cfg_names(
 ) -> Result<(), Vec<String>> {
     let actual_map = read_operation_map(&actual.pdg.extensions).map_err(|e| vec![e])?;
     let expected_map = read_operation_map(&expected.pdg.extensions).map_err(|e| vec![e])?;
+    let expected_map = first_by_key(&expected_map, |entry| &entry.pdg_node_id);
     for entry in actual_map {
-        let expected = expected_map
-            .iter()
-            .find(|e| names.get(&entry.pdg_node_id) == Some(&e.pdg_node_id))
+        let expected = names
+            .get(&entry.pdg_node_id)
+            .and_then(|node| expected_map.get(node.as_str()))
             .ok_or_else(|| vec!["CFG operation correspondence mismatch".to_string()])?;
         names.extend([
             (entry.cfg_node_id, expected.cfg_node_id.clone()),
@@ -298,128 +277,63 @@ fn add_cfg_names(
         actual.cfg.entry_node_id.clone(),
         expected.cfg.entry_node_id.clone(),
     );
-    if actual.cfg.exit_node_ids.len() != 1 {
-        return Err(vec!["R0 has exactly one normal exit".to_string()]);
-    }
-    names.insert(
-        actual.cfg.exit_node_ids[0].clone(),
-        expected.cfg.exit_node_ids[0].clone(),
-    );
+    add_exit_names(actual.cfg, expected.cfg, names)?;
 
     Ok(())
 }
 
 fn compare_documents(
     actual: PairView<'_>,
-    expected: PairView<'_>,
+    expected: &mut Pair,
     renaming: &BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
-    let actual_docs = [
-        serde_json::to_value(actual.pdg),
-        serde_json::to_value(actual.cfg),
-    ];
-    let expected_docs = [
-        serde_json::to_value(expected.pdg),
-        serde_json::to_value(expected.cfg),
-    ];
-    let empty = BTreeMap::new();
-    for (actual, expected) in actual_docs.into_iter().zip(expected_docs) {
-        let actual = normalize(actual.map_err(|e| vec![e.to_string()])?, "", renaming);
-        let expected = normalize(expected.map_err(|e| vec![e.to_string()])?, "", &empty);
-        if actual != expected {
-            return Err(vec![format!(
-                "Serialized extraction facts disagree with captured source/build/normal-flow evidence: {}",
-                first_difference(&actual, &expected, "")
-            )]);
+    // Current deterministic emission usually preserves IDs and record order.
+    // Align only the historical informational conformance exception; profiles,
+    // inventories and all semantic fields still participate in typed equality.
+    if renaming.iter().all(|(actual, expected)| actual == expected) {
+        for (actual, expected) in actual
+            .pdg
+            .extraction_evidence
+            .conformance
+            .iter()
+            .zip(&mut expected.pdg.extraction_evidence.conformance)
+        {
+            expected.status = actual.status;
+            expected.reasons.clone_from(&actual.reasons);
         }
+    }
+    compare_document(actual.pdg, &expected.pdg, renaming)?;
+    compare_document(actual.cfg, &expected.cfg, renaming)
+}
+
+fn compare_document<T: serde::Serialize + PartialEq>(
+    actual: &T,
+    expected: &T,
+    renaming: &BTreeMap<String, String>,
+) -> Result<(), Vec<String>> {
+    if renaming.iter().all(|(actual, expected)| actual == expected) && actual == expected {
+        return Ok(());
+    }
+    let mut actual = normalize(
+        serde_json::to_value(actual).map_err(|e| vec![e.to_string()])?,
+        "",
+        renaming,
+    );
+    let mut expected = normalize(
+        serde_json::to_value(expected).map_err(|e| vec![e.to_string()])?,
+        "",
+        &BTreeMap::new(),
+    );
+    sort_exit_ids(&mut actual);
+    sort_exit_ids(&mut expected);
+    if actual != expected {
+        return Err(vec![format!(
+            "Serialized extraction facts disagree with captured source/build/normal-flow evidence: {}",
+            first_difference(&actual, &expected, "")
+        )]);
     }
 
     Ok(())
-}
-
-fn normalize(value: Value, field: &str, renaming: &BTreeMap<String, String>) -> Value {
-    match value {
-        Value::Object(object) => {
-            let entries = object
-                .into_iter()
-                .filter(|(key, _)| {
-                    !(field == "conformance" && matches!(key.as_str(), "status" | "reasons"))
-                })
-                .filter(|(key, _)| !(matches!(field, "edges" | "diagnostics") && key == "id"))
-                // Historical selection records carried an informational document
-                // path. The registered profile identity remains authoritative.
-                .filter(|(key, _)| {
-                    !(field == crate::extraction_profile::EVIDENCE_KEY && key == "contract")
-                })
-                .map(|(key, value)| {
-                    let value = normalize(value, &key, renaming);
-                    (key, value)
-                })
-                .collect();
-            Value::Object(entries)
-        }
-        Value::Array(values) => {
-            let mut values: Vec<_> = values
-                .into_iter()
-                .map(|v| normalize(v, field, renaming))
-                .collect();
-            if unordered(field) {
-                values.sort_by_key(Value::to_string);
-            }
-            Value::Array(values)
-        }
-        Value::String(value) if reference_field(field) => {
-            Value::String(renaming.get(&value).cloned().unwrap_or(value))
-        }
-        value => value,
-    }
-}
-
-fn unordered(field: &str) -> bool {
-    matches!(
-        field,
-        "nodes"
-            | "edges"
-            | "symbols"
-            | "definitions"
-            | "sources"
-            | "diagnostics"
-            | "alternatives"
-            | "memory_locations"
-            | "entry_reachable_cfg_node_ids"
-            | "completion_cfg_node_ids"
-            | "compat.rust.hir-r0:operation-map"
-            | "compat.rust.hir-r0:operation-provenance"
-            | "compat.rust.hir-r0:value-sites"
-            | "compat.rust.hir-r0:guards"
-    )
-}
-
-fn reference_field(field: &str) -> bool {
-    matches!(
-        field,
-        "id" | "location_id"
-            | crate::data_places::KEY
-            | "source"
-            | "target"
-            | "node_id"
-            | "symbol_id"
-            | "symbol_ids"
-            | "defines"
-            | "definition_id"
-            | "source_id"
-            | "cfg_node_id"
-            | "cfg_operation_id"
-            | "pdg_node_id"
-            | "controller_pdg_node_id"
-            | "value_pdg_node_id"
-            | "cfg_successor_node_id"
-            | "completion_cfg_node_ids"
-            | "entry_reachable_cfg_node_ids"
-            | "entry_node_id"
-            | "exit_node_ids"
-            | "origin_node_ids"
-    )
 }
 
 fn first_difference(actual: &Value, expected: &Value, path: &str) -> String {
@@ -435,4 +349,111 @@ fn first_difference(actual: &Value, expected: &Value, path: &str) -> String {
     }
 
     path.to_string()
+}
+
+fn add_exit_names(
+    actual: &CfgDocument,
+    expected: &CfgDocument,
+    names: &mut BTreeMap<String, String>,
+) -> Result<(), Vec<String>> {
+    if actual.exit_node_ids.len() != expected.exit_node_ids.len() {
+        return Err(vec!["Normal/checked-failure exit inventory differs".into()]);
+    }
+    if expected.exit_node_ids.len() == 1 {
+        names.insert(
+            actual.exit_node_ids[0].clone(),
+            expected.exit_node_ids[0].clone(),
+        );
+        return Ok(());
+    }
+    let expected_exits = exit_index(expected, &BTreeMap::new())?;
+    let actual_exits = exit_index(actual, names)?;
+    if actual_exits.keys().ne(expected_exits.keys()) {
+        return Err(vec!["Checked-failure exit sources or kinds differ".into()]);
+    }
+    for (key, actual) in actual_exits {
+        let expected = expected_exits[&key];
+        if names
+            .get(actual)
+            .is_some_and(|previous| previous != expected)
+        {
+            return Err(vec![
+                "Exit boundary collides with another local reference".into(),
+            ]);
+        }
+        names.insert(actual.into(), expected.into());
+    }
+
+    Ok(())
+}
+
+type ExitKey = (u8, Vec<String>);
+
+fn exit_index<'a>(
+    cfg: &'a CfgDocument,
+    names: &BTreeMap<String, String>,
+) -> Result<BTreeMap<ExitKey, &'a str>, Vec<String>> {
+    let nodes: BTreeMap<_, _> = cfg
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect();
+    let mut incoming: BTreeMap<&str, Vec<&CfgEdge>> = BTreeMap::new();
+    for edge in &cfg.edges {
+        incoming.entry(&edge.target).or_default().push(edge);
+    }
+    let mut exits = BTreeMap::new();
+    for id in &cfg.exit_node_ids {
+        let node = nodes
+            .get(id.as_str())
+            .ok_or_else(|| vec!["Exit boundary is absent".into()])?;
+        if node.kind != CfgNodeKind::Exit || !node.operations.is_empty() {
+            return Err(vec!["Exit boundary must be an operation-free exit".into()]);
+        }
+        let key = match node.exit_kind {
+            Some(CfgExitKind::Normal) => (0, Vec::new()),
+            Some(CfgExitKind::Exceptional) => (
+                1,
+                exception_sources(
+                    incoming.get(id.as_str()).map(Vec::as_slice).unwrap_or(&[]),
+                    names,
+                )?,
+            ),
+            _ => return Err(vec!["Unsupported or missing exit boundary kind".into()]),
+        };
+        if exits.insert(key, id.as_str()).is_some() {
+            return Err(vec!["Ambiguous or duplicated exit boundary".into()]);
+        }
+    }
+
+    Ok(exits)
+}
+
+fn exception_sources(
+    incoming: &[&CfgEdge],
+    names: &BTreeMap<String, String>,
+) -> Result<Vec<String>, Vec<String>> {
+    let mut sources = Vec::new();
+    for edge in incoming {
+        if edge.kind != CfgEdgeKind::Exception || edge.loop_role.is_some() {
+            return Err(vec![
+                "Checked-failure exit has a nonexception incoming transfer".into(),
+            ]);
+        }
+        sources.push(names.get(&edge.source).unwrap_or(&edge.source).clone());
+    }
+    if sources.is_empty() {
+        return Err(vec![
+            "Checked-failure exit has no checked operation source".into(),
+        ]);
+    }
+    sources.sort();
+
+    Ok(sources)
+}
+
+fn sort_exit_ids(document: &mut Value) {
+    if let Some(Value::Array(exits)) = document.get_mut("exit_node_ids") {
+        exits.sort_by(|left, right| left.as_str().cmp(&right.as_str()));
+    }
 }

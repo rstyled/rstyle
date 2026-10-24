@@ -203,3 +203,26 @@ Clippy passed. Both quality gates report zero violations/actionable candidates;
 the same 15 reviewed ignores remain. Logs: `/tmp/rstyle-findings-*`. Initial
 Clippy test-length and style-spacing failures were corrected without suppressions
 or removed assertions before the final clean run.
+
+### Function proof reuse (2026-10-21)
+
+The unchanged six-context LookSet CLI regression took **187.29s → 50.35s** in
+serialized debug runs on the same ARM Linux host (3.72× faster); peak process
+RSS fell **574,764 → 131,676 KiB**. Each run retains 14 admissions and all 91
+comparisons per context, including strict replay and changed-value rejection.
+These are single before/after samples; a separate diagnostic run passed in
+51.04s. No workload, threshold, compiler profile or verification budget changed.
+
+Receiver inventories and successful data frontend proofs now live in the exact
+immutable function's analysis, partitioned by verification policy and, for
+receivers, source/capture mode. Borrowed views preserve this owner through library
+resolution. Failures are not cached; graph documents are checked on every call.
+The regression checks repeated borrowing, separate analyses/policies/source modes,
+and rejects mutated standalone receiver evidence and a changed graph after warming
+proofs. Opt-in tracing also identifies receiver, data frontend and standalone
+nominal work. Standalone mutable facts continue to verify independently.
+
+Validation: 1014 tests passed /5 existing skips plus doctests; the preceding
+1013-test run took 380.827s, this run 225.250s with the extra isolation test.
+Formatting, workspace/all-target Clippy, rstyle 0/3278 and patterns 0 unignored pass;
+the existing 15 ignores are unchanged. Logs: `/tmp/rstyle-perf-*`.

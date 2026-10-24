@@ -1,0 +1,17 @@
+{
+  "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+  "target": "aarch64-unknown-linux-gnu",
+  "core_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+  "stable_crate_id": "StableCrateId(5614226571623188065)",
+  "definitions": {
+    "<[T] as core::convert::AsRef<[T]>>": "DefPathHash(Fingerprint(5614226571623188065, 5339993624734246593))",
+    "<[T] as core::convert::AsRef<[T]>>::as_ref": "DefPathHash(Fingerprint(5614226571623188065, 1234837415145982124))",
+    "core::convert::AsRef": "DefPathHash(Fingerprint(5614226571623188065, 2063470093981930096))",
+    "core::convert::AsRef::as_ref": "DefPathHash(Fingerprint(5614226571623188065, 14016604390933842093))",
+    "core::convert::From": "DefPathHash(Fingerprint(5614226571623188065, 8299352005360573279))",
+    "core::convert::From::from": "DefPathHash(Fingerprint(5614226571623188065, 5283227860215656468))",
+    "core::marker::MetaSized": "DefPathHash(Fingerprint(5614226571623188065, 13852341889181166589))",
+    "core::str::<impl core::convert::AsRef<[u8]> for str>": "DefPathHash(Fingerprint(5614226571623188065, 6505413008069039496))",
+    "core::str::<impl core::convert::AsRef<[u8]> for str>::as_ref": "DefPathHash(Fingerprint(5614226571623188065, 11513176309758822534))"
+  }
+}

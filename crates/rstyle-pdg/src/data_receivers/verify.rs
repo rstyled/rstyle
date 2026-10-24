@@ -2,16 +2,37 @@
 
 use super::*;
 use crate::{
-    HirFnFacts, HirNode,
-    concrete_types::{InterfaceObservations, Observation, TypeTree},
+    HirNode,
+    concrete_types::{Observation, TypeTree},
     extraction_profile::ExtractionProfile,
+    unit_store::EvidenceFacts,
 };
 use std::collections::BTreeSet;
 
-pub fn verify(facts: &HirFnFacts) -> Result<Capture, String> {
-    let value = facts.build.frontend_options.get(KEY);
+pub fn verify(facts: &dyn EvidenceFacts) -> Result<std::borrow::Cow<'_, Capture>, String> {
+    facts.receiver_inventory(true)
+}
+
+/// Validate observations without claiming original-source correspondence.
+/// Expanded functions remain subject to the full verifier before admission.
+pub fn verify_capture(facts: &dyn EvidenceFacts) -> Result<std::borrow::Cow<'_, Capture>, String> {
+    facts.receiver_inventory(false)
+}
+
+pub(crate) fn check(facts: &dyn EvidenceFacts, original_source: bool) -> Result<Capture, String> {
+    let observation = crate::diagnostics::Stage::new("source.receivers", &facts.name, None).enter();
+    if crate::reference_instances::activation::verify(facts)? {
+        // The private constructor proof checks the complete AsRef/length roster,
+        // receiver identities, concrete length adjustments and generic selection.
+        return facts
+            .build
+            .frontend_options
+            .data::<Capture>()
+            .map(|capture| capture.into_owned());
+    }
+    let present = facts.build.frontend_options.contains_key(KEY);
     if !ExtractionProfile::from_facts(facts)?.is_data() {
-        return if value.is_none() {
+        return if !present {
             Ok(empty())
         } else {
             Err("Receiver inventory is restricted to the Data profile".into())
@@ -19,25 +40,52 @@ pub fn verify(facts: &HirFnFacts) -> Result<Capture, String> {
     }
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
-    let capture: Capture = match value {
-        Some(value) => serde_json::from_value(value.clone()).map_err(|error| error.to_string())?,
-        None if methods.is_empty() => empty(),
-        None => return Err("Missing Data method receiver inventory".into()),
+    let capture = if present {
+        facts.build.frontend_options.data::<Capture>()?
+    } else if methods.is_empty() {
+        std::borrow::Cow::Owned(empty())
+    } else {
+        return Err("Missing Data method receiver inventory".into());
     };
     check_inventory(&capture, &methods)?;
-    let source = crate::source_evidence::capture(facts)?;
+    if original_source && super::transport::verify(facts, &capture, &methods)? {
+        return observation.finish(Ok(capture.into_owned()));
+    }
+    let source = (original_source && methods.iter().any(|node| node.expansion.is_none()))
+        .then(|| crate::source_evidence::capture(facts))
+        .transpose()?;
     for node in methods {
         let record = capture
             .methods
             .iter()
             .find(|record| record.call == node.hir)
             .ok_or("Missing exact method receiver record")?;
-        check_correspondence(record, node, &source)?;
-        check_types(record, node)?;
-        check_adjustments(record)?;
+        check_receiver_identity(record, node)?;
+        if original_source {
+            check_correspondence(node, source.as_ref())
+                .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
+        }
+        check_concrete_receiver(record, node, facts)?;
     }
 
-    Ok(capture)
+    observation.finish(Ok(capture.into_owned()))
+}
+
+fn check_concrete_receiver(
+    record: &Method,
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    if crate::character_ascii::verify_receiver(record, node, facts)?
+        || crate::product_instances::activation::operation(node, facts)?
+    {
+        // Product projection checked the complete raw inventory before substituting
+        // S. Its private conversion proof supplies the concrete no-adjustment link.
+        return Ok(());
+    }
+    check_types(record, node)
+        .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
+    check_adjustments(record)
 }
 
 fn empty() -> Capture {
@@ -65,11 +113,7 @@ fn check_inventory(capture: &Capture, methods: &[&HirNode]) -> Result<(), String
     Ok(())
 }
 
-fn check_correspondence(
-    record: &Method,
-    node: &HirNode,
-    source: &crate::source_evidence::Correspondence,
-) -> Result<(), String> {
+pub(super) fn check_receiver_identity(record: &Method, node: &HirNode) -> Result<(), String> {
     let receiver = node
         .children
         .first()
@@ -77,7 +121,25 @@ fn check_correspondence(
     if record.source_span != node.span || record.receiver != receiver.hir {
         return Err("Method receiver source/HIR identity or span disagrees".into());
     }
-    if node.expansion.is_none()
+
+    Ok(())
+}
+
+fn check_correspondence(
+    node: &HirNode,
+    source: Option<&crate::source_evidence::Correspondence>,
+) -> Result<(), String> {
+    if node.expansion.is_some() {
+        return Ok(());
+    }
+
+    let source = source.ok_or("Missing original-source method inventory")?;
+    let macro_argument = source.entries.iter().any(|entry| {
+        entry.kind == "source_macro"
+            && entry.span.start <= node.span.start
+            && node.span.end <= entry.span.end
+    });
+    if !macro_argument
         && source
             .entries
             .iter()
@@ -101,23 +163,18 @@ fn check_types(record: &Method, node: &HirNode) -> Result<(), String> {
     check_value_type(&record.signature_result, node)?;
     check_registered_signature(record, node)?;
 
-    let observations = std::iter::once(&record.receiver_type)
-        .chain([&record.adjusted_type])
-        .chain(
-            record
-                .adjustments
-                .iter()
-                .map(|adjustment| &adjustment.target),
-        )
-        .chain(&record.signature_inputs)
-        .cloned()
-        .collect();
-    InterfaceObservations {
-        identity: crate::concrete_types::IDENTITY.into(),
-        parameters: observations,
-        result: record.signature_result.clone(),
-    }
-    .validate()
+    crate::concrete_types::validate_observations(
+        std::iter::once(&record.receiver_type)
+            .chain([&record.adjusted_type])
+            .chain(
+                record
+                    .adjustments
+                    .iter()
+                    .map(|adjustment| &adjustment.target),
+            )
+            .chain(&record.signature_inputs)
+            .chain([&record.signature_result]),
+    )
 }
 
 fn check_registered_signature(record: &Method, node: &HirNode) -> Result<(), String> {
@@ -143,7 +200,10 @@ fn check_value_type(observation: &Observation, node: &HirNode) -> Result<(), Str
         Observation::Unsupported { .. } => None,
     };
     if node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != expected.as_deref() {
-        return Err("Concrete method receiver/result disagrees with HIR value type".into());
+        return Err(format!(
+            "Concrete method receiver/result disagrees with HIR value type: observed {observation:?}, HIR {:?}",
+            node.ty
+        ));
     }
     Ok(())
 }

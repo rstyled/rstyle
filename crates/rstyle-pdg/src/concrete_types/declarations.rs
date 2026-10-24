@@ -16,6 +16,11 @@ pub(super) fn check(source: &syn::Type, resolved: &TypeTree) -> Result<(), Strin
         (syn::Type::Tuple(source), TypeTree::Tuple(elements)) => {
             check_tuple(&source.elems, elements)
         }
+        (syn::Type::Reference(source), TypeTree::MutableScalar(scalar))
+            if source.mutability.is_some() && scalar == "usize" =>
+        {
+            check(&source.elem, &TypeTree::Scalar(scalar.clone()))
+        }
         (syn::Type::Reference(source), TypeTree::Shared(referent))
             if source.mutability.is_none() =>
         {
@@ -30,6 +35,33 @@ pub(super) fn check(source: &syn::Type, resolved: &TypeTree) -> Result<(), Strin
 }
 
 fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String> {
+    if matches!(
+        resolved,
+        TypeTree::ScalarProductInstance(_)
+            | TypeTree::RangeUsize { .. }
+            | TypeTree::RangeToUsize { .. }
+            | TypeTree::RangeFromUsize { .. }
+    ) {
+        // Only observational shape here; exact lexical identity is required by
+        // source_proof before any spelling can authorize data extraction.
+        return Ok(());
+    }
+    if let TypeTree::Option(payload) = resolved
+        && matches!(
+            payload.as_ref(),
+            TypeTree::Scalar(_)
+                | TypeTree::Tuple(_)
+                | TypeTree::Struct { .. }
+                | TypeTree::ScalarProductInstance(_)
+        )
+    {
+        return check(super::option_spelling::payload(source, payload)?, payload);
+    }
+    if let TypeTree::Result { ok, err } = resolved {
+        let [source_ok, source_err] = super::result_arguments(source)?;
+        check(source_ok, ok)?;
+        return check(source_err, err);
+    }
     // A named path may be a resolved alias. Spelling alone proves neither
     // nominal identity nor the alias referent; this observation cannot admit it.
     if source.qself.is_some()
@@ -55,14 +87,12 @@ fn check_tuple(
     source: &syn::punctuated::Punctuated<syn::Type, syn::Token![,]>,
     resolved: &[TypeTree],
 ) -> Result<(), String> {
-    if source.len() != resolved.len() {
-        return Err("Declared tuple field arity contradicts resolved type evidence".into());
-    }
-    for (source, resolved) in source.iter().zip(resolved) {
-        check(source, resolved)?;
-    }
-
-    Ok(())
+    crate::source_evidence::exact_pairs(
+        source.iter(),
+        resolved.iter(),
+        "Declared tuple field arity contradicts resolved type evidence",
+        check,
+    )
 }
 
 fn check_array(source: &syn::TypeArray, element: &TypeTree, length: u64) -> Result<(), String> {

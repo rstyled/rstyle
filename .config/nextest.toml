@@ -2,3 +2,8 @@
 # Each CLI test may launch a compiler. Bound process concurrency on small runners.
 test-threads = 4
 fail-fast = false
+
+[profile.ci.junit]
+path = "junit.xml"
+store-success-output = false
+store-failure-output = true

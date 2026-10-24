@@ -17,6 +17,7 @@ fn interface() -> InterfaceObservations {
 fn fields() -> FieldObservations {
     FieldObservations {
         identity: crate::field_locations::IDENTITY.into(),
+        scalar_formal_accesses: None,
         operations: vec![FieldOperation {
             hir: crate::HirRef {
                 krate: 0,
@@ -216,6 +217,9 @@ fn compatibility_mutation_invalidates_typed_record_until_unit_freeze() {
 fn source_census_is_shared_lossless_and_rejects_conflicting_snapshots() {
     use crate::nominal_boundary::census::{Census, IDENTITY};
     let census = Arc::new(Census {
+        expansions: Vec::new(),
+        documentation: Vec::new(),
+        external_imports: Vec::new(),
         identity: IDENTITY.into(),
         context: crate::nominal_boundary::tests::context(),
         files: Vec::new(),
@@ -255,8 +259,10 @@ fn declaration_origins_borrow_owned_bytes_and_preserve_wire_mutations() {
     use crate::declaration_origins::{IDENTITY, KEY, Origin, Origins};
     let nominal = nominal_interface()["result"]["ty"]["evidence"]["nominal"].clone();
     let origins = Origins {
+        generated: Vec::new(),
         identity: IDENTITY.into(),
         declarations: vec![Origin {
+            builtin_copy: None,
             nominal: serde_json::from_value(nominal).unwrap(),
             source_file: "original.rs".into(),
             file_bytes: "\u{feff}struct Data { value: i32 }\r\n".into(),
@@ -306,6 +312,7 @@ fn origins_share_only_exact_census_snapshots_and_edits_detach() {
     let file = &census.files[0];
     let nominal = nominal_interface()["result"]["ty"]["evidence"]["nominal"].clone();
     let origin = Origin {
+        builtin_copy: None,
         nominal: serde_json::from_value(nominal).unwrap(),
         source_file: file.path.to_string_lossy().into_owned(),
         file_bytes: file.bytes.to_string().into(),
@@ -319,6 +326,7 @@ fn origins_share_only_exact_census_snapshots_and_edits_detach() {
     let mut options = FrontendOptions::default();
     options.insert_data(Arc::clone(&census));
     options.insert_data(Origins {
+        generated: Vec::new(),
         identity: crate::declaration_origins::IDENTITY.into(),
         declarations: vec![origin.clone()],
     });
@@ -396,6 +404,9 @@ fn reordered_census_files_preserve_meaning_and_readable_order() {
         digest: crate::concrete_types::digest(bytes.as_bytes()),
     };
     let first = Arc::new(Census {
+        expansions: Vec::new(),
+        documentation: Vec::new(),
+        external_imports: Vec::new(),
         identity: IDENTITY.into(),
         context,
         files: vec![file(root, "mod child;"), file(child, "pub struct Child;")],

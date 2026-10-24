@@ -1,5 +1,8 @@
 //! Formal field observations for excluded data interfaces. No admission policy.
 
+mod aliases;
+pub(crate) mod derived;
+pub mod scalar_formals;
 mod source;
 
 use crate::{ByteSpan, HirFnFacts, HirNode, HirRef, concrete_types::*};
@@ -21,6 +24,29 @@ pub struct FieldResolution {
 #[serde(tag = "kind", deny_unknown_fields)]
 pub enum Projection {
     SharedReferent,
+    MutableReferent,
+    /// Complete UTF-8 storage as bytes, preserving length, lifetime and identity.
+    /// Introduced only by an independently checked string-to-byte view operation.
+    Utf8Bytes,
+    /// Element address retained by a checked Option value; usable only under Some.
+    CheckedElement,
+    IndexedElement {
+        operand_position: u64,
+    },
+    /// A read selector interpreted in this CALL's verified callee graph.
+    HelperIndex {
+        call_span: [u32; 2],
+        operation: String,
+        access: usize,
+        path: Vec<Projection>,
+    },
+    ByteWindow {
+        operand_position: u64,
+        length: u64,
+    },
+    IteratorPrefix {
+        operand_position: u64,
+    },
     StructField {
         nominal: Nominal,
         position: usize,
@@ -60,6 +86,9 @@ pub struct FieldObservations {
     pub operations: Vec<FieldOperation>,
     /// Every captured shared formal may alias every other captured shared formal.
     pub possibly_aliasing_formals: Vec<[u32; 2]>,
+    /// Observational mutable-scalar evidence; absence supplies no memory proof.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scalar_formal_accesses: Option<scalar_formals::ScalarFormalAccesses>,
 }
 
 pub fn capture(facts: &mut HirFnFacts) -> Result<(), String> {
@@ -92,6 +121,7 @@ pub fn capture(facts: &mut HirFnFacts) -> Result<(), String> {
     }
     let observations = FieldObservations {
         identity: IDENTITY.into(),
+        scalar_formal_accesses: None,
         operations: nodes
             .into_iter()
             .map(|node| operation(node, facts, &interface))
@@ -112,9 +142,19 @@ fn operation(
     facts: &HirFnFacts,
     interface: &InterfaceObservations,
 ) -> FieldOperation {
-    let location = match resolve(node, facts, interface) {
-        Ok(location) => location,
-        Err(reason) => Location::Unsupported { reason },
+    let location = if crate::data_value_fields::candidate(node, facts) {
+        Location::Unsupported {
+            reason: "Aggregate value projection has no formal memory location".into(),
+        }
+    } else if derived::candidate(node, facts) {
+        Location::Unsupported {
+            reason: "Indirect locations are reconstructed from reference value flow".into(),
+        }
+    } else {
+        match resolve(node, facts, interface) {
+            Ok(location) => location,
+            Err(reason) => Location::Unsupported { reason },
+        }
     };
 
     FieldOperation {
@@ -189,7 +229,7 @@ fn base(
         .filter(|(_, parameter)| parameter.pat.hir == *target)
         .collect();
     let [(index, parameter)] = candidates.as_slice() else {
-        return Err("Field root has no unique formal parameter correspondence".into());
+        return aliases::base(base, facts, interface);
     };
     let Some(Observation::Captured { ty }) = interface.parameters.get(*index) else {
         return Err("Field root lacks supported concrete type evidence".into());
@@ -235,7 +275,10 @@ fn project(
     }
 }
 
-pub fn verify(facts: &HirFnFacts, observations: &FieldObservations) -> Result<(), String> {
+pub fn verify(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    observations: &FieldObservations,
+) -> Result<(), String> {
     if observations.identity != IDENTITY || observations.operations.len() > MAX_OPERATIONS {
         return Err("Unregistered or over-budget field observations".into());
     }
@@ -272,17 +315,30 @@ pub fn verify(facts: &HirFnFacts, observations: &FieldObservations) -> Result<()
     if observations.possibly_aliasing_formals != aliases(&interface) {
         return Err("Shared formal alias uncertainty is incomplete or inconsistent".into());
     }
-    if facts.source.bytes.identity() != facts.source.digest {
+    if !facts.source.bytes.matches_identity(&facts.source.digest) {
         return Err("Field observations lack exact captured source identity".into());
     }
 
-    source::verify(facts, observations, &interface)
+    source::verify(facts, observations, &interface)?;
+    if let Some(accesses) = &observations.scalar_formal_accesses {
+        scalar_formals::verify(facts.facts(), accesses)?;
+    }
+
+    Ok(())
 }
 
-pub(super) fn fields(node: &HirNode) -> Vec<&HirNode> {
-    let own = (node.kind == "expr_field").then_some(node);
+pub(crate) fn fields(node: &HirNode) -> Vec<&HirNode> {
+    operations(node, &["expr_field"])
+}
 
-    node.children.iter().flat_map(fields).chain(own).collect()
+pub(crate) fn operations<'a>(node: &'a HirNode, kinds: &[&str]) -> Vec<&'a HirNode> {
+    let own = kinds.contains(&node.kind.as_str()).then_some(node);
+
+    node.children
+        .iter()
+        .flat_map(|child| operations(child, kinds))
+        .chain(own)
+        .collect()
 }
 
 fn aliases(interface: &InterfaceObservations) -> Vec<[u32; 2]> {
@@ -305,6 +361,17 @@ fn aliases(interface: &InterfaceObservations) -> Vec<[u32; 2]> {
         .iter()
         .enumerate()
         .flat_map(|(index, left)| shared[index..].iter().map(move |right| [*left, *right]))
+        .collect()
+}
+
+pub(crate) fn selected_operations<'a>(
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+    kinds: &[&str],
+    predicate: impl Fn(&HirNode, &dyn crate::unit_store::EvidenceFacts) -> bool,
+) -> Vec<&'a HirNode> {
+    operations(&facts.body, kinds)
+        .into_iter()
+        .filter(|node| predicate(node, facts))
         .collect()
 }
 

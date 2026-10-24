@@ -25,6 +25,170 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.concrete-read-only-data",
     "rust.verified-read-only-helper-calls",
     "rust.verified-inherent-helper-calls",
+    "rust.scalar-or-patterns",
+    "rust.scalar-range-patterns",
+    "rust.resolved-scalar-constants",
+    "rust.scalar-constant-patterns",
+    "rust.scalar-constant-range-bounds",
+    "rust.scalar-assertions",
+    "rust.cfg-source-removal",
+    "rust.cfg-inactive-definitions",
+    "rust.exhaustive-scalar-match",
+    "rust.nested-scalar-or-patterns",
+    "rust.nominal-constant-context",
+    "rust.aggregate-literal-values",
+    "rust.repeat-array-values",
+    "rust.named-struct-values",
+    "rust.struct-update-values",
+    "rust.tuple-struct-values",
+    "rust.unit-struct-values",
+    "rust.local-aggregate-values",
+    "rust.aggregate-value-fields",
+    "rust.shared-reference-locals",
+    "rust.shared-local-field-reads",
+    "rust.reference-bearing-values",
+    "rust.reference-value-fields",
+    "rust.reference-struct-updates",
+    "rust.body-nominal-types",
+    "rust.static-inherent-helper-calls",
+    "rust.reference-rebindings",
+    "rust.indirect-field-reads",
+    "rust.shared-dereference-reads",
+    "rust.scalar-index-reads",
+    "rust.shared-subslice-views",
+    "rust.slice-array-byte-calls",
+    "rust.native-borrowed-byte-readers",
+    "rust.scalar-tuple-assignment",
+    "rust.outside-loop-value-merges",
+    "rust.checked-slice-option",
+    "rust.copy-nominal-boundary",
+    "rust.owned-copy-receiver",
+    "rust.owned-copy-self",
+    "rust.borrowed-scalar-owners",
+    "rust.cyclic-value-merges",
+    "rust.scalar-option-values",
+    "rust.scalar-from-conversions",
+    "rust.native-prefix-readers",
+    "rust.scoped-nominal-imports",
+    "rust.copy-value-helper-reads",
+    "rust.copy-array-fields",
+    "rust.usize-from-u8",
+    "rust.bounded-unsigned-reads",
+    "rust.scalar-enum-values",
+    "rust.tagged-unit-classifiers",
+    "rust.immediate-option-callbacks",
+    "rust.borrowed-array-views",
+    "rust.bitset-cardinality",
+    "rust.end-of-input",
+    "rust.accelerator-packing",
+    "rust.byte-iterator-position",
+    "rust.byte-scalar-literals",
+    "rust.local-const-bool-tables",
+    "rust.named-option-callbacks",
+    "rust.borrowed-copy-child-fields",
+    "rust.indexed-read-helper-calls",
+    "rust.fieldless-enum-values",
+    "rust.character-scalars",
+    "rust.character-literal-ranges",
+    "rust.character-ascii-predicate",
+    "rust.float-kernel-scalars",
+    "rust.cfg-if-module-ownership",
+    "rust.closed-scalar-module-dependencies",
+    "rust.float-subtraction",
+    "rust.closed-scalar-control-dependencies",
+    "rust.borrowed-mixed-owners",
+    "rust.passive-copy-dependencies",
+    "rust.stored-slice-helper-results",
+    "rust.checked-usize-lengths",
+    "rust.scalar-option-if-let",
+    "rust.shared-helper-option-callbacks",
+    "rust.saturating-usize-lengths",
+    "rust.literal-documentation-inputs",
+    "rust.bool-to-usize",
+    "rust.pinned-alloc-macro-imports",
+    "rust.fresh-range-results",
+    "rust.bounded-scalar-loop-helpers",
+    "rust.pinned-primitive-constants",
+    "rust.fresh-concrete-results",
+    "rust.same-error-result-propagation",
+    "rust.concrete-option-propagation",
+    "rust.checked-borrowed-result-flow",
+    "rust.explicit-u8-fieldless-enums",
+    "rust.verified-cross-unit-scalar-helpers",
+    "rust.checked-scalar-instances",
+    "rust.component-helper-results",
+    "rust.checked-reference-constructor-instances",
+    "rust.checked-string-byte-view-instances",
+    "rust.checked-reference-forwarder-instances",
+    "rust.copy-fieldless-result-flow",
+    "rust.scalar-success-result-propagation",
+    "rust.checked-suffix-result-views",
+    "rust.fresh-reference-product-results",
+    "rust.linear-product-result-flow",
+    "rust.checked-product-constructor-instances",
+    "rust.consuming-range-conversions",
+    "rust.mutable-scalar-formals",
+    "rust.checked-concrete-default",
+    "rust.checked-copy-owner-source",
+    "rust.local-value-trait-calls",
+    "rust.lossless-usize-u64-calls",
+    "rust.fresh-scalar-error-results",
+    "rust.nominal-product-constants",
+    "rust.checked-concrete-tryfrom",
+    "rust.constructor-result-maps",
+    "rust.checked-anonymous-dependency-namespaces",
+    "rust.static-string-copy-products",
+    "rust.checked-copy-constructor-sites",
+    "rust.copy-tagged-conversion-values",
+    "rust.copy-tagged-conversion-helper-calls",
+    "rust.slice-prefix-product-results",
+    "rust.checked-generated-dependency-namespaces",
+    "rust.checked-local-macro-ownership",
+    "rust.checked-external-expression-macro-ownership",
+];
+
+const DATA_CALL_SUMMARIES: &[&str] = &[
+    "rstyle.primitive.unsigned-abs/1",
+    "rstyle.primitive.wrapping-mul/1",
+    "rstyle.helper.source-body/1",
+    "rstyle.helper.shared-return/1",
+    "rstyle.helper.read-only-body/1",
+    "rstyle.data.slice.len/1",
+    "rstyle.data.slice.is-empty/1",
+    "rstyle.data.str.len/1",
+    "rstyle.data.str.is-empty/1",
+    "rstyle.data.bytes.copy-result/1",
+    "rstyle.data.bytes.unwrap/1",
+    "rstyle.data.bytes.native-u32/1",
+    "rstyle.data.bytes.borrow-result/1",
+    "rstyle.data.bytes.unwrap-borrow/1",
+    "rstyle.data.bytes.native-usize/1",
+    "rstyle.data.slice.get-scalar/1",
+    "rstyle.data.bytes.native-u16/1",
+    "rstyle.data.bytes.native-u128/1",
+    "rstyle.data.scalar-size/1",
+    "rstyle.data.option.is-some/1",
+    "rstyle.helper.borrowed-array-view/1",
+    "rstyle.data.bitset.count-u32/1",
+    "rstyle.data.integer.try-u32-usize/1",
+    "rstyle.data.integer.unwrap-ok-usize/1",
+    "rstyle.data.integer.try-usize-u16/1",
+    "rstyle.data.integer.unwrap-u16/1",
+    "rstyle.data.integer.checked-sub-usize/1",
+    "rstyle.data.integer.unwrap-option-usize/1",
+    "rstyle.helper.checked-normal-body/1",
+    "rstyle.data.char.is-ascii/1",
+    "rstyle.helper.stored-slice-result/1",
+    "rstyle.data.length.checked-add-usize/1",
+    "rstyle.data.length.checked-mul-usize/1",
+    "rstyle.helper.bounded-factor-loop/1",
+    "rstyle.data.slice.get-prefix/1",
+    "rstyle.data.option.ok-or-fresh-error/1",
+    "rstyle.data.bytes.little-u32/1",
+    "rstyle.helper.component-return/1",
+    "rstyle.reference-instance.byte-as-ref/1",
+    "rstyle.reference-instance.str-as-bytes/1",
+    "rstyle.product-instance.span-identity/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -103,6 +267,13 @@ impl ExtractionProfile {
         }
     }
 
+    /// Require one exact extraction mode while preserving malformed-evidence errors.
+    pub(crate) fn require(self, facts: &HirFnFacts, mismatch: &str) -> Result<(), String> {
+        (Self::from_facts(facts)? == self)
+            .then_some(())
+            .ok_or_else(|| mismatch.into())
+    }
+
     pub fn token(self) -> &'static str {
         match self {
             Self::R0 => "r0",
@@ -133,7 +304,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.0.0", 12)),
+            Self::DataV3 => Some(("3.108.0", 132)),
         }
     }
 
@@ -172,17 +343,11 @@ impl ExtractionProfile {
 
     pub fn summaries(self) -> &'static [&'static str] {
         if matches!(self, Self::DataV2 | Self::DataV3) {
-            return &[
-                "rstyle.primitive.unsigned-abs/1",
-                "rstyle.primitive.wrapping-mul/1",
-                "rstyle.helper.source-body/1",
-                "rstyle.helper.shared-return/1",
-                "rstyle.helper.read-only-body/1",
-                "rstyle.data.slice.len/1",
-                "rstyle.data.slice.is-empty/1",
-                "rstyle.data.str.len/1",
-                "rstyle.data.str.is-empty/1",
-            ];
+            return &DATA_CALL_SUMMARIES[..if self == Self::DataV3 {
+                DATA_CALL_SUMMARIES.len()
+            } else {
+                9
+            }];
         }
         if self == Self::DataV1 {
             return &[
@@ -252,10 +417,50 @@ pub fn policy_supports(policy: &ProfileId, capability: &str) -> bool {
         .any(|profile| profile.policy() == *policy && profile.supports(capability))
 }
 
+pub(crate) fn require_document(
+    policy: &ProfileId,
+    capability: &str,
+    required: impl FnOnce() -> bool,
+    message: &str,
+) -> Result<(), String> {
+    require_capability(
+        policy_supports(policy, capability),
+        || Ok(required()),
+        message,
+    )
+}
+
 impl std::str::FromStr for ExtractionProfile {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         Self::parse(value)
     }
+}
+
+/// A missing or unrecognized extraction profile never grants a capability.
+pub(crate) fn facts_support(facts: &crate::HirFnFacts, capability: &str) -> bool {
+    ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports(capability))
+}
+
+/// Apply a syntax predicate only under its registered extraction capability.
+pub(crate) fn gated_node(
+    node: &crate::HirNode,
+    facts: &crate::HirFnFacts,
+    capability: &str,
+    predicate: impl FnOnce(&crate::HirNode) -> bool,
+) -> bool {
+    facts_support(facts, capability) && predicate(node)
+}
+
+/// Check a capability without evaluating a potentially fallible usage scan when supported.
+pub(crate) fn require_capability(
+    supported: bool,
+    required: impl FnOnce() -> Result<bool, String>,
+    message: &str,
+) -> Result<(), String> {
+    if !supported && required()? {
+        return Err(message.into());
+    }
+    Ok(())
 }

@@ -1,4 +1,4 @@
-//! Whole-formal shared results derived from independently verified callee returns.
+//! Shared formal and field results derived from independently verified callee returns.
 
 use crate::{
     HirNode, NodeCategory,
@@ -15,10 +15,15 @@ pub fn supported_result(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<
         return Ok(true);
     }
     let result = result_type(facts)?;
-    Ok(!data_origins::shared(&result) || matches!(result, TypeToken::Shared(_)))
+    Ok(crate::helper_calls::tagged_conversions::supported(facts)?
+        || crate::helper_component_outputs::supported(facts)
+        || !data_origins::shared(&result)
+        || matches!(result, TypeToken::Shared(_)))
 }
 
-fn result_type(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<TypeToken, String> {
+pub(crate) fn result_type(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<TypeToken, String> {
     data_types::parse(
         facts
             .signature
@@ -44,10 +49,10 @@ fn returned_view(
         return Ok(None);
     }
     let result = result_type(facts)?;
-    if !data_origins::shared(&result) {
+    if !data_origins::shared(&result) || crate::helper_component_outputs::supported(facts) {
         return Ok(None);
     }
-    if !matches!(result, TypeToken::Shared(_)) || !pair.pdg.memory_locations.is_empty() {
+    if !matches!(result, TypeToken::Shared(_)) {
         return Err("Shared helper result requires a whole-formal memory-free proof".into());
     }
 
@@ -76,10 +81,29 @@ fn returned_view(
     if origins.is_empty() {
         return Err("Shared helper result has no returning evidence".into());
     }
-    Ok(Some(origins.into_iter().collect()))
+    let outputs = Some(origins.into_iter().collect());
+    verify_returned_reads(facts, pair, &outputs)?;
+    Ok(outputs)
 }
 
-fn verify_formal(
+fn verify_returned_reads(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    pair: crate::producer::PairView<'_>,
+    outputs: &Option<Vec<Origin>>,
+) -> Result<(), String> {
+    if crate::helper_stored_slices::projected(facts, outputs) {
+        crate::helper_stored_slices::verify_reads(facts, pair, outputs)?;
+    } else if !pair.pdg.memory_locations.is_empty()
+        && !crate::helper_views::projected(facts, outputs)
+    {
+        return Err(
+            "Memory-reading shared result requires a checked field view or stored slice".into(),
+        );
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_formal(
     origin: &Origin,
     facts: &dyn crate::unit_store::EvidenceFacts,
     result: &TypeToken,
@@ -97,12 +121,46 @@ fn verify_formal(
             .as_deref()
             .ok_or("Missing returned helper formal type")?,
     )?;
-    if token != *result || origin.path != [Projection::SharedReferent] {
-        return Err(
-            "Returned helper origin is not an exact same-type shared formal referent".into(),
+
+    if origin.path.contains(&Projection::Utf8Bytes) && facts.reference_forwarder().is_some() {
+        return crate::reference_instances::forwarder_activation::verify_returned_origin(
+            origin, facts, result,
         );
     }
+    if origin.path.contains(&Projection::Utf8Bytes) {
+        return crate::reference_instances::activation::verify_returned_origin(
+            origin, facts, result,
+        );
+    }
+    if token != *result || origin.path != [Projection::SharedReferent] {
+        if crate::helper_stored_slices::verify_origin(origin, facts, result).is_ok() {
+            return Ok(());
+        }
+        return crate::helper_views::verify_origin(origin, facts, result);
+    }
     Ok(())
+}
+
+pub(crate) fn projected_fields(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    outputs: &Option<Vec<Origin>>,
+    verify: fn(&Origin, &dyn crate::unit_store::EvidenceFacts, &TypeToken) -> Result<(), String>,
+) -> bool {
+    let Some(outputs) = outputs.as_ref().filter(|outputs| !outputs.is_empty()) else {
+        return false;
+    };
+    let Some(result) = facts
+        .signature
+        .return_ty
+        .normalized
+        .as_deref()
+        .and_then(|text| crate::data_types::parse(text).ok())
+    else {
+        return false;
+    };
+    outputs
+        .iter()
+        .all(|origin| verify(origin, facts, &result).is_ok())
 }
 
 pub fn parameters(
@@ -125,19 +183,55 @@ pub fn origins(
     call: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
-    let mut origins = BTreeSet::new();
-    for position in parameters(call, facts)? {
+    map_outputs(call, facts, |position| {
         let argument = call
             .children
             .get(position as usize)
             .ok_or("Missing returned helper argument")?;
-        let actual = data_origins::origins(argument, facts)?;
-        if actual.is_empty() {
-            return Err("Returned helper argument lacks verified reference origins".into());
-        }
-        origins.extend(actual);
+        data_origins::origins(argument, facts)
+    })
+}
+
+pub(crate) fn map_outputs(
+    call: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    mut resolve: impl FnMut(u32) -> Result<Vec<Origin>, String>,
+) -> Result<Vec<Origin>, String> {
+    if crate::helper_component_outputs::call_used(call, facts) {
+        return crate::helper_component_outputs::map(call, &[], facts, resolve);
+    }
+    let dependency = crate::helper_calls::verify_use(call, facts)?;
+    let outputs = dependency
+        .summary()
+        .reference_outputs
+        .as_ref()
+        .ok_or("Missing verified shared helper output summary")?;
+    let mut origins = BTreeSet::new();
+
+    for output in outputs {
+        origins.extend(project_output(output, resolve(output.parameter)?)?);
     }
     Ok(origins.into_iter().collect())
+}
+
+pub(crate) fn project_output(output: &Origin, actual: Vec<Origin>) -> Result<Vec<Origin>, String> {
+    if actual.is_empty() {
+        return Err("Returned helper argument lacks verified reference origins".into());
+    }
+    let Some((Projection::SharedReferent, tail)) = output.path.split_first() else {
+        return Err("Helper output lacks a shared formal referent".into());
+    };
+    Ok(actual
+        .into_iter()
+        .map(|origin| Origin {
+            parameter: origin.parameter,
+            path: origin
+                .path
+                .into_iter()
+                .chain(tail.iter().cloned())
+                .collect(),
+        })
+        .collect())
 }
 
 pub fn same_unit(

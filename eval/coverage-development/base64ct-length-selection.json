@@ -1,0 +1,138 @@
+{
+  "identity": "rstyle.development.base64ct-length/1",
+  "selection_basis": "original source and independent overflow semantics before evaluating admission",
+  "package": {
+    "name": "base64ct",
+    "version": "1.7.3",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/base64ct-1.7.3",
+    "file_sha256": {
+      "Cargo.toml": "e1d351e3b0da5410a327430a53dc4ac81b59f798bd3981c1611f4a89e7305497",
+      "src/lib.rs": "71312148bc3e761e0d66297e774373fa4f6567f65dcf042cfc0a3a4acc392d7a",
+      "src/encoding.rs": "18828be1ed13a89e3cf723675b30addf8703be5c78583eb41bbea7b08de4b03f"
+    }
+  },
+  "function": {
+    "name": "encoding::encoded_len_inner",
+    "file": "src/encoding.rs",
+    "span": {
+      "start": 12371,
+      "end": 12684
+    },
+    "sha256": "7bb0979d70147ea20426901fcc848bbbc3eca27b01baee4740931e51e18e2d94"
+  },
+  "build_selection": {
+    "edition": "2021",
+    "target": "base64ct library; test=false",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "contexts": [
+      {
+        "cargo_arguments": [],
+        "features": []
+      },
+      {
+        "cargo_arguments": [
+          "--features",
+          "std"
+        ],
+        "features": [
+          "alloc",
+          "std"
+        ]
+      }
+    ]
+  },
+  "contract": {
+    "positive": [
+      "complete checked multiplication, Some/None match and nested Option branches",
+      "builtin bool as usize: false maps to0, true maps to1",
+      "exact original source and checked intermediate overflow cutoff"
+    ],
+    "negative": [
+      "integer/char/float/reference cast substituted for bool",
+      "wrong result width or dispatch",
+      "Some payload available on None path",
+      "changed overflow policy or branch/result",
+      "historical policy authorizing bool cast"
+    ],
+    "deferred": [
+      "generic Encoding trait blanket implementation and associated Self::PADDED",
+      "general bool casts to other integer types",
+      "question mark, Result and let-else"
+    ],
+    "unknowns": [
+      "Further blockers may emerge when external macro-import/source-boundary proof is available; no std-context activation is claimed."
+    ],
+    "documentation_input": {
+      "scope": "direct literal builtin include_str in active crate-root doc attributes only; retain complete immutable input bytes and exact owner/expansion linkage",
+      "checks": [
+        "pinned compiler/core definition and target",
+        "exact original root attribute and invocation span",
+        "literal input resolves inside package without symlink redirection",
+        "expanded documentation content equals full immutable input",
+        "all census buffers are accounted for; documentation cannot replace a Rust module"
+      ],
+      "negative": [
+        "shadowed/custom include_str cannot supply builtin authority",
+        "nested/nonliteral input expressions",
+        "outside-package or symlink-redirected paths",
+        "changed owner/span/path/content/builtin identity",
+        "orphan/duplicate files or code include masquerading as documentation",
+        "historical policy downgrade"
+      ]
+    }
+  },
+  "semantic_expectations": {
+    "base64ct": "None iff 4*n exceeds usize::MAX; otherwise padded4*ceil(n/3), unpadded ceil(4*n/3)",
+    "base64_peer": "None iff final mathematical encoded length exceeds usize::MAX",
+    "disagreement": "for n=usize::MAX//4+1 both flags: base64ct None, base64 peer Some; declared incompatible original functions",
+    "public_native": "unchanged full libraries, actual slice lengths0..65536",
+    "extreme_native": "private helper cannot be called through full public package; optional exact frozen helper source witness is separately labeled, never full-package evidence"
+  },
+  "comparison_peer": {
+    "package": {
+      "name": "base64",
+      "version": "0.23.1",
+      "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/base64-0.23.1",
+      "upstream_revision": "069bf7067b949f5c0a92b6ceb82492920502f2c2",
+      "file_sha256": {
+        "Cargo.toml": "3951a99756ac9b339501a149c547ce0e24248287a10830298ea319c006090790",
+        "src/lib.rs": "181e64750ab1ddfc80e1c1f8e1fb4ce7ef63a21bc27d26d5a974b65454a66724",
+        "src/encode.rs": "77048ba481faa9ee8f69a2e50a455cf2054c4e4b568a7e2509954e904954345a"
+      }
+    },
+    "function": {
+      "name": "encode::encoded_len",
+      "public_path": "base64::encoded_len",
+      "file": "src/encode.rs",
+      "span": {
+        "start": 3091,
+        "end": 4063
+      },
+      "sha256": "51f3a6816dfc811c25f39444b55e5a335f0dfe47b554ef19741bc642f8c4db7b",
+      "expected": "complete strict admission after checked usize add/mul and branch-owned scalar Option if-let support"
+    },
+    "expectation": "strict matching rejects as semantically incompatible; no threshold change"
+  },
+  "baseline": {
+    "revision": "0d0d9c1",
+    "capture_revision": "6c4bf63 (same 3.72 admission semantics)",
+    "functions": 141,
+    "admitted": 3,
+    "excluded": 138,
+    "selected_outcome": "excluded",
+    "known_blockers": [
+      "Builtin bool-to-usize conversion is not supported.",
+      "Root doc include_str README is retained in census as src/../README.md, rejected as a navigating path; normalization alone would leave a non-module orphan."
+    ],
+    "evidence": "/tmp/rstyle-bool-length-baseline-default-audit.log"
+  },
+  "observed_build_expectations": {
+    "default": "selected helper admitted on all three pinned targets",
+    "std": "selected helper remains excluded: active #[macro_use] extern crate alloc lacks closed imported-macro evidence; retain all 150 functions"
+  }
+}

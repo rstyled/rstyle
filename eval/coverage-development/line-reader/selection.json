@@ -1,0 +1,277 @@
+{
+  "identity": "rstyle.development.base64ct-line-reader/1",
+  "status": "source and independent expectations frozen before admission evaluation",
+  "selection_basis": "Complete unchanged LineReader::new_unwrapped as a bounded fresh aggregate Result family; separate selection with no changes to the frozen sixty or prior development selections.",
+  "package": {
+    "name": "base64ct",
+    "version": "1.7.3",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/base64ct-1.7.3",
+    "historical_source_identity": {
+      "selection": "../base64ct-std-import-selection.json",
+      "files": {
+        "Cargo.toml": "e1d351e3b0da5410a327430a53dc4ac81b59f798bd3981c1611f4a89e7305497",
+        "src/lib.rs": "71312148bc3e761e0d66297e774373fa4f6567f65dcf042cfc0a3a4acc392d7a",
+        "src/encoding.rs": "18828be1ed13a89e3cf723675b30addf8703be5c78583eb41bbea7b08de4b03f",
+        "src/decoder.rs": "52376bcc17b4b83cfd85e78dba41169e1ea0ee89a8d93539e3da32abfb9d884f"
+      },
+      "meaning": "Existing historical identities reused verbatim; exact selected source bytes/ranges are checked, whole-file identities are not recomputed."
+    }
+  },
+  "build_selection": {
+    "edition": "2021",
+    "target": "base64ct library; test=false; doctest=false",
+    "profile": "Cargo debug; no custom rustflags or extern replacements",
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "pointer_width": 64,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic_strategy": "unwind",
+    "opt_level": "No",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "contexts": [
+      {
+        "cargo_arguments": [],
+        "features": [],
+        "name": "default"
+      },
+      {
+        "cargo_arguments": [
+          "--features",
+          "std"
+        ],
+        "features": [
+          "alloc",
+          "std"
+        ],
+        "name": "std"
+      }
+    ],
+    "product": "Two features x three pinned targets = six requested unchanged original library contexts; host-only native witness is separate evidence."
+  },
+  "functions": [
+    {
+      "name": "decoder::LineReader::<'i>::new_unwrapped",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 12900,
+        "end": 13157
+      },
+      "source": "fn new_unwrapped(bytes: &'i [u8]) -> Result<Self, Error> {\n        if bytes.is_empty() {\n            Err(InvalidLength)\n        } else {\n            Ok(Self {\n                remaining: bytes,\n                line_width: None,\n            })\n        }\n    }",
+      "role": "complete original acceptance target"
+    }
+  ],
+  "owners": [
+    {
+      "name": "decoder::LineReader<'i>",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 12621,
+        "end": 12792
+      },
+      "source": "#[derive(Clone)]\nstruct LineReader<'i> {\n    /// Remaining linewrapped data to be processed.\n    remaining: &'i [u8],\n\n    /// Line width.\n    line_width: Option<usize>,\n}",
+      "role": "complete original owner including its sole Clone derive; not Copy"
+    }
+  ],
+  "source_obligations": [
+    {
+      "name": "complete LineReader inherent impl",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 12794,
+        "end": 16573
+      },
+      "source": "impl<'i> LineReader<'i> {\n    /// Create a new reader which operates over continugous unwrapped data.\n    fn new_unwrapped(bytes: &'i [u8]) -> Result<Self, Error> {\n        if bytes.is_empty() {\n            Err(InvalidLength)\n        } else {\n            Ok(Self {\n                remaining: bytes,\n                line_width: None,\n            })\n        }\n    }\n\n    /// Create a new reader which operates over linewrapped data.\n    fn new_wrapped(bytes: &'i [u8], line_width: usize) -> Result<Self, Error> {\n        if line_width < MIN_LINE_WIDTH {\n            return Err(InvalidLength);\n        }\n\n        let mut reader = Self::new_unwrapped(bytes)?;\n        reader.line_width = Some(line_width);\n        Ok(reader)\n    }\n\n    /// Is this line reader empty?\n    fn is_empty(&self) -> bool {\n        self.remaining.is_empty()\n    }\n\n    /// Get the total length of the data decoded from this line reader.\n    fn decoded_len<E: Encoding>(&self) -> Result<usize, Error> {\n        let mut buffer = [0u8; 4];\n        let mut lines = self.clone();\n        let mut line = match lines.next().transpose()? {\n            Some(l) => l,\n            None => return Ok(0),\n        };\n        let mut base64_len = 0usize;\n\n        loop {\n            base64_len = base64_len.checked_add(line.len()).ok_or(InvalidLength)?;\n\n            match lines.next().transpose()? {\n                Some(l) => {\n                    // Store the end of the line in the buffer so we can\n                    // reassemble the last block to determine the real length\n                    buffer.copy_from_slice(line.slice_tail(4)?);\n\n                    line = l\n                }\n\n                // To compute an exact decoded length we need to decode the\n                // last Base64 block and get the decoded length.\n                //\n                // This is what the somewhat complex code below is doing.\n                None => {\n                    // Compute number of bytes in the last block (may be unpadded)\n                    let base64_last_block_len = match base64_len % 4 {\n                        0 => 4,\n                        n => n,\n                    };\n\n                    // Compute decoded length without the last block\n                    let decoded_len = encoding::decoded_len(\n                        base64_len\n                            .checked_sub(base64_last_block_len)\n                            .ok_or(InvalidLength)?,\n                    );\n\n                    // Compute the decoded length of the last block\n                    let mut out = [0u8; 3];\n                    let last_block_len = if line.len() < base64_last_block_len {\n                        let buffered_part_len = base64_last_block_len\n                            .checked_sub(line.len())\n                            .ok_or(InvalidLength)?;\n\n                        let offset = 4usize.checked_sub(buffered_part_len).ok_or(InvalidLength)?;\n\n                        for i in 0..buffered_part_len {\n                            buffer[i] = buffer[offset.checked_add(i).ok_or(InvalidLength)?];\n                        }\n\n                        buffer[buffered_part_len..][..line.len()].copy_from_slice(line.remaining);\n                        let buffer_len = buffered_part_len\n                            .checked_add(line.len())\n                            .ok_or(InvalidLength)?;\n\n                        E::decode(&buffer[..buffer_len], &mut out)?.len()\n                    } else {\n                        let last_block = line.slice_tail(base64_last_block_len)?;\n                        E::decode(last_block, &mut out)?.len()\n                    };\n\n                    return decoded_len.checked_add(last_block_len).ok_or(InvalidLength);\n                }\n            }\n        }\n    }\n}\n\n",
+      "role": "retain new_wrapped/is_empty/decoded_len neighbors; not assembled in native witness"
+    },
+    {
+      "name": "complete LineReader Iterator impl",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 16573,
+        "end": 17965
+      },
+      "source": "impl<'i> Iterator for LineReader<'i> {\n    type Item = Result<Line<'i>, Error>;\n\n    fn next(&mut self) -> Option<Result<Line<'i>, Error>> {\n        if let Some(line_width) = self.line_width {\n            let rest = match self.remaining.get(line_width..) {\n                None | Some([]) => {\n                    if self.remaining.is_empty() {\n                        return None;\n                    } else {\n                        let line = Line::new(self.remaining).trim_end();\n                        self.remaining = &[];\n                        return Some(Ok(line));\n                    }\n                }\n                Some([CHAR_CR, CHAR_LF, rest @ ..]) => rest,\n                Some([CHAR_CR, rest @ ..]) => rest,\n                Some([CHAR_LF, rest @ ..]) => rest,\n                _ => {\n                    // Expected a leading newline\n                    return Some(Err(Error::InvalidEncoding));\n                }\n            };\n\n            let line = Line::new(&self.remaining[..line_width]);\n            self.remaining = rest;\n            Some(Ok(line))\n        } else if !self.remaining.is_empty() {\n            let line = Line::new(self.remaining).trim_end();\n            self.remaining = b\"\";\n\n            if line.is_empty() {\n                None\n            } else {\n                Some(Ok(line))\n            }\n        } else {\n            None\n        }\n    }\n}",
+      "role": "retain exact trait neighbor; no iterator-body execution permission"
+    },
+    {
+      "name": "decoder lexical imports",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 30,
+        "end": 350
+      },
+      "source": "use crate::{\n    Encoding,\n    Error::{self, InvalidLength},\n    MIN_LINE_WIDTH, encoding,\n    line_ending::{CHAR_CR, CHAR_LF},\n};\nuse core::{cmp, marker::PhantomData};\n\n#[cfg(feature = \"alloc\")]\nuse {alloc::vec::Vec, core::iter};\n\n#[cfg(feature = \"std\")]\nuse std::io;\n\n#[cfg(doc)]\nuse crate::{Base64, Base64Unpadded};\n\n",
+      "role": "complete original lexical import region"
+    },
+    {
+      "name": "complete original error module",
+      "file": "src/errors.rs",
+      "span": {
+        "start": 0,
+        "end": 2116
+      },
+      "source": "//! Error types\n\nuse core::fmt;\n\nconst INVALID_ENCODING_MSG: &str = \"invalid Base64 encoding\";\nconst INVALID_LENGTH_MSG: &str = \"invalid Base64 length\";\n\n/// Insufficient output buffer length.\n#[derive(Copy, Clone, Debug, Eq, PartialEq)]\npub struct InvalidLengthError;\n\nimpl fmt::Display for InvalidLengthError {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {\n        f.write_str(INVALID_LENGTH_MSG)\n    }\n}\n\nimpl core::error::Error for InvalidLengthError {}\n\n/// Invalid encoding of provided Base64 string.\n#[derive(Copy, Clone, Debug, Eq, PartialEq)]\npub struct InvalidEncodingError;\n\nimpl fmt::Display for InvalidEncodingError {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {\n        f.write_str(INVALID_ENCODING_MSG)\n    }\n}\n\nimpl core::error::Error for InvalidEncodingError {}\n\n/// Generic error, union of [`InvalidLengthError`] and [`InvalidEncodingError`].\n#[derive(Copy, Clone, Debug, Eq, PartialEq)]\npub enum Error {\n    /// Invalid encoding of provided Base64 string.\n    InvalidEncoding,\n\n    /// Insufficient output buffer length.\n    InvalidLength,\n}\n\nimpl fmt::Display for Error {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {\n        let s = match self {\n            Self::InvalidEncoding => INVALID_ENCODING_MSG,\n            Self::InvalidLength => INVALID_LENGTH_MSG,\n        };\n        f.write_str(s)\n    }\n}\n\nimpl From<InvalidEncodingError> for Error {\n    #[inline]\n    fn from(_: InvalidEncodingError) -> Error {\n        Error::InvalidEncoding\n    }\n}\n\nimpl From<InvalidLengthError> for Error {\n    #[inline]\n    fn from(_: InvalidLengthError) -> Error {\n        Error::InvalidLength\n    }\n}\n\nimpl From<core::str::Utf8Error> for Error {\n    #[inline]\n    fn from(_: core::str::Utf8Error) -> Error {\n        Error::InvalidEncoding\n    }\n}\n\n#[cfg(feature = \"std\")]\nimpl From<Error> for std::io::Error {\n    fn from(err: Error) -> std::io::Error {\n        // TODO(tarcieri): better customize `ErrorKind`?\n        std::io::Error::new(std::io::ErrorKind::InvalidData, err)\n    }\n}\n\nimpl core::error::Error for Error {}\n",
+      "role": "Error enum plus derives, Display/From/Error neighbors, cfg and imports",
+      "complete_file": true
+    },
+    {
+      "name": "crate root declarations/reexports",
+      "file": "src/lib.rs",
+      "span": {
+        "start": 2083,
+        "end": 2686
+      },
+      "source": "#[cfg(feature = \"alloc\")]\n#[macro_use]\nextern crate alloc;\n#[cfg(feature = \"std\")]\nextern crate std;\n\nmod alphabet;\nmod decoder;\nmod encoder;\nmod encoding;\nmod errors;\nmod line_ending;\n\n#[cfg(test)]\nmod test_vectors;\n\npub use crate::{\n    alphabet::{\n        bcrypt::Base64Bcrypt,\n        crypt::Base64Crypt,\n        shacrypt::Base64ShaCrypt,\n        standard::{Base64, Base64Unpadded},\n        url::{Base64Url, Base64UrlUnpadded},\n    },\n    decoder::Decoder,\n    encoder::Encoder,\n    encoding::Encoding,\n    errors::{Error, InvalidEncodingError, InvalidLengthError},\n    line_ending::LineEnding,\n};\n\n",
+      "role": "original macro imports, module declarations and public Error reexport"
+    }
+  ],
+  "bounded_contract": {
+    "result": "Result<LineReader<'i>, Error> with exact complete non-Copy local success owner and actual fieldless Copy Error; no error-kind coercion.",
+    "positive": [
+      "Err(Error::InvalidLength) iff bytes length is zero. Otherwise fresh Ok(LineReader {remaining: exact bytes, line_width: None}).",
+      "Result terminates without panic/allocation/mutation or byte-content read; only slice length is observed.",
+      "Success component lifetime is original backing lifetime i, independent of temporary reference-variable scope.",
+      "Fresh owner moves exactly once into Ok and result is forwarded whole; no stored or input Result/move permissions."
+    ],
+    "negative": [
+      "Reversed/missing guard, different Error variant or Result tag, whole result unavailable or partial body emitted.",
+      "Success reference available on Err, omitted/duplicate/wrong field selectors or saved operand, static/equal-content backing substituted for actual bytes.",
+      "Missing or Some(width) line_width field, substituted Option/None authority, field reordering/type substitution.",
+      "Treat Clone owner as Copy or infer no-drop only from its fields/search; forge/drop owner, Copy Error, derive/import/neighbor evidence.",
+      "Local shadowing of Self/Result/Ok/Err/None/InvalidLength, custom method/core conversion or unpinned compiler/target/source; historical policy downgrade."
+    ],
+    "deferred": [
+      "LineReader::new_wrapped needs aggregate success extraction, initialized local storage, Some construction and field mutation.",
+      "Decoder constructors require generic decoded_len iteration/mutation/array-copy/Encoding chain and additional owners/defaults; no complete public Decoder support is claimed."
+    ]
+  },
+  "blocker_dag": [
+    {
+      "id": "owner",
+      "requires": [],
+      "obligation": "Complete original lifetime-only private LineReader owner and Self resolution; exactly remaining:&'i[u8], line_width:Option<usize>; Clone is not Copy. Independently prove whole original source/compiler no-drop, retaining derives, inherent methods, Iterator and full module/cfg census. No source-written Drop was found in initial src audit, but that is not the proof."
+    },
+    {
+      "id": "option-field",
+      "requires": [
+        "owner"
+      ],
+      "obligation": "Exact Option<usize>/None core variant source/type authority and original field names/order; empty Option is not an omitted field."
+    },
+    {
+      "id": "fresh-result",
+      "requires": [
+        "owner",
+        "option-field"
+      ],
+      "obligation": "Fresh Result<LineReader, actual Copy Error> grammar, complete constructor and one-time move/whole return; existing scalar/shared-only successes do not establish aggregate support. Keep Error checked Copy authority separate from success-owner no-drop."
+    },
+    {
+      "id": "length-guard",
+      "requires": [],
+      "obligation": "Exact pinned slice is_empty invocation on saved bytes formal; observe length only, preserve branch polarity and source order."
+    },
+    {
+      "id": "component-origins",
+      "requires": [
+        "fresh-result",
+        "length-guard"
+      ],
+      "obligation": "Guarded Result Ok then named struct remaining field selector maps to exact bytes formal backing, pointer/length/lifetime. line_width None agrees independently. Err exposes no success reference component."
+    },
+    {
+      "id": "connected-proof",
+      "requires": [
+        "component-origins"
+      ],
+      "obligation": "Connect source/capture, producer and independent document verifier; strict helper/return inventory, malformed-source/graph negatives and current-only policy gates."
+    }
+  ],
+  "actual_callers": [
+    {
+      "name": "decoder::Decoder::<'i,E>::new",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 1285,
+        "end": 1667
+      },
+      "remaining": "Fresh reader storage, decoded_len<E>, complete generic Decoder/PhantomData product, Line::default and BlockBuffer::default."
+    },
+    {
+      "name": "decoder::LineReader::<'i>::new_wrapped",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 13229,
+        "end": 13520
+      },
+      "remaining": "MIN_LINE_WIDTH constant authority, aggregate Result success payload ?, initialized local reader storage, Some(width) assignment, no-drop move and return."
+    }
+  ],
+  "transitive_caller_blockers": [
+    {
+      "name": "LineReader::decoded_len<E>",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 13707,
+        "end": 16569
+      },
+      "remaining": "self.clone, mutable reader/line locals, next().transpose(), loops/rebindings, array copies/index stores, checked arithmetic, generic Encoding::decode and existing slice_tail."
+    },
+    {
+      "name": "Iterator for LineReader::next",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 16573,
+        "end": 17965
+      },
+      "remaining": "Mutable reader fields and saved old backing validity; nested Option<Result<Line,E>>, if-let/OR/empty and rest slice patterns, constants, prefix/suffix views and Line::new/trim_end."
+    },
+    {
+      "name": "Decoder::new_wrapped",
+      "file": "src/decoder.rs",
+      "span": {
+        "start": 2495,
+        "end": 2914
+      },
+      "remaining": "LineReader::new_wrapped and complete Decoder::new dependencies."
+    }
+  ],
+  "independent_expectations": {
+    "semantic": "Err InvalidLength exactly for empty input views; success preserves exact bytes pointer/len/content and line_width=None. Contents are irrelevant. No panic or mutation.",
+    "native": {
+      "lengths_inclusive": [
+        0,
+        512
+      ],
+      "backing_offsets": [
+        0,
+        1,
+        7
+      ],
+      "patterns": [
+        "index modulo256",
+        "255 minus index modulo256",
+        "constant0xa5"
+      ],
+      "invocations": "Direct call and call through a temporary reference variable whose scope ends before result inspection, for every view.",
+      "queries_per_context": 9234,
+      "successes_per_context": 9216,
+      "errors_per_context": 18
+    },
+    "evidence_distinction": "Private method cannot be called through unchanged public API. Native witness assembles exact unchanged owner/method bytes with adapted public Error import and unchanged full dependency; this is not whole original-crate admission or public Decoder execution.",
+    "matching": "After activation, six same-context original identity comparisons (one method x two features x three targets) must complete Accepted, plus distinct aggregate/guarded-origin fixture peers and adversarial rejections. No cross-feature/target equivalence or full-library completion assumed."
+  },
+  "priority_assessment": "Smaller complete error/memory bridge than Line::new->trim_end: no slice patterns, subviews/content reads, named constants, local constructor-call chain, loops, mutation or question mark in the selected acceptance body. Medium implementation uncertainty concentrated in owned product Result and guarded component origins; no complete public caller unlocked.",
+  "validation": {
+    "source_ranges": "frozen before admission evaluation",
+    "native_oracle": "not run",
+    "original_captures": "not run",
+    "strict_admission": "not run",
+    "matching": "not run"
+  }
+}

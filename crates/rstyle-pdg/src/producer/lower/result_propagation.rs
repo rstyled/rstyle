@@ -1,0 +1,126 @@
+//! Exact same-error propagation forwards the saved whole Err value once.
+use super::*;
+
+struct ResultBranches<'a> {
+    source: &'a HirNode,
+    early_return: &'a HirNode,
+    saved: String,
+}
+
+impl Builder<'_> {
+    pub(super) fn result_propagation(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let checked = crate::result_propagation::verify(node, self.facts)
+            .expect("verified same-error Result propagation");
+        let evaluated = self.expression(checked.operand, flow);
+        let saved = evaluated.value.clone().expect("saved Result operand");
+        let selector = self.emit(
+            Operation {
+                ty: "bool".into(),
+                construct: Some("try.result-is-err".into()),
+                operands: vec![saved.clone()],
+                ..template(node, NodeCategory::Control)
+            },
+            evaluated,
+        );
+
+        self.result_continuations(
+            ResultBranches {
+                source: node,
+                early_return: checked.early_return,
+                saved,
+            },
+            selector,
+        )
+    }
+
+    fn result_continuations(&mut self, branches: ResultBranches<'_>, selector: Flow) -> Flow {
+        let ResultBranches {
+            source,
+            early_return,
+            saved,
+        } = branches;
+        let failed = Flow {
+            value: Some(saved.clone()),
+            ..arm(&selector, "true")
+        };
+        self.return_operation(early_return, "explicit", failed);
+        self.emit(
+            Operation {
+                ty: "unit".into(),
+                construct: Some("try.result-ok-unit".into()),
+                literal: Some("()".into()),
+                operands: vec![saved],
+                ..template(source, NodeCategory::Computation)
+            },
+            arm(&selector, "false"),
+        )
+    }
+}
+
+/// Payload authority comes from the dedicated verifier at each call site.
+pub(super) struct RewrappedResult<'a> {
+    pub source: &'a HirNode,
+    pub early_return: &'a HirNode,
+    pub output_type: String,
+    pub payload_type: String,
+    pub constructs: [&'static str; 3],
+}
+
+struct SavedResult {
+    selector: Flow,
+    input: String,
+}
+
+impl Builder<'_> {
+    pub(super) fn rewrapped_result(
+        &mut self,
+        result: RewrappedResult<'_>,
+        evaluated: Flow,
+    ) -> Flow {
+        let branch = self.rewrapped_result_error(&result, evaluated);
+
+        self.emit(
+            Operation {
+                ty: result.payload_type,
+                construct: Some(result.constructs[2].into()),
+                operands: vec![branch.input],
+                ..template(result.source, NodeCategory::Computation)
+            },
+            arm(&branch.selector, "false"),
+        )
+    }
+
+    fn rewrapped_result_error(
+        &mut self,
+        result: &RewrappedResult<'_>,
+        evaluated: Flow,
+    ) -> SavedResult {
+        let saved = evaluated.value.clone().expect("saved input Result");
+        let selector = self.emit(
+            Operation {
+                ty: "bool".into(),
+                construct: Some(result.constructs[0].into()),
+                operands: vec![saved.clone()],
+                ..template(result.source, NodeCategory::Control)
+            },
+            evaluated,
+        );
+
+        let error = self.emit(
+            Operation {
+                ty: result.output_type.clone(),
+                construct: Some(result.constructs[1].into()),
+                operands: vec![saved.clone()],
+                ..template(result.source, NodeCategory::Computation)
+            },
+            arm(&selector, "true"),
+        );
+
+        self.return_operation(result.early_return, "explicit", error);
+
+        SavedResult {
+            selector,
+            input: saved,
+        }
+    }
+}

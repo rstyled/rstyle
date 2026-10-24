@@ -1,0 +1,180 @@
+{
+  "identity": "rstyle.development.borrowed-result/1",
+  "selection_checkpoint": "95f467c / Data3.68; frozen before new family admission measurement",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18",
+    "file_sha256": {
+      "Cargo.toml": "25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+      "src/lib.rs": "47d562a98f5f50f7cbbffb1f103e277871c7419da05dbb2b0db78dee6e7b4c2e",
+      "src/util/search.rs": "74157bd77eb6f80e8ab5952ef21e8fb2d3452c1817ec671a7a3574fbddae1ae7",
+      "src/util/primitives.rs": "8a9cc19ef2e1ab183943cdc2d2f095b02252476e32b7e9fff4a06a251749b068",
+      "src/util/utf8.rs": "a02a559f0ec4013aa8bbc1a2d8717cfa0c82ed81577a4366fbbd8ef8660264fc"
+    }
+  },
+  "functions": [
+    {
+      "name": "util::search::Input::<'h>::haystack",
+      "source": "src/util/search.rs",
+      "span": {
+        "start": 24270,
+        "end": 24334
+      },
+      "sha256": "9c29bc68d97eff53c40572a6f600a1f421c83f314403784b48c8e724e3889bb8",
+      "expected": "admitted complete original; strict evidence and selected matching required"
+    },
+    {
+      "name": "util::search::Input::<'h>::is_char_boundary",
+      "source": "src/util/search.rs",
+      "span": {
+        "start": 29204,
+        "end": 29316
+      },
+      "sha256": "0f83c1f1788b7fe1b5a04b8c67da890aa5239dbbf1cf3a5a9326887348f74e9d",
+      "expected": "admitted complete original; strict evidence and selected matching required"
+    },
+    {
+      "name": "util::utf8::is_boundary",
+      "source": "src/util/utf8.rs",
+      "span": {
+        "start": 3947,
+        "end": 4747
+      },
+      "sha256": "e676b73906d493177219bcc72dbbb29fce630d0c07570e1ec1b7c3378b10c826",
+      "expected": "admitted complete original; strict evidence and selected matching required"
+    }
+  ],
+  "build": {
+    "rustc_commit": {
+      "status": "known",
+      "value": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
+    },
+    "edition": {
+      "status": "known",
+      "value": "2021"
+    },
+    "target_triple": {
+      "status": "known",
+      "value": "aarch64-unknown-linux-gnu"
+    },
+    "pointer_width": {
+      "status": "known",
+      "value": 64,
+      "policy": {
+        "id": "compat.rust.hir-r0",
+        "version": "0.1.0"
+      }
+    },
+    "overflow_checks": {
+      "status": "known",
+      "value": true
+    },
+    "debug_assertions": {
+      "status": "known",
+      "value": true
+    },
+    "panic_strategy": {
+      "status": "known",
+      "value": "unwind"
+    },
+    "opt_level": {
+      "status": "known",
+      "value": "No"
+    },
+    "complete_context_evidence": "/tmp/rstyle-input-boundary-baseline-target/rstyle/clones/run-Bx3CjX/invocation-UBY2WU/unit.evidence.json",
+    "context_note": "Complete fresh3.67 Cargo capture; recertification under3.69, not a fresh3.69 driver capture. Exact cfg/features/invocation remain in the bundle; source grammar unchanged.",
+    "capture_manifest": {
+      "schema": "rstyle.shared-unit.manifest/2",
+      "checksum": "xxh3-64:eed3df4ea7970641",
+      "bytes": 1181544988
+    }
+  },
+  "historical_reference": {
+    "revision": "Data3.59; historical audit only",
+    "contract": "docs/extraction-profiles/borrowed-result-chain-v1.md"
+  },
+  "contract": {
+    "scope": "one stored shared-slice result from complete lifetime-only Input owner; same-unit scalar wrapper consumes exact origin and conditional byte read",
+    "positive_expectations": [
+      "haystack pointer and length equal exact stored original slice",
+      "saved getter result and later getter remain on original allocation despite span/anchor/earliest changes",
+      "valid UTF8 boundaries equal independently enumerated encoded-codepoint start/end positions and native str::is_char_boundary",
+      "arbitrary-byte implementation predicate is index==len or in-bounds byte has top bits other than10",
+      "all offsets>len including usize::MAX returnfalse; no byte read required"
+    ],
+    "negative_expectations": [
+      "different same-length live allocations must not become interchangeable",
+      "receiver-slot read remains distinct from referenced byte reads/result origins",
+      "forged field/read/result origin/call receiver or removed conditional read must fail strict verification",
+      "unused owner fields/Anchored variants/PatternID bounds remain in complete owner proof",
+      "owned/mutable Input, reference aggregate results and arbitrary Drop/unknown macros gain no permission",
+      "invalid UTF8 predicate agreement is implementation-specific and does not certify Unicode validity"
+    ],
+    "constructor_scope": "Original APIs construct runtime states only; no constructor/setter extraction claim",
+    "matching_expectations": "Evaluate all three original pairs; independently expect Rejected for differing parameter/result interfaces. Record any detector exception separately; no extraction/scoring relaxation."
+  },
+  "sample": {
+    "valid_texts": [
+      "",
+      "a",
+      "\u2603",
+      "a\u2603\u00e9\ud83d\ude00z",
+      "\u0000",
+      "\u00e9",
+      "\ud83d\ude00"
+    ],
+    "arbitrary_bytes": "all256 singleton bytes plus8000,0080,c080,ffff,00ff,ff00",
+    "anchors": [
+      "n",
+      "y",
+      "p0",
+      "p1",
+      "p17",
+      "pmax"
+    ],
+    "span_rule": "full,empty-at-end,terminated-end+1..end (deduplicated)",
+    "offset_rule": "0..len+1 inclusive, plus usize::MAX",
+    "earliest": [
+      0,
+      1
+    ],
+    "sources": 267,
+    "cases": 39168,
+    "request_sha256": "d01199e875d97acf4f9a1654b5b3d3b85aeeed3f0f11b48f18840b856bb85341"
+  },
+  "status": "Validated Data3.69: complete original chain, integrated gates and unchanged frozen replay",
+  "baseline": {
+    "revision": "95f467c / Data3.68",
+    "admitted": 132,
+    "denominator": 2582,
+    "roster": "/tmp/rstyle-input-boundary-368-final-roster.json",
+    "selected_outcomes": {
+      "haystack": "excluded",
+      "is_char_boundary": "excluded",
+      "util::utf8::is_boundary": "admitted"
+    }
+  },
+  "validation": {
+    "admission": "132 -> 134 /2582, two selected gains, zero losses; source/build identities unchanged",
+    "strict_admissions": 134,
+    "selected_pairs": 3,
+    "selected_pair_expectations": "all three Rejected, as predeclared",
+    "oracle_cases": 39168,
+    "evidence_prefix": "/tmp/rstyle-borrowed-result-",
+    "retained_unit": "/tmp/rstyle-borrowed-result.unit.json",
+    "full_library_matching": "incomplete; original zero-pair inventory budget unchanged",
+    "gates": "1006 tests /5 existing skips; doctests/fmt/Clippy pass; rstyle0/3233, patterns0 unignored; existing15 ignores unchanged",
+    "frozen": {
+      "baseline": "target/hir-coverage/run-kxk6hkj_",
+      "current": "target/hir-coverage/run-hgf65atp",
+      "counts": {
+        "admitted": 23,
+        "excluded": 30,
+        "inactive": 7
+      },
+      "source_build_identities_and_denominators": "unchanged",
+      "package_admissions": "lz4_flex8/150, regex-syntax39/956, time-core11/226; zero new/lost; all58 strict; six selected comparisons complete"
+    }
+  }
+}

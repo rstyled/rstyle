@@ -1,0 +1,199 @@
+{
+  "identity": "rstyle.development.scalar-loop-callee/1",
+  "status": "delivered Data3.76; original family and integrated checkpoint validated",
+  "package": {
+    "name": "ryu",
+    "version": "1.0.23",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ryu-1.0.23",
+    "upstream_revision": "f0b52bb194befe6fd242154f2182fafd43a819b8",
+    "file_sha256": {
+      "Cargo.toml": "410de3eae58a75b9d2558d0a4e3ed43c2c8317781ffbd30a7cbe4aebaa833e1a",
+      "src/lib.rs": "ec6dc1b2b40fa14a9af5185991c1bebab3b6dc1f0947a81020a376eade8dae1c",
+      "src/f2s_intrinsics.rs": "4667c34aab7637f2330df7bbd4c178c0ba1dd5854ff15b9a36a96fd5f527fb66"
+    }
+  },
+  "build_selection": {
+    "target": "ryu library; test=false",
+    "edition": "2021",
+    "cargo_arguments": [],
+    "features": [],
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "pointer_width": 64,
+    "debug_assertions": true,
+    "overflow_checks": true,
+    "panic_strategy": "unwind",
+    "opt_level": "No"
+  },
+  "functions": [
+    {
+      "name": "pow5factor_32",
+      "file": "src/f2s_intrinsics.rs",
+      "role": "looping private helper",
+      "span": {
+        "start": 997,
+        "end": 1270
+      },
+      "sha256": "9f0f2daa7056e5233519964050c423c16b42d176e304f1f120f4db501fdf4822",
+      "source": "fn pow5factor_32(mut value: u32) -> u32 {\n    let mut count = 0u32;\n    loop {\n        debug_assert!(value != 0);\n        let q = value / 5;\n        let r = value % 5;\n        if r != 0 {\n            break;\n        }\n        value = q;\n        count += 1;\n    }\n    count\n}"
+    },
+    {
+      "name": "multiple_of_power_of_5_32",
+      "file": "src/f2s_intrinsics.rs",
+      "role": "direct predicate caller",
+      "span": {
+        "start": 1360,
+        "end": 1454
+      },
+      "sha256": "a6c0186a20ec1f167fb0714f0f53690080105a94bc87f50026d00307c8361dcd",
+      "source": "pub fn multiple_of_power_of_5_32(value: u32, p: u32) -> bool {\n    pow5factor_32(value) >= p\n}"
+    }
+  ],
+  "bounded_contract": {
+    "scope": "Original unchanged scalar helper and its unchanged direct predicate caller, all u32 inputs; not complete float formatting callers.",
+    "normal_value": "For value>0, helper returns the unique k in [0,13] for which 5^k divides value and 5^(k+1) does not. Caller returns k>=p for every u32 p.",
+    "zero": "With selected debug assertions, value=0 panics before division/remainder or count mutation, for every p, including p=0. No fabricated return.",
+    "termination": "For positive value, every backedge sets value=value/5 with zero remainder and increments count once. Ranking value strictly decreases, remains positive, and at most13 backedges precede the exiting iteration (at most14 iterations).",
+    "effects": "Scalar Copy locals only; no heap, reference, alias, destructor or external effect. Assertion panic remains an explicit exceptional outcome.",
+    "evaluation_order": "At each iteration assertion precedes q=value/5, r=value%5 and break condition; division/remainder use the same saved iteration value. Exit does not update value/count. Caller evaluates the left comparison operand first: it snapshots value once for the one-argument helper and invokes that helper once. Only after the helper returns normally does it read the right comparison operand p and compare; a helper panic does not reach the p read or comparison.",
+    "outside_scope": [
+      "Debug assertions disabled: zero with checked count overflow eventually panics; with unchecked overflow it diverges. Neither may be summarized as always-returning.",
+      "General recursion, arbitrary loop termination, wrapping inverse u64 sibling, unsafe neighboring functions and complete float formatting are not activated."
+    ]
+  },
+  "blocker_chain": [
+    {
+      "original_blocker": "helper_calls::check_boundary rejects all loop/while constructs even if scalar extraction succeeds.",
+      "status": "resolved for the bounded Data3.76 contract"
+    },
+    {
+      "original_blocker": "Summary.always_returns currently derives !may_panic; loop activation needs independent normal-exit/divergence evidence, not removal of the acyclic guard.",
+      "status": "resolved for the bounded Data3.76 contract"
+    },
+    {
+      "original_blocker": "Complete loop value merges for mutable parameter value, count, break exit and final return; branch-local q/r must remain per-iteration snapshots.",
+      "status": "resolved for the bounded Data3.76 contract"
+    },
+    {
+      "original_blocker": "Exact debug_assert builtin expansion with zero panic and no supported-prefix certification; checked count-add panic must be retained unless bounded proof discharges it.",
+      "status": "resolved for the bounded Data3.76 contract"
+    },
+    {
+      "original_blocker": "Complete source boundary under no_std module tree and local use crate::d2s; neighboring cfg-selected unsafe lookup functions and root raw reexports must remain inventoried and cannot be ignored.",
+      "status": "resolved for the bounded Data3.76 contract"
+    },
+    {
+      "original_blocker": "Actual helper identity/resolution and input/result dependence through original module-private caller; scalar div/rem literal5 classification and full source correspondence need capture confirmation.",
+      "status": "resolved for the bounded Data3.76 contract"
+    }
+  ],
+  "independent_expectations": {
+    "oracle": "Use mathematical divisibility by powers of5 (precompute powers via unbounded arithmetic); do not implement oracle with target repeated division loop.",
+    "positive_inputs": [
+      1,
+      2,
+      4,
+      5,
+      10,
+      24,
+      25,
+      26,
+      125,
+      1220703125,
+      4294967295
+    ],
+    "positive_p": "For each input test p=0, k, k+1, 13,14,u32::MAX and neighbors around every representable power of5.",
+    "negative_runtime": "Zero must panic even when p=0; value=1,p=1 false; value=5,p=2 false; value=25,p=2 true. Preserve complete panic reachability.",
+    "adversarial_evidence": [
+      "Changed divisor/remainder divisor or mixed saved values",
+      "Count increment moved before break, or return bound/off-by-one change",
+      "Missing assertion/panic edge; forged debug_assertions false/unknown",
+      "Forged loop rank or source helper identity, recursive dependency, missing backedge/exit/merge",
+      "Neighboring macro/unsafe/cfg source omitted from unit census"
+    ],
+    "matching": "Original helper and caller must each strictly verify before matching; compare exact-alpha-renamed complete peers and reject changed divisor or count/compare semantics without threshold changes."
+  },
+  "proposed_leaves": [
+    "New isolated scalar-loop termination/exit evidence module with independently checked rank and bounded count; no global loop permission.",
+    "Dedicated checked scalar looping-helper summary verification preserving separate panic/divergence/normal-return properties.",
+    "Original-package capture/replay and separate native source witness/oracle tests; private-source execution must not be mislabeled public-library execution."
+  ],
+  "candidate_audit": [
+    {
+      "package": "libm0.2.16",
+      "candidate": "ilogb",
+      "reason_deferred": "Float to_bits, force_eval macro and float exceptional cases add independent blockers."
+    },
+    {
+      "package": "ryu1.0.23",
+      "candidate": "pow5factor_32 \u2192 multiple_of_power_of_5_32",
+      "decision": "selected; elementary scalar rank under debug-enabled build"
+    },
+    {
+      "package": "integer-encoding3.0.4",
+      "candidate": "required_encoded_space_unsigned \u2192 u64::required_space",
+      "reason_deferred": "Cleaner total shift-rank helper but natural caller is trait impl; unit contains impl_varint macro invocations. Signed free caller adds zigzag cast/shift chain."
+    }
+  ],
+  "measurement_policy": "Frozen inventory identities/denominators unchanged. No baseline or gain claimed before original capture. All three target contexts must report full roster, new/lost admissions and unsupported/unknown/inactive/incomplete separately.",
+  "validation": {
+    "baseline_admissions": {
+      "admitted": 14,
+      "excluded": 26,
+      "functions": 40
+    },
+    "current_admissions": {
+      "admitted": 15,
+      "excluded": 25,
+      "functions": 40
+    },
+    "contexts": "all three originally selected targets; identical original function identities and build contexts; only declared caller gains; zero losses",
+    "strict_original_admissions": 45,
+    "selected_comparisons": {
+      "count": 6,
+      "decision": "Accepted",
+      "kind": "complete original self/mirror comparisons; distinct captured alpha peers and transitive wrappers tested separately"
+    },
+    "oracle": {
+      "cases": 42810,
+      "helper_normal": 42805,
+      "helper_panic": 5,
+      "caller_normal": 42805,
+      "caller_panic": 5,
+      "kind": "source-hashed private-source native witness; arbitrary precision power divisibility expectations"
+    },
+    "frozen_run": "run-8f3w87gy versus run-tk89n2fv; unchanged23admitted/30excluded/7inactive; all58packageadmissions strictly replay",
+    "evidence": "/tmp/rstyle-loop-{evidence,current-*,oracle.json,frozen-*}",
+    "integrated_gates": {
+      "tests_passed": 1096,
+      "existing_skips": 5,
+      "seconds": 110.561,
+      "fmt": "passed",
+      "clippy": "passed with warnings denied",
+      "doctests": "passed",
+      "rstyle_violations": 0,
+      "rstyle_functions": 3496,
+      "patterns_unignored": 0,
+      "existing_ignores_unchanged": 15,
+      "log": "/tmp/rstyle-loop-gates.log"
+    },
+    "equal_work_performance": {
+      "functions": 512,
+      "baseline_seconds": [
+        2.57,
+        2.44
+      ],
+      "current_seconds": [
+        2.48,
+        2.44
+      ],
+      "roster": "identical 512 admissions",
+      "method": "16-function warmup then two alternating 512-function samples; shared-host timing control, not general scaling proof",
+      "evidence": "/tmp/rstyle-loop-perf/results.json"
+    }
+  }
+}

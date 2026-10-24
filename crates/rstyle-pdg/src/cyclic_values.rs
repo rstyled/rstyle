@@ -1,5 +1,6 @@
 //! Serialized cyclic-flow proof using finite fixed points, never bounded paths.
 
+use crate::mutable_scalars::lexical_reaching;
 use crate::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -9,19 +10,29 @@ type ReadEdge = (String, String, Option<String>, Option<String>, Option<u64>);
 type Sets = BTreeMap<String, BTreeSet<String>>;
 
 pub fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<String>, Vec<String>> {
-    if pdg
+    let has_merges = pdg
         .nodes
         .iter()
-        .any(|node| node.category == NodeCategory::Merge)
-        || pdg
-            .extensions
-            .get("compat.rust.hir-r0:value-sites")
-            .is_none_or(|sites| sites.as_array().is_none_or(|sites| !sites.is_empty()))
-    {
-        return Err(vec![
-            "Cyclic policy excludes expression value merges".into(),
-        ]);
-    }
+        .any(|node| node.category == NodeCategory::Merge);
+    let available = if has_merges
+        && crate::extraction_profile::policy_supports(
+            &pdg.profile,
+            "rust.outside-loop-value-merges",
+        ) {
+        crate::value_sites::validate_cyclic_sites(pdg, cfg).map_err(|error| vec![error])?
+    } else {
+        if has_merges
+            || pdg
+                .extensions
+                .get("compat.rust.hir-r0:value-sites")
+                .is_none_or(|sites| sites.as_array().is_none_or(|sites| !sites.is_empty()))
+        {
+            return Err(vec![
+                "Cyclic policy excludes expression value merges".into(),
+            ]);
+        }
+        BTreeSet::new()
+    };
     let mapping = read_operation_map(&pdg.extensions).map_err(|e| vec![e])?;
     let reached = reachable_vertices(cfg);
     let predecessors = predecessors(cfg, &reached);
@@ -30,7 +41,24 @@ pub fn validate(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<BTreeSet<String>
     check_reads(pdg, &mapping, &reached, &incoming)?;
     check_values(pdg, &mapping, &reached, &dominance)?;
 
-    Ok(BTreeSet::new())
+    Ok(available)
+}
+
+/// Check binding reads against serialized CFG kill/gen, with or without loops.
+pub(crate) fn verify_bindings(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<(), Vec<String>> {
+    let mapping = read_operation_map(&pdg.extensions).map_err(|error| vec![error])?;
+    let reached = reachable_vertices(cfg);
+    let predecessors = predecessors(cfg, &reached);
+    let incoming = definitions(pdg, cfg, &mapping, &predecessors);
+
+    check_reads(pdg, &mapping, &reached, &incoming)
+}
+
+/// Shared finite graph analysis; callers derive their own value-availability proof.
+pub(crate) fn dominators(cfg: &CfgDocument) -> BTreeMap<String, BTreeSet<String>> {
+    let reached = reachable_vertices(cfg);
+    let incoming = predecessors(cfg, &reached);
+    dominance(cfg, &reached, &incoming)
 }
 
 fn predecessors(cfg: &CfgDocument, reached: &BTreeSet<String>) -> Sets {
@@ -187,11 +215,14 @@ fn check_reads(
     incoming: &Flow,
 ) -> Result<(), Vec<String>> {
     let mut expected = Vec::new();
-    for node in pdg
-        .nodes
-        .iter()
-        .filter(|node| node.category == NodeCategory::Read)
-    {
+    for node in pdg.nodes.iter().filter(|node| {
+        node.category == NodeCategory::Read
+            && node
+                .attributes
+                .reads
+                .iter()
+                .any(|access| access.symbol_id.is_some())
+    }) {
         let entry = mapping
             .iter()
             .find(|entry| entry.pdg_node_id == node.id)
@@ -205,7 +236,7 @@ fn check_reads(
     let mut actual: Vec<_> = pdg
         .edges
         .iter()
-        .filter(|edge| edge.subkind == "reaching_definition")
+        .filter(|edge| lexical_reaching(edge, &pdg.profile))
         .map(|edge| {
             (
                 edge.source.clone(),
@@ -318,11 +349,15 @@ fn check_value(edge: &PdgEdge, proof: &ValueProof<'_>) -> Result<(), Vec<String>
         .and_then(|value| value.get("value"))
         .and_then(serde_json::Value::as_str)
         == Some("unit")
+        && !crate::data_aggregates::unit_slot(pdg, edge)
     {
         return Err(vec!["Unit cyclic value operand".into()]);
     }
     if node.category == NodeCategory::FormalInput {
         return Ok(());
+    }
+    if node.category == NodeCategory::Merge {
+        return Ok(()); // independently checked by the outside-cycle site proof
     }
     let producer = mapping
         .iter()

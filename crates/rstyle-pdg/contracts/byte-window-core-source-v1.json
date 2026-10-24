@@ -1,0 +1,7 @@
+{
+  "array/mod.rs": "sha256:682a3790d394c8ecc91344d89733c7725ea4804bb95b8ad36c8e06ba36a301e1",
+  "convert/mod.rs": "sha256:ec1dfed5b8eef22496fc85eeb0b26a5600944fb8d2f6d6e9aaf81fb45af06de5",
+  "result.rs": "sha256:777e0f516deba3899c8f16c5511da3ebe7debe23f4bcf6a6353c98a927c0f7d1",
+  "slice/mod.rs": "sha256:062320a86dc6a3d20718bc8fca824bd1f3df0bb8bb0c3d72e101be989cf576bf",
+  "num/uint_macros.rs": "sha256:5525546f81f07f28c0d3bc475edf2f86770fe659b35dd4bae55c0a3b890ab12b"
+}

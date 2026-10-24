@@ -6,6 +6,50 @@ use super::TypeTree;
 /// caller supplies independently verified evidence, never a name heuristic.
 pub trait PathResolution {
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String>;
+
+    fn array_length(&self, source: &syn::Expr, expected: u64) -> Result<(), String> {
+        literal_length(source, expected)
+    }
+
+    /// Default equality still requires independently scoped whole-path resolution.
+    fn concrete_result(
+        &self,
+        path: &syn::TypePath,
+        ok: &TypeTree,
+        err: &TypeTree,
+    ) -> Result<(), String> {
+        let expected = TypeTree::Result {
+            ok: Box::new(ok.clone()),
+            err: Box::new(err.clone()),
+        };
+        resolved_type(
+            self,
+            path,
+            expected,
+            "Source path resolution disagrees with concrete Result",
+        )
+    }
+
+    fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
+        resolved_type(
+            self,
+            path,
+            TypeTree::Option(Box::new(payload.clone())),
+            "Source path resolution disagrees with concrete Option",
+        )
+    }
+}
+
+fn resolved_type(
+    resolution: &(impl PathResolution + ?Sized),
+    path: &syn::TypePath,
+    expected: TypeTree,
+    reason: &str,
+) -> Result<(), String> {
+    if resolution.resolve(path)? != expected {
+        return Err(reason.into());
+    }
+    Ok(())
 }
 
 pub fn verify(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), String> {
@@ -15,21 +59,39 @@ pub fn verify(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), S
 
 fn fields(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), String> {
     match tree {
-        TypeTree::Struct {
-            fields: members, ..
-        } => {
-            for member in members {
+        TypeTree::ScalarProductInstance(_) => {
+            return Err(
+                "Scalar product instances require their scoped substitution source proof".into(),
+            );
+        }
+        TypeTree::GeneratedStruct { .. } => {
+            return Err(
+                "Generated declarations require independently checked expansion source".into(),
+            );
+        }
+        TypeTree::Struct { .. }
+        | TypeTree::Enum { .. }
+        | TypeTree::FieldlessEnum { .. }
+        | TypeTree::MixedEnum { .. } => {
+            for member in tree.nominal_fields() {
                 let source = syn::parse_str(&member.declaration).map_err(|e| format!("{e}"))?;
                 correspondence(&source, &member.ty, resolution)?;
                 fields(&member.ty, resolution)?;
             }
+        }
+        TypeTree::Result { ok, err } => {
+            fields(ok, resolution)?;
+            fields(err, resolution)?;
         }
         TypeTree::Tuple(elements) => {
             for element in elements {
                 fields(element, resolution)?;
             }
         }
-        TypeTree::Shared(element) | TypeTree::Slice(element) | TypeTree::Array { element, .. } => {
+        TypeTree::Option(element)
+        | TypeTree::Shared(element)
+        | TypeTree::Slice(element)
+        | TypeTree::Array { element, .. } => {
             fields(element, resolution)?;
         }
         _ => {}
@@ -63,6 +125,17 @@ pub fn verify_top_spelling(
     correspondence(&parsed, tree, resolution)
 }
 
+/// Internal checked-source consumers already bind this AST to original bytes.
+/// This proves type correspondence only, never generated-source ownership.
+pub(crate) fn verify_top_syntax(
+    source: &syn::Type,
+    tree: &TypeTree,
+    resolution: &impl PathResolution,
+) -> Result<(), String> {
+    super::validate(tree)?;
+    correspondence(source, tree, resolution)
+}
+
 fn correspondence(
     source: &syn::Type,
     tree: &TypeTree,
@@ -79,6 +152,11 @@ fn correspondence(
             }
             Ok(())
         }
+        (syn::Type::Reference(source), TypeTree::MutableScalar(scalar))
+            if source.mutability.is_some() && scalar == "usize" =>
+        {
+            correspondence(&source.elem, &TypeTree::Scalar(scalar.clone()), resolution)
+        }
         (syn::Type::Reference(source), TypeTree::Shared(element)) => {
             correspondence(&source.elem, element, resolution)
         }
@@ -86,7 +164,7 @@ fn correspondence(
             correspondence(&source.elem, element, resolution)
         }
         (syn::Type::Array(source), TypeTree::Array { element, length }) => {
-            literal_length(&source.len, *length)?;
+            resolution.array_length(&source.len, *length)?;
             correspondence(&source.elem, element, resolution)
         }
         (syn::Type::Tuple(source), TypeTree::Scalar(token))
@@ -103,12 +181,54 @@ fn path_proof(
     tree: &TypeTree,
     resolution: &impl PathResolution,
 ) -> Result<(), String> {
-    super::lifetimes::verify_path(path, tree)?;
-    if path.path.leading_colon.is_none() && path.path.segments.len() == 1 {
-        let token = path.path.segments[0].ident.to_string();
-        if (super::scalar(&token) && token != "unit") || token == "str" {
-            return Ok(());
-        }
+    if let TypeTree::Result { ok, err } = tree {
+        let [ok_source, err_source] = super::result_arguments(path)?;
+        correspondence(ok_source, ok, resolution)?;
+        correspondence(err_source, err, resolution)?;
+        return resolution.concrete_result(path, ok, err);
+    }
+    if matches!(
+        tree,
+        TypeTree::RangeToUsize { .. } | TypeTree::RangeFromUsize { .. }
+    ) {
+        return Err(
+            "One-ended ranges are supported only as verified checked-access carriers".into(),
+        );
+    }
+    if matches!(
+        tree,
+        TypeTree::RangeUsize { .. } | TypeTree::ScalarProductInstance(_)
+    ) {
+        return if resolution.resolve(path)? == *tree {
+            Ok(())
+        } else {
+            Err("Source Range spelling disagrees with its bound observation".into())
+        };
+    }
+    if let TypeTree::Option(payload) = tree
+        && matches!(
+            payload.as_ref(),
+            TypeTree::Scalar(_)
+                | TypeTree::Tuple(_)
+                | TypeTree::Struct { .. }
+                | TypeTree::ScalarProductInstance(_)
+        )
+    {
+        return option_path_proof(path, payload, resolution);
+    } else {
+        super::lifetimes::verify_path(path, tree)?;
+    }
+
+    resolved_path_proof(path, tree, resolution)
+}
+
+fn resolved_path_proof(
+    path: &syn::TypePath,
+    tree: &TypeTree,
+    resolution: &impl PathResolution,
+) -> Result<(), String> {
+    if primitive_path(path, tree)? {
+        return Ok(());
     }
     if resolution.resolve(path)? != *tree {
         return Err("Source path resolution disagrees with concrete type".into());
@@ -117,7 +237,40 @@ fn path_proof(
     Ok(())
 }
 
-fn literal_length(source: &syn::Expr, expected: u64) -> Result<(), String> {
+fn option_path_proof(
+    path: &syn::TypePath,
+    payload: &TypeTree,
+    resolution: &impl PathResolution,
+) -> Result<(), String> {
+    correspondence(
+        super::option_spelling::payload(path, payload)?,
+        payload,
+        resolution,
+    )?;
+    resolution.scalar_option(path, payload)
+}
+
+fn primitive_path(path: &syn::TypePath, tree: &TypeTree) -> Result<bool, String> {
+    if !matches!(tree, TypeTree::Option(_))
+        && path.path.leading_colon.is_none()
+        && path.path.segments.len() == 1
+    {
+        let token = path.path.segments[0].ident.to_string();
+        if matches!(token.as_str(), "char" | "f32" | "f64") {
+            return if *tree == TypeTree::Scalar(token) {
+                Ok(true)
+            } else {
+                Err("Standalone scalar spelling contradicts its resolved observation".into())
+            };
+        }
+        if (super::scalar(&token) && token != "unit") || token == "str" {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+pub(crate) fn literal_length(source: &syn::Expr, expected: u64) -> Result<(), String> {
     if let syn::Expr::Lit(source) = source
         && let syn::Lit::Int(integer) = &source.lit
         && integer.base10_parse::<u64>().ok() == Some(expected)

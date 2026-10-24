@@ -79,6 +79,23 @@ Select features through Cargo options; manually injecting additional
 `--cfg feature=...` flags cannot satisfy the planned feature inventory and fails
 capture completeness.
 
+### Explicit dependency evidence capture
+
+Repeat `--capture-dependency NAME` (or `NAME@VERSION`/exact Cargo package ID) to
+capture selected reachable dependency library units alongside the primary roots.
+For example, `--capture-dependency time --capture-dependency time-core` captures
+those two libraries under the consumer's actual Cargo features and target.
+The report keeps `intended_dependency_units` separate from
+`intended_primary_units`; both participate in capture completeness checks.
+
+This initial bound requires one ordinary non-test check library unit per requested
+package on the exact selected platform. Missing, unreachable, duplicate, primary,
+ambiguous and host/build/proc-macro requests fail capture explicitly. Packages
+with multiple reachable compilation variants are also unavailable in this bound.
+Unrequested dependencies compile normally. Default workspace capture is unchanged.
+Capturing a callee does not authorize foreign helper calls: cross-unit linking
+still needs exact artifact, instance and independently replayable summary proof.
+
 ## Freshness, concurrency and completion
 
 Each command creates a unique directory under `<target>/rstyle/clones/run-*`.
@@ -177,6 +194,14 @@ counts, completeness indicators and the report path. Every captured run writes
   without missing, corrupt, ambiguous or unverifiable evidence.
 - `pair_enumeration_complete`: all required admitted-function pairs were emitted.
 - `pair_evaluation_complete`: capture, assessment and all pair evaluations succeeded.
+
+Use `--report-detail compact` to keep function names, source spans/digests,
+outcomes, reasons and complete matching results without repeating inline frontend
+facts and extraction documents. Every function retains its `unit_evidence`
+bundle path and function index; complete source/facts/documents remain in that
+sealed bundle for independent verification. This changes presentation only.
+The default `--report-detail full` preserves inline evidence. Compact reports
+omit inline projection traces; matching traces requested with `--trace` remain.
 
 Functions retain admitted, excluded, unknown or failed outcomes and reasons.
 Unsupported/unknown source is never silently removed from coverage. Original
@@ -324,7 +349,9 @@ not completion of that work or a natural-coverage/quality result. Existing R0,
 expanded, helper, style and patterns selections retain their semantics.
 
 `--extraction-profile hir-data-v3` separately selects
-`rstyle.rust.hir-data/3.0.0` with the existing data-calls matching profile.
+`rstyle.rust.hir-data/3.2.0` with the existing data-calls matching profile.
+Version 3.1.0 adds [scalar literal OR patterns](extraction-profiles/scalar-or-patterns-v1.md)
+to the inherent-call selection without adding provenance fields.
 It adds verified same-unit concrete inherent methods with shared receivers,
 including method syntax and UFCS. Exact original declarations, containing impls,
 receiver adjustments and transitive callee documents must agree. The connected
@@ -364,3 +391,6 @@ still cross their public validation boundaries. See
 [shared checked source environments](performance/shared-source-environments.md)
 for the private source-handle scope, compatibility guarantees and remaining
 source ownership work.
+
+Data-v3 extraction 3.2.0 also admits [integer range patterns](extraction-profiles/scalar-range-patterns-v1.md),
+including mixed literal/range OR arms, under the existing bounded match contract.
