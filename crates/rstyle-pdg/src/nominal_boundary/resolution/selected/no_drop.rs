@@ -19,6 +19,7 @@ pub(in crate::nominal_boundary::resolution) fn default_prelude(facts: &HirFnFact
 }
 mod product_fields;
 pub(in crate::nominal_boundary::resolution) mod reference_products;
+pub(in crate::nominal_boundary::resolution) mod scalar_result_owners;
 mod source_imports;
 #[cfg(test)]
 mod source_imports_tests;

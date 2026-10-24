@@ -149,6 +149,24 @@ pub fn operation(node: &HirNode) -> Option<&'static Operation> {
         .find(|op| op.path == dispatch.op)
 }
 
+/// Reviewed 64-bit target and exact core/std root ownership, without operation permission.
+pub(crate) fn verify_64bit_sysroot(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    label: &str,
+) -> Result<&'static Registry, String> {
+    let registry =
+        registry_for(facts.facts()).ok_or_else(|| format!("Unpinned {label} compiler/target"))?;
+    if facts.build.pointer_width.status != crate::FactStatus::Known
+        || facts.build.pointer_width.value != Some(64)
+        || registry.pointer_width != 64
+    {
+        return Err(format!("{label} requires its reviewed known 64-bit target"));
+    }
+
+    verify_sysroot_roots(facts, &["core", "std"], label)?;
+    Ok(registry)
+}
+
 pub fn callee(node: &HirNode) -> Result<Callee, String> {
     let resolution = node
         .res
@@ -190,7 +208,7 @@ mod tests {
                 other.result_propagation_source_digests
             );
             assert_eq!(arm.operations.len(), other.operations.len());
-            assert_eq!(arm.definitions.len(), 70);
+            assert_eq!(arm.definitions.len(), 76);
             assert_eq!(
                 arm.definitions.keys().collect::<Vec<_>>(),
                 other.definitions.keys().collect::<Vec<_>>()

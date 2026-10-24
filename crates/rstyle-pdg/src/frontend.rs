@@ -126,6 +126,18 @@ pub struct HirNode {
     pub children: Vec<HirNode>,
 }
 
+impl HirNode {
+    /// Observed resolution tag only; this accessor grants no semantic permission.
+    pub(crate) fn resolution_kind(&self) -> Option<&str> {
+        self.res.as_ref().map(|resolution| resolution.kind.as_str())
+    }
+
+    /// Search the complete recorded subtree, including its root, in source order.
+    pub(crate) fn any(&self, predicate: &impl Fn(&Self) -> bool) -> bool {
+        predicate(self) || self.children.iter().any(|child| child.any(predicate))
+    }
+}
+
 /// One lexical binding: identity is the declaring-token span plus scope.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

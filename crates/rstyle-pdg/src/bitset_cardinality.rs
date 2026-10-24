@@ -96,7 +96,9 @@ pub(crate) fn kind(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Kind> {
     let dispatch = node.dispatch.as_ref()?;
     match dispatch.op.as_str() {
         COUNT => Some(Kind::Count),
-        CONVERT | "core::convert::TryFrom::try_from" if dispatch.operand_tys == ["u32"] => {
+        CONVERT | "core::convert::TryFrom::try_from"
+            if dispatch.operand_tys == ["u32"] && conversion_result(node, "usize") =>
+        {
             Some(Kind::Convert)
         }
         UNWRAP | "core::result::Result::<T, E>::unwrap" => {
@@ -124,7 +126,9 @@ fn extended_kind(node: &HirNode, facts: &dyn EvidenceFacts, path: &str) -> Optio
     }
     let dispatch = node.dispatch.as_ref()?;
     match path {
-        CONVERT | "core::convert::TryFrom::try_from" if dispatch.operand_tys == ["usize"] => {
+        CONVERT | "core::convert::TryFrom::try_from"
+            if dispatch.operand_tys == ["usize"] && conversion_result(node, "u16") =>
+        {
             Some(Kind::Narrow)
         }
         "core::num::<impl usize>::checked_sub" => Some(Kind::CheckedSub),
@@ -138,6 +142,11 @@ fn extended_kind(node: &HirNode, facts: &dyn EvidenceFacts, path: &str) -> Optio
         }
         _ => None,
     }
+}
+
+fn conversion_result(node: &HirNode, expected: &str) -> bool {
+    matches!(crate::data_aggregates::parsed_type(node),
+        Ok(crate::data_types::TypeToken::IntConversionResult(value)) if value == expected)
 }
 
 pub(crate) fn resolve(
@@ -179,6 +188,56 @@ pub(crate) fn resolve(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn primitive_tryfrom_candidates_preserve_the_concrete_result_boundary() {
+        let mut facts: crate::HirFnFacts = serde_json::from_str(include_str!(
+            "nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
+        ))
+        .unwrap();
+        facts
+            .build
+            .frontend_options
+            .insert("extraction_profile".into(), "hir-data-v3".into());
+        for (input, output, expected) in [
+            ("u32", Some("usize"), Some("data.integer.try-u32-usize")),
+            ("usize", Some("u16"), Some("data.integer.try-usize-u16")),
+            ("u32", Some("u16"), None),
+            ("usize", Some("usize"), None),
+            ("usize", Some("u64"), None),
+            ("usize", None, None),
+        ] {
+            let mut node = conversion_node(input, output);
+            assert_eq!(
+                super::kind(&node, &facts).map(super::Kind::construct),
+                expected
+            );
+            node.ty = Some(crate::ResolvedTy {
+                normalized: Some("u16".into()),
+                observed: "u16".into(),
+                spelling: String::new(),
+            });
+            assert!(super::kind(&node, &facts).is_none());
+        }
+    }
+
+    fn conversion_node(input: &str, output: Option<&str>) -> crate::HirNode {
+        let token = output.map(|output| {
+            serde_json::json!({
+                "kind":"int_conversion_result", "value":output
+            })
+            .to_string()
+        });
+        serde_json::from_value(serde_json::json!({
+            "hir":{"krate":0,"owner":1,"local":2},"span":{"start":0,"end":1},
+            "kind":"expr_call","snippet":"", "ty":{"normalized":token,"observed":"", "spelling":""},
+            "res":null,"dispatch":{"kind":"resolved_direct","op":"core::convert::TryFrom::try_from",
+                "operand_tys":[input],"result_ty":token.unwrap_or_default()},
+            "expansion":null,"binding":null,"binding_mut":null,"lit":null,"param_index":null,
+            "is_unsafe_block":false,"children":[]
+        }))
+        .unwrap()
+    }
+
     #[test]
     fn integer_contract_pins_reviewed_population_conversion_and_error_sources() {
         let output = std::process::Command::new("rustc")

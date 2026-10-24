@@ -61,6 +61,7 @@ pub(crate) fn verify_document_policy(
         return Err("Scalar instances require their registered document policy".into());
     }
     crate::default_calls::verify_document_policy(profile, facts)?;
+    crate::nominal_boundary::resolution::tryfrom_owners::verify_document_policy(profile, facts)?;
     crate::nominal_boundary::resolution::value_traits::verify_document_policy(profile, facts)?;
     verify_value_document_policy(profile, facts)?;
     let capabilities = [
@@ -154,6 +155,7 @@ fn verify_result_document_policy(
 ) -> Result<(), String> {
     crate::scalar_loop_helpers::verify_document_policy(profile, facts)?;
     crate::primitive_constants::verify_document_policy(profile, facts)?;
+    crate::product_constant_values::verify_document_policy(profile, facts)?;
     crate::concrete_results::verify_document_policy(profile, facts)?;
     crate::checked_option_products::verify_document_policy(profile, facts)?;
     crate::data_documents::result_propagation::verify_document_policy(profile, facts)?;
@@ -749,6 +751,9 @@ fn verify_path(
     facts: &dyn crate::unit_store::EvidenceFacts,
     token: &str,
 ) -> Result<(), String> {
+    if crate::product_constant_values::candidate(node) {
+        return crate::product_constant_values::verify(node, facts).map(|_| ());
+    }
     if crate::reference_instances::products::unit_candidate(node, facts) {
         return crate::reference_instances::products::unit(node, facts).map(|_| ());
     }

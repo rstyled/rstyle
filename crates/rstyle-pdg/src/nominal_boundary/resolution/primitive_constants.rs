@@ -1,7 +1,7 @@
 //! Primitive spelling must remain unshadowed in its exact checked lexical scope.
 use super::*;
 use crate::{HirNode, unit_store::EvidenceFacts};
-use syn::{ext::IdentExt, visit::Visit};
+use syn::ext::IdentExt;
 
 impl Resolution {
     pub(crate) fn verify_primitive_constant_source(
@@ -71,47 +71,18 @@ fn imported(tree: &syn::UseTree, parent: Option<&syn::Ident>) -> bool {
 }
 
 fn local_source(function: &syn::ItemFn, target: ByteSpan, source: &str) -> Result<(), String> {
-    if function.sig.generics.params.iter().any(|parameter| {
-        matches!(parameter, syn::GenericParam::Type(parameter) if parameter.ident.unraw() == "u32")
-    }) {
-        return Err("Primitive constant root is shadowed by a type parameter".into());
-    }
-
-    let mut scope = LocalScope {
-        target,
-        source,
-        shadowed: false,
-        found: false,
-    };
-    scope.visit_block(&function.block);
-    if scope.shadowed || !scope.found {
-        return Err("Primitive constant root is shadowed or lacks an exact local scope".into());
-    }
-
-    Ok(())
-}
-
-struct LocalScope<'a> {
-    target: ByteSpan,
-    source: &'a str,
-    shadowed: bool,
-    found: bool,
-}
-
-impl<'ast> Visit<'ast> for LocalScope<'_> {
-    fn visit_block(&mut self, block: &'ast syn::Block) {
-        let span = crate::source_evidence::original_span(self.source, block.span());
-        if span.start > self.target.start || span.end < self.target.end {
-            return;
-        }
-
-        self.found = true;
-        self.shadowed |= block
-            .stmts
-            .iter()
-            .any(|statement| matches!(statement, syn::Stmt::Item(item) if shadowing_item(item)));
-        syn::visit::visit_block(self, block);
-    }
+    crate::source_evidence::type_scopes::verify(
+        &function.sig,
+        &function.block,
+        crate::source_evidence::type_scopes::TypeRootUse {
+            bytes: source,
+            name: "u32",
+            target,
+            parameter_error: "Primitive constant root is shadowed by a type parameter",
+            local_error: "Primitive constant root is shadowed or lacks an exact local scope",
+        },
+        |statement, _| matches!(statement, syn::Stmt::Item(item) if shadowing_item(item)),
+    )
 }
 
 #[cfg(test)]

@@ -58,6 +58,7 @@ impl Case {
             local_import_chains: false,
             passive_copy_dependencies: false,
             copy_owner_source: None,
+            scalar_result_source: None,
         };
         DeclarationChecker {
             resolution: &resolution,

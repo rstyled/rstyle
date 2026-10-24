@@ -23,9 +23,20 @@ impl Owner {
         environment: &Environment,
         origins: &Origins,
     ) -> Result<Self, String> {
-        environment.check_input_owner(facts)?;
         let file = source_file(facts)?;
         let namespace = namespace(facts, environment, file)?;
+        Self::capture_at(facts, environment, origins, namespace)
+    }
+
+    /// The caller must first prove the exact original callable namespace.
+    pub(in crate::nominal_boundary::resolution::selected::no_drop) fn capture_at(
+        facts: &HirFnFacts,
+        environment: &Environment,
+        origins: &Origins,
+        namespace: Namespace,
+    ) -> Result<Self, String> {
+        environment.check_input_owner(facts)?;
+        let file = source_file(facts)?;
         Ok(Self {
             name: facts.name.clone(),
             span: facts.fn_span,

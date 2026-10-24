@@ -16,6 +16,8 @@ mod default_owners;
 pub(crate) mod environment;
 mod float_constants;
 mod fresh_products;
+pub(crate) mod nominal_constants;
+pub(crate) mod tryfrom_owners;
 pub(crate) use fresh_products::CheckedFreshProduct;
 mod primitive_constants;
 mod range_from;
@@ -61,6 +63,8 @@ pub struct Resolution {
     local_import_chains: bool,
     passive_copy_dependencies: bool,
     copy_owner_source: Option<selected::no_drop::copy_owners::CheckedCopyOwnerSource>,
+    scalar_result_source:
+        Option<selected::no_drop::scalar_result_owners::CheckedScalarResultSource>,
 }
 
 fn requires_mixed_owner(tree: &TypeTree) -> bool {
@@ -127,6 +131,16 @@ impl Resolution {
         if path.qself.is_some() {
             return Err("Result type cannot use a qualified trait path".into());
         }
+        if let Some(receipt) = &self.scalar_result_source {
+            return self.environment.verify_checked_result_source(
+                facts,
+                builtin_options::ResultSource {
+                    path: &path.path,
+                    variant: None,
+                },
+                receipt,
+            );
+        }
         self.environment
             .verify_result_source(facts, &path.path, None)
     }
@@ -137,6 +151,16 @@ impl Resolution {
         path: &syn::Path,
         variant: &str,
     ) -> Result<(), String> {
+        if let Some(receipt) = &self.scalar_result_source {
+            return self.environment.verify_checked_result_source(
+                facts.facts(),
+                builtin_options::ResultSource {
+                    path,
+                    variant: Some(variant),
+                },
+                receipt,
+            );
+        }
         self.environment
             .verify_result_source(facts.facts(), path, Some(variant))
     }
@@ -334,8 +358,8 @@ pub(crate) fn verify_in(
     };
 
     let mut resolution = declaration_resolution(facts, interface, Rc::clone(&environment))?;
-    if supports(facts, "rust.checked-copy-owner-source")? && owner.is_none() {
-        resolution.copy_owner_source = selected::no_drop::copy_owners::capture(facts, &resolution)?;
+    if owner.is_none() {
+        capture_owner_sources(facts, &mut resolution)?;
     }
     if environment.copy_boundary || resolution.range_value.is_some() {
         let origins = facts
@@ -351,6 +375,18 @@ pub(crate) fn verify_in(
         &mut resolution,
     )?;
     Ok(resolution)
+}
+
+fn capture_owner_sources(facts: &HirFnFacts, resolution: &mut Resolution) -> Result<(), String> {
+    if supports(facts, "rust.checked-copy-owner-source")? {
+        resolution.copy_owner_source = selected::no_drop::copy_owners::capture(facts, resolution)?;
+    }
+    if supports(facts, crate::tryfrom_calls::CAPABILITY)? {
+        resolution.scalar_result_source =
+            selected::no_drop::scalar_result_owners::capture(facts, resolution)?;
+    }
+
+    Ok(())
 }
 
 /// Check the complete captured result's cleanup obligations without authorizing
@@ -430,6 +466,7 @@ fn declaration_resolution(
         no_drop_trees: Default::default(),
         passive_copy_dependencies: false,
         copy_owner_source: None,
+        scalar_result_source: None,
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
         local_import_chains: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,
@@ -799,14 +836,22 @@ fn function_scope(
     census: &census::Census,
     resolution: &mut Resolution,
 ) -> Result<(), String> {
-    let facts = input.facts();
-    if default_owners::bind(input, resolution)? {
+    if bind_selected_function(input, resolution)? {
         return Ok(());
     }
-    if range_from::bind(facts, resolution)? {
-        return Ok(());
-    }
+
     lexical_function_scope(input, modules, census, resolution)
+}
+
+fn bind_selected_function(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<bool, String> {
+    if tryfrom_owners::bind(input, resolution)? || default_owners::bind(input, resolution)? {
+        return Ok(true);
+    }
+
+    range_from::bind(input.facts(), resolution)
 }
 
 fn lexical_function_scope(

@@ -2,6 +2,8 @@
 
 mod attributes;
 mod candidates;
+pub(crate) mod trait_members;
+pub(crate) mod type_scopes;
 pub(crate) use candidates::Candidates;
 pub(crate) mod checked_activation;
 mod positions;
@@ -13,7 +15,7 @@ pub(crate) use definitions::require_definition;
 mod conversions;
 pub(crate) use conversions::primitive_conversion;
 mod syntax;
-pub(crate) use syntax::{plain_type_path, plain_value_path};
+pub(crate) use syntax::{plain_type_path, plain_value_path, unique_active};
 mod variant_paths;
 pub(crate) use variant_paths::qualified_variant;
 

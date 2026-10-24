@@ -1,8 +1,15 @@
 //! Core Option spellings in the exact original module/block scope. This route
 //! proves no nominal ownership, Copy/drop behavior or neighboring function body.
 
+use super::selected::no_drop::scalar_result_owners::CheckedScalarResultSource;
 use super::*;
 use syn::visit::Visit;
+
+/// Original Result path and its optional selected constructor tag.
+pub(super) struct ResultSource<'a> {
+    pub path: &'a syn::Path,
+    pub variant: Option<&'a str>,
+}
 
 /// Field spellings resolve in the declaration module, without function locals.
 pub(super) struct DeclarationScope<'a> {
@@ -150,6 +157,49 @@ impl Environment {
         self.verify_builtin_scope(facts, |scope| scope.verify_result(path, variant))
     }
 
+    /// An exact original source receipt replaces only coarse ancestor admission.
+    pub(super) fn verify_checked_result_source(
+        &self,
+        facts: &HirFnFacts,
+        source: ResultSource<'_>,
+        receipt: &CheckedScalarResultSource,
+    ) -> Result<(), String> {
+        self.check_context(facts)?;
+        crate::data_library::verify_sysroot_roots(facts, &["core", "std"], "Builtin Result value")?;
+        let namespace = receipt.checked_namespace(facts, self)?;
+        receipt.verify_builtin_imports(facts, self, namespace)?;
+        let file = facts
+            .build
+            .frontend_options
+            .get("source_file")
+            .and_then(serde_json::Value::as_str)
+            .ok_or("Missing checked Result source file")?;
+        let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
+        let mut found = 0;
+
+        for module in self.modules.iter().filter(|module| {
+            module.path == std::path::Path::new(file) && module.namespace == namespace
+        }) {
+            let mut owners = Owners::new(self, module, facts, &configuration)?;
+            owners.receipt = Some(receipt);
+            for blocks in owners.scan()? {
+                Scope {
+                    environment: self,
+                    module,
+                    blocks,
+                    configuration: &configuration,
+                    facts,
+                }
+                .verify_result(source.path, source.variant)?;
+                found += 1;
+            }
+        }
+        if found != 1 {
+            return Err("Checked Result source lacks one exact original callable owner".into());
+        }
+        Ok(())
+    }
+
     fn verify_builtin_scope(
         &self,
         facts: &HirFnFacts,
@@ -214,25 +264,7 @@ fn owners<'a>(
     facts: &HirFnFacts,
     configuration: &crate::conditional_source::Configuration<'_>,
 ) -> Result<Vec<Vec<&'a syn::Block>>, String> {
-    let bytes = environment.source(&module.path)?.bytes();
-    let mut owners = Owners {
-        environment,
-        module,
-        bytes,
-        facts,
-        configuration,
-        blocks: Vec::new(),
-        matches: Vec::new(),
-        failure: None,
-    };
-    for item in &module.items {
-        owners.visit_item(item);
-    }
-
-    if let Some(error) = owners.failure {
-        return Err(error);
-    }
-    Ok(owners.matches)
+    Owners::new(environment, module, facts, configuration)?.scan()
 }
 
 struct Owners<'a, 'b> {
@@ -244,6 +276,38 @@ struct Owners<'a, 'b> {
     blocks: Vec<&'a syn::Block>,
     matches: Vec<Vec<&'a syn::Block>>,
     failure: Option<String>,
+    receipt: Option<&'b CheckedScalarResultSource>,
+}
+
+impl<'a, 'b> Owners<'a, 'b> {
+    fn new(
+        environment: &'a Environment,
+        module: &'a census::Module,
+        facts: &'b HirFnFacts,
+        configuration: &'b crate::conditional_source::Configuration<'b>,
+    ) -> Result<Self, String> {
+        Ok(Self {
+            environment,
+            module,
+            bytes: environment.source(&module.path)?.bytes(),
+            facts,
+            configuration,
+            blocks: Vec::new(),
+            matches: Vec::new(),
+            failure: None,
+            receipt: None,
+        })
+    }
+
+    fn scan(mut self) -> Result<Vec<Vec<&'a syn::Block>>, String> {
+        for item in &self.module.items {
+            self.visit_item(item);
+        }
+        if let Some(error) = self.failure {
+            return Err(error);
+        }
+        Ok(self.matches)
+    }
 }
 
 impl<'a> Visit<'a> for Owners<'a, '_> {
@@ -330,6 +394,7 @@ impl<'a> Owners<'a, '_> {
         }
         if !self.configuration.active(&item.attrs)?
             || !(selected::implementation(self.facts, item)
+                || self.checked_tryfrom(item)?
                 || selected::local_traits::implementation(
                     self.facts,
                     self.environment,
@@ -357,6 +422,22 @@ impl<'a> Owners<'a, '_> {
             }
         }
         Ok(())
+    }
+
+    fn checked_tryfrom(&self, item: &syn::ItemImpl) -> Result<bool, String> {
+        let Some(receipt) = self.receipt else {
+            return Ok(false);
+        };
+        if !receipt.trait_owner() {
+            return Ok(false);
+        }
+        Ok(crate::tryfrom_calls::source_member(
+            self.facts,
+            item,
+            self.bytes,
+            &crate::tryfrom_calls::RegistryAuthority,
+        )?
+        .is_some())
     }
 }
 

@@ -34,11 +34,7 @@ pub(crate) fn used(facts: &dyn EvidenceFacts) -> bool {
             .normalized
             .as_deref()
             .is_some_and(|text| text.contains("\"kind\":\"range_usize\""))
-        || contains_range(&facts.body)
-}
-
-fn contains_range(node: &HirNode) -> bool {
-    is_range(node) || node.children.iter().any(contains_range)
+        || facts.body.any(&is_range)
 }
 
 pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {

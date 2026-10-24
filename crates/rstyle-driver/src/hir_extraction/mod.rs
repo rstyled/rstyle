@@ -26,6 +26,7 @@ mod library_resolution;
 mod module_expansions;
 mod mutable_scalar_formals;
 mod nominal_census;
+mod nominal_constants;
 mod option_propagation;
 mod options;
 pub mod output;

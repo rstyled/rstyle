@@ -33,6 +33,7 @@ struct Capture<'a, 'tcx> {
     entries: usize,
     visiting: Vec<DefId>,
     origins: std::collections::BTreeMap<String, rstyle_pdg::declaration_origins::Origin>,
+    product_selections: Vec<rstyle_pdg::product_constant_values::SelectedUse>,
 }
 
 pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
@@ -44,6 +45,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         entries: 0,
         visiting: Vec::new(),
         origins: std::collections::BTreeMap::new(),
+        product_selections: Vec::new(),
     };
     let parameters = facts
         .signature
@@ -73,8 +75,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         result: capture.observe(ctx.result)?,
     };
     observations.validate()?;
-    capture.install_data(facts, &observations)?;
-    capture.install_origins(&observations, facts)?;
+    capture.install_interface(facts, &observations)?;
     facts.build.frontend_options.insert_data(observations);
 
     Ok(())
@@ -95,6 +96,16 @@ fn has_data_interface(
 }
 
 impl<'tcx> Capture<'_, 'tcx> {
+    fn install_interface(
+        mut self,
+        facts: &mut HirFnFacts,
+        interface: &InterfaceObservations,
+    ) -> Result<(), String> {
+        self.install_data(facts, interface)?;
+        self.install_product_selections(facts)?;
+        self.install_origins(interface, facts)
+    }
+
     fn install_data(
         &mut self,
         facts: &mut HirFnFacts,
@@ -159,6 +170,23 @@ impl<'tcx> Capture<'_, 'tcx> {
         node: &mut rstyle_pdg::HirNode,
         index_bound: bool,
     ) -> Result<(), String> {
+        self.value_token(node, index_bound)?;
+
+        self.child_tokens(&mut node.children, node.kind == "expr_index")?;
+        if matches!(node.kind.as_str(), "expr_method_call" | "expr_call")
+            || node.kind == "expr_cast" && self.ctx.profile.supports("rust.fieldless-enum-values")
+        {
+            install_call_tokens(node);
+        }
+        Ok(())
+    }
+
+    fn value_token(
+        &mut self,
+        node: &mut rstyle_pdg::HirNode,
+        index_bound: bool,
+    ) -> Result<(), String> {
+        self.product_constant(node)?;
         // Only index bounds retain the dedicated subslice proof grammar.
         // Standalone range receivers still need consistent concrete observations.
         let range_syntax = index_bound
@@ -172,12 +200,62 @@ impl<'tcx> Capture<'_, 'tcx> {
             node.ty.as_mut().expect("present type").normalized = token;
         }
 
-        self.child_tokens(&mut node.children, node.kind == "expr_index")?;
-        if matches!(node.kind.as_str(), "expr_method_call" | "expr_call")
-            || node.kind == "expr_cast" && self.ctx.profile.supports("rust.fieldless-enum-values")
-        {
-            install_call_tokens(node);
+        Ok(())
+    }
+
+    fn product_constant(&mut self, node: &mut rstyle_pdg::HirNode) -> Result<(), String> {
+        if !self.ctx.profile.supports("rust.nominal-product-constants") {
+            return Ok(());
         }
+        let Some(definition) = super::nominal_constants::selected(self.ctx, node) else {
+            return Ok(());
+        };
+        let ty = self
+            .ctx
+            .tcx
+            .type_of(definition)
+            .instantiate_identity()
+            .skip_norm_wip();
+        let observation = self.observe(ty)?;
+        node.res = Some(match observation {
+            Observation::Captured { ty } => {
+                if let Some(observed) = node.ty.as_mut() {
+                    observed.normalized = Some(rstyle_pdg::data_types::token(&ty)?);
+                }
+                let (resolution, selection) =
+                    super::nominal_constants::resolution(self.ctx, definition, ty, node)?;
+                if let Some(selection) = selection {
+                    if self.product_selections.len()
+                        >= rstyle_pdg::product_constant_values::MAX_USES
+                    {
+                        return Err("Product constant selections exceed use budget".into());
+                    }
+                    self.product_selections.push(selection);
+                }
+                resolution
+            }
+            Observation::Unsupported { reason } => {
+                super::nominal_constants::unsupported_resolution(reason)
+            }
+        });
+
+        Ok(())
+    }
+
+    fn install_product_selections(&mut self, facts: &mut HirFnFacts) -> Result<(), String> {
+        if self.product_selections.is_empty() {
+            return Ok(());
+        }
+        let observations = rstyle_pdg::product_constant_values::Selections {
+            identity: rstyle_pdg::product_constant_values::IDENTITY.into(),
+            uses: std::mem::take(&mut self.product_selections),
+        };
+        observations.validate()?;
+
+        facts.build.frontend_options.insert(
+            rstyle_pdg::product_constant_values::KEY.into(),
+            serde_json::to_value(observations).map_err(|error| error.to_string())?,
+        );
         Ok(())
     }
 

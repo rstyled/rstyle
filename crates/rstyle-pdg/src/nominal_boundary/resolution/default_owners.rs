@@ -1,5 +1,14 @@
 //! Exact original static Default owners; ordinary Copy and body checks still apply.
 use super::*;
+use crate::source_evidence::trait_members::{self, AttributePolicy};
+
+const SOURCE_ATTRIBUTES: AttributePolicy = AttributePolicy {
+    inactive: "Default source owner is inactive",
+    member: |member| match member {
+        syn::ImplItem::Fn(method) => method.attrs.as_slice(),
+        _ => &[],
+    },
+};
 
 pub(super) fn call_owner(
     resolution: &Resolution,
@@ -115,7 +124,12 @@ fn find(
             if let syn::Item::Impl(item) = item
                 && let Some(member) = crate::default_calls::source_member(facts, item, bytes)?
             {
-                attributes(facts, item)?;
+                trait_members::attributes(
+                    facts,
+                    item,
+                    SOURCE_ATTRIBUTES,
+                    selected::function_attributes,
+                )?;
                 if found.replace((module.namespace.clone(), member)).is_some() {
                     return Err("Ambiguous original Default owner".into());
                 }
@@ -123,22 +137,6 @@ fn find(
         }
     }
     found.ok_or_else(|| "Missing exact original Default owner".into())
-}
-
-fn attributes(facts: &HirFnFacts, item: &syn::ItemImpl) -> Result<(), String> {
-    let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
-    for attributes in
-        std::iter::once(item.attrs.as_slice()).chain(item.items.iter().map(|member| match member {
-            syn::ImplItem::Fn(method) => method.attrs.as_slice(),
-            _ => &[],
-        }))
-    {
-        if !configuration.active(attributes)? {
-            return Err("Default source owner is inactive".into());
-        }
-        selected::function_attributes(facts, attributes)?;
-    }
-    Ok(())
 }
 
 fn binding(

@@ -2,7 +2,10 @@
 use super::*;
 use crate::nominal_boundary::resolution::{self, PathResolution, Scoped};
 
-pub(super) fn needed(facts: &HirFnFacts, resolution: &Resolution) -> Result<bool, String> {
+pub(in crate::nominal_boundary::resolution::selected::no_drop) fn needed(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+) -> Result<bool, String> {
     let environment = &resolution.environment;
     if environment.index.unresolved_expansions.is_empty()
         || !facts
@@ -28,7 +31,10 @@ pub(super) fn needed(facts: &HirFnFacts, resolution: &Resolution) -> Result<bool
     }))
 }
 
-pub(super) fn needed_namespace(resolution: &Resolution, namespace: &[String]) -> bool {
+pub(in crate::nominal_boundary::resolution::selected::no_drop) fn needed_namespace(
+    resolution: &Resolution,
+    namespace: &[String],
+) -> bool {
     resolution
         .environment
         .index
@@ -37,7 +43,7 @@ pub(super) fn needed_namespace(resolution: &Resolution, namespace: &[String]) ->
         .any(|candidate| namespace.starts_with(candidate))
 }
 
-pub(super) fn observation(
+pub(in crate::nominal_boundary::resolution::selected::no_drop) fn observation(
     facts: &HirFnFacts,
 ) -> Result<Option<crate::inherent_calls::Definition>, String> {
     let Some(value) = facts.build.frontend_options.get(crate::inherent_calls::KEY) else {
@@ -67,12 +73,12 @@ pub(super) fn observation(
     Ok(Some(observed))
 }
 
-pub(super) struct Resolved {
+pub(in crate::nominal_boundary::resolution::selected::no_drop) struct Resolved {
     pub root: TypeTree,
     pub namespace: Namespace,
 }
 
-pub(super) fn resolve(
+pub(in crate::nominal_boundary::resolution::selected::no_drop) fn resolve(
     facts: &HirFnFacts,
     resolution: &Resolution,
     observed: &crate::inherent_calls::Definition,
@@ -159,7 +165,7 @@ fn exact_impl(
     Ok(implementation.generics.params.is_empty() && implementation.generics.where_clause.is_none())
 }
 
-pub(super) fn interface(
+pub(in crate::nominal_boundary::resolution::selected::no_drop) fn interface(
     facts: &HirFnFacts,
     interface: &InterfaceObservations,
     root: &TypeTree,

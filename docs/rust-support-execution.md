@@ -780,3 +780,49 @@ document checks. Evidence:`/tmp/rstyle-406-{full-tests-final2.log,cross-results.
 frozen-comparison.json}`. Next delivery must join MAX source/type/dependency
 adapters and exact TryFrom/Error/source-owner receipts through the original
 constructor chain; no separate nominal-constant coverage gain is claimed.
+
+Data3.98 connects the original SmallIndex checked constructor chain: MAX has
+independent typed initializer/source/core-dependency proof; exact local
+TryFrom/associated Error selection feeds the ordinary helper pipeline; success
+Copy and error no-drop receipts remain separate. Original Result source closure
+checks relevant neighboring expansions and generated prelude shadows. The
+[bounded contract](extraction-profiles/checked-index-construction-v1.md) excludes
+general traits, generated callables and owned Result storage/reuse.
+
+Baseline9dd9abc/Data3.97 → this checkpoint:110→112/590 in the unchanged native
+no-default owner, exactly SmallIndex::new and TryFrom::try_from gained, zero losses;
+all590 identities and23 source snapshots unchanged. Native default capture also
+admits the chain (158/2582 overall; no same-revision default delta claimed).
+Both contexts strictly verify/admit/replay nine originals, nine identity pairs
+Accepted score1 and all36 selected original pairs. Full-library matching remains
+explicitly zero-budget incomplete. Four x86 Linux/ARM macOS std/no_std diagnostic
+contexts strictly replay eight positives and complete selected matching; foreign
+native execution remains pending. Native original oracle passes8,202 public cases
+per default/no-default × debug/release-branch context, zero mismatches.
+
+All1,708 tests/five existing skips and doctests pass; fmt, warning-denied Clippy,
+style0/5,738 and patterns0/15 unchanged ignores pass. Frozen run-bjl647cw preserves
+all60 identities/outcomes/denominators/blocker combinations at24/29/7 with118
+schema checks. Final composition sample2.531s excludes compilation; no controlled
+speedup claim. Routine consistency uses XXH3/direct typed comparison; no runtime
+SHA, serialized lookup key or new cache substrate was introduced. Shared checks
+replace nine duplicated patterns. Evidence:`/tmp/rstyle-408-{native-final-delta.json,
+native-final-strict.log,default-strict.log,cross-results.json,oracle-final.log,
+frozen-comparison.json,full-tests-final2.log,style-final3.json,patterns-final3.log}`.
+
+Next boundary: whole original generated PatternID::new. Known DAG: exact local
+index_type_impls definition/invocation/emitted member and node ownership → nested
+Copy success/non-Copy tuple-error receipts → consuming constructor-only Result.map
+and map_err → ordinary summaries/strict replay. Reuse immutable snapshots/XXH3,
+FileSpan/ExpansionStep, macro_scope and exhaustive cleanup interpretation; token
+substitution alone cannot certify callable hygiene or source correspondence.
+Next assignments: driver owns a generated-observation leaf; source-proof worker
+owns a separate verifier leaf; Result worker owns nested transport/constructor
+semantics; coordinator owns shared schemas, source/type routing and integration.
+Freeze raw provenance and private proof interfaces before production edits.
+Readiness requires exact emitted/template identities, complete active rosters,
+independent branch/once-only/error-value expectations and resealed provenance,
+Drop/derive, constructor-selection and duplicated-consumption attacks.
+PatternID::must/Match::must retain expect/formatting/panic and instance blockers;
+SmallIndexError::attempted still needs borrowed non-Copy owner source proof.
+P01–P22, native foreign CI, detector quality and rewrite safety remain separate.

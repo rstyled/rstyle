@@ -36,17 +36,7 @@ pub struct Field {
 
 /// Verify only the bounded concrete type authority, never whole-function support.
 pub fn verify(observation: &Observation, facts: &dyn EvidenceFacts) -> Result<(), String> {
-    let facts_ref = facts.facts();
-    let registry =
-        data_library::registry_for(facts_ref).ok_or("Unpinned Range value compiler/target")?;
-    if facts_ref.build.pointer_width.status != crate::FactStatus::Known
-        || facts_ref.build.pointer_width.value != Some(64)
-        || registry.pointer_width != 64
-    {
-        return Err("Range values require their reviewed 64-bit target".into());
-    }
-
-    data_library::verify_sysroot_roots(facts, &["core", "std"], "Range value")?;
+    let registry = data_library::verify_64bit_sysroot(facts, "Range value")?;
     definition(observation, registry)?;
     shape(observation)
 }

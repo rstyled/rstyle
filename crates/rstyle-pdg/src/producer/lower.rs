@@ -15,6 +15,7 @@ mod option_if_let;
 mod option_propagation;
 mod options;
 mod owned_product_values;
+mod product_constants;
 mod product_result_propagation;
 mod result_propagation;
 mod scalar_result_propagation;
@@ -277,7 +278,14 @@ impl Builder<'_> {
 
     fn path(&mut self, node: &HirNode, flow: Flow) -> Flow {
         match node.res.as_ref().map(|res| res.kind.as_str()) {
+            Some(crate::nominal_constants::RESOLUTION) => self.product_constant(node, flow),
             Some(crate::bool_constants::RESOLUTION) => self.bool_array_constant(node, flow),
+            _ => self.constant_or_read(node, flow),
+        }
+    }
+
+    fn constant_or_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        match node.res.as_ref().map(|res| res.kind.as_str()) {
             Some(crate::scalar_constants::RESOLUTION | crate::primitive_constants::RESOLUTION) => {
                 self.constant(node, flow)
             }

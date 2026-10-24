@@ -36,7 +36,11 @@ pub(crate) fn member(
         bytes,
         observation: &observation,
         nominal,
-        source_checksum: crate::source_identity::checksum(bytes.as_bytes()),
+        anchors: crate::source_evidence::trait_members::SourceAnchors::new(
+            facts,
+            bytes,
+            "Default original source anchor differs from complete source file",
+        ),
     };
 
     checker.signatures()?;
@@ -96,7 +100,7 @@ struct Checker<'a> {
     bytes: &'a str,
     observation: &'a model::Observation,
     nominal: &'a Nominal,
-    source_checksum: String,
+    anchors: crate::source_evidence::trait_members::SourceAnchors<'a>,
 }
 
 impl Checker<'_> {
@@ -140,8 +144,9 @@ impl Checker<'_> {
             end: crate::source_evidence::original_span(self.bytes, item.brace_token.span.close())
                 .end,
         };
-        self.anchor(&observation.implementation_source, implementation)?;
-        self.anchor(&observation.method_source, range)?;
+        self.anchors
+            .verify(&observation.implementation_source, implementation)?;
+        self.anchors.verify(&observation.method_source, range)?;
         let [member] = observation.members.as_slice() else {
             return Err("Default requires its complete single-member implementation roster".into());
         };
@@ -152,27 +157,7 @@ impl Checker<'_> {
         }
         // Rustc ImplItem spans omit outer attributes; attributes are checked by
         // the enclosing source route against the complete original AST.
-        self.anchor(&member.source, range)
-    }
-
-    fn anchor(
-        &self,
-        anchor: &crate::nominal_boundary::census::expansions::FileSpan,
-        span: ByteSpan,
-    ) -> Result<(), String> {
-        if anchor.span != span
-            || self
-                .facts
-                .build
-                .frontend_options
-                .get("source_file")
-                .and_then(serde_json::Value::as_str)
-                != anchor.path.to_str()
-            || anchor.digest != self.source_checksum
-        {
-            return Err("Default original source anchor differs from complete source file".into());
-        }
-        Ok(())
+        self.anchors.verify(&member.source, range)
     }
 }
 

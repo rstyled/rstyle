@@ -63,27 +63,23 @@ fn original_import(
     name: &str,
 ) -> Result<(), String> {
     let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
-    let mut matches = 0;
-
-    for module in environment
+    let items = environment
         .modules
         .iter()
         .filter(|module| module.namespace == *namespace)
-    {
-        for item in &module.items {
-            if let syn::Item::Use(item) = item
-                && configuration.active(&item.attrs)?
-                && original(item, name)
-            {
-                matches += 1;
-            }
-        }
-    }
+        .flat_map(|module| &module.items);
 
-    if matches != 1 {
-        return Err("Enum glob lacks one exact active original self import".into());
-    }
-    Ok(())
+    crate::source_evidence::unique_active(
+        items,
+        |item| {
+            if let syn::Item::Use(item) = item {
+                Ok(configuration.active(&item.attrs)? && original(item, name))
+            } else {
+                Ok(false)
+            }
+        },
+        "Enum glob lacks one exact active original self import",
+    )
 }
 
 fn original(item: &syn::ItemUse, name: &str) -> bool {

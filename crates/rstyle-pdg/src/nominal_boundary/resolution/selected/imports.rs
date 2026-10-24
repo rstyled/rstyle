@@ -366,6 +366,36 @@ pub(in crate::nominal_boundary::resolution) fn library_root(
     library_root_imports(environment, namespace, root, &configuration)
 }
 
+/// Source closure replaces coarse macro rejection; root lookup remains exact.
+pub(in crate::nominal_boundary::resolution) fn source_library_root(
+    facts: &HirFnFacts,
+    scope: &Scoped<'_>,
+    root: &str,
+    closure: &no_drop::CheckedNoDrop,
+) -> Result<(), String> {
+    let environment = &scope.resolution.environment;
+    let namespace = scope.namespace;
+    verify_source(facts, environment, namespace, closure)?;
+    crate::data_library::verify_sysroot_roots(facts, &[root], "Selected core import")?;
+    let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
+    for module in environment
+        .modules
+        .iter()
+        .filter(|module| relevant(namespace, &module.namespace, true))
+    {
+        for item in &module.items {
+            if configuration.active(crate::conditional_source::item_attributes(item))?
+                && super::super::builtin_options::type_name(item).as_deref() == Some(root)
+                && !matches!(item, syn::Item::ExternCrate(item) if item.ident == root && item.rename.is_none())
+            {
+                return Err("Selected library root has a local source binding".into());
+            }
+        }
+    }
+
+    library_root_imports(environment, namespace, root, &configuration)
+}
+
 fn library_root_imports(
     environment: &Environment,
     namespace: &[String],

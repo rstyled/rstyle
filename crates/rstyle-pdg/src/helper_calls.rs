@@ -287,6 +287,9 @@ pub fn direct_resolution(node: &HirNode) -> Option<Value> {
 /// Ordinary compiler resolution or the exact call retained by a private From proof.
 pub fn selected_resolution(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Value> {
     crate::local_value_trait_calls::resolution(node, facts)
+        .or_else(|| {
+            crate::nominal_boundary::resolution::tryfrom_owners::call_resolution(node, facts)
+        })
         .or_else(|| direct_resolution(node))
         .or_else(|| reference_forwarders::resolution(node, facts))
         .or_else(|| product_conversions::resolution(node, facts))
@@ -582,10 +585,6 @@ fn check_signature(
     callee: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     crate::default_calls::verify_selection(node, caller, callee, resolution)?;
-    let dispatch = node
-        .dispatch
-        .as_ref()
-        .ok_or("Missing resolved helper signature")?;
     if callee.scalar_instance().is_some() {
         instances::signature(node, caller, callee)?;
     }
@@ -605,12 +604,7 @@ fn check_signature(
         return external::signature(node, caller, resolution, callee);
     }
     let build = same_build(caller, callee)?;
-    let requested = if resolution.get("value_trait_requested").is_some() {
-        crate::local_value_trait_calls::verify_selection(node, caller, callee, resolution)?;
-        resolution["value_trait_requested"].as_str() == Some(dispatch.op.as_str())
-    } else {
-        dispatch.op == callee.name
-    };
+    let requested = requested_member(node, caller, resolution, callee)?;
     if !signature
         || !build
         || resolution["local"] != true
@@ -624,6 +618,35 @@ fn check_signature(
     }
 
     Ok(())
+}
+
+fn requested_member(
+    node: &HirNode,
+    caller: &dyn EvidenceFacts,
+    resolution: &Value,
+    callee: &dyn EvidenceFacts,
+) -> Result<bool, String> {
+    let dispatch = node
+        .dispatch
+        .as_ref()
+        .ok_or("Missing resolved helper signature")?;
+    Ok(if resolution.get("tryfrom_requested").is_some() {
+        crate::tryfrom_calls::verify_selection(
+            crate::tryfrom_calls::SelectionInput {
+                node,
+                caller,
+                callee,
+                resolution,
+            },
+            &crate::tryfrom_calls::RegistryAuthority,
+        )?;
+        resolution["tryfrom_requested"].as_str() == Some(dispatch.op.as_str())
+    } else if resolution.get("value_trait_requested").is_some() {
+        crate::local_value_trait_calls::verify_selection(node, caller, callee, resolution)?;
+        resolution["value_trait_requested"].as_str() == Some(dispatch.op.as_str())
+    } else {
+        dispatch.op == callee.name
+    })
 }
 
 fn ordinary_signature(

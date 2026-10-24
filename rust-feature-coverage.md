@@ -5195,3 +5195,11 @@ payload binding remain outside this boundary. The unchanged natural owner stays
 110/590 admitted with zero gains/losses: MAX evidence and exact TryFrom/source
 ownership still block checked SmallIndex construction. This is a prerequisite,
 not completion of that family. [Validation/frontier](docs/rust-support-execution.md).
+
+Data3.98 connects original `SmallIndex::new → TryFrom<usize>` through MAX,
+its checked scalar-product initializer and complete success/error helper chain.
+The unchanged no-default owner gains exactly those two functions:110→112/590,
+zero losses. Default-context strict replay also passes. Generated `PatternID::new`
+still requires expansion ownership, nested products/errors and consuming constructor
+maps. [Contract](docs/extraction-profiles/checked-index-construction-v1.md);
+[validation and frontier](docs/rust-support-execution.md).

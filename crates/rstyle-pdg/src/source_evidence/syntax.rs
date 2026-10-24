@@ -8,9 +8,48 @@ pub(crate) fn plain_type_path(value: &syn::Type, name: &str) -> bool {
     matches!(value, syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident(name))
 }
 
+/// Require exactly one eligible original item; inspect all items and propagate cfg errors.
+pub(crate) fn unique_active<T>(
+    items: impl IntoIterator<Item = T>,
+    mut eligible: impl FnMut(T) -> Result<bool, String>,
+    error: &str,
+) -> Result<(), String> {
+    let mut count = 0;
+    for item in items {
+        if eligible(item)? {
+            count += 1;
+        }
+    }
+
+    if count != 1 {
+        return Err(error.into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn active_selection_requires_one_match_and_preserves_later_errors() {
+        assert_eq!(
+            unique_active([false, true, false], Ok, "not unique"),
+            Ok(())
+        );
+        for items in [vec![], vec![false], vec![true, true]] {
+            assert_eq!(
+                unique_active(items, Ok, "not unique"),
+                Err("not unique".into())
+            );
+        }
+
+        let items = [Ok(true), Ok(true), Err("invalid cfg".into())];
+        assert_eq!(
+            unique_active(items, |item| item, "not unique"),
+            Err("invalid cfg".into())
+        );
+    }
 
     #[test]
     fn exact_paths_reject_qualification_parameters_and_value_attributes() {

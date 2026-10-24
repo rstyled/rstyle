@@ -22,10 +22,7 @@ pub fn capture(
         collect(tcx, &function.body, &mut callees)?;
     }
 
-    let libraries = callees
-        .into_values()
-        .map(|callee| library(tcx, callee))
-        .collect();
+    let libraries = callees.into_values().collect();
     let resolution = Libraries {
         identity: IDENTITY.into(),
         libraries,
@@ -43,7 +40,7 @@ pub fn capture(
 fn collect(
     tcx: TyCtxt<'_>,
     node: &HirNode,
-    callees: &mut BTreeMap<String, DefId>,
+    callees: &mut BTreeMap<String, Library>,
 ) -> Result<(), String> {
     if operation(node).is_some() {
         let id = HirId {
@@ -59,12 +56,42 @@ fn collect(
             .type_dependent_def_id(id)
             .ok_or("Missing compiler-selected library callee")?;
         if !callee.is_local() && tcx.crate_name(callee.krate).as_str() == "core" {
-            callees.insert(tcx.crate_hash(callee.krate).to_string(), callee);
+            let library = library(tcx, callee);
+            callees.insert(library.crate_hash.clone(), library);
         }
     }
+    collect_product_dependency(node, callees)?;
     for child in &node.children {
         collect(tcx, child, callees)?;
     }
+    Ok(())
+}
+
+/// Const initializers are dependencies, not runtime calls in the captured body.
+fn collect_product_dependency(
+    node: &HirNode,
+    libraries: &mut BTreeMap<String, Library>,
+) -> Result<(), String> {
+    let Some(resolution) = node
+        .res
+        .as_ref()
+        .filter(|resolution| resolution.kind == rstyle_pdg::nominal_constants::RESOLUTION)
+    else {
+        return Ok(());
+    };
+    let record = rstyle_pdg::nominal_constants::decode(resolution)?;
+    let dependency = record.initializer.core_constant.definition;
+    if dependency.crate_name != "core" || dependency.crate_hash.is_empty() {
+        return Err("Product constant lacks its compiler-selected core dependency".into());
+    }
+    libraries.insert(
+        dependency.crate_hash.clone(),
+        Library {
+            crate_name: dependency.crate_name,
+            crate_hash: dependency.crate_hash,
+        },
+    );
+
     Ok(())
 }
 

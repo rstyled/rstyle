@@ -1,6 +1,6 @@
 //! Original ordinary Copy owners retain exhaustive source/cleanup receipts.
 //! A receipt supplies no callable, effect, alias or generated-body authority.
-mod source;
+pub(super) mod source;
 #[cfg(test)]
 mod tests;
 

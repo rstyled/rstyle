@@ -6,7 +6,7 @@ mod core_imports;
 mod enum_globs;
 mod imports;
 pub(super) use imports::glob_excludes;
-pub(super) use imports::{library_root, unshadowed_type_declarations};
+pub(super) use imports::{library_root, source_library_root, unshadowed_type_declarations};
 #[cfg(test)]
 mod explicit_u8_attacks;
 #[cfg(test)]
@@ -143,6 +143,12 @@ impl DeclarationChecker<'_> {
         let retained = self
             .owner
             .and_then(|owner| owner.copy_source().declaration(tree))
+            .or_else(|| {
+                self.resolution
+                    .scalar_result_source
+                    .as_ref()
+                    .and_then(|source| source.declaration(tree))
+            })
             .or_else(|| {
                 self.resolution
                     .copy_owner_source
@@ -651,6 +657,16 @@ pub(super) fn check_function_namespace(
     resolution: &Resolution,
     namespace: &[String],
 ) -> Result<(), String> {
+    if let Some(source) = &resolution.scalar_result_source {
+        let certificate =
+            source.function_namespace(input.facts(), &resolution.environment, namespace)?;
+        return check_namespace_with_closure(
+            input.facts(),
+            &resolution.environment,
+            namespace,
+            certificate,
+        );
+    }
     let Some(source) = &resolution.copy_owner_source else {
         return check_namespace(input, &resolution.environment, namespace);
     };

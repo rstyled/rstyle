@@ -2,6 +2,9 @@
 use super::*;
 use std::collections::BTreeMap;
 use syn::visit::Visit;
+#[cfg(test)]
+#[path = "closure_prelude_tests.rs"]
+mod prelude_tests;
 
 pub(super) fn verify(
     environment: &Environment,
@@ -84,11 +87,57 @@ fn verify_mode(
         reference_product,
         scalar_bindings: matches!(mode, SourceMode::CopyOwner | SourceMode::ScalarError),
         checked_external_imports: supports(facts, super::super::fresh_products::CAPABILITY)?,
+        result_prelude_namespace: result_prelude_namespace(facts, target, mode)?,
     };
     for collecting in [true, false] {
         visitor.pass(environment, collecting)?;
     }
     Ok(())
+}
+
+/// Only the complete scalar Result success owner needs these additional bindings.
+fn result_prelude_namespace(
+    facts: &HirFnFacts,
+    target: &Namespace,
+    mode: SourceMode,
+) -> Result<Option<Namespace>, String> {
+    if !matches!(mode, SourceMode::CopyOwner) || !supports(facts, crate::tryfrom_calls::CAPABILITY)?
+    {
+        return Ok(None);
+    }
+
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let Observation::Captured {
+        ty: TypeTree::Result { ok, err },
+    } = &interface.result
+    else {
+        return Ok(None);
+    };
+    if !copy_products::supported(ok)
+        || !crate::concrete_results::scalar_errors::GRAMMAR.permits(
+            &crate::data_types::TypeToken::from_tree(ok),
+            &crate::data_types::TypeToken::from_tree(err),
+        )
+    {
+        return Ok(None);
+    }
+    let Some((nominal, _)) = ok.nominal_parts() else {
+        return Ok(None);
+    };
+    let mut path: Namespace = nominal
+        .definition_path
+        .split("::")
+        .map(str::to_owned)
+        .collect();
+    if &path != target {
+        return Ok(None);
+    }
+
+    path.pop();
+    Ok(Some(path))
 }
 
 fn inherited(
@@ -327,6 +376,7 @@ fn inspect_policy(
         reference_product,
         scalar_bindings,
         checked_external_imports: false,
+        result_prelude_namespace: None,
     };
     visitor.scopes = vec![visitor.scope(items.iter().copied())?];
     for item in items {
@@ -366,6 +416,7 @@ struct Closure<'a> {
     reference_product: bool,
     scalar_bindings: bool,
     checked_external_imports: bool,
+    result_prelude_namespace: Option<Namespace>,
 }
 
 impl Closure<'_> {
@@ -593,6 +644,7 @@ impl Closure<'_> {
         self.definitions.insert(name, item.clone());
     }
     fn collect_item(&mut self, item: &syn::Item) -> Result<(), String> {
+        self.generated_result_prelude(item)?;
         if self.scalar_bindings && shadows_primitive(item) {
             return Err("Copy source declaration shadows an unresolved primitive binding".into());
         }
@@ -619,6 +671,29 @@ impl Closure<'_> {
                 }
             }
             _ => {}
+        }
+        Ok(())
+    }
+    /// Generated bindings are absent from the original lexical census. Keep the
+    /// restriction in the success owner's namespace/ancestors, including blocks.
+    fn generated_result_prelude(&self, item: &syn::Item) -> Result<(), String> {
+        if self.generated_context == 0
+            || !self
+                .result_prelude_namespace
+                .as_ref()
+                .is_some_and(|owner| owner.starts_with(&self.enums.namespace))
+        {
+            return Ok(());
+        }
+
+        let protected = |name: &str| matches!(name, "Result" | "TryFrom");
+        let declaration = super::super::super::builtin_options::type_name(item)
+            .is_some_and(|name| protected(&name));
+        let imported = matches!(item, syn::Item::Use(item)
+            if source_imports::bindings(&item.tree).iter().any(|(name, _)| protected(name)));
+
+        if declaration || imported {
+            return Err("Scalar Result source expansion shadows a required prelude binding".into());
         }
         Ok(())
     }

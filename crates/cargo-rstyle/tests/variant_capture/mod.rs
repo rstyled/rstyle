@@ -17,6 +17,7 @@ mod cfg_if_modules;
 mod character_escapes;
 mod character_leaf;
 mod character_ranges;
+mod checked_index_construction;
 mod checked_lengths;
 mod classifiers;
 mod corruption;

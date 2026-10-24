@@ -1005,19 +1005,21 @@ fn data_kind(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         {
             Some(ty())
         }
-        "expr_path"
-            if node.res.as_ref().is_some_and(|resolution| {
-                matches!(
-                    resolution.kind.as_str(),
-                    crate::scalar_constants::RESOLUTION | crate::primitive_constants::RESOLUTION
-                )
-            }) =>
-        {
-            Some(check_path(node, ctx))
-        }
+        "expr_path" if resolved_data_constant(node) => Some(check_path(node, ctx)),
         "expr_path" => Some(check_data_path(node, ctx)),
         _ => None,
     }
+}
+
+fn resolved_data_constant(node: &HirNode) -> bool {
+    matches!(
+        node.resolution_kind(),
+        Some(
+            crate::scalar_constants::RESOLUTION
+                | crate::primitive_constants::RESOLUTION
+                | crate::nominal_constants::RESOLUTION
+        )
+    )
 }
 
 fn data_dereference(node: &HirNode, ctx: &Ctx<'_>) -> bool {
@@ -1328,6 +1330,10 @@ fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 fn constant_path(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
     let resolution = node.res.as_ref()?;
     let (capability, result) = match resolution.kind.as_str() {
+        crate::nominal_constants::RESOLUTION => (
+            crate::product_constant_values::CAPABILITY,
+            crate::product_constant_values::verify(node, ctx.facts).map(|_| ()),
+        ),
         crate::primitive_constants::RESOLUTION => (
             crate::primitive_constants::CAPABILITY,
             crate::primitive_constants::verify(node, ctx.facts).map(|_| ()),
