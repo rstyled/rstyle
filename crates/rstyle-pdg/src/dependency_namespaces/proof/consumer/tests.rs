@@ -116,6 +116,35 @@ fn direct_and_grouped_globs_retain_exact_original_paths_and_prefix_leaf_spans() 
 }
 
 #[test]
+fn direct_named_module_import_requires_the_original_unrenamed_path() {
+    let mut fixture = fixture(
+        "pub use renamed::prelude;",
+        "pub use renamed::prelude;",
+        "renamed::prelude",
+    );
+    fixture.receipt.import.binding = Binding::Named("prelude".into());
+    assert!(verify_site(&fixture.census, &fixture.modules, fixture.receipt.import()).is_ok());
+    fixture.receipt.import.binding = Binding::Named("different".into());
+    assert!(verify_site(&fixture.census, &fixture.modules, fixture.receipt.import()).is_err());
+}
+
+#[test]
+fn named_module_receipts_reject_grouped_renamed_and_conditional_source() {
+    for (source, leaf) in [
+        (
+            "pub use renamed::prelude as other;",
+            "renamed::prelude as other",
+        ),
+        ("pub use renamed::{prelude};", "prelude"),
+        ("#[cfg(test)] pub use renamed::prelude;", "renamed::prelude"),
+    ] {
+        let mut fixture = fixture(source, source, leaf);
+        fixture.receipt.import.binding = Binding::Named("prelude".into());
+        assert!(verify_site(&fixture.census, &fixture.modules, fixture.receipt.import()).is_err());
+    }
+}
+
+#[test]
 fn unique_nested_module_scope_is_required_without_reparsing_or_omitting_neighbors() {
     let source = "mod nested { use renamed::prelude::*; fn neighbor() {} }";
     let mut fixture = fixture(source, "use renamed::prelude::*;", "renamed::prelude");

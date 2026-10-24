@@ -13,7 +13,14 @@ pub fn verify_consumer(
     modules: &[census::Module],
     receipt: &AnonymousPrelude,
 ) -> Result<(), ProofError> {
-    let site = receipt.import();
+    verify_site(census, modules, receipt.import())
+}
+
+pub(super) fn verify_site(
+    census: &Census,
+    modules: &[census::Module],
+    site: &Site,
+) -> Result<(), ProofError> {
     census
         .context
         .validate()
@@ -103,6 +110,42 @@ fn original_use(
     bytes: &crate::SourceSnapshot,
     site: &Site,
 ) -> Result<(), ProofError> {
+    let item = use_declaration(module, bytes, site)?;
+    if !item.attrs.is_empty() {
+        return Err(ProofError::Unsupported(
+            "Consumer namespace attributes require independent active-source evidence",
+        ));
+    }
+    coordinate(
+        bytes,
+        &site.declaration,
+        crate::source_evidence::original_span(bytes, item.span()),
+    )?;
+    if site.public != matches!(item.vis, syn::Visibility::Public(_)) {
+        return Err(ProofError::Contradictory(
+            "Consumer original import visibility or binding differs",
+        ));
+    }
+    if item.leading_colon.is_some() {
+        return Err(ProofError::Unsupported(
+            "Absolute consumer namespace import is unavailable",
+        ));
+    }
+
+    match &site.binding {
+        Binding::Glob => original_leaf(bytes, &item.tree, site),
+        Binding::Named(name) => named_leaf(bytes, &item.tree, site, name),
+        Binding::Anonymous => Err(ProofError::Unsupported(
+            "Anonymous module imports are unavailable",
+        )),
+    }
+}
+
+fn use_declaration<'a>(
+    module: &'a census::Module,
+    bytes: &crate::SourceSnapshot,
+    site: &Site,
+) -> Result<&'a syn::ItemUse, ProofError> {
     let uses: Vec<_> = module
         .items
         .iter()
@@ -121,30 +164,41 @@ fn original_use(
             "Missing or ambiguous original consumer use declaration",
         ));
     };
-    if !item.attrs.is_empty() {
-        return Err(ProofError::Unsupported(
-            "Consumer namespace attributes require independent active-source evidence",
-        ));
-    }
-    coordinate(
-        bytes,
-        &site.declaration,
-        crate::source_evidence::original_span(bytes, item.span()),
-    )?;
-    if site.public != matches!(item.vis, syn::Visibility::Public(_))
-        || site.binding != Binding::Glob
-    {
-        return Err(ProofError::Contradictory(
-            "Consumer original import visibility or binding differs",
-        ));
-    }
-    if item.leading_colon.is_some() {
-        return Err(ProofError::Unsupported(
-            "Absolute consumer namespace import is unavailable",
-        ));
+    Ok(item)
+}
+
+fn named_leaf(
+    bytes: &crate::SourceSnapshot,
+    tree: &syn::UseTree,
+    site: &Site,
+    name: &str,
+) -> Result<(), ProofError> {
+    let mut path = Vec::new();
+    let mut cursor = tree;
+    while let syn::UseTree::Path(segment) = cursor {
+        if path.len() >= census::MAX_FILES {
+            return Err(ProofError::Unsupported(
+                "Named namespace path exceeds source budget",
+            ));
+        }
+        path.push(segment.ident.to_string());
+        cursor = &segment.tree;
     }
 
-    original_leaf(bytes, &item.tree, site)
+    let syn::UseTree::Name(leaf) = cursor else {
+        return Err(ProofError::Unsupported(
+            "Named namespace requires one original unrenamed path",
+        ));
+    };
+    path.push(leaf.ident.to_string());
+    let span = crate::source_evidence::original_span(bytes, tree.span());
+    coordinate(bytes, &site.leaf, span)?;
+    if leaf.ident != name || path != site.path || site.leaf.path != site.declaration.path {
+        return Err(ProofError::Contradictory(
+            "Named namespace path or original source differs",
+        ));
+    }
+    Ok(())
 }
 
 fn original_leaf(
