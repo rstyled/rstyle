@@ -9,6 +9,7 @@
 //! reason and never becomes a fabricated default.
 
 mod options;
+pub(crate) mod unit_records;
 pub(crate) use options::bundle as option_bundle;
 mod source_snapshot;
 pub use source_snapshot::SourceSnapshot;

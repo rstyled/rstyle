@@ -6,6 +6,8 @@ pub use bundle::{
     ScalarInstanceReplay, read_diagnostic_snapshot, write_diagnostic_snapshot,
 };
 mod dependency_closure;
+mod dependency_namespaces;
+pub use dependency_namespaces::CheckedDependencyNamespace;
 mod derived;
 mod instance_links;
 mod instances;
@@ -63,6 +65,21 @@ pub trait EvidenceFacts: sealed::Sealed {
         options
             .data::<Arc<crate::generated_sources::capture::UnitCapture>>()
             .map(|capture| Some(Arc::clone(capture.as_ref())))
+    }
+
+    /// Only a direct independently checked Cargo edge supplies a source owner.
+    fn dependency_namespace(
+        &self,
+        _import: &crate::dependency_namespaces::capture::Import,
+    ) -> Result<Option<CheckedDependencyNamespace<'_>>, String> {
+        Ok(None)
+    }
+
+    /// Raw namespace observations from the exact owning unit; no source authority.
+    fn dependency_namespace_capture(
+        &self,
+    ) -> Result<Option<Arc<crate::dependency_namespaces::capture::UnitCapture>>, String> {
+        crate::dependency_namespaces::function_capture(self.facts())
     }
 
     /// Only an immutable, separately verified instance owner supplies this
@@ -165,6 +182,19 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn dependency_namespace(
+        &self,
+        import: &crate::dependency_namespaces::capture::Import,
+    ) -> Result<Option<CheckedDependencyNamespace<'_>>, String> {
+        T::dependency_namespace(*self, import)
+    }
+
+    fn dependency_namespace_capture(
+        &self,
+    ) -> Result<Option<Arc<crate::dependency_namespaces::capture::UnitCapture>>, String> {
+        T::dependency_namespace_capture(*self)
+    }
+
     fn generated_source_capture(
         &self,
     ) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
@@ -289,6 +319,7 @@ pub struct UnitStore {
     links: Vec<BTreeMap<Site, FunctionId>>,
     certified: Vec<Option<HelperId>>,
     dependencies: Vec<Arc<UnitStore>>,
+    namespace_associations: Vec<dependency_namespaces::Association>,
     external_links: Vec<BTreeMap<Site, ExternalTarget>>,
     instance: Option<instances::InstanceRecord>,
     reference_instance: Option<reference_instances::ReferenceInstanceRecord>,
@@ -341,6 +372,7 @@ trait Resolver {
 
 struct Tables<'a> {
     functions: &'a [HirFnFacts],
+    namespace_associations: &'a [dependency_namespaces::Association],
     helpers: &'a [HelperRecord],
     graphs: &'a [Pair],
     links: &'a [BTreeMap<Site, FunctionId>],
@@ -371,6 +403,21 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn dependency_namespace(
+        &self,
+        import: &crate::dependency_namespaces::capture::Import,
+    ) -> Result<Option<CheckedDependencyNamespace<'_>>, String> {
+        dependency_namespaces::selected(self, import)
+    }
+
+    fn dependency_namespace_capture(
+        &self,
+    ) -> Result<Option<Arc<crate::dependency_namespaces::capture::UnitCapture>>, String> {
+        self.resolver
+            .sources()
+            .dependency_namespace_capture(self.resolver.tables().functions)
+    }
+
     fn generated_source_capture(
         &self,
     ) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
@@ -738,6 +785,7 @@ impl UnitStore {
     fn tables(&self) -> Tables<'_> {
         Tables {
             functions: &self.functions,
+            namespace_associations: &self.namespace_associations,
             helpers: &self.helpers,
             graphs: &self.graphs,
             links: &self.links,
@@ -811,6 +859,7 @@ impl Builder {
                 links,
                 certified,
                 dependencies: Vec::new(),
+                namespace_associations: Vec::new(),
                 external_links: vec![BTreeMap::new(); pending.len()],
                 instance: None,
                 reference_instance: None,

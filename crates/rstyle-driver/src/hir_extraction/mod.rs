@@ -5,6 +5,7 @@ mod bool_constants;
 mod callbacks;
 mod concrete_types;
 mod crate_association;
+mod dependency_namespaces;
 pub mod diagnostics;
 mod documentation_inputs;
 mod evidence;
@@ -113,6 +114,7 @@ fn capture_source_evidence(
     facts: &mut [HirFnFacts],
 ) -> Result<(), String> {
     nominal_census::capture(tcx, options, facts)?;
+    nominal_census::namespaces(tcx, options, facts)?;
     generated_sources::capture(tcx, options, facts)
 }
 

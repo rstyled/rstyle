@@ -92,3 +92,20 @@ fn original_file(
         bytes: snapshot.bytes.clone(),
     })
 }
+
+pub fn namespaces(
+    tcx: TyCtxt<'_>,
+    options: &Options<'_>,
+    facts: &mut [HirFnFacts],
+) -> Result<(), String> {
+    if options.selected() == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3
+        && let Some(first) = facts.first_mut()
+    {
+        let namespaces = super::dependency_namespaces::capture(tcx, &options.sources)?;
+        first
+            .build
+            .frontend_options
+            .insert_data(std::sync::Arc::new(namespaces));
+    }
+    Ok(())
+}

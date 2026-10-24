@@ -11,7 +11,7 @@ use std::{
 /// One local producer process and allocation ordinal. Independently loaded
 /// copies retain the wire namespace but own separate views and proof caches.
 /// These values are neither authentication nor globally persistent identities.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UnitNamespace {
     process: u32,

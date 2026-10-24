@@ -1,6 +1,7 @@
 //! Run-local compiled-artifact associations, separate from semantic call authority.
 use super::{Unit, invocation_features};
 use rstyle_core::cli_args::flag_value;
+use rstyle_pdg::dependency_namespaces::capture as namespaces;
 use rstyle_pdg::{HirFnFacts, HirNode, unit_store::UnitNamespace};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -77,25 +78,25 @@ pub(in crate::clones) fn associate(request: Request<'_>) -> Result<Vec<Value>, S
         routes: &routes,
     };
 
-    let mut seals = Seals::new();
-    let mut associations = Associations::new();
+    let mut output = Output {
+        seals: Seals::new(),
+        associations: Associations::new(),
+    };
     for (caller, observed) in request.observations.iter().enumerate() {
+        if let Some(capture) = rstyle_pdg::dependency_namespaces::unit_capture(observed.functions)?
+        {
+            for import in &capture.imports {
+                associate_import(&context, caller, import, &mut output)?;
+            }
+        }
         for function in observed.functions {
             visit_calls(&function.body, &mut |resolution| {
-                associate_call(
-                    &context,
-                    caller,
-                    resolution,
-                    &mut Output {
-                        seals: &mut seals,
-                        associations: &mut associations,
-                    },
-                )
+                associate_call(&context, caller, resolution, &mut output)
             })?;
         }
     }
 
-    Ok(associations.into_values().collect())
+    Ok(output.associations.into_values().collect())
 }
 
 impl<'a> Targets<'a> {
@@ -183,15 +184,11 @@ impl<'a> Routes<'a> {
         Ok(edges)
     }
 
-    fn foreign<'b>(&self, resolution: &'b Value) -> Result<Option<(usize, &'b Value)>, String> {
-        let name = string(resolution, "crate")?;
+    fn foreign(&self, name: &str, foreign: &Value) -> Result<Option<usize>, String> {
         let Some(identities) = self.crates.get(name) else {
             return Ok(None);
         };
 
-        let foreign = resolution
-            .get("compiled_dependency")
-            .ok_or("Selected dependency call lacks compiler identity")?;
         check_foreign(foreign, name)?;
         let callee = identities
             .get(string(foreign, "stable_crate_id")?)
@@ -199,7 +196,7 @@ impl<'a> Routes<'a> {
             .flatten()
             .ok_or("Selected dependency has ambiguous or wrong stable crate identity")?;
 
-        Ok(Some((callee, foreign)))
+        Ok(Some(callee))
     }
 
     fn alias(&self, caller: usize, callee: usize) -> Result<&str, String> {
@@ -219,11 +216,9 @@ fn unique_units(
     let mut graphs = BTreeSet::new();
     let mut namespaces = BTreeSet::new();
     for (index, unit) in prepared.iter().enumerate() {
-        let namespace =
-            serde_json::to_string(&observed[index].namespace).map_err(|error| error.to_string())?;
         if !reachable.contains(&unit.graph_index)
             || !graphs.insert(unit.graph_index)
-            || !namespaces.insert(namespace)
+            || !namespaces.insert(observed[index].namespace)
         {
             return Err("Unreachable or duplicate compiled graph-unit/evidence namespace".into());
         }
@@ -477,9 +472,9 @@ fn visit_calls(
     Ok(())
 }
 
-struct Output<'a> {
-    seals: &'a mut Seals,
-    associations: &'a mut Associations,
+struct Output {
+    seals: Seals,
+    associations: Associations,
 }
 
 struct CallContext<'a, 'b> {
@@ -492,11 +487,70 @@ fn associate_call(
     context: &CallContext<'_, '_>,
     caller: usize,
     resolution: &Value,
-    output: &mut Output<'_>,
+    output: &mut Output,
 ) -> Result<(), String> {
+    let name = string(resolution, "crate")?;
+    if !context.routes.crates.contains_key(name) {
+        return Ok(());
+    }
+    let foreign = resolution
+        .get("compiled_dependency")
+        .ok_or("Selected dependency call lacks compiler identity")?;
+    associate_foreign(
+        context,
+        caller,
+        ForeignCrate {
+            name,
+            observation: foreign,
+        },
+        output,
+    )
+}
+
+fn associate_import(
+    context: &CallContext<'_, '_>,
+    caller: usize,
+    import: &namespaces::Import,
+    output: &mut Output,
+) -> Result<(), String> {
+    let compiled = imported_crate(import)?;
+    associate_foreign(context, caller, compiled, output)
+}
+
+fn imported_crate(import: &namespaces::Import) -> Result<ForeignCrate<'_>, String> {
+    let target = &import.site.target;
+    let foreign = &import.compiled_dependency;
+    if target.local
+        || target.definition_identity.is_empty()
+        || foreign["crate_name"].as_str() != Some(target.crate_name.as_str())
+        || foreign["stable_crate_id"].as_str() != Some(target.stable_crate_id.as_str())
+    {
+        return Err("Namespace target disagrees with compiled dependency identity".into());
+    }
+    Ok(ForeignCrate {
+        name: &target.crate_name,
+        observation: foreign,
+    })
+}
+
+struct ForeignCrate<'a> {
+    name: &'a str,
+    observation: &'a Value,
+}
+
+fn associate_foreign(
+    context: &CallContext<'_, '_>,
+    caller: usize,
+    compiled: ForeignCrate<'_>,
+    output: &mut Output,
+) -> Result<(), String> {
+    let ForeignCrate {
+        name: crate_name,
+        observation: foreign,
+    } = compiled;
     let request = context.request;
     let prepared = context.prepared;
-    let Some((callee, foreign)) = context.routes.foreign(resolution)? else {
+    let Some(callee) = context.routes.foreign(crate_name, foreign)? else {
         return Ok(());
     };
     let key = (caller, callee);
@@ -516,7 +570,7 @@ fn associate_call(
         return Err("Loaded dependency metadata disagrees with caller --extern".into());
     }
     verify_emission(&request.units[callee], prepared[callee].artifact, &loaded)?;
-    let artifact = seal(&loaded, output.seals)?;
+    let artifact = seal(&loaded, &mut output.seals)?;
     if artifact.crate_hash != string(foreign, "crate_hash")? {
         return Err(
             "Native emitted metadata hash disagrees with loaded compiler dependency".into(),

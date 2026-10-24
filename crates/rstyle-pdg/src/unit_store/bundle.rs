@@ -259,6 +259,7 @@ impl Decoded {
             helpers: self.wire.helpers,
             certified: self.wire.certified,
             dependencies: Vec::new(),
+            namespace_associations: Vec::new(),
             external_links: vec![BTreeMap::new(); function_count],
             instance: None,
             reference_instance: None,

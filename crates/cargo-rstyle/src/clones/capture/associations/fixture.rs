@@ -1,6 +1,7 @@
 use super::super::*;
 use crate::clones::capture::Target;
 use rstyle_pdg::extraction_profile::ExtractionProfile;
+use std::sync::Arc;
 
 pub(super) struct Fixture {
     pub directory: tempfile::TempDir,
@@ -75,6 +76,45 @@ impl Fixture {
         let mut value: Value = serde_json::from_str(&resolution.description).unwrap();
         change(&mut value);
         resolution.description = value.to_string();
+    }
+
+    pub fn namespace_import(&self) -> namespaces::Import {
+        let resolution: Value =
+            serde_json::from_str(&self.functions[0][0].body.res.as_ref().unwrap().description)
+                .unwrap();
+        let definition = |name: &str, local: bool| {
+            json!({
+                "path":name,"definition_identity":format!("{name}-id"),
+                "crate":if local { "consumer" } else { "calendar" },
+                "stable_crate_id":if local { "stable-consumer" } else { "stable-calendar" },
+                "local":local
+            })
+        };
+        let source = json!({"path":self.units[0].target.source,
+            "digest":"xxh3-64:0000000000000000","span":{"start":0,"end":1}});
+        serde_json::from_value(json!({
+            "site":{
+                "definition":definition("import", true),"declaration":source,"leaf":source,
+                "owner":definition("", true),"scope":[],"path":["renamed","prelude"],
+                "binding":{"kind":"glob"},"public":false,
+                "target":definition("prelude", false),"target_kind":"Mod"
+            },
+            "compiled_dependency":resolution["compiled_dependency"],
+            "exports":[],"complete":true
+        }))
+        .unwrap()
+    }
+
+    pub fn install_namespaces(&mut self, imports: Vec<namespaces::Import>) {
+        self.functions[0][0]
+            .build
+            .frontend_options
+            .insert_data(Arc::new(namespaces::UnitCapture {
+                identity: namespaces::IDENTITY.into(),
+                imports,
+                declarations: Vec::new(),
+                unsupported: Vec::new(),
+            }));
     }
 }
 

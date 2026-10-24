@@ -924,3 +924,41 @@ Clippy pass; rstyle0/6027 functions, patterns0 with15 unchanged ignores. Logs:
 `/tmp/rstyle-414-{tests.log,clippy.log,style.json,patterns.log,fmt.log}`.
 The four time error-conversion originals remain the next connected target;
 their foreign namespace/static ownership/payload/conversion blockers persist.
+
+### Data3.100: checked anonymous dependency namespaces
+
+From4c32731, connect unit-local typed namespace capture, checked direct Cargo
+artifact ownership and independent producer/consumer source receipts. The exact
+unattributed direct glob can discharge lexical ambiguity in import and cleanup
+checks; every other import/item remains checked. Generated/block-local/grouped
+uses cannot borrow its receipt. Source caches retain owning evidence and separate
+namespace capability/verification contexts. Routine checks use cached XXH3;
+namespace duplicate detection now uses typed keys rather than JSON serialization.
+[Bounded contract](extraction-profiles/anonymous-dependency-namespaces-v1.md).
+
+Development constructor/getter/roundtrip-helper composition admits, matches and
+strictly replays; unselected owners and neighboring/grouped unknown globs reject.
+Independent source adversaries cover root/consumer attributes and resealed
+spans/routes/identities. Native default-parsing capture of unchanged time0.3.47
+plus num-conv0.2.0 completes1,363 definitions (time1,288, num-conv74, probe1).
+Strict replay preserves all outcomes/reasons; all10 original anonymous prelude
+footprints prove. The four selected error conversions remain excluded. A natural
+admission delta is unavailable: preceding time diagnostics were capture-only and
+incomplete. Pair matching is explicitly budget-incomplete in this large roster.
+Evidence: `target/time-error-conversions-416/native-default-namespace/` and
+`/tmp/rstyle-416-{time-assessment.json,original-namespace-proofs.json}`.
+
+Remaining connected blockers: source-spelled static-string/complete Copy value
+ownership, foreign generated time_core::convert and remaining local globs/macros,
+guarded nominal payload origins, then exact conversion-member summaries. The
+namespace prerequisite is integrated; do not stack further observation-only
+increments or claim the natural family is delivered. Next source work must prove
+the actual generated export footprint, while value work begins with the existing
+Copy-component diagnostic rather than a general destructor model.
+
+Frozen run-0a45q0bd preserves all60 identities, denominators, semantic records,
+reasons and blocker combinations:24 admitted/29 excluded/7 inactive, gain0/loss0,
+118 schema checks. All1,807 tests/5 existing skips plus doctests pass; fmt and
+warning-denied locked Clippy pass, style0/6,113 and patterns0/15 unchanged ignores.
+Suite observations: constructor composition1.442s, six-context stored slices9.384s;
+no speedup claim. Logs: `/tmp/rstyle-416-{tests2.log,clippy-final3.log,style-final.json,patterns.log,frozen.log,frozen-comparison.json}`.

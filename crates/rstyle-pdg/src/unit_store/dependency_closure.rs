@@ -98,6 +98,7 @@ impl Inputs<'_> {
 
 struct Plan {
     dependencies: Vec<Vec<usize>>,
+    namespace_associations: Vec<Vec<Value>>,
     links: Vec<Vec<BTreeMap<Site, ExternalTarget>>>,
     instances: Vec<BTreeMap<super::instance_links::Key, usize>>,
 }
@@ -163,6 +164,7 @@ impl Plan {
         unique_namespaces(units)?;
         let mut plan = Self {
             dependencies: vec![Vec::new(); units.len()],
+            namespace_associations: vec![Vec::new(); units.len()],
             instances: vec![BTreeMap::new(); units.len()],
             links: units
                 .iter()
@@ -188,6 +190,7 @@ impl Plan {
                 return Err("Self or duplicate compiled dependency association".into());
             }
             plan.dependencies[caller].push(callee);
+            plan.namespace_associations[caller].push(association["compiled_dependency"].clone());
         }
 
         let definitions = units
@@ -355,11 +358,32 @@ fn rebuild(
     }
 
     let mut builder = Builder::in_namespace(store.functions, store.namespace)?;
-    builder.store.dependencies = linked_dependencies(index, plan, completed)?;
+    install_dependency_owners(&mut builder, index, plan, completed)?;
 
     builder.store.external_links = plan.links[index].clone();
     builder.dependencies = dependency_analyses(&builder.store.dependencies);
     builder.capture()
+}
+
+fn install_dependency_owners(
+    builder: &mut Builder,
+    index: usize,
+    plan: &Plan,
+    completed: &[Option<Arc<UnitStore>>],
+) -> Result<(), String> {
+    builder.store.dependencies = linked_dependencies(index, plan, completed)?;
+    builder.store.namespace_associations = plan.namespace_associations[index]
+        .iter()
+        .enumerate()
+        .map(
+            |(dependency, observation)| dependency_namespaces::Association {
+                dependency,
+                compiled_dependency: observation.clone(),
+            },
+        )
+        .collect();
+
+    Ok(())
 }
 
 fn linked_dependencies(
@@ -406,12 +430,14 @@ mod tests {
     fn dependency_schedule_orders_a_diamond_and_rejects_cycles() {
         let plan = Plan {
             dependencies: vec![vec![1, 2], vec![3], vec![3], vec![]],
+            namespace_associations: Vec::new(),
             links: Vec::new(),
             instances: Vec::new(),
         };
         assert_eq!(plan.order().unwrap(), vec![3, 1, 2, 0]);
         let cycle = Plan {
             dependencies: vec![vec![1], vec![0]],
+            namespace_associations: Vec::new(),
             links: Vec::new(),
             instances: Vec::new(),
         };

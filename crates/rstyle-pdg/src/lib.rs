@@ -51,6 +51,7 @@ pub mod data_types;
 mod data_value_fields;
 pub mod declaration_origins;
 pub(crate) mod default_calls;
+pub mod dependency_namespaces;
 pub mod diagnostics;
 pub mod eligibility;
 mod evidence_budget;

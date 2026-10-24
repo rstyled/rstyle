@@ -66,6 +66,7 @@ fn verify_mode(
     let cfgs = &facts.build.cfgs;
 
     let mut visitor = Closure {
+        dependency_sources: Some(environment),
         configuration: crate::conditional_source::Configuration::new(cfgs),
         edition: facts.build.edition.known_value(),
         library: crate::data_library::registry_for(facts),
@@ -364,6 +365,7 @@ fn inspect_policy(
         edition,
     } = policy;
     let mut visitor = Closure {
+        dependency_sources: None,
         configuration: crate::conditional_source::Configuration::new(cfgs),
         edition,
         library,
@@ -404,6 +406,7 @@ fn shadows_primitive(item: &syn::Item) -> bool {
 }
 
 struct Closure<'a> {
+    dependency_sources: Option<&'a Environment>,
     configuration: crate::conditional_source::Configuration<'a>,
     edition: Option<&'a str>,
     library: Option<&'static crate::data_library::Registry>,
@@ -541,6 +544,9 @@ impl Closure<'_> {
         }
     }
     fn scope_import(&self, item: &syn::ItemUse, scope: &mut BTreeMap<String, bool>) {
+        if self.anonymous_import(item) {
+            return;
+        }
         self.enums.bindings(&item.tree, &[], scope);
         library_macros::bindings(&item.tree, &[], scope, self.library);
         if self.enums.closed_imports && item.leading_colon.is_none() {
@@ -730,6 +736,9 @@ impl Closure<'_> {
         Ok(())
     }
     fn collect_import(&mut self, item: &syn::ItemUse) -> Result<(), String> {
+        if self.anonymous_import(item) {
+            return Ok(());
+        }
         if self.scalar_bindings
             && self.generated_context > 0
             && source_imports::has_glob(&item.tree)
@@ -763,6 +772,13 @@ impl Closure<'_> {
         import_authority(&item.tree, Vec::new(), self.library, &self.enums)?;
         self.names.import(&item.tree)?;
         Ok(())
+    }
+    fn anonymous_import(&self, item: &syn::ItemUse) -> bool {
+        self.generated_context == 0
+            && self.nested_context == 0
+            && self
+                .dependency_sources
+                .is_some_and(|environment| environment.anonymous_use(&self.enums.namespace, item))
     }
     fn collect_reference_import(&mut self, item: &syn::ItemUse) {
         for (name, _) in source_imports::bindings(&item.tree) {

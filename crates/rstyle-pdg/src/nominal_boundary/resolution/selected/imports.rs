@@ -139,6 +139,9 @@ fn verify_binding(
         target,
     } = original;
     if name.starts_with("*::") {
+        if environment.anonymous_glob(scope, target) {
+            return Ok(());
+        }
         if !ancestors {
             return Err("Scalar leaf has an unresolved local glob import".into());
         }
@@ -409,7 +412,7 @@ fn library_root_imports(
         if name == root {
             return Err("Selected library root has an imported source binding".into());
         }
-        if name.starts_with("*::") {
+        if name.starts_with("*::") && !environment.anonymous_glob(scope, target) {
             glob(environment, target, configuration)?;
         }
     }

@@ -49,6 +49,8 @@ impl<T> Checked<T> {
 #[derive(Default)]
 pub(super) struct Sources {
     contexts: RefCell<Vec<SourceContext>>,
+    dependency_namespace_capture:
+        OnceCell<Result<Option<Arc<crate::dependency_namespaces::capture::UnitCapture>>, String>>,
     generated_capture:
         OnceCell<Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String>>,
 }
@@ -56,19 +58,11 @@ pub(super) struct Sources {
 fn unit_generated_capture(
     functions: &[HirFnFacts],
 ) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
-    let mut selected = None;
-    for facts in functions {
-        let Some(capture) = facts.generated_source_capture()? else {
-            continue;
-        };
-        if selected.is_some() {
-            return Err(
-                "Owning unit has duplicate or conflicting generated-source captures".into(),
-            );
-        }
-        selected = Some(capture);
-    }
-    Ok(selected)
+    crate::frontend::unit_records::single(
+        functions,
+        |facts| facts.generated_source_capture(),
+        "Owning unit has duplicate or conflicting generated-source captures",
+    )
 }
 
 struct SourceContext {
@@ -76,25 +70,56 @@ struct SourceContext {
     constants: bool,
     expansions: bool,
     module_lints: bool,
+    dependency_owner: bool,
+    namespace_capability: bool,
     cfgs: Option<Vec<String>>,
     checked: Checked<Result<Rc<Environment>, String>>,
 }
 
+impl SourceContext {
+    fn environment(&self, input: Option<&dyn EvidenceFacts>) -> Result<Rc<Environment>, String> {
+        let environment = Environment::with_source_options(
+            Arc::clone(&self.census),
+            SourcePolicy {
+                constants: self.constants,
+                cfgs: self.cfgs.as_deref(),
+                expansions: self.expansions,
+                module_lints: self.module_lints,
+            },
+        )?;
+        let environment = match input {
+            Some(input) => environment.with_dependency_namespaces(input)?,
+            None => environment,
+        };
+        Ok(Rc::new(environment))
+    }
+}
+
 impl Sources {
+    pub(super) fn dependency_namespace_capture(
+        &self,
+        functions: &[HirFnFacts],
+    ) -> Result<Option<Arc<crate::dependency_namespaces::capture::UnitCapture>>, String> {
+        crate::frontend::unit_records::retained(&self.dependency_namespace_capture, || {
+            crate::dependency_namespaces::unit_capture(functions)
+        })
+    }
+
     /// One scan of the immutable owning table, independent of nominal resolution.
     pub(super) fn generated_capture(
         &self,
         functions: &[HirFnFacts],
     ) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
-        self.generated_capture
-            .get_or_init(|| unit_generated_capture(functions))
-            .clone()
+        crate::frontend::unit_records::retained(&self.generated_capture, || {
+            unit_generated_capture(functions)
+        })
     }
 
-    fn environment(&self, facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
+    fn environment(&self, input: &dyn EvidenceFacts) -> Result<Rc<Environment>, String> {
+        let facts = input.facts();
         crate::nominal_boundary::census::policy::authority(facts)?;
         let census = facts.build.frontend_options.data::<Arc<Census>>()?;
-        self.for_census(
+        self.for_input(
             &census,
             SourcePolicy {
                 constants: crate::nominal_boundary::resolution::constant_context(facts)?,
@@ -108,13 +133,24 @@ impl Sources {
                     crate::concrete_types::EXPLICIT_U8_CAPABILITY,
                 ),
             },
+            Some(input),
         )
     }
 
+    #[cfg(test)]
     fn for_census(
         &self,
         census: &Arc<Census>,
         policy: SourcePolicy<'_>,
+    ) -> Result<Rc<Environment>, String> {
+        self.for_input(census, policy, None)
+    }
+
+    fn for_input(
+        &self,
+        census: &Arc<Census>,
+        policy: SourcePolicy<'_>,
+        input: Option<&dyn EvidenceFacts>,
     ) -> Result<Rc<Environment>, String> {
         let SourcePolicy {
             constants,
@@ -122,12 +158,21 @@ impl Sources {
             expansions,
             module_lints,
         } = policy;
+        let namespace_capability = input.is_some_and(|input| {
+            crate::extraction_profile::facts_support(
+                input.facts(),
+                crate::dependency_namespaces::CAPABILITY,
+            )
+        });
+
         let mut contexts = self.contexts.borrow_mut();
         let index = if let Some(index) = contexts.iter().position(|context| {
             Arc::ptr_eq(&context.census, census)
                 && context.constants == constants
                 && context.expansions == expansions
                 && context.module_lints == module_lints
+                && context.dependency_owner == input.is_some()
+                && context.namespace_capability == namespace_capability
                 && context.cfgs.as_deref() == cfgs
         }) {
             index
@@ -137,25 +182,17 @@ impl Sources {
                 constants,
                 expansions,
                 module_lints,
+                dependency_owner: input.is_some(),
+                namespace_capability,
                 cfgs: cfgs.map(<[String]>::to_vec),
                 checked: Checked::default(),
             });
             contexts.len() - 1
         };
-        contexts[index]
+        let context = &contexts[index];
+        context
             .checked
-            .get(|| {
-                Ok(Environment::with_source_options(
-                    Arc::clone(census),
-                    SourcePolicy {
-                        constants,
-                        cfgs,
-                        expansions,
-                        module_lints,
-                    },
-                )
-                .map(Rc::new))
-            })?
+            .get(|| Ok(context.environment(input)))?
             .as_ref()
             .map(Rc::clone)
             .map_err(Clone::clone)
@@ -175,7 +212,7 @@ impl Sources {
             .build
             .frontend_options
             .data::<crate::concrete_types::InterfaceObservations>()?;
-        crate::nominal_boundary::resolution::verify_in(input, &interface, self.environment(facts)?)
+        crate::nominal_boundary::resolution::verify_in(input, &interface, self.environment(input)?)
     }
 }
 
@@ -235,7 +272,7 @@ impl FunctionView<'_> {
         }
         self.resolver
             .sources()
-            .environment(self.facts())?
+            .environment(self)?
             .check_input_owner(self.facts())
     }
 
@@ -266,7 +303,7 @@ impl FunctionView<'_> {
     pub(super) fn option_type(&self, path: &syn::TypePath, scalar: &str) -> Result<(), String> {
         self.resolver
             .sources()
-            .environment(self.facts())?
+            .environment(self)?
             .verify_option_type(self.facts(), path, scalar)
     }
 
@@ -333,6 +370,41 @@ mod tests {
             )
             .unwrap();
         assert!(!Rc::ptr_eq(&ordinary, &linted));
+    }
+
+    #[test]
+    fn dependency_namespace_capability_is_part_of_the_source_cache_context() {
+        let census = crate::nominal_boundary::resolution::environment::tests::census();
+        let mut current: HirFnFacts = serde_json::from_str(include_str!(
+            "../nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
+        ))
+        .unwrap();
+        current.build.frontend_options.clear();
+        current.build.frontend_options.insert(
+            crate::extraction_profile::SELECTION_KEY.into(),
+            "hir-data-v3".into(),
+        );
+        let mut historical = current.clone();
+        historical.build.frontend_options.insert(
+            crate::extraction_profile::SELECTION_KEY.into(),
+            "hir-data-v2".into(),
+        );
+        for (first, second) in [(&current, &historical), (&historical, &current)] {
+            let sources = Sources::default();
+            let one = sources
+                .for_input(&census, policy(false), Some(first))
+                .unwrap();
+            let two = sources
+                .for_input(&census, policy(false), Some(second))
+                .unwrap();
+            assert!(!Rc::ptr_eq(&one, &two));
+            assert!(Rc::ptr_eq(
+                &one,
+                &sources
+                    .for_input(&census, policy(false), Some(first))
+                    .unwrap()
+            ));
+        }
     }
 
     #[test]

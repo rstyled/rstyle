@@ -44,6 +44,14 @@ pub(super) fn dependency(tcx: TyCtxt<'_>, callee: DefId) -> Option<Dependency> {
     external_artifact(tcx, callee)
 }
 
+/// Observe the artifact supplying a foreign namespace, without callable authority.
+pub(super) fn namespace_artifact(tcx: TyCtxt<'_>, module: DefId) -> Option<Dependency> {
+    if module.is_local() || tcx.def_kind(module) != rustc_hir::def::DefKind::Mod {
+        return None;
+    }
+    external_artifact(tcx, module)
+}
+
 /// The artifact identifies a compiled crate, independently of its function's
 /// scalar substitution. This observation grants no generic helper permission.
 pub(super) fn scalar_dependency<'tcx>(

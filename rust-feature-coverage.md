@@ -5230,3 +5230,12 @@ denominators and blockers;118 schema checks pass. All1,773 tests/five existing
 skips, doctests, fmt/Clippy, style0/6,025 and patterns0/15 unchanged ignores pass.
 No new SHA or serialized lookup keys; unrelated source lookups avoid the eager
 whole-HIR transport scan. Broad P01–P22 work remains active.
+
+Data3.100 connects checked direct dependency owners to the exact original
+anonymous `num-conv` prelude footprint. Constructor/getter/helper composition,
+matching and strict replay pass in development; all10 original `time` import
+footprints prove. The four selected error conversions still exclude behind
+value/ownership and payload-shape blockers; no natural-family admission gain is
+claimed. Frozen60 remains24/29/7 with identical identities, denominators and
+reasons. [Contract](docs/extraction-profiles/anonymous-dependency-namespaces-v1.md);
+[validation and remaining chain](docs/rust-support-execution.md).

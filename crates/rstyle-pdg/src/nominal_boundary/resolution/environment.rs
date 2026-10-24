@@ -1,6 +1,7 @@
 //! Checked original source snapshots and lexical tables for one immutable census.
 use super::*;
 use std::path::Path;
+mod dependency_namespaces;
 mod functions;
 
 #[derive(Clone, Copy)]
@@ -24,6 +25,7 @@ pub(crate) struct Environment {
     pub(super) index: Index,
     pub(super) copy_boundary: bool,
     cleanup_sources: std::cell::RefCell<std::collections::BTreeSet<CleanupSource>>,
+    dependency_namespaces: dependency_namespaces::Namespaces,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -142,6 +144,7 @@ impl Environment {
             index,
             copy_boundary,
             cleanup_sources: Default::default(),
+            dependency_namespaces: Default::default(),
         })
     }
 

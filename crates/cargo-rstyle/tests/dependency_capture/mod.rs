@@ -1,4 +1,5 @@
 //! Explicit dependency capture preserves unit boundaries without granting call trust.
+mod namespaces;
 mod replay;
 mod scalar_instances;
 use super::*;

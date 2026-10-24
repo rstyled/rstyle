@@ -4,6 +4,136 @@ mod fixture;
 use fixture::{Fixture, native_metadata};
 
 #[test]
+fn import_only_dependency_seals_the_exact_artifact_without_direct_calls() {
+    let mut fixture = Fixture::new();
+    fixture.install_namespaces(vec![fixture.namespace_import()]);
+    fixture.functions[0][0].body.res = None;
+    let edges = fixture.run().unwrap();
+    assert_eq!(edges.len(), 1);
+    assert_eq!(edges[0]["extern_alias"], "renamed");
+    assert_eq!(
+        edges[0]["artifact"]["checksum"],
+        rstyle_pdg::unit_store::transport_checksum(&native_metadata())
+    );
+}
+
+#[test]
+fn anonymous_imports_and_calls_share_one_checked_artifact_edge() {
+    let mut fixture = Fixture::new();
+    let mut first = fixture.namespace_import();
+    first.site.binding = namespaces::Binding::Anonymous;
+    let mut second = first.clone();
+    second.site.definition.definition_identity = "second-import-id".into();
+    fixture.install_namespaces(vec![first, second]);
+    assert_eq!(fixture.run().unwrap().len(), 1);
+    fixture.functions[0][0].body.res = None;
+    assert_eq!(fixture.run().unwrap().len(), 1);
+}
+
+#[test]
+fn namespace_and_call_records_cannot_disagree_on_one_edge() {
+    let mut fixture = Fixture::new();
+    fixture.install_namespaces(vec![fixture.namespace_import()]);
+    fixture.change_foreign(|resolution| {
+        resolution["compiled_dependency"]["crate_hash"] = json!("conflicting-hash");
+    });
+    assert!(
+        fixture
+            .run()
+            .unwrap_err()
+            .contains("Conflicting compiled dependency")
+    );
+}
+
+#[test]
+fn namespace_artifacts_reject_wrong_identity_alias_path_and_missing_owner() {
+    for (field, value) in [
+        ("identity", json!("wrong")),
+        ("stable_crate_id", json!("wrong")),
+        ("crate_name", json!("wrong")),
+        ("rmeta", json!("/wrong.rmeta")),
+    ] {
+        let mut fixture = Fixture::new();
+        let mut import = fixture.namespace_import();
+        import.compiled_dependency[field] = value;
+        fixture.install_namespaces(vec![import]);
+        fixture.functions[0][0].body.res = None;
+        assert!(fixture.run().is_err(), "{field}");
+    }
+    let mut fixture = Fixture::new();
+    fixture.install_namespaces(vec![fixture.namespace_import()]);
+    fixture.functions[0][0].body.res = None;
+    fixture.graph["units"][0]["dependencies"][0]["extern_crate_name"] = json!("wrong");
+    assert!(fixture.run().is_err());
+    let mut fixture = Fixture::new();
+    fixture.install_namespaces(vec![fixture.namespace_import()]);
+    fixture.functions[0][0].body.res = None;
+    fixture.functions[1].clear();
+    assert!(fixture.run().is_err());
+}
+
+#[test]
+fn malformed_unknown_and_repeated_unit_namespace_records_reject() {
+    let mut fixture = Fixture::new();
+    fixture.functions[0][0]
+        .build
+        .frontend_options
+        .insert(namespaces::KEY.into(), json!({"malformed":true}));
+    assert!(fixture.run().is_err());
+    let mut fixture = Fixture::new();
+    fixture.install_namespaces(vec![fixture.namespace_import()]);
+    let options = &mut fixture.functions[0][0].build.frontend_options;
+    let mut changed = options.get(namespaces::KEY).unwrap().clone();
+    changed["identity"] = json!("wrong");
+    options.insert(namespaces::KEY.into(), changed);
+    assert!(fixture.run().is_err());
+    let mut fixture = Fixture::new();
+    fixture.install_namespaces(vec![fixture.namespace_import()]);
+    let repeated = fixture.functions[0][0].clone();
+    fixture.functions[0].push(repeated);
+    assert!(fixture.run().is_err());
+}
+
+#[test]
+fn repeated_namespace_imports_cannot_hide_conflicting_artifact_records() {
+    let mut fixture = Fixture::new();
+    let first = fixture.namespace_import();
+    let mut second = first.clone();
+    second.compiled_dependency["crate_hash"] = json!("conflicting-hash");
+    fixture.install_namespaces(vec![first, second]);
+    fixture.functions[0][0].body.res = None;
+    assert!(
+        fixture
+            .run()
+            .unwrap_err()
+            .contains("Conflicting compiled dependency")
+    );
+}
+
+#[test]
+fn unselected_namespace_owner_remains_unassociated() {
+    let mut fixture = Fixture::new();
+    let mut import = fixture.namespace_import();
+    import.site.target.crate_name = "unselected".into();
+    import.compiled_dependency["crate_name"] = json!("unselected");
+    fixture.install_namespaces(vec![import]);
+    fixture.functions[0][0].body.res = None;
+    assert!(fixture.run().unwrap().is_empty());
+}
+
+#[test]
+fn incomplete_namespace_export_observations_still_check_artifact_context() {
+    let mut fixture = Fixture::new();
+    let mut import = fixture.namespace_import();
+    import.complete = false;
+    fixture.install_namespaces(vec![import]);
+    fixture.functions[0][0].body.res = None;
+    assert_eq!(fixture.run().unwrap().len(), 1);
+    fixture.graph["units"][0]["dependencies"][0]["extern_crate_name"] = json!("wrong");
+    assert!(fixture.run().is_err());
+}
+
+#[test]
 fn exact_renamed_dependency_seals_emitted_bytes_once_per_edge() {
     let mut fixture = Fixture::new();
     let repeated = fixture.functions[0][0].clone();
