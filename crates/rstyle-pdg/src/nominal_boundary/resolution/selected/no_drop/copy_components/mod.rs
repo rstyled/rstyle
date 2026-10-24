@@ -1,6 +1,6 @@
 //! Positive Copy/source proof with an exact, private static-string product receipt.
 mod shape;
-mod source;
+pub(super) mod source;
 #[cfg(test)]
 mod tests;
 
@@ -13,17 +13,37 @@ pub(in crate::nominal_boundary::resolution) const CAPABILITY: &str =
 
 /// Regions are erased in TypeTree. Only the original declaration, complete
 /// recursive Copy proof and source closure may mint this local permission.
-pub(in crate::nominal_boundary::resolution) struct CheckedProduct(TypeTree);
+pub(in crate::nominal_boundary::resolution) struct CheckedProduct<'a> {
+    tree: TypeTree,
+    constructor: Option<super::copy_constructor_sites::CheckedSite<'a>>,
+}
 
-impl CheckedProduct {
+impl CheckedProduct<'_> {
     pub(in crate::nominal_boundary::resolution) fn permits(&self, tree: &TypeTree) -> bool {
-        &self.0 == tree
+        &self.tree == tree
+    }
+
+    pub(in crate::nominal_boundary::resolution) fn constructor_namespace(
+        &self,
+        facts: &HirFnFacts,
+        namespace: &[String],
+    ) -> Result<bool, String> {
+        let Some(site) = &self.constructor else {
+            return Ok(false);
+        };
+        if !site.permits(facts, &self.tree, namespace) {
+            return Err("Copy constructor site does not prove this declaration namespace".into());
+        }
+        Ok(true)
     }
 
     pub(in crate::nominal_boundary::resolution) fn cleanup(&self) -> CheckedNoDrop {
+        if let Some(site) = &self.constructor {
+            return site.cleanup();
+        }
         CheckedNoDrop {
             nominal: self
-                .0
+                .tree
                 .nominal_parts()
                 .expect("Checked product nominal")
                 .0
@@ -44,12 +64,12 @@ pub(in crate::nominal_boundary::resolution) fn required(tree: &TypeTree) -> bool
     }) && concrete_types::lifetimes::declaration_count(source) == Ok(0)
 }
 
-pub(in crate::nominal_boundary::resolution) fn verify_product(
-    facts: &HirFnFacts,
+pub(in crate::nominal_boundary::resolution) fn verify_product<'a>(
+    facts: &'a HirFnFacts,
     resolution: &Resolution,
     origins: &Origins,
     tree: &TypeTree,
-) -> Result<Option<CheckedProduct>, String> {
+) -> Result<Option<CheckedProduct<'a>>, String> {
     if !required(tree) {
         return Ok(None);
     }
@@ -61,6 +81,15 @@ pub(in crate::nominal_boundary::resolution) fn verify_product(
     }
     if !shape::supported(tree) {
         return Err("Static string product has unsupported complete components".into());
+    }
+
+    if supports(facts, "rust.checked-copy-constructor-sites")?
+        && let Ok(site) = super::copy_constructor_sites::capture(facts, resolution, origins, tree)
+    {
+        return Ok(Some(CheckedProduct {
+            tree: tree.clone(),
+            constructor: Some(site),
+        }));
     }
 
     let mut checker = Checker {
@@ -77,7 +106,10 @@ pub(in crate::nominal_boundary::resolution) fn verify_product(
         .frontend_options
         .data::<InterfaceObservations>()?;
     source::parameters(&function, &interface)?;
-    Ok(Some(CheckedProduct(tree.clone())))
+    Ok(Some(CheckedProduct {
+        tree: tree.clone(),
+        constructor: None,
+    }))
 }
 
 /// Every interface observation must be complete. Result carriers are inspected

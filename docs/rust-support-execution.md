@@ -999,3 +999,64 @@ reasons with complete capture/assessment; large-roster matching remains incomple
 Fresh frozen run-b2ehei6f preserves all60 identities, denominators, semantic records
 and blocker combinations:24 admitted/29 excluded/7 inactive, gain0/loss0;
 118 schema checks pass. Logs: `/tmp/rstyle-417-{tests-final.log,clippy-final4.log,style-final.json,patterns-final.log,frozen-final.log,frozen-comparison.json,time-replay-comparison.json}`.
+
+
+### Data3.102: exact Copy error constructor sites
+
+Reassessment replaces the constructor's coarse whole-unit cleanup traversal with
+separate target and use-site receipts. Actual time0.3.47 ComponentRange has two
+fields (static str/bool); the old i64 range-field shape is not this selection.
+Exact positive Copy excludes target Drop in a complete successful compilation;
+original declaration, static lifetime, full constructor source/HIR, literal flag,
+formal identity, active attributes and inherent/declaration namespace all prove
+independently. Target cleanup never substitutes for global namespace closure.
+Out-of-module impls, unknown neighbors/callers and historical policies remain
+closed. No new SHA, serialized lookup key, scoring change or ignore.
+[Contract](extraction-profiles/copy-constructor-sites-v1.md).
+
+Explicitly supplying time-core first produced three common-original gains:
+Month::length and time's days_in_month/days_in_year_month. Common original
+selection1,363 advanced6→9, zero losses; added44 dependency definitions are a
+separate denominator (11 admitted). A Gregorian table/modulo oracle checks19,308
+cases/57,924 API comparisons with zero mismatches. The constructor increment then
+gains exactly ComponentRange::{unconditional,conditional} on the unchanged expanded
+selection1,407:20→22 admitted, zero losses. Strict replay preserves all identities,
+outcomes/reasons, completes capture/assessment and all231 pairs. Public/private
+error-flow witnesses pass7/15 cases per default/no-default parsing context,
+including exact backing, lengths, flags and negative tags. New native Cargo tests
+cover unknown siblings with Drop, out-of-module impls, old policies, forged Copy,
+trait/nominal identity, literals, local selectors and hidden HIR work.
+
+The generated namespace preparation is retained as test-only source/export/roster
+proof. Independent original capture audit consumes1,010 emitted definitions,
+33 expansions and16 exports; focused adversaries pass. It grants no production
+namespace permission. The unactivated full-module wrapper still encounters
+another source attribute restriction. Do not rerun the bounded roster per import
+when connecting it later; retain one immutable producer receipt and bind exact
+consumer sites separately. Evidence: `/tmp/rstyle-418-original-roster-final.log`.
+
+Next connected target: original From<ComponentRange> for TryFromParsed, inverse
+TryFrom, and their source-selected caller. All known prerequisites remain explicit:
+static-reference mixed-enum vocabulary; exact nested positive Copy and nominal
+unit DifferentVariant cleanup; variant construction, saved tag, guarded whole
+payload binding and wildcard complement; Result<ComponentRange,DifferentVariant>;
+tag-specific origins and independent document/helper component reconstruction;
+selected core trait/member/associated Error evidence and caller linking. Current
+origin handling has no MixedEnum selector: enabling syntax first would silently
+lose reference dependencies. No blanket enum/Result activation is justified.
+
+Coordinated next write assignments: parent owns TypeTree/token/origin/producer and
+shared summary interfaces; source lane owns new copy_conversion_sites receipts;
+value lane owns a bounded copy_tagged_values subtree with independent semantic
+expectations; callable lane audits exact selected trait-member/caller linking;
+namespace lane connects the retained proof only if this target actually needs it.
+Freeze the guarded component interface before production edits; no new observation
+catalogue or generic solver is a prerequisite for these exact originals.
+
+Checkpoint: all1,830 tests/5 existing skips plus doctests pass; fmt and locked
+warning-denied Clippy pass, style0/6,147 and patterns0/15 unchanged ignores.
+Final strict replay preserves all1,407 identities/outcomes/reasons and completes
+all231 pairs. Frozen run-y_jf65v0 vs run-b2ehei6f preserves all60 identities,
+denominators, semantic records and blocker combinations:24 admitted/29 excluded/
+7 inactive, gain0/loss0. Evidence:
+`/tmp/rstyle-418-{natural-final-comparison.json,original-oracle.log,tests-final2.log,clippy-final.log,style-final2.json,patterns-final2.log,frozen-comparison.json}`.

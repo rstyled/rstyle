@@ -5250,3 +5250,13 @@ foreign generated export/source boundary. Complete conversion-family admission
 still requires that source chain and nominal payload/member summaries.
 [Contract](docs/extraction-profiles/static-string-copy-products-v1.md) and
 [validation/frontier](docs/rust-support-execution.md).
+
+Data3.102 adds exact constructor-site proof for unchanged
+`ComponentRange::{unconditional,conditional}`. Positive Copy proves target
+cleanup; separately checked complete source/HIR bodies prove only their own
+namespaces. Neighboring functions retain source/effect barriers. The unchanged
+1,407-definition development selection gains exactly those two admissions:
+20→22, zero losses; strict replay preserves outcomes/reasons and completes all231
+pairs. This does not complete the error-conversion family: tag-specific payload
+origins, nominal Result flow and selected trait-member summaries remain connected
+prerequisites. [Contract](docs/extraction-profiles/copy-constructor-sites-v1.md).

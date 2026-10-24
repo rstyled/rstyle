@@ -104,7 +104,9 @@ fn field_type(source: &syn::Type, tree: &TypeTree) -> Result<(), String> {
     }
 }
 
-fn static_str(reference: &syn::TypeReference) -> Result<(), String> {
+pub(in crate::nominal_boundary::resolution::selected::no_drop) fn static_str(
+    reference: &syn::TypeReference,
+) -> Result<(), String> {
     if reference.mutability.is_some()
         || reference
             .lifetime

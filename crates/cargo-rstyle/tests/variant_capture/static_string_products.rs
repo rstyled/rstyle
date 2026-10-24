@@ -78,15 +78,20 @@ fn static_string_copy_products_preserve_supplied_reference_components() {
 #[test]
 fn static_string_product_activation_keeps_unknown_ownership_and_history_closed() {
     let directory = clone_workspace();
-    for (source, profile) in [
-        (SOURCE.replace("#[derive(Clone, Copy)]", ""), "hir-data-v3"),
+    for (source, profile, constructor) in [
+        (
+            SOURCE.replace("#[derive(Clone, Copy)]", ""),
+            "hir-data-v3",
+            false,
+        ),
         (
             format!(
                 "{SOURCE}\nmacro_rules! neighbor {{ () => {{ const N:u8=0; }}; ($x:ident) => {{ struct $x; }}; }} neighbor!();"
             ),
             "hir-data-v3",
+            true,
         ),
-        (SOURCE.to_owned(), "hir-data-v2"),
+        (SOURCE.to_owned(), "hir-data-v2", false),
     ] {
         std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
         let (output, report) = clones(directory.path(), &["--extraction-profile", profile]);
@@ -98,7 +103,12 @@ fn static_string_product_activation_keeps_unknown_ownership_and_history_closed()
         for name in ["Named::new", "caller", "saved", "paired"] {
             let entry = function(&report, name);
             assert_eq!(
-                entry["outcome"], "excluded",
+                entry["outcome"],
+                if constructor && name == "Named::new" {
+                    "admitted"
+                } else {
+                    "excluded"
+                },
                 "{profile}: {name}: {}",
                 entry["reasons"]
             );

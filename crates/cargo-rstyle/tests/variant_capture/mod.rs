@@ -21,6 +21,7 @@ mod checked_index_construction;
 mod checked_lengths;
 mod classifiers;
 mod constructor_maps;
+mod copy_constructor_sites;
 mod corruption;
 mod documentation_inputs;
 mod end_of_input;

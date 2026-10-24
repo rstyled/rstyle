@@ -80,24 +80,7 @@ pub(crate) fn verify_document_policy(
     crate::nominal_boundary::resolution::tryfrom_owners::verify_document_policy(profile, facts)?;
     crate::nominal_boundary::resolution::value_traits::verify_document_policy(profile, facts)?;
     verify_value_document_policy(profile, facts)?;
-    let capabilities = [
-        crate::helper_stored_slices::CAPABILITY,
-        "rust.passive-copy-dependencies",
-        "rust.borrowed-mixed-owners",
-        "rust.scoped-nominal-imports",
-        "rust.copy-array-fields",
-        "rust.scalar-enum-values",
-        "rust.borrowed-array-views",
-        "rust.accelerator-packing",
-        "rust.borrowed-copy-child-fields",
-        crate::fieldless_enums::CAPABILITY,
-        "rust.checked-copy-owner-source",
-        "rust.static-string-copy-products",
-    ];
-    if capabilities
-        .iter()
-        .all(|capability| crate::extraction_profile::policy_supports(profile, capability))
-    {
+    if complete_nominal_policy(profile) {
         return Ok(());
     }
 
@@ -118,6 +101,27 @@ pub(crate) fn verify_document_policy(
         verify_nominal_policy(profile, &resolution)?;
     }
     Ok(())
+}
+
+fn complete_nominal_policy(profile: &crate::ProfileId) -> bool {
+    let capabilities = [
+        crate::helper_stored_slices::CAPABILITY,
+        "rust.passive-copy-dependencies",
+        "rust.borrowed-mixed-owners",
+        "rust.scoped-nominal-imports",
+        "rust.copy-array-fields",
+        "rust.scalar-enum-values",
+        "rust.borrowed-array-views",
+        "rust.accelerator-packing",
+        "rust.borrowed-copy-child-fields",
+        crate::fieldless_enums::CAPABILITY,
+        "rust.checked-copy-owner-source",
+        "rust.static-string-copy-products",
+        "rust.checked-copy-constructor-sites",
+    ];
+    capabilities
+        .iter()
+        .all(|capability| crate::extraction_profile::policy_supports(profile, capability))
 }
 
 fn verify_value_document_policy(
@@ -233,6 +237,12 @@ fn verify_source_owner_policy(
         "rust.static-string-copy-products",
         || resolution.requires_static_string_products(),
         "Static string Copy products require their registered document policy",
+    )?;
+    crate::extraction_profile::require_document(
+        profile,
+        "rust.checked-copy-constructor-sites",
+        || resolution.requires_copy_constructor_sites(),
+        "Copy constructor sites require their registered document policy",
     )
 }
 

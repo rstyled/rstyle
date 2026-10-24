@@ -28,6 +28,7 @@ pub(super) struct Selection {
 pub(super) struct SourceRequirements {
     pub passive_dependencies: bool,
     pub static_string_products: bool,
+    pub copy_constructor_sites: bool,
 }
 
 impl SourceRequirements {
@@ -35,6 +36,7 @@ impl SourceRequirements {
         Self {
             passive_dependencies: self.passive_dependencies || checked.passive_dependencies,
             static_string_products: self.static_string_products || checked.static_string_products,
+            copy_constructor_sites: self.copy_constructor_sites || checked.copy_constructor_sites,
         }
     }
 }
@@ -93,6 +95,12 @@ struct CheckedDeclaration {
     no_drop: bool,
     passive_dependencies: bool,
     static_string_products: bool,
+    copy_constructor_sites: bool,
+}
+
+struct DeclarationCleanup<'a> {
+    copy: bool,
+    certificate: Option<&'a no_drop::CheckedNoDrop>,
 }
 
 impl Selection {
@@ -127,6 +135,15 @@ impl DeclarationChecker<'_> {
         if matches!(tree, TypeTree::GeneratedStruct { .. }) {
             return self.generated(tree);
         }
+        self.original(key, tree, static_product.as_ref())
+    }
+
+    fn original(
+        &self,
+        key: &Namespace,
+        tree: &TypeTree,
+        static_product: Option<&no_drop::copy_components::CheckedProduct<'_>>,
+    ) -> Result<CheckedDeclaration, String> {
         let declaration = self
             .environment
             .index
@@ -141,19 +158,20 @@ impl DeclarationChecker<'_> {
             Some(product) => Some(product.cleanup()),
             None => self.cleanup_certificate(tree, copy)?,
         };
-        let passive_dependencies = match check_namespace_with_closure(
-            self.facts,
-            self.environment,
-            &declaration.namespace,
-            source_closure.as_ref(),
-        ) {
-            Ok(()) => false,
-            Err(error) => {
-                if !copy || !passive::verify(self.facts, tree)? {
-                    return Err(error);
-                }
-                true
-            }
+        let copy_constructor_sites = static_product.map_or(Ok(false), |product| {
+            product.constructor_namespace(self.facts, &declaration.namespace)
+        })?;
+        let passive_dependencies = if copy_constructor_sites {
+            false
+        } else {
+            self.passive_dependencies(
+                &declaration.namespace,
+                tree,
+                DeclarationCleanup {
+                    copy,
+                    certificate: source_closure.as_ref(),
+                },
+            )?
         };
 
         self.verify_item(item, tree, copy)?;
@@ -162,7 +180,30 @@ impl DeclarationChecker<'_> {
             no_drop: source_closure.is_some(),
             passive_dependencies,
             static_string_products: static_product.is_some(),
+            copy_constructor_sites,
         })
+    }
+
+    fn passive_dependencies(
+        &self,
+        namespace: &[String],
+        tree: &TypeTree,
+        cleanup: DeclarationCleanup<'_>,
+    ) -> Result<bool, String> {
+        match check_namespace_with_closure(
+            self.facts,
+            self.environment,
+            namespace,
+            cleanup.certificate,
+        ) {
+            Ok(()) => Ok(false),
+            Err(error) => {
+                if !cleanup.copy || !passive::verify(self.facts, tree)? {
+                    return Err(error);
+                }
+                Ok(true)
+            }
+        }
     }
 
     fn verify_item(&self, item: &syn::Item, tree: &TypeTree, copy: bool) -> Result<(), String> {
@@ -203,6 +244,7 @@ impl DeclarationChecker<'_> {
             no_drop: true,
             passive_dependencies: false,
             static_string_products: false,
+            copy_constructor_sites: false,
         })
     }
 }
@@ -744,6 +786,22 @@ pub(super) fn check_function_namespace(
     resolution: &Resolution,
     namespace: &[String],
 ) -> Result<(), String> {
+    if resolution.source_requirements.copy_constructor_sites {
+        let facts = input.facts();
+        let interface = facts
+            .build
+            .frontend_options
+            .data::<InterfaceObservations>()?;
+        let Observation::Captured { ty } = &interface.result else {
+            return Err("Copy constructor namespace lacks its complete result".into());
+        };
+        let origins = facts.build.frontend_options.data::<Origins>()?;
+        let site = no_drop::copy_constructor_sites::capture(facts, resolution, &origins, ty)?;
+        if site.permits(facts, ty, namespace) {
+            return Ok(());
+        }
+        return Err("Copy constructor namespace differs from its exact checked site".into());
+    }
     if resolution.transport_sources.is_some() {
         return check_transport_namespace(input.facts(), resolution, namespace);
     }

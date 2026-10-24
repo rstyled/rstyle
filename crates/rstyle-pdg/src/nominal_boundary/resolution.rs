@@ -187,6 +187,10 @@ impl Resolution {
         self.source_requirements.static_string_products
     }
 
+    pub(crate) fn requires_copy_constructor_sites(&self) -> bool {
+        self.source_requirements.copy_constructor_sites
+    }
+
     pub(crate) fn requires_passive_copy_dependencies(&self) -> bool {
         self.source_requirements.passive_dependencies
     }
