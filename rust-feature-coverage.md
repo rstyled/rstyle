@@ -5311,3 +5311,22 @@ Clippy,style0/6,553 and patterns0/15 unchanged ignores pass. Strict evidence:
 After three foundation increments without gains, reassess after one bounded
 whole-owner macro check; powerfmt association and connected value/origin/graph
 proof remain required before any digit-family activation.
+
+Data3.107 proves bounded source-owned declarative macro cleanup across exact local
+imports/reexports. Ordered whole-rule matching preserves typed-fragment opacity,
+compound punctuation and complete selected output; every emitted item reenters
+the exhaustive cleanup visitor. Unknown/ambiguous rules, shadowed imports,
+unsupported editions, external roots and resource exhaustion remain unproved.
+This supplies no generated-callable, value or purity permission. Historical
+cleanup grammar remains unchanged; strict mixed-unit tests retain generated
+callable exclusions and the separate nominal-argument boundary.
+The unchanged natural selection remains24/1,407 admitted, gain0/loss0; strict
+replay preserves all276 pair results. Evidence:
+`/tmp/rstyle-430-ownership-{natural,strict,comparison}.json`.
+The next complete-owner check must join the original powerfmt producer/export
+and grouped-self consumer import before connecting the pending exact product,
+slice-prefix, saved-suffix and Option value graph. No digit-family support is
+claimed; further source-only increments require this concrete blocker chain.
+Validation:1,984 tests pass/five existing skips plus doctests; fmt, warning-denied
+Clippy,style0/6,626 and patterns0/15 unchanged ignores pass. Retained gate logs:
+`/tmp/rstyle-430-ownership-{fmt,clippy,style,patterns,nextest}8.*`.

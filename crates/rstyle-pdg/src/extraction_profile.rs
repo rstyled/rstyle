@@ -143,6 +143,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.copy-tagged-conversion-helper-calls",
     "rust.slice-prefix-product-results",
     "rust.checked-generated-dependency-namespaces",
+    "rust.checked-local-macro-ownership",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -302,7 +303,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.106.0", 130)),
+            Self::DataV3 => Some(("3.107.0", 131)),
         }
     }
 

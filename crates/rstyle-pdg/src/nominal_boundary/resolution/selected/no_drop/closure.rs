@@ -3,6 +3,11 @@ use super::*;
 use std::collections::BTreeMap;
 use syn::visit::Visit;
 #[cfg(test)]
+mod imported_macro_tests;
+#[cfg(test)]
+mod local_macro_tests;
+mod local_macros;
+#[cfg(test)]
 #[path = "closure_prelude_tests.rs"]
 mod prelude_tests;
 
@@ -64,9 +69,14 @@ fn verify_mode(
 ) -> Result<(), String> {
     let reference_product = !matches!(mode, SourceMode::Cleanup);
     let cfgs = &facts.build.cfgs;
+    let ownership_engine = supports(facts, OWNERSHIP_MACROS_CAPABILITY)?;
 
     let mut visitor = Closure {
         dependency_sources: Some(environment),
+        ownership_engine,
+        ownership_macros: ownership_engine
+            .then(|| source_macros::SourceMacros::new(environment, cfgs))
+            .transpose()?,
         configuration: crate::conditional_source::Configuration::new(cfgs),
         edition: facts.build.edition.known_value(),
         library: crate::data_library::registry_for(facts),
@@ -266,6 +276,7 @@ pub(super) fn inspect_with_library(
             reference_product: false,
             scalar_bindings: false,
             edition: None,
+            ownership_engine: false,
         },
     )
 }
@@ -286,6 +297,7 @@ pub(super) fn inspect_closed_imports(
             reference_product: false,
             scalar_bindings: false,
             edition: None,
+            ownership_engine: false,
         },
     )
 }
@@ -299,6 +311,7 @@ struct Inspection<'a> {
     reference_product: bool,
     scalar_bindings: bool,
     edition: Option<&'a str>,
+    ownership_engine: bool,
 }
 
 #[cfg(test)]
@@ -328,6 +341,7 @@ pub(super) fn inspect_reference_product_edition(
             reference_product: true,
             scalar_bindings: false,
             edition,
+            ownership_engine: false,
         },
     )
 }
@@ -345,6 +359,25 @@ pub(super) fn inspect_scalar_error(items: &[&syn::Item], target: &Namespace) -> 
             reference_product: true,
             scalar_bindings: true,
             edition: Some("2021"),
+            ownership_engine: false,
+        },
+    )
+}
+
+#[cfg(test)]
+pub(super) fn inspect_ownership(items: &[&syn::Item], target: &Namespace) -> Result<(), String> {
+    inspect_policy(
+        items,
+        target,
+        Inspection {
+            cfgs: &[],
+            library: crate::data_library::registries().first(),
+            closed_imports: true,
+            test_marker: true,
+            reference_product: true,
+            scalar_bindings: true,
+            edition: Some("2021"),
+            ownership_engine: true,
         },
     )
 }
@@ -363,9 +396,12 @@ fn inspect_policy(
         reference_product,
         scalar_bindings,
         edition,
+        ownership_engine,
     } = policy;
     let mut visitor = Closure {
         dependency_sources: None,
+        ownership_engine,
+        ownership_macros: None,
         configuration: crate::conditional_source::Configuration::new(cfgs),
         edition,
         library,
@@ -407,6 +443,8 @@ fn shadows_primitive(item: &syn::Item) -> bool {
 
 struct Closure<'a> {
     dependency_sources: Option<&'a Environment>,
+    ownership_engine: bool,
+    ownership_macros: Option<source_macros::SourceMacros>,
     configuration: crate::conditional_source::Configuration<'a>,
     edition: Option<&'a str>,
     library: Option<&'static crate::data_library::Registry>,
@@ -855,6 +893,10 @@ impl Closure<'_> {
         result
     }
     fn begin_expansion(&mut self) -> Result<(), String> {
+        if self.ownership_engine && self.generated_context >= 48 {
+            return Err("Cleanup macro expansion nesting exceeds bounded proof".into());
+        }
+
         self.expansions += 1;
         if self.expansions > 16384 {
             return Err("Cleanup expansion budget exceeded".into());
@@ -1144,17 +1186,7 @@ impl<'ast> Visit<'ast> for Closure<'_> {
         if self.error.is_some() {
             return;
         }
-        let definition = mac
-            .path
-            .get_ident()
-            .and_then(|name| self.definitions.get(&name.to_string()))
-            .cloned();
-
-        let result = if let Some(definition) = definition {
-            macros::expand(&definition, mac).and_then(|tokens| self.expansion(tokens))
-        } else {
-            self.builtin_macro(mac)
-        };
+        let result = self.local_macro(mac);
         self.check(result);
     }
     fn visit_expr(&mut self, expression: &'ast syn::Expr) {

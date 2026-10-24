@@ -29,8 +29,12 @@ pub(in crate::nominal_boundary::resolution) mod scalar_result_owners;
 mod source_imports;
 #[cfg(test)]
 mod source_imports_tests;
+mod source_macros;
 #[cfg(test)]
 mod tests;
+
+/// Source ownership only; selected outputs still require the exhaustive visitor.
+pub(crate) const OWNERSHIP_MACROS_CAPABILITY: &str = "rust.checked-local-macro-ownership";
 
 /// Select the separately bounded source/cleanup grammar; grants no value authority.
 pub(in crate::nominal_boundary::resolution) enum ProductProof {

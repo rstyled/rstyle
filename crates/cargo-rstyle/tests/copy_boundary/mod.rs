@@ -90,7 +90,7 @@ fn selected_copy_boundary_keeps_missing_proofs_and_lexical_unknowns_closed() {
                 "{original}\nmacro_rules! hidden {{ () => {{ pub fn hidden() {{}} }} }} hidden!();"
             ),
             "multi_arm_macro" => format!(
-                "{original}\nmacro_rules! hidden {{ () => {{ pub fn hidden() {{}} }}; ($name:ident) => {{ pub fn $name() {{}} }} }} hidden!();"
+                "{original}\nmacro_rules! hidden {{ () => {{ pub fn hidden() {{}} }}; ($name:ident) => {{ pub fn $name() {{}} }} }} hidden!(); hidden!(second);"
             ),
             "primitive_alias" => format!("{original}\ntype usize = core::primitive::usize;"),
             "glob" => format!("{original}\nuse core::fmt::*;"),
@@ -105,20 +105,42 @@ fn selected_copy_boundary_keeps_missing_proofs_and_lexical_unknowns_closed() {
             "data::Span::is_empty",
             "data::Span::is_one_line",
         ] {
-            let function = report["functions"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|function| function["facts"]["name"] == name)
-                .unwrap();
-            let expected = if change == "macro" && name != "data::Span::new" {
-                "admitted"
-            } else {
-                "excluded"
-            };
+            let function = read_call_function(&report, name);
+            // Both source-owned macros select the same complete harmless body.
+            // Span::new still requires its separate nominal-argument proof.
+            let expected =
+                if matches!(change, "macro" | "multi_arm_macro") && name != "data::Span::new" {
+                    "admitted"
+                } else {
+                    "excluded"
+                };
             assert_eq!(function["outcome"], expected, "{change}: {function}");
         }
+        check_aggregate_documents(&report);
+        if change == "multi_arm_macro" {
+            check_ordered_macro_boundary(&report);
+        }
     }
+}
+
+fn check_ordered_macro_boundary(report: &Value) {
+    for name in ["data::hidden", "data::second"] {
+        let function = read_call_function(report, name);
+        assert_eq!(function["outcome"], "excluded", "{name}");
+    }
+    let function = read_call_function(report, "data::Position::new");
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    let mut historical = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    historical.pdg.profile.version = "3.106.0".into();
+    historical.cfg.profile.version = "3.106.0".into();
+    assert!(rstyle_pdg::data_documents::verify(&historical, &facts).is_err());
+    assert!(rstyle_ccgraph::admit_produced(&historical, &facts).is_err());
 }
 
 fn check_getter_paths(report: &Value, name: &str, field: &str) {

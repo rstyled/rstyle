@@ -1,6 +1,17 @@
 //! Bounded interpretation of original single-rule local declarative macros.
+mod ownership;
+
 use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
 use std::collections::BTreeMap;
+
+/// This expansion supplies no callable or cleanup permission by itself.
+pub(super) fn expand_ownership(
+    definition: &syn::ItemMacro,
+    invocation: &syn::Macro,
+    edition: &str,
+) -> Result<TokenStream, String> {
+    ownership::expand(definition, invocation, ownership::Context { edition })
+}
 
 pub(crate) fn expand(
     definition: &syn::ItemMacro,
