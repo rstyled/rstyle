@@ -2,6 +2,8 @@
 use super::*;
 use syn::spanned::Spanned;
 mod payload;
+#[cfg(test)]
+mod static_strings;
 pub(crate) use payload::closed_payload;
 
 pub fn mixed_variant_declarations(

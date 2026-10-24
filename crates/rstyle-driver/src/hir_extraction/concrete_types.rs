@@ -407,8 +407,23 @@ impl<'tcx> Capture<'_, 'tcx> {
         err: Ty<'tcx>,
         depth: usize,
     ) -> Result<TypeTree, Failure> {
+        let ok = self.tree(ok, depth + 1)?;
+        // Resolve only the associated error of this observational product shape.
+        // Source/member authority and guarded value admission remain separate.
+        let err = if matches!(err.kind(), ty::Alias(..))
+            && observed_static_string_result_success(&ok)
+        {
+            let environment =
+                ty::TypingEnv::post_analysis(self.ctx.tcx, self.ctx.typeck.hir_owner.def_id);
+            self.ctx
+                .tcx
+                .try_normalize_erasing_regions(environment, ty::Unnormalized::new_wip(err))
+                .map_err(|_| unsupported("Static product associated error cannot be resolved"))?
+        } else {
+            err
+        };
         let result = TypeTree::Result {
-            ok: Box::new(self.tree(ok, depth + 1)?),
+            ok: Box::new(ok),
             err: Box::new(self.tree(err, depth + 1)?),
         };
         rstyle_pdg::concrete_types::validate(&result).map_err(Failure::Unsupported)?;

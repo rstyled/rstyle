@@ -11,6 +11,8 @@ mod mixed_enums;
 mod option_spelling;
 pub(crate) use option_spelling::result_arguments;
 mod scalar_enums;
+pub(crate) mod static_string_results;
+pub use static_string_results::observed_success as observed_static_string_result_success;
 mod validation;
 pub(crate) use mixed_enums::closed_payload;
 pub use mixed_enums::mixed_variant_declarations;
@@ -379,7 +381,8 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
 
 /// This bounded shape grants neither Copy, drop freedom nor value permission.
 fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
-    if crate::result_maps::types::observed_result(ok, err)
+    if static_string_results::observed(ok, err)
+        || crate::result_maps::types::observed_result(ok, err)
         || crate::borrowed_result_types::tree_result(ok, err)
         || crate::concrete_results::fresh_products::GRAMMAR.permits(
             &crate::data_types::TypeToken::from_tree(ok),

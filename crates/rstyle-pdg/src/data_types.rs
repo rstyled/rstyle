@@ -270,6 +270,8 @@ fn parse_context(
     check_fresh_capabilities(text, profile)?;
     check_checked_capabilities(&ty, profile)?;
 
+    check_guarded_value_evidence(&ty)?;
+
     if text.contains("\"kind\":\"mixed_enum\"")
         && !checked_product
         && (!profile.supports("rust.borrowed-mixed-owners")
@@ -305,6 +307,21 @@ fn parse_context(
 
     check_conversion_capabilities(text, profile)?;
     Ok(ty)
+}
+
+fn check_guarded_value_evidence(ty: &TypeToken) -> Result<(), String> {
+    if mixed_owners::reference_payload(ty) {
+        return Err(
+            "Mixed enum reference payloads require unavailable guarded value evidence".into(),
+        );
+    }
+    if crate::concrete_types::static_string_results::GRAMMAR.contains(ty) {
+        return Err(
+            "Static string product Results require unavailable guarded value evidence".into(),
+        );
+    }
+
+    Ok(())
 }
 
 fn check_checked_capabilities(
@@ -483,6 +500,7 @@ fn check_result(
     let unit_result = matches!(ok, TypeToken::Scalar(value) if value == "unit")
         && matches!(err, TypeToken::Struct { fields, .. } if matches!(fields.as_slice(), [(name, TypeToken::Scalar(value))] if name == "0" && value == "unit"));
     if !unit_result
+        && !crate::concrete_types::static_string_results::GRAMMAR.permits(ok, err)
         && !crate::result_maps::types::token_result(ok, err)
         && !crate::borrowed_result_types::GRAMMAR.permits(ok, err)
         && !crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err)

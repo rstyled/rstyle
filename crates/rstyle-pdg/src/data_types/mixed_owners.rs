@@ -76,3 +76,21 @@ pub(super) fn borrowed_use(ty: &TypeToken) -> bool {
         _ => true,
     }
 }
+
+/// Observing a reference-bearing variant never authorizes its tag or payload.
+pub(super) fn reference_payload(ty: &TypeToken) -> bool {
+    match ty {
+        TypeToken::MixedEnum { .. } if crate::data_origins::shared(ty) => true,
+        TypeToken::Result { ok, err } => reference_payload(ok) || reference_payload(err),
+        TypeToken::Tuple(values) => values.iter().any(reference_payload),
+        TypeToken::Struct { fields, .. }
+        | TypeToken::Enum {
+            variants: fields, ..
+        } => fields.iter().any(|(_, field)| reference_payload(field)),
+        TypeToken::Shared(value)
+        | TypeToken::Slice(value)
+        | TypeToken::Array { element: value, .. }
+        | TypeToken::Option(value) => reference_payload(value),
+        _ => false,
+    }
+}

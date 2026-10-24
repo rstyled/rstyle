@@ -21,16 +21,19 @@ pub fn shared(token: &TypeToken) -> bool {
     match token {
         TypeToken::Shared(_) => true,
         TypeToken::Option(value) => shared(value),
-        TypeToken::Result { ok, err }
-            if crate::borrowed_result_types::GRAMMAR.permits(ok, err)
-                || crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err)
-                || crate::concrete_results::fresh_products::GRAMMAR.permits(ok, err) =>
-        {
-            shared(ok)
-        }
+        // Containment is independent of admission. An unsupported checked value
+        // must not become reference-free merely because its grammar is unknown.
+        TypeToken::Result { ok, err } => shared(ok) || shared(err),
         TypeToken::SliceArrayResult { borrowed: true, .. } => true,
         TypeToken::Tuple(elements) => elements.iter().any(shared),
-        TypeToken::Struct { fields, .. } => fields.iter().any(|(_, field)| shared(field)),
+        TypeToken::Struct { fields, .. }
+        | TypeToken::Enum {
+            variants: fields, ..
+        } => fields.iter().any(|(_, field)| shared(field)),
+        TypeToken::MixedEnum { variants, .. } => variants
+            .iter()
+            .flat_map(|(_, shape)| shape.fields())
+            .any(shared),
         TypeToken::Array { element, .. } | TypeToken::Slice(element) => shared(element),
         _ => false,
     }
@@ -277,6 +280,13 @@ pub(crate) fn paths(
                 "Result formal/storage origins require unavailable guarded payload evidence".into(),
             );
         }
+        TypeToken::Option(_) | TypeToken::Enum { .. } | TypeToken::MixedEnum { .. }
+            if shared(ty) =>
+        {
+            return Err(
+                "Tagged formal/storage origins require unavailable guarded payload evidence".into(),
+            );
+        }
         TypeToken::Shared(_) => vec![
             prefix
                 .into_iter()
@@ -374,6 +384,7 @@ pub fn parameter(parameter: &crate::ParamFact) -> Result<Vec<Origin>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod tagged;
 
     #[test]
     fn propagation_preserves_only_saved_checked_reference_origins() {
@@ -426,7 +437,7 @@ mod tests {
             ok: Box::new(TypeToken::Shared(Box::new(TypeToken::Scalar("u8".into())))),
             err: Box::new(error),
         };
-        assert!(!shared(&unsupported));
+        assert!(shared(&unsupported));
         assert!(paths(&unsupported, Vec::new()).is_err());
     }
 
@@ -471,7 +482,8 @@ mod tests {
             ok,
             err: Box::new(TypeToken::Scalar("usize".into())),
         };
-        assert!(!shared(&scalar_error));
+        assert!(shared(&scalar_error));
+        assert!(paths(&scalar_error, Vec::new()).is_err());
     }
 
     #[test]
