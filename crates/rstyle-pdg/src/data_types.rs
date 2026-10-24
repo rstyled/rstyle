@@ -236,7 +236,9 @@ pub(crate) fn parse_in(
     text: &str,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<TypeToken, String> {
-    if crate::copy_tagged_values::permits_type(text, facts)? {
+    if crate::copy_tagged_values::call_wrappers::permits_type(text, facts)?
+        || crate::copy_tagged_values::permits_type(text, facts)?
+    {
         return parse(text);
     }
     let permitted = facts.reference_instance().is_some_and(|instance| {

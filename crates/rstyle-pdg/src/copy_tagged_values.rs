@@ -1,5 +1,6 @@
 //! Values at the two original, checked Copy conversion boundaries.
 mod activation;
+pub(crate) mod call_wrappers;
 pub(crate) use activation::{body_operation, candidate, permits_type, verify_function};
 mod matched;
 pub(crate) mod origins;
@@ -12,6 +13,14 @@ use crate::{HirNode, concrete_types::TypeTree, unit_store::EvidenceFacts};
 use syn::spanned::Spanned;
 
 pub(crate) const CAPABILITY: &str = "rust.copy-tagged-conversion-values";
+
+fn typed(node: &HirNode, tree: &TypeTree) -> Result<(), String> {
+    let expected = crate::data_types::TypeToken::from_tree(tree).text()?;
+    if node.expansion.is_some() || crate::data_aggregates::token(node)? != expected {
+        return Err("Copy conversion HIR type or source provenance disagrees".into());
+    }
+    Ok(())
+}
 
 pub(crate) struct Match<'a> {
     pub scrutinee: &'a HirNode,
@@ -82,8 +91,8 @@ fn constructor_context(node: &HirNode, context: &Context<'_>) -> Result<String, 
         return Err("Copy conversion constructor requires one saved operand".into());
     }
 
-    context.typed(node, context.endpoints.tagged)?;
-    context.typed(&node.children[0], context.endpoints.product)?;
+    typed(node, context.endpoints.tagged)?;
+    typed(&node.children[0], context.endpoints.product)?;
     context.correspondence(call.args[0].span(), &node.children[0])?;
     context.formal(&node.children[0])?;
     let tag = context.variant(node, "resolved_callee")?;

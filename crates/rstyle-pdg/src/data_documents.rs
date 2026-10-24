@@ -48,6 +48,7 @@ pub(crate) mod scalar_result_propagation;
 mod size_calls;
 mod subslice_views;
 mod summary_records;
+mod tagged_calls;
 mod value_consumers;
 mod value_fields;
 pub(crate) use locations::{LocationContext, correspondence as location_correspondence};

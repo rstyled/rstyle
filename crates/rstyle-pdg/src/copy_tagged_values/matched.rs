@@ -21,15 +21,15 @@ pub(super) fn shape<'a>(node: &'a HirNode, context: &Context<'_>) -> Result<Matc
         return Err("Copy conversion inverse must retain both original arms".into());
     }
 
-    context.typed(node, context.endpoints.output)?;
-    context.typed(scrutinee, context.endpoints.tagged)?;
+    typed(node, context.endpoints.output)?;
+    typed(scrutinee, context.endpoints.tagged)?;
     context.formal(scrutinee)?;
     context.correspondence(syntax.expr.span(), scrutinee)?;
     let (pattern, success) = arm(context, &syntax.arms[0], success_arm)?;
     let (wildcard, failure) = arm(context, &syntax.arms[1], failure_arm)?;
     let binding = binding(context, &syntax.arms[0].pat, pattern)?;
     let tag = context.variant(pattern, "resolved_local_variant")?;
-    context.typed(pattern, context.endpoints.tagged)?;
+    typed(pattern, context.endpoints.tagged)?;
     wildcard_pattern(context, &syntax.arms[1].pat, wildcard)?;
     result_values(context, binding, success, failure)?;
     Ok(Match {
@@ -96,7 +96,7 @@ fn binding<'a>(
 }
 
 fn binding_fact(context: &Context<'_>, node: &HirNode, name: &str) -> Result<(), String> {
-    context.typed(node, context.endpoints.product)?;
+    typed(node, context.endpoints.product)?;
     let fact = context
         .facts
         .bindings
@@ -123,7 +123,7 @@ fn wildcard_pattern(
     syntax: &syn::Pat,
     node: &HirNode,
 ) -> Result<(), String> {
-    context.typed(node, context.endpoints.tagged)?;
+    typed(node, context.endpoints.tagged)?;
     if !matches!(syntax, syn::Pat::Wild(_))
         || node.kind != "pat_wild"
         || !node.children.is_empty()
@@ -141,8 +141,8 @@ fn result_values(
     success: &HirNode,
     failure: &HirNode,
 ) -> Result<(), String> {
-    context.typed(success, context.endpoints.output)?;
-    context.typed(failure, context.endpoints.output)?;
+    typed(success, context.endpoints.output)?;
+    typed(failure, context.endpoints.output)?;
     let [ok] = success.children.as_slice() else {
         return Err("Copy conversion Ok must carry one complete payload".into());
     };
@@ -165,8 +165,8 @@ fn result_values(
         );
     }
 
-    context.typed(ok, context.endpoints.product)?;
-    context.typed(
+    typed(ok, context.endpoints.product)?;
+    typed(
         err,
         context.endpoints.error.ok_or("Missing conversion error")?,
     )
@@ -178,8 +178,8 @@ fn results(
     success: &HirNode,
     failure: &HirNode,
 ) -> Result<(), String> {
-    context.typed(success, context.endpoints.output)?;
-    context.typed(failure, context.endpoints.output)?;
+    typed(success, context.endpoints.output)?;
+    typed(failure, context.endpoints.output)?;
     let ok = crate::concrete_results::verify_constructor(success, context.facts)?;
     let err = crate::concrete_results::verify_constructor(failure, context.facts)?;
     if ok.construct != "data.result-ok"
@@ -195,8 +195,8 @@ fn results(
         return Err("Copy conversion Result constructors lose the original alternatives".into());
     }
 
-    context.typed(ok.payload, context.endpoints.product)?;
-    context.typed(
+    typed(ok.payload, context.endpoints.product)?;
+    typed(
         err.payload,
         context.endpoints.error.ok_or("Missing conversion error")?,
     )?;

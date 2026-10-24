@@ -56,6 +56,7 @@ fn summary() -> Summary {
         reference_outputs: None,
         component_outputs: Some(outputs),
         memory_reads: None,
+        tagged_output: None,
     }
 }
 

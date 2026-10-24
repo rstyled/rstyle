@@ -61,6 +61,9 @@ fn conversion(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Conversion, S
 }
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
+    if crate::helper_calls::tagged_resolution::selected_resolution(node, facts).is_some() {
+        return false;
+    }
     crate::data_receivers::candidate(
         node,
         facts,

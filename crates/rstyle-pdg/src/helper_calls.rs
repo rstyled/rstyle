@@ -9,6 +9,8 @@ mod external;
 pub(crate) mod instances;
 mod product_conversions;
 mod reference_forwarders;
+pub(crate) mod tagged_conversions;
+pub(crate) mod tagged_resolution;
 pub(crate) mod transport;
 mod transport_lexical;
 
@@ -46,6 +48,8 @@ pub struct Summary {
     pub component_outputs: Option<Vec<crate::helper_component_outputs::Output>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_reads: Option<Vec<crate::helper_reads::Read>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) tagged_output: Option<crate::copy_tagged_values::origins::WireContract>,
 }
 
 /// Normal execution is bounded independently of the preserved panic outcome.
@@ -67,7 +71,23 @@ impl From<crate::scalar_loop_helpers::Checked> for LoopTermination {
 
 type ReferenceOutputs = Option<Vec<crate::data_origins::Origin>>;
 
+struct Boundary {
+    reference_outputs: ReferenceOutputs,
+    tagged_output: Option<crate::copy_tagged_values::origins::WireContract>,
+}
+
 fn summary(
+    facts: &dyn EvidenceFacts,
+    pair: &producer::Pair,
+    boundary: Boundary,
+) -> Result<Summary, String> {
+    match boundary.tagged_output {
+        Some(output) => tagged_conversions::summary(facts, output),
+        None => legacy_summary(facts, pair, boundary.reference_outputs),
+    }
+}
+
+fn legacy_summary(
     facts: &dyn EvidenceFacts,
     pair: &producer::Pair,
     reference_outputs: ReferenceOutputs,
@@ -79,7 +99,6 @@ fn summary(
     let references = reference_outputs.is_some() || component_outputs.is_some();
 
     let memory_reads = crate::helper_reads::derive(facts, pair.as_view())?;
-    let reads = memory_reads.is_some();
     let view = crate::helper_views::projected(facts, &reference_outputs);
     let normal = crate::helper_normal_flow::supported(facts, pair.as_view());
 
@@ -97,7 +116,7 @@ fn summary(
             crate::helper_stored_slices::SUMMARY
         } else if normal {
             crate::helper_normal_flow::SUMMARY
-        } else if reads {
+        } else if memory_reads.is_some() {
             "rstyle.helper.read-only-body/1"
         } else if references {
             "rstyle.helper.shared-return/1"
@@ -108,7 +127,7 @@ fn summary(
         argument_types: argument_types(facts)?,
         result_type: result_type(facts)?,
         mutates_arguments: false,
-        memory_effects: reads,
+        memory_effects: memory_reads.is_some(),
         may_panic,
         always_returns: !may_panic && loop_proof.as_ref().is_none_or(|proof| !proof.may_diverge),
         bounded_loop: loop_proof.map(Into::into),
@@ -117,6 +136,7 @@ fn summary(
         reference_outputs,
         component_outputs,
         memory_reads,
+        tagged_output: None,
     })
 }
 
@@ -286,6 +306,10 @@ pub fn direct_resolution(node: &HirNode) -> Option<Value> {
 
 /// Ordinary compiler resolution or the exact call retained by a private From proof.
 pub fn selected_resolution(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Value> {
+    if let Some(resolution) = tagged_resolution::selected_resolution(node, facts) {
+        return Some(resolution);
+    }
+
     crate::local_value_trait_calls::resolution(node, facts)
         .or_else(|| {
             crate::nominal_boundary::resolution::tryfrom_owners::call_resolution(node, facts)
@@ -437,7 +461,8 @@ fn verify_shared(
     helper: &crate::unit_store::HelperView<'_>,
 ) -> Result<(), String> {
     let callee = helper.frontend();
-    let selected = reference_forwarders::verify(node, caller, &callee)?
+    let selected = tagged_conversions::verify_dependency(node, caller, &callee, helper.summary())?
+        || reference_forwarders::verify(node, caller, &callee)?
         || product_conversions::verify(node, caller, &callee)?;
     let resolution = selected_resolution(node, caller).ok_or("Unresolved direct helper call")?;
 
@@ -465,7 +490,9 @@ pub(crate) fn verify_shared_callee(
     producer::verify(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
     let outputs = check_boundary(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
     if (!crate::verification_policy::is_generated()
-        || crate::scalar_loop_helpers::has_loop(helper.pair().as_view()))
+        || crate::scalar_loop_helpers::has_loop(helper.pair().as_view())
+        || tagged_conversions::candidate(callee)
+        || helper.summary().tagged_output.is_some())
         && helper.summary() != &summary(callee, helper.pair(), outputs)?
     {
         return Err("Helper summary disagrees with verified callee evidence".into());
@@ -474,6 +501,24 @@ pub(crate) fn verify_shared_callee(
 }
 
 fn check_boundary(
+    pair: &producer::Pair,
+    facts: &dyn EvidenceFacts,
+) -> Result<Boundary, Vec<String>> {
+    if let Some(output) =
+        tagged_conversions::derive(facts, pair.as_view()).map_err(|error| vec![error])?
+    {
+        return Ok(Boundary {
+            reference_outputs: None,
+            tagged_output: Some(output),
+        });
+    }
+    Ok(Boundary {
+        reference_outputs: check_legacy_boundary(pair, facts)?,
+        tagged_output: None,
+    })
+}
+
+fn check_legacy_boundary(
     pair: &producer::Pair,
     facts: &dyn EvidenceFacts,
 ) -> Result<ReferenceOutputs, Vec<String>> {
@@ -545,8 +590,15 @@ fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, 
     let dependency: Dependency = transport::decode(&resolution[KEY])
         .map_err(|_| "Missing or invalid verified callee dependency")?;
     check_depth(&dependency.frontend.body, 1)?;
-    check_signature(node, caller, &resolution, &dependency.frontend)?;
-    crate::inherent_calls::verify(node, caller, &dependency.frontend, &resolution)?;
+    if !tagged_conversions::verify_dependency(
+        node,
+        caller,
+        &dependency.frontend,
+        &dependency.summary,
+    )? {
+        check_signature(node, caller, &resolution, &dependency.frontend)?;
+        crate::inherent_calls::verify(node, caller, &dependency.frontend, &resolution)?;
+    }
     if !crate::verification_session::contains(description) {
         verify_callee(&dependency)?;
         crate::verification_session::remember(description);
@@ -570,7 +622,9 @@ fn verify_callee(dependency: &Dependency) -> Result<(), String> {
     let outputs =
         check_boundary(&pair, &dependency.frontend).map_err(|errors| errors.join("; "))?;
     if (!crate::verification_policy::is_generated()
-        || crate::scalar_loop_helpers::has_loop(pair.as_view()))
+        || crate::scalar_loop_helpers::has_loop(pair.as_view())
+        || tagged_conversions::candidate(&dependency.frontend)
+        || dependency.summary.tagged_output.is_some())
         && dependency.summary != summary(&dependency.frontend, &pair, outputs)?
     {
         return Err("Helper summary signature, effects or returning behavior contradict verified callee evidence".into());

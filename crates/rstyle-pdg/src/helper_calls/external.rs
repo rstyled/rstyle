@@ -165,6 +165,7 @@ pub(super) fn summary(summary: &Summary) -> Result<(), String> {
         || summary.memory_reads.is_some()
         || summary.reference_outputs.is_some()
         || summary.component_outputs.is_some()
+        || summary.tagged_output.is_some()
     {
         return Err("External scalar helper contains memory or reference effects".into());
     }
@@ -261,6 +262,7 @@ mod tests {
             reference_outputs: None,
             component_outputs: None,
             memory_reads: None,
+            tagged_output: None,
         }
     }
 

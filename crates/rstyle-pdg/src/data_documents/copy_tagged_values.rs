@@ -3,7 +3,7 @@ use super::*;
 use crate::{
     HirNode, nominal_boundary::resolution::CheckedCopyConversion, unit_store::EvidenceFacts,
 };
-mod graph;
+pub(super) mod graph;
 pub(crate) mod origins;
 #[cfg(test)]
 mod tests;
@@ -18,7 +18,7 @@ const CONSTRUCTS: [&str; 7] = [
     "data.struct",
 ];
 
-pub(super) fn verify(
+pub(crate) fn verify(
     pair: PairView<'_>,
     facts: &dyn EvidenceFacts,
     receipt: &CheckedCopyConversion,

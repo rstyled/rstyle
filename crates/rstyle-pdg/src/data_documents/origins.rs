@@ -13,6 +13,9 @@ pub(super) fn install(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if super::tagged_calls::install(pair, facts)? {
+        return Ok(());
+    }
     if crate::copy_tagged_values::candidate(facts) {
         let resolution = facts.nominal_resolution()?;
         let receipt = resolution
@@ -36,6 +39,9 @@ pub(super) fn verify(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if super::tagged_calls::verify(pair, facts)? {
+        return Ok(());
+    }
     if crate::copy_tagged_values::candidate(facts) {
         let resolution = facts.nominal_resolution()?;
         let receipt = resolution

@@ -1101,3 +1101,64 @@ caller, utc_offset_try_from_parsed, still needs const-instance selection, Parsed
 getters/Option tuples, and_then/unwrap_or, exact Into-to-From selection and map_err
 composition. The two methods alone do not unlock that parser. Broad P01–P22 work
 remains active; this prerequisite grants no new admission capability.
+
+### Guarded conversion callable composition (Data3.104)
+
+Exact original local From/TryFrom members now publish typed guarded summaries
+only after complete graph and component-origin verification. Explicit same-unit
+calls preserve selected member/build/source authority. A bounded wrapper accepts
+one immutable formal, saves it once, invokes the conversion and immediately returns
+the whole result. Callee alternatives remain scoped beneath that caller call;
+callee HIR guards never become caller CFG guards. Wrappers do not yet publish
+callable summaries, project payloads or accept arbitrary conversion expressions.
+
+The real-Cargo composition test covers four admitted forward/inverse wrappers,
+an independently compiled runtime oracle, strict import, complete matching,
+17 graph mutations and five resealed summary mutations under strict and generated
+verification. Its focused prebuilt-driver run took3.68s. Routine identities remain
+cached XXH3; no new SHA or serialized lookup keys were introduced.
+
+Fresh unchanged time/time-core/num-conv selection:24/1,407 admitted, gain0/loss0;
+all remaining outcomes/reasons and all276 pair results match Data3.103. Strict
+replay agrees completely. Evidence: `/tmp/rstyle-424-{natural.json,strict.json,delta.json,composition6.log}`.
+This foundation does not complete an original caller family. The nearest time
+parser uses function-item Into/map_err composition plus Parsed/deranged/Option
+dependencies. Source audit also shows its checked error branch is unreachable
+under the valid Parsed range invariants; it is a poor practical error-flow target.
+
+Reassessed next target: unchanged time0.3.47 ExactlyNDigits::<1/2/3>::parse,
+default+parsing and no-default+parsing. Independently expected: consume exactly
+N leading ASCII digits, return their decimal value and input suffix; otherwise
+None. Check all bytes, all valid combinations, short inputs, nondigit positions,
+non-ASCII bytes, suffix pointer/length and arithmetic bounds. These are distinct
+concrete method definitions already captured, not generic function instances.
+No full parse_subsecond caller claim follows from these leaves.
+
+Readiness/write boundaries for the next coordinated increment:
+
+- Capture lane: complete slice/@range/rest HIR and binder observations in a
+  dedicated driver leaf; lead owns shared HIR/source registration. Existing
+  pat_unsupported omits children and bindings, so fresh capture is mandatory.
+- Product lane: exact ParsedItem<u8/u16> declaration/substitution/field receipts
+  and independently proved no-drop. ParsedItem is non-Copy; generic T can drop.
+  Reuse constructor instance evidence, not displayed type strings or Copy fiction.
+- Pattern/origin lane: length-before-read prefix tests and exact suffix region,
+  including an empty one-past suffix. Mismatch still reads selector bytes. Original
+  body dereferences remain separate guarded reads. Do not synthesize source indices.
+- Lead: concrete impl/source containment, Option success/failure composition,
+  policy/admission/matching integration and shared types/origins. Keep neighboring
+  derives, methods, macros and unsupported contexts visible and separately checked.
+
+Readiness evidence: `/tmp/rstyle-424-digits-source-audit.md` and
+`/tmp/rstyle-424-digits-prefix-origins-audit.md`. Original functions863–865 are
+currently excluded; no admission gain is predicted. Open seams are concrete product
+descriptor/source validation, no-drop authority and guarded Option component
+encoding. Freeze these interfaces before parallel production edits. Broad P01–P22
+work and cross-target/native validation remain active.
+
+Integrated checkpoint:1,906 tests/five existing skips and doctests pass, including
+the complete composition test at3.80s. Formatting, locked warning-denied Clippy,
+style0/6,378 and patterns0/15 unchanged ignores pass. Frozen run-t6jmzf89 checks118
+documents and preserves all60 identities, denominators, outcomes/reasons and
+blocker combinations against run-rgsv2ohk:24 admitted/29 excluded/7 inactive,
+gain0/loss0. Evidence: `/tmp/rstyle-424-{tests-final2.log,clippy-final4.log,style-final2.json,patterns-final2.log,frozen.log,frozen-comparison.json}`.

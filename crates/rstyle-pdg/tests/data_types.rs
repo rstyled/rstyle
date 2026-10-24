@@ -76,12 +76,12 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.103.0");
+    assert_eq!(profile.policy().version, "3.104.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 127);
+    assert_eq!(profile.capabilities().len(), 128);
     assert!(profile.supports("rust.checked-scalar-instances"));
     assert!(profile.supports("rust.component-helper-results"));
     let mut previous = profile.policy();
@@ -244,4 +244,15 @@ fn original_from_authority_requires_its_new_document_policy() {
     for profile in [ExtractionProfile::DataV1, ExtractionProfile::DataV2] {
         assert!(!profile.supports("rust.checked-reference-forwarder-instances"));
     }
+}
+
+#[test]
+fn tagged_helper_authority_does_not_extend_value_only_policy() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let current = ExtractionProfile::DataV3.policy();
+    let capability = "rust.copy-tagged-conversion-helper-calls";
+    assert!(policy_supports(&current, capability));
+    let mut historical = current;
+    historical.version = "3.103.0".into();
+    assert!(!policy_supports(&historical, capability));
 }

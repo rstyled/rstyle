@@ -1,14 +1,6 @@
 use super::*;
 
 impl Context<'_> {
-    pub(super) fn typed(&self, node: &HirNode, tree: &TypeTree) -> Result<(), String> {
-        let expected = crate::data_types::TypeToken::from_tree(tree).text()?;
-        if node.expansion.is_some() || crate::data_aggregates::token(node)? != expected {
-            return Err("Copy conversion HIR type or source provenance disagrees".into());
-        }
-        Ok(())
-    }
-
     pub(super) fn correspondence(
         &self,
         span: proc_macro2::Span,

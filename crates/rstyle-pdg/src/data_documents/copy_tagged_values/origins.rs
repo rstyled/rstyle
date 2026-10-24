@@ -325,7 +325,11 @@ fn dependent<'a>(pair: PairView<'a>, value: &PdgNode, kind: &str) -> Result<&'a 
     unique(pair, |node| node.id == edge.target)
 }
 
-fn verify_definition(pair: PairView<'_>, binding: &PdgNode, read: &PdgNode) -> Result<(), String> {
+pub(in crate::data_documents) fn verify_definition(
+    pair: PairView<'_>,
+    binding: &PdgNode,
+    read: &PdgNode,
+) -> Result<(), String> {
     let edges: Vec<_> = pair
         .pdg
         .edges

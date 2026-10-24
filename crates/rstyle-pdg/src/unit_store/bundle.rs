@@ -198,6 +198,7 @@ impl UnitStore {
                 && crate::extraction_profile::ExtractionProfile::from_facts(&view)?
                     .supports("rust.verified-helper-calls")
                 && crate::classify(&view).status == crate::EligibilityVerdict::Eligible
+                && self.requires_tagged_helper(index, &view)
                 && crate::helper_calls::certify_view(&view)
                     .map_err(|error| format!("Imported function {}: {error}", view.name))?
                     .is_some()
@@ -207,6 +208,23 @@ impl UnitStore {
         }
         Ok(())
     }
+    /// Newly callable families do not retroactively require historical helper records.
+    fn requires_tagged_helper(&self, index: usize, view: &dyn EvidenceFacts) -> bool {
+        !crate::helper_calls::tagged_conversions::candidate(view)
+            || self.pair(index).is_some_and(|pair| {
+                let cfg_policy = crate::ProfileId {
+                    id: pair.cfg.profile.name.clone(),
+                    version: pair.cfg.profile.version.clone(),
+                };
+                [&pair.pdg.profile, &cfg_policy].iter().all(|profile| {
+                    crate::extraction_profile::policy_supports(
+                        profile,
+                        crate::helper_calls::tagged_conversions::CAPABILITY,
+                    )
+                })
+            })
+    }
+
     fn validate_root_evidence(&self, analysis: &UnitAnalysis<'_>) -> Result<(), String> {
         for (index, root) in self.roots.iter().enumerate() {
             let view = analysis.function(index).ok_or("Missing graph frontend")?;

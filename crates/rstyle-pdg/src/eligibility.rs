@@ -636,13 +636,38 @@ fn check_copy_conversion(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
     }
 }
 
+fn check_tagged_forwarder_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if node.hir != ctx.facts.body.hir
+        || node.span != ctx.facts.body.span
+        || !crate::copy_tagged_values::call_wrappers::candidate(ctx.facts)
+    {
+        return None;
+    }
+    Some(
+        match crate::copy_tagged_values::call_wrappers::verify(ctx.facts) {
+            Ok(Some(_)) => Outcome::ok(),
+            result => error(
+                "rust.copy-tagged-conversion-helper-calls",
+                "tagged_call",
+                node,
+                &result
+                    .err()
+                    .unwrap_or_else(|| "Missing exact tagged forwarding proof".into()),
+            ),
+        },
+    )
+}
+
+fn check_special_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    check_tagged_forwarder_body(node, ctx)
+        .or_else(|| check_copy_conversion_body(node, ctx))
+        .or_else(|| check_transport_body(node, ctx))
+}
+
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
-    if let Some(outcome) = check_copy_conversion_body(node, ctx) {
-        return outcome;
-    }
-    if let Some(outcome) = check_transport_body(node, ctx) {
+    if let Some(outcome) = check_special_body(node, ctx) {
         return outcome;
     }
     if let Some(operands) = crate::data_frontend::borrowed_results::operands(node, ctx.facts) {

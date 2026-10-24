@@ -131,7 +131,7 @@ fn merge(pair: PairView<'_>, ops: &Operations<'_>) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn returned(
+pub(in crate::data_documents) fn returned(
     pair: PairView<'_>,
     source: &HirNode,
     value: &PdgNode,

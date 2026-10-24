@@ -5276,3 +5276,15 @@ the original `From` and inverse `TryFrom`: 22→24 admitted, zero losses, unchan
 remaining outcomes/reasons, and complete matching. Caller summaries still require
 actual/formal substitution and caller-scoped guards; parser callers additionally
 require their concrete instance, callback and Result composition dependencies.
+
+Data3.104 carries those guarded conversion contracts through exact same-unit
+explicit From/TryFrom calls and immediate whole-value forwarding. Saved actuals,
+caller-scoped guards and complete callee summaries verify independently; flattened
+origins and forged summaries reject. Wrappers are not themselves callable summaries.
+The unchanged natural selection remains24/1,407 admitted, gain0/loss0, with all276
+pair results unchanged under strict replay. This is a callable-composition
+foundation, not admission of the production parser above these conversions.
+The next source-selected frontier is time's three concrete ExactlyNDigits parse
+methods: complete slice-prefix binding capture, exact suffix origins and
+Option<ParsedItem<u8/u16>> product substitution/no-drop proof. Their method
+identities are already concrete; generic-function instantiation is not required.

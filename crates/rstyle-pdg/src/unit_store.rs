@@ -1034,6 +1034,7 @@ fn function_links(
     for node in crate::helper_calls::call_nodes(facts) {
         let Some(resolution) = crate::local_value_trait_calls::resolution(node, facts)
             .or_else(|| crate::nominal_boundary::resolution::tryfrom_owners::call_link(node, facts))
+            .or_else(|| crate::helper_calls::tagged_resolution::selected_resolution(node, facts))
             .or_else(|| crate::helper_calls::direct_resolution(node))
         else {
             continue;
