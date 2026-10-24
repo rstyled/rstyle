@@ -2,9 +2,9 @@ use super::super::generated_units::tests::projection;
 use super::*;
 use crate::generated_sources::capture::{ExpansionKind, Mark, Origin};
 
-struct Fixture {
-    generated: capture::UnitCapture,
-    import: Import,
+pub(in crate::dependency_namespaces::proof) struct Fixture {
+    pub(in crate::dependency_namespaces::proof) generated: capture::UnitCapture,
+    pub(in crate::dependency_namespaces::proof) import: Import,
 }
 
 fn definition(path: &str, identity: &str) -> Definition {
@@ -25,7 +25,7 @@ fn foreign(local: &Definition) -> Definition {
     }
 }
 
-fn fixture() -> Fixture {
+pub(in crate::dependency_namespaces::proof) fn fixture() -> Fixture {
     let projection = projection();
     let module = definition("convert", "module");
     let emitted = emitted_units(&projection, &module);

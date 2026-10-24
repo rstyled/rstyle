@@ -199,6 +199,7 @@ pub(super) fn root(root: &syn::File, selected: &str) -> Result<(), ProofError> {
             found = true;
         }
     }
+
     if !found {
         return Err(ProofError::Missing(
             "Missing original public generated-unit module",

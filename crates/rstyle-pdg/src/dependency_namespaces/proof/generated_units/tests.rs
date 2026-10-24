@@ -14,6 +14,15 @@ pub(in crate::dependency_namespaces::proof) fn projection() -> Projection {
 }
 
 fn checked(source: &str, root: &str) -> Result<Projection, ProofError> {
+    let (census, modules) = inputs(source, root);
+    verify(&census, &modules, &["convert".into()])
+}
+
+pub(in crate::dependency_namespaces::proof) fn original_inputs() -> (Census, Vec<Module>) {
+    inputs(SOURCE, ROOT)
+}
+
+fn inputs(source: &str, root: &str) -> (Census, Vec<Module>) {
     let manifest: SourceSnapshot = "manifest".into();
     let census = Census {
         identity: census::IDENTITY.into(),
@@ -39,7 +48,7 @@ fn checked(source: &str, root: &str) -> Result<Projection, ProofError> {
         module("lib.rs", root, &[]),
         module("convert.rs", source, &["convert"]),
     ];
-    verify(&census, &modules, &["convert".into()])
+    (census, modules)
 }
 
 fn file(name: &str, source: &str) -> UnitFile {

@@ -9,6 +9,7 @@ pub mod generated_sources;
 mod macro_scope;
 pub(crate) mod module_lints;
 mod module_proof;
+pub(crate) mod original_sites;
 pub(crate) mod policy;
 #[cfg(test)]
 use crate::concrete_types::digest;
@@ -75,16 +76,31 @@ pub(crate) fn verify_with_module_lints(
     cfgs: &[String],
     expansions: bool,
 ) -> Result<Vec<Module>, String> {
-    verify_mode(
+    verify_lint_policy(
         census,
-        true,
-        Some(cfgs),
-        InputMode {
-            expansions,
-            documentation: !census.documentation.is_empty(),
-            external_imports: !census.external_imports.is_empty(),
-            module_lints: true,
-        },
+        cfgs,
+        expansions,
+        Some(module_lints::Policy {
+            deprecated: true,
+            expectations: false,
+        }),
+    )
+}
+
+/// Source-only lint expectations, gated by the generated namespace capability.
+pub(crate) fn verify_generated_namespace(
+    census: &Census,
+    cfgs: &[String],
+    expansions: bool,
+) -> Result<Vec<Module>, String> {
+    verify_lint_policy(
+        census,
+        cfgs,
+        expansions,
+        Some(module_lints::Policy {
+            deprecated: true,
+            expectations: true,
+        }),
     )
 }
 
@@ -98,6 +114,7 @@ pub(crate) fn verify_expanded(census: &Census, cfgs: &[String]) -> Result<Vec<Mo
             documentation: false,
             external_imports: false,
             module_lints: false,
+            expectations: false,
         },
     )
 }
@@ -116,6 +133,7 @@ pub(crate) fn verify_documented(
             documentation: true,
             external_imports: false,
             module_lints: false,
+            expectations: false,
         },
     )
 }
@@ -125,6 +143,18 @@ pub(crate) fn verify_imported(
     cfgs: &[String],
     expansions: bool,
 ) -> Result<Vec<Module>, String> {
+    verify_lint_policy(census, cfgs, expansions, None)
+}
+
+fn verify_lint_policy(
+    census: &Census,
+    cfgs: &[String],
+    expansions: bool,
+    policy: Option<module_lints::Policy>,
+) -> Result<Vec<Module>, String> {
+    let imported = policy.is_none();
+    let policy = policy.unwrap_or_default();
+
     verify_mode(
         census,
         true,
@@ -132,8 +162,9 @@ pub(crate) fn verify_imported(
         InputMode {
             expansions,
             documentation: !census.documentation.is_empty(),
-            external_imports: true,
-            module_lints: false,
+            external_imports: !census.external_imports.is_empty() || imported,
+            module_lints: policy.deprecated,
+            expectations: policy.expectations,
         },
     )
 }
@@ -144,6 +175,7 @@ struct InputMode {
     documentation: bool,
     external_imports: bool,
     module_lints: bool,
+    expectations: bool,
 }
 
 impl InputMode {
@@ -187,6 +219,7 @@ fn verify_mode(
         modules: Vec::new(),
         constants,
         module_lints: mode.module_lints,
+        expectations: mode.expectations,
         selected: cfgs.map(crate::conditional_source::Configuration::new),
         expansions: expansions.then_some(census.expansions.as_slice()),
         used_expansions: BTreeSet::new(),
@@ -291,6 +324,7 @@ struct Closure<'a> {
     constants: bool,
     selected: Option<crate::conditional_source::Configuration<'a>>,
     module_lints: bool,
+    expectations: bool,
     expansions: Option<&'a [expansions::ModuleExpansion]>,
     used_expansions: BTreeSet<usize>,
     external_imports: Option<&'a [external_imports::Import]>,
@@ -335,7 +369,15 @@ impl Closure<'_> {
             .unwrap_or(&source.bytes);
         let file = syn::parse_file(source).map_err(|e| e.to_string())?;
         if let Some(configuration) = &self.selected {
-            selected_attributes(configuration, &file.attrs, true, self.module_lints)?;
+            selected_attributes(
+                configuration,
+                &file.attrs,
+                true,
+                module_lints::Policy {
+                    deprecated: self.module_lints,
+                    expectations: self.expectations,
+                },
+            )?;
         } else {
             boundary_attributes(&file.attrs)?;
         }
@@ -416,14 +458,7 @@ impl Closure<'_> {
         module: &syn::ItemMod,
         scope: macro_scope::Scope,
     ) -> Result<macro_scope::Scope, String> {
-        if module.unsafety.is_some() {
-            return Err("Unsafe module ownership is unsupported".into());
-        }
-        if let Some(configuration) = &self.selected {
-            selected_attributes(configuration, &module.attrs, false, self.module_lints)?;
-        } else if !module.attrs.is_empty() {
-            return Err("Module attributes require resolved presence/path evidence".into());
-        }
+        self.module_attributes(module)?;
         let mut child_namespace = site.namespace.clone();
         let name = module.ident.to_string();
         child_namespace.push(name.clone());
@@ -457,6 +492,26 @@ impl Closure<'_> {
             ),
             _ => Err("Missing or ambiguous ordinary external module source".into()),
         }
+    }
+
+    fn module_attributes(&self, module: &syn::ItemMod) -> Result<(), String> {
+        if module.unsafety.is_some() {
+            return Err("Unsafe module ownership is unsupported".into());
+        }
+        if let Some(configuration) = &self.selected {
+            selected_attributes(
+                configuration,
+                &module.attrs,
+                false,
+                module_lints::Policy {
+                    deprecated: self.module_lints,
+                    expectations: self.expectations,
+                },
+            )?;
+        } else if !module.attrs.is_empty() {
+            return Err("Module attributes require resolved presence/path evidence".into());
+        }
+        Ok(())
     }
 }
 
@@ -536,7 +591,7 @@ fn selected_attributes(
     configuration: &crate::conditional_source::Configuration<'_>,
     attributes: &[syn::Attribute],
     root: bool,
-    module_lints: bool,
+    lints: module_lints::Policy,
 ) -> Result<(), String> {
     if !configuration.active(attributes)? {
         return Err("Inactive module cannot own selected source".into());
@@ -548,7 +603,7 @@ fn selected_attributes(
             .any(|name| path.is_ident(name))
             && !(root && path.is_ident("no_std"))
             && !(!root && matches!(&attribute, syn::Meta::Path(path) if path.is_ident("macro_use")))
-            && !(module_lints && module_lints::deprecated_expect(&attribute))
+            && !lints.accepts(&attribute)
         {
             return Err("Selected module attribute lacks supported presence/path semantics".into());
         }

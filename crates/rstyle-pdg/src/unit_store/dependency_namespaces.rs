@@ -14,11 +14,66 @@ pub(super) struct Association {
 /// Only the owning dependency closure can supply its exact producer.
 pub struct CheckedDependencyNamespace<'a> {
     owner: &'a UnitStore,
+    sources: &'a derived::Sources,
     capture: Arc<crate::dependency_namespaces::capture::UnitCapture>,
     import: usize,
 }
 
 impl CheckedDependencyNamespace<'_> {
+    /// Both complete generated source and compiler export graphs are required.
+    /// Capability activation and the exact consumer source join remain separate.
+    pub(crate) fn generated_exports(
+        &self,
+    ) -> Result<crate::dependency_namespaces::proof::GeneratedExports, String> {
+        let import = &self.capture.imports[self.import];
+
+        if import.site.target_kind != "Mod"
+            || import.exports.is_empty()
+            || import.exports.iter().any(|export| {
+                !matches!(
+                    export.target_kind.as_str(),
+                    "Struct" | "Ctor(Struct, Const)"
+                )
+            })
+        {
+            return Err(
+                "Generated namespace requires a bounded unit-struct module footprint".into(),
+            );
+        }
+        let producer = self
+            .sources
+            .dependency_namespace_capture(self.owner.functions())?
+            .ok_or("Missing original producer namespace capture")?;
+        let generated = self
+            .sources
+            .generated_capture(self.owner.functions())?
+            .ok_or("Missing original generated producer capture")?;
+        let facts = self
+            .owner
+            .functions()
+            .first()
+            .ok_or("Missing original producer source owner")?;
+        let environment = self.sources.generated_environment(facts)?;
+        let census = facts
+            .build
+            .frontend_options
+            .data::<Arc<crate::nominal_boundary::census::Census>>()?;
+        let modules = environment
+            .generated_source_modules(&facts.build.cfgs)
+            .ok_or("Generated namespace lacks its checked producer source policy")?;
+
+        crate::dependency_namespaces::proof::verify_generated_namespace(
+            crate::dependency_namespaces::proof::GeneratedProducer {
+                census: Arc::clone(&census),
+                modules,
+                namespaces: &producer,
+                generated: &generated,
+            },
+            import,
+        )
+        .map_err(|error| error.to_string())
+    }
+
     /// Original immutable evidence only. No callee certification is performed.
     pub fn functions(&self) -> &[HirFnFacts] {
         self.owner.functions()
@@ -77,6 +132,7 @@ pub(super) fn selected<'a>(
         .ok_or("Missing direct namespace dependency owner")?;
     Ok(Some(CheckedDependencyNamespace {
         owner: &owner.store,
+        sources: &owner.sources,
         capture,
         import: index,
     }))

@@ -208,6 +208,7 @@ fn checked_module_environment(
             cfgs: Some(&fixture.facts.build.cfgs),
             expansions: true,
             module_lints: true,
+            generated_namespaces: false,
         },
     )
     .unwrap()
@@ -247,6 +248,7 @@ fn different_configuration_or_module_proof_keeps_standalone_verification() {
                 cfgs: Some(&[]),
                 expansions: true,
                 module_lints,
+                generated_namespaces: false,
             },
         )
         .unwrap();

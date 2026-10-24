@@ -5297,3 +5297,17 @@ only: value admission, scoped no-drop proof and guarded component origins remain
 closed. The unchanged selection stays24/1,407 admitted, gain0/loss0; all276 pair
 results and all selected source identities are unchanged. The original runtime
 oracle passes229,554 checks in each default/parsing and no-default/parsing context.
+
+Data3.106 checks complete generated dependency namespaces against original source,
+the full emitted member roster, exact exports and consumer imports. Lint-only
+expectation metadata preserves neighboring items and expansions. The unchanged
+development selection remains24/1,407 admitted, gain0/loss0, with all276 matching
+results preserved under strict replay. The digit-parser family remains incomplete:
+its next blocker is cleanup ownership of the original `ensure_ranged` expansion;
+this import proof grants no callable or no-drop permission.
+Validation:1,939 tests pass/five existing skips plus doctests; fmt, warning-denied
+Clippy,style0/6,553 and patterns0/15 unchanged ignores pass. Strict evidence:
+`/tmp/rstyle-430-namespace-replay.json` and `namespace-strict-comparison.json`.
+After three foundation increments without gains, reassess after one bounded
+whole-owner macro check; powerfmt association and connected value/origin/graph
+proof remain required before any digit-family activation.

@@ -2,14 +2,16 @@
 //! This receipt proves an export footprint, never a Cargo artifact association,
 //! trait implementation, callable effect, or admission decision.
 mod consumer;
-#[cfg(test)]
 mod generated_exports;
-#[cfg(test)]
+mod generated_namespace;
 mod generated_roster;
-#[cfg(test)]
 mod generated_units;
 mod source;
 pub use consumer::verify_consumer;
+pub(crate) use consumer::verify_site;
+pub(crate) use generated_namespace::{
+    GeneratedExports, GeneratedProducer, verify_generated_namespace,
+};
 #[cfg(test)]
 mod tests;
 

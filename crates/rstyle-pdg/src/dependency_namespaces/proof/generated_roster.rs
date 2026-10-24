@@ -27,12 +27,14 @@ pub(super) fn verify(
             "Generated roster capture scope differs",
         ));
     }
+
     let graph = derives::Graph::new(projection, generated, expansion)?;
     let module = local_module(projection, module)?;
     let mut inventory = Inventory::new(projection, generated, &graph, &module)?;
-    expected::units(projection, &mut inventory, expansion, &module)?;
-    expected::ratios(projection, &mut inventory, expansion, &module)?;
+
+    expected::verify(projection, &mut inventory, expansion, &module)?;
     derives::units(projection, &mut inventory, &graph, &module)?;
+
     inventory.finish()
 }
 
@@ -52,9 +54,11 @@ fn local_module(projection: &Projection, module: &Definition) -> Result<Definiti
             "Generated roster module identity differs",
         ));
     }
+
     let mut local = module.clone();
     local.local = true;
     local.path = projection.namespace().join("::");
+
     Ok(local)
 }
 

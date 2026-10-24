@@ -5,7 +5,7 @@ use super::{Binding, Import, ProofError, Site, identity, same_definition};
 use crate::generated_sources::capture::{self, Definition, Emitted, Expansion, Transparency};
 use std::collections::BTreeSet;
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;
 
 pub(crate) struct GeneratedExports {
     projection: Projection,
@@ -66,6 +66,7 @@ fn inputs(
             "Incomplete generated namespace unit inventory",
         ));
     }
+
     let module = &import.site.target;
     if !projection
         .source()
@@ -75,6 +76,7 @@ fn inputs(
             "Generated namespace original template checksum differs",
         ));
     }
+
     identity(module)?;
     if module.local
         || import.site.target_kind != "Mod"
@@ -90,15 +92,17 @@ fn inputs(
             "Generated namespace module or export count differs",
         ));
     }
+
     if !matches!(&import.site.binding, Binding::Glob | Binding::Named(_)) {
         return Err(ProofError::Unsupported(
             "Generated namespace requires a named module or glob",
         ));
     }
+
     Ok(())
 }
 
-fn expansion<'a>(
+pub(super) fn expansion<'a>(
     projection: &Projection,
     generated: &'a capture::UnitCapture,
     module: &Definition,
@@ -110,6 +114,7 @@ fn expansion<'a>(
     let selected = matching
         .next()
         .ok_or(ProofError::Missing("Missing original unit expansion"))?;
+
     if matching.next().is_some()
         || selected.kind != capture::ExpansionKind::Bang
         || selected.parent.is_some()
@@ -120,12 +125,14 @@ fn expansion<'a>(
             "Generated unit expansion ownership differs",
         ));
     }
+
     let definition = selected
         .macro_definition
         .as_ref()
         .ok_or(ProofError::Missing(
             "Missing original unit macro definition",
         ))?;
+
     identity(definition)?;
     if !definition.local
         || definition.crate_name != module.crate_name
@@ -142,6 +149,7 @@ fn expansion<'a>(
             "Generated unit macro definition identity differs",
         ));
     }
+
     Ok(selected)
 }
 

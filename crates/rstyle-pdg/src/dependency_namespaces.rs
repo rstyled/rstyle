@@ -6,6 +6,7 @@ use crate::HirFnFacts;
 use std::sync::Arc;
 
 pub const CAPABILITY: &str = "rust.checked-anonymous-dependency-namespaces";
+pub const GENERATED_CAPABILITY: &str = "rust.checked-generated-dependency-namespaces";
 
 /// Retain observations without granting source, callable or dependency authority.
 pub fn function_capture(facts: &HirFnFacts) -> Result<Option<Arc<capture::UnitCapture>>, String> {

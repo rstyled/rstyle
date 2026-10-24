@@ -16,7 +16,7 @@ pub fn verify_consumer(
     verify_site(census, modules, receipt.import())
 }
 
-pub(super) fn verify_site(
+pub(crate) fn verify_site(
     census: &Census,
     modules: &[census::Module],
     site: &Site,

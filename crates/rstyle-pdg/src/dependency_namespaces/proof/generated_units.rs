@@ -7,6 +7,7 @@ mod templates;
 pub(super) mod tests;
 
 use super::ProofError;
+use crate::nominal_boundary::census::original_sites::site;
 use crate::{
     SourceSnapshot,
     nominal_boundary::census::{self, Census, Module, UnitFile, expansions::FileSpan},
@@ -75,7 +76,11 @@ pub(super) fn verify(
         .map_err(|_| ProofError::Unsupported("Generated-unit module is not original Rust"))?;
     let (definition, invocation) = syntax::items(&parsed)?;
     let checked = syntax::verify(file, definition, invocation)?;
-    let units = Invocation::parse(invocation.mac.tokens.clone(), file)?;
+    let units = Invocation::parse(
+        invocation.mac.tokens.clone(),
+        #[cfg(test)]
+        file,
+    )?;
 
     Ok(Projection {
         namespace: namespace.to_vec(),
@@ -118,6 +123,7 @@ fn root(census: &Census, namespace: &[String]) -> Result<(), ProofError> {
     let root = syn::parse_file(&file.bytes).map_err(|_| {
         ProofError::Unsupported("Generated-unit producer root is not original Rust")
     })?;
+
     syntax::root(&root, &namespace[0])
 }
 
@@ -139,13 +145,6 @@ fn original_file<'a>(
             "Generated-unit source exceeds budget",
         ));
     }
-    Ok(file)
-}
 
-fn site(file: &UnitFile, span: proc_macro2::Span) -> FileSpan {
-    FileSpan {
-        path: file.path.clone(),
-        digest: file.digest.clone(),
-        span: crate::source_evidence::original_span(&file.bytes, span),
-    }
+    Ok(file)
 }

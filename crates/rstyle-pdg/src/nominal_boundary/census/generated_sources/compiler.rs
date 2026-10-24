@@ -1,5 +1,6 @@
 //! Normalize compiler header/macro spans by exact original AST boundaries.
 use super::*;
+use crate::nominal_boundary::census::original_sites::site as anchor;
 
 pub struct CompilerInput<'a> {
     pub census: &'a Census,
@@ -89,12 +90,4 @@ fn sites(input: &CompilerInput<'_>, modules: &[Module]) -> Result<Sites, String>
 
 fn definition_header(item: &syn::ItemMacro) -> Option<proc_macro2::Span> {
     item.mac.path.span().join(item.ident.as_ref()?.span())
-}
-
-fn anchor(file: &super::super::UnitFile, span: proc_macro2::Span) -> FileSpan {
-    FileSpan {
-        path: file.path.clone(),
-        digest: file.digest.clone(),
-        span: crate::source_evidence::original_span(&file.bytes, span),
-    }
 }

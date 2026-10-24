@@ -74,7 +74,8 @@ fn specs() -> Vec<(TemplateRole, &'static str, usize, usize)> {
     let per = "pub const fn per<T>(_larger: T) -> <T as DefaultOutput<Self>>::Output\n            where\n                T: MultipleOf<Self, T::Output> + DefaultOutput<Self> + Copy,";
     let per_t =
         "pub const fn per_t<Output>(larger: impl MultipleOf<Self, Output> + Copy) -> Output";
-    let mut specs = [
+
+    let roles = [
         (Struct, "pub struct $t;"),
         (InherentImpl, "impl $t"),
         (Per, per),
@@ -90,27 +91,33 @@ fn specs() -> Vec<(TemplateRole, &'static str, usize, usize)> {
         (DeriveCopy, "Copy)]"),
     ]
     .into_iter()
-    .map(|(role, text)| (role, text, 0, text.len()))
-    .collect::<Vec<_>>();
-    specs[10].3 = "Debug".len();
-    specs[11].3 = "Clone".len();
-    specs[12].3 = "Copy".len();
-    specs[9].3 = "type Output".len();
-    specs.extend([
-        (
-            DeriveAttribute,
-            "#[derive(Debug, Clone, Copy)]",
-            0,
-            "#[derive(Debug, Clone, Copy)]".len(),
-        ),
-        (PerTypeParameter, "per<T>", "per<".len(), 1),
-        (PerTOutput, "per_t<Output>", "per_t<".len(), "Output".len()),
-        (
-            PerTOpaque,
-            "impl MultipleOf<Self, Output> + Copy",
-            0,
-            "impl MultipleOf<Self, Output> + Copy".len(),
-        ),
-    ]);
-    specs
+    .map(|(role, text)| {
+        let length = match role {
+            DeriveDebug => "Debug".len(),
+            DeriveClone => "Clone".len(),
+            DeriveCopy => "Copy".len(),
+            DefaultType => "type Output".len(),
+            _ => text.len(),
+        };
+        (role, text, 0, length)
+    });
+
+    roles
+        .chain([
+            (
+                DeriveAttribute,
+                "#[derive(Debug, Clone, Copy)]",
+                0,
+                "#[derive(Debug, Clone, Copy)]".len(),
+            ),
+            (PerTypeParameter, "per<T>", "per<".len(), 1),
+            (PerTOutput, "per_t<Output>", "per_t<".len(), "Output".len()),
+            (
+                PerTOpaque,
+                "impl MultipleOf<Self, Output> + Copy",
+                0,
+                "impl MultipleOf<Self, Output> + Copy".len(),
+            ),
+        ])
+        .collect()
 }

@@ -13,6 +13,22 @@ impl<'a> Graph<'a> {
         generated: &'a capture::UnitCapture,
         root: &Expansion,
     ) -> Result<Self, ProofError> {
+        let mut graph = Self::index(generated)?;
+        if graph.nodes.get(root.expansion.as_str()).copied() != Some(root) || root.parent.is_some()
+        {
+            return Err(ProofError::Contradictory(
+                "Generated roster defining expansion differs",
+            ));
+        }
+        let root = graph.nodes[root.expansion.as_str()];
+        graph.selected.insert(root.expansion.as_str());
+
+        graph.attributes(projection, root)?;
+        graph.reject_detached(projection)?;
+        Ok(graph)
+    }
+
+    fn index(generated: &'a capture::UnitCapture) -> Result<Self, ProofError> {
         let mut nodes = BTreeMap::new();
         let mut children: BTreeMap<&str, Vec<&Expansion>> = BTreeMap::new();
         for node in &generated.expansions {
@@ -25,20 +41,12 @@ impl<'a> Graph<'a> {
                 children.entry(parent).or_default().push(node);
             }
         }
-        if nodes.get(root.expansion.as_str()).copied() != Some(root) || root.parent.is_some() {
-            return Err(ProofError::Contradictory(
-                "Generated roster defining expansion differs",
-            ));
-        }
-        let root = nodes[root.expansion.as_str()];
-        let mut graph = Self {
+
+        Ok(Self {
             nodes,
             children,
-            selected: BTreeSet::from([root.expansion.as_str()]),
-        };
-        graph.attributes(projection, root)?;
-        graph.reject_detached(projection)?;
-        Ok(graph)
+            selected: BTreeSet::new(),
+        })
     }
 
     fn attributes(
@@ -51,11 +59,13 @@ impl<'a> Graph<'a> {
             .get(root.expansion.as_str())
             .cloned()
             .unwrap_or_default();
+
         if attributes.len() != projection.units().len() {
             return Err(ProofError::Contradictory(
                 "Generated unit derive attribute roster differs",
             ));
         }
+
         let mut core = BTreeMap::new();
         for attribute in attributes {
             node(
@@ -88,30 +98,25 @@ impl<'a> Graph<'a> {
             .get(attribute.expansion.as_str())
             .map(Vec::as_slice)
             .unwrap_or_default();
-        let mut names = BTreeSet::new();
-        for child in derives {
-            let (path, role) = match child.name.as_str() {
-                "Debug" => ("core::fmt::Debug", TemplateRole::DeriveDebug),
-                "Clone" => ("core::clone::Clone", TemplateRole::DeriveClone),
-                "Copy" => ("core::marker::Copy", TemplateRole::DeriveCopy),
-                _ => return Err(ProofError::Unsupported("Unexpected generated unit derive")),
-            };
-            node(
-                projection,
-                root,
-                child,
-                (capture::ExpansionKind::Derive, &child.name, path, role),
-            )?;
-            if !names.insert(child.name.as_str())
+
+        for (index, child) in derives.iter().enumerate() {
+            derive_node(projection, root, child)?;
+            if derives[..index]
+                .iter()
+                .any(|other| other.name == child.name)
                 || self.children.contains_key(child.expansion.as_str())
             {
                 return Err(ProofError::Contradictory(
                     "Generated unit derive has surplus descendants",
                 ));
             }
-            core_identity(core, child)?;
-            self.selected.insert(child.expansion.as_str());
+            select_derive(&mut self.selected, core, child)?;
         }
+
+        let names = derives
+            .iter()
+            .map(|child| child.name.as_str())
+            .collect::<BTreeSet<_>>();
         if names != BTreeSet::from(["Debug", "Clone", "Copy"]) {
             return Err(ProofError::Contradictory(
                 "Generated unit derive triple is incomplete",
@@ -158,6 +163,36 @@ impl<'a> Graph<'a> {
         }
         Ok(node)
     }
+}
+
+fn select_derive<'a>(
+    selected: &mut BTreeSet<&'a str>,
+    core: &mut BTreeMap<&'a str, &'a Definition>,
+    child: &'a Expansion,
+) -> Result<(), ProofError> {
+    core_identity(core, child)?;
+    selected.insert(child.expansion.as_str());
+    Ok(())
+}
+
+fn derive_node(
+    projection: &Projection,
+    root: &Expansion,
+    child: &Expansion,
+) -> Result<(), ProofError> {
+    let (path, role) = match child.name.as_str() {
+        "Debug" => ("core::fmt::Debug", TemplateRole::DeriveDebug),
+        "Clone" => ("core::clone::Clone", TemplateRole::DeriveClone),
+        "Copy" => ("core::marker::Copy", TemplateRole::DeriveCopy),
+        _ => return Err(ProofError::Unsupported("Unexpected generated unit derive")),
+    };
+
+    node(
+        projection,
+        root,
+        child,
+        (capture::ExpansionKind::Derive, &child.name, path, role),
+    )
 }
 
 fn node(
@@ -230,15 +265,44 @@ impl Context<'_, '_, '_> {
     }
 }
 
-pub(super) fn units(
+pub(super) fn units<'g>(
     projection: &Projection,
-    inventory: &mut Inventory<'_>,
-    graph: &Graph<'_>,
+    inventory: &mut Inventory<'g>,
+    graph: &Graph<'g>,
     module: &Definition,
 ) -> Result<(), ProofError> {
-    let mut attributes = BTreeSet::new();
-    for unit in projection.units() {
-        let name = path(projection, unit.name());
+    let mut roster = Roster {
+        projection,
+        inventory,
+        graph,
+        module,
+    };
+    roster.all()
+}
+
+struct Roster<'a, 'p, 'g> {
+    projection: &'p Projection,
+    inventory: &'a mut Inventory<'g>,
+    graph: &'a Graph<'g>,
+    module: &'p Definition,
+}
+
+impl<'g> Roster<'_, '_, 'g> {
+    fn all(&mut self) -> Result<(), ProofError> {
+        let mut attributes = BTreeSet::new();
+        for unit in self.projection.units() {
+            let parent = self.unit(unit.name())?;
+            if !attributes.insert(parent) {
+                return Err(ProofError::Contradictory(
+                    "Generated units share or mix derive attribute ownership",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn unit(&mut self, unit: &str) -> Result<&'g String, ProofError> {
+        let name = path(self.projection, unit);
         let mut parents = BTreeSet::new();
         for (derive, trait_path, role) in [
             ("Debug", "core::fmt::Debug", TemplateRole::DeriveDebug),
@@ -246,24 +310,43 @@ pub(super) fn units(
             ("Copy", "core::marker::Copy", TemplateRole::DeriveCopy),
         ] {
             let owner = format!("<{name} as {trait_path}>");
-            let item =
-                inventory.peek("Impl { of_trait: true }", &owner, projection.template(role))?;
-            let expansion = graph.get(&item.origin.marks[0].expansion, derive)?;
+            let item = self.inventory.peek(
+                "Impl { of_trait: true }",
+                &owner,
+                self.projection.template(role),
+            )?;
+            let expansion = self.graph.get(&item.origin.marks[0].expansion, derive)?;
             parents.insert(expansion.parent.as_ref().unwrap());
-            let mut context = Context {
-                projection,
-                inventory,
-                mark: mark(expansion, Transparency::Opaque),
-            };
-            context.derived(&name, module, derive)?;
+            self.implementation(&name, derive, expansion)?;
         }
-        if parents.len() != 1 || !attributes.insert(parents.into_iter().next().unwrap()) {
+
+        if parents.len() != 1 {
             return Err(ProofError::Contradictory(
                 "Generated units share or mix derive attribute ownership",
             ));
         }
+        Ok(parents.into_iter().next().unwrap())
     }
-    Ok(())
+
+    fn implementation(
+        &mut self,
+        name: &str,
+        derive: &str,
+        expansion: &Expansion,
+    ) -> Result<(), ProofError> {
+        let mut context = Context {
+            projection: self.projection,
+            inventory: self.inventory,
+            mark: mark(expansion, Transparency::Opaque),
+        };
+        context.derived(name, self.module, derive)
+    }
+}
+
+struct DerivedMethod<'a> {
+    owner: &'a str,
+    name: &'a str,
+    role: TemplateRole,
 }
 
 impl Context<'_, '_, '_> {
@@ -273,6 +356,7 @@ impl Context<'_, '_, '_> {
             "Clone" => (TemplateRole::DeriveClone, "clone", "core::clone::Clone"),
             _ => (TemplateRole::DeriveCopy, "", "core::marker::Copy"),
         };
+
         let owner = format!("<{unit} as {trait_path}>");
         let implementation = self.take(TemplateRecord {
             kind: "Impl { of_trait: true }",
@@ -283,28 +367,55 @@ impl Context<'_, '_, '_> {
         if method.is_empty() {
             return Ok(());
         }
-        let function = self.take(TemplateRecord {
-            kind: "AssocFn",
-            path: format!("{owner}::{method}"),
-            parent: &implementation.definition,
-            role,
-        })?;
-        let lifetime = format!("{owner}::{method}::'_");
-        self.lifetime(lifetime.clone(), &function.definition, role)?;
-        if derive == "Debug" {
-            self.lifetime(lifetime.clone(), &function.definition, role)?;
-            self.take(TemplateRecord {
-                kind: "LifetimeParam",
-                path: lifetime,
-                parent: &function.definition,
+
+        self.derived_member(
+            &DerivedMethod {
+                owner: &owner,
+                name: method,
                 role,
-            })?;
-        } else {
+            },
+            &implementation.definition,
+        )?;
+        if derive == "Clone" {
             self.take(TemplateRecord {
                 kind: "Impl { of_trait: true }",
                 path: format!("<{unit} as core::clone::TrivialClone>"),
                 parent: module,
                 role,
+            })?;
+        }
+        Ok(())
+    }
+
+    fn derived_member(
+        &mut self,
+        method: &DerivedMethod<'_>,
+        implementation: &Definition,
+    ) -> Result<(), ProofError> {
+        let function = self.take(TemplateRecord {
+            kind: "AssocFn",
+            path: format!("{}::{}", method.owner, method.name),
+            parent: implementation,
+            role: method.role,
+        })?;
+        self.derived_lifetimes(method, &function.definition)
+    }
+
+    fn derived_lifetimes(
+        &mut self,
+        method: &DerivedMethod<'_>,
+        function: &Definition,
+    ) -> Result<(), ProofError> {
+        let lifetime = format!("{}::{}::'_", method.owner, method.name);
+        self.lifetime(lifetime.clone(), function, method.role)?;
+
+        if method.name == "fmt" {
+            self.lifetime(lifetime.clone(), function, method.role)?;
+            self.take(TemplateRecord {
+                kind: "LifetimeParam",
+                path: lifetime,
+                parent: function,
+                role: method.role,
             })?;
         }
         Ok(())

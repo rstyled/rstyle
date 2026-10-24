@@ -7,11 +7,13 @@ mod functions;
 #[derive(Clone, Copy)]
 struct SourceId(u32);
 
+#[derive(Clone, Copy)]
 pub(crate) struct SourceOptions<'a> {
     pub constants: bool,
     pub cfgs: Option<&'a [String]>,
     pub expansions: bool,
     pub module_lints: bool,
+    pub generated_namespaces: bool,
 }
 
 /// Construction checks every source fingerprint and the closed module inventory.
@@ -95,6 +97,7 @@ impl Environment {
                 cfgs,
                 expansions,
                 module_lints: false,
+                generated_namespaces: false,
             },
         )
     }
@@ -108,6 +111,7 @@ impl Environment {
             cfgs,
             expansions,
             module_lints,
+            generated_namespaces: _,
         } = options;
         let closed = if !census.external_imports.is_empty()
             || !census.documentation.is_empty()
@@ -122,7 +126,7 @@ impl Environment {
             Ok((modules, index)) => (modules, index, false, None),
             Err(error) => {
                 let Some(cfgs) = cfgs else { return Err(error) };
-                let modules = selected_modules(&census, cfgs, module_lints, expansions)?;
+                let modules = selected_modules(&census, cfgs, options)?;
                 let index = build_index(&modules, &census, Some(cfgs))?;
                 (
                     modules,
@@ -288,10 +292,17 @@ impl Environment {
 fn selected_modules(
     census: &census::Census,
     cfgs: &[String],
-    module_lints: bool,
-    expansions: bool,
+    options: SourceOptions<'_>,
 ) -> Result<Vec<census::Module>, String> {
-    if module_lints {
+    let SourceOptions {
+        module_lints,
+        expansions,
+        generated_namespaces,
+        ..
+    } = options;
+    if generated_namespaces {
+        census::verify_generated_namespace(census, cfgs, expansions)
+    } else if module_lints {
         census::verify_with_module_lints(census, cfgs, expansions)
     } else if !census.external_imports.is_empty() {
         census::verify_imported(census, cfgs, expansions)

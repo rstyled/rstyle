@@ -854,6 +854,7 @@ mod transport_scope_tests {
                 cfgs: Some(&fixture.facts.build.cfgs),
                 expansions: true,
                 module_lints: true,
+                generated_namespaces: false,
             },
         )
         .unwrap();

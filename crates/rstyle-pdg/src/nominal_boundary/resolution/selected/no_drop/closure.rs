@@ -547,6 +547,16 @@ impl Closure<'_> {
         if self.anonymous_import(item) {
             return;
         }
+        if let Some(receipt) = self.generated_import(item) {
+            for name in receipt.names() {
+                source_imports::bind(scope, name.to_string(), false);
+            }
+            return;
+        }
+
+        self.ordinary_import_bindings(item, scope);
+    }
+    fn ordinary_import_bindings(&self, item: &syn::ItemUse, scope: &mut BTreeMap<String, bool>) {
         self.enums.bindings(&item.tree, &[], scope);
         library_macros::bindings(&item.tree, &[], scope, self.library);
         if self.enums.closed_imports && item.leading_colon.is_none() {
@@ -739,6 +749,9 @@ impl Closure<'_> {
         if self.anonymous_import(item) {
             return Ok(());
         }
+        if self.collect_generated_import(item)? {
+            return Ok(());
+        }
         if self.scalar_bindings
             && self.generated_context > 0
             && source_imports::has_glob(&item.tree)
@@ -779,6 +792,37 @@ impl Closure<'_> {
             && self
                 .dependency_sources
                 .is_some_and(|environment| environment.anonymous_use(&self.enums.namespace, item))
+    }
+    fn generated_import(
+        &self,
+        item: &syn::ItemUse,
+    ) -> Option<&crate::dependency_namespaces::proof::GeneratedExports> {
+        if self.generated_context != 0 || self.nested_context != 0 {
+            return None;
+        }
+        self.dependency_sources?
+            .generated_use(&self.enums.namespace, item)
+    }
+    fn collect_generated_import(&self, item: &syn::ItemUse) -> Result<bool, String> {
+        let Some(receipt) = self.generated_import(item) else {
+            return Ok(false);
+        };
+        for name in receipt.names() {
+            if concrete_types::scalar(name)
+                || name == "str"
+                || ["alloc", "core", "std", "From", "Drop", "Debug"].contains(&name)
+                || prelude_traits::REFERENCE_NAMES.contains(&name)
+                || self.names.targets.contains(name)
+                || self.names.aliases.contains(name)
+                || self.names.drops.contains(name)
+                || standard_macro(name)
+            {
+                return Err(
+                    "Generated dependency import conflicts with cleanup namespace evidence".into(),
+                );
+            }
+        }
+        Ok(true)
     }
     fn collect_reference_import(&mut self, item: &syn::ItemUse) {
         for (name, _) in source_imports::bindings(&item.tree) {
@@ -822,8 +866,11 @@ impl Closure<'_> {
         if let Ok(file) = syn::parse2::<syn::File>(tokens.clone()) {
             self.expanded_items(&file)?;
         } else {
-            let block: syn::Block =
-                syn::parse_str(&format!("{{{tokens}}}")).map_err(|error| error.to_string())?;
+            let block = proc_macro2::Group::new(proc_macro2::Delimiter::Brace, tokens);
+            let block: syn::Block = syn::parse2(proc_macro2::TokenStream::from(
+                proc_macro2::TokenTree::Group(block),
+            ))
+            .map_err(|error| error.to_string())?;
             self.visit_block(&block);
         }
         Ok(())

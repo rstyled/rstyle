@@ -9,6 +9,7 @@ use syn::{
 
 pub(crate) struct Unit {
     name: String,
+    #[cfg(test)]
     source: FileSpan,
     ratios: Vec<Ratio>,
 }
@@ -17,6 +18,7 @@ impl Unit {
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
+    #[cfg(test)]
     pub(crate) fn source(&self) -> &FileSpan {
         &self.source
     }
@@ -27,6 +29,7 @@ impl Unit {
 
 pub(crate) struct Ratio {
     larger: String,
+    #[cfg(test)]
     default_output: String,
     integers: Vec<String>,
     floats: Vec<String>,
@@ -36,6 +39,7 @@ impl Ratio {
     pub(crate) fn larger(&self) -> &str {
         &self.larger
     }
+    #[cfg(test)]
     pub(crate) fn default_output(&self) -> &str {
         &self.default_output
     }
@@ -54,7 +58,10 @@ struct RawUnit {
 }
 
 impl Invocation {
-    pub(super) fn parse(tokens: TokenStream, file: &UnitFile) -> Result<Vec<Unit>, ProofError> {
+    pub(super) fn parse(
+        tokens: TokenStream,
+        #[cfg(test)] file: &UnitFile,
+    ) -> Result<Vec<Unit>, ProofError> {
         let parsed: Self = syn::parse2(tokens).map_err(|_| {
             ProofError::Unsupported(
                 "Generated-unit invocation is outside the complete bounded grammar",
@@ -65,6 +72,7 @@ impl Invocation {
             .0
             .into_iter()
             .map(|unit| Unit {
+                #[cfg(test)]
                 source: site(file, unit.name.span()),
                 name: unit.name.to_string(),
                 ratios: unit.ratios,
@@ -97,43 +105,51 @@ impl Invocation {
 
 impl Parse for Invocation {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
-        let mut units = Vec::new();
-        while !input.is_empty() {
-            if units.len() == 8 {
-                return Err(input.error("Generated-unit declaration budget exceeded"));
-            }
-            let name = input.parse()?;
-            let label;
-            parenthesized!(label in input);
-            label.parse::<syn::LitStr>()?;
-            consumed(&label)?;
-            let per: syn::Ident = input.parse()?;
-            if per != "per" {
-                return Err(input.error("Expected original per repetition separator"));
-            }
-            let body;
-            braced!(body in input);
-            let mut ratios = Vec::new();
-            while !body.is_empty() {
-                if ratios.len() == 8 {
-                    return Err(body.error("Generated-unit ratio budget exceeded"));
-                }
-                ratios.push(body.parse()?);
-            }
-            units.push(RawUnit { name, ratios });
-        }
-        Ok(Self(units))
+        bounded(input, 8, "Generated-unit declaration budget exceeded").map(Self)
     }
+}
+
+impl Parse for RawUnit {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let name = input.parse()?;
+        let label;
+        parenthesized!(label in input);
+        label.parse::<syn::LitStr>()?;
+        consumed(&label)?;
+
+        let per: syn::Ident = input.parse()?;
+        if per != "per" {
+            return Err(input.error("Expected original per repetition separator"));
+        }
+        let body;
+        braced!(body in input);
+        let ratios = bounded(&body, 8, "Generated-unit ratio budget exceeded")?;
+
+        Ok(Self { name, ratios })
+    }
+}
+
+fn bounded<T: Parse>(input: ParseStream<'_>, limit: usize, exhausted: &str) -> syn::Result<Vec<T>> {
+    let mut values = Vec::new();
+    while !input.is_empty() {
+        if values.len() == limit {
+            return Err(input.error(exhausted));
+        }
+        values.push(input.parse()?);
+    }
+    Ok(values)
 }
 
 impl Parse for Ratio {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let larger = input.parse::<syn::Ident>()?.to_string();
         input.parse::<Token![:]>()?;
+
         let default;
         bracketed!(default in input);
         let default_output = default.parse::<syn::Ident>()?.to_string();
         consumed(&default)?;
+
         let integers = types(input, false)?;
         integer_value(input)?;
         let floats = types(input, true)?;
@@ -141,8 +157,10 @@ impl Parse for Ratio {
         if !integers.contains(&default_output) {
             return Err(input.error("Default output is not an explicit integer implementation"));
         }
+
         Ok(Self {
             larger,
+            #[cfg(test)]
             default_output,
             integers,
             floats,

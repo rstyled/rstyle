@@ -116,6 +116,7 @@ impl<'a> Inventory<'a> {
             expansion: String::new(),
             transparency: 0,
         };
+
         let mut matching = self
             .records
             .range(lower..)
@@ -126,14 +127,17 @@ impl<'a> Inventory<'a> {
                     && key.end == source.span.end
             })
             .flat_map(|(_, records)| records.iter().copied());
+
         let record = matching
             .next()
             .ok_or(ProofError::Missing("Missing exact derived unit impl"))?;
+
         if matching.next().is_some() {
             return Err(ProofError::Contradictory(
                 "Ambiguous derived unit implementation",
             ));
         }
+
         Ok(record)
     }
 

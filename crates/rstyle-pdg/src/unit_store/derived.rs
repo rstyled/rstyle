@@ -72,11 +72,16 @@ struct SourceContext {
     module_lints: bool,
     dependency_owner: bool,
     namespace_capability: bool,
+    generated_namespaces: bool,
     cfgs: Option<Vec<String>>,
     checked: Checked<Result<Rc<Environment>, String>>,
 }
 
 impl SourceContext {
+    fn checked(&self, input: Option<&dyn EvidenceFacts>) -> Result<Rc<Environment>, String> {
+        self.checked.get(|| Ok(self.environment(input)))?.clone()
+    }
+
     fn environment(&self, input: Option<&dyn EvidenceFacts>) -> Result<Rc<Environment>, String> {
         let environment = Environment::with_source_options(
             Arc::clone(&self.census),
@@ -85,6 +90,7 @@ impl SourceContext {
                 cfgs: self.cfgs.as_deref(),
                 expansions: self.expansions,
                 module_lints: self.module_lints,
+                generated_namespaces: self.generated_namespaces,
             },
         )?;
         let environment = match input {
@@ -116,12 +122,32 @@ impl Sources {
     }
 
     fn environment(&self, input: &dyn EvidenceFacts) -> Result<Rc<Environment>, String> {
-        let facts = input.facts();
+        self.source_environment(input.facts(), Some(input))
+    }
+
+    /// Reuse the producer's capability-gated complete source proof without
+    /// granting any consumer dependency, callable or nominal permissions.
+    pub(super) fn generated_environment(
+        &self,
+        facts: &HirFnFacts,
+    ) -> Result<Rc<Environment>, String> {
+        self.source_environment(facts, None)
+    }
+
+    fn source_environment(
+        &self,
+        facts: &HirFnFacts,
+        input: Option<&dyn EvidenceFacts>,
+    ) -> Result<Rc<Environment>, String> {
         crate::nominal_boundary::census::policy::authority(facts)?;
         let census = facts.build.frontend_options.data::<Arc<Census>>()?;
         self.for_input(
             &census,
             SourcePolicy {
+                generated_namespaces: crate::extraction_profile::facts_support(
+                    facts,
+                    crate::dependency_namespaces::GENERATED_CAPABILITY,
+                ),
                 constants: crate::nominal_boundary::resolution::constant_context(facts)?,
                 cfgs: crate::nominal_boundary::resolution::selected_cfgs(facts)?,
                 expansions: crate::extraction_profile::facts_support(
@@ -133,7 +159,7 @@ impl Sources {
                     crate::concrete_types::EXPLICIT_U8_CAPABILITY,
                 ),
             },
-            Some(input),
+            input,
         )
     }
 
@@ -157,6 +183,7 @@ impl Sources {
             cfgs,
             expansions,
             module_lints,
+            generated_namespaces,
         } = policy;
         let namespace_capability = input.is_some_and(|input| {
             crate::extraction_profile::facts_support(
@@ -171,6 +198,7 @@ impl Sources {
                 && context.constants == constants
                 && context.expansions == expansions
                 && context.module_lints == module_lints
+                && context.generated_namespaces == generated_namespaces
                 && context.dependency_owner == input.is_some()
                 && context.namespace_capability == namespace_capability
                 && context.cfgs.as_deref() == cfgs
@@ -184,18 +212,13 @@ impl Sources {
                 module_lints,
                 dependency_owner: input.is_some(),
                 namespace_capability,
+                generated_namespaces,
                 cfgs: cfgs.map(<[String]>::to_vec),
                 checked: Checked::default(),
             });
             contexts.len() - 1
         };
-        let context = &contexts[index];
-        context
-            .checked
-            .get(|| Ok(context.environment(input)))?
-            .as_ref()
-            .map(Rc::clone)
-            .map_err(Clone::clone)
+        contexts[index].checked(input)
     }
 
     fn resolve_observed(&self, input: &dyn EvidenceFacts) -> Result<Resolution, String> {
@@ -308,11 +331,9 @@ impl FunctionView<'_> {
     }
 
     pub(super) fn nominal(&self) -> Result<ResolutionView<'_>, String> {
-        let result = self
-            .derived()
+        self.derived()
             .nominal
-            .get(|| Ok(self.resolver.sources().resolve_observed(self)))?;
-        result
+            .get(|| Ok(self.resolver.sources().resolve_observed(self)))?
             .as_ref()
             .map(ResolutionView::borrowed)
             .map_err(Clone::clone)
@@ -342,6 +363,7 @@ mod tests {
             cfgs: None,
             expansions: false,
             module_lints: false,
+            generated_namespaces: false,
         }
     }
 
@@ -370,6 +392,25 @@ mod tests {
             )
             .unwrap();
         assert!(!Rc::ptr_eq(&ordinary, &linted));
+    }
+
+    #[test]
+    fn generated_namespace_source_policy_is_isolated_and_reused() {
+        let census = crate::nominal_boundary::resolution::environment::tests::census();
+        for first in [false, true] {
+            let sources = Sources::default();
+            let selected = |enabled| SourcePolicy {
+                generated_namespaces: enabled,
+                ..policy(false)
+            };
+            let one = sources.for_census(&census, selected(first)).unwrap();
+            let two = sources.for_census(&census, selected(!first)).unwrap();
+            assert!(!Rc::ptr_eq(&one, &two));
+            assert!(Rc::ptr_eq(
+                &one,
+                &sources.for_census(&census, selected(first)).unwrap()
+            ));
+        }
     }
 
     #[test]

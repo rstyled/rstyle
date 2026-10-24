@@ -393,6 +393,10 @@ fn standalone_environment(facts: &HirFnFacts) -> Result<Rc<Environment>, String>
             cfgs: selected_cfgs(facts)?,
             expansions: supports(facts, "rust.cfg-if-module-ownership")?,
             module_lints: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,
+            generated_namespaces: supports(
+                facts,
+                crate::dependency_namespaces::GENERATED_CAPABILITY,
+            )?,
         },
     )
     .map(Rc::new)
