@@ -148,6 +148,14 @@ fn structural_operands<'a>(
     node: &'a HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Result<Option<Vec<&'a HirNode>>, String> {
+    if crate::result_maps::candidate(node, facts) {
+        let checked = crate::result_maps::verify(node, facts)?;
+        let receiver = node.children.first().ok_or("Missing Result map receiver")?;
+        if receiver != checked.receiver {
+            return Err("Result map receiver differs from its checked chain".into());
+        }
+        return Ok(Some(vec![receiver]));
+    }
     if crate::data_subslices::candidate(node, facts) {
         return crate::data_subslices::verify(node, facts)
             .map(|checked| Some(checked.operands().collect()));
@@ -261,6 +269,7 @@ pub(super) fn method_result(node: &PdgNode) -> bool {
                     | "iterator.position-result"
                     | crate::named_callbacks::RESULT
                     | crate::helper_option_callbacks::RESULT
+                    | crate::result_maps::RESULT
             )
         )
 }

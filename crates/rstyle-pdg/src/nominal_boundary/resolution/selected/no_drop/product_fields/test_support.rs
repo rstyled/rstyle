@@ -98,6 +98,7 @@ pub(in crate::nominal_boundary::resolution::selected::no_drop) fn resolution(
         passive_copy_dependencies: false,
         copy_owner_source: None,
         scalar_result_source: None,
+        transport_sources: None,
     }
 }
 
@@ -160,6 +161,7 @@ pub(in crate::nominal_boundary::resolution::selected::no_drop) fn origins(
         })
         .collect();
     Origins {
+        generated: Vec::new(),
         identity: crate::declaration_origins::IDENTITY.into(),
         declarations,
     }

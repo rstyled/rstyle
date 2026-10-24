@@ -77,7 +77,7 @@ impl<'a> Validation<'a> {
     }
 
     fn children(&mut self, tree: &'a TypeTree, depth: usize) -> Result<(), String> {
-        if tree.nominal_parts().is_some() {
+        if tree.nominal_identity().is_some() {
             return self.many(tree.nominal_fields().map(|field| &field.ty), depth);
         }
         match tree {

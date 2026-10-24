@@ -52,6 +52,19 @@ mod sealed {
 pub trait EvidenceFacts: sealed::Sealed {
     fn facts(&self) -> &HirFnFacts;
 
+    /// Raw generated-source observations from this owning unit; no proof authority.
+    fn generated_source_capture(
+        &self,
+    ) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
+        let options = &self.facts().build.frontend_options;
+        if !options.contains_key(crate::generated_sources::capture::KEY) {
+            return Ok(None);
+        }
+        options
+            .data::<Arc<crate::generated_sources::capture::UnitCapture>>()
+            .map(|capture| Some(Arc::clone(capture.as_ref())))
+    }
+
     /// Only an immutable, separately verified instance owner supplies this
     /// witness. Raw frontend records and serialized flags supply none.
     fn scalar_instance(&self) -> Option<&crate::scalar_instances::CheckedProjection> {
@@ -152,6 +165,12 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn generated_source_capture(
+        &self,
+    ) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
+        T::generated_source_capture(*self)
+    }
+
     fn product_instance(&self) -> Option<&crate::product_instances::CheckedProjection> {
         T::product_instance(*self)
     }
@@ -352,6 +371,14 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn generated_source_capture(
+        &self,
+    ) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
+        self.resolver
+            .sources()
+            .generated_capture(self.resolver.tables().functions)
+    }
+
     fn product_instance(&self) -> Option<&crate::product_instances::CheckedProjection> {
         (self.id.0 == 0)
             .then_some(self.resolver.tables().product_instance?)
@@ -813,6 +840,12 @@ impl Builder {
             crate::helper_reads::check_budgets(&FunctionView {
                 resolver: &self,
                 id,
+            })
+            .map_err(|error| {
+                format!(
+                    "Helper read budget for {}: {error}",
+                    self.store.functions[id.0 as usize].name
+                )
             })?;
         }
         self.complete_roots()?;
@@ -829,7 +862,8 @@ impl Builder {
                 id: local_id(index, FunctionId)?,
             };
             if crate::classify(&view).status == crate::EligibilityVerdict::Eligible {
-                let pair = crate::producer::produce(&view).map_err(|errors| errors.join("; "))?;
+                let pair = crate::producer::produce(&view)
+                    .map_err(|errors| format!("Root {}: {}", view.name, errors.join("; ")))?;
                 let graph = self.store.push_graph(pair)?;
                 self.store.roots[index] = Some(graph);
             }
@@ -848,7 +882,8 @@ impl Builder {
             if crate::extraction_profile::ExtractionProfile::from_facts(&view)?
                 .supports("rust.verified-helper-calls")
                 && crate::classify(&view).status == crate::EligibilityVerdict::Eligible
-                && let Some((summary, pair)) = crate::helper_calls::certify_view(&view)?
+                && let Some((summary, pair)) = crate::helper_calls::certify_view(&view)
+                    .map_err(|error| format!("Helper {}: {error}", view.name))?
             {
                 completed.push(CompletedHelper {
                     function: *id,
@@ -914,7 +949,10 @@ fn links(functions: &[HirFnFacts]) -> Result<Vec<BTreeMap<Site, FunctionId>>, St
     let definitions = definitions(functions)?;
     functions
         .iter()
-        .map(|facts| function_links(facts, &definitions))
+        .map(|facts| {
+            function_links(facts, &definitions)
+                .map_err(|error| format!("Function links for {}: {error}", facts.name))
+        })
         .collect()
 }
 
@@ -1017,5 +1055,149 @@ mod tests {
         assert!(!crate::verification_policy::is_generated());
         assert!(!helper.verified());
         assert!(crate::verification_policy::generated(|| helper.verified()));
+    }
+}
+
+#[cfg(test)]
+mod generated_capture_tests {
+    use super::*;
+    use crate::generated_sources::capture::{KEY, UNIT_IDENTITY, UnitCapture};
+
+    fn facts() -> HirFnFacts {
+        let mut facts: HirFnFacts = serde_json::from_str(include_str!(
+            "nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
+        ))
+        .unwrap();
+        facts.build.frontend_options = Default::default();
+        facts
+    }
+
+    fn capture(scope: &str) -> Arc<UnitCapture> {
+        Arc::new(UnitCapture {
+            identity: UNIT_IDENTITY.into(),
+            outcomes: Vec::new(),
+            expansions: Vec::new(),
+            emitted: Vec::new(),
+            complete: false,
+            scope: scope.into(),
+        })
+    }
+
+    fn view(builder: &Builder, index: u32) -> FunctionView<'_> {
+        FunctionView {
+            resolver: builder,
+            id: FunctionId(index),
+        }
+    }
+
+    #[test]
+    fn standalone_raw_access_distinguishes_absent_typed_and_malformed_records() {
+        let mut facts = facts();
+        assert!(facts.generated_source_capture().unwrap().is_none());
+        let capture = capture("raw source observations only");
+        facts
+            .build
+            .frontend_options
+            .insert_data(Arc::clone(&capture));
+        assert!(Arc::ptr_eq(
+            &capture,
+            &facts.generated_source_capture().unwrap().unwrap()
+        ));
+        facts
+            .build
+            .frontend_options
+            .insert(KEY.into(), serde_json::json!({"malformed":true}));
+        assert!(facts.generated_source_capture().is_err());
+    }
+
+    #[test]
+    fn one_same_unit_record_is_shared_by_all_function_and_reference_views() {
+        let first = facts();
+        let mut second = facts();
+        let capture = capture("one owning unit");
+        second
+            .build
+            .frontend_options
+            .insert_data(Arc::clone(&capture));
+        let builder = Builder::new(vec![first, second]).unwrap();
+        let first = view(&builder, 0);
+        let second = view(&builder, 1);
+        for _ in 0..3 {
+            assert!(Arc::ptr_eq(
+                &capture,
+                &first.generated_source_capture().unwrap().unwrap()
+            ));
+            assert!(Arc::ptr_eq(
+                &capture,
+                &second.generated_source_capture().unwrap().unwrap()
+            ));
+            let reference: &dyn EvidenceFacts = &first;
+            assert!(Arc::ptr_eq(
+                &capture,
+                &(&reference).generated_source_capture().unwrap().unwrap()
+            ));
+        }
+    }
+
+    #[test]
+    fn duplicate_conflicting_or_malformed_same_unit_records_fail_closed() {
+        for conflict in [false, true] {
+            let mut first = facts();
+            let mut second = facts();
+            let capture = capture("first record");
+            first
+                .build
+                .frontend_options
+                .insert_data(Arc::clone(&capture));
+            second.build.frontend_options.insert_data(if conflict {
+                self::capture("conflicting record")
+            } else {
+                capture
+            });
+            let builder = Builder::new(vec![first, second]).unwrap();
+            for index in 0..2 {
+                assert!(view(&builder, index).generated_source_capture().is_err());
+            }
+        }
+        let mut malformed = facts();
+        malformed
+            .build
+            .frontend_options
+            .insert(KEY.into(), serde_json::json!(null));
+        let builder = Builder::new(vec![facts(), malformed]).unwrap();
+        assert!(view(&builder, 0).generated_source_capture().is_err());
+    }
+
+    #[test]
+    fn foreign_dependency_capture_cannot_substitute_for_absent_owner_record() {
+        let mut foreign = facts();
+        let foreign_capture = capture("dependency record");
+        foreign
+            .build
+            .frontend_options
+            .insert_data(Arc::clone(&foreign_capture));
+        let dependency = Arc::new(Builder::new(vec![foreign]).unwrap().store);
+        let mut owner = Builder::new(vec![facts()]).unwrap();
+        owner.dependencies = dependency_analyses(&[dependency]);
+        assert!(
+            view(&owner, 0)
+                .generated_source_capture()
+                .unwrap()
+                .is_none()
+        );
+        let foreign = FunctionView {
+            resolver: owner.dependencies[0].as_ref(),
+            id: FunctionId(0),
+        };
+        assert!(Arc::ptr_eq(
+            &foreign_capture,
+            &foreign.generated_source_capture().unwrap().unwrap()
+        ));
+        assert!(
+            view(&owner, 0)
+                .generated_source_capture()
+                .unwrap()
+                .is_none()
+        );
     }
 }

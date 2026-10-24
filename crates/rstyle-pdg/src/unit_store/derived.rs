@@ -47,7 +47,29 @@ impl<T> Checked<T> {
 }
 
 #[derive(Default)]
-pub(super) struct Sources(RefCell<Vec<SourceContext>>);
+pub(super) struct Sources {
+    contexts: RefCell<Vec<SourceContext>>,
+    generated_capture:
+        OnceCell<Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String>>,
+}
+
+fn unit_generated_capture(
+    functions: &[HirFnFacts],
+) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
+    let mut selected = None;
+    for facts in functions {
+        let Some(capture) = facts.generated_source_capture()? else {
+            continue;
+        };
+        if selected.is_some() {
+            return Err(
+                "Owning unit has duplicate or conflicting generated-source captures".into(),
+            );
+        }
+        selected = Some(capture);
+    }
+    Ok(selected)
+}
 
 struct SourceContext {
     census: Arc<Census>,
@@ -59,6 +81,16 @@ struct SourceContext {
 }
 
 impl Sources {
+    /// One scan of the immutable owning table, independent of nominal resolution.
+    pub(super) fn generated_capture(
+        &self,
+        functions: &[HirFnFacts],
+    ) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
+        self.generated_capture
+            .get_or_init(|| unit_generated_capture(functions))
+            .clone()
+    }
+
     fn environment(&self, facts: &HirFnFacts) -> Result<Rc<Environment>, String> {
         crate::nominal_boundary::census::policy::authority(facts)?;
         let census = facts.build.frontend_options.data::<Arc<Census>>()?;
@@ -90,7 +122,7 @@ impl Sources {
             expansions,
             module_lints,
         } = policy;
-        let mut contexts = self.0.borrow_mut();
+        let mut contexts = self.contexts.borrow_mut();
         let index = if let Some(index) = contexts.iter().position(|context| {
             Arc::ptr_eq(&context.census, census)
                 && context.constants == constants
@@ -399,7 +431,7 @@ mod tests {
         let sources = Sources::default();
         assert!(sources.for_census(&census, policy(false)).is_err());
         assert!(sources.for_census(&census, policy(false)).is_err());
-        let contexts = sources.0.borrow();
+        let contexts = sources.contexts.borrow();
         assert_eq!(contexts.len(), 1);
         assert!(contexts[0].checked.0[0].get().unwrap().is_err());
         assert!(contexts[0].checked.0[1].get().is_none());
@@ -407,7 +439,12 @@ mod tests {
         crate::verification_policy::generated(|| {
             assert!(sources.for_census(&census, policy(false)).is_err());
         });
-        assert!(sources.0.borrow()[0].checked.0[1].get().unwrap().is_err());
+        assert!(
+            sources.contexts.borrow()[0].checked.0[1]
+                .get()
+                .unwrap()
+                .is_err()
+        );
     }
 }
 

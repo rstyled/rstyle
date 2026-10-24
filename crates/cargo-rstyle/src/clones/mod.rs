@@ -383,7 +383,8 @@ fn load_unit(
     let inspect = |facts: &[HirFnFacts]| {
         for function in facts {
             verify_frontend_invocation(function, unit, capture, &selected_context)?;
-            verify_receiver_inventory(function, unit.extraction_profile)?;
+            verify_receiver_inventory(function, unit.extraction_profile)
+                .map_err(|error| format!("Receiver capture for {}: {error}", function.name))?;
             rstyle_pdg::data_library::verify_evidence(function)?;
         }
         bindings = nominal_bindings(facts, unit)?;

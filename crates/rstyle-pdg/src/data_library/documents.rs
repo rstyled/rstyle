@@ -110,7 +110,11 @@ fn check_method_inventory(
 ) -> Result<(), String> {
     let mut expected = 0;
     for method in calls.iter().filter(|node| node.kind == "expr_method_call") {
-        if crate::option_callbacks::candidate(method, facts) {
+        if crate::result_maps::candidate(method, facts) {
+            // The complete chain proves constructor-only branch operations;
+            // each map is independently replayed by data_documents::result_maps.
+            crate::result_maps::verify(method, facts)?;
+        } else if crate::option_callbacks::candidate(method, facts) {
             if crate::helper_option_callbacks::candidate(method, facts) {
                 crate::helper_option_callbacks::verify(method, facts)?;
             } else if crate::named_callbacks::candidate(method, facts) {

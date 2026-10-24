@@ -48,6 +48,9 @@ pub(crate) fn check(facts: &dyn EvidenceFacts, original_source: bool) -> Result<
         return Err("Missing Data method receiver inventory".into());
     };
     check_inventory(&capture, &methods)?;
+    if original_source && super::transport::verify(facts, &capture, &methods)? {
+        return observation.finish(Ok(capture.into_owned()));
+    }
     let source = (original_source && methods.iter().any(|node| node.expansion.is_none()))
         .then(|| crate::source_evidence::capture(facts))
         .transpose()?;
@@ -110,7 +113,7 @@ fn check_inventory(capture: &Capture, methods: &[&HirNode]) -> Result<(), String
     Ok(())
 }
 
-fn check_receiver_identity(record: &Method, node: &HirNode) -> Result<(), String> {
+pub(super) fn check_receiver_identity(record: &Method, node: &HirNode) -> Result<(), String> {
     let receiver = node
         .children
         .first()

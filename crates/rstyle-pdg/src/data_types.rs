@@ -86,6 +86,7 @@ impl TypeToken {
                 borrowed: *borrowed,
             },
             TypeTree::Struct { .. }
+            | TypeTree::GeneratedStruct { .. }
             | TypeTree::FieldlessEnum { .. }
             | TypeTree::MixedEnum { .. }
             | TypeTree::Enum { .. } => Self::from_nominal(tree),
@@ -95,6 +96,9 @@ impl TypeToken {
     fn from_nominal(tree: &TypeTree) -> Self {
         match tree {
             TypeTree::Struct {
+                nominal, fields, ..
+            }
+            | TypeTree::GeneratedStruct {
                 nominal, fields, ..
             } => Self::Struct {
                 nominal: nominal.clone(),
@@ -307,6 +311,11 @@ fn check_checked_capabilities(
     ty: &TypeToken,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<(), String> {
+    if crate::result_maps::types::contains_result(ty)
+        && !profile.supports(crate::result_maps::CAPABILITY)
+    {
+        return Err("Constructor Result maps require their registered capability".into());
+    }
     if crate::concrete_results::fresh_products::used(ty)
         && !profile.supports(crate::concrete_results::fresh_products::CAPABILITY)
     {
@@ -474,6 +483,7 @@ fn check_result(
     let unit_result = matches!(ok, TypeToken::Scalar(value) if value == "unit")
         && matches!(err, TypeToken::Struct { fields, .. } if matches!(fields.as_slice(), [(name, TypeToken::Scalar(value))] if name == "0" && value == "unit"));
     if !unit_result
+        && !crate::result_maps::types::token_result(ok, err)
         && !crate::borrowed_result_types::GRAMMAR.permits(ok, err)
         && !crate::concrete_results::copy_errors::GRAMMAR.permits(ok, err)
         && !crate::concrete_results::fresh_products::GRAMMAR.permits(ok, err)

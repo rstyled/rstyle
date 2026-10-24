@@ -6,6 +6,23 @@ pub(crate) fn expand(
     definition: &syn::ItemMacro,
     invocation: &syn::Macro,
 ) -> Result<TokenStream, String> {
+    expand_mode(definition, invocation, false)
+}
+
+/// A source-view expansion: coordinates refer to template occurrences, not
+/// compiler hygiene. Callers must independently check every observed mark.
+pub(crate) fn expand_source(
+    definition: &syn::ItemMacro,
+    invocation: &syn::Macro,
+) -> Result<TokenStream, String> {
+    expand_mode(definition, invocation, true)
+}
+
+fn expand_mode(
+    definition: &syn::ItemMacro,
+    invocation: &syn::Macro,
+    source_coordinates: bool,
+) -> Result<TokenStream, String> {
     let rule: Vec<_> = definition.mac.tokens.clone().into_iter().collect();
 
     let [
@@ -25,7 +42,7 @@ pub(crate) fn expand(
         return Err("Cleanup macro has an unsupported rule inventory".into());
     }
     let captures = capture(pattern.stream(), invocation.tokens.clone())?;
-    substitute(body.stream(), &captures)
+    substitute(body.stream(), &captures, source_coordinates)
 }
 
 fn capture(
@@ -135,11 +152,17 @@ fn split(tokens: TokenStream) -> Vec<TokenStream> {
 fn substitute(
     tokens: TokenStream,
     captures: &BTreeMap<String, TokenStream>,
+    source_coordinates: bool,
 ) -> Result<TokenStream, String> {
     let mut input = tokens.into_iter();
     let mut output = TokenStream::new();
     while let Some(token) = input.next() {
-        output.extend(substitution_piece(token, &mut input, captures)?);
+        output.extend(substitution_piece(
+            token,
+            &mut input,
+            captures,
+            source_coordinates,
+        )?);
     }
     Ok(output)
 }
@@ -148,13 +171,28 @@ fn substitution_piece(
     token: TokenTree,
     input: &mut impl Iterator<Item = TokenTree>,
     captures: &BTreeMap<String, TokenStream>,
+    source_coordinates: bool,
 ) -> Result<TokenStream, String> {
     if token.to_string() == "$" {
         match input.next() {
-            Some(TokenTree::Ident(name)) => captures
-                .get(&name.to_string())
-                .cloned()
-                .ok_or_else(|| "Unbound cleanup macro capture".into()),
+            Some(TokenTree::Ident(name)) => {
+                let value = captures
+                    .get(&name.to_string())
+                    .ok_or("Unbound cleanup macro capture")?
+                    .clone();
+                if !source_coordinates {
+                    return Ok(value);
+                }
+                let mut value: syn::Ident = syn::parse2(value)
+                    .map_err(|_| "Source coordinates require identifier captures")?;
+                value.set_span(
+                    token
+                        .span()
+                        .join(name.span())
+                        .ok_or("Missing contiguous original capture occurrence")?,
+                );
+                Ok(TokenTree::Ident(value).into())
+            }
             Some(TokenTree::Group(group)) => {
                 if input.next().is_none_or(|token| token.to_string() != "*") {
                     return Err("Unsupported cleanup repetition operator".into());
@@ -164,11 +202,14 @@ fn substitution_piece(
             _ => Err("Unsupported cleanup macro substitution".into()),
         }
     } else if let TokenTree::Group(group) = token {
-        Ok(TokenTree::Group(Group::new(
+        let mut output = Group::new(
             group.delimiter(),
-            substitute(group.stream(), captures)?,
-        ))
-        .into())
+            substitute(group.stream(), captures, source_coordinates)?,
+        );
+        if source_coordinates {
+            output.set_span(group.span());
+        }
+        Ok(TokenTree::Group(output).into())
     } else {
         Ok(token.into())
     }
@@ -248,4 +289,45 @@ fn pattern_tokens_have_items(tokens: TokenStream) -> bool {
         TokenTree::Punct(punct) => ['!', '#'].contains(&punct.as_char()),
         _ => false,
     })
+}
+
+#[cfg(test)]
+mod source_coordinate_tests {
+    use super::*;
+
+    #[test]
+    fn source_view_keeps_template_capture_coordinates_and_legacy_keeps_argument_span() {
+        let bytes = "macro_rules! m { ($name:ident) => { pub struct $name; }; } m!(ActualName);";
+        let file = syn::parse_file(bytes).unwrap();
+        let syn::Item::Macro(definition) = &file.items[0] else {
+            panic!("Expected definition")
+        };
+        let syn::Item::Macro(invocation) = &file.items[1] else {
+            panic!("Expected invocation")
+        };
+        let ordinary = expand(definition, &invocation.mac).unwrap();
+        let source = expand_source(definition, &invocation.mac).unwrap();
+        assert_eq!(ordinary.to_string(), source.to_string());
+        let ordinary: syn::ItemStruct = syn::parse2(ordinary).unwrap();
+        let source: syn::ItemStruct = syn::parse2(source).unwrap();
+        let argument = bytes.find("ActualName").unwrap();
+        let occurrence = bytes.find("struct $name").unwrap() + "struct ".len();
+        assert_eq!(
+            ordinary.ident.span().byte_range(),
+            argument..argument + "ActualName".len()
+        );
+        assert_eq!(
+            source.ident.span().byte_range(),
+            occurrence..occurrence + "$name".len()
+        );
+    }
+
+    #[test]
+    fn historical_expression_capture_remains_available_only_in_legacy_mode() {
+        let definition =
+            syn::parse_str("macro_rules! m { ($value:expr) => { fn f() { $value; } }; }").unwrap();
+        let invocation: syn::ItemMacro = syn::parse_str("m!(1 + 2);").unwrap();
+        assert!(expand(&definition, &invocation.mac).is_ok());
+        assert!(expand_source(&definition, &invocation.mac).is_err());
+    }
 }

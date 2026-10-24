@@ -29,15 +29,37 @@ fn product(name: &str, field: &str, scalar: &str) -> TypeTree {
 }
 
 fn inspect(source: &str) -> Result<(), String> {
+    inspect_result(source, false)
+}
+
+fn inspect_result(source: &str, transport: bool) -> Result<(), String> {
     let mut success = product("Product", "0", "u32");
     let resolution = fixture::resolution(source, &mut success);
     let TypeTree::Struct { nominal, .. } = &mut success else {
         unreachable!()
     };
     nominal.definition_path = "owner::Product".into();
+    let mut error = product("Problem", "attempted", "u64");
+    if transport {
+        let TypeTree::Struct { nominal, .. } = product("WrappedProblem", "0", "u64") else {
+            unreachable!()
+        };
+        let capture = crate::generated_sources::checked::tests::fixture::Fixture::new().capture;
+        error = TypeTree::GeneratedStruct {
+            nominal,
+            template: "pub struct $err(Problem);".into(),
+            definition: Box::new(capture.expansions[0].macro_definition.clone().unwrap()),
+            fields: vec![Field {
+                position: 0,
+                name: "0".into(),
+                declaration: "Problem".into(),
+                ty: error,
+            }],
+        };
+    }
     let facts = fixture::facts(&TypeTree::Result {
         ok: Box::new(success),
-        err: Box::new(product("Problem", "attempted", "u64")),
+        err: Box::new(error),
     });
 
     verify_copy_owner(
@@ -146,5 +168,29 @@ fn protection_requires_the_copy_owner_mode_and_exact_bounded_success_target() {
         result_prelude_namespace(&facts, &vec!["Other".into()], SourceMode::CopyOwner)
             .unwrap()
             .is_none()
+    );
+}
+
+#[test]
+fn transport_success_closure_rejects_generated_result_and_library_shadows() {
+    for binding in [
+        "struct Result;",
+        "type Result<T,E> = core::result::Result<T,E>;",
+        "use core::result::Result;",
+        "mod core {}",
+        "type std = ();",
+    ] {
+        assert!(
+            inspect_result(&in_owner(binding), true).is_err(),
+            "{binding}"
+        );
+    }
+    assert!(inspect_result(&in_owner("struct Unrelated;"), true).is_ok());
+    let neighboring = "macro_rules! binding { () => { struct Result; }; } binding!(); \
+        mod owner { struct Product(u32); struct Problem { attempted: u64 } }";
+    assert!(
+        inspect_result(neighboring, true)
+            .unwrap_err()
+            .contains("required prelude binding")
     );
 }

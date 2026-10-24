@@ -1,20 +1,21 @@
 # Rust support execution frontier
 
 Authority: [delivery plan](rust-support-parallel-delivery.md) and repository-root
-[roadmap](../rust-feature-coverage.md). Updated 2026-10-23. All P01–P22 routes
+[roadmap](../rust-feature-coverage.md). Updated 2026-10-24. All P01–P22 routes
 remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; Data3.92 connects both original
-`Match::new<Span/Range<usize>>` private owning instances. Fresh default/no-default
-captures retain590/2,582 definitions on each declared target; both instances pass
-strict replay and all six selected original/replay pairs. Ordinary generic caller
-linking remains closed. The next memory target is frozen safe lz4_flex0.14.0
-`backtrack_match`; its independent private-body oracle passes48,856 cases, while
-location-aware loads/stores and loop post-state remain unsupported.
-The root roadmap records validated checkpoints; broader P01–P22 work remains
-active and historical evidence stays unchanged.
+Branch `feature/rust-feature-coverage`; Data3.99 connects original generated
+`regex-automata0.4.18::PatternID::new` through `SmallIndex::new`, exact unary
+constructor callbacks and three distinct fresh Result types. Native unchanged
+owners gain only that function:112→113/590 without defaults,158→159/2,582 with
+defaults; zero losses and identical source/build selections. All six declared
+std/no_std target contexts strictly replay ten originals and finish all45 selected
+original-pair evaluations. Cross-target capture is not foreign native execution.
+The [bounded contract](extraction-profiles/constructor-result-maps-v1.md) excludes
+stored Results, general payload binding/callbacks and general generated callables.
+Broader P01–P22 work remains active; historical evidence stays unchanged.
 
 Compiler nightly-2026-09-30, commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`; native aarch64 Linux,
@@ -852,3 +853,42 @@ Clippy pass; style0/5,792 and patterns0/15 unchanged ignores. The new diagnostic
 Cargo regression passes in0.390s excluding compilation; no controlled speedup
 claim. Evidence:`/tmp/rstyle-409-{source-final.log,full-tests-final2.log,
 clippy-final3.log,style-final2.json,patterns-final2.log}`.
+
+Data3.99 validation: all1,773 tests/five existing skips and doctests pass; fmt,
+warning-denied Clippy, style0/6,025 and patterns0/15 unchanged ignores pass.
+The constructor composition takes1.564s with prebuilt driver; native public oracle
+passes8,202 cases in each default/no-default × debug/release-branch context,
+zero mismatches. Ten original/replay identity comparisons per target/feature
+context are Accepted score1; all45 original pairs complete independently.
+Full-library matching remains explicitly zero-budget incomplete.
+
+Source routing now checks node/tail shape before transport proof, removing an
+eager whole-HIR scan from unrelated source lookups. No new SHA computation,
+serialized lookup key or permissive cache was added. Routine consistency uses
+cached XXH3; historical identities and reviewed source pins retain their meaning.
+Native no-default capture+strict takes35.219s; default291.366s (single samples,
+not a controlled speedup). Cross-target no-default35.580–35.591s/default287.061–
+288.757s. Evidence:`/tmp/rstyle-413-{natural-results.json,oracle.log,tests.log,
+clippy.log,style.json,patterns.log}`.
+
+Frozen run-dzwel7hd preserves all60 identities, denominators, semantic records
+and blocker combinations against run-bjl647cw:24 admitted/29 excluded/7 inactive,
+gain0/loss0,118 schema checks. This reproduction does not replace strict semantic
+replay. Evidence:`/tmp/rstyle-413-{frozen.log,frozen-comparison.json}`.
+
+Next source-selected frontier (all shared interfaces remain lead-owned):
+
+| Assignment | Readiness and complete target |
+| --- | --- |
+| Namespace/source proof | Frozen time0.3.47 four-error-conversion family needs exact foreign anonymous-trait/generated export footprints, local globs and multi-arm source/cleanup closure. Existing raw captures are diagnostics, not admission. Prove these dependencies before payload activation; do not stack another observation-only delivery. |
+| Static-reference ownership | Preserve every ComponentRange static name pointer/length/content and conditional flag. Independently prove complete Copy/static-reference and no-drop closure, including neighboring generated items. Depends on namespace/source proof. |
+| Payload/error flow | Complete two-variant TryFromParsed construction and once-only guarded inverse match, exact payload component origins and nominal DifferentVariant Result error. Saved/reused owned Results and general matches remain separate. Depends on the agreed ownership/type boundary. |
+| Nominal conversion summaries | Extend exact selected From/TryFrom source/associated Error/helper evidence to nominal endpoints. Deliver all four frozen originals with independent public conversion/private-constructor expectations and strict selected matching. Depends on the preceding receipts. |
+
+UnicodeWordBoundaryError::check/LookSet::available and the ryu loop chain are
+already delivered controls. StateID::new has a separately audited preceding-
+expansion lookup blocker; removing it alone unlocks no audited higher caller.
+Its whole forwarding callers also need generated-error ownership and Result
+summary transport. PatternID::must/Match::must still require their distinct
+panic/formatting and instance proofs. Keep these limitations separate from the
+new constructor support; broad P01–P22 completion remains unproven.

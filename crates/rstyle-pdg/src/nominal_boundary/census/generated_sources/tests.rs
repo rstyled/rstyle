@@ -292,3 +292,67 @@ fn crate_rooted_glob_rejects_uncertain_exports_and_import_alias_paths() {
     ));
     assert!(check(&proof, DEFINITION, PATTERN, &namespace).is_err());
 }
+
+#[test]
+fn compiler_headers_normalize_exactly_and_source_coordinates_follow_template_occurrences() {
+    let proof = census(&format!("\u{feff}// π\r\n{DEFINITION}\r\n{PATTERN}"));
+    let definition = anchor(&proof, "macro_rules! index_type_impls");
+    let invocation = anchor(&proof, PATTERN.trim_end_matches(';'));
+    let expansion = verify_compiler(CompilerInput {
+        census: &proof,
+        cfgs: &[],
+        definition_header: &definition,
+        invocation_macro: &invocation,
+    })
+    .unwrap();
+    assert_eq!(expansion.definition(), &anchor(&proof, DEFINITION));
+    assert_eq!(expansion.invocation(), &anchor(&proof, PATTERN));
+    let syn::Item::Impl(item) = &expansion.items()[0] else {
+        panic!("Expected impl")
+    };
+    let syn::ImplItem::Fn(function) = &item.items[0] else {
+        panic!("Expected member")
+    };
+    assert_eq!(
+        expansion.source_span(function.block.span()),
+        anchor(
+            &proof,
+            "{ SmallIndex::new(value).map($name).map_err($err) }"
+        )
+    );
+    let syn::Stmt::Expr(syn::Expr::MethodCall(call), None) = &function.block.stmts[0] else {
+        panic!("Expected method call")
+    };
+    let callback = &call.args[0];
+    let source = &proof.files[0].bytes;
+    let start = source.find("map_err($err)").unwrap() + "map_err(".len();
+    assert_eq!(
+        expansion.source_span(callback.span()).span,
+        crate::ByteSpan {
+            start: start.try_into().unwrap(),
+            end: (start + "$err".len()).try_into().unwrap()
+        }
+    );
+    assert!(matches!(callback, syn::Expr::Path(path) if path.path.is_ident("PatternIDError")));
+}
+
+#[test]
+fn compiler_headers_reject_complete_definition_or_invocation_as_header() {
+    let proof = census(&format!("\u{feff}// π\r\n{DEFINITION}\r\n{PATTERN}"));
+    let definition = anchor(&proof, "macro_rules! index_type_impls");
+    let invocation = anchor(&proof, PATTERN.trim_end_matches(';'));
+    for (definition_header, invocation_macro) in [
+        (anchor(&proof, DEFINITION), invocation.clone()),
+        (definition.clone(), anchor(&proof, PATTERN)),
+    ] {
+        assert!(
+            verify_compiler(CompilerInput {
+                census: &proof,
+                cfgs: &[],
+                definition_header: &definition_header,
+                invocation_macro: &invocation_macro
+            })
+            .is_err()
+        );
+    }
+}

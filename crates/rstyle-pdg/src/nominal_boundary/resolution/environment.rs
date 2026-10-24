@@ -20,6 +20,7 @@ pub(crate) struct Environment {
     sources: BTreeMap<PathBuf, SourceId>,
     pub(super) modules: Vec<census::Module>,
     functions: functions::Index,
+    compiler_cfgs: Option<Vec<String>>,
     pub(super) index: Index,
     pub(super) copy_boundary: bool,
     cleanup_sources: std::cell::RefCell<std::collections::BTreeSet<CleanupSource>>,
@@ -115,23 +116,18 @@ impl Environment {
             census::verify_with_constants(&census, constants)
         }
         .and_then(|modules| build_index(&modules, &census, None).map(|index| (modules, index)));
-        let (modules, index, copy_boundary) = match closed {
-            Ok((modules, index)) => (modules, index, false),
+        let (modules, index, copy_boundary, compiler_cfgs) = match closed {
+            Ok((modules, index)) => (modules, index, false, None),
             Err(error) => {
                 let Some(cfgs) = cfgs else { return Err(error) };
-                let modules = if module_lints {
-                    census::verify_with_module_lints(&census, cfgs, expansions)?
-                } else if !census.external_imports.is_empty() {
-                    census::verify_imported(&census, cfgs, expansions)?
-                } else if !census.documentation.is_empty() {
-                    census::verify_documented(&census, cfgs, expansions)?
-                } else if expansions {
-                    census::verify_expanded(&census, cfgs)?
-                } else {
-                    census::verify_selected(&census, cfgs)?
-                };
+                let modules = selected_modules(&census, cfgs, module_lints, expansions)?;
                 let index = build_index(&modules, &census, Some(cfgs))?;
-                (modules, index, true)
+                (
+                    modules,
+                    index,
+                    true,
+                    (module_lints && expansions).then(|| cfgs.to_vec()),
+                )
             }
         };
         let sources = source_ids(&census)?;
@@ -142,6 +138,7 @@ impl Environment {
             sources,
             modules,
             functions,
+            compiler_cfgs,
             index,
             copy_boundary,
             cleanup_sources: Default::default(),
@@ -183,8 +180,14 @@ impl Environment {
             })
     }
 
-    pub(super) fn census(&self) -> &census::Census {
+    pub(crate) fn census(&self) -> &census::Census {
         &self.census
+    }
+
+    /// Only the exact selected module-lint and expansion closure is reusable by
+    /// compiler source normalization. Other constructor modes retain fallback.
+    pub(crate) fn generated_source_modules(&self, cfgs: &[String]) -> Option<&[census::Module]> {
+        (self.compiler_cfgs.as_deref() == Some(cfgs)).then_some(self.modules.as_slice())
     }
 
     pub(super) fn census_owner(&self) -> Arc<census::Census> {
@@ -276,6 +279,25 @@ impl Environment {
             );
         }
         Ok(())
+    }
+}
+
+fn selected_modules(
+    census: &census::Census,
+    cfgs: &[String],
+    module_lints: bool,
+    expansions: bool,
+) -> Result<Vec<census::Module>, String> {
+    if module_lints {
+        census::verify_with_module_lints(census, cfgs, expansions)
+    } else if !census.external_imports.is_empty() {
+        census::verify_imported(census, cfgs, expansions)
+    } else if !census.documentation.is_empty() {
+        census::verify_documented(census, cfgs, expansions)
+    } else if expansions {
+        census::verify_expanded(census, cfgs)
+    } else {
+        census::verify_selected(census, cfgs)
     }
 }
 

@@ -59,6 +59,11 @@ pub fn verify(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), S
 
 fn fields(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), String> {
     match tree {
+        TypeTree::GeneratedStruct { .. } => {
+            return Err(
+                "Generated declarations require independently checked expansion source".into(),
+            );
+        }
         TypeTree::Struct { .. }
         | TypeTree::Enum { .. }
         | TypeTree::FieldlessEnum { .. }
@@ -113,6 +118,17 @@ pub fn verify_top_spelling(
     super::validate(tree)?;
     let parsed = syn::parse_str(source).map_err(|e| format!("{e}"))?;
     correspondence(&parsed, tree, resolution)
+}
+
+/// Internal checked-source consumers already bind this AST to original bytes.
+/// This proves type correspondence only, never generated-source ownership.
+pub(crate) fn verify_top_syntax(
+    source: &syn::Type,
+    tree: &TypeTree,
+    resolution: &impl PathResolution,
+) -> Result<(), String> {
+    super::validate(tree)?;
+    correspondence(source, tree, resolution)
 }
 
 fn correspondence(

@@ -95,14 +95,18 @@ fn verify_mode(
     Ok(())
 }
 
-/// Only the complete scalar Result success owner needs these additional bindings.
+/// Exact bounded Result success owners need unshadowed generated prelude names.
 fn result_prelude_namespace(
     facts: &HirFnFacts,
     target: &Namespace,
     mode: SourceMode,
 ) -> Result<Option<Namespace>, String> {
-    if !matches!(mode, SourceMode::CopyOwner) || !supports(facts, crate::tryfrom_calls::CAPABILITY)?
-    {
+    if !matches!(mode, SourceMode::CopyOwner) {
+        return Ok(None);
+    }
+    let scalar_result = supports(facts, crate::tryfrom_calls::CAPABILITY)?;
+    let transport_result = supports(facts, crate::result_maps::CAPABILITY)?;
+    if !scalar_result && !transport_result {
         return Ok(None);
     }
 
@@ -116,12 +120,13 @@ fn result_prelude_namespace(
     else {
         return Ok(None);
     };
-    if !copy_products::supported(ok)
-        || !crate::concrete_results::scalar_errors::GRAMMAR.permits(
+    let scalar_result = scalar_result
+        && crate::concrete_results::scalar_errors::GRAMMAR.permits(
             &crate::data_types::TypeToken::from_tree(ok),
             &crate::data_types::TypeToken::from_tree(err),
-        )
-    {
+        );
+    let transport_result = transport_result && crate::result_maps::types::tree_result(ok, err);
+    if !copy_products::supported(ok) || !(scalar_result || transport_result) {
         return Ok(None);
     }
     let Some((nominal, _)) = ok.nominal_parts() else {

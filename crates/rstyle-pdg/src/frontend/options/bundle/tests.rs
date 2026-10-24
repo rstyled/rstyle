@@ -44,6 +44,7 @@ fn options() -> FrontendOptions {
         crate::declaration_origins::KEY.into(),
         Entry::Origins(Record::new(
             Origins {
+                generated: Vec::new(),
                 identity: crate::declaration_origins::IDENTITY.into(),
                 declarations: vec![origin],
             },
@@ -169,4 +170,73 @@ fn source_option_references_preserve_boundary_checks() {
     let mut unknown = wire;
     unknown[census]["value"]["trusted"] = true.into();
     assert!(decode(unknown, &snapshots).is_err());
+}
+
+fn generated_origin(source: &Origin) -> crate::declaration_origins::GeneratedOrigin {
+    use crate::generated_sources::capture;
+    crate::declaration_origins::GeneratedOrigin {
+        nominal: source.nominal.clone(),
+        definition: capture::Definition {
+            path: "sample::Generated".into(),
+            definition_identity: "raw-struct".into(),
+            crate_name: "sample".into(),
+            stable_crate_id: "raw-crate".into(),
+            local: true,
+        },
+        origin: capture::Origin {
+            raw: crate::nominal_boundary::census::expansions::FileSpan {
+                path: source.source_file.clone().into(),
+                digest: source.file_digest.clone(),
+                span: source.declaration_span,
+            },
+            marks: vec![capture::Mark {
+                expansion: "raw-expansion".into(),
+                transparency: capture::Transparency::SemiOpaque,
+            }],
+        },
+        defining_expansion: "raw-expansion".into(),
+        file_bytes: source.file_bytes.clone(),
+    }
+}
+
+#[test]
+fn generated_origins_share_snapshots_and_preserve_raw_observations() {
+    let mut original = options();
+    let mut origins = original.data::<Origins>().unwrap().into_owned();
+    origins
+        .generated
+        .push(generated_origin(&origins.declarations[0]));
+    original.0.insert(
+        crate::declaration_origins::KEY.into(),
+        Entry::Origins(Record::new(
+            origins,
+            vec![
+                "/declarations/0/nominal".into(),
+                "/generated/0/nominal".into(),
+            ],
+        )),
+    );
+    let (wire, snapshots) = encoded(&original);
+    let key = crate::declaration_origins::KEY;
+    assert_eq!(snapshots.len(), 1);
+    assert!(
+        wire[key]["value"]["generated"][0]
+            .get("file_bytes")
+            .is_none()
+    );
+    let imported = decode(wire.clone(), &snapshots).unwrap();
+    assert_eq!(original, imported);
+    let origins = imported.data::<Origins>().unwrap();
+    assert!(crate::SourceSnapshot::ptr_eq(
+        &origins.declarations[0].file_bytes,
+        &origins.generated[0].file_bytes
+    ));
+    let mut dangling = wire.clone();
+    dangling[key]["value"]["generated"][0]["snapshot"] = u32::MAX.into();
+    assert!(decode(dangling, &snapshots).is_err());
+    for path in ["/generated/00/nominal", "/generated/1/nominal"] {
+        let mut invalid = wire.clone();
+        invalid[key]["value"]["nulls"] = json!([path]);
+        assert!(decode(invalid, &snapshots).is_err());
+    }
 }

@@ -29,6 +29,10 @@ struct SummaryCapture<'a> {
 
 impl SummaryCapture<'_> {
     fn visit(&self, node: &HirNode) -> Result<Vec<Value>, String> {
+        if crate::result_maps::candidate(node, self.facts) {
+            let checked = crate::result_maps::verify(node, self.facts)?;
+            return self.visit(checked.receiver);
+        }
         if crate::iterator_position::candidate(node, self.facts) {
             let checked = crate::iterator_position::verify(node, self.facts)?;
             return self.visit(checked.receiver);

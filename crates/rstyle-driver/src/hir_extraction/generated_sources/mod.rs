@@ -8,17 +8,36 @@ use super::Options;
 use provenance::{Provenance, definition_record, identity};
 use roots::Roots;
 use rstyle_pdg::{HirFnFacts, generated_sources::capture::*};
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{ExpnId, Span};
 use std::{collections::BTreeSet, sync::Arc};
+
+pub(super) fn declaration_origin(
+    ctx: &super::hir::Context<'_>,
+    id: DefId,
+    span: Span,
+) -> Result<(Definition, Origin, String), String> {
+    let root = Roots::new(ctx.tcx)
+        .definition(id.expect_local())?
+        .ok_or("Generated declaration has no unique original local bang root")?;
+    let mut provenance = Provenance::new(ctx.tcx, &ctx.sources);
+
+    provenance.expansion(root)?;
+    let origin = provenance.origin(span)?;
+    Ok((definition_record(ctx.tcx, id), origin, identity(root)))
+}
 
 pub(super) fn capture(
     tcx: TyCtxt<'_>,
     options: &Options<'_>,
     facts: &mut [HirFnFacts],
 ) -> Result<(), String> {
-    if !rstyle_pdg::diagnostics::switch("RSTYLE_DIAGNOSTIC_GENERATED_SOURCES") {
+    if !options
+        .selected()
+        .supports(rstyle_pdg::result_maps::CAPABILITY)
+        && !rstyle_pdg::diagnostics::switch("RSTYLE_DIAGNOSTIC_GENERATED_SOURCES")
+    {
         return Ok(());
     }
 

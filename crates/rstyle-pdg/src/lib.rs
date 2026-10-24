@@ -144,3 +144,4 @@ pub mod conditional_source;
 mod tuple_assignment;
 
 mod owned_receiver;
+pub mod result_maps;

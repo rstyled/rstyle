@@ -187,7 +187,8 @@ impl UnitStore {
                 resolver: &analysis,
                 id: local_id(index, HelperId)?,
             };
-            crate::helper_calls::verify_shared_callee(&helper, &helper.frontend())?;
+            crate::helper_calls::verify_shared_callee(&helper, &helper.frontend())
+                .map_err(|error| format!("Imported helper {}: {error}", helper.frontend().name))?;
             helper.remember();
         }
         self.validate_root_evidence(&analysis)?;
@@ -197,7 +198,9 @@ impl UnitStore {
                 && crate::extraction_profile::ExtractionProfile::from_facts(&view)?
                     .supports("rust.verified-helper-calls")
                 && crate::classify(&view).status == crate::EligibilityVerdict::Eligible
-                && crate::helper_calls::certify_view(&view)?.is_some()
+                && crate::helper_calls::certify_view(&view)
+                    .map_err(|error| format!("Imported function {}: {error}", view.name))?
+                    .is_some()
             {
                 return Err("Incomplete unit helper certification inventory".into());
             }

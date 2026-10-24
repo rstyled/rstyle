@@ -30,25 +30,20 @@ fn check(
     stores: [&UnitStore; 2],
     selection: &Value,
 ) -> Result<rstyle_ccgraph::ImportedFunction, String> {
-    let source = selection["function"]["source"]
-        .as_str()
-        .ok_or("Missing source")?;
     let mut imports = Vec::new();
     for (replay, store) in stores.into_iter().enumerate() {
-        let selected: Vec<_> = store
-            .functions()
-            .iter()
-            .enumerate()
-            .filter(|(_, facts)| facts.source.bytes.as_str() == source)
-            .collect();
-        let [(index, _)] = selected.as_slice() else {
-            return Err("Expected one unchanged selected original".into());
-        };
-        let pair = store.pair(*index).ok_or("Missing selected memory pair")?;
+        let index = selected_index(store, selection)?;
         let analysis = store.analysis();
         let view = analysis
-            .function(*index)
+            .function(index)
             .ok_or("Missing owning function view")?;
+        let pair = store.pair(index).ok_or_else(|| {
+            format!(
+                "Missing selected memory pair for {}: {:?}",
+                view.name,
+                rstyle_pdg::classify(&view)
+            )
+        })?;
         let serialized = pair.serialize().map_err(|error| error.to_string())?;
         rstyle_pdg::producer::verify_serialized(&serialized, &view)
             .map_err(|errors| errors.join("; "))?;
@@ -74,6 +69,28 @@ fn check(
         "owner_definitions":stores[0].functions().len()})
     );
     Ok(imports.remove(0))
+}
+
+fn selected_index(store: &UnitStore, selection: &Value) -> Result<usize, String> {
+    let source = selection["function"]["source"]
+        .as_str()
+        .ok_or("Missing source")?;
+    let selected: Vec<_> = store
+        .functions()
+        .iter()
+        .enumerate()
+        .filter(|(_, facts)| {
+            facts.source.bytes.as_str() == source
+                && selection["function"]["name"]
+                    .as_str()
+                    .is_none_or(|name| facts.name == name)
+        })
+        .map(|(index, _)| index)
+        .collect();
+    let [index] = selected.as_slice() else {
+        return Err("Expected one unchanged selected original".into());
+    };
+    Ok(*index)
 }
 
 fn check_all(stores: [&UnitStore; 2], functions: &[Value]) -> Result<(), String> {

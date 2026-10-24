@@ -7,10 +7,13 @@ pub(in crate::nominal_boundary::resolution) mod copy_products;
 pub(super) mod enum_errors;
 mod enum_globs;
 mod function_imports;
+pub(in crate::nominal_boundary::resolution) mod generated_tuple_errors;
 mod headers;
 mod library_macros;
 mod macros;
-pub(crate) use macros::expand as expand_local_ident_macro;
+pub(crate) use macros::{
+    expand as expand_local_ident_macro, expand_source as expand_local_ident_source,
+};
 pub(super) mod module_globs;
 mod prelude_traits;
 pub(super) mod scalar_errors;
@@ -69,7 +72,7 @@ impl CheckedNoDrop {
     }
 }
 
-pub(super) fn verify(
+pub(in crate::nominal_boundary::resolution) fn verify(
     facts: &HirFnFacts,
     tree: &TypeTree,
     environment: &Environment,
@@ -170,4 +173,26 @@ fn unit_declaration(item: &syn::ItemStruct) -> Result<(), String> {
         return Err("Cleanup declaration requires an original nongeneric unit tuple".into());
     }
     Ok(())
+}
+
+/// Independently prove every requested success declaration before selection.
+pub(in crate::nominal_boundary::resolution) fn transport_copy_sources(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    origins: &Origins,
+    request: &crate::result_maps::TransportRequest,
+) -> Result<Vec<(TypeTree, CheckedNoDrop)>, String> {
+    let checker = product_fields::Proof::copy_owner(facts, resolution, origins);
+    let [payload, wrapper] = request.copy_requests();
+    let receipts = checker.copy_receipts(wrapper)?;
+    if !receipts.iter().any(|receipt| receipt.tree() == payload) {
+        return Err(
+            "Transport Copy wrapper lacks its independently checked payload receipt".into(),
+        );
+    }
+
+    Ok(receipts
+        .iter()
+        .map(|receipt| (receipt.tree().clone(), receipt.certificate().clone()))
+        .collect())
 }

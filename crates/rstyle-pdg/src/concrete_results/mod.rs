@@ -25,6 +25,9 @@ pub(crate) use types::payload;
 
 /// Verify the exact fresh return boundary, including non-Copy error constructors.
 pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {
+    if transport_interface(facts)? {
+        return verify_transport(facts);
+    }
     if fresh_products::interface_used(facts)? {
         return fresh_products::verify_product_returns(facts);
     }
@@ -71,6 +74,29 @@ pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<(), String> {
         "Result/error parameters and local storage require move/liveness proof",
     )?;
     fresh(&facts.body, true, &error, facts)
+}
+
+fn verify_transport(facts: &dyn EvidenceFacts) -> Result<(), String> {
+    crate::result_maps::verify_chain(facts)?
+        .ok_or_else(|| "Generated Result requires its complete constructor transport proof".into())
+        .map(|_| ())
+}
+
+fn transport_interface(facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    if !facts
+        .build
+        .frontend_options
+        .contains_key(crate::concrete_types::KEY)
+    {
+        return Ok(false);
+    }
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
+    Ok(matches!(&interface.result,
+        crate::concrete_types::Observation::Captured { ty: TypeTree::Result { ok, err } }
+        if crate::result_maps::types::tree_result(ok, err)))
 }
 
 fn reject_storage(
@@ -221,6 +247,11 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
+    crate::extraction_profile::require_capability(
+        crate::extraction_profile::policy_supports(profile, crate::result_maps::CAPABILITY),
+        || transport_interface(facts),
+        "Constructor Result transport requires its registered document capability",
+    )?;
     fresh_products::verify_document_policy(profile, facts)?;
     verify_copy_document_policy(profile, facts)?;
     crate::extraction_profile::require_capability(
@@ -234,6 +265,25 @@ pub(crate) fn verify_document_policy(
         || types::used(facts),
         "Fresh concrete Results require their registered document capability",
     )?;
+    verify_borrowed_document_policy(profile, facts)?;
+    crate::extraction_profile::require_document(
+        profile,
+        crate::result_propagation::CAPABILITY,
+        || {
+            crate::field_locations::operations(&facts.body, &["expr_method_call"])
+                .into_iter()
+                .any(|node| {
+                    method_result(node) && !crate::borrowed_result_errors::candidate(node, facts)
+                })
+        },
+        "Fresh Result method forwarding requires its registered document capability",
+    )
+}
+
+fn verify_borrowed_document_policy(
+    profile: &crate::ProfileId,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
     crate::extraction_profile::require_document(
         profile,
         crate::borrowed_result_types::CAPABILITY,
@@ -250,18 +300,6 @@ pub(crate) fn verify_document_policy(
                 })
         },
         "Borrowed Result boundary requires its registered document capability",
-    )?;
-    crate::extraction_profile::require_document(
-        profile,
-        crate::result_propagation::CAPABILITY,
-        || {
-            crate::field_locations::operations(&facts.body, &["expr_method_call"])
-                .into_iter()
-                .any(|node| {
-                    method_result(node) && !crate::borrowed_result_errors::candidate(node, facts)
-                })
-        },
-        "Fresh Result method forwarding requires its registered document capability",
     )
 }
 

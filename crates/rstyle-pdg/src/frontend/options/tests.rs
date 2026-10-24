@@ -259,6 +259,7 @@ fn declaration_origins_borrow_owned_bytes_and_preserve_wire_mutations() {
     use crate::declaration_origins::{IDENTITY, KEY, Origin, Origins};
     let nominal = nominal_interface()["result"]["ty"]["evidence"]["nominal"].clone();
     let origins = Origins {
+        generated: Vec::new(),
         identity: IDENTITY.into(),
         declarations: vec![Origin {
             builtin_copy: None,
@@ -325,6 +326,7 @@ fn origins_share_only_exact_census_snapshots_and_edits_detach() {
     let mut options = FrontendOptions::default();
     options.insert_data(Arc::clone(&census));
     options.insert_data(Origins {
+        generated: Vec::new(),
         identity: crate::declaration_origins::IDENTITY.into(),
         declarations: vec![origin.clone()],
     });

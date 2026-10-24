@@ -3,7 +3,7 @@ use super::*;
 use crate::{
     ByteSpan,
     concrete_types::Nominal,
-    declaration_origins::{BuiltinCopy, Origin, Origins},
+    declaration_origins::{BuiltinCopy, GeneratedOrigin, Origin, Origins},
     nominal_boundary::{
         UnitContext,
         census::{Census, UnitFile},
@@ -116,7 +116,26 @@ impl SourceRecord for CensusImport {
 pub(super) struct OriginsExport<'a> {
     identity: &'a str,
     declarations: Vec<OriginExport<'a>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    generated: Vec<GeneratedExport<'a>>,
     nulls: &'a [String],
+}
+#[derive(Serialize)]
+struct GeneratedExport<'a> {
+    nominal: &'a Nominal,
+    definition: &'a crate::generated_sources::capture::Definition,
+    origin: &'a crate::generated_sources::capture::Origin,
+    defining_expansion: &'a str,
+    snapshot: SourceId,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GeneratedImport {
+    nominal: Nominal,
+    definition: crate::generated_sources::capture::Definition,
+    origin: crate::generated_sources::capture::Origin,
+    defining_expansion: String,
+    snapshot: SourceId,
 }
 #[derive(Serialize)]
 struct OriginExport<'a> {
@@ -133,6 +152,8 @@ struct OriginExport<'a> {
 pub(super) struct OriginsImport {
     identity: String,
     declarations: Vec<OriginImport>,
+    #[serde(default)]
+    generated: Vec<GeneratedImport>,
     nulls: Vec<String>,
 }
 #[derive(Deserialize)]
@@ -166,6 +187,20 @@ impl<'a> OriginsExport<'a> {
         Ok(Self {
             identity: &record.value.identity,
             declarations,
+            generated: record
+                .value
+                .generated
+                .iter()
+                .map(|origin| {
+                    Ok(GeneratedExport {
+                        nominal: &origin.nominal,
+                        definition: &origin.definition,
+                        origin: &origin.origin,
+                        defining_expansion: &origin.defining_expansion,
+                        snapshot: sources.snapshot(&origin.file_bytes)?,
+                    })
+                })
+                .collect::<Result<_, String>>()?,
             nulls: &record.nulls,
         })
     }
@@ -189,6 +224,19 @@ impl SourceRecord for OriginsImport {
         let origins = Origins {
             identity: self.identity,
             declarations,
+            generated: self
+                .generated
+                .into_iter()
+                .map(|origin| {
+                    Ok(GeneratedOrigin {
+                        nominal: origin.nominal,
+                        definition: origin.definition,
+                        origin: origin.origin,
+                        defining_expansion: origin.defining_expansion,
+                        file_bytes: sources.snapshot(origin.snapshot)?,
+                    })
+                })
+                .collect::<Result<_, String>>()?,
         };
         check_nulls(&origins, &self.nulls)?;
         Ok(Entry::Origins(Record::new(origins, self.nulls)))
@@ -198,17 +246,31 @@ impl SourceRecord for OriginsImport {
 fn check_nulls(origins: &Origins, nulls: &[String]) -> Result<(), String> {
     let mut seen = BTreeSet::new();
     for path in nulls {
-        let origin = path
-            .strip_prefix("/declarations/")
-            .and_then(|path| path.strip_suffix("/nominal"))
-            .and_then(|index| index.parse::<usize>().ok())
-            .filter(|index| path == &format!("/declarations/{index}/nominal"))
-            .and_then(|index| origins.declarations.get(index));
-        if origin.is_none_or(|origin| origin.nominal.source_identity.is_some())
-            || !seen.insert(path)
-        {
+        let nominal = null_nominal(origins, path);
+        if nominal.is_none_or(|nominal| nominal.source_identity.is_some()) || !seen.insert(path) {
             return Err("Invalid source-origin null-presence record".into());
         }
     }
     Ok(())
+}
+
+fn null_nominal<'a>(origins: &'a Origins, path: &str) -> Option<&'a Nominal> {
+    for prefix in ["declarations", "generated"] {
+        let index = path
+            .strip_prefix(&format!("/{prefix}/"))
+            .and_then(|path| path.strip_suffix("/nominal"))
+            .and_then(|index| index.parse::<usize>().ok())
+            .filter(|index| path == format!("/{prefix}/{index}/nominal"));
+        if let Some(index) = index {
+            return if prefix == "declarations" {
+                origins
+                    .declarations
+                    .get(index)
+                    .map(|origin| &origin.nominal)
+            } else {
+                origins.generated.get(index).map(|origin| &origin.nominal)
+            };
+        }
+    }
+    None
 }

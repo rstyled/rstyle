@@ -261,6 +261,7 @@ fn declaration_origins_require_exact_owned_struct_ranges() {
         },
     };
     let origins = Origins {
+        generated: Vec::new(),
         identity: IDENTITY.into(),
         declarations: vec![origin],
     };

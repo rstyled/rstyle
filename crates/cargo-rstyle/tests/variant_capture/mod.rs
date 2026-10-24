@@ -20,6 +20,7 @@ mod character_ranges;
 mod checked_index_construction;
 mod checked_lengths;
 mod classifiers;
+mod constructor_maps;
 mod corruption;
 mod documentation_inputs;
 mod end_of_input;

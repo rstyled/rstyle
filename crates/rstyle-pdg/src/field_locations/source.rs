@@ -152,8 +152,7 @@ pub(super) fn verify(
     observations: &FieldObservations,
     interface: &InterfaceObservations,
 ) -> Result<(), String> {
-    let function: syn::ItemFn =
-        syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
+    let function = function(facts)?;
     let mut inventory = Inventory {
         facts: Some(facts),
         configuration: crate::extraction_profile::ExtractionProfile::from_facts(facts)?
@@ -186,6 +185,16 @@ pub(super) fn verify(
     }
 
     Ok(())
+}
+
+/// Generated coordinates belong to the checked member AST; invocation bytes
+/// remain the source identity and cannot be parsed as an ordinary function.
+fn function(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<syn::ItemFn, String> {
+    if crate::result_maps::verify_chain(facts)?.is_some() {
+        let resolution = facts.nominal_resolution()?;
+        return crate::data_frontend::source_function(facts, Some(&resolution));
+    }
+    syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())
 }
 
 struct Verification<'a> {
@@ -598,6 +607,21 @@ fn check_root(node: &HirNode, parameter: &crate::ParamFact) -> Result<(), String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unproved_invocation_cannot_replace_the_owned_function_field_inventory() {
+        let mut facts: crate::HirFnFacts = serde_json::from_str(include_str!(
+            "../nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
+        ))
+        .unwrap();
+        facts.source.bytes = "fn ordinary() {}".into();
+        assert_eq!(function(&facts).unwrap().sig.ident, "ordinary");
+        facts.source.bytes = "index_type_impls!(Wrapper, Failure);".into();
+        assert!(function(&facts).is_err());
+        facts.source_scan_complete = true;
+        facts.source_diagnostics.clear();
+        assert!(function(&facts).is_err());
+    }
 
     #[test]
     fn independent_shared_tuple_projection_retains_both_referents() {

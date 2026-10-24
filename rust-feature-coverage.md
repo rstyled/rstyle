@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.88.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.99.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -46,6 +46,12 @@ original From callers to their checked constructor and component summaries.
 propagation and checked suffix views, preserving saved values and backing origins.
 Foreign aggregate callers remain pending. See the
 [constructor contract](docs/extraction-profiles/reference-constructor-instances-v1.md).
+3.89–3.98 add component-aware foreign helper results, checked Match instances,
+mutable scalar loop state, exact Default/TryFrom selections and fresh no-drop
+nominal errors through original checked SmallIndex construction. 3.99 connects
+[generated PatternID construction](docs/extraction-profiles/constructor-result-maps-v1.md)
+through exact constructor-only Result maps. General payload binding, owned Result
+storage and generic generated callables remain outside these contracts.
 Broader character/float APIs, conversions and structured forms remain deferred.
 The default remains `r0`; `hir-expanded-v1` does **not** select the Data features.
 The continuation log below records implementation boundaries and frozen inventory results.
@@ -186,7 +192,7 @@ Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
 | C12 | Borrowed results from memory-reading helpers | Missing | `get_field_ref(s)` | Exact callee read effects plus result origin/location substitution, not just whole-formal forwarding. |
 | C13 | Cross-unit/package helper linking | Partial | `library_crate::helper(x)` | Data-v3 3.82 connects [selected dependency-library scalar helpers](docs/extraction-profiles/cross-unit-scalar-helpers-v1.md) through exact Cargo/loaded/emitted artifact and definition associations, separate owning stores and strict closure replay. Generic instances, foreign nominal/reference/memory summaries and binary/test roots remain unsupported. |
 | C14 | Looping, recursive, panicking or nonreturning callees | Missing | `recursive(x)`, `helper_with_loop(x)` | Existing caller scalar loops do not authorize these summaries; need interprocedural fixed points/flow/effect contracts. |
-| C15 | Function items as values, pointers and indirect calls | Partial | `value.map_or(false, classify)` | Data-v3 3.57 connects [immediate local fn(u8) -> bool items](docs/extraction-profiles/word-byte-classifiers-v1.md) to exact verified helpers, eager arguments, guarded payload invocation and result selection. Stored items, function pointers, other signatures and indirect calls remain missing. |
+| C15 | Function items as values, pointers and indirect calls | Partial | `value.map_or(false, classify)` | Data-v3 3.57 connects [immediate local fn(u8) -> bool items](docs/extraction-profiles/word-byte-classifiers-v1.md) to exact verified helpers, eager arguments, guarded payload invocation and result selection. Data3.99 additionally supports exact unary tuple constructors as immediate fresh Result map/map_err callbacks under the [generated constructor contract](docs/extraction-profiles/constructor-result-maps-v1.md). Stored items, function pointers, general callbacks and indirect calls remain missing. |
 | C16 | Closures and captured environments | Partial | `move \|x\| x + offset` | Data-v3 3.49 supports [immediate Option<u8>::map_or equality callbacks](docs/extraction-profiles/tagged-byte-comparisons-v1.md): one by-value u8 payload and one shared u8 capture, eager default, Some-only body and independently checked result merge. Data-v3 3.54 also verifies the [immediate shared-byte position callback](docs/extraction-profiles/iterator-byte-position-v1.md), including `\|&b\|` and stable shared capture storage. General bodies, captures, escape/lifetime and drop remain open. |
 | C17 | Iterator adapters and higher-order functions | Partial | `xs.iter().position(\|&b\| b == byte)` | Data-v3 3.54 connects one [fresh shared byte iterator](docs/extraction-profiles/iterator-byte-position-v1.md), exact equality callback, first-match prefix reads and Option/helper composition. Stored iterators, arbitrary predicates, adapters, other element types and general protocols/cleanup remain excluded. |
 | C18 | Side-effecting calls | Missing | `std::fs::write(path, bytes)`, `println!("x")` | IO/global effects, ordering and failure behavior; distinguish macro provenance from the underlying call effects. |
@@ -231,7 +237,7 @@ inside an unsupported source/effect context can still be unavailable.
 | S03 | Active conditional-source correspondence | Partial | A cfg-controlled statement present in resolved HIR | Original-source/HIR correspondence in the actual build, with Data-v3 3.7.0 resolution of body-level cfg removal; general conditional signatures/attributes remain unfinished. |
 | S04 | Cfg-removed source and inactive definitions | Partial | `#[cfg(feature = "x")] statement` absent from HIR | Data-v3 3.8.0 resolves standard cfg/cfg_attr guards for removed body operations and definitions in captured original files, including enclosing scopes; see [removal contract](docs/extraction-profiles/cfg-source-removal-v1.md). Unloaded external files and macro-token definitions remain unfinished; missing capture is not proof. |
 | S05 | Conditional/path-selected modules | Partial | `#[path = "other.rs"] mod m;` | Cfg-selected ordinary modules and Data-v3 3.64 exact local cfg-if module ownership have source/build proof. Rewritten paths and general generated modules remain unsupported. |
-| S06 | Declarative macros | Missing | `macro_rules! m { ... }`, `m!()` | Original invocation, expansion ownership, argument/operation correspondence and hidden item/effect evidence. Standard assertions have a bounded dedicated contract (F14); general expansion support remains missing. |
+| S06 | Declarative macros | Partial | `macro_rules! m { ... }`, `m!()` | Data3.99 joins exact local all-ident template substitution, complete selected impl/member/HIR/hygiene and independent source/cleanup proof for the [generated checked constructor](docs/extraction-profiles/constructor-result-maps-v1.md). Standard assertions retain their dedicated contract (F14). Sequential unknown expansions, general matcher forms, generated callables and hidden item/effect ownership remain unsupported outside these bounds. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
 | S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Data-v3 3.45.0 adds [closed local import scopes](docs/extraction-profiles/scoped-import-flag-owners-v1.md) and checked Copy value helper reads, connecting original Epsilons constructor/getter methods in the complete regex-automata library. Data-v3 3.47.0 reuses those source/Copy proofs for complete finite scalar enum declarations, admitting original Unit constructors/projections beside their unchanged derives and custom Debug impl. Data-v3 3.58 adds borrowed-only owners with independently checked Copy child structs; see [ASCII boundaries](docs/extraction-profiles/ascii-boundaries-v1.md). Data-v3 3.64–3.66 narrows ancestor namespace checks only for exhaustively proved call-free float leaves, including bounded i32 control dependencies; general nominal import restrictions remain unchanged. Data-v3 3.68 permits selected Copy dependencies only inside a distinct shared owner, with complete source/field/Copy proof and no direct dependency operations; original Input getters admit beside unchanged index-type macros. Data-v3 3.80 proves exact local trait-member source ownership and pinned core Debug trait/derive namespace bindings; closed unrelated globs retain type/value shadow checks. This does not enable trait-call dispatch. Data-v3 3.81 recovers exact no-drop error certificates across original module globs and one-hop aliases, with complete export/shadow checks. General non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
@@ -5209,3 +5215,18 @@ observations and independently checked original macro substitution grant no admi
 Unchanged native selection remains112/590, gain0/loss0. Next join exact emitted
 members and hygiene, nested success/error ownership, and once-only consuming
 `Result::map/map_err` through whole original `PatternID::new`.
+
+Data3.99 connects unchanged generated `PatternID::new` through the complete
+checked SmallIndex/helper/constructor-map chain, with separate Copy success and
+non-Copy no-drop error evidence. Native unchanged rosters gain only that function:
+112→113/590 no-default and158→159/2,582 default, zero losses. Six target/feature
+contexts strictly replay ten selected originals and complete all45 original pairs;
+native oracle8,202 public cases per feature/assertion context has zero mismatches.
+[Contract](docs/extraction-profiles/constructor-result-maps-v1.md) and
+[validation/frontier](docs/rust-support-execution.md). General payload binding,
+owned Result reuse/forwarding and sequential unknown macro lookup remain open.
+Frozen60 remains24 admitted/29 excluded/7 inactive with identical identities,
+denominators and blockers;118 schema checks pass. All1,773 tests/five existing
+skips, doctests, fmt/Clippy, style0/6,025 and patterns0/15 unchanged ignores pass.
+No new SHA or serialized lookup keys; unrelated source lookups avoid the eager
+whole-HIR transport scan. Broad P01–P22 work remains active.

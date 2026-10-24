@@ -3,6 +3,7 @@
 mod callbacks;
 mod copy;
 mod fieldless_enums;
+mod generated_declarations;
 mod mixed_enums;
 mod range_values;
 mod receivers;
@@ -33,6 +34,8 @@ struct Capture<'a, 'tcx> {
     entries: usize,
     visiting: Vec<DefId>,
     origins: std::collections::BTreeMap<String, rstyle_pdg::declaration_origins::Origin>,
+    generated_origins:
+        std::collections::BTreeMap<String, rstyle_pdg::declaration_origins::GeneratedOrigin>,
     product_selections: Vec<rstyle_pdg::product_constant_values::SelectedUse>,
 }
 
@@ -45,6 +48,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         entries: 0,
         visiting: Vec::new(),
         origins: std::collections::BTreeMap::new(),
+        generated_origins: std::collections::BTreeMap::new(),
         product_selections: Vec::new(),
     };
     let parameters = facts
@@ -282,12 +286,10 @@ impl<'tcx> Capture<'_, 'tcx> {
         let mut origins = rstyle_pdg::declaration_origins::Origins {
             identity: rstyle_pdg::declaration_origins::IDENTITY.into(),
             declarations: self.origins.into_values().collect(),
+            generated: self.generated_origins.into_values().collect(),
         };
         let context = rstyle_pdg::declaration_origins::context(facts, observations, &origins)?;
-        let expected = rstyle_pdg::declaration_origins::declarations(&context)?;
-        origins
-            .declarations
-            .retain(|origin| expected.contains_key(&origin.nominal.definition_path));
+        origins.retain_context(&context)?;
         rstyle_pdg::declaration_origins::verify(&context, &origins)?;
         facts.build.frontend_options.insert_data(origins);
 
@@ -558,6 +560,9 @@ impl<'tcx> Capture<'_, 'tcx> {
             arguments,
         };
         self.check_structure(instance)?;
+        if let Some(generated) = generated_declarations::capture(self, instance, depth)? {
+            return Ok(generated);
+        }
         let source = self.concrete_declaration(instance)?;
         let fields = &definition.non_enum_variant().fields;
         let declarations = field_declarations(&source).map_err(Failure::Unsupported)?;

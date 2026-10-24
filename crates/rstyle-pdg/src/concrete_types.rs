@@ -71,6 +71,14 @@ pub enum TypeTree {
         source: crate::SourceText,
         fields: Vec<Field>,
     },
+    /// Raw local expansion observation. The template is original input bytes,
+    /// not emitted Rust source; generated ownership must be checked separately.
+    GeneratedStruct {
+        nominal: Nominal,
+        template: crate::SourceText,
+        definition: Box<crate::generated_sources::capture::Definition>,
+        fields: Vec<Field>,
+    },
     FieldlessEnum {
         nominal: Nominal,
         source: crate::SourceText,
@@ -175,6 +183,31 @@ impl TypeTree {
         }
     }
 
+    pub(crate) fn generated_parts(
+        &self,
+    ) -> Option<(
+        &Nominal,
+        &crate::generated_sources::capture::Definition,
+        &crate::SourceText,
+        &[Field],
+    )> {
+        match self {
+            Self::GeneratedStruct {
+                nominal,
+                definition,
+                template,
+                fields,
+            } => Some((nominal, definition, template, fields)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn nominal_identity(&self) -> Option<&Nominal> {
+        self.nominal_parts()
+            .map(|(nominal, _)| nominal)
+            .or_else(|| self.generated_parts().map(|(nominal, ..)| nominal))
+    }
+
     /// Ordered children of the two supported multi-component container forms.
     pub(crate) fn components(&self) -> impl Iterator<Item = &Self> {
         let tuple = match self {
@@ -192,7 +225,7 @@ impl TypeTree {
 
     pub(crate) fn nominal_fields(&self) -> impl Iterator<Item = &Field> {
         let fields = match self {
-            Self::Struct { fields, .. } => Some(fields),
+            Self::Struct { fields, .. } | Self::GeneratedStruct { fields, .. } => Some(fields),
             _ => None,
         };
         let variants = match self {
@@ -324,6 +357,7 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
             source,
             fields,
         } => check_declaration(nominal, source, fields),
+        TypeTree::GeneratedStruct { .. } => crate::declaration_origins::generated::shape(tree),
         TypeTree::Enum {
             nominal,
             source,
@@ -345,7 +379,8 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
 
 /// This bounded shape grants neither Copy, drop freedom nor value permission.
 fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
-    if crate::borrowed_result_types::tree_result(ok, err)
+    if crate::result_maps::types::observed_result(ok, err)
+        || crate::borrowed_result_types::tree_result(ok, err)
         || crate::concrete_results::fresh_products::GRAMMAR.permits(
             &crate::data_types::TypeToken::from_tree(ok),
             &crate::data_types::TypeToken::from_tree(err),

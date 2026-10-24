@@ -3,7 +3,10 @@ use super::{Census, Module, expansions::FileSpan, macro_scope};
 use crate::conditional_source::Configuration;
 use std::collections::BTreeMap;
 use syn::{parse::Parser, spanned::Spanned};
+mod compiler;
 mod globs;
+pub(crate) use compiler::verify_compiler_in;
+pub use compiler::{CompilerInput, verify_compiler};
 
 #[derive(Clone, Copy)]
 pub struct Input<'a> {
@@ -29,9 +32,29 @@ pub struct CheckedExpansion {
     namespace: Vec<String>,
     bindings: Vec<IdentBinding>,
     items: Vec<syn::Item>,
+    macro_path: Vec<String>,
+    template_bom: bool,
 }
 
 impl CheckedExpansion {
+    pub fn macro_path(&self) -> &[String] {
+        &self.macro_path
+    }
+
+    /// Coordinates in this immutable template buffer; no semantic permission.
+    pub fn source_span(&self, span: proc_macro2::Span) -> FileSpan {
+        let range = span.byte_range();
+        let prefix = if self.template_bom { 3 } else { 0 };
+        FileSpan {
+            path: self.definition.path.clone(),
+            digest: self.definition.digest.clone(),
+            span: crate::ByteSpan {
+                start: prefix + range.start as u32,
+                end: prefix + range.end as u32,
+            },
+        }
+    }
+
     pub fn definition(&self) -> &FileSpan {
         &self.definition
     }
@@ -51,8 +74,17 @@ impl CheckedExpansion {
 
 pub fn verify(input: Input<'_>) -> Result<CheckedExpansion, String> {
     let modules = super::verify_with_module_lints(input.census, input.cfgs, true)?;
+    verify_modules(input, &modules, false)
+}
+
+fn verify_modules(
+    input: Input<'_>,
+    modules: &[Module],
+    source_coordinates: bool,
+) -> Result<CheckedExpansion, String> {
     let mut lookup = Lookup {
         input,
+        source_coordinates,
         configuration: Configuration::new(input.cfgs),
         modules: modules
             .iter()
@@ -70,6 +102,7 @@ pub fn verify(input: Input<'_>) -> Result<CheckedExpansion, String> {
 
 struct Lookup<'a> {
     input: Input<'a>,
+    source_coordinates: bool,
     configuration: Configuration<'a>,
     modules: BTreeMap<Vec<String>, &'a Module>,
     definitions: Vec<(FileSpan, &'a syn::ItemMacro)>,
@@ -253,7 +286,9 @@ impl<'a> Lookup<'a> {
             .map(|(_, definition)| *definition)
             .ok_or("Missing original bound macro definition")?;
 
-        self.checked = Some(expand(&self.input, definition, invocation)?);
+        let mut expansion = expand(&self.input, definition, invocation, self.source_coordinates)?;
+        expansion.macro_path = binding.identity.split("::").map(str::to_owned).collect();
+        self.checked = Some(expansion);
         Ok(())
     }
 }
@@ -262,6 +297,7 @@ fn expand(
     input: &Input<'_>,
     definition: &syn::ItemMacro,
     invocation: &syn::ItemMacro,
+    source_coordinates: bool,
 ) -> Result<CheckedExpansion, String> {
     if !definition.attrs.is_empty() {
         return Err("Generated-source definition has unsupported attributes".into());
@@ -276,8 +312,12 @@ fn expand(
     {
         return Err("Generated-source substitution exceeds the source budget".into());
     }
-    let tokens =
-        crate::nominal_boundary::resolution::expand_local_ident_macro(definition, &invocation.mac)?;
+    let interpreter = if source_coordinates {
+        crate::nominal_boundary::resolution::expand_local_ident_source
+    } else {
+        crate::nominal_boundary::resolution::expand_local_ident_macro
+    };
+    let tokens = interpreter(definition, &invocation.mac)?;
     let file: syn::File = syn::parse2(tokens).map_err(|error| error.to_string())?;
     if file.items.is_empty() || file.items.len() > 256 || !file.attrs.is_empty() {
         return Err("Generated-source expansion lacks a bounded complete item roster".into());
@@ -289,6 +329,13 @@ fn expand(
         namespace: input.namespace.to_vec(),
         bindings,
         items: file.items,
+        macro_path: Vec::new(),
+        template_bom: input
+            .census
+            .files
+            .iter()
+            .find(|file| file.path == input.definition.path)
+            .is_some_and(|file| file.bytes.starts_with('\u{feff}')),
     })
 }
 

@@ -688,6 +688,9 @@ fn access_origins(
 }
 
 fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+    if let Some(result) = super::result_maps::verify_type(node, facts) {
+        return result;
+    }
     if node.attributes.construct.as_deref() == Some("data.owned-product-update") {
         let boundary = crate::concrete_results::fresh_products::product_boundary(facts)?;
         if wire_type(node)? != boundary.ok.text()? {
@@ -695,6 +698,7 @@ fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> 
         }
         return Ok(());
     }
+
     let expected = source_type(node, facts)?;
     if expected.is_none() || wire_type(node)?.as_str() != expected.unwrap_or_default() {
         return Err(format!(
@@ -870,6 +874,9 @@ pub(super) fn source_node<'a>(
     node: &PdgNode,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<&'a HirNode, String> {
+    if let Some(source) = super::result_maps::source_node(node, facts) {
+        return source;
+    }
     let kind = source_kind(node)?;
     let span: crate::Span = if let Some(span) = &node.source_span {
         span.clone()

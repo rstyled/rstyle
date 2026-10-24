@@ -34,12 +34,11 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
     crate::checked_option_products::verify_function(facts)?;
     crate::mutable_scalars::verify(facts)?;
     let interface = interface(facts)?;
-    let source: syn::ItemFn =
-        syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
+    let resolution = nominal_resolution(facts, &interface)?;
+    let source = source_function(facts, resolution.as_deref())?;
     verify_lifetimes(&source)?;
     crate::size_constants::verify_function(facts)?;
     crate::bool_constants::verify_function(facts)?;
-    let resolution = nominal_resolution(facts, &interface)?;
     verify_interface(facts, &source, &interface, resolution.as_deref())?;
 
     for parameter in &facts.signature.params {
@@ -49,6 +48,23 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
     verify_fields(facts)?;
     let places = crate::data_places::Places::verify(facts)?;
     observation.finish(verify_nodes(&facts.body, facts, &places))
+}
+
+pub(crate) fn source_function(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    resolution: Option<&crate::nominal_boundary::resolution::Resolution>,
+) -> Result<syn::ItemFn, String> {
+    if let Some(receipt) = resolution.and_then(|resolution| resolution.transport_source()) {
+        receipt.verify(facts.facts())?;
+        let member = receipt.member().function();
+        return Ok(syn::ItemFn {
+            attrs: member.attrs.clone(),
+            vis: member.vis.clone(),
+            sig: member.sig.clone(),
+            block: Box::new(member.block.clone()),
+        });
+    }
+    syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())
 }
 
 pub(crate) fn verify_document_policy(
@@ -163,6 +179,7 @@ fn verify_result_document_policy(
     crate::data_documents::borrowed_result_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::scalar_result_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::product_result_propagation::verify_document_policy(profile, facts)?;
+    crate::data_documents::result_maps::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,
         crate::helper_component_outputs::CAPABILITY,
@@ -488,14 +505,18 @@ impl SourceProof<'_> {
             return Err("Resolved data interface token disagrees with captured tree".into());
         }
 
-        source_proof::verify_top_spelling(
-            spelling(self.bytes, source)?,
-            ty,
-            &Resolver {
-                nominal: self.resolution,
-                facts: self.facts,
-            },
-        )?;
+        let resolver = Resolver {
+            nominal: self.resolution,
+            facts: self.facts,
+        };
+        if let Some(resolution) = self.resolution
+            && let Some(receipt) = resolution.transport_source()
+        {
+            receipt.verify(self.facts.facts())?;
+            resolution.transport_type_source(source)?;
+            return source_proof::verify_top_syntax(source, ty, &resolver);
+        }
+        source_proof::verify_top_spelling(spelling(self.bytes, source)?, ty, &resolver)?;
 
         Ok(())
     }
@@ -559,6 +580,11 @@ fn verify_nodes(
     if crate::result_propagation::candidate(node, facts) {
         let checked = crate::result_propagation::verify(node, facts)?;
         return verify_nodes(checked.operand, facts, places);
+    }
+    if crate::result_maps::candidate(node, facts) {
+        let checked = crate::result_maps::verify(node, facts)?;
+        verify_node_type(node, facts)?;
+        return verify_nodes(checked.receiver, facts, places);
     }
 
     if crate::helper_option_callbacks::candidate(node, facts) {

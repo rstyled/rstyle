@@ -219,6 +219,7 @@ fn source_copy_spelling_and_drop_flags_are_not_positive_copy_evidence() {
     let facts: HirFnFacts =
         serde_json::from_str(include_str!("../../function_cleanup_tests/facts.json")).unwrap();
     let mut origins = Origins {
+        generated: Vec::new(),
         identity: crate::declaration_origins::IDENTITY.into(),
         declarations: vec![],
     };

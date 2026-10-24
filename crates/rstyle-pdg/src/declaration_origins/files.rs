@@ -207,6 +207,7 @@ mod tests {
                 result: observations[1].clone(),
             },
             Origins {
+                generated: Vec::new(),
                 identity: IDENTITY.into(),
                 declarations: declarations.into(),
             },

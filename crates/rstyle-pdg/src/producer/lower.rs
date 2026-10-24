@@ -17,6 +17,7 @@ mod options;
 mod owned_product_values;
 mod product_constants;
 mod product_result_propagation;
+mod result_maps;
 mod result_propagation;
 mod scalar_result_propagation;
 
@@ -700,7 +701,9 @@ impl Builder<'_> {
 
     fn invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let lower: fn(&mut Self, &HirNode, Flow) -> Flow =
-            if crate::checked_slice_views::suffix::candidate(node, self.facts) {
+            if crate::result_maps::candidate(node, self.facts) {
+                Self::result_map
+            } else if crate::checked_slice_views::suffix::candidate(node, self.facts) {
                 Self::checked_suffix_get
             } else if crate::checked_slice_views::candidate(node, self.facts) {
                 Self::checked_prefix_get
@@ -1126,7 +1129,9 @@ impl Builder<'_> {
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
         let mut merge = Operation {
             id: id.clone(),
-            construct: if crate::helper_option_callbacks::candidate(node, self.facts) {
+            construct: if crate::result_maps::candidate(node, self.facts) {
+                Some(crate::result_maps::RESULT.into())
+            } else if crate::helper_option_callbacks::candidate(node, self.facts) {
                 Some(crate::helper_option_callbacks::RESULT.into())
             } else if crate::named_callbacks::candidate(node, self.facts) {
                 Some(crate::named_callbacks::RESULT.into())
@@ -1139,6 +1144,12 @@ impl Builder<'_> {
             },
             ..template(node, NodeCategory::Merge)
         };
+        if crate::result_maps::candidate(node, self.facts) {
+            merge.role = crate::result_maps::verify(node, self.facts)
+                .expect("checked constructor Result merge")
+                .role()
+                .into();
+        }
         merge.original_kind = if selection_kind.is_some() {
             "rstyle.hir-coverage.match_merge"
         } else {

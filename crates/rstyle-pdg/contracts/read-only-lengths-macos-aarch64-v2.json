@@ -59,6 +59,9 @@
     }
   ],
   "definitions": {
+    "std::result::Result::<T, E>::map_err": "DefPathHash(Fingerprint(9963928104983068931, 9859034835655790147))",
+    "rust.result-constructor-maps.core-crate": "StableCrateId(9963928104983068931)",
+    "std::result::Result::<T, E>::map": "DefPathHash(Fingerprint(9963928104983068931, 4177973613181090680))",
     "std::ops::Index::index": "DefPathHash(Fingerprint(9963928104983068931, 16562579357227418987))",
     "std::ops::Range": "DefPathHash(Fingerprint(9963928104983068931, 10537819065912900640))",
     "std::convert::TryInto::try_into": "DefPathHash(Fingerprint(9963928104983068931, 1428442718671533223))",

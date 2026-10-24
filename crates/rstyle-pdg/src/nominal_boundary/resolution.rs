@@ -22,9 +22,10 @@ pub(crate) use fresh_products::CheckedFreshProduct;
 mod primitive_constants;
 mod range_from;
 mod reference_owners;
+mod result_maps;
 mod scalar_aliases;
 mod selected;
-pub(crate) use selected::no_drop::expand_local_ident_macro;
+pub(crate) use selected::no_drop::{expand_local_ident_macro, expand_local_ident_source};
 pub(crate) mod value_traits;
 pub(crate) use environment::{Environment, SourceOptions};
 pub(crate) use selected::no_drop::copy_products::CheckedCopyProductSource;
@@ -66,6 +67,7 @@ pub struct Resolution {
     copy_owner_source: Option<selected::no_drop::copy_owners::CheckedCopyOwnerSource>,
     scalar_result_source:
         Option<selected::no_drop::scalar_result_owners::CheckedScalarResultSource>,
+    transport_sources: Option<result_maps::TransportSources>,
 }
 
 fn requires_mixed_owner(tree: &TypeTree) -> bool {
@@ -88,6 +90,14 @@ fn requires_mixed_owner(tree: &TypeTree) -> bool {
 }
 
 impl Resolution {
+    pub(crate) fn verify_transport_origins(
+        &self,
+        interface: &InterfaceObservations,
+        origins: &declaration_origins::Origins,
+    ) -> Result<(), String> {
+        declaration_origins::verify_in(interface, origins, &self.environment)
+    }
+
     fn select_copies(
         &mut self,
         facts: &HirFnFacts,
@@ -119,8 +129,8 @@ impl Resolution {
         let tree = self.trees.get(&key)?;
         (permissions.contains(&key)
             && tree
-                .nominal_parts()
-                .is_some_and(|(checked, _)| checked == nominal))
+                .nominal_identity()
+                .is_some_and(|checked| checked == nominal))
         .then_some(tree)
     }
 
@@ -141,6 +151,9 @@ impl Resolution {
                 },
                 receipt,
             );
+        }
+        if self.transport_source().is_some() {
+            return self.verify_transport_result_type(facts, &path.path);
         }
         self.environment
             .verify_result_source(facts, &path.path, None)
@@ -360,7 +373,7 @@ pub(crate) fn verify_in(
 
     let mut resolution = declaration_resolution(facts, interface, Rc::clone(&environment))?;
     if owner.is_none() {
-        capture_owner_sources(facts, &mut resolution)?;
+        capture_function_sources(input, &mut resolution)?;
     }
     if environment.copy_boundary || resolution.range_value.is_some() {
         let origins = facts
@@ -376,6 +389,74 @@ pub(crate) fn verify_in(
         &mut resolution,
     )?;
     Ok(resolution)
+}
+
+fn capture_function_sources(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<(), String> {
+    capture_owner_sources(input.facts(), resolution)?;
+    capture_transport_sources(input, resolution)
+}
+
+fn capture_transport_sources(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<(), String> {
+    if !supports(input.facts(), crate::result_maps::CAPABILITY)?
+        || !input
+            .facts()
+            .body
+            .any(&|node| crate::result_maps::candidate(node, input))
+    {
+        return Ok(());
+    }
+
+    let Some(capture) = input.generated_source_capture()? else {
+        return Ok(());
+    };
+    if !has_transport_observation(input.facts(), &capture) {
+        return Ok(());
+    }
+
+    let member = crate::generated_sources::checked::verify_in(
+        crate::generated_sources::checked::Input {
+            facts: input.facts(),
+            census: resolution.environment.census(),
+            capture: &capture,
+        },
+        &resolution.environment,
+    )?;
+    let origins = input
+        .facts()
+        .build
+        .frontend_options
+        .data::<declaration_origins::Origins>()?;
+    resolution.transport_sources = result_maps::capture(result_maps::Input {
+        facts: input.facts(),
+        resolution,
+        origins: &origins,
+        member,
+        capture: &capture,
+    })?;
+    Ok(())
+}
+
+fn has_transport_observation(
+    facts: &HirFnFacts,
+    capture: &crate::generated_sources::capture::UnitCapture,
+) -> bool {
+    let identity = facts
+        .build
+        .frontend_options
+        .get("definition_identity")
+        .and_then(serde_json::Value::as_str);
+    capture.outcomes.iter().any(|outcome| match outcome {
+        crate::generated_sources::capture::Outcome::Observed { observation } => {
+            Some(observation.owner.definition_identity.as_str()) == identity
+        }
+        _ => false,
+    })
 }
 
 fn capture_owner_sources(facts: &HirFnFacts, resolution: &mut Resolution) -> Result<(), String> {
@@ -468,6 +549,7 @@ fn declaration_resolution(
         passive_copy_dependencies: false,
         copy_owner_source: None,
         scalar_result_source: None,
+        transport_sources: None,
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
         local_import_chains: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,
@@ -744,6 +826,7 @@ fn anchored(path: Namespace, namespace: &Namespace, import: bool) -> Result<Name
 fn collect(tree: &TypeTree, trees: &mut BTreeMap<Namespace, TypeTree>) -> Result<(), String> {
     match tree {
         TypeTree::Struct { .. }
+        | TypeTree::GeneratedStruct { .. }
         | TypeTree::Enum { .. }
         | TypeTree::FieldlessEnum { .. }
         | TypeTree::MixedEnum { .. } => collect_nominal(tree, trees)?,
@@ -765,8 +848,8 @@ fn collect_nominal(
     tree: &TypeTree,
     trees: &mut BTreeMap<Namespace, TypeTree>,
 ) -> Result<(), String> {
-    let (nominal, _) = tree
-        .nominal_parts()
+    let nominal = tree
+        .nominal_identity()
         .ok_or("Non-nominal type registry entry")?;
     let key = nominal
         .definition_path
@@ -794,6 +877,10 @@ fn verify_declarations(
     let declarations = &resolution.environment.index.declarations;
     let census = resolution.environment.census();
     for (key, tree) in &resolution.trees {
+        if tree.generated_parts().is_some() {
+            result_maps::validate_generated(facts, origins, &resolution.environment, tree)?;
+            continue;
+        }
         let (nominal, _) = tree.nominal_parts().ok_or("Non-nominal registry entry")?;
         let declaration = declarations
             .get(key)
@@ -848,11 +935,21 @@ fn bind_selected_function(
     input: &dyn crate::unit_store::EvidenceFacts,
     resolution: &mut Resolution,
 ) -> Result<bool, String> {
-    if tryfrom_owners::bind(input, resolution)? || default_owners::bind(input, resolution)? {
+    if resolution.bind_transport_function(input.facts())? {
+        return Ok(true);
+    }
+    if bind_value_trait_function(input, resolution)? {
         return Ok(true);
     }
 
     range_from::bind(input.facts(), resolution)
+}
+
+fn bind_value_trait_function(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<bool, String> {
+    Ok(tryfrom_owners::bind(input, resolution)? || default_owners::bind(input, resolution)?)
 }
 
 fn lexical_function_scope(
@@ -1190,6 +1287,9 @@ impl PathResolution for Scoped<'_> {
         if self.resolution.scalar_aliases
             && let Some(tree) = scalar_aliases::resolve(self, path)?
         {
+            return Ok(tree);
+        }
+        if let Some(tree) = self.resolution.transport_named_type(self.namespace, path) {
             return Ok(tree);
         }
         let names = self.name(path)?;

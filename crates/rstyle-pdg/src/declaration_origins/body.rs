@@ -14,15 +14,20 @@ pub fn context<'a>(
 ) -> Result<Cow<'a, InterfaceObservations>, String> {
     if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         .supports("rust.body-nominal-types")
-        || origins.declarations.is_empty()
+        || origins.declarations.is_empty() && origins.generated.is_empty()
     {
         return Ok(Cow::Borrowed(interface));
     }
     let expected = declarations(interface)?;
+    let generated = super::generated::declarations(interface)?;
     if origins
         .declarations
         .iter()
         .all(|origin| expected.contains_key(&origin.nominal.definition_path))
+        && origins
+            .generated
+            .iter()
+            .all(|origin| generated.contains_key(origin.nominal.definition_path.as_str()))
     {
         return Ok(Cow::Borrowed(interface));
     }
@@ -31,7 +36,7 @@ pub fn context<'a>(
     nodes(&facts.body, &mut tokens)?;
     let mut context = interface.clone();
     for (name, token) in tokens {
-        if !expected.contains_key(&name) {
+        if !expected.contains_key(&name) && !generated.contains_key(name.as_str()) {
             context.parameters.push(Observation::Captured {
                 ty: observed_tree(facts, &token, origins)?,
             });
@@ -194,9 +199,7 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
                 .map(|element| tree(element, origins))
                 .collect::<Result<_, _>>()?,
         ),
-        TypeToken::Struct { nominal, fields } => {
-            nominal_tree(nominal, fields, origins, NominalKind::Structure)?
-        }
+        TypeToken::Struct { nominal, fields } => struct_tree(nominal, fields, origins)?,
         TypeToken::FieldlessEnum { nominal, variants } => TypeTree::FieldlessEnum {
             nominal: nominal.clone(),
             source: origin_source(nominal, origins)?.into(),
@@ -207,6 +210,52 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
             nominal_tree(nominal, variants, origins, NominalKind::Enumeration)?
         }
     })
+}
+
+fn struct_tree(
+    nominal: &Nominal,
+    fields: &[(String, TypeToken)],
+    origins: &Origins,
+) -> Result<TypeTree, String> {
+    if let Some(origin) = origins
+        .generated
+        .iter()
+        .find(|origin| &origin.nominal == nominal)
+    {
+        generated_tree(origin, fields, origins)
+    } else {
+        nominal_tree(nominal, fields, origins, NominalKind::Structure)
+    }
+}
+
+fn generated_tree(
+    origin: &GeneratedOrigin,
+    fields: &[(String, TypeToken)],
+    origins: &Origins,
+) -> Result<TypeTree, String> {
+    let [(name, payload)] = fields else {
+        return Err("Generated body type requires exactly one tuple field".into());
+    };
+    if name != "0" {
+        return Err("Generated body type has an invalid tuple field name".into());
+    }
+
+    let template =
+        crate::SourceText::from_snapshot(origin.file_bytes.clone(), origin.origin.raw.span)?;
+    let declaration = super::generated::template_field(&template)?;
+    let tree = TypeTree::GeneratedStruct {
+        nominal: origin.nominal.clone(),
+        definition: Box::new(origin.definition.clone()),
+        template,
+        fields: vec![crate::concrete_types::Field {
+            position: 0,
+            name: name.clone(),
+            declaration,
+            ty: tree(payload, origins)?,
+        }],
+    };
+    super::generated::shape(&tree)?;
+    Ok(tree)
 }
 
 fn nominal_tree(

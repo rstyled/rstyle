@@ -39,6 +39,7 @@ mod propagation;
 mod read_accesses;
 mod reference_instances;
 mod reference_products;
+pub(crate) mod result_maps;
 pub(crate) mod result_propagation;
 mod scalar_enums;
 mod scalar_from;
@@ -122,17 +123,19 @@ fn install_result_contracts(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
-    install_result_transfers(pair, facts)?;
-    borrowed_result_errors::install(pair, facts)
-}
+    type Installer = fn(&mut Pair, &dyn crate::unit_store::EvidenceFacts) -> Result<(), String>;
+    let installers: [Installer; 5] = [
+        borrowed_result_propagation::install,
+        scalar_result_propagation::install,
+        product_result_propagation::install,
+        result_maps::install,
+        borrowed_result_errors::install,
+    ];
 
-fn install_result_transfers(
-    pair: &mut Pair,
-    facts: &dyn crate::unit_store::EvidenceFacts,
-) -> Result<(), String> {
-    borrowed_result_propagation::install(pair, facts)?;
-    scalar_result_propagation::install(pair, facts)?;
-    product_result_propagation::install(pair, facts)
+    for install in installers {
+        install(pair, facts)?;
+    }
+    Ok(())
 }
 
 fn install_propagation_contracts(pair: &mut Pair) {
@@ -413,6 +416,7 @@ fn verify_call_operations(
     checked_suffix_views::verify(pair, facts)?;
     scalar_result_propagation::verify(pair, facts)?;
     product_result_propagation::verify(pair, facts)?;
+    result_maps::verify(pair, facts)?;
     owned_product_values::verify(pair, facts)?;
     borrowed_result_errors::verify(pair, facts)?;
     option_if_let::verify(pair, facts)?;
@@ -878,21 +882,46 @@ pub(crate) fn value_operation<'a>(
         .nodes
         .iter()
         .filter(|candidate| {
-            matches!(
-                candidate.category,
-                NodeCategory::Read
-                    | NodeCategory::Computation
-                    | NodeCategory::Call
-                    | NodeCategory::Merge
-            ) && aggregates::source_span(candidate).is_ok_and(|span| {
-                span.start == u64::from(base.span.start) && span.end == u64::from(base.span.end)
-            }) && aggregates::check_value(candidate, base).is_ok()
+            method_value(pair, base, candidate)
+                && matches!(
+                    candidate.category,
+                    NodeCategory::Read
+                        | NodeCategory::Computation
+                        | NodeCategory::Call
+                        | NodeCategory::Merge
+                )
+                && aggregates::source_span(candidate).is_ok_and(|span| {
+                    span.start == u64::from(base.span.start) && span.end == u64::from(base.span.end)
+                })
+                && aggregates::check_value(candidate, base).is_ok()
         })
         .collect();
     let [base] = candidates.as_slice() else {
         return Err("Field base has no unique serialized operation".into());
     };
     Ok(base)
+}
+
+fn method_value(pair: PairView<'_>, source: &crate::HirNode, node: &PdgNode) -> bool {
+    let mapped = source.kind == "expr_method_call"
+        && crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            crate::result_maps::CAPABILITY,
+        )
+        && source.res.as_ref().is_some_and(|resolution| {
+            serde_json::from_str::<crate::data_library::Callee>(&resolution.description).is_ok_and(
+                |callee| {
+                    matches!(
+                        callee.path.as_str(),
+                        "core::result::Result::<T, E>::map"
+                            | "core::result::Result::<T, E>::map_err"
+                    )
+                },
+            )
+        });
+    !mapped
+        || node.category == NodeCategory::Merge
+            && node.attributes.construct.as_deref() == Some(crate::result_maps::RESULT)
 }
 
 fn verify_field_value_edge(
@@ -1068,6 +1097,20 @@ fn verify_source_boundary(
     crate::character_ascii::verify_document_policy(&pair.pdg.profile, facts)?;
     verify_scalar_option_policy(pair)?;
 
-    crate::inherent_calls::definition(facts)?;
+    verify_source_owner(facts)?;
     crate::data_receivers::verify_documents(pair, facts)
+}
+
+fn verify_source_owner(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+    if facts
+        .body
+        .any(&|node| crate::result_maps::candidate(node, facts))
+    {
+        let resolution = facts.nominal_resolution()?;
+        let receipt = resolution
+            .transport_source()
+            .ok_or("Generated Result map lacks its exact checked source owner")?;
+        return receipt.verify(facts.facts());
+    }
+    crate::inherent_calls::definition(facts).map(|_| ())
 }

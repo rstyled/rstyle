@@ -92,6 +92,9 @@ struct DeclarationChecker<'a> {
 impl DeclarationChecker<'_> {
     fn verify(&self, key: &Namespace, tree: &TypeTree) -> Result<CheckedDeclaration, String> {
         verify_type(self.facts, tree)?;
+        if matches!(tree, TypeTree::GeneratedStruct { .. }) {
+            return self.generated(tree);
+        }
         let declaration = self
             .environment
             .index
@@ -135,14 +138,44 @@ impl DeclarationChecker<'_> {
 }
 
 impl DeclarationChecker<'_> {
-    fn cleanup_certificate(
-        &self,
-        tree: &TypeTree,
-        copy: bool,
-    ) -> Result<Option<no_drop::CheckedNoDrop>, String> {
-        let retained = self
-            .owner
-            .and_then(|owner| owner.copy_source().declaration(tree))
+    fn generated(&self, tree: &TypeTree) -> Result<CheckedDeclaration, String> {
+        let source = self
+            .resolution
+            .transport_sources
+            .as_ref()
+            .ok_or("Generated declaration lacks a complete retained transport source proof")?;
+        let declaration = source
+            .generated(tree)
+            .ok_or("Generated declaration differs from exact retained source receipt")?;
+        let certificate = source
+            .declaration(tree)
+            .ok_or("Generated declaration lacks independently proved cleanup")?;
+        structure(self.facts, declaration.item(), false)?;
+        check_namespace_with_closure(
+            self.facts,
+            self.environment,
+            declaration.namespace(),
+            Some(certificate),
+        )?;
+
+        Ok(CheckedDeclaration {
+            copy: false,
+            no_drop: true,
+            passive_dependencies: false,
+        })
+    }
+}
+
+impl DeclarationChecker<'_> {
+    fn retained_cleanup(&self, tree: &TypeTree) -> Option<&no_drop::CheckedNoDrop> {
+        self.resolution
+            .transport_sources
+            .as_ref()
+            .and_then(|source| source.declaration(tree))
+            .or_else(|| {
+                self.owner
+                    .and_then(|owner| owner.copy_source().declaration(tree))
+            })
             .or_else(|| {
                 self.resolution
                     .scalar_result_source
@@ -154,7 +187,15 @@ impl DeclarationChecker<'_> {
                     .copy_owner_source
                     .as_ref()
                     .and_then(|source| source.declaration(tree))
-            });
+            })
+    }
+
+    fn cleanup_certificate(
+        &self,
+        tree: &TypeTree,
+        copy: bool,
+    ) -> Result<Option<no_drop::CheckedNoDrop>, String> {
+        let retained = self.retained_cleanup(tree);
         let checked = if let Some(checked) = retained {
             checked.clone()
         } else {
@@ -657,6 +698,9 @@ pub(super) fn check_function_namespace(
     resolution: &Resolution,
     namespace: &[String],
 ) -> Result<(), String> {
+    if resolution.transport_sources.is_some() {
+        return check_transport_namespace(input.facts(), resolution, namespace);
+    }
     if let Some(source) = &resolution.scalar_result_source {
         let certificate =
             source.function_namespace(input.facts(), &resolution.environment, namespace)?;
@@ -667,6 +711,7 @@ pub(super) fn check_function_namespace(
             certificate,
         );
     }
+
     let Some(source) = &resolution.copy_owner_source else {
         return check_namespace(input, &resolution.environment, namespace);
     };
@@ -678,6 +723,43 @@ pub(super) fn check_function_namespace(
         namespace,
         certificate,
     )
+}
+
+pub(super) fn check_transport_namespace(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    namespace: &[String],
+) -> Result<(), String> {
+    let source = resolution
+        .transport_sources
+        .as_ref()
+        .ok_or("Missing retained transport source namespace proof")?;
+    source.source().verify(facts)?;
+    if source.source().member().namespace() != namespace {
+        return Err("Transport source namespace differs from exact checked member".into());
+    }
+    let owner = source.source().request().copy_requests()[1];
+    let certificate = source
+        .declaration(owner)
+        .ok_or("Transport namespace lacks its exact Copy success source certificate")?;
+
+    check_namespace_with_closure(facts, &resolution.environment, namespace, Some(certificate))
+}
+
+pub(super) fn verify_transport_builtin_imports(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    namespace: &[String],
+) -> Result<(), String> {
+    check_transport_namespace(facts, resolution, namespace)?;
+    let source = resolution
+        .transport_sources
+        .as_ref()
+        .ok_or("Missing checked transport builtin namespace")?;
+    let certificate = source
+        .declaration(source.source().request().copy_requests()[1])
+        .ok_or("Transport builtin namespace lacks exact success source certificate")?;
+    imports::verify_source(facts, &resolution.environment, namespace, certificate)
 }
 
 pub(super) fn check_namespace(

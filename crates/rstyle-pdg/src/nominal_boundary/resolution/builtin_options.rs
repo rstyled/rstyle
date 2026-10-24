@@ -103,6 +103,50 @@ pub(super) fn scalar_copy(facts: &HirFnFacts, payload: &TypeTree) -> Result<(), 
 }
 
 impl Resolution {
+    /// The retained generated member supplies the exact module owner; the
+    /// complete namespace certificate and ordinary Result lookup remain required.
+    pub(super) fn verify_transport_result_type(
+        &self,
+        facts: &HirFnFacts,
+        path: &syn::Path,
+    ) -> Result<(), String> {
+        let source = self
+            .transport_source()
+            .ok_or("Missing checked transport Result source owner")?;
+        source.verify(facts)?;
+        let member = source.member();
+
+        let namespace = member.namespace();
+        let environment = &self.environment;
+        environment.check_context(facts)?;
+        selected::verify_transport_builtin_imports(facts, self, namespace)?;
+        crate::data_library::verify_sysroot_roots(
+            facts,
+            &["core", "std"],
+            "Transport Result type",
+        )?;
+        let modules: Vec<_> = environment
+            .modules
+            .iter()
+            .filter(|module| {
+                module.namespace == namespace && module.path == member.expansion().invocation().path
+            })
+            .collect();
+        let [module] = modules.as_slice() else {
+            return Err("Transport Result type lacks one exact checked invocation module".into());
+        };
+        let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
+        let scope = Scope {
+            environment,
+            module,
+            blocks: Vec::new(),
+            configuration: &configuration,
+            facts,
+        };
+        scope.generated_result_names(path, member.expansion().items())?;
+        scope.verify_result(path, None)
+    }
+
     /// Namespace authority only; callers separately verify the source payload
     /// spelling against this exact independently Copy-certified scalar product.
     pub(crate) fn verify_product_option_type(
@@ -509,6 +553,16 @@ impl Scope<'_, '_> {
         Ok(())
     }
 
+    fn generated_result_names(&self, path: &syn::Path, items: &[syn::Item]) -> Result<(), String> {
+        let first = path.segments.first().ok_or("Empty transport Result path")?;
+        for name in [first.ident.to_string(), "core".into(), "std".into()] {
+            if lookup(items.iter(), &name, self, false)?.is_some() {
+                return Err("Transport expansion shadows a required Result type binding".into());
+            }
+        }
+        Ok(())
+    }
+
     fn verify_result(&self, path: &syn::Path, variant: Option<&str>) -> Result<(), String> {
         let names: Namespace = path
             .segments
@@ -782,4 +836,74 @@ fn lookup_import(
         &item.tree,
         prefix,
     )
+}
+
+#[cfg(test)]
+mod transport_scope_tests {
+    use super::*;
+
+    #[test]
+    fn generated_result_scope_preserves_original_and_emitted_type_shadow_checks() {
+        let fixture = crate::generated_sources::checked::tests::fixture::Fixture::new();
+        let environment = Environment::with_source_options(
+            Arc::new(fixture.census.clone()),
+            SourceOptions {
+                constants: true,
+                cfgs: Some(&fixture.facts.build.cfgs),
+                expansions: true,
+                module_lints: true,
+            },
+        )
+        .unwrap();
+        let configuration =
+            crate::conditional_source::Configuration::new(&fixture.facts.build.cfgs);
+        for (source, path, expected) in [
+            ("", "Result", true),
+            ("", "core::result::Result", true),
+            ("use core::result::Result as Outcome;", "Outcome", true),
+            ("struct Result;", "Result", false),
+            ("mod core {}", "Result", false),
+            ("type std = ();", "std::result::Result", false),
+            ("use other::Result;", "Result", false),
+        ] {
+            let module = census::Module {
+                path: fixture.census.files[0].path.clone(),
+                namespace: Vec::new(),
+                items: syn::parse_file(source).unwrap().items,
+                verified_macro_imports: Default::default(),
+                verified_external_imports: Default::default(),
+            };
+            let scope = Scope {
+                environment: &environment,
+                module: &module,
+                blocks: Vec::new(),
+                configuration: &configuration,
+                facts: &fixture.facts,
+            };
+            let path = syn::parse_str(path).unwrap();
+            assert_eq!(
+                scope.verify_result(&path, None).is_ok(),
+                expected,
+                "{source}"
+            );
+            assert_emitted_result_shadows(&scope);
+        }
+    }
+
+    fn assert_emitted_result_shadows(scope: &Scope<'_, '_>) {
+        for emitted in [
+            "struct Result;",
+            "mod core {}",
+            "type std = ();",
+            "use other::Result;",
+        ] {
+            let items = syn::parse_file(emitted).unwrap().items;
+            assert!(
+                scope
+                    .generated_result_names(&syn::parse_quote!(Result), &items)
+                    .is_err(),
+                "{emitted}"
+            );
+        }
+    }
 }

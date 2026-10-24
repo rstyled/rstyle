@@ -1,5 +1,6 @@
 //! Resolved concrete inherent ownership and shared receiver correspondence.
 pub(crate) mod lifetimes;
+mod result_maps;
 
 use crate::{ByteSpan, HirFnFacts, HirNode, data_types::TypeToken};
 use serde::{Deserialize, Serialize};
@@ -157,6 +158,9 @@ fn ufcs_owner_matches(
     if node.kind != "expr_call" {
         return Ok(true);
     }
+    if let Some(matched) = result_maps::verify(node, caller, Some(nominal))? {
+        return Ok(matched);
+    }
 
     let source = caller
         .source
@@ -207,7 +211,6 @@ fn source_resolved_in(
 ) -> Result<bool, String> {
     if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         .supports("rust.verified-inherent-helper-calls")
-        || node.expansion.is_some()
     {
         return Ok(false);
     }
@@ -215,6 +218,12 @@ fn source_resolved_in(
         return Ok(false);
     };
     if resolution.get("inherent").is_none() {
+        return Ok(false);
+    }
+    if let Some(matched) = result_maps::verify(node, facts, None)? {
+        return Ok(matched);
+    }
+    if node.expansion.is_some() {
         return Ok(false);
     }
 

@@ -617,6 +617,7 @@ mod tests {
             passive_copy_dependencies: false,
             copy_owner_source: None,
             scalar_result_source: None,
+            transport_sources: None,
         }
     }
 

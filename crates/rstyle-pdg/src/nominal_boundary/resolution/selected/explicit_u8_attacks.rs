@@ -26,6 +26,7 @@ impl Case {
 
         let nominal = nominal(&environment, snippet);
         let origins = Origins {
+            generated: Vec::new(),
             identity: crate::declaration_origins::IDENTITY.into(),
             declarations: vec![origin(&facts, &environment, nominal.clone())],
         };
@@ -59,6 +60,7 @@ impl Case {
             passive_copy_dependencies: false,
             copy_owner_source: None,
             scalar_result_source: None,
+            transport_sources: None,
         };
         DeclarationChecker {
             resolution: &resolution,

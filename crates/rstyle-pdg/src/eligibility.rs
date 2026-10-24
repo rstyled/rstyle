@@ -253,6 +253,9 @@ fn context(
 }
 
 fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
+    if let Some(outcome) = check_transport_source(facts) {
+        return outcome;
+    }
     match crate::product_instances::activation::source_findings(facts) {
         Ok(true) => return Outcome::ok(),
         Ok(false) => {}
@@ -289,6 +292,35 @@ fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
             &facts.body,
             "complete pre-expansion source and conditional-source resolution",
         ))
+    }
+}
+
+fn check_transport_source(facts: &dyn crate::unit_store::EvidenceFacts) -> Option<Outcome> {
+    match crate::result_maps::verify_source(facts) {
+        Ok(true) => Some(transport_source_findings(facts)),
+        Ok(false) => None,
+        Err(reason) => Some(
+            Outcome {
+                diagnostics: facts.source_diagnostics.clone(),
+                gap: false,
+                rejected: !facts.source_diagnostics.is_empty(),
+            }
+            .merge(evidence_gap(&facts.body, &reason)),
+        ),
+    }
+}
+
+fn transport_source_findings(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
+    let diagnostics: Vec<_> = facts
+        .source_diagnostics
+        .iter()
+        .filter(|finding| !crate::result_maps::covers_source_finding(facts, finding))
+        .cloned()
+        .collect();
+    Outcome {
+        rejected: !diagnostics.is_empty(),
+        diagnostics,
+        gap: false,
     }
 }
 
@@ -583,6 +615,9 @@ fn check_result_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if let Some(outcome) = check_transport_body(node, ctx) {
+        return outcome;
+    }
     if let Some(operands) = crate::data_frontend::borrowed_results::operands(node, ctx.facts) {
         return check_borrowed_operands(node, operands, ctx);
     }
@@ -625,6 +660,17 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
         return check_match(node, ctx);
     }
     check_ordinary_node(node, in_expansion, ctx)
+}
+
+fn check_transport_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if node != &ctx.facts.body || node.expansion.is_none() {
+        return None;
+    }
+    match crate::result_maps::verify_source(ctx.facts) {
+        Ok(true) => Some(Outcome::ok()),
+        Ok(false) => None,
+        Err(reason) => Some(evidence_gap(node, &reason)),
+    }
 }
 
 fn check_borrowed_operands(
@@ -679,6 +725,9 @@ fn check_option_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 }
 
 fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if crate::result_maps::candidate(node, ctx.facts) {
+        return Some(check_result_map(node, ctx));
+    }
     if crate::checked_options::if_let_candidate(node, ctx.facts) {
         return Some(check_option_if_let(node, ctx));
     }
@@ -721,6 +770,18 @@ fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         });
     }
     None
+}
+
+fn check_result_map(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::result_maps::verify(node, ctx.facts) {
+        Ok(checked) => check_node(checked.receiver, false, ctx),
+        Err(reason) => error(
+            crate::result_maps::CAPABILITY,
+            "constructor_result_map",
+            node,
+            &reason,
+        ),
+    }
 }
 
 fn check_named_callback(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
