@@ -28,6 +28,7 @@ enum Entry {
     Origins(Record<crate::declaration_origins::Origins>),
     InherentUnits(inherent_units::Inventory),
     Census(Record<Arc<crate::nominal_boundary::census::Census>>),
+    GeneratedSources(Record<Arc<crate::generated_sources::capture::UnitCapture>>),
 }
 
 #[derive(Clone, Debug)]
@@ -71,6 +72,7 @@ impl<T: Serialize> Record<T> {
 impl Entry {
     fn new(key: &str, json: Value) -> Self {
         match key {
+            crate::generated_sources::capture::KEY => Self::decode(json, Self::GeneratedSources),
             crate::concrete_types::KEY => Self::decode(json, Self::Interface),
             crate::field_locations::KEY => Self::decode(json, Self::Fields),
             crate::data_receivers::KEY => Self::decode(json, Self::Receivers),
@@ -104,6 +106,7 @@ impl Entry {
             Self::Fields(record) => record.json(),
             Self::Receivers(record) => record.json(),
             Self::Census(record) => record.json(),
+            Self::GeneratedSources(record) => record.json(),
             Self::Origins(record) => record.json(),
             Self::InherentUnits(record) => record.record.json(),
         }
@@ -128,6 +131,10 @@ impl Entry {
                     || left.record.value == right.record.value)
                     && left.record.nulls == right.record.nulls
             }
+            (Self::GeneratedSources(left), Self::GeneratedSources(right)) => {
+                (Arc::ptr_eq(&left.value, &right.value) || left.value == right.value)
+                    && left.nulls == right.nulls
+            }
             (Self::Census(left), Self::Census(right)) => {
                 left.value == right.value && left.nulls == right.nulls
             }
@@ -142,6 +149,7 @@ impl Entry {
             Self::Fields(record) => record.into_json(),
             Self::Receivers(record) => record.into_json(),
             Self::Census(record) => record.into_json(),
+            Self::GeneratedSources(record) => record.into_json(),
             Self::Origins(record) => record.into_json(),
             Self::InherentUnits(record) => record.record.into_json(),
         }
@@ -156,6 +164,7 @@ impl Serialize for Entry {
             Self::Fields(record) => record.render().serialize(serializer),
             Self::Receivers(record) => record.render().serialize(serializer),
             Self::Census(record) => record.render().serialize(serializer),
+            Self::GeneratedSources(record) => record.render().serialize(serializer),
             Self::Origins(record) => record.render().serialize(serializer),
             Self::InherentUnits(record) => record.record.render().serialize(serializer),
         }
@@ -212,6 +221,7 @@ impl FrontendOptions {
     /// freezing a unit. Invalid entries remain available with their exact error.
     pub(crate) fn normalize_data(&mut self) {
         for key in [
+            crate::generated_sources::capture::KEY,
             crate::concrete_types::KEY,
             crate::field_locations::KEY,
             crate::data_receivers::KEY,
@@ -403,12 +413,15 @@ fn collect_nulls(value: &Value, path: &str, found: &mut Vec<String>) {
 }
 
 #[cfg(test)]
+mod generated_sources_tests;
+#[cfg(test)]
 mod receivers_tests;
 #[cfg(test)]
 mod tests;
 
 mod sealed {
     pub trait Sealed {}
+    impl Sealed for std::sync::Arc<crate::generated_sources::capture::UnitCapture> {}
     impl Sealed for super::InterfaceObservations {}
     impl Sealed for super::FieldObservations {}
     impl Sealed for crate::data_receivers::Capture {}
@@ -501,6 +514,22 @@ impl DataEvidence for crate::data_receivers::Capture {
         options.0.insert(
             Self::KEY.into(),
             Entry::Receivers(Record::new(self, Vec::new())),
+        );
+    }
+}
+
+impl DataEvidence for Arc<crate::generated_sources::capture::UnitCapture> {
+    const KEY: &'static str = crate::generated_sources::capture::KEY;
+    fn borrow(options: &FrontendOptions) -> Option<&Self> {
+        match options.0.get(Self::KEY) {
+            Some(Entry::GeneratedSources(record)) => Some(&record.value),
+            _ => None,
+        }
+    }
+    fn install(self, options: &mut FrontendOptions) {
+        options.0.insert(
+            Self::KEY.into(),
+            Entry::GeneratedSources(Record::new(self, Vec::new())),
         );
     }
 }

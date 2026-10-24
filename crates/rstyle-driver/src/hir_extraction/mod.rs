@@ -10,6 +10,7 @@ mod documentation_inputs;
 mod evidence;
 mod external_imports;
 mod float_scalars;
+mod generated_sources;
 mod hir;
 mod inherent;
 mod instances;
@@ -99,9 +100,18 @@ fn capture_unit_evidence(
     options: &Options<'_>,
     facts: &mut [HirFnFacts],
 ) -> Result<(), String> {
-    nominal_census::capture(tcx, options, facts)?;
+    capture_source_evidence(tcx, options, facts)?;
     library_resolution::capture(tcx, options, facts)?;
     inherent::capture_unit(facts, options)
+}
+
+fn capture_source_evidence(
+    tcx: TyCtxt<'_>,
+    options: &Options<'_>,
+    facts: &mut [HirFnFacts],
+) -> Result<(), String> {
+    nominal_census::capture(tcx, options, facts)?;
+    generated_sources::capture(tcx, options, facts)
 }
 
 fn function(

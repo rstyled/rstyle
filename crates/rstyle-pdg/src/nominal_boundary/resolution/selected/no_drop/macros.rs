@@ -2,7 +2,7 @@
 use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
 use std::collections::BTreeMap;
 
-pub(super) fn expand(
+pub(crate) fn expand(
     definition: &syn::ItemMacro,
     invocation: &syn::Macro,
 ) -> Result<TokenStream, String> {

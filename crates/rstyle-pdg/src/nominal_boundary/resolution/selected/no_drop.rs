@@ -10,6 +10,7 @@ mod function_imports;
 mod headers;
 mod library_macros;
 mod macros;
+pub(crate) use macros::expand as expand_local_ident_macro;
 pub(super) mod module_globs;
 mod prelude_traits;
 pub(super) mod scalar_errors;

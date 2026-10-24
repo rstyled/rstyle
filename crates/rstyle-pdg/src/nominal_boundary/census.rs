@@ -5,6 +5,7 @@ mod cfg_if;
 pub mod documentation;
 pub mod expansions;
 pub mod external_imports;
+pub mod generated_sources;
 mod macro_scope;
 pub(crate) mod module_lints;
 mod module_proof;

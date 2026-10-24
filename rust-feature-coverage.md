@@ -5203,3 +5203,9 @@ zero losses. Default-context strict replay also passes. Generated `PatternID::ne
 still requires expansion ownership, nested products/errors and consuming constructor
 maps. [Contract](docs/extraction-profiles/checked-index-construction-v1.md);
 [validation and frontier](docs/rust-support-execution.md).
+
+Generated-callable preparation retains Data3.98: opt-in raw expansion/node/constructor
+observations and independently checked original macro substitution grant no admission.
+Unchanged native selection remains112/590, gain0/loss0. Next join exact emitted
+members and hygiene, nested success/error ownership, and once-only consuming
+`Result::map/map_err` through whole original `PatternID::new`.

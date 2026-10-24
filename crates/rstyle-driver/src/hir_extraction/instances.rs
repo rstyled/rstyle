@@ -14,7 +14,7 @@ mod borrowed_operations;
 mod calls;
 mod comparisons;
 pub(super) mod diagnostic;
-mod diagnostic_support;
+pub(in crate::hir_extraction) mod diagnostic_support;
 pub(super) mod product_diagnostic;
 mod projection;
 mod provenance;
@@ -76,15 +76,7 @@ struct Observation {
     outcome: Outcome,
 }
 
-#[derive(Serialize)]
-pub(in crate::hir_extraction) struct Definition {
-    path: String,
-    definition_identity: String,
-    #[serde(rename = "crate")]
-    crate_name: String,
-    stable_crate_id: String,
-    local: bool,
-}
+pub(in crate::hir_extraction) use rstyle_pdg::generated_sources::capture::Definition;
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]

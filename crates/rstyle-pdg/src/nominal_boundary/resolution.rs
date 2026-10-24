@@ -24,6 +24,7 @@ mod range_from;
 mod reference_owners;
 mod scalar_aliases;
 mod selected;
+pub(crate) use selected::no_drop::expand_local_ident_macro;
 pub(crate) mod value_traits;
 pub(crate) use environment::{Environment, SourceOptions};
 pub(crate) use selected::no_drop::copy_products::CheckedCopyProductSource;

@@ -826,3 +826,29 @@ Drop/derive, constructor-selection and duplicated-consumption attacks.
 PatternID::must/Match::must retain expect/formatting/panic and instance blockers;
 SmallIndexError::attempted still needs borrowed non-Copy owner source proof.
 P01–P22, native foreign CI, detector quality and rewrite safety remain separate.
+
+Generated-callable preparation (Data3.98 unchanged): opt-in raw capture retains
+one unit table, exact expansion/member/node identities and hygiene, plus bounded
+unary tuple-constructor instance observations. Original lexical macro verification
+checks exact source anchors and all-ident substitution; it grants no callable or
+cleanup permission. Immutable XXH3 snapshots and existing identity/HIR helpers are
+reused; no SHA or serialized lookup keys were added.
+
+Unchanged native no-default selection remains112/590, gain0/loss0 with identical
+identities; capture/assessment complete, full-library matching explicitly incomplete.
+Strict owning-unit replay and original PatternID source probe pass (four bindings,
+22 emitted top-level items). The raw table retains two unsupported iterator
+observations; global completeness is false. Whole PatternID::new remains excluded.
+Evidence:`/tmp/rstyle-409-{native-delta.json,native-observations.json,original-source2.log}`.
+
+Next connected activation needs an exact selected impl/member/node/hygiene join,
+nested Copy success and independently no-drop error receipts, then a fresh-only
+three-Result constructor-map witness. Each unchanged branch must rewrap its payload
+in the new Result type; final-return error authority cannot certify intermediate
+errors. Preserve once-only evaluation/consumption and the original error value.
+
+Checkpoint:1,721 tests/five existing skips and doctests pass; fmt and warning-denied
+Clippy pass; style0/5,792 and patterns0/15 unchanged ignores. The new diagnostic
+Cargo regression passes in0.390s excluding compilation; no controlled speedup
+claim. Evidence:`/tmp/rstyle-409-{source-final.log,full-tests-final2.log,
+clippy-final3.log,style-final2.json,patterns-final2.log}`.

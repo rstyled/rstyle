@@ -28,6 +28,7 @@ mod float_cos_tail;
 mod float_kernels;
 mod float_scope;
 mod float_sin_tail;
+mod generated_sources;
 mod indexed_helpers;
 mod input_owner;
 mod iterator_position;

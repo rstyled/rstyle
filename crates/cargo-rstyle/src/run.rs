@@ -143,7 +143,10 @@ pub fn clear_rstyle_environment(command: &mut Command) {
 
 fn diagnostic_environment(key: &OsStr, value: &OsStr) -> bool {
     key == "RSTYLE_DIAGNOSTIC_FACTS_DIR"
-        || (key == "RSTYLE_PERF" || key == "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY") && value == "1"
+        || (key == "RSTYLE_PERF"
+            || key == "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY"
+            || key == "RSTYLE_DIAGNOSTIC_GENERATED_SOURCES")
+            && value == "1"
         || (key == "RSTYLE_DIAGNOSTIC_REFERENCE_INSTANCE_REQUESTS"
             || key == "RSTYLE_DIAGNOSTIC_PRODUCT_INSTANCE_REQUESTS"
             || key == "RSTYLE_DIAGNOSTIC_SHARED_SOURCES" && value == "1")

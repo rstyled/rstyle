@@ -18,7 +18,10 @@ pub(super) fn owners(tcx: TyCtxt<'_>, kinds: &[DefKind]) -> BTreeMap<String, Opt
     owners
 }
 
-pub(super) fn hir_id(reference: &rstyle_pdg::HirRef, error: &str) -> Result<hir::HirId, String> {
+pub(in crate::hir_extraction) fn hir_id(
+    reference: &rstyle_pdg::HirRef,
+    error: &str,
+) -> Result<hir::HirId, String> {
     if reference.krate != 0 {
         return Err(error.into());
     }

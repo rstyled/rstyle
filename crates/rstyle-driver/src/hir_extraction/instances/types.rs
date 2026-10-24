@@ -1,4 +1,6 @@
 //! Bounded structural observations; displays never identify nominal types.
+mod constructor;
+
 use super::Definition;
 use rustc_middle::ty::{self, GenericArgsRef, Ty, TyCtxt};
 use serde::Serialize;
@@ -58,6 +60,10 @@ enum Structural {
     Adt {
         definition: Definition,
         arguments: Vec<Structural>,
+    },
+    TupleConstructor {
+        #[serde(flatten)]
+        observation: Box<constructor::Observation>,
     },
     ErasedRegion,
 }
@@ -174,6 +180,7 @@ fn structural<'tcx>(
             definition: super::definition_record(tcx, definition.did()),
             arguments: nested_arguments(tcx, arguments, depth + 1, budget)?,
         }),
+        ty::FnDef(..) => constructor::capture(tcx, value, depth, budget),
         _ => Err("type form is outside structural instance identity"),
     }
 }

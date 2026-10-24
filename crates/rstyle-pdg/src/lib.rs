@@ -59,6 +59,7 @@ pub mod field_locations;
 mod fieldless_enums;
 pub mod float_scalars;
 pub mod frontend;
+pub mod generated_sources;
 pub mod helper_calls;
 pub mod helper_component_outputs;
 mod helper_normal_flow;
