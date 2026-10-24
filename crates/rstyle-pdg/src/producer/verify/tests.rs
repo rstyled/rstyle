@@ -1,7 +1,7 @@
 use super::*;
 use serde_json::json;
 
-fn pair() -> Pair {
+pub(super) fn pair() -> Pair {
     let mut pdg: Value = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../vendor-compat/pdg.example.json"

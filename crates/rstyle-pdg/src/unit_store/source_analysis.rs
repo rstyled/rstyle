@@ -6,6 +6,9 @@ use super::{
 use crate::{HirFnFacts, data_receivers::Capture, nominal_boundary::resolution};
 use std::borrow::Cow;
 
+#[cfg(test)]
+mod tests;
+
 /// Checked lexical environments shared only by immutable census ownership and policy.
 #[derive(Default)]
 pub struct SourceAnalyses {
@@ -39,6 +42,12 @@ impl super::sealed::Sealed for SourceAnalysis<'_> {}
 impl EvidenceFacts for SourceAnalysis<'_> {
     fn facts(&self) -> &HirFnFacts {
         self.facts
+    }
+
+    fn verify_data_frontend(&self) -> Result<(), String> {
+        // Keep nested source queries on this exact immutable analysis. Final
+        // frontend/helper checks still run on every request.
+        crate::data_frontend::check(self)
     }
 
     fn nominal_resolution(&self) -> Result<resolution::ResolutionView<'_>, String> {

@@ -5,6 +5,8 @@ mod node_names;
 mod normalization;
 use node_names::node_names;
 #[cfg(test)]
+mod binding_correspondence_tests;
+#[cfg(test)]
 mod checked_failure_tests;
 #[cfg(test)]
 mod tests;
@@ -228,17 +230,29 @@ fn add_definitions(
     expected: PairView<'_>,
     names: &mut BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
+    let expected = first_by_key(&expected.pdg.definitions, |entry| &entry.node_id);
     for definition in &actual.pdg.definitions {
-        let candidate = expected
-            .pdg
-            .definitions
-            .iter()
-            .find(|e| names.get(&definition.node_id) == Some(&e.node_id))
+        let candidate = names
+            .get(&definition.node_id)
+            .and_then(|node| expected.get(node.as_str()))
             .ok_or_else(|| vec!["Definition source operation mismatch".to_string()])?;
         names.insert(definition.id.clone(), candidate.id.clone());
     }
 
     Ok(())
+}
+
+// Preserve the original first-match behavior, including malformed inventories;
+// complete document comparison and boundary validation still reject corruption.
+fn first_by_key<'a, T>(
+    entries: &'a [T],
+    key: impl Fn(&'a T) -> &'a str,
+) -> BTreeMap<&'a str, &'a T> {
+    let mut index = BTreeMap::new();
+    for entry in entries {
+        index.entry(key(entry)).or_insert(entry);
+    }
+    index
 }
 
 fn add_cfg_names(
@@ -248,10 +262,11 @@ fn add_cfg_names(
 ) -> Result<(), Vec<String>> {
     let actual_map = read_operation_map(&actual.pdg.extensions).map_err(|e| vec![e])?;
     let expected_map = read_operation_map(&expected.pdg.extensions).map_err(|e| vec![e])?;
+    let expected_map = first_by_key(&expected_map, |entry| &entry.pdg_node_id);
     for entry in actual_map {
-        let expected = expected_map
-            .iter()
-            .find(|e| names.get(&entry.pdg_node_id) == Some(&e.pdg_node_id))
+        let expected = names
+            .get(&entry.pdg_node_id)
+            .and_then(|node| expected_map.get(node.as_str()))
             .ok_or_else(|| vec!["CFG operation correspondence mismatch".to_string()])?;
         names.extend([
             (entry.cfg_node_id, expected.cfg_node_id.clone()),

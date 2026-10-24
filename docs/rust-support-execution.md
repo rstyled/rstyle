@@ -892,3 +892,35 @@ Its whole forwarding callers also need generated-error ownership and Result
 summary transport. PatternID::must/Match::must still require their distinct
 panic/formatting and instance proofs. Keep these limitations separate from the
 new constructor support; broad P01–P22 completion remains unproven.
+
+## Post-3.99 performance checkpoint
+
+Strict definition/CFG correspondence now uses borrowed indexes, preserving first
+matches and subsequent complete validation instead of repeated full scans.
+SourceAnalysis retains its source context during frontend checks; final checks
+still run on every request. Result-map request decoding avoids a recursive JSON
+clone. No new SHA computation, serialized lookup key or admission capability.
+
+Warmup plus three alternating baseline/current samples on unchanged fixtures:
+constructor composition 1.466–1.511s → 1.467–1.499s; six-context stored-slice
+composition 9.288–9.353s → 9.393–9.465s. Peak RSS remains approximately120/136MiB.
+These changes do not demonstrate a speedup on these fixtures; the slice sample
+is modestly slower. Separate stage observations place3.36s in six Cargo captures;
+inclusive verification stages must not be summed. Evidence:
+`/tmp/rstyle-414-{alternating.jsonl,map-profile.log,slices-profile.log}`.
+
+Fresh original regex-automata no-default capture retains113/590 admissions,
+all source/build identities and exclusion reasons: gain0/loss0. All10 selected
+originals strictly replay; all45 selected original pairs evaluate completely.
+Full-library matching remains explicitly budget-incomplete. Evidence:
+`/tmp/rstyle-414-{natural-results.json,native-nostd-strict.log}`.
+Frozen run-pzjme0ax retains all60 identities, denominators, semantic records and
+blocker combinations against run-dzwel7hd:24 admitted/29 excluded/7 inactive,
+gain0/loss0,118 schema checks; this does not replace strict semantic replay.
+Evidence:`/tmp/rstyle-414-{frozen.log,frozen-comparison.json}`.
+
+Integrated gates:1779 tests pass/5 existing skips, doctests, fmt and warning-denied
+Clippy pass; rstyle0/6027 functions, patterns0 with15 unchanged ignores. Logs:
+`/tmp/rstyle-414-{tests.log,clippy.log,style.json,patterns.log,fmt.log}`.
+The four time error-conversion originals remain the next connected target;
+their foreign namespace/static ownership/payload/conversion blockers persist.

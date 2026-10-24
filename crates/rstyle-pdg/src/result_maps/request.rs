@@ -6,6 +6,7 @@ use crate::{
     generated_sources::{capture::Definition, checked::CheckedMember},
     nominal_boundary::census::expansions::FileSpan,
 };
+use serde::Deserialize;
 mod identities;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -142,7 +143,7 @@ fn calls(facts: &HirFnFacts, hirs: [&HirRef; 2]) -> Result<[Call; 2], String> {
         .frontend_options
         .get("rstyle.rust.call-instances")
         .ok_or("Missing constructor transport call-instance observations")?;
-    let inventory: Inventory = serde_json::from_value(raw.clone()).map_err(|e| e.to_string())?;
+    let inventory = Inventory::deserialize(raw).map_err(|e| e.to_string())?;
     if inventory.identity != "rstyle.rust.call-instance-observations/1"
         || !inventory.complete
         || inventory.scope.is_empty()
