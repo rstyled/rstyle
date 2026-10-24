@@ -5288,3 +5288,12 @@ The next source-selected frontier is time's three concrete ExactlyNDigits parse
 methods: complete slice-prefix binding capture, exact suffix origins and
 Option<ParsedItem<u8/u16>> product substitution/no-drop proof. Their method
 identities are already concrete; generic-function instantiation is not required.
+
+Data3.105 records the original digit-prefix slice/@range/rest nodes, exact binder
+inventories and distinct ParsedItem<u8/u16> observations, retaining the generic
+declaration source and its origin. Independent source checks reject changed
+ranges, binding modes, scopes and child identities. This is capture/source proof
+only: value admission, scoped no-drop proof and guarded component origins remain
+closed. The unchanged selection stays24/1,407 admitted, gain0/loss0; all276 pair
+results and all selected source identities are unchanged. The original runtime
+oracle passes229,554 checks in each default/parsing and no-default/parsing context.

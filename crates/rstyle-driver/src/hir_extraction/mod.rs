@@ -37,6 +37,7 @@ mod result_propagation;
 mod results;
 mod scalar_constants;
 mod size_calls;
+mod slice_patterns;
 pub mod source;
 mod sources;
 mod trait_members;

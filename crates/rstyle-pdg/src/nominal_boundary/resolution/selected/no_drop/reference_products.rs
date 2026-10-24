@@ -3,6 +3,9 @@
 use super::product_fields::Proof;
 use super::*;
 use crate::concrete_types::VariantShape;
+use crate::concrete_types::byte_views::{
+    explicit_lifetime_source as explicit_view, observed as byte_view,
+};
 use crate::nominal_boundary::resolution::{Resolution, verify_declarations};
 
 pub(in crate::nominal_boundary::resolution::selected) fn supported(tree: &TypeTree) -> bool {
@@ -25,12 +28,6 @@ pub(in crate::nominal_boundary::resolution) fn fields(
         && fields.len() <= concrete_types::MAX_FIELDS
         && fields.iter().any(|field| byte_view(&field.ty)))
     .then_some(fields.as_slice())
-}
-
-fn byte_view(tree: &TypeTree) -> bool {
-    matches!(tree, TypeTree::Shared(inner)
-        if matches!(inner.as_ref(), TypeTree::Slice(element)
-            if matches!(element.as_ref(), TypeTree::Scalar(token) if token == "u8")))
 }
 
 fn copy_shape(tree: &TypeTree, depth: usize) -> bool {
@@ -129,15 +126,6 @@ fn declaration(item: &syn::ItemStruct, tree: &TypeTree) -> Result<(), String> {
         }
     }
     Ok(())
-}
-
-fn explicit_view(ty: &syn::Type, lifetime: &syn::Lifetime) -> bool {
-    matches!(ty, syn::Type::Reference(reference)
-        if reference.mutability.is_none()
-            && reference.lifetime.as_ref() == Some(lifetime)
-            && matches!(reference.elem.as_ref(), syn::Type::Slice(slice)
-                if matches!(slice.elem.as_ref(), syn::Type::Path(path)
-                    if path.qself.is_none() && path.path.is_ident("u8"))))
 }
 
 #[cfg(test)]

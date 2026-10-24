@@ -76,12 +76,12 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.104.0");
+    assert_eq!(profile.policy().version, "3.105.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 128);
+    assert_eq!(profile.capabilities().len(), 129);
     assert!(profile.supports("rust.checked-scalar-instances"));
     assert!(profile.supports("rust.component-helper-results"));
     let mut previous = profile.policy();
@@ -255,4 +255,22 @@ fn tagged_helper_authority_does_not_extend_value_only_policy() {
     let mut historical = current;
     historical.version = "3.103.0".into();
     assert!(!policy_supports(&historical, capability));
+}
+
+#[test]
+fn slice_prefix_observations_do_not_extend_historical_policies() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let current = ExtractionProfile::DataV3.policy();
+    let capability = "rust.slice-prefix-product-results";
+    assert!(policy_supports(&current, capability));
+    let mut historical = current;
+    historical.version = "3.104.0".into();
+    assert!(!policy_supports(&historical, capability));
+    for profile in [
+        ExtractionProfile::R0,
+        ExtractionProfile::DataV1,
+        ExtractionProfile::DataV2,
+    ] {
+        assert!(!profile.supports(capability));
+    }
 }

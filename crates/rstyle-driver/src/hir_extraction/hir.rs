@@ -1100,24 +1100,19 @@ pub fn bindings(node: &HirNode, scope: &str) -> Vec<BindingFact> {
     let local_scope = match node.kind.as_str() {
         "expr_block" => Some("block"),
         "expr_closure" if !node.children.is_empty() => Some("callback"),
+        "match_arm"
+            if node
+                .children
+                .first()
+                .is_some_and(|pattern| pattern.kind == "pat_slice_prefix") =>
+        {
+            Some("slice-arm")
+        }
         _ => None,
     }
     .map(|kind| format!("scope:source:{kind}:{}:{}", node.span.start, node.span.end));
     let scope = local_scope.as_deref().unwrap_or(scope);
-    let binding = node
-        .binding
-        .as_ref()
-        .zip(node.ty.as_ref())
-        .map(|(symbol, ty)| BindingFact {
-            symbol: symbol.clone(),
-            name: node.snippet.clone(),
-            decl_span: node.span,
-            scope: scope.to_string(),
-            hir: node.hir.clone(),
-            is_param: node.param_index.is_some(),
-            is_mut: node.binding_mut.unwrap_or(false),
-            ty: ty.clone(),
-        });
+    let binding = binding_fact(node, scope);
 
     binding
         .into_iter()
@@ -1127,4 +1122,31 @@ pub fn bindings(node: &HirNode, scope: &str) -> Vec<BindingFact> {
                 .flat_map(|child| bindings(child, scope)),
         )
         .collect()
+}
+
+fn binding_fact(node: &HirNode, scope: &str) -> Option<BindingFact> {
+    let symbol = node.binding.as_ref()?;
+    let ty = node.ty.as_ref()?;
+    let (name, decl_span) = binding_identity(node)?;
+    Some(BindingFact {
+        symbol: symbol.clone(),
+        name,
+        decl_span,
+        scope: scope.to_string(),
+        hir: node.hir.clone(),
+        is_param: node.param_index.is_some(),
+        is_mut: node.binding_mut.unwrap_or(false),
+        ty: ty.clone(),
+    })
+}
+
+fn binding_identity(node: &HirNode) -> Option<(String, ByteSpan)> {
+    if node.kind != "pat_binding_at" {
+        return Some((node.snippet.clone(), node.span));
+    }
+    let observed = rstyle_pdg::slice_patterns::Observation::decode(node).ok()?;
+    let rstyle_pdg::slice_patterns::Details::Binding { binding, .. } = observed.details else {
+        return None;
+    };
+    Some((binding.name, binding.identifier_span))
 }

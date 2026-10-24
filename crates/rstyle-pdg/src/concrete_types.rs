@@ -1,5 +1,6 @@
 //! Bounded, observational concrete type evidence. Never authorizes admission.
 
+pub(crate) mod byte_views;
 mod declarations;
 mod fieldless_enums;
 pub use fieldless_enums::{
@@ -73,6 +74,9 @@ pub enum TypeTree {
         source: crate::SourceText,
         fields: Vec<Field>,
     },
+    /// Exact scalar substitution in an original generic tuple declaration.
+    /// Shape capture grants no ownership, cleanup or value-use permission.
+    ScalarProductInstance(Box<crate::scalar_product_instances::Observation>),
     /// Raw local expansion observation. The template is original input bytes,
     /// not emitted Rust source; generated ownership must be checked separately.
     GeneratedStruct {
@@ -169,6 +173,7 @@ impl TypeTree {
 
     pub(crate) fn nominal_parts(&self) -> Option<(&Nominal, &crate::SourceText)> {
         match self {
+            Self::ScalarProductInstance(instance) => Some((&instance.nominal, &instance.source)),
             Self::Struct {
                 nominal, source, ..
             }
@@ -227,6 +232,7 @@ impl TypeTree {
 
     pub(crate) fn nominal_fields(&self) -> impl Iterator<Item = &Field> {
         let fields = match self {
+            Self::ScalarProductInstance(instance) => Some(&instance.fields),
             Self::Struct { fields, .. } | Self::GeneratedStruct { fields, .. } => Some(fields),
             _ => None,
         };
@@ -337,6 +343,7 @@ pub(crate) fn validate_observations<'a>(
 
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
+        TypeTree::ScalarProductInstance(instance) => instance.check_shape(),
         TypeTree::RangeUsize { observation } => crate::range_values::authority::shape(observation),
         TypeTree::RangeFromUsize { observation } => crate::range_values::authority::range_from_shape(observation),
         TypeTree::RangeToUsize { observation } => crate::range_values::authority::range_to_shape(observation),
@@ -433,6 +440,7 @@ fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
 
 fn option_payload(tree: &TypeTree) -> bool {
     match tree {
+        TypeTree::ScalarProductInstance(_) => true,
         TypeTree::Scalar(value) => scalar(value) && value != "unit",
         TypeTree::Shared(value) => {
             matches!(value.as_ref(), TypeTree::Scalar(value) if scalar(value) && value != "unit")

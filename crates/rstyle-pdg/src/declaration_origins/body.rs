@@ -169,6 +169,9 @@ fn contains_option(tree: &TypeTree) -> bool {
 
 fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
     Ok(match token {
+        TypeToken::ScalarProductInstance { .. } => {
+            return Err("Scalar product body authority requires exact instance evidence".into());
+        }
         TypeToken::Scalar(value) => TypeTree::Scalar(value.clone()),
         TypeToken::MutableScalar(_) => {
             return Err("Mutable scalar descriptors cannot supply body nominal authority".into());

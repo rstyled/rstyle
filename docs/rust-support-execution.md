@@ -1162,3 +1162,33 @@ style0/6,378 and patterns0/15 unchanged ignores pass. Frozen run-t6jmzf89 checks
 documents and preserves all60 identities, denominators, outcomes/reasons and
 blocker combinations against run-rgsv2ohk:24 admitted/29 excluded/7 inactive,
 gain0/loss0. Evidence: `/tmp/rstyle-424-{tests-final2.log,clippy-final4.log,style-final2.json,patterns-final2.log,frozen.log,frozen-comparison.json}`.
+
+
+### Digit-prefix capture and source proof (Data3.105; admission closed)
+
+Original time0.3.47 ExactlyNDigits::<1/2/3>::parse now retains complete slice,
+@binding, byte-range and real rest HIR plus exact lexical binder inventories.
+Distinct ParsedItem<u8/u16> observations preserve the original generic source;
+the origin collector now retains that declaration instead of dropping it.
+Independent source proofs and adversaries check spans, modes, normalized types,
+child identities, endpoints and duplicate bindings. Shared byte-view predicates
+replace two exact clones. Routine identities remain cached XXH3.
+
+Validation:1,931 tests/five existing skips and doctests pass; fmt and locked
+warning-denied Clippy pass; rstyle0/6,446, patterns0 with15 unchanged ignores.
+Original native oracle:229,554 checks per default/parsing and no-default/parsing
+context, zero mismatches. Fresh default/parsing capture and strict replay retain
+all1,407 identities/outcomes,24 admissions, gain0/loss0 and identical complete276
+pair results versus Data3.104. Composition regression:3.72s. Evidence:
+`/tmp/rstyle-425-{digit-oracle.json,digits-capture2.json,strict.json,tests-final.log,clippy-final2.log,style-final.json,patterns-final.log}`.
+The historical frozen60 was not rerun at this prerequisite checkpoint.
+
+Next connected work remains the same three original parsers: exact
+instance-specific source/substitution/no-drop receipt; real binary constructor
+identity (current normalized expr_struct omits its callee); ordered length/digit
+selector reads, guarded body dereferences and saved-input suffix regions; then
+Option product construction, independent graph replay and strict matching in
+both original feature contexts. Proof and semantic-model leaves are prepared but
+unregistered/unvalidated; they are not delivered support. No nominal-only cleanup
+permission or fresh-product slot READ is justified. Full parse_subsecond and
+broader P01–P22 remain active.

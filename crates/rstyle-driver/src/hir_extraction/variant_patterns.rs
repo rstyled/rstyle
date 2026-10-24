@@ -11,6 +11,7 @@ impl<'tcx> Context<'tcx> {
     pub(super) fn observed_pattern(&self, pattern: &hir::Pat<'tcx>) -> Option<HirNode> {
         self.option_pattern(pattern)
             .or_else(|| self.local_variant_pattern(pattern))
+            .or_else(|| self.slice_prefix_pattern(pattern))
     }
 
     fn local_variant_pattern(&self, pattern: &hir::Pat<'tcx>) -> Option<HirNode> {

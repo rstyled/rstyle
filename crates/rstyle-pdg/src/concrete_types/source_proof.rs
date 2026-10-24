@@ -59,6 +59,11 @@ pub fn verify(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), S
 
 fn fields(tree: &TypeTree, resolution: &impl PathResolution) -> Result<(), String> {
     match tree {
+        TypeTree::ScalarProductInstance(_) => {
+            return Err(
+                "Scalar product instances require their scoped substitution source proof".into(),
+            );
+        }
         TypeTree::GeneratedStruct { .. } => {
             return Err(
                 "Generated declarations require independently checked expansion source".into(),

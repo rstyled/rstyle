@@ -177,7 +177,8 @@ fn collect<'a>(
         TypeTree::Struct { .. }
         | TypeTree::Enum { .. }
         | TypeTree::FieldlessEnum { .. }
-        | TypeTree::MixedEnum { .. } => collect_nominal(tree, entries)?,
+        | TypeTree::MixedEnum { .. }
+        | TypeTree::ScalarProductInstance(_) => collect_nominal(tree, entries)?,
         TypeTree::GeneratedStruct { .. } | TypeTree::Tuple(_) | TypeTree::Result { .. } => {
             collect_children(tree, entries)?;
         }

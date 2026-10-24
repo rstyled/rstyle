@@ -7,6 +7,7 @@ mod result_grammar;
 pub(crate) use result_grammar::ResultGrammar;
 mod mixed_owners;
 mod parsed;
+mod scalar_product_instances;
 mod scalar_slices;
 pub(crate) use scalar_slices::shared_byte_slice;
 #[cfg(test)]
@@ -48,6 +49,11 @@ pub enum TypeToken {
         nominal: Nominal,
         fields: Vec<(String, TypeToken)>,
     },
+    ScalarProductInstance {
+        nominal: Nominal,
+        argument: crate::scalar_product_instances::Argument,
+        fields: Vec<(String, TypeToken)>,
+    },
     FieldlessEnum {
         nominal: Nominal,
         variants: Vec<(String, i64)>,
@@ -84,6 +90,15 @@ impl TypeToken {
             TypeTree::SliceArrayResult { length, borrowed } => Self::SliceArrayResult {
                 length: *length,
                 borrowed: *borrowed,
+            },
+            TypeTree::ScalarProductInstance(instance) => Self::ScalarProductInstance {
+                nominal: instance.nominal.clone(),
+                argument: instance.argument,
+                fields: named_tokens(
+                    &instance.fields,
+                    |field| &field.name,
+                    |field| Self::from_tree(&field.ty),
+                ),
             },
             TypeTree::Struct { .. }
             | TypeTree::GeneratedStruct { .. }
@@ -161,7 +176,9 @@ impl TypeToken {
             | Self::Shared(element)
             | Self::Slice(element)
             | Self::Option(element) => element.native_width(),
-            Self::Struct { fields, .. } => fields.iter().any(|(_, field)| field.native_width()),
+            Self::Struct { fields, .. } | Self::ScalarProductInstance { fields, .. } => {
+                fields.iter().any(|(_, field)| field.native_width())
+            }
             Self::Enum { variants, .. } => {
                 variants.iter().any(|(_, payload)| payload.native_width())
             }
@@ -315,6 +332,9 @@ fn parse_context(
 }
 
 fn check_guarded_value_evidence(ty: &TypeToken) -> Result<(), String> {
+    if scalar_product_instances::contains(ty) {
+        return Err("Scalar product values require exact guarded instance evidence".into());
+    }
     if mixed_owners::reference_payload(ty) {
         return Err(
             "Mixed enum reference payloads require unavailable guarded value evidence".into(),
@@ -488,9 +508,10 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         {
             Ok(())
         }
-        TypeToken::MixedEnum { .. } | TypeToken::Struct { .. } | TypeToken::Enum { .. } => {
-            check_nominal(token, depth, entries)
-        }
+        TypeToken::ScalarProductInstance { .. }
+        | TypeToken::MixedEnum { .. }
+        | TypeToken::Struct { .. }
+        | TypeToken::Enum { .. } => check_nominal(token, depth, entries),
         // Admission additionally requires independently verified nominal source/effects.
         _ => Err("Data type token lacks a registered concrete proof".into()),
     }
@@ -522,6 +543,9 @@ fn check_result(
 
 fn check_nominal(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {
     match token {
+        TypeToken::ScalarProductInstance { .. } => {
+            scalar_product_instances::check(token, depth, entries)
+        }
         TypeToken::MixedEnum { nominal, variants } => {
             mixed_owners::check(nominal, variants, depth, entries)
         }
@@ -548,6 +572,11 @@ fn check_fieldless_variants(variants: &[(String, i64)]) -> Result<(), String> {
 
 fn recursive_element(token: &TypeToken) -> Option<&TypeToken> {
     match token {
+        TypeToken::Option(payload)
+            if matches!(payload.as_ref(), TypeToken::ScalarProductInstance { .. }) =>
+        {
+            Some(payload)
+        }
         TypeToken::Option(payload) if shared_byte_slice(payload.as_ref()) => Some(payload),
         TypeToken::Array { element, .. }
         | TypeToken::Shared(element)

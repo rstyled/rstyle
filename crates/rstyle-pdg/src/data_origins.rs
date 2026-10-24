@@ -27,6 +27,7 @@ pub fn shared(token: &TypeToken) -> bool {
         TypeToken::SliceArrayResult { borrowed: true, .. } => true,
         TypeToken::Tuple(elements) => elements.iter().any(shared),
         TypeToken::Struct { fields, .. }
+        | TypeToken::ScalarProductInstance { fields, .. }
         | TypeToken::Enum {
             variants: fields, ..
         } => fields.iter().any(|(_, field)| shared(field)),
@@ -275,6 +276,11 @@ pub(crate) fn paths(
     prefix: Vec<Projection>,
 ) -> Result<Vec<Vec<Projection>>, String> {
     Ok(match ty {
+        TypeToken::ScalarProductInstance { .. } => {
+            return Err(
+                "Scalar product instance origins require exact guarded component evidence".into(),
+            );
+        }
         TypeToken::Result { .. } => {
             return Err(
                 "Result formal/storage origins require unavailable guarded payload evidence".into(),

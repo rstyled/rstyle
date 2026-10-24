@@ -8,6 +8,7 @@ mod mixed_enums;
 mod range_values;
 mod receivers;
 mod scalar_enums;
+mod scalar_product_instances;
 
 use super::hir::Context;
 use rstyle_pdg::{HirFnFacts, concrete_types::*};
@@ -574,10 +575,23 @@ impl<'tcx> Capture<'_, 'tcx> {
             definition,
             arguments,
         };
+        if let Some(captured) = self.scalar_product_instance(instance, depth)? {
+            return Ok(captured);
+        }
         self.check_structure(instance)?;
         if let Some(generated) = generated_declarations::capture(self, instance, depth)? {
             return Ok(generated);
         }
+
+        self.ordinary_structure(instance, depth)
+    }
+
+    fn ordinary_structure(
+        &mut self,
+        instance: Instance<'tcx>,
+        depth: usize,
+    ) -> Result<TypeTree, Failure> {
+        let definition = instance.definition;
         let source = self.concrete_declaration(instance)?;
         let fields = &definition.non_enum_variant().fields;
         let declarations = field_declarations(&source).map_err(Failure::Unsupported)?;
