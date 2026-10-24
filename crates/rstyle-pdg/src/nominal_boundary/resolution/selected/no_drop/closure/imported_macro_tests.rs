@@ -15,7 +15,7 @@ fn source(imports: &str, body: &str) -> String {
     )
 }
 
-fn fixture(source: &str) -> (Environment, HirFnFacts) {
+pub(super) fn fixture(source: &str) -> (Environment, HirFnFacts) {
     let mut census = (*environment::tests::census()).clone();
     census.files[0].bytes = source.into();
     census.files[0].digest = crate::source_identity::checksum(source.as_bytes());

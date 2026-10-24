@@ -8,6 +8,7 @@ pub(in crate::nominal_boundary::resolution) mod copy_owners;
 pub(in crate::nominal_boundary::resolution) mod copy_products;
 pub(super) mod enum_errors;
 mod enum_globs;
+pub(in crate::nominal_boundary::resolution) mod external_expression_macros;
 mod function_imports;
 pub(in crate::nominal_boundary::resolution) mod generated_tuple_errors;
 mod headers;
@@ -25,6 +26,8 @@ pub(in crate::nominal_boundary::resolution) fn default_prelude(facts: &HirFnFact
 }
 mod product_fields;
 pub(in crate::nominal_boundary::resolution) mod reference_products;
+#[path = "../../../scalar_product_instances/proof.rs"]
+pub(in crate::nominal_boundary::resolution) mod scalar_product_instances;
 pub(in crate::nominal_boundary::resolution) mod scalar_result_owners;
 mod source_imports;
 #[cfg(test)]

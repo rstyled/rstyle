@@ -21,7 +21,7 @@ fn original_iso8601_family_retains_every_encoded_and_associated_constant() {
         let tokens = expand(definition, &invocation.mac, Context { edition }).unwrap();
         let output = syn::parse2::<syn::File>(tokens).unwrap();
         assert_eq!(output.items.len(), CONSTANTS.len() * 2);
-        for (items, name) in output.items.chunks_exact(2).zip(CONSTANTS) {
+        for (items, name) in output.items.as_chunks::<2>().0.iter().zip(CONSTANTS) {
             check_constants(items, name);
         }
     }

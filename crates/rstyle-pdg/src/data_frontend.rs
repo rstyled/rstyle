@@ -355,6 +355,12 @@ impl PathResolution for Resolver<'_> {
         if let TypeTree::Scalar(scalar) = payload {
             return self.facts.verify_option_type(path, scalar);
         }
+        if matches!(payload, TypeTree::ScalarProductInstance(_)) {
+            return self
+                .facts
+                .nominal_resolution()?
+                .verify_scalar_product_option_type(self.facts.facts(), path, payload);
+        }
         self.facts.nominal_resolution()?.verify_product_option_type(
             self.facts.facts(),
             path,

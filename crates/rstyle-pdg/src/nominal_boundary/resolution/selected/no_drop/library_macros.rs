@@ -1,6 +1,31 @@
 //! Pinned source-only expansion contracts; never function-effect authority.
 use crate::data_library::Registry;
 use std::collections::BTreeMap;
+#[cfg(test)]
+mod core_cmp_tests;
+#[cfg(test)]
+mod hash_tests;
+
+const HASH_REEXPORT_COMMIT: &str = "5c543b0b8c73c7b72bc8284ced4fb22ead15734d";
+
+/// Reviewed public Hash reexport preserves the prelude's builtin derive.
+/// The revision is explicit because the reexport source is checked in tests;
+/// runtime selection performs neither source IO nor hashing.
+pub(super) fn core_hash(prefix: &[String], name: &str, registry: Option<&Registry>) -> bool {
+    prefix == ["core", "hash"]
+        && name == "Hash"
+        && registry.is_some_and(|registry| {
+            registry.rustc_commit == HASH_REEXPORT_COMMIT && super::prelude_traits::pinned(registry)
+        })
+}
+
+/// The checked prelude reexports these exact trait and derive bindings.
+/// Callers separately gate the source profile and prove the library root.
+pub(super) fn core_cmp(prefix: &[String], name: &str, registry: Option<&Registry>) -> bool {
+    prefix == ["core", "cmp"]
+        && matches!(name, "Eq" | "Ord" | "PartialEq" | "PartialOrd")
+        && registry.is_some_and(super::prelude_traits::pinned)
+}
 
 const SOURCES: &[(&str, &str)] = &[
     (

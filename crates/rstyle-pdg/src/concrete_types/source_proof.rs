@@ -195,7 +195,10 @@ fn path_proof(
             "One-ended ranges are supported only as verified checked-access carriers".into(),
         );
     }
-    if matches!(tree, TypeTree::RangeUsize { .. }) {
+    if matches!(
+        tree,
+        TypeTree::RangeUsize { .. } | TypeTree::ScalarProductInstance(_)
+    ) {
         return if resolution.resolve(path)? == *tree {
             Ok(())
         } else {
@@ -205,19 +208,25 @@ fn path_proof(
     if let TypeTree::Option(payload) = tree
         && matches!(
             payload.as_ref(),
-            TypeTree::Scalar(_) | TypeTree::Tuple(_) | TypeTree::Struct { .. }
+            TypeTree::Scalar(_)
+                | TypeTree::Tuple(_)
+                | TypeTree::Struct { .. }
+                | TypeTree::ScalarProductInstance(_)
         )
     {
-        correspondence(
-            super::option_spelling::payload(path, payload)?,
-            payload,
-            resolution,
-        )?;
-        return resolution.scalar_option(path, payload);
+        return option_path_proof(path, payload, resolution);
     } else {
         super::lifetimes::verify_path(path, tree)?;
     }
 
+    resolved_path_proof(path, tree, resolution)
+}
+
+fn resolved_path_proof(
+    path: &syn::TypePath,
+    tree: &TypeTree,
+    resolution: &impl PathResolution,
+) -> Result<(), String> {
     if primitive_path(path, tree)? {
         return Ok(());
     }
@@ -226,6 +235,19 @@ fn path_proof(
     }
 
     Ok(())
+}
+
+fn option_path_proof(
+    path: &syn::TypePath,
+    payload: &TypeTree,
+    resolution: &impl PathResolution,
+) -> Result<(), String> {
+    correspondence(
+        super::option_spelling::payload(path, payload)?,
+        payload,
+        resolution,
+    )?;
+    resolution.scalar_option(path, payload)
 }
 
 fn primitive_path(path: &syn::TypePath, tree: &TypeTree) -> Result<bool, String> {

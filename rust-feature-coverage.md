@@ -5330,3 +5330,23 @@ claimed; further source-only increments require this concrete blocker chain.
 Validation:1,984 tests pass/five existing skips plus doctests; fmt, warning-denied
 Clippy,style0/6,626 and patterns0/15 unchanged ignores pass. Retained gate logs:
 `/tmp/rstyle-430-ownership-{fmt,clippy,style,patterns,nextest}8.*`.
+
+
+Data3.108 binds the original powerfmt expression macro through its complete
+producer/export/reexport and grouped-self consumer import. Every source argument
+remains visited; this grants no callable or value/effect permission. Exact
+comparison/Hash imports, bounded inert metadata and original same-module enum
+globs retain historical, shadowing and hidden-Drop barriers. Routine checks use
+cached XXH3; the Hash reexport adds no runtime source hashing.
+Strict replay keeps all1,506 identities (the original1,407 plus99 separately
+captured dependency definitions),24 admissions and276 matching results unchanged:
+gain0/loss0, all completeness checks true. Original digit-parser source probes
+now reach unresolved nested import/declaration shadowing in parsing::component;
+the family remains excluded. Saved-prefix values, constructor/Option flow,
+component origins and independent graph replay are still unactivated local work.
+Further work must complete that connected chain rather than add source-only rows.
+Evidence: `/tmp/rstyle-431-landing-{replay,comparison}.json` and replay stderr.
+Validation:2,043 workspace tests pass/five existing skips plus doctests; fmt,
+warning-denied Clippy,style0/6,709 and patterns0/15 unchanged ignores pass.
+Retained logs: `/tmp/rstyle-431-landing-{nextest,clippy,style}-final.*`,
+`/tmp/rstyle-431-landing-patterns3.json`. Foreign native CI remains unverified.

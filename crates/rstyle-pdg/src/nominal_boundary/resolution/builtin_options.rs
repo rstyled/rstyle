@@ -104,6 +104,46 @@ pub(super) fn scalar_copy(facts: &HirFnFacts, payload: &TypeTree) -> Result<(), 
 }
 
 impl Resolution {
+    pub(crate) fn verify_scalar_product_option_type(
+        &self,
+        facts: &HirFnFacts,
+        path: &syn::TypePath,
+        payload: &TypeTree,
+    ) -> Result<(), String> {
+        if !self.checked_scalar_product(facts, payload)? {
+            return Err("Option source lacks its exact scalar product receipt".into());
+        }
+
+        let receipt = self
+            .scalar_product_source
+            .as_ref()
+            .ok_or("Missing scalar product source")?;
+        let namespace = receipt.checked_namespace(facts, &self.environment)?;
+        crate::data_library::verify_sysroot_roots(
+            facts,
+            &["core", "std"],
+            "Scalar product Option type",
+        )?;
+        let modules = self
+            .environment
+            .modules
+            .iter()
+            .filter(|module| module.namespace == namespace)
+            .collect::<Vec<_>>();
+        let [module] = modules.as_slice() else {
+            return Err("Scalar product Option lacks its exact original module".into());
+        };
+        let configuration = crate::conditional_source::Configuration::new(&facts.build.cfgs);
+        Scope {
+            environment: &self.environment,
+            module,
+            blocks: Vec::new(),
+            configuration: &configuration,
+            facts,
+        }
+        .product_option(path)
+    }
+
     /// The retained generated member supplies the exact module owner; the
     /// complete namespace certificate and ordinary Result lookup remain required.
     pub(super) fn verify_transport_result_type(

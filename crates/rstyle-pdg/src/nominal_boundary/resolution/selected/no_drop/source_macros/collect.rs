@@ -7,8 +7,18 @@ impl SourceMacros {
         &mut self,
         environment: &Environment,
         configuration: &crate::conditional_source::Configuration<'_>,
+        enums: Option<&enum_globs::Scope>,
     ) -> Result<(), String> {
         for module in &environment.modules {
+            let authority = EnumGlobs {
+                source: module,
+                bindings: self
+                    .modules
+                    .get(&module.namespace)
+                    .ok_or("Missing original macro source module")?,
+                enums,
+                configuration,
+            };
             let mut unknown = false;
             for item in &module.items {
                 if let syn::Item::Use(item) = item
@@ -16,6 +26,7 @@ impl SourceMacros {
                     && source_imports::has_glob(&item.tree)
                     && !environment.anonymous_use(&module.namespace, item)
                     && environment.generated_use(&module.namespace, item).is_none()
+                    && !authority.proves(item)?
                 {
                     unknown = true;
                 }
@@ -82,6 +93,73 @@ impl SourceMacros {
         }
 
         Ok(())
+    }
+}
+
+struct EnumGlobs<'a, 'b> {
+    source: &'a census::Module,
+    bindings: &'a Module,
+    enums: Option<&'a enum_globs::Scope>,
+    configuration: &'a crate::conditional_source::Configuration<'b>,
+}
+
+impl EnumGlobs<'_, '_> {
+    fn proves(&self, item: &syn::ItemUse) -> Result<bool, String> {
+        let Some(enums) = self.enums else {
+            return Ok(false);
+        };
+        let syn::UseTree::Path(root) = &item.tree else {
+            return Ok(false);
+        };
+        let syn::UseTree::Path(path) = root.tree.as_ref() else {
+            return Ok(false);
+        };
+
+        let name = path.ident.to_string();
+        if item.leading_colon.is_some()
+            || root.ident != "self"
+            || !matches!(path.tree.as_ref(), syn::UseTree::Glob(_))
+            || attributes(&item.attrs, self.configuration).is_err()
+            || !enums.direct_module_enum_in(&self.source.namespace, &name)
+            || self.bindings.imports.contains_key(&name)
+            || self.bindings.children.contains_key(&name)
+        {
+            return Ok(false);
+        }
+        self.unique_enum(&name)
+    }
+
+    fn unique_enum(&self, name: &str) -> Result<bool, String> {
+        let mut found = false;
+        for item in &self.source.items {
+            if !self
+                .configuration
+                .active(crate::conditional_source::item_attributes(item))?
+                || declaration_name(item).is_none_or(|ident| ident != name)
+            {
+                continue;
+            }
+            if found || !matches!(item, syn::Item::Enum(_)) {
+                return Ok(false);
+            }
+            found = true;
+        }
+        Ok(found)
+    }
+}
+
+fn declaration_name(item: &syn::Item) -> Option<&syn::Ident> {
+    match item {
+        syn::Item::Enum(item) => Some(&item.ident),
+        syn::Item::Struct(item) => Some(&item.ident),
+        syn::Item::Union(item) => Some(&item.ident),
+        syn::Item::Trait(item) => Some(&item.ident),
+        syn::Item::TraitAlias(item) => Some(&item.ident),
+        syn::Item::Type(item) => Some(&item.ident),
+        syn::Item::ExternCrate(item) => {
+            Some(item.rename.as_ref().map_or(&item.ident, |(_, name)| name))
+        }
+        _ => None,
     }
 }
 
@@ -174,19 +252,7 @@ fn imports(
 }
 
 fn barrier(module: &mut Module, item: &syn::Item) {
-    let name = match item {
-        syn::Item::Struct(item) => Some(&item.ident),
-        syn::Item::Enum(item) => Some(&item.ident),
-        syn::Item::Union(item) => Some(&item.ident),
-        syn::Item::Trait(item) => Some(&item.ident),
-        syn::Item::TraitAlias(item) => Some(&item.ident),
-        syn::Item::Type(item) => Some(&item.ident),
-        syn::Item::ExternCrate(item) => {
-            Some(item.rename.as_ref().map_or(&item.ident, |(_, name)| name))
-        }
-        _ => None,
-    };
-    if let Some(name) = name {
+    if let Some(name) = declaration_name(item) {
         module.barriers.insert(name.to_string());
     }
 }

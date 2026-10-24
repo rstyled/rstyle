@@ -51,7 +51,7 @@ impl Renderer<'_> {
         match node {
             Node::Token(_) | Node::Capture(_, None) => self.atom(node, indices),
             Node::Punctuation(_) => Err("Matcher punctuation appeared in ownership output".into()),
-            Node::Group(delimiter, body) => self.group(*delimiter, body, indices, depth),
+            Node::Group(_, _) => self.group(node, indices, depth),
             Node::Repeat {
                 body,
                 separator,
@@ -71,14 +71,16 @@ impl Renderer<'_> {
 
     fn group(
         &mut self,
-        delimiter: Delimiter,
-        body: &[Node],
+        node: &Node,
         indices: &[usize],
         depth: usize,
     ) -> Result<TokenStream, String> {
+        let Node::Group(delimiter, body) = node else {
+            return Err("Non-group ownership output".into());
+        };
         self.budget.output_tokens(1)?;
         Ok(TokenTree::Group(Group::new(
-            delimiter,
+            *delimiter,
             self.render(body, indices, depth + 1)?,
         ))
         .into())

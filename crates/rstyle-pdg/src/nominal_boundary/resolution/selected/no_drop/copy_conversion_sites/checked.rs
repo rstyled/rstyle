@@ -1,6 +1,5 @@
 //! Target-specific source and core membership retained before selection.
 use super::*;
-use std::sync::Arc;
 
 mod binding;
 #[cfg(test)]
@@ -11,8 +10,7 @@ pub(crate) struct CheckedConversion {
     source: CheckedSource,
     binding: binding::Binding,
     owner: copy_products::Owner,
-    census: Arc<census::Census>,
-    copy_boundary: bool,
+    context: copy_products::SourceContext,
 }
 
 pub(in crate::nominal_boundary::resolution) fn capture_checked(
@@ -33,8 +31,7 @@ pub(in crate::nominal_boundary::resolution) fn capture_checked(
         source,
         binding: binding::Binding::capture(facts)?,
         owner,
-        census: resolution.environment.census_owner(),
-        copy_boundary: resolution.environment.copy_boundary,
+        context: copy_products::SourceContext::capture(&resolution.environment),
     })
 }
 
@@ -64,14 +61,7 @@ impl CheckedConversion {
         facts: &HirFnFacts,
         environment: &Environment,
     ) -> Result<&'a [String], String> {
-        self.owner.verify(facts, environment)?;
-        if !Arc::ptr_eq(&self.census, &environment.census_owner())
-            || self.copy_boundary != environment.copy_boundary
-        {
-            return Err(
-                "Copy conversion belongs to another exact checked source environment".into(),
-            );
-        }
+        self.context.verify(facts, environment, &self.owner)?;
         self.binding.verify(facts)?;
         Ok(self.owner.namespace())
     }

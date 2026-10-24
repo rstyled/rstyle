@@ -1,10 +1,13 @@
 //! Original same-crate macro imports; no expansion, callable or cleanup authority.
 mod collect;
+#[cfg(test)]
+mod enum_glob_tests;
 mod paths;
 #[cfg(test)]
 mod tests;
 
 use super::*;
+use crate::source_evidence::qualified_name as joined;
 use std::collections::{BTreeMap, BTreeSet};
 
 type Key = Vec<String>;
@@ -46,12 +49,16 @@ pub(super) struct SourceMacros {
 }
 
 impl SourceMacros {
-    pub(super) fn new(environment: &Environment, cfgs: &[String]) -> Result<Self, String> {
+    pub(super) fn new(
+        environment: &Environment,
+        cfgs: &[String],
+        enums: Option<&enum_globs::Scope>,
+    ) -> Result<Self, String> {
         let configuration = crate::conditional_source::Configuration::new(cfgs);
         let mut result = Self::from_modules(&environment.modules, &configuration)?;
 
         result.check_originals(environment)?;
-        result.check_globs(environment, &configuration)?;
+        result.check_globs(environment, &configuration, enums)?;
         result.index_imports();
         Ok(result)
     }
@@ -191,8 +198,4 @@ impl SourceMacros {
         }
         Ok(None)
     }
-}
-
-fn joined(owner: &[String], name: &str) -> Key {
-    owner.iter().cloned().chain([name.to_owned()]).collect()
 }

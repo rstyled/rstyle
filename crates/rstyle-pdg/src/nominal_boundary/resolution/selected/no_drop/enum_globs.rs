@@ -1,5 +1,6 @@
 //! Source-owned enum wildcards import variants, never macros or trait aliases.
 use super::*;
+use crate::source_evidence::qualified_name;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Default)]
@@ -14,6 +15,16 @@ pub(super) struct Scope {
 }
 
 impl Scope {
+    /// A direct declaration in the current original module, without lexical lookup.
+    pub fn direct_module_enum(&self, name: &str) -> bool {
+        !self.unindexed && self.direct_module_enum_in(&self.namespace, name)
+    }
+
+    /// Query only a direct declaration in a checked original module namespace.
+    pub fn direct_module_enum_in(&self, namespace: &[String], name: &str) -> bool {
+        self.declarations.contains(&qualified_name(namespace, name))
+    }
+
     /// Original enum wildcards can introduce variants, never a destructor trait.
     pub fn only_original_enum_globs(&self, tree: &syn::UseTree) -> bool {
         self.original_enum_globs(tree, &[])
@@ -176,7 +187,7 @@ impl Scope {
             .is_some_and(|path| declarations.contains(&path))
     }
     pub fn macro_free_function(&self, prefix: &[String], name: &str) -> bool {
-        let path: Namespace = prefix.iter().cloned().chain([name.into()]).collect();
+        let path = qualified_name(prefix, name);
         self.contains_local(&path, &self.functions)
     }
     pub fn bindings(

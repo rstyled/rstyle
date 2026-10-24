@@ -76,12 +76,12 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.107.0");
+    assert_eq!(profile.policy().version, "3.108.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 131);
+    assert_eq!(profile.capabilities().len(), 132);
     assert!(profile.supports("rust.checked-scalar-instances"));
     assert!(profile.supports("rust.component-helper-results"));
     let mut previous = profile.policy();

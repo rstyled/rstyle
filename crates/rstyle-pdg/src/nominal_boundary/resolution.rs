@@ -24,6 +24,7 @@ mod range_from;
 mod reference_owners;
 mod result_maps;
 mod scalar_aliases;
+mod scalar_products;
 mod selected;
 pub(crate) use selected::no_drop::{expand_local_ident_macro, expand_local_ident_source};
 pub(crate) mod value_traits;
@@ -69,6 +70,8 @@ pub struct Resolution {
     scalar_result_source:
         Option<selected::no_drop::scalar_result_owners::CheckedScalarResultSource>,
     copy_conversion_source: Option<CheckedCopyConversion>,
+    scalar_product_source:
+        Option<selected::no_drop::scalar_product_instances::CheckedScalarProductInstance>,
     transport_sources: Option<result_maps::TransportSources>,
 }
 
@@ -449,6 +452,18 @@ fn capture_function_sources(
     input: &dyn crate::unit_store::EvidenceFacts,
     resolution: &mut Resolution,
 ) -> Result<(), String> {
+    resolution.capture_scalar_product(input.facts())?;
+    if resolution.scalar_product_source.is_some() {
+        return Ok(());
+    }
+
+    capture_remaining_function_sources(input, resolution)
+}
+
+fn capture_remaining_function_sources(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &mut Resolution,
+) -> Result<(), String> {
     capture_owner_sources(input.facts(), resolution)?;
     capture_copy_conversion(input.facts(), resolution)?;
     capture_transport_sources(input, resolution)
@@ -653,6 +668,7 @@ fn declaration_resolution(
         copy_owner_source: None,
         scalar_result_source: None,
         copy_conversion_source: None,
+        scalar_product_source: None,
         transport_sources: None,
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
@@ -971,6 +987,7 @@ fn collect(tree: &TypeTree, trees: &mut BTreeMap<Namespace, TypeTree>) -> Result
         | TypeTree::GeneratedStruct { .. }
         | TypeTree::Enum { .. }
         | TypeTree::FieldlessEnum { .. }
+        | TypeTree::ScalarProductInstance(_)
         | TypeTree::MixedEnum { .. } => collect_nominal(tree, trees)?,
         TypeTree::Tuple(_) | TypeTree::Result { .. } => {
             for element in tree.components() {
@@ -1044,18 +1061,31 @@ fn verify_declarations(
                 "Nominal declaration source, namespace or selected package disagrees".into(),
             );
         }
-        let scoped = builtin_options::DeclarationScope {
-            resolution,
-            namespace: &declaration.namespace,
-            facts,
-        };
-        for field in tree.nominal_fields() {
-            concrete_types::source_proof::verify_top_spelling(
-                &field.declaration,
-                &field.ty,
-                &scoped,
+        if let TypeTree::ScalarProductInstance(instance) = tree {
+            selected::no_drop::scalar_product_instances::verify_fields(
+                facts, resolution, instance, key,
             )?;
+            continue;
         }
+        verify_declaration_fields(resolution, facts, &declaration.namespace, tree)?;
+    }
+    Ok(())
+}
+
+fn verify_declaration_fields(
+    resolution: &Resolution,
+    facts: &HirFnFacts,
+    namespace: &[String],
+    tree: &TypeTree,
+) -> Result<(), String> {
+    let namespace = namespace.to_vec();
+    let scoped = builtin_options::DeclarationScope {
+        resolution,
+        namespace: &namespace,
+        facts,
+    };
+    for field in tree.nominal_fields() {
+        concrete_types::source_proof::verify_top_spelling(&field.declaration, &field.ty, &scoped)?;
     }
     Ok(())
 }
@@ -1092,6 +1122,9 @@ fn bind_exact_source_function(
     resolution: &mut Resolution,
 ) -> Result<bool, String> {
     if bind_copy_conversion_function(facts, resolution)? {
+        return Ok(true);
+    }
+    if resolution.bind_scalar_product(facts)? {
         return Ok(true);
     }
     resolution.bind_transport_function(facts)
@@ -1456,6 +1489,9 @@ impl PathResolution for Scoped<'_> {
 
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
         if let Some(tree) = range_from::resolve(path, self)? {
+            return Ok(tree);
+        }
+        if let Some(tree) = scalar_products::resolve(path, self)? {
             return Ok(tree);
         }
         if path.qself.is_some() || path.path.leading_colon.is_some() {

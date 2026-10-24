@@ -1,5 +1,7 @@
 //! Exhaustive active original/nested/generated-item visitor for cleanup absence.
 use super::*;
+mod external_metadata;
+mod module_enum_globs;
 use std::collections::BTreeMap;
 use syn::visit::Visit;
 #[cfg(test)]
@@ -70,23 +72,24 @@ fn verify_mode(
     let reference_product = !matches!(mode, SourceMode::Cleanup);
     let cfgs = &facts.build.cfgs;
     let ownership_engine = supports(facts, OWNERSHIP_MACROS_CAPABILITY)?;
+    let external_macros = supports(facts, external_expression_macros::CAPABILITY)?;
+    let enums = enum_globs::Scope::new(
+        &environment.modules,
+        cfgs,
+        reference_product || supports(facts, enum_errors::CAPABILITY)?,
+    )?;
 
     let mut visitor = Closure {
         dependency_sources: Some(environment),
+        external_macros,
         ownership_engine,
-        ownership_macros: ownership_engine
-            .then(|| source_macros::SourceMacros::new(environment, cfgs))
-            .transpose()?,
+        ownership_macros: ownership_resolver(environment, facts, &enums)?,
         configuration: crate::conditional_source::Configuration::new(cfgs),
         edition: facts.build.edition.known_value(),
         library: crate::data_library::registry_for(facts),
         native_tls: cfgs.iter().any(|cfg| cfg == "target_thread_local"),
         test_marker: supports(facts, enum_errors::CAPABILITY)?,
-        enums: enum_globs::Scope::new(
-            &environment.modules,
-            cfgs,
-            reference_product || supports(facts, enum_errors::CAPABILITY)?,
-        )?,
+        enums,
         names: headers::Names::new(target),
         definitions: BTreeMap::new(),
         scopes: Vec::new(),
@@ -104,6 +107,19 @@ fn verify_mode(
         visitor.pass(environment, collecting)?;
     }
     Ok(())
+}
+
+fn ownership_resolver(
+    environment: &Environment,
+    facts: &HirFnFacts,
+    enums: &enum_globs::Scope,
+) -> Result<Option<source_macros::SourceMacros>, String> {
+    if !supports(facts, OWNERSHIP_MACROS_CAPABILITY)? {
+        return Ok(None);
+    }
+    let external = supports(facts, external_expression_macros::CAPABILITY)?;
+    source_macros::SourceMacros::new(environment, &facts.build.cfgs, external.then_some(enums))
+        .map(Some)
 }
 
 /// Exact bounded Result success owners need unshadowed generated prelude names.
@@ -277,6 +293,7 @@ pub(super) fn inspect_with_library(
             scalar_bindings: false,
             edition: None,
             ownership_engine: false,
+            external_macros: false,
         },
     )
 }
@@ -298,6 +315,7 @@ pub(super) fn inspect_closed_imports(
             scalar_bindings: false,
             edition: None,
             ownership_engine: false,
+            external_macros: false,
         },
     )
 }
@@ -312,6 +330,7 @@ struct Inspection<'a> {
     scalar_bindings: bool,
     edition: Option<&'a str>,
     ownership_engine: bool,
+    external_macros: bool,
 }
 
 #[cfg(test)]
@@ -342,6 +361,7 @@ pub(super) fn inspect_reference_product_edition(
             scalar_bindings: false,
             edition,
             ownership_engine: false,
+            external_macros: false,
         },
     )
 }
@@ -360,6 +380,7 @@ pub(super) fn inspect_scalar_error(items: &[&syn::Item], target: &Namespace) -> 
             scalar_bindings: true,
             edition: Some("2021"),
             ownership_engine: false,
+            external_macros: false,
         },
     )
 }
@@ -378,6 +399,27 @@ pub(super) fn inspect_ownership(items: &[&syn::Item], target: &Namespace) -> Res
             scalar_bindings: true,
             edition: Some("2021"),
             ownership_engine: true,
+            external_macros: false,
+        },
+    )
+}
+
+#[cfg(test)]
+pub(super) fn inspect_external_source(source: &str, enabled: bool) -> Result<(), String> {
+    let file = syn::parse_file(source).unwrap();
+    inspect_policy(
+        &file.items.iter().collect::<Vec<_>>(),
+        &vec!["Error".into()],
+        Inspection {
+            cfgs: &[],
+            library: crate::data_library::registries().first(),
+            closed_imports: true,
+            test_marker: true,
+            reference_product: true,
+            scalar_bindings: true,
+            edition: Some("2021"),
+            ownership_engine: true,
+            external_macros: enabled,
         },
     )
 }
@@ -397,9 +439,11 @@ fn inspect_policy(
         scalar_bindings,
         edition,
         ownership_engine,
+        external_macros,
     } = policy;
     let mut visitor = Closure {
         dependency_sources: None,
+        external_macros,
         ownership_engine,
         ownership_macros: None,
         configuration: crate::conditional_source::Configuration::new(cfgs),
@@ -443,6 +487,7 @@ fn shadows_primitive(item: &syn::Item) -> bool {
 
 struct Closure<'a> {
     dependency_sources: Option<&'a Environment>,
+    external_macros: bool,
     ownership_engine: bool,
     ownership_macros: Option<source_macros::SourceMacros>,
     configuration: crate::conditional_source::Configuration<'a>,
@@ -820,7 +865,15 @@ impl Closure<'_> {
         {
             self.names.from_shadowed = true;
         }
-        import_authority(&item.tree, Vec::new(), self.library, &self.enums)?;
+        import_authority(
+            &item.tree,
+            Vec::new(),
+            &ImportAuthority {
+                library: self.library,
+                source: &self.enums,
+                core_comparisons: self.external_macros,
+            },
+        )?;
         self.names.import(&item.tree)?;
         Ok(())
     }
@@ -1137,6 +1190,10 @@ impl Closure<'_> {
             }
             return Ok(());
         }
+
+        if self.external_macros && external_metadata::accepts(attribute) {
+            return Ok(());
+        }
         if !inert_attribute(attribute) {
             return Err("Cleanup closure has unknown attribute expansion".into());
         }
@@ -1164,10 +1221,11 @@ impl<'ast> Visit<'ast> for Closure<'_> {
             syn::Stmt::Item(item) => Some(item),
             _ => None,
         }));
-        let Ok(scope) = scope else {
+        let Ok(mut scope) = scope else {
             self.error = scope.err();
             return;
         };
+        self.module_enum_globs(block, &mut scope);
         self.block_contents(block, scope);
     }
     fn visit_item_mod(&mut self, module: &'ast syn::ItemMod) {
@@ -1310,49 +1368,59 @@ pub(super) fn protected(name: &str) -> bool {
         || ["alloc", "core", "std", "test"].contains(&name)
 }
 
+struct ImportAuthority<'a> {
+    library: Option<&'a crate::data_library::Registry>,
+    source: &'a enum_globs::Scope,
+    core_comparisons: bool,
+}
+
 fn import_authority(
     tree: &syn::UseTree,
     mut prefix: Vec<String>,
-    library: Option<&crate::data_library::Registry>,
-    source: &enum_globs::Scope,
+    authority: &ImportAuthority<'_>,
 ) -> Result<(), String> {
     match tree {
         syn::UseTree::Path(path) => {
             prefix.push(path.ident.to_string());
-            import_authority(&path.tree, prefix, library, source)
+            import_authority(&path.tree, prefix, authority)
         }
         syn::UseTree::Group(group) => {
             for child in &group.items {
-                import_authority(child, prefix.clone(), library, source)?;
+                import_authority(child, prefix.clone(), authority)?;
             }
             Ok(())
         }
-        _ => import_leaf(tree, &prefix, library, source),
+        _ => import_leaf(tree, &prefix, authority),
     }
 }
 
 fn import_leaf(
     tree: &syn::UseTree,
     prefix: &[String],
-    library: Option<&crate::data_library::Registry>,
-    source: &enum_globs::Scope,
+    authority: &ImportAuthority<'_>,
 ) -> Result<(), String> {
     match tree {
         // A glob creates ambiguity only when a macro/derive/standard trait is
         // actually resolved in its lexical scope. Importing names alone creates
         // no destructor implementation. Scope maps retain a conservative barrier.
         syn::UseTree::Rename(rename)
-            if source.macro_free_function(prefix, &rename.ident.to_string()) =>
+            if authority
+                .source
+                .macro_free_function(prefix, &rename.ident.to_string()) =>
         {
             Ok(())
         }
-        syn::UseTree::Name(name) if source.macro_free_function(prefix, &name.ident.to_string()) => {
+        syn::UseTree::Name(name)
+            if authority
+                .source
+                .macro_free_function(prefix, &name.ident.to_string()) =>
+        {
             Ok(())
         }
         syn::UseTree::Rename(rename) if protected(&rename.rename.to_string()) => {
             Err("Cleanup import shadows standard expansion authority".into())
         }
-        syn::UseTree::Name(name) => named_import(name, prefix, library, source),
+        syn::UseTree::Name(name) => named_import(name, prefix, authority),
         _ => Ok(()),
     }
 }
@@ -1360,14 +1428,16 @@ fn import_leaf(
 fn named_import(
     name: &syn::UseName,
     prefix: &[String],
-    library: Option<&crate::data_library::Registry>,
-    source: &enum_globs::Scope,
+    authority: &ImportAuthority<'_>,
 ) -> Result<(), String> {
-    if source.closed_imports
+    if authority.source.closed_imports
         && prefix == ["std", "fmt"]
         && name.ident == "Debug"
-        && library_macros::std_debug(library)
-        || library_macros::import(prefix, &name.ident.to_string(), library)
+        && library_macros::std_debug(authority.library)
+        || library_macros::import(prefix, &name.ident.to_string(), authority.library)
+        || authority.core_comparisons
+            && (library_macros::core_cmp(prefix, &name.ident.to_string(), authority.library)
+                || library_macros::core_hash(prefix, &name.ident.to_string(), authority.library))
     {
         return Ok(());
     }
@@ -1476,3 +1546,6 @@ mod checked_external_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod external_metadata_tests;

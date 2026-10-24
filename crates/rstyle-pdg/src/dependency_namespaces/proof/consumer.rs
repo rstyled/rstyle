@@ -185,6 +185,9 @@ fn named_leaf(
         cursor = &segment.tree;
     }
 
+    if let syn::UseTree::Group(group) = cursor {
+        return grouped_self_leaf(bytes, group, path, site);
+    }
     let syn::UseTree::Name(leaf) = cursor else {
         return Err(ProofError::Unsupported(
             "Named namespace requires one original unrenamed path",
@@ -199,6 +202,72 @@ fn named_leaf(
         ));
     }
     Ok(())
+}
+
+fn grouped_self_leaf(
+    bytes: &crate::SourceSnapshot,
+    group: &syn::UseGroup,
+    mut path: Vec<String>,
+    site: &Site,
+) -> Result<(), ProofError> {
+    if !matches!(&site.binding, Binding::Named(name) if name == "self")
+        || path.is_empty()
+        || site.target_kind != "Mod"
+    {
+        return Err(ProofError::Unsupported(
+            "Grouped named namespace requires an original module self leaf",
+        ));
+    }
+
+    let leaf = unique_grouped_self(group, path.last().unwrap())?;
+    path.push("self".into());
+    coordinate(
+        bytes,
+        &site.leaf,
+        crate::source_evidence::original_span(bytes, leaf.span()),
+    )?;
+
+    if path != site.path || site.leaf.path != site.declaration.path {
+        return Err(ProofError::Contradictory(
+            "Grouped self namespace path or original source differs",
+        ));
+    }
+
+    Ok(())
+}
+
+/// This bounded form establishes the module binding without admitting sibling
+/// aliases, globs, nested groups, or another spelling of the same binding.
+fn unique_grouped_self<'a>(
+    group: &'a syn::UseGroup,
+    module_name: &str,
+) -> Result<&'a syn::UseName, ProofError> {
+    if group.items.len() > crate::data_receivers::MAX_RECORDS {
+        return Err(ProofError::Unsupported(
+            "Consumer self group exceeds finite source budget",
+        ));
+    }
+    let mut names = std::collections::BTreeSet::new();
+    let mut selected = None;
+
+    for item in &group.items {
+        let syn::UseTree::Name(leaf) = item else {
+            return Err(ProofError::Unsupported(
+                "Consumer self group requires simple unrenamed siblings",
+            ));
+        };
+        let name = leaf.ident.to_string();
+        if name == module_name || !names.insert(name.clone()) {
+            return Err(ProofError::Contradictory(
+                "Consumer self group has conflicting original bindings",
+            ));
+        }
+        if name == "self" {
+            selected = Some(leaf);
+        }
+    }
+
+    selected.ok_or(ProofError::Missing("Missing original grouped self leaf"))
 }
 
 fn original_leaf(

@@ -72,6 +72,7 @@ struct SourceContext {
     module_lints: bool,
     dependency_owner: bool,
     namespace_capability: bool,
+    external_macros: bool,
     generated_namespaces: bool,
     cfgs: Option<Vec<String>>,
     checked: Checked<Result<Rc<Environment>, String>>,
@@ -185,12 +186,9 @@ impl Sources {
             module_lints,
             generated_namespaces,
         } = policy;
-        let namespace_capability = input.is_some_and(|input| {
-            crate::extraction_profile::facts_support(
-                input.facts(),
-                crate::dependency_namespaces::CAPABILITY,
-            )
-        });
+        let namespace_capability = input_supports(input, crate::dependency_namespaces::CAPABILITY);
+        let external_macros =
+            input_supports(input, "rust.checked-external-expression-macro-ownership");
 
         let mut contexts = self.contexts.borrow_mut();
         let index = if let Some(index) = contexts.iter().position(|context| {
@@ -201,6 +199,7 @@ impl Sources {
                 && context.generated_namespaces == generated_namespaces
                 && context.dependency_owner == input.is_some()
                 && context.namespace_capability == namespace_capability
+                && context.external_macros == external_macros
                 && context.cfgs.as_deref() == cfgs
         }) {
             index
@@ -212,6 +211,7 @@ impl Sources {
                 module_lints,
                 dependency_owner: input.is_some(),
                 namespace_capability,
+                external_macros,
                 generated_namespaces,
                 cfgs: cfgs.map(<[String]>::to_vec),
                 checked: Checked::default(),
@@ -563,3 +563,7 @@ mod tests {
 
 #[cfg(test)]
 mod nominal_tests;
+
+fn input_supports(input: Option<&dyn EvidenceFacts>, capability: &str) -> bool {
+    input.is_some_and(|input| crate::extraction_profile::facts_support(input.facts(), capability))
+}

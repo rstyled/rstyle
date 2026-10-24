@@ -144,6 +144,107 @@ fn named_module_receipts_reject_grouped_renamed_and_conditional_source() {
     }
 }
 
+fn grouped_self(source: &str, declaration: &str) -> Fixture {
+    let mut fixture = fixture(source, declaration, "self");
+    fixture.receipt.import.path = ["powerfmt", "smart_display", "self"]
+        .map(String::from)
+        .to_vec();
+    fixture.receipt.import.binding = Binding::Named("self".into());
+    fixture.receipt.import.target.path = "powerfmt::smart_display".into();
+    fixture
+}
+
+#[test]
+fn grouped_self_module_import_retains_the_observed_self_leaf_and_prefix() {
+    for source in [
+        "use powerfmt::smart_display::{self, FormatterOptions, Metadata, SmartDisplay};",
+        "pub use powerfmt::smart_display::{Metadata, self, SmartDisplay,};",
+        "use powerfmt::smart_display::{self};",
+    ] {
+        let fixture = grouped_self(source, source);
+        assert!(check(&fixture).is_ok(), "{source}");
+        let span = fixture.receipt.import.leaf.span;
+        assert_eq!(span.end - span.start, 4);
+    }
+}
+
+#[test]
+fn grouped_self_does_not_admit_aliases_globs_nested_groups_or_conflicting_bindings() {
+    for source in [
+        "use powerfmt::smart_display::{self as other, Metadata};",
+        "use powerfmt::smart_display::{self, Metadata as Other};",
+        "use powerfmt::smart_display::{self, *};",
+        "use powerfmt::smart_display::{self, nested::{Metadata}};",
+        "use powerfmt::smart_display::{self, nested::Metadata};",
+        "use powerfmt::smart_display::{self, self};",
+        "use powerfmt::smart_display::{self, smart_display};",
+        "use powerfmt::smart_display::{self, Metadata, Metadata};",
+        "use {powerfmt::smart_display::{self, Metadata}};",
+        "use ::powerfmt::smart_display::{self, Metadata};",
+        "#[cfg(test)] use powerfmt::smart_display::{self, Metadata};",
+    ] {
+        let fixture = grouped_self(source, source);
+        assert!(check(&fixture).is_err(), "{source}");
+    }
+    let source = "use powerfmt::smart_display::{Metadata};";
+    let mut fixture = fixture(source, source, "Metadata");
+    fixture.receipt.import.path = ["powerfmt", "smart_display", "self"]
+        .map(String::from)
+        .to_vec();
+    fixture.receipt.import.binding = Binding::Named("self".into());
+    assert!(check(&fixture).is_err());
+}
+
+#[test]
+fn grouped_self_requires_exact_capture_coordinates_binding_and_local_owner() {
+    let mutations: &[fn(&mut Fixture)] = &[
+        |f| {
+            f.receipt.import.path.pop();
+        },
+        |f| f.receipt.import.path[1] = "different".into(),
+        |f| f.receipt.import.binding = Binding::Named("smart_display".into()),
+        |f| f.receipt.import.binding = Binding::Glob,
+        |f| f.receipt.import.target_kind = "Macro(MacroKinds(1))".into(),
+        |f| f.receipt.import.leaf.span.start -= 1,
+        |f| f.receipt.import.leaf.span.end += 1,
+        |f| f.receipt.import.leaf = f.receipt.import.declaration.clone(),
+        |f| f.receipt.import.leaf.digest.push('x'),
+        |f| f.receipt.import.leaf.path = "/consumer/src/other.rs".into(),
+        |f| f.receipt.import.declaration.span.end -= 1,
+        |f| f.receipt.import.public = true,
+        |f| f.receipt.import.owner.local = false,
+        |f| f.receipt.import.definition.path = "other::{use#0}".into(),
+        |f| f.modules[0].namespace.push("inactive".into()),
+    ];
+    for mutation in mutations {
+        let source =
+            "use powerfmt::smart_display::{self, FormatterOptions, Metadata, SmartDisplay};";
+        let mut fixture = grouped_self(source, source);
+        mutation(&mut fixture);
+        assert!(check(&fixture).is_err());
+    }
+}
+
+#[test]
+fn grouped_self_keeps_the_checked_nested_module_and_import_definition() {
+    let declaration =
+        "use powerfmt::smart_display::{self, FormatterOptions, Metadata, SmartDisplay};";
+    let source = format!("mod date {{ {declaration} fn neighbor() {{}} }}");
+    let mut fixture = grouped_self(&source, declaration);
+    let syn::Item::Mod(module) = &fixture.modules[0].items[0] else {
+        unreachable!()
+    };
+    fixture.modules[0].items = module.content.as_ref().unwrap().1.clone();
+    fixture.modules[0].namespace = vec!["date".into()];
+    fixture.receipt.import.scope = vec!["date".into()];
+    fixture.receipt.import.owner = definition("date");
+    fixture.receipt.import.definition = definition("date::{use#7}::{use#0}");
+    assert!(check(&fixture).is_ok());
+    assert_eq!(fixture.modules[0].items.len(), 2);
+    fixture.receipt.import.definition.path = "other::{use#7}::{use#0}".into();
+    assert!(check(&fixture).is_err());
+}
+
 #[test]
 fn unique_nested_module_scope_is_required_without_reparsing_or_omitting_neighbors() {
     let source = "mod nested { use renamed::prelude::*; fn neighbor() {} }";

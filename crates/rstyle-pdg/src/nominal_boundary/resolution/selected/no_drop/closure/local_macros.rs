@@ -26,11 +26,46 @@ impl Closure<'_> {
         if let Some(definition) = definition {
             return self.expand_definition(&definition, mac);
         }
+        if self.external_macro(mac)? {
+            return Ok(());
+        }
+
+        self.imported_or_builtin_macro(mac)
+    }
+
+    fn imported_or_builtin_macro(&mut self, mac: &syn::Macro) -> Result<(), String> {
         let imported = self.imported_macro(mac)?;
         if let Some(definition) = imported {
             return self.expand_definition(&definition, mac);
         }
         self.builtin_macro(mac)
+    }
+
+    fn external_macro(&mut self, mac: &syn::Macro) -> Result<bool, String> {
+        if !self.external_macros {
+            return Ok(false);
+        }
+        let Some(environment) = self.dependency_sources else {
+            return Ok(false);
+        };
+        let names = crate::source_evidence::plain_relative_path(&mac.path)
+            .ok_or("External cleanup macro requires an original relative path")?;
+        let Some(expressions) =
+            environment.external_macro_expressions(&self.enums.namespace, &names, mac)?
+        else {
+            return Ok(false);
+        };
+        if self.generated_context != 0 || self.enums.unindexed || self.unknown_glob() {
+            return Err("External cleanup macro lacks original unambiguous lexical scope".into());
+        }
+
+        self.begin_expansion()?;
+        // These are original invocation arguments, not generated template code.
+        self.generated_context -= 1;
+        for expression in &expressions {
+            self.visit_expr(expression);
+        }
+        Ok(true)
     }
 
     fn expand_definition(

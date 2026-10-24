@@ -37,7 +37,8 @@ pub(super) fn check(source: &syn::Type, resolved: &TypeTree) -> Result<(), Strin
 fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String> {
     if matches!(
         resolved,
-        TypeTree::RangeUsize { .. }
+        TypeTree::ScalarProductInstance(_)
+            | TypeTree::RangeUsize { .. }
             | TypeTree::RangeToUsize { .. }
             | TypeTree::RangeFromUsize { .. }
     ) {
@@ -48,7 +49,10 @@ fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String>
     if let TypeTree::Option(payload) = resolved
         && matches!(
             payload.as_ref(),
-            TypeTree::Scalar(_) | TypeTree::Tuple(_) | TypeTree::Struct { .. }
+            TypeTree::Scalar(_)
+                | TypeTree::Tuple(_)
+                | TypeTree::Struct { .. }
+                | TypeTree::ScalarProductInstance(_)
         )
     {
         return check(super::option_spelling::payload(source, payload)?, payload);

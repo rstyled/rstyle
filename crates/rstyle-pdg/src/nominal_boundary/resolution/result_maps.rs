@@ -64,7 +64,7 @@ fn generated_declaration(
     let error = source.request().cleanup_requests()[1];
     let origins = facts.build.frontend_options.data::<Origins>()?;
     let origin = origin(&origins, error)?;
-    verify_fields(facts, resolution, error, source.member().namespace())?;
+    super::verify_declaration_fields(resolution, facts, source.member().namespace(), error)?;
     validate_generated(facts, &origins, &resolution.environment, error)?;
 
     declarations::verify(declarations::Input {
@@ -75,24 +75,6 @@ fn generated_declaration(
         tree: error,
         origin,
     })
-}
-
-fn verify_fields(
-    facts: &HirFnFacts,
-    resolution: &Resolution,
-    tree: &TypeTree,
-    namespace: &[String],
-) -> Result<(), String> {
-    let namespace = namespace.to_vec();
-    let scoped = builtin_options::DeclarationScope {
-        resolution,
-        namespace: &namespace,
-        facts,
-    };
-    for field in tree.nominal_fields() {
-        concrete_types::source_proof::verify_top_spelling(&field.declaration, &field.ty, &scoped)?;
-    }
-    Ok(())
 }
 
 impl TransportSources {

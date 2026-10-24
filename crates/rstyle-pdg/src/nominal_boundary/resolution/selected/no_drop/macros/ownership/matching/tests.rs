@@ -47,7 +47,7 @@ fn complete_original_modifier_family_retains_both_impls_for_every_owner() {
         let tokens = expand(definition, &invocation.mac, Context { edition }).unwrap();
         let output = syn::parse2::<syn::File>(tokens).unwrap();
         assert_eq!(output.items.len(), OWNERS.len() * 2);
-        for (items, owner) in output.items.chunks_exact(2).zip(OWNERS) {
+        for (items, owner) in output.items.as_chunks::<2>().0.iter().zip(OWNERS) {
             check_pair(items, owner);
         }
     }

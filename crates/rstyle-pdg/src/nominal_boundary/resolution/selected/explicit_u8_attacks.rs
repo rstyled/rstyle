@@ -61,6 +61,7 @@ impl Case {
             copy_owner_source: None,
             scalar_result_source: None,
             copy_conversion_source: None,
+            scalar_product_source: None,
             transport_sources: None,
         };
         DeclarationChecker {

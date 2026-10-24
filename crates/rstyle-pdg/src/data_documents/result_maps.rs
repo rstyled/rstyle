@@ -336,14 +336,7 @@ fn typed_operation<'a>(
         checked.source
     };
     let node = tagged_operation(pair, source, checked.role(), construct)?;
-    if node.original_kind.known_value() != Some(source.kind.as_str())
-        || node
-            .annotations
-            .get("compat.rust.hir-r0:type")
-            .and_then(|value| value.get("value"))
-            .and_then(serde_json::Value::as_str)
-            != Some(ty)
-    {
+    if !super::source_type_matches(node, source, ty) {
         return Err("Result map stage loses its exact source kind or value type".into());
     }
     Ok(node)

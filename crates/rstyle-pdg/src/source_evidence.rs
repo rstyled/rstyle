@@ -959,3 +959,8 @@ pub(crate) fn all_pairs<L, R>(
             .zip(right)
             .all(|(left, right)| equal(left, right))
 }
+
+/// Append one lexical source name while preserving its original module route.
+pub(crate) fn qualified_name(namespace: &[String], name: &str) -> Vec<String> {
+    namespace.iter().cloned().chain([name.to_owned()]).collect()
+}

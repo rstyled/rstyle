@@ -701,14 +701,7 @@ pub(crate) fn typed_operation<'a>(
     let node = serialized_operation(pair, &source.span, |node| {
         node.attributes.construct.as_deref() == Some(construct)
     })?;
-    if node.original_kind.known_value() != Some(source.kind.as_str())
-        || node
-            .annotations
-            .get("compat.rust.hir-r0:type")
-            .and_then(|value| value.get("value"))
-            .and_then(serde_json::Value::as_str)
-            != Some(ty)
-    {
+    if !source_type_matches(node, source, ty) {
         return Err("Serialized operation type/source correspondence disagrees".into());
     }
     Ok(node)
@@ -1132,4 +1125,14 @@ fn verify_source_owner(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(
         return receipt.verify(facts.facts());
     }
     crate::inherent_calls::definition(facts).map(|_| ())
+}
+
+pub(crate) fn source_type_matches(node: &PdgNode, source: &crate::HirNode, ty: &str) -> bool {
+    node.original_kind.known_value() == Some(source.kind.as_str())
+        && node
+            .annotations
+            .get("compat.rust.hir-r0:type")
+            .and_then(|value| value.get("value"))
+            .and_then(serde_json::Value::as_str)
+            == Some(ty)
 }

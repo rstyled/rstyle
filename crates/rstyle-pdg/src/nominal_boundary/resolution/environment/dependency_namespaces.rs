@@ -4,12 +4,14 @@ use crate::{
     dependency_namespaces::proof::{AnonymousPrelude, GeneratedExports},
     unit_store::EvidenceFacts,
 };
+mod external_macros;
 
 #[derive(Default)]
 pub(super) struct Namespaces {
     // Unproved imports remain in the original index and retain every barrier.
     proved: Vec<AnonymousPrelude>,
     generated: Vec<GeneratedExports>,
+    external_macros: Vec<external_macros::OwnedMacro>,
 }
 
 impl Environment {
@@ -17,49 +19,69 @@ impl Environment {
         mut self,
         input: &dyn EvidenceFacts,
     ) -> Result<Self, String> {
-        if !crate::extraction_profile::facts_support(
+        let ordinary = crate::extraction_profile::facts_support(
             input.facts(),
             crate::dependency_namespaces::CAPABILITY,
-        ) {
+        );
+        let macros =
+            crate::extraction_profile::facts_support(input.facts(), external_macros::CAPABILITY);
+
+        if !ordinary && !macros {
             return Ok(self);
         }
         let Some(capture) = input.dependency_namespace_capture()? else {
             return Ok(self);
         };
+
         for import in &capture.imports {
             let Some(owner) = input.dependency_namespace(import)? else {
                 continue;
             };
-            if crate::extraction_profile::facts_support(
-                input.facts(),
-                crate::dependency_namespaces::GENERATED_CAPABILITY,
-            ) && let Ok(receipt) = owner.generated_exports()
-                && crate::dependency_namespaces::proof::verify_site(
-                    &self.census,
-                    &self.modules,
-                    receipt.import(),
-                )
-                .is_ok()
-                && self.generated_target(&receipt)
-            {
-                self.dependency_namespaces.generated.push(receipt);
+            if macros {
+                self.add_external_macro(import, owner.functions());
             }
-            // A failed proof grants nothing; the unchanged original import is
-            // still checked through the ordinary unresolved-import paths.
-            let Ok(receipt) = owner.anonymous_prelude() else {
+            if !ordinary {
                 continue;
-            };
-            if crate::dependency_namespaces::proof::verify_consumer(
+            }
+            self.add_ordinary_namespaces(&owner, input);
+        }
+
+        Ok(self)
+    }
+
+    fn add_ordinary_namespaces(
+        &mut self,
+        owner: &crate::unit_store::CheckedDependencyNamespace<'_>,
+        input: &dyn EvidenceFacts,
+    ) {
+        if crate::extraction_profile::facts_support(
+            input.facts(),
+            crate::dependency_namespaces::GENERATED_CAPABILITY,
+        ) && let Ok(receipt) = owner.generated_exports()
+            && crate::dependency_namespaces::proof::verify_site(
                 &self.census,
                 &self.modules,
-                &receipt,
+                receipt.import(),
             )
             .is_ok()
-            {
-                self.dependency_namespaces.proved.push(receipt);
-            }
+            && self.generated_target(&receipt)
+        {
+            self.dependency_namespaces.generated.push(receipt);
         }
-        Ok(self)
+        // A failed proof grants nothing; the unchanged original import is
+        // still checked through the ordinary unresolved-import paths.
+        let Ok(receipt) = owner.anonymous_prelude() else {
+            return;
+        };
+        if crate::dependency_namespaces::proof::verify_consumer(
+            &self.census,
+            &self.modules,
+            &receipt,
+        )
+        .is_ok()
+        {
+            self.dependency_namespaces.proved.push(receipt);
+        }
     }
 
     fn generated_target(&self, receipt: &GeneratedExports) -> bool {

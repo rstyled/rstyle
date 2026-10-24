@@ -6,7 +6,7 @@ mod receipts;
 use super::product_fields::Proof;
 use super::*;
 use crate::nominal_boundary::resolution::{Resolution, verify_declarations};
-pub(super) use owner::Owner;
+pub(super) use owner::{Owner, SourceContext};
 pub(super) use receipts::{Receipt, SourceReceipt};
 use std::sync::Arc;
 

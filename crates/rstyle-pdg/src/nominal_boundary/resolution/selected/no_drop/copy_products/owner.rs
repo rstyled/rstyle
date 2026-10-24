@@ -235,3 +235,35 @@ fn required_value<'a>(
         .filter(|value| valid(value))
         .ok_or_else(|| error.into())
 }
+
+/// Exact immutable source owner and cleanup mode retained by a scoped receipt.
+pub(in crate::nominal_boundary::resolution::selected::no_drop) struct SourceContext {
+    census: std::sync::Arc<census::Census>,
+    copy_boundary: bool,
+}
+
+impl SourceContext {
+    pub(in crate::nominal_boundary::resolution::selected::no_drop) fn capture(
+        environment: &Environment,
+    ) -> Self {
+        Self {
+            census: environment.census_owner(),
+            copy_boundary: environment.copy_boundary,
+        }
+    }
+
+    pub(in crate::nominal_boundary::resolution::selected::no_drop) fn verify(
+        &self,
+        facts: &HirFnFacts,
+        environment: &Environment,
+        owner: &Owner,
+    ) -> Result<(), String> {
+        owner.verify(facts, environment)?;
+        if !std::sync::Arc::ptr_eq(&self.census, &environment.census_owner())
+            || self.copy_boundary != environment.copy_boundary
+        {
+            return Err("Receipt belongs to another exact checked source environment".into());
+        }
+        Ok(())
+    }
+}

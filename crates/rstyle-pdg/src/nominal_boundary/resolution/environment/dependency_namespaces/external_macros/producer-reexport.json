@@ -1,0 +1,53 @@
+{
+  "site": {
+    "binding": {
+      "kind": "named",
+      "name": "padded_width_of"
+    },
+    "declaration": {
+      "digest": "xxh3-64:11b498c0e1882f93",
+      "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/powerfmt-0.2.0/src/smart_display.rs",
+      "span": {
+        "end": 8306,
+        "start": 8241
+      }
+    },
+    "definition": {
+      "crate": "powerfmt",
+      "definition_identity": "DefPathHash(Fingerprint(1172018226235023984, 13289489720512349268))",
+      "local": true,
+      "path": "smart_display::{use#6}",
+      "stable_crate_id": "StableCrateId(1172018226235023984)"
+    },
+    "leaf": {
+      "digest": "xxh3-64:11b498c0e1882f93",
+      "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/powerfmt-0.2.0/src/smart_display.rs",
+      "span": {
+        "end": 8286,
+        "start": 8249
+      }
+    },
+    "owner": {
+      "crate": "powerfmt",
+      "definition_identity": "DefPathHash(Fingerprint(1172018226235023984, 3691385896909621021))",
+      "local": true,
+      "path": "smart_display",
+      "stable_crate_id": "StableCrateId(1172018226235023984)"
+    },
+    "path": [
+      "__not_public_at_root__padded_width_of"
+    ],
+    "public": true,
+    "scope": [
+      "smart_display"
+    ],
+    "target": {
+      "crate": "powerfmt",
+      "definition_identity": "DefPathHash(Fingerprint(1172018226235023984, 3620013221661547534))",
+      "local": true,
+      "path": "smart_display::__not_public_at_root__padded_width_of",
+      "stable_crate_id": "StableCrateId(1172018226235023984)"
+    },
+    "target_kind": "Macro(MacroKinds(1))"
+  }
+}

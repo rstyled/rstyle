@@ -73,6 +73,9 @@ pub(super) fn verify(
     // selected declaration to pass the existing complete ownership boundary.
     let static_only = !environment.copy_boundary && resolution.range_value.is_none();
     for (key, tree) in trees {
+        if resolution.checked_scalar_product(facts, tree)? {
+            continue;
+        }
         if static_only && !no_drop::copy_components::required(tree) {
             continue;
         }
@@ -80,6 +83,9 @@ pub(super) fn verify(
     }
 
     for (key, tree) in trees {
+        if resolution.checked_scalar_product(facts, tree)? {
+            continue;
+        }
         if static_only && !no_drop::copy_components::required(tree) {
             continue;
         }
@@ -815,24 +821,17 @@ pub(super) fn check_function_namespace(
     resolution: &Resolution,
     namespace: &[String],
 ) -> Result<(), String> {
+    if let Some(source) = &resolution.scalar_product_source {
+        if source.checked_namespace(input.facts(), &resolution.environment)? != namespace {
+            return Err("Scalar product function namespace differs from its checked source".into());
+        }
+        return Ok(());
+    }
     if let Some(source) = &resolution.copy_conversion_source {
         return source.function_namespace(input.facts(), &resolution.environment, namespace);
     }
     if resolution.source_requirements.copy_constructor_sites {
-        let facts = input.facts();
-        let interface = facts
-            .build
-            .frontend_options
-            .data::<InterfaceObservations>()?;
-        let Observation::Captured { ty } = &interface.result else {
-            return Err("Copy constructor namespace lacks its complete result".into());
-        };
-        let origins = facts.build.frontend_options.data::<Origins>()?;
-        let site = no_drop::copy_constructor_sites::capture(facts, resolution, &origins, ty)?;
-        if site.permits(facts, ty, namespace) {
-            return Ok(());
-        }
-        return Err("Copy constructor namespace differs from its exact checked site".into());
+        return check_constructor_namespace(input.facts(), resolution, namespace);
     }
     if resolution.transport_sources.is_some() {
         return check_transport_namespace(input.facts(), resolution, namespace);
@@ -859,6 +858,27 @@ pub(super) fn check_function_namespace(
         namespace,
         certificate,
     )
+}
+
+fn check_constructor_namespace(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    namespace: &[String],
+) -> Result<(), String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let Observation::Captured { ty } = &interface.result else {
+        return Err("Copy constructor namespace lacks its complete result".into());
+    };
+
+    let origins = facts.build.frontend_options.data::<Origins>()?;
+    let site = no_drop::copy_constructor_sites::capture(facts, resolution, &origins, ty)?;
+    if site.permits(facts, ty, namespace) {
+        return Ok(());
+    }
+    Err("Copy constructor namespace differs from its exact checked site".into())
 }
 
 pub(super) fn check_transport_namespace(
