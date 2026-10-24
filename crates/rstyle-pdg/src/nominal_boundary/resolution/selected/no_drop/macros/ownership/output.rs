@@ -1,12 +1,18 @@
 //! Preserve every selected template token and every captured nested item.
 use super::*;
+#[cfg(test)]
+mod tests;
 
 pub(super) fn expand(
     nodes: &[Node],
     captures: &Captures,
     budget: &mut Budget,
 ) -> Result<TokenStream, String> {
-    Renderer { captures, budget }.render(nodes, &[], 0)
+    let output = Renderer { captures, budget }.render(nodes, &[], 0)?;
+    // A captured subtree may become deeper when inserted into the template.
+    // Check the assembled depth once, without recounting emitted output.
+    budget.tokens(output.clone(), 0)?;
+    Ok(output)
 }
 
 struct Renderer<'a> {
@@ -31,7 +37,7 @@ impl Renderer<'_> {
         for node in nodes {
             self.budget.charge(1)?;
             let piece = self.piece(node, indices, depth)?;
-            output.extend(self.budget.emit(piece)?);
+            output.extend(piece);
         }
         Ok(output)
     }
@@ -43,23 +49,9 @@ impl Renderer<'_> {
         depth: usize,
     ) -> Result<TokenStream, String> {
         match node {
-            Node::Token(token) => Ok(token.clone().into()),
+            Node::Token(_) | Node::Capture(_, None) => self.atom(node, indices),
             Node::Punctuation(_) => Err("Matcher punctuation appeared in ownership output".into()),
-            Node::Group(delimiter, body) => Ok(TokenTree::Group(Group::new(
-                *delimiter,
-                self.render(body, indices, depth + 1)?,
-            ))
-            .into()),
-            Node::Capture(name, None) if name == "crate" => Ok(TokenTree::Ident(
-                proc_macro2::Ident::new("crate", proc_macro2::Span::call_site()),
-            )
-            .into()),
-            Node::Capture(name, None) => match selected(self.captures, name, indices)? {
-                Value::Atom(tokens) => Ok(tokens.clone()),
-                Value::Many(_) => {
-                    Err("Ownership capture remains repeated at this template depth".into())
-                }
-            },
+            Node::Group(delimiter, body) => self.group(*delimiter, body, indices, depth),
             Node::Repeat {
                 body,
                 separator,
@@ -75,6 +67,40 @@ impl Renderer<'_> {
             ),
             _ => Err("Typed binding appeared in ownership macro output".into()),
         }
+    }
+
+    fn group(
+        &mut self,
+        delimiter: Delimiter,
+        body: &[Node],
+        indices: &[usize],
+        depth: usize,
+    ) -> Result<TokenStream, String> {
+        self.budget.output_tokens(1)?;
+        Ok(TokenTree::Group(Group::new(
+            delimiter,
+            self.render(body, indices, depth + 1)?,
+        ))
+        .into())
+    }
+
+    fn atom(&mut self, node: &Node, indices: &[usize]) -> Result<TokenStream, String> {
+        let tokens = match node {
+            Node::Token(token) => token.clone().into(),
+            Node::Capture(name, None) if name == "crate" => TokenTree::Ident(
+                proc_macro2::Ident::new("crate", proc_macro2::Span::call_site()),
+            )
+            .into(),
+            Node::Capture(name, None) => match selected(self.captures, name, indices)? {
+                Value::Atom(tokens) => tokens.clone(),
+                Value::Many(_) => {
+                    return Err("Ownership capture remains repeated at this template depth".into());
+                }
+            },
+            _ => return Err("Non-atomic ownership output".into()),
+        };
+
+        self.budget.emit(tokens)
     }
 
     fn repeated(
@@ -94,7 +120,7 @@ impl Renderer<'_> {
             if index > 0
                 && let Some(separator) = repetition.separator
             {
-                output.extend([separator.clone()]);
+                output.extend(self.budget.emit(separator.clone().into())?);
             }
             let nested: Vec<_> = indices
                 .iter()

@@ -175,16 +175,23 @@ impl Budget {
         let before = self.remaining;
         self.tokens(tokens.clone(), 0)?;
 
+        self.output_tokens(before - self.remaining)?;
+        Ok(tokens)
+    }
+
+    // Count each output token once, when created or copied from a capture.
+    // Reassembling a group or repetition must not recount its descendants.
+    fn output_tokens(&mut self, count: usize) -> Result<(), String> {
         self.emitted = self
             .emitted
-            .checked_add(before - self.remaining)
+            .checked_add(count)
             .ok_or("Ownership macro output overflow")?;
         if self.emitted > 32_768 {
             return Err("Ownership macro output budget exceeded".into());
         }
 
         self.charge(1)?;
-        Ok(tokens)
+        Ok(())
     }
 }
 
