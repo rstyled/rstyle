@@ -3,6 +3,7 @@ use super::*;
 mod closure;
 pub(in crate::nominal_boundary::resolution) mod copy_components;
 pub(in crate::nominal_boundary::resolution) mod copy_constructor_sites;
+pub(in crate::nominal_boundary::resolution) mod copy_conversion_sites;
 pub(in crate::nominal_boundary::resolution) mod copy_owners;
 pub(in crate::nominal_boundary::resolution) mod copy_products;
 pub(super) mod enum_errors;
@@ -196,4 +197,27 @@ pub(in crate::nominal_boundary::resolution) fn transport_copy_sources(
         .iter()
         .map(|receipt| (receipt.tree().clone(), receipt.certificate().clone()))
         .collect())
+}
+
+pub(super) fn verify_ancestor_attributes(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    namespace: &[String],
+) -> Result<(), String> {
+    for module in &resolution.environment.modules {
+        if !namespace.starts_with(&module.namespace) {
+            continue;
+        }
+        let Some(next) = namespace.get(module.namespace.len()) else {
+            continue;
+        };
+        for item in &module.items {
+            if let syn::Item::Mod(item) = item
+                && item.ident == next
+            {
+                super::function_attributes(facts, &item.attrs)?;
+            }
+        }
+    }
+    Ok(())
 }

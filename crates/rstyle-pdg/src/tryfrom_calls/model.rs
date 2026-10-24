@@ -15,7 +15,7 @@ pub(crate) struct Definition {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Argument {
+pub(crate) struct Argument {
     pub kind: String,
     pub value: String,
     pub display_only: bool,
@@ -30,7 +30,7 @@ impl Argument {
             || !self.display_only
             || self.identity_status != "known"
         {
-            return Err("TryFrom substitution lacks complete structural identity".into());
+            return Err("Conversion substitution lacks complete structural identity".into());
         }
         Ok(&self.identity)
     }
@@ -38,7 +38,7 @@ impl Argument {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub(super) enum Structural {
+pub(crate) enum Structural {
     Builtin {
         name: String,
     },
@@ -50,7 +50,7 @@ pub(super) enum Structural {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Signature {
+pub(crate) struct Signature {
     pub inputs: Vec<Vec<Argument>>,
     pub output: Vec<Argument>,
     pub bound_variables: usize,
@@ -61,14 +61,14 @@ pub(super) struct Signature {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Header {
+pub(crate) struct Header {
     pub is_const: bool,
     pub is_async: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Member {
+pub(crate) struct Member {
     pub definition: Definition,
     pub trait_member: Option<Definition>,
     pub source: crate::nominal_boundary::census::expansions::FileSpan,
@@ -76,7 +76,7 @@ pub(super) struct Member {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct AssociatedError {
+pub(crate) struct AssociatedError {
     pub trait_member: Definition,
     pub implementation_member: Definition,
     pub source: crate::nominal_boundary::census::expansions::FileSpan,
@@ -86,7 +86,7 @@ pub(super) struct AssociatedError {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Observation {
+pub(crate) struct Observation {
     pub identity: String,
     pub admission_authority: bool,
     pub method: Definition,
@@ -107,7 +107,7 @@ pub(super) struct Observation {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Call {
+pub(crate) struct Call {
     pub hir: HirRef,
     pub span: ByteSpan,
     pub expanded: bool,

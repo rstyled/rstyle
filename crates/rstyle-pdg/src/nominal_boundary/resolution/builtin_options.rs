@@ -832,6 +832,7 @@ fn lookup_import(
             values: imports,
             namespace,
             selected: true,
+            loaded_modules: &Default::default(),
         },
         &item.tree,
         prefix,

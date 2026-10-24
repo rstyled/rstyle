@@ -52,9 +52,9 @@ pub(super) fn nominal(identity: &Structural, nominal: &Nominal) -> Result<Defini
     Ok(definition.clone())
 }
 
-pub(super) fn endpoint(arguments: &[Argument]) -> Result<&Structural, String> {
+pub(crate) fn endpoint(arguments: &[Argument]) -> Result<&Structural, String> {
     let [argument] = arguments else {
-        return Err("TryFrom requires one complete structural endpoint".into());
+        return Err("Conversion requires one complete structural endpoint".into());
     };
     argument.known()
 }

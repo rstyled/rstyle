@@ -75,6 +75,7 @@ mod tests {
             declarations: BTreeMap::new(),
             imports: BTreeMap::new(),
             unresolved_expansions: std::collections::BTreeSet::new(),
+            ambiguous_module_imports: Default::default(),
         };
         index.imports.insert(
             (vec!["decoder".into()], "InvalidLength".into()),

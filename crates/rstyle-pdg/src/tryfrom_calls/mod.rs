@@ -1,7 +1,7 @@
 //! Original concrete TryFrom association. This leaf proves no callable effects,
 //! Copy, cleanup or lexical namespace permission; the ordinary pipeline does.
 mod authority;
-mod model;
+pub(crate) mod model;
 mod owner;
 mod selection;
 mod source;
@@ -12,6 +12,7 @@ mod tests;
 use crate::{HirFnFacts, concrete_types::TypeTree};
 pub(crate) use authority::RegistryAuthority;
 pub(crate) use model::Definition;
+pub(crate) use owner::endpoint;
 pub(crate) use selection::{Association, SelectionInput, association, verify_selection};
 pub(crate) use source::{SourceMember, source_member, verify_owner};
 

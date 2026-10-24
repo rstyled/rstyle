@@ -11,6 +11,15 @@ use crate::nominal_boundary::resolution::Resolution;
 pub(in crate::nominal_boundary::resolution) const CAPABILITY: &str =
     "rust.static-string-copy-products";
 
+/// Declaration correspondence only; Copy, ownership and namespace proofs remain
+/// independent requirements of each consuming site.
+pub(super) fn verify_target_source(item: &syn::Item, tree: &TypeTree) -> Result<(), String> {
+    if !shape::supported(tree) {
+        return Err("Copy component target lies outside its closed source grammar".into());
+    }
+    source::verify(item, tree)
+}
+
 /// Regions are erased in TypeTree. Only the original declaration, complete
 /// recursive Copy proof and source closure may mint this local permission.
 pub(in crate::nominal_boundary::resolution) struct CheckedProduct<'a> {
@@ -182,7 +191,7 @@ impl Checker<'_> {
         }
         let key = self.proof.declaration(tree)?;
         let item = self.proof.item(&key)?;
-        source::verify(item, tree)?;
+        verify_target_source(item, tree)?;
 
         let attributes = super::super::declaration_attributes(item, tree)?;
         if !super::super::checked_copy(self.facts, self.origins, tree, attributes)? {

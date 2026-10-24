@@ -40,6 +40,7 @@ mod look_flags;
 mod named_callbacks;
 mod span_lengths;
 mod static_string_products;
+mod tagged_string_observations;
 mod transition_callbacks;
 mod word_classifiers;
 

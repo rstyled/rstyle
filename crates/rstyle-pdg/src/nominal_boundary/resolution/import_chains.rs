@@ -7,6 +7,13 @@ pub(super) fn resolve(mut names: Namespace, index: &Index) -> Result<Namespace, 
         if !seen.insert(names.clone()) {
             return Err("Cyclic local nominal import chain".into());
         }
+        // Imports can bind a value with a module's name. Do not reject that
+        // unrelated namespace, but require unambiguous type/module ownership
+        // for every prefix actually used by this selected nominal chain.
+        if (1..names.len()).any(|length| index.ambiguous_module_imports.contains(&names[..length]))
+        {
+            return Err("Local nominal path crosses an ambiguous module import".into());
+        }
         if index.declarations.contains_key(&names) {
             return Ok(names);
         }
@@ -51,5 +58,36 @@ mod tests {
             assert!(resolve(vec!["A".into()], &env.index).is_err(), "{source}");
         }
         assert!(environment("enum A { X } use crate::other::A;").is_err());
+    }
+    #[test]
+    fn loaded_child_reexports_use_the_lexical_module_not_a_root_namesake() {
+        let env = environment("#[cfg(all())] mod selected_marker {} mod child { pub struct T; } mod api { mod child { pub struct T; } pub use child::T as Local; pub use crate::child::T as Root; pub use self::child::T as Explicit; }").unwrap();
+        for (alias, expected) in [
+            ("Local", vec!["api", "child", "T"]),
+            ("Explicit", vec!["api", "child", "T"]),
+            ("Root", vec!["child", "T"]),
+        ] {
+            assert_eq!(
+                resolve(vec!["api".into(), alias.into()], &env.index).unwrap(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn missing_external_and_inactive_modules_do_not_supply_a_lexical_declaration() {
+        for source in [
+            "mod api { pub use absent::T; }",
+            "mod api { pub use ::external::T; }",
+            "mod api { #[cfg(any())] mod child { pub struct T; } pub use child::T; }",
+        ] {
+            let env = environment(source).unwrap();
+            assert!(
+                resolve(vec!["api".into(), "T".into()], &env.index).is_err(),
+                "{source}"
+            );
+        }
+        let env = environment("#[cfg(all())] mod selected_marker {} mod api { mod child { pub struct T; } use crate::other as child; pub use child::T; }").unwrap();
+        assert!(resolve(vec!["api".into(), "T".into()], &env.index).is_err());
     }
 }

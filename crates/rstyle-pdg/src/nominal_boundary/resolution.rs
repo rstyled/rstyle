@@ -513,6 +513,42 @@ pub fn probe_copy_components_interface(facts: &HirFnFacts) -> Result<(), String>
     selected::no_drop::copy_components::verify_interface(facts, &resolution, &origins)
 }
 
+/// Check exact original tagged conversions, positive target Copy cleanup and
+/// selected core conversion membership. Grants no values, origins or admission.
+pub fn probe_copy_conversion_source(facts: &HirFnFacts) -> Result<(), String> {
+    use selected::no_drop::copy_conversion_sites;
+
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let resolution = declaration_resolution(facts, &interface, standalone_environment(facts)?)?;
+    let origins = facts
+        .build
+        .frontend_options
+        .data::<declaration_origins::Origins>()?;
+    let source = copy_conversion_sites::capture(facts, &resolution, &origins)?;
+    let endpoints = source.endpoints();
+    let direction = match endpoints.direction() {
+        copy_conversion_sites::Direction::Wrap => crate::copy_conversion_members::Direction::Wrap,
+        copy_conversion_sites::Direction::Unwrap => {
+            crate::copy_conversion_members::Direction::Unwrap
+        }
+    };
+    crate::copy_conversion_members::verify(
+        facts,
+        crate::copy_conversion_members::Contract {
+            direction,
+            input: endpoints.input(),
+            output: endpoints.output(),
+            implementation_source: source.implementation(),
+            method_source: source.method(),
+            error_source: source.associated_error(),
+        },
+    )?;
+    Ok(())
+}
+
 /// Retain actual per-nominal proof receipts for an owning checked instance.
 pub(crate) fn checked_copy_product_source(
     facts: &HirFnFacts,
@@ -606,6 +642,7 @@ struct Index {
     declarations: BTreeMap<Namespace, Declaration>,
     imports: BTreeMap<(Namespace, String), Namespace>,
     unresolved_expansions: std::collections::BTreeSet<Namespace>,
+    ambiguous_module_imports: std::collections::BTreeSet<Namespace>,
 }
 fn build_index(
     modules: &[census::Module],
@@ -617,13 +654,20 @@ fn build_index(
         declarations: BTreeMap::new(),
         imports: BTreeMap::new(),
         unresolved_expansions: Default::default(),
+        ambiguous_module_imports: Default::default(),
     };
+
+    let loaded_modules = modules
+        .iter()
+        .map(|module| module.namespace.clone())
+        .collect();
     for (module_index, module) in modules.iter().enumerate() {
         index.items(&IndexSite {
             module,
             bytes: file_bytes(census, &module.path)?,
             module_index,
             selected: cfgs.is_some(),
+            loaded_modules: &loaded_modules,
         })?;
         if let Some(cfgs) = cfgs {
             let configuration = crate::conditional_source::Configuration::new(cfgs);
@@ -636,19 +680,7 @@ fn build_index(
             }
         }
     }
-    for (namespace, name) in index.imports.keys() {
-        if cfgs.is_some()
-            && (selected::builtin_derive(name)
-                || concrete_types::scalar(name)
-                || name.starts_with("*::"))
-        {
-            index.unresolved_expansions.insert(namespace.clone());
-        }
-        let key: Vec<_> = namespace.iter().cloned().chain([name.clone()]).collect();
-        if index.declarations.contains_key(&key) {
-            return Err("Import shadows a nominal declaration".into());
-        }
-    }
+    index.verify_imports(cfgs.is_some(), &loaded_modules)?;
     Ok(index)
 }
 struct IndexSite<'a> {
@@ -656,9 +688,34 @@ struct IndexSite<'a> {
     bytes: &'a str,
     module_index: usize,
     selected: bool,
+    loaded_modules: &'a std::collections::BTreeSet<Namespace>,
 }
 
 impl Index {
+    fn verify_imports(
+        &mut self,
+        selected: bool,
+        loaded_modules: &std::collections::BTreeSet<Namespace>,
+    ) -> Result<(), String> {
+        for (namespace, name) in self.imports.keys() {
+            if selected
+                && (selected::builtin_derive(name)
+                    || concrete_types::scalar(name)
+                    || name.starts_with("*::"))
+            {
+                self.unresolved_expansions.insert(namespace.clone());
+            }
+            let key: Vec<_> = namespace.iter().cloned().chain([name.clone()]).collect();
+            if self.declarations.contains_key(&key) {
+                return Err("Import shadows a nominal declaration".into());
+            }
+            if selected && loaded_modules.contains(&key) {
+                self.ambiguous_module_imports.insert(key);
+            }
+        }
+        Ok(())
+    }
+
     fn items(&mut self, site: &IndexSite<'_>) -> Result<(), String> {
         let unshadowed = !site
             .module
@@ -687,6 +744,7 @@ impl Index {
                         values: &mut self.imports,
                         namespace: &site.module.namespace,
                         selected: site.selected,
+                        loaded_modules: site.loaded_modules,
                     }
                     .tree(&item.tree, path)?;
                 }
@@ -736,6 +794,7 @@ struct Imports<'a> {
     values: &'a mut BTreeMap<(Namespace, String), Namespace>,
     namespace: &'a Namespace,
     selected: bool,
+    loaded_modules: &'a std::collections::BTreeSet<Namespace>,
 }
 
 impl Imports<'_> {
@@ -791,6 +850,21 @@ impl Imports<'_> {
             path.push(name);
             alias
         };
+
+        let local_module = path.first().is_some_and(|head| {
+            !matches!(head.as_str(), "crate" | "self" | "super" | "<external>")
+                && self.loaded_modules.contains(
+                    &self
+                        .namespace
+                        .iter()
+                        .cloned()
+                        .chain([head.clone()])
+                        .collect::<Namespace>(),
+                )
+        });
+        if self.selected && local_module {
+            path.insert(0, "self".into());
+        }
         insert_import(alias, path, self.namespace, self.values)
     }
 }
@@ -1356,7 +1430,23 @@ impl Scoped<'_> {
             names = imported;
         } else {
             names = anchored(names, self.namespace, false)?;
+            // An unqualified local type does not traverse its canonical parent
+            // modules. A value import beside a parent module cannot shadow it.
+            if path.path.segments.len() == 1
+                && self
+                    .resolution
+                    .environment
+                    .index
+                    .declarations
+                    .contains_key(&names)
+            {
+                return Ok(names);
+            }
         }
+        self.checked_name(names)
+    }
+
+    fn checked_name(&self, names: Namespace) -> Result<Namespace, String> {
         if self.resolution.local_import_chains {
             return import_chains::resolve(names, &self.resolution.environment.index);
         }
@@ -1477,6 +1567,7 @@ mod imports_tests {
                 values: &mut values,
                 namespace: &namespace,
                 selected: true,
+                loaded_modules: &Default::default(),
             }
             .tree(&item.tree, Vec::new())
             .unwrap();
@@ -1496,6 +1587,7 @@ mod imports_tests {
             values: &mut values,
             namespace: &namespace,
             selected: true,
+            loaded_modules: &Default::default(),
         }
         .tree(&item.tree, vec!["<external>".into()])
         .unwrap();

@@ -102,29 +102,6 @@ impl OwnerCheck<'_> {
             return Err("Copy constructor impl owner differs from checked result".into());
         }
 
-        ancestors(self.facts, self.resolution, namespace)
+        super::super::verify_ancestor_attributes(self.facts, self.resolution, namespace)
     }
-}
-
-fn ancestors(
-    facts: &HirFnFacts,
-    resolution: &Resolution,
-    namespace: &[String],
-) -> Result<(), String> {
-    for module in &resolution.environment.modules {
-        if !namespace.starts_with(&module.namespace) {
-            continue;
-        }
-        let Some(next) = namespace.get(module.namespace.len()) else {
-            continue;
-        };
-        for item in &module.items {
-            if let syn::Item::Mod(item) = item
-                && item.ident == next
-            {
-                super::super::super::function_attributes(facts, &item.attrs)?;
-            }
-        }
-    }
-    Ok(())
 }

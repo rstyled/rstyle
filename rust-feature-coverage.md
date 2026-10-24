@@ -5260,3 +5260,9 @@ namespaces. Neighboring functions retain source/effect barriers. The unchanged
 pairs. This does not complete the error-conversion family: tag-specific payload
 origins, nominal Result flow and selected trait-member summaries remain connected
 prerequisites. [Contract](docs/extraction-profiles/copy-constructor-sites-v1.md).
+
+The next error-conversion prerequisite preserves reference-bearing tagged
+observations and proves the two original time From/TryFrom members in both native
+feature contexts. Guarded values and caller summaries remain closed. The unchanged
+selection stays22/1,407 admitted; strict replay completes231 pairs and frozen60
+is unchanged. [Validation and the connected frontier](docs/rust-support-execution.md#tagged-copy-conversion-prerequisite-data3102-no-activation).

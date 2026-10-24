@@ -1,0 +1,712 @@
+{
+  "payload": {
+    "evidence": {
+      "fields": [
+        {
+          "declaration": "&'static str",
+          "name": "name",
+          "position": 0,
+          "ty": {
+            "evidence": {
+              "kind": "Str"
+            },
+            "kind": "Shared"
+          }
+        },
+        {
+          "declaration": "bool",
+          "name": "is_conditional",
+          "position": 1,
+          "ty": {
+            "evidence": "bool",
+            "kind": "Scalar"
+          }
+        }
+      ],
+      "nominal": {
+        "declaration_digest": "xxh3-64:5f9e7bd3165cbcde",
+        "definition_path": "error::component_range::ComponentRange",
+        "manifest_digest": "xxh3-64:2a338875bc81fee0",
+        "package_name": "time",
+        "package_version": "0.3.47",
+        "source_identity": "path+file:///home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47#time@0.3.47"
+      },
+      "source": "pub struct ComponentRange {\n    /// Name of the component.\n    pub(crate) name: &'static str,\n    /// Whether an input with the same value could have succeeded if the values of other components\n    /// were different.\n    pub(crate) is_conditional: bool,\n}"
+    },
+    "kind": "Struct"
+  },
+  "tagged": {
+    "kind": "MixedEnum",
+    "evidence": {
+      "nominal": {
+        "declaration_digest": "xxh3-64:957f317f805ae3db",
+        "definition_path": "error::try_from_parsed::TryFromParsed",
+        "manifest_digest": "xxh3-64:2a338875bc81fee0",
+        "package_name": "time",
+        "package_version": "0.3.47",
+        "source_identity": "path+file:///home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47#time@0.3.47"
+      },
+      "source": "pub enum TryFromParsed {\n    /// The [`Parsed`](crate::parsing::Parsed) did not include enough information to construct the\n    /// type.\n    InsufficientInformation,\n    /// Some component contained an invalid value for the type.\n    ComponentRange(error::ComponentRange),\n}",
+      "variants": [
+        {
+          "position": 0,
+          "name": "InsufficientInformation",
+          "shape": {
+            "kind": "Unit"
+          }
+        },
+        {
+          "position": 1,
+          "name": "ComponentRange",
+          "shape": {
+            "kind": "SingleTuple",
+            "field": {
+              "position": 0,
+              "name": "0",
+              "declaration": "error::ComponentRange",
+              "ty": {
+                "evidence": {
+                  "fields": [
+                    {
+                      "declaration": "&'static str",
+                      "name": "name",
+                      "position": 0,
+                      "ty": {
+                        "evidence": {
+                          "kind": "Str"
+                        },
+                        "kind": "Shared"
+                      }
+                    },
+                    {
+                      "declaration": "bool",
+                      "name": "is_conditional",
+                      "position": 1,
+                      "ty": {
+                        "evidence": "bool",
+                        "kind": "Scalar"
+                      }
+                    }
+                  ],
+                  "nominal": {
+                    "declaration_digest": "xxh3-64:5f9e7bd3165cbcde",
+                    "definition_path": "error::component_range::ComponentRange",
+                    "manifest_digest": "xxh3-64:2a338875bc81fee0",
+                    "package_name": "time",
+                    "package_version": "0.3.47",
+                    "source_identity": "path+file:///home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47#time@0.3.47"
+                  },
+                  "source": "pub struct ComponentRange {\n    /// Name of the component.\n    pub(crate) name: &'static str,\n    /// Whether an input with the same value could have succeeded if the values of other components\n    /// were different.\n    pub(crate) is_conditional: bool,\n}"
+                },
+                "kind": "Struct"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "error": {
+    "kind": "Struct",
+    "evidence": {
+      "nominal": {
+        "source_identity": "path+file:///home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47#time@0.3.47",
+        "package_name": "time",
+        "package_version": "0.3.47",
+        "manifest_digest": "xxh3-64:2a338875bc81fee0",
+        "definition_path": "error::different_variant::DifferentVariant",
+        "declaration_digest": "xxh3-64:19ce472ca81c87dc"
+      },
+      "source": "pub struct DifferentVariant;",
+      "fields": []
+    }
+  },
+  "wrap": {
+    "observation": {
+      "admission_authority": false,
+      "associated_error": null,
+      "identity": "rstyle.rust.concrete-conversion-member-observation/1",
+      "implementation": {
+        "crate": "time",
+        "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 10557757259065245067))",
+        "local": true,
+        "path": "<error::try_from_parsed::TryFromParsed as core::convert::From<error::component_range::ComponentRange>>",
+        "stable_crate_id": "StableCrateId(5756332677883213349)"
+      },
+      "implementation_source": {
+        "digest": "xxh3-64:b5515b1bb4bb3851",
+        "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47/src/error/try_from_parsed.rs",
+        "span": {
+          "end": 1164,
+          "start": 1010
+        }
+      },
+      "members": [
+        {
+          "definition": {
+            "crate": "time",
+            "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 1044728579932909906))",
+            "local": true,
+            "path": "<error::try_from_parsed::TryFromParsed as core::convert::From<error::component_range::ComponentRange>>::from",
+            "stable_crate_id": "StableCrateId(5756332677883213349)"
+          },
+          "source": {
+            "digest": "xxh3-64:b5515b1bb4bb3851",
+            "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47/src/error/try_from_parsed.rs",
+            "span": {
+              "end": 1162,
+              "start": 1081
+            }
+          },
+          "trait_member": {
+            "crate": "core",
+            "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 5283227860215656468))",
+            "local": false,
+            "path": "core::convert::From::from",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        }
+      ],
+      "method": {
+        "crate": "time",
+        "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 1044728579932909906))",
+        "local": true,
+        "path": "<error::try_from_parsed::TryFromParsed as core::convert::From<error::component_range::ComponentRange>>::from",
+        "stable_crate_id": "StableCrateId(5756332677883213349)"
+      },
+      "method_header": {
+        "is_async": false,
+        "is_const": false
+      },
+      "method_source": {
+        "digest": "xxh3-64:b5515b1bb4bb3851",
+        "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47/src/error/try_from_parsed.rs",
+        "span": {
+          "end": 1162,
+          "start": 1081
+        }
+      },
+      "requested_signature": {
+        "abi": "\"Rust\"",
+        "bound_variables": 0,
+        "inputs": [
+          [
+            {
+              "display_only": true,
+              "identity": {
+                "arguments": [],
+                "definition": {
+                  "crate": "time",
+                  "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 12653267750804326261))",
+                  "local": true,
+                  "path": "error::component_range::ComponentRange",
+                  "stable_crate_id": "StableCrateId(5756332677883213349)"
+                },
+                "kind": "adt"
+              },
+              "identity_status": "known",
+              "kind": "type",
+              "value": "error::component_range::ComponentRange"
+            }
+          ]
+        ],
+        "output": [
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "time",
+                "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 147357954628972456))",
+                "local": true,
+                "path": "error::try_from_parsed::TryFromParsed",
+                "stable_crate_id": "StableCrateId(5756332677883213349)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "error::try_from_parsed::TryFromParsed"
+          }
+        ],
+        "safety": "Safe",
+        "variadic": false
+      },
+      "selected": {
+        "crate": "time",
+        "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 1044728579932909906))",
+        "local": true,
+        "path": "<error::try_from_parsed::TryFromParsed as core::convert::From<error::component_range::ComponentRange>>::from",
+        "stable_crate_id": "StableCrateId(5756332677883213349)"
+      },
+      "selected_arguments": [],
+      "selected_signature": {
+        "abi": "\"Rust\"",
+        "bound_variables": 0,
+        "inputs": [
+          [
+            {
+              "display_only": true,
+              "identity": {
+                "arguments": [],
+                "definition": {
+                  "crate": "time",
+                  "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 12653267750804326261))",
+                  "local": true,
+                  "path": "error::component_range::ComponentRange",
+                  "stable_crate_id": "StableCrateId(5756332677883213349)"
+                },
+                "kind": "adt"
+              },
+              "identity_status": "known",
+              "kind": "type",
+              "value": "error::component_range::ComponentRange"
+            }
+          ]
+        ],
+        "output": [
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "time",
+                "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 147357954628972456))",
+                "local": true,
+                "path": "error::try_from_parsed::TryFromParsed",
+                "stable_crate_id": "StableCrateId(5756332677883213349)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "error::try_from_parsed::TryFromParsed"
+          }
+        ],
+        "safety": "Safe",
+        "variadic": false
+      },
+      "trait_arguments": [
+        {
+          "display_only": true,
+          "identity": {
+            "arguments": [],
+            "definition": {
+              "crate": "time",
+              "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 147357954628972456))",
+              "local": true,
+              "path": "error::try_from_parsed::TryFromParsed",
+              "stable_crate_id": "StableCrateId(5756332677883213349)"
+            },
+            "kind": "adt"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "error::try_from_parsed::TryFromParsed"
+        },
+        {
+          "display_only": true,
+          "identity": {
+            "arguments": [],
+            "definition": {
+              "crate": "time",
+              "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 12653267750804326261))",
+              "local": true,
+              "path": "error::component_range::ComponentRange",
+              "stable_crate_id": "StableCrateId(5756332677883213349)"
+            },
+            "kind": "adt"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "error::component_range::ComponentRange"
+        }
+      ],
+      "trait_definition": {
+        "crate": "core",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 8299352005360573279))",
+        "local": false,
+        "path": "core::convert::From",
+        "stable_crate_id": "StableCrateId(5614226571623188065)"
+      },
+      "trait_method": {
+        "crate": "core",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 5283227860215656468))",
+        "local": false,
+        "path": "core::convert::From::from",
+        "stable_crate_id": "StableCrateId(5614226571623188065)"
+      }
+    },
+    "owner": {
+      "name": "<error::try_from_parsed::TryFromParsed as core::convert::From<error::component_range::ComponentRange>>::from",
+      "identity": "DefPathHash(Fingerprint(5756332677883213349, 1044728579932909906))",
+      "compiled": {
+        "crate_name": "time",
+        "identity": "rstyle.rust.compiled-crate/1",
+        "stable_crate_id": "StableCrateId(5756332677883213349)"
+      }
+    }
+  },
+  "unwrap": {
+    "observation": {
+      "admission_authority": false,
+      "associated_error": {
+        "declared_type": [
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "time",
+                "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 5540604932886821877))",
+                "local": true,
+                "path": "error::different_variant::DifferentVariant",
+                "stable_crate_id": "StableCrateId(5756332677883213349)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "error::different_variant::DifferentVariant"
+          }
+        ],
+        "implementation_member": {
+          "crate": "time",
+          "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 6609821346132938154))",
+          "local": true,
+          "path": "error::try_from_parsed::<impl core::convert::TryFrom<error::try_from_parsed::TryFromParsed> for error::component_range::ComponentRange>::Error",
+          "stable_crate_id": "StableCrateId(5756332677883213349)"
+        },
+        "normalized_projection": [
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "time",
+                "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 5540604932886821877))",
+                "local": true,
+                "path": "error::different_variant::DifferentVariant",
+                "stable_crate_id": "StableCrateId(5756332677883213349)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "error::different_variant::DifferentVariant"
+          }
+        ],
+        "source": {
+          "digest": "xxh3-64:b5515b1bb4bb3851",
+          "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47/src/error/try_from_parsed.rs",
+          "span": {
+            "end": 1263,
+            "start": 1226
+          }
+        },
+        "trait_member": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 11505085745020835387))",
+          "local": false,
+          "path": "core::convert::TryFrom::Error",
+          "stable_crate_id": "StableCrateId(5614226571623188065)"
+        }
+      },
+      "identity": "rstyle.rust.concrete-conversion-member-observation/1",
+      "implementation": {
+        "crate": "time",
+        "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 9363731631403223511))",
+        "local": true,
+        "path": "error::try_from_parsed::<impl core::convert::TryFrom<error::try_from_parsed::TryFromParsed> for error::component_range::ComponentRange>",
+        "stable_crate_id": "StableCrateId(5756332677883213349)"
+      },
+      "implementation_source": {
+        "digest": "xxh3-64:b5515b1bb4bb3851",
+        "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47/src/error/try_from_parsed.rs",
+        "span": {
+          "end": 1489,
+          "start": 1166
+        }
+      },
+      "members": [
+        {
+          "definition": {
+            "crate": "time",
+            "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 6609821346132938154))",
+            "local": true,
+            "path": "error::try_from_parsed::<impl core::convert::TryFrom<error::try_from_parsed::TryFromParsed> for error::component_range::ComponentRange>::Error",
+            "stable_crate_id": "StableCrateId(5756332677883213349)"
+          },
+          "source": {
+            "digest": "xxh3-64:b5515b1bb4bb3851",
+            "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47/src/error/try_from_parsed.rs",
+            "span": {
+              "end": 1263,
+              "start": 1226
+            }
+          },
+          "trait_member": {
+            "crate": "core",
+            "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 11505085745020835387))",
+            "local": false,
+            "path": "core::convert::TryFrom::Error",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        {
+          "definition": {
+            "crate": "time",
+            "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 6885864826875078756))",
+            "local": true,
+            "path": "error::try_from_parsed::<impl core::convert::TryFrom<error::try_from_parsed::TryFromParsed> for error::component_range::ComponentRange>::try_from",
+            "stable_crate_id": "StableCrateId(5756332677883213349)"
+          },
+          "source": {
+            "digest": "xxh3-64:b5515b1bb4bb3851",
+            "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47/src/error/try_from_parsed.rs",
+            "span": {
+              "end": 1487,
+              "start": 1283
+            }
+          },
+          "trait_member": {
+            "crate": "core",
+            "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 9706828146766316131))",
+            "local": false,
+            "path": "core::convert::TryFrom::try_from",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        }
+      ],
+      "method": {
+        "crate": "time",
+        "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 6885864826875078756))",
+        "local": true,
+        "path": "error::try_from_parsed::<impl core::convert::TryFrom<error::try_from_parsed::TryFromParsed> for error::component_range::ComponentRange>::try_from",
+        "stable_crate_id": "StableCrateId(5756332677883213349)"
+      },
+      "method_header": {
+        "is_async": false,
+        "is_const": false
+      },
+      "method_source": {
+        "digest": "xxh3-64:b5515b1bb4bb3851",
+        "path": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47/src/error/try_from_parsed.rs",
+        "span": {
+          "end": 1487,
+          "start": 1283
+        }
+      },
+      "requested_signature": {
+        "abi": "\"Rust\"",
+        "bound_variables": 0,
+        "inputs": [
+          [
+            {
+              "display_only": true,
+              "identity": {
+                "arguments": [],
+                "definition": {
+                  "crate": "time",
+                  "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 147357954628972456))",
+                  "local": true,
+                  "path": "error::try_from_parsed::TryFromParsed",
+                  "stable_crate_id": "StableCrateId(5756332677883213349)"
+                },
+                "kind": "adt"
+              },
+              "identity_status": "known",
+              "kind": "type",
+              "value": "error::try_from_parsed::TryFromParsed"
+            }
+          ]
+        ],
+        "output": [
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [
+                {
+                  "arguments": [],
+                  "definition": {
+                    "crate": "time",
+                    "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 12653267750804326261))",
+                    "local": true,
+                    "path": "error::component_range::ComponentRange",
+                    "stable_crate_id": "StableCrateId(5756332677883213349)"
+                  },
+                  "kind": "adt"
+                },
+                {
+                  "arguments": [],
+                  "definition": {
+                    "crate": "time",
+                    "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 5540604932886821877))",
+                    "local": true,
+                    "path": "error::different_variant::DifferentVariant",
+                    "stable_crate_id": "StableCrateId(5756332677883213349)"
+                  },
+                  "kind": "adt"
+                }
+              ],
+              "definition": {
+                "crate": "core",
+                "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 3152661021953596119))",
+                "local": false,
+                "path": "core::result::Result",
+                "stable_crate_id": "StableCrateId(5614226571623188065)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "core::result::Result<error::component_range::ComponentRange, error::different_variant::DifferentVariant>"
+          }
+        ],
+        "safety": "Safe",
+        "variadic": false
+      },
+      "selected": {
+        "crate": "time",
+        "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 6885864826875078756))",
+        "local": true,
+        "path": "error::try_from_parsed::<impl core::convert::TryFrom<error::try_from_parsed::TryFromParsed> for error::component_range::ComponentRange>::try_from",
+        "stable_crate_id": "StableCrateId(5756332677883213349)"
+      },
+      "selected_arguments": [],
+      "selected_signature": {
+        "abi": "\"Rust\"",
+        "bound_variables": 0,
+        "inputs": [
+          [
+            {
+              "display_only": true,
+              "identity": {
+                "arguments": [],
+                "definition": {
+                  "crate": "time",
+                  "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 147357954628972456))",
+                  "local": true,
+                  "path": "error::try_from_parsed::TryFromParsed",
+                  "stable_crate_id": "StableCrateId(5756332677883213349)"
+                },
+                "kind": "adt"
+              },
+              "identity_status": "known",
+              "kind": "type",
+              "value": "error::try_from_parsed::TryFromParsed"
+            }
+          ]
+        ],
+        "output": [
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [
+                {
+                  "arguments": [],
+                  "definition": {
+                    "crate": "time",
+                    "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 12653267750804326261))",
+                    "local": true,
+                    "path": "error::component_range::ComponentRange",
+                    "stable_crate_id": "StableCrateId(5756332677883213349)"
+                  },
+                  "kind": "adt"
+                },
+                {
+                  "arguments": [],
+                  "definition": {
+                    "crate": "time",
+                    "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 5540604932886821877))",
+                    "local": true,
+                    "path": "error::different_variant::DifferentVariant",
+                    "stable_crate_id": "StableCrateId(5756332677883213349)"
+                  },
+                  "kind": "adt"
+                }
+              ],
+              "definition": {
+                "crate": "core",
+                "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 3152661021953596119))",
+                "local": false,
+                "path": "core::result::Result",
+                "stable_crate_id": "StableCrateId(5614226571623188065)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "core::result::Result<error::component_range::ComponentRange, error::different_variant::DifferentVariant>"
+          }
+        ],
+        "safety": "Safe",
+        "variadic": false
+      },
+      "trait_arguments": [
+        {
+          "display_only": true,
+          "identity": {
+            "arguments": [],
+            "definition": {
+              "crate": "time",
+              "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 12653267750804326261))",
+              "local": true,
+              "path": "error::component_range::ComponentRange",
+              "stable_crate_id": "StableCrateId(5756332677883213349)"
+            },
+            "kind": "adt"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "error::component_range::ComponentRange"
+        },
+        {
+          "display_only": true,
+          "identity": {
+            "arguments": [],
+            "definition": {
+              "crate": "time",
+              "definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 147357954628972456))",
+              "local": true,
+              "path": "error::try_from_parsed::TryFromParsed",
+              "stable_crate_id": "StableCrateId(5756332677883213349)"
+            },
+            "kind": "adt"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "error::try_from_parsed::TryFromParsed"
+        }
+      ],
+      "trait_definition": {
+        "crate": "core",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 8213388408043302428))",
+        "local": false,
+        "path": "core::convert::TryFrom",
+        "stable_crate_id": "StableCrateId(5614226571623188065)"
+      },
+      "trait_method": {
+        "crate": "core",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 9706828146766316131))",
+        "local": false,
+        "path": "core::convert::TryFrom::try_from",
+        "stable_crate_id": "StableCrateId(5614226571623188065)"
+      }
+    },
+    "owner": {
+      "name": "error::try_from_parsed::<impl core::convert::TryFrom<error::try_from_parsed::TryFromParsed> for error::component_range::ComponentRange>::try_from",
+      "identity": "DefPathHash(Fingerprint(5756332677883213349, 6885864826875078756))",
+      "compiled": {
+        "crate_name": "time",
+        "identity": "rstyle.rust.compiled-crate/1",
+        "stable_crate_id": "StableCrateId(5756332677883213349)"
+      }
+    }
+  },
+  "evidence": {
+    "original_capture": "time-error-conversions-416/native-default-namespace run-cNlhIj",
+    "compiler": "nightly-2026-09-30 aarch64-unknown-linux-gnu",
+    "scope": "Two original owning compiler receipts; semantic expected shapes independently transcribed from original source, not an admission fixture."
+  }
+}

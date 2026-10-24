@@ -1035,8 +1035,8 @@ another source attribute restriction. Do not rerun the bounded roster per import
 when connecting it later; retain one immutable producer receipt and bind exact
 consumer sites separately. Evidence: `/tmp/rstyle-418-original-roster-final.log`.
 
-Next connected target: original From<ComponentRange> for TryFromParsed, inverse
-TryFrom, and their source-selected caller. All known prerequisites remain explicit:
+Next connected target: original From<ComponentRange> for TryFromParsed and inverse
+TryFrom. The source audit below corrects the earlier caller assumption. All known prerequisites remain explicit:
 static-reference mixed-enum vocabulary; exact nested positive Copy and nominal
 unit DifferentVariant cleanup; variant construction, saved tag, guarded whole
 payload binding and wildcard complement; Result<ComponentRange,DifferentVariant>;
@@ -1060,3 +1060,44 @@ all231 pairs. Frozen run-y_jf65v0 vs run-b2ehei6f preserves all60 identities,
 denominators, semantic records and blocker combinations:24 admitted/29 excluded/
 7 inactive, gain0/loss0. Evidence:
 `/tmp/rstyle-418-{natural-final-comparison.json,original-oracle.log,tests-final2.log,clippy-final.log,style-final2.json,patterns-final2.log,frozen-comparison.json}`.
+
+### Tagged Copy conversion prerequisite (Data3.102; no activation)
+
+The frozen [time error selection](../eval/coverage-development/time-error-conversions/selection.json)
+now retains complete static-string mixed-enum and nominal-unit-error Result
+observations. Reference containment inspects both Result branches and every enum
+payload independently of admission. Unsupported guarded paths reject; they cannot
+become an empty origin roster or bypass admission inside a borrowed owner.
+
+Both unchanged original conversion methods pass separate source/positive-Copy and
+exact compiler-selected From/TryFrom/member/associated-Error proofs in native
+default+parsing and no-default+parsing contexts. Scoped owner normalization retains
+actual DifferentVariant rather than replacing it with unit. Existing conversion
+capture schema, reviewed core pins and structural identity keys are reused.
+Selected reexports now resolve through proven loaded child modules; direct local
+type names do not traverse a parent's module/value namesake. Imported ambiguity,
+unknown neighbors and namespace/effect authority remain separate. New routine
+fixtures use XXH3; no SHA or serialized lookup keys were added.
+
+The unchanged default selection remains22/1,407 admitted, gain0/loss0, with all917
+owned source records equal. Strict replay preserves all1,407 identities/outcomes/
+reasons and completes231 pairs. Frozen run-rgsv2ohk preserves all60 identities,
+denominators, semantic records and blocker combinations:24/29/7. Runtime oracle:
+7 public original and15 private diagnostic cases per feature context, zero
+mismatches. All1,857 tests/five existing skips plus doctests,23 inventory bookkeeping tests,
+118 schema-checked documents, fmt, locked warning-denied Clippy, style0/6,211 and
+patterns0/15 unchanged ignores
+pass. The two focused Cargo tests together take0.39s with the prebuilt driver.
+Evidence: `/tmp/rstyle-419-{natural-final-comparison.json,natural-replay-comparison.json,original-source-final.log,original-no-default-source.log,original-oracle.log,frozen-comparison.json,tests-final2.log,clippy-final5.log,style-final7.json,patterns-final3.log}`.
+
+Next delivery must connect saved tag/value flow, guarded whole-product payload
+binding, exact Result alternatives, tag-specific reference/component routes and
+ordinary caller summaries through producer, independent document verification,
+policy and adversarial composition tests. Product field indices or flattened
+origin unions cannot encode this contract. Reuse existing enum selectors and CFG
+guard checks; do not stack another observation catalogue. No original production
+caller of the inverse exists in this time version. The nearest production forward
+caller, utc_offset_try_from_parsed, still needs const-instance selection, Parsed
+getters/Option tuples, and_then/unwrap_or, exact Into-to-From selection and map_err
+composition. The two methods alone do not unlock that parser. Broad P01–P22 work
+remains active; this prerequisite grants no new admission capability.
