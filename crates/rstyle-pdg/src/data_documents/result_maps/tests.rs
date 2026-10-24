@@ -316,6 +316,59 @@ fn both_constructor_branches_conserve_exactly_one_selected_payload() {
 }
 
 #[test]
+fn payload_guards_require_positive_reachability_for_both_outcomes() {
+    for (payload, outcome) in [("ok", CfgEdgeKind::False), ("err", CfgEdgeKind::True)] {
+        for detached in ["selector", payload] {
+            let mut pair = fixture(false);
+            for edge in &mut pair.cfg.edges {
+                if edge.target == detached {
+                    edge.target = "exit".into();
+                }
+            }
+            let ops = operations(&pair);
+            let load = pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|node| node.id == payload)
+                .unwrap();
+            let guards = super::super::conditional_payloads::Guards::new(pair.as_view()).unwrap();
+            assert!(
+                guards.guarded(ops.selector, load, outcome).is_err(),
+                "{detached}"
+            );
+        }
+    }
+}
+
+#[test]
+fn payload_guard_reachability_handles_cycles_without_losing_branch_identity() {
+    let mut pair = fixture(false);
+    let mut back = pair.cfg.edges[0].clone();
+    back.id = "back".into();
+    back.source = "ok_result".into();
+    back.target = "ok".into();
+    pair.cfg.edges.push(back);
+    let guards = super::super::conditional_payloads::Guards::new(pair.as_view()).unwrap();
+    let ops = operations(&pair);
+    assert!(
+        guards
+            .guarded(ops.selector, ops.payloads[0], CfgEdgeKind::False)
+            .is_ok()
+    );
+    assert!(
+        guards
+            .guarded(ops.selector, ops.payloads[0], CfgEdgeKind::True)
+            .is_err()
+    );
+    assert!(
+        guards
+            .guarded(ops.selector, ops.payloads[1], CfgEdgeKind::True)
+            .is_ok()
+    );
+}
+
+#[test]
 fn swapped_payload_whole_result_forwarding_and_surplus_consumers_are_rejected() {
     for mutation in 0..5 {
         let mut pair = fixture(false);

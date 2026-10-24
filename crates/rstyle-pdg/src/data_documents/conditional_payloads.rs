@@ -1,4 +1,4 @@
-//! Removing a successful variant transfer must make its payload unreachable.
+//! Payloads must be reachable, and require their successful variant transfer.
 use super::*;
 use crate::HirNode;
 
@@ -19,6 +19,7 @@ pub(super) struct Guards<'a> {
     pair: PairView<'a>,
     operations: BTreeMap<String, Vec<String>>,
     outgoing: BTreeMap<&'a str, Vec<&'a crate::CfgEdge>>,
+    reachable: BTreeSet<&'a str>,
 }
 
 impl<'a> Guards<'a> {
@@ -35,10 +36,12 @@ impl<'a> Guards<'a> {
             outgoing.entry(edge.source.as_str()).or_default().push(edge);
         }
 
+        let reachable = reachable(pair.cfg.entry_node_id.as_str(), &outgoing, None, None);
         Ok(Self {
             pair,
             operations,
             outgoing,
+            reachable,
         })
     }
 
@@ -57,6 +60,9 @@ impl<'a> Guards<'a> {
     ) -> Result<(), String> {
         let controller = self.operation(&selector.id)?;
         let target = self.operation(&load.id)?;
+        if !self.reachable.contains(controller) || !self.reachable.contains(target) {
+            return Err("Variant selector or guarded payload is unreachable".into());
+        }
         if !self
             .outgoing
             .get(controller)
@@ -67,26 +73,44 @@ impl<'a> Guards<'a> {
             return Err("Variant selector lacks its successful payload branch".into());
         }
 
-        let mut pending = vec![self.pair.cfg.entry_node_id.as_str()];
-        let mut seen = BTreeSet::new();
-        while let Some(node) = pending.pop() {
-            if !seen.insert(node) {
-                continue;
-            }
-            if node == target {
-                return Err("Payload is reachable without its successful variant guard".into());
-            }
-            pending.extend(
-                self.outgoing
-                    .get(node)
-                    .into_iter()
-                    .flatten()
-                    .filter(|edge| !(node == controller && edge.kind == outcome))
-                    .map(|edge| edge.target.as_str()),
-            );
+        if reachable(
+            &self.pair.cfg.entry_node_id,
+            &self.outgoing,
+            Some((controller, outcome)),
+            Some(target),
+        )
+        .contains(target)
+        {
+            return Err("Payload is reachable without its successful variant guard".into());
         }
         Ok(())
     }
+}
+
+fn reachable<'a>(
+    entry: &'a str,
+    outgoing: &BTreeMap<&'a str, Vec<&'a crate::CfgEdge>>,
+    removed: Option<(&str, crate::CfgEdgeKind)>,
+    stop: Option<&str>,
+) -> BTreeSet<&'a str> {
+    let mut pending = vec![entry];
+    let mut seen = BTreeSet::new();
+    while let Some(node) = pending.pop() {
+        if seen.insert(node) {
+            if stop == Some(node) {
+                break;
+            }
+            pending.extend(
+                outgoing
+                    .get(node)
+                    .into_iter()
+                    .flatten()
+                    .filter(|edge| removed != Some((node, edge.kind)))
+                    .map(|edge| edge.target.as_str()),
+            );
+        }
+    }
+    seen
 }
 
 pub(super) fn binding(pair: PairView<'_>, binding: &HirNode, load: &PdgNode) -> Result<(), String> {
