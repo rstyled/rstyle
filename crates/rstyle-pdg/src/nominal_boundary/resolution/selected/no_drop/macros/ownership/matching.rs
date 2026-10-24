@@ -4,6 +4,8 @@ use syn::{
     ext::IdentExt,
     parse::{Parse, ParseStream, Parser, discouraged::Speculative},
 };
+#[cfg(test)]
+mod tests;
 
 pub(super) fn complete(
     pattern: &[Node],
@@ -226,15 +228,26 @@ impl Matcher<'_, '_> {
             Node::Group(delimiter, _) => Ok(
                 matches!(fork.parse::<TokenTree>(), Ok(TokenTree::Group(group)) if group.delimiter() == *delimiter),
             ),
-            Node::Capture(_, Some(fragment)) => match self.capture(*fragment, &fork) {
-                Ok(_) => Ok(true),
-                Err(Failure::Mismatch) => Ok(false),
-                Err(error) => Err(error),
-            },
+            Node::Capture(_, Some(_)) => self.capture_start(pattern, input),
             Node::Repeat { .. } => self.repeat_start(pattern, input),
             _ => Err(Failure::Unsupported(
                 "Unsupported ownership matcher start".into(),
             )),
+        }
+    }
+
+    fn capture_start(&mut self, pattern: &[Node], input: ParseStream<'_>) -> Result<bool, Failure> {
+        let Node::Capture(_, Some(fragment)) = &pattern[0] else {
+            unreachable!();
+        };
+        let fork = input.fork();
+        match self.capture(*fragment, &fork) {
+            Ok(_) if matches!(fragment, Fragment::Vis) && fork.cursor() == input.cursor() => {
+                self.starts(&pattern[1..], input)
+            }
+            Ok(_) => Ok(true),
+            Err(Failure::Mismatch) => Ok(false),
+            Err(error) => Err(error),
         }
     }
 
@@ -258,6 +271,15 @@ impl Matcher<'_, '_> {
     ) -> Result<TokenStream, Failure> {
         self.budget.charge(1)?;
         if input.is_empty() && !matches!(fragment, Fragment::Vis) {
+            return Err(Failure::Mismatch);
+        }
+        // These punctuation tokens cannot begin a Rust type. This is a
+        // fragment mismatch, including in ordered arms and repetition
+        // lookahead. A possible type prefix still receives a complete parse;
+        // unsupported or malformed syntax remains terminal.
+        if matches!(fragment, Fragment::Ty)
+            && (input.peek(syn::Token![#]) || input.peek(syn::Token![@]))
+        {
             return Err(Failure::Mismatch);
         }
         if matches!(fragment, Fragment::Tt) {

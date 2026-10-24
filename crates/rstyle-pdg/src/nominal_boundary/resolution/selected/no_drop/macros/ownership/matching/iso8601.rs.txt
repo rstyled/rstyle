@@ -1,0 +1,48 @@
+// Original time 0.3.47 well_known/iso8601.rs macro and complete invocation.
+macro_rules! define_assoc_consts {
+    ($($(#[$doc:meta])* $vis:vis const $const_name:ident = $format:expr;)*) => {$(
+        const $const_name: EncodedConfig = $format.encode();
+        impl Iso8601<$const_name> {
+            $(#[$doc])*
+            $vis const $const_name: Self = Self;
+        }
+    )*};
+}
+
+define_assoc_consts! {
+    /// An [`Iso8601`] with the default configuration.
+    ///
+    /// The following is the default behavior:
+    ///
+    /// - The configuration can be used for both formatting and parsing.
+    /// - The date, time, and UTC offset are all formatted.
+    /// - Separators (such as `-` and `:`) are included.
+    /// - The year contains four digits, such that the year must be between 0 and 9999.
+    /// - The date uses the calendar format.
+    /// - The time has precision to the second and nine decimal digits.
+    /// - The UTC offset has precision to the minute.
+    ///
+    /// If you need different behavior, use another associated constant. For full customization, use
+    /// [`Config::DEFAULT`] and [`Config`]'s methods to create a custom configuration.
+    pub const DEFAULT = Config::DEFAULT;
+    /// An [`Iso8601`] that can only be used for parsing. Using this to format a value is
+    /// unspecified behavior.
+    pub const PARSING = Config::PARSING;
+    /// An [`Iso8601`] that handles only the date, but is otherwise the same as [`Config::DEFAULT`].
+    pub const DATE = Config::DEFAULT.set_formatted_components(FormattedComponents::Date);
+    /// An [`Iso8601`] that handles only the time, but is otherwise the same as [`Config::DEFAULT`].
+    pub const TIME = Config::DEFAULT.set_formatted_components(FormattedComponents::Time);
+    /// An [`Iso8601`] that handles only the UTC offset, but is otherwise the same as
+    /// [`Config::DEFAULT`].
+    pub const OFFSET = Config::DEFAULT.set_formatted_components(FormattedComponents::Offset);
+    /// An [`Iso8601`] that handles the date and time, but is otherwise the same as
+    /// [`Config::DEFAULT`].
+    pub const DATE_TIME = Config::DEFAULT.set_formatted_components(FormattedComponents::DateTime);
+    /// An [`Iso8601`] that handles the date, time, and UTC offset. This is the same as
+    /// [`Config::DEFAULT`].
+    pub const DATE_TIME_OFFSET = Config::DEFAULT;
+    /// An [`Iso8601`] that handles the time and UTC offset, but is otherwise the same as
+    /// [`Config::DEFAULT`].
+    pub const TIME_OFFSET = Config::DEFAULT
+        .set_formatted_components(FormattedComponents::TimeOffset);
+}
