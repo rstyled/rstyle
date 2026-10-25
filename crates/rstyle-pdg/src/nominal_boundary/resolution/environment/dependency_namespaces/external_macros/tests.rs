@@ -116,7 +116,10 @@ impl Fixture {
             &self.import,
             Arc::clone(&self.census),
             &self.namespaces,
-            &[],
+            Review {
+                cfgs: &[],
+                corrected: false,
+            },
         )
     }
 
@@ -162,7 +165,7 @@ fn invocation() -> syn::Macro {
 #[test]
 fn associated_source_receipt_returns_every_expression_for_the_original_module_binding() {
     let mut fixture = Fixture::new(IMPORT);
-    assert!(producer(&fixture.import, &[fixture.facts()]).is_ok());
+    assert!(producer(&fixture.import, &[fixture.facts()], false).is_ok());
     let names = ["smart_display", "padded_width_of"].map(String::from);
     assert!(
         fixture
@@ -245,15 +248,15 @@ fn producer_build_identity_cfg_and_missing_evidence_are_barriers() {
     let fixture = Fixture::new(IMPORT);
     let mut facts = fixture.facts();
     facts.build.cfgs.push("doc".into());
-    assert!(producer(&fixture.import, &[facts]).is_err());
+    assert!(producer(&fixture.import, &[facts], false).is_err());
     let mut facts = fixture.facts();
     facts.build.frontend_options.insert(
         "rstyle.rust.compiled-crate".into(),
         serde_json::json!({"identity":"rstyle.rust.compiled-crate/1",
             "crate_name":"powerfmt", "stable_crate_id":"wrong"}),
     );
-    assert!(producer(&fixture.import, &[facts]).is_err());
-    assert!(producer(&fixture.import, &[]).is_err());
+    assert!(producer(&fixture.import, &[facts], false).is_err());
+    assert!(producer(&fixture.import, &[], false).is_err());
 }
 
 #[test]
@@ -362,4 +365,47 @@ fn consumer_environment(consumer: &UnitFile) -> Environment {
         false,
     )
     .unwrap()
+}
+
+#[test]
+fn corrected_source_needs_explicit_consumer_permission_and_the_same_exact_owner_route() {
+    let mut fixture = Fixture::new(IMPORT);
+    let root = include_str!("../../../selected/no_drop/external_expression_macros/lib.rs.021.txt");
+    let module = include_str!(
+        "../../../selected/no_drop/external_expression_macros/smart_display.rs.021.txt"
+    );
+    let census = Arc::make_mut(&mut fixture.census);
+    census.files = vec![
+        file("/original/powerfmt/src/lib.rs", root),
+        file("/original/powerfmt/src/smart_display.rs", module),
+    ];
+    let site = &mut fixture.namespaces.declarations[0].site;
+    site.declaration = location(
+        &census.files[1],
+        "pub use __not_public_at_root__padded_width_of as padded_width_of;",
+    );
+    site.leaf = site.declaration.clone();
+    site.leaf.span = ByteSpan {
+        start: 8253,
+        end: 8290,
+    };
+    assert!(producer(&fixture.import, &[fixture.facts()], false).is_err());
+    let receipt = producer(&fixture.import, &[fixture.facts()], true).unwrap();
+    fixture
+        .environment
+        .dependency_namespaces
+        .external_macros
+        .push(receipt);
+    let names = ["smart_display", "padded_width_of"].map(String::from);
+    assert_eq!(
+        fixture
+            .environment
+            .external_macro_expressions(&[], &names, &invocation())
+            .unwrap()
+            .unwrap()
+            .len(),
+        4
+    );
+    fixture.import.exports[0].route.clear();
+    assert!(producer(&fixture.import, &[fixture.facts()], true).is_err());
 }

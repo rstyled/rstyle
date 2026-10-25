@@ -12,6 +12,14 @@ use crate::{
 use std::sync::Arc;
 pub(crate) const CAPABILITY: &str = "rust.checked-external-expression-macro-ownership";
 
+pub(crate) const CORRECTED_CAPABILITY: &str = "rust.checked-corrected-expression-macro-ownership";
+
+#[derive(Clone, Copy)]
+pub(crate) struct Review<'a> {
+    pub cfgs: &'a [String],
+    pub corrected: bool,
+}
+
 /// All observations must belong to the caller's independently associated
 /// producer. This component cannot establish compiled artifact ownership.
 pub(crate) struct Input<'a> {
@@ -20,7 +28,7 @@ pub(crate) struct Input<'a> {
     pub export: &'a Export,
     /// Exact original complete macro item, including its cfg/export attributes.
     pub definition: &'a FileSpan,
-    pub cfgs: &'a [String],
+    pub review: Review<'a>,
 }
 
 /// Private construction requires checked original bytes and namespace joins.
@@ -89,14 +97,14 @@ pub(crate) fn from_owner(
     census: Arc<Census>,
     namespaces: &UnitCapture,
     export: &Export,
-    cfgs: &[String],
+    review: Review<'_>,
 ) -> Result<Receipt, String> {
-    let definition = source::definition(&census, cfgs)?;
+    let definition = source::definition(&census, review)?;
     verify(Input {
         census,
         namespaces,
         export,
         definition: &definition,
-        cfgs,
+        review,
     })
 }

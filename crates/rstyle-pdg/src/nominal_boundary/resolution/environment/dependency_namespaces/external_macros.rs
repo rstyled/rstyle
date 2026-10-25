@@ -5,7 +5,8 @@ use crate::{
     nominal_boundary::resolution::selected::no_drop::external_expression_macros::{self, Receipt},
 };
 
-pub(super) use external_expression_macros::CAPABILITY;
+use external_expression_macros::Review;
+pub(super) use external_expression_macros::{CAPABILITY, CORRECTED_CAPABILITY};
 
 pub(super) struct OwnedMacro {
     import: Site,
@@ -13,7 +14,12 @@ pub(super) struct OwnedMacro {
 }
 
 impl Environment {
-    pub(super) fn add_external_macro(&mut self, import: &Import, functions: &[HirFnFacts]) {
+    pub(super) fn add_external_macro(
+        &mut self,
+        import: &Import,
+        functions: &[HirFnFacts],
+        corrected: bool,
+    ) {
         // Discovery only: these spellings grant no source or artifact authority.
         if import.site.target_kind != "Mod"
             || import.site.target.path != "powerfmt::smart_display"
@@ -22,7 +28,7 @@ impl Environment {
             return;
         }
         // Failed evidence retains the ordinary unresolved external-macro barrier.
-        if let Ok(owned) = producer(import, functions)
+        if let Ok(owned) = producer(import, functions, corrected)
             && crate::dependency_namespaces::proof::verify_site(
                 &self.census,
                 &self.modules,
@@ -189,7 +195,11 @@ impl Environment {
     }
 }
 
-fn producer(import: &Import, functions: &[HirFnFacts]) -> Result<OwnedMacro, String> {
+fn producer(
+    import: &Import,
+    functions: &[HirFnFacts],
+    corrected: bool,
+) -> Result<OwnedMacro, String> {
     let facts = functions.first().ok_or("Missing external macro producer")?;
     let compiled = facts
         .build
@@ -208,14 +218,22 @@ fn producer(import: &Import, functions: &[HirFnFacts]) -> Result<OwnedMacro, Str
     let namespaces = crate::dependency_namespaces::unit_capture(functions)?
         .ok_or("Missing external macro producer namespaces")?;
     let census = facts.build.frontend_options.data::<Arc<census::Census>>()?;
-    prove(import, Arc::clone(&census), &namespaces, &facts.build.cfgs)
+    prove(
+        import,
+        Arc::clone(&census),
+        &namespaces,
+        Review {
+            cfgs: &facts.build.cfgs,
+            corrected,
+        },
+    )
 }
 
 fn prove(
     import: &Import,
     census: Arc<census::Census>,
     namespaces: &UnitCapture,
-    cfgs: &[String],
+    review: Review<'_>,
 ) -> Result<OwnedMacro, String> {
     let exports: Vec<_> = import
         .exports
@@ -248,7 +266,7 @@ fn prove(
     }
     Ok(OwnedMacro {
         import: import.site.clone(),
-        receipt: external_expression_macros::from_owner(census, namespaces, export, cfgs)?,
+        receipt: external_expression_macros::from_owner(census, namespaces, export, review)?,
     })
 }
 

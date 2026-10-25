@@ -3,6 +3,8 @@ use crate::{ByteSpan, nominal_boundary::census::UnitFile};
 use syn::spanned::Spanned;
 
 pub(super) const MODULE: &str = include_str!("smart_display.rs.txt");
+pub(super) const CORRECTED_MODULE: &str = include_str!("smart_display.rs.021.txt");
+pub(super) const CORRECTED_ROOT: &str = include_str!("lib.rs.021.txt");
 const ROOT: &str = include_str!("lib.rs.txt");
 const DEFINITION: &str = "__not_public_at_root__padded_width_of";
 
@@ -12,7 +14,7 @@ pub(super) struct Template {
     leaf: ByteSpan,
 }
 
-pub(super) fn definition(census: &Census, cfgs: &[String]) -> Result<FileSpan, String> {
+pub(super) fn definition(census: &Census, review: Review<'_>) -> Result<FileSpan, String> {
     let path = census
         .context
         .root_source
@@ -23,7 +25,7 @@ pub(super) fn definition(census: &Census, cfgs: &[String]) -> Result<FileSpan, S
     Ok(FileSpan {
         path: module.path.clone(),
         digest: module.digest.clone(),
-        span: template(&module.bytes, cfgs)?.definition,
+        span: template_reviewed(&module.bytes, review)?.definition,
     })
 }
 
@@ -36,9 +38,6 @@ pub(super) fn verify(input: &Input<'_>) -> Result<(), String> {
     }
 
     let root = file(&input.census, &input.census.context.root_source)?;
-    if root.bytes.as_ref() != ROOT {
-        return Err("External macro root module route changed".into());
-    }
 
     let path = root
         .path
@@ -46,7 +45,14 @@ pub(super) fn verify(input: &Input<'_>) -> Result<(), String> {
         .ok_or("Missing macro source root")?
         .join("smart_display.rs");
     let module = file(&input.census, &path)?;
-    let template = template(&module.bytes, input.cfgs)?;
+    let paired = root.bytes.as_ref() == ROOT && module.bytes.as_ref() == MODULE
+        || input.review.corrected
+            && root.bytes.as_ref() == CORRECTED_ROOT
+            && module.bytes.as_ref() == CORRECTED_MODULE;
+    if !paired {
+        return Err("External macro root/module source pair differs from reviewed release".into());
+    }
+    let template = template_reviewed(&module.bytes, input.review)?;
 
     if input.definition.path != module.path
         || input.definition.digest != module.digest
@@ -75,13 +81,24 @@ fn file<'a>(census: &'a Census, path: &std::path::Path) -> Result<&'a UnitFile, 
 
 /// Exact complete module bytes retain every matcher/transcriber, including the
 /// original alternate -> with_width arm. No rule is inferred from its name.
+#[cfg(test)]
 pub(super) fn template(bytes: &str, cfgs: &[String]) -> Result<Template, String> {
-    if bytes != MODULE {
+    template_reviewed(
+        bytes,
+        Review {
+            cfgs,
+            corrected: false,
+        },
+    )
+}
+
+fn template_reviewed(bytes: &str, review: Review<'_>) -> Result<Template, String> {
+    if bytes != MODULE && !(review.corrected && bytes == CORRECTED_MODULE) {
         return Err("External expression macro module differs from reviewed source".into());
     }
 
     let file = syn::parse_file(bytes).map_err(|error| error.to_string())?;
-    let configuration = crate::conditional_source::Configuration::new(cfgs);
+    let configuration = crate::conditional_source::Configuration::new(review.cfgs);
     let mut definition = None;
     let mut reexport = None;
 

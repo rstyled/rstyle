@@ -38,7 +38,14 @@ impl Environment {
                 continue;
             };
             if macros {
-                self.add_external_macro(import, owner.functions());
+                self.add_external_macro(
+                    import,
+                    owner.functions(),
+                    crate::extraction_profile::facts_support(
+                        input.facts(),
+                        external_macros::CORRECTED_CAPABILITY,
+                    ),
+                );
             }
             if !ordinary {
                 continue;

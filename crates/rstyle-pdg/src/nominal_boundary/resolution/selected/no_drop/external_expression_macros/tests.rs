@@ -1,5 +1,5 @@
 use super::*;
-use syn::visit::Visit;
+use syn::{spanned::Spanned, visit::Visit};
 mod fixture;
 use fixture::Fixture;
 
@@ -261,4 +261,90 @@ fn self_consistent_rechecksums_do_not_authorize_changed_definition_cfg_or_export
         rewrite_module(&mut fixture, from, to);
         assert!(verify(fixture.input()).is_err());
     }
+}
+
+fn verify_corrected(fixture: &Fixture) -> Result<Receipt, String> {
+    let mut input = fixture.input();
+    input.review.corrected = true;
+    verify(input)
+}
+
+#[test]
+fn corrected_source_requires_new_review_and_preserves_all_value_and_option_expressions() {
+    let fixture = Fixture::corrected();
+    assert!(
+        verify(fixture.input()).is_err(),
+        "legacy review must reject newer bytes"
+    );
+    let receipt = verify_corrected(&fixture).unwrap();
+    assert!(verify_corrected(&Fixture::original()).is_ok());
+    let text = "smart_display::padded_width_of!({ struct Value; 1 }, 2 => alternate({ struct Alternate; true }) width({ struct Width; 3 }))";
+    let invocation: syn::ExprMacro = syn::parse_str(text).unwrap();
+    let expressions = receipt
+        .expressions(&invocation.mac, &fixture.export.target)
+        .unwrap();
+    let actual: Vec<_> = expressions
+        .iter()
+        .map(|expression| {
+            let span = crate::source_evidence::original_span(text, expression.span());
+            &text[span.start as usize..span.end as usize]
+        })
+        .collect();
+    assert_eq!(
+        actual,
+        [
+            "{ struct Value; 1 }",
+            "2",
+            "{ struct Alternate; true }",
+            "{ struct Width; 3 }"
+        ]
+    );
+    let site = &fixture.namespaces.declarations[0].site;
+    assert_eq!(
+        site.declaration.span,
+        crate::ByteSpan {
+            start: 8245,
+            end: 8310
+        }
+    );
+    assert_eq!(
+        &fixture.census.files[1].bytes[8245..8310],
+        "pub use __not_public_at_root__padded_width_of as padded_width_of;"
+    );
+}
+
+#[test]
+fn corrected_review_rejects_coherent_source_changes_mixed_releases_and_inactive_exports() {
+    for (from, to) in [
+        (".with_alternate($e)", ".with_width($e)"),
+        ("#[cfg(not(doc))]", "#[cfg(doc)]"),
+        ("as padded_width_of;", "as another_macro;"),
+        ("(@inner []", "(@changed []"),
+    ] {
+        let mut fixture = Fixture::corrected();
+        rewrite_module(&mut fixture, from, to);
+        assert!(verify_corrected(&fixture).is_err());
+    }
+    for original_root in [false, true] {
+        let mut fixture = if original_root {
+            Fixture::corrected()
+        } else {
+            Fixture::original()
+        };
+        let file = &mut Arc::make_mut(&mut fixture.census).files[0];
+        file.bytes = if original_root {
+            include_str!("lib.rs.txt")
+        } else {
+            source::CORRECTED_ROOT
+        }
+        .into();
+        file.digest = file.bytes.checksum().into();
+        assert!(verify_corrected(&fixture).is_err());
+    }
+    let mut fixture = Fixture::corrected();
+    fixture.cfgs.push("doc".into());
+    assert!(verify_corrected(&fixture).is_err());
+    fixture.cfgs.clear();
+    fixture.namespaces.declarations[0].site.leaf.span.start -= 1;
+    assert!(verify_corrected(&fixture).is_err());
 }

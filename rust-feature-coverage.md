@@ -5385,3 +5385,13 @@ previous prelude rejection advances to powerfmt0.2.1 macro source ownership.
 The latter changes the alternate expansion and requires a separate reviewed
 contract. Deranged0.5.9 also differs from the default lockfile; downstream source
 closure remains unproved. Option<ParsedItem> callable summaries remain separate.
+
+Data3.111 closes the next no-default source dependency with a separately gated,
+exact powerfmt0.2.1 root/module contract, retaining all14 rules and every value/
+option expression. Mixed-release files, altered expansions/routes/coordinates
+and inactive exports remain rejected; no formatting-effect summary is implied.
+Strict replay now admits original ExactlyNDigits::<1/2/3>::parse in both declared
+contexts. No-default gains these three and ComponentRange::{name,is_conditional}:
+22→27/1,406, loss0; all231 previous pair records persist and all351 current pairs
+complete. Caller support still requires Option/product summaries, residual/value
+flow, generic callbacks and the other branches of each complete original caller.

@@ -31,13 +31,46 @@ impl Fixture {
         }
     }
 
+    pub fn corrected() -> Self {
+        let mut fixture = Self::original();
+        let census = Arc::make_mut(&mut fixture.census);
+        census.files = vec![
+            file("lib.rs", source::CORRECTED_ROOT),
+            file("smart_display.rs", source::CORRECTED_MODULE),
+        ];
+        let package = &mut census.context.package;
+        package.version = "0.2.1".into();
+        package.package_id = "registry+original#powerfmt@0.2.1".into();
+        package.manifest_bytes = package
+            .manifest_bytes
+            .replace("version = \"0.2.0\"", "version = \"0.2.1\"")
+            .into();
+        package.manifest_digest = package.manifest_bytes.checksum().into();
+        let (definition, mut declaration, mut leaf) = coordinates(&census.files[1]);
+        // Independent pinned rustc observation in run-fRDbW5/invocation-TM3PfR.
+        declaration.span = crate::ByteSpan {
+            start: 8245,
+            end: 8310,
+        };
+        leaf.span = crate::ByteSpan {
+            start: 8253,
+            end: 8290,
+        };
+        fixture.definition = definition;
+        fixture.namespaces = namespaces(&fixture.export, declaration, leaf);
+        fixture
+    }
+
     pub fn input(&self) -> Input<'_> {
         Input {
             census: Arc::clone(&self.census),
             namespaces: &self.namespaces,
             export: &self.export,
             definition: &self.definition,
-            cfgs: &self.cfgs,
+            review: Review {
+                cfgs: &self.cfgs,
+                corrected: false,
+            },
         }
     }
 }

@@ -1248,3 +1248,36 @@ retains29/1,506 admissions and all406 pairs, gain0/loss0. Replaying the older
 checks were preserved and the identical locked context recaptured. The frozen
 roster and foreign native CI were not rerun for this source-only increment.
 Evidence: `/tmp/rstyle-433-{unit2.log,cargo-test.log,nextest.log,clippy2.log,fmt.log,style-final.json,patterns.log,no-default-strict-comparison.json,default-fresh-strict-comparison.json}`.
+
+
+Data3.111 / corrected macro source (2480d84 baseline): independently reviewed
+powerfmt0.2.1 changes alternate->with_alternate, docsrs metadata and inline
+annotations. New capability checks the exact paired root/module bytes, original
+macro/export spans, all14 arms, active cfg and the same compiled dependency edge.
+A mixed0.2.0/0.2.1 pair is rejected even after consistent rechecksums. Independent
+expression expectations retain each value/option; legacy review settings cannot
+accept the new source. No callable/effect/purity contract or runtime SHA is added.
+Original no-default run-9kd3tB and strict replay preserve all1,406 identities and
+admit27 (22 baseline), gaining the three selected digit parsers and two audited
+ComponentRange getters, loss0. All231 old pair records persist; all351 current
+pairs complete. This completes the selected leaves in both feature contexts;
+Deranged0.5.9 introduces no further blocker for this selection. parse_subsecond
+remains excluded: N4..9 array-map/iterator callbacks, Option/product helper and
+residual/component flow, map conversion callbacks, and the OneOrMore loop branch
+are still a connected dependency chain. No supported-prefix caller claim follows.
+
+Validation:2,094 workspace tests pass/five existing skips plus doctests; fmt,
+warning-denied Clippy,style0/6,929 and patterns0/15 unchanged ignores pass.
+Default run-NA2mz9 and strict replay retain29/1,506 admissions and406 unchanged
+pairs, gain0/loss0. Original native oracle:229,554 checks/context, zero mismatches.
+Fresh frozen run-0w329uds verifies118 documents and preserves all60 source
+identities, denominators, outcomes/reasons and blocker combinations:24 admitted,
+29 excluded,7 inactive; only producer revision and transient capture paths/IDs differ.
+Foreign native CI remains unverified. Logs: `/tmp/rstyle-434-{nextest.log,clippy.log,fmt.log,style.json,patterns.log,oracle.json,frozen-comparison.json,no-default-strict-comparison.json,default-strict-comparison.json}`.
+Next bounded callers: original rfc::iso8601::{hour,min}, both direct two-digit
+forwarders in these same locked contexts. Prove complete Option/product return
+transport, conditional prefix reads and exact concrete call linkage before source/
+cleanup receipts permit them. Expect decimal0..99 and exact input[2..] on success;
+short/nondigit input returns None. Preserve mismatched reads, suffix/component
+origins, callee identity/build and hidden-drop negatives. General callbacks and
+parse_subsecond remain outside this first forwarding contract.
