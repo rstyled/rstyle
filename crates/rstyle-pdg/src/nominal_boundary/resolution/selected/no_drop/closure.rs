@@ -81,6 +81,10 @@ fn verify_mode(
 
     let mut visitor = Closure {
         dependency_sources: Some(environment),
+        digit_products: supports(
+            facts,
+            crate::scalar_product_instances::activation::VALUE_CAPABILITY,
+        )?,
         external_macros,
         ownership_engine,
         ownership_macros: ownership_resolver(environment, facts, &enums)?,
@@ -443,6 +447,7 @@ fn inspect_policy(
     } = policy;
     let mut visitor = Closure {
         dependency_sources: None,
+        digit_products: external_macros,
         external_macros,
         ownership_engine,
         ownership_macros: None,
@@ -487,6 +492,7 @@ fn shadows_primitive(item: &syn::Item) -> bool {
 
 struct Closure<'a> {
     dependency_sources: Option<&'a Environment>,
+    digit_products: bool,
     external_macros: bool,
     ownership_engine: bool,
     ownership_macros: Option<source_macros::SourceMacros>,
@@ -656,7 +662,7 @@ impl Closure<'_> {
         if self.unknown_glob() {
             return false;
         }
-        if self.enums.known_trait(path) {
+        if self.enums.known_trait(path) || self.direct_relative_trait(path) {
             return true;
         }
 
@@ -670,6 +676,39 @@ impl Closure<'_> {
             .and_then(|scope| scope.get(&format!("trait:{name}")))
             .copied()
             .unwrap_or(false)
+    }
+    fn direct_relative_trait(&self, path: &syn::Path) -> bool {
+        if !self.digit_products || self.generated_context != 0 {
+            return false;
+        }
+        let Some(names) = crate::source_evidence::plain_relative_path(path) else {
+            return false;
+        };
+        let Some(environment) = self.dependency_sources else {
+            return false;
+        };
+        if !self.enums.direct_relative_trait(&names)
+            || self
+                .scopes
+                .iter()
+                .skip(1)
+                .any(|scope| scope.contains_key(&names[0]))
+        {
+            return false;
+        }
+        let mut namespace = self.enums.namespace.clone();
+
+        for name in &names {
+            if environment
+                .index
+                .imports
+                .contains_key(&(namespace.clone(), name.clone()))
+            {
+                return false;
+            }
+            namespace.push(name.clone());
+        }
+        true
     }
     fn local_nominal(&self, item: &syn::ItemImpl) -> bool {
         let mut ty = item.self_ty.as_ref();
@@ -816,7 +855,8 @@ impl Closure<'_> {
         }
         if self.reference_product
             && let Some(name) = name
-            && prelude_traits::REFERENCE_NAMES.contains(&name.to_string().as_str())
+            && (prelude_traits::REFERENCE_NAMES.contains(&name.to_string().as_str())
+                || self.digit_products && (name == "PartialOrd" || name == "Default"))
         {
             self.names
                 .reference_prelude_shadowed
@@ -916,8 +956,14 @@ impl Closure<'_> {
         Ok(true)
     }
     fn collect_reference_import(&mut self, item: &syn::ItemUse) {
-        for (name, _) in source_imports::bindings(&item.tree) {
-            if prelude_traits::REFERENCE_NAMES.contains(&name.as_str()) {
+        for (name, path) in source_imports::bindings(&item.tree) {
+            let comparison = self.digit_products
+                && path == ["core", "cmp", name.as_str()]
+                && library_macros::core_cmp(&path[..2], &name, self.library);
+            if (prelude_traits::REFERENCE_NAMES.contains(&name.as_str())
+                || self.digit_products && matches!(name.as_str(), "PartialOrd" | "Default"))
+                && !comparison
+            {
                 self.names.reference_prelude_shadowed.insert(name);
             }
         }
@@ -928,7 +974,10 @@ impl Closure<'_> {
             self.names.reference_prelude_shadowed.extend(
                 prelude_traits::REFERENCE_NAMES
                     .iter()
-                    .map(|name| (*name).to_owned()),
+                    .copied()
+                    .chain(self.digit_products.then_some("PartialOrd"))
+                    .chain(self.digit_products.then_some("Default"))
+                    .map(str::to_owned),
             );
         }
     }
@@ -1033,11 +1082,19 @@ impl Closure<'_> {
             self.names.verify(
                 item,
                 headers::Resolution {
+                    precise_non_drop: self.digit_products,
                     local_nominal: self.local_nominal(item),
                     standard_roots: !self.unknown_glob(),
                     local_trait: self.local_trait(item),
                     reference_product_debug: self.reference_product_debug(item),
                     reference_product_prelude: self.reference_product_prelude(item),
+                    core_arithmetic: if self.digit_products && self.enums.closed_imports {
+                        item.trait_.as_ref().and_then(|(_, path, _)| {
+                            headers::core_arithmetic::resolve(path, &self.scopes, self.library)
+                        })
+                    } else {
+                        None
+                    },
                     resolved_trait: if self.enums.closed_imports {
                         item.trait_.as_ref().and_then(|(_, path, _)| {
                             source_imports::resolve(path, &self.scopes)
@@ -1092,6 +1149,11 @@ impl Closure<'_> {
             || self.names.aliases.contains(&name)
         {
             return None;
+        }
+        if self.digit_products
+            && let Some(checked) = prelude_traits::source_header(path, &self.scopes, self.library)
+        {
+            return Some(checked);
         }
         prelude_traits::reference_product(path, &self.scopes, self.library, self.edition)
     }

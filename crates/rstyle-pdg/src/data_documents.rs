@@ -26,7 +26,7 @@ mod index_reads;
 mod indirect_reads;
 mod iterator_position;
 mod locals;
-mod locations;
+pub(crate) mod locations;
 mod memory_flow;
 mod mutable_scalars;
 pub(crate) mod named_callbacks;
@@ -241,11 +241,33 @@ fn install_derived_reads(
         iterator_position::install,
     ];
 
+    let prefix =
+        crate::scalar_product_instances::activation::when_checked(context.facts, |checked| {
+            crate::slice_patterns::locations::install(pair, context, checked.prefix())
+        })?
+        .unwrap_or_default();
+
     installers
         .into_iter()
-        .try_fold(BTreeMap::new(), |locations, install| {
+        .try_fold(prefix, |locations, install| {
             crate::helper_reads::merge_locations(locations, install(pair, context)?)
         })
+}
+
+fn verify_memory_and_prefix(
+    pair: PairView<'_>,
+    context: &mut LocationContext<'_>,
+) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {
+    let mut locations = verify_memory(pair, context)?;
+    if let Some(prefix) =
+        crate::scalar_product_instances::activation::when_checked(context.facts, |checked| {
+            crate::slice_patterns::locations::verify(pair, context, checked.prefix())
+        })?
+    {
+        locations.extend(prefix);
+    }
+
+    Ok(locations)
 }
 
 fn finish_locations(
@@ -457,7 +479,7 @@ pub fn verify<'a>(
         verify_field(pair, &mut context, field, &mut expected)?;
     }
     expected.extend(verify_derived_reads(pair, &mut context, &calls)?);
-    expected.extend(verify_memory(pair, &mut context)?);
+    expected.extend(verify_memory_and_prefix(pair, &mut context)?);
 
     let actual: BTreeMap<_, _> = pair
         .pdg
@@ -772,6 +794,7 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<
         .iter()
         .any(|access| access.location_id.is_some())
         || !field
+            && !prefix_read(node, pair)
             && !payload
             && !iterator
             && !indexed
@@ -781,6 +804,15 @@ fn invalid_memory_access(node: &crate::PdgNode, pair: crate::producer::PairView<
                 .reads
                 .iter()
                 .any(|access| access.location_id.is_some())
+}
+
+fn prefix_read(node: &crate::PdgNode, pair: PairView<'_>) -> bool {
+    node.category == NodeCategory::Read
+        && node.attributes.construct.as_deref() == Some("slice.prefix-byte")
+        && crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            crate::scalar_product_instances::activation::VALUE_CAPABILITY,
+        )
 }
 
 fn read_only_call(node: &crate::PdgNode, pair: crate::producer::PairView<'_>) -> bool {
@@ -936,29 +968,70 @@ fn method_value(pair: PairView<'_>, source: &crate::HirNode, node: &PdgNode) -> 
             && node.attributes.construct.as_deref() == Some(crate::result_maps::RESULT)
 }
 
-fn verify_field_value_edge(
-    pair: crate::producer::PairView<'_>,
-    node: &crate::PdgNode,
-    base: &crate::PdgNode,
-) -> Result<(), String> {
-    let operands: Vec<_> = pair
+/// Require a unique operation record, independently of any emitter ordering.
+pub(crate) fn extension_record<'a>(
+    pair: PairView<'a>,
+    key: &str,
+    node: &str,
+) -> Result<&'a serde_json::Value, String> {
+    let records = pair
         .pdg
-        .edges
+        .extensions
+        .get(key)
+        .and_then(serde_json::Value::as_array)
+        .ok_or("Missing operation extension inventory")?;
+    let mut matched = records
         .iter()
-        .filter(|edge| {
-            edge.target == node.id
-                && edge.kind == crate::EdgeFamily::Data
-                && edge.subkind == "value_operand"
-        })
-        .collect();
-    if operands.len() != 1
-        || operands[0].source != base.id
-        || operands[0].operand_position != Some(0)
-    {
-        return Err("Serialized field read loses single base evaluation/dependence".into());
+        .filter(|record| record["pdg_node_id"] == node);
+    let record = matched.next().ok_or("Missing operation extension record")?;
+    if matched.next().is_some() {
+        return Err("Duplicate operation extension record".into());
     }
+
+    Ok(record)
+}
+
+pub(crate) fn single_data_edge<'a>(
+    pair: PairView<'a>,
+    node: &crate::PdgNode,
+    subkind: Option<&str>,
+) -> Result<&'a crate::PdgEdge, String> {
+    let mut incoming = pair.pdg.edges.iter().filter(|edge| {
+        edge.target == node.id
+            && edge.kind == crate::EdgeFamily::Data
+            && subkind.is_none_or(|kind| edge.subkind == kind)
+    });
+    let edge = incoming.next().ok_or("Missing unique data dependence")?;
+    if incoming.next().is_some() {
+        return Err("Duplicate data dependence".into());
+    }
+
+    Ok(edge)
+}
+
+pub(crate) fn verify_binding_initialization(
+    node: &crate::PdgNode,
+    source: &crate::HirNode,
+) -> Result<(), String> {
+    let symbol = source
+        .binding
+        .as_ref()
+        .ok_or("Missing original binding symbol")?;
+    if node.attributes.symbol_ids != [symbol.clone()]
+        || node.attributes.defines.len() != 1
+        || node.attributes.writes.len() != 1
+        || node.attributes.writes[0].symbol_id.as_ref() != Some(symbol)
+        || node.attributes.writes[0].location_id.is_some()
+        || !node.attributes.reads.is_empty()
+        || node.attributes.write_form.as_deref() != Some("initialization")
+    {
+        return Err("Declaration loses its exact original binding initialization".into());
+    }
+
     Ok(())
 }
+
+pub(crate) use origins::wire_type;
 
 fn verify_interface(
     pair: crate::producer::PairView<'_>,
@@ -1135,4 +1208,30 @@ pub(crate) fn source_type_matches(node: &PdgNode, source: &crate::HirNode, ty: &
             .and_then(|value| value.get("value"))
             .and_then(serde_json::Value::as_str)
             == Some(ty)
+}
+
+fn verify_field_value_edge(
+    pair: PairView<'_>,
+    node: &PdgNode,
+    base: &PdgNode,
+) -> Result<(), String> {
+    verify_single_data_source(pair, node, base, "value_operand")
+}
+
+pub(crate) fn verify_single_data_source(
+    pair: PairView<'_>,
+    node: &PdgNode,
+    base: &PdgNode,
+    subkind: &str,
+) -> Result<(), String> {
+    let value = subkind == "value_operand";
+    let edge = single_data_edge(pair, node, value.then_some(subkind))?;
+    if edge.source != base.id
+        || edge.subkind != subkind
+        || value && edge.operand_position != Some(0)
+    {
+        return Err("Data dependence loses its exact source or operand role".into());
+    }
+
+    Ok(())
 }

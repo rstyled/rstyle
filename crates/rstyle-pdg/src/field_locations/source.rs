@@ -541,6 +541,16 @@ fn base_value<'a>(mut value: &'a TypeTree, path: &[Projection]) -> Result<&'a Ty
     for step in path {
         value = match (value, step) {
             (TypeTree::Shared(referent), Projection::SharedReferent) => referent,
+            (TypeTree::Slice(element), Projection::PrefixElement { position })
+                if *position < 3 && **element == TypeTree::Scalar("u8".into()) =>
+            {
+                element
+            }
+            (TypeTree::Slice(element), Projection::PrefixSuffix { start })
+                if (1..=3).contains(start) && **element == TypeTree::Scalar("u8".into()) =>
+            {
+                value
+            }
             (TypeTree::Slice(element), Projection::CheckedElement) => element,
             (TypeTree::Tuple(elements), Projection::TupleField { position }) => elements
                 .get(*position)

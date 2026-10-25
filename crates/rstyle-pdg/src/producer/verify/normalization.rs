@@ -35,6 +35,13 @@ fn normalize_object(
         }
         keep
     });
+    if field == "rstyle.data:digit-product-origins"
+        && let Some(Value::Array(values)) = object.get_mut("values")
+    {
+        // This exact extension contains an unordered inventory, not positional
+        // fields. IDs were normalized as reference values before sorting.
+        values.sort_by_cached_key(Value::to_string);
+    }
 }
 
 fn normalize_array(values: &mut [Value], field: &str, renaming: &BTreeMap<String, String>) {
@@ -102,6 +109,7 @@ fn reference_field(field: &str) -> bool {
             | "cfg_operation_id"
             | "operation_id"
             | "pdg_node_id"
+            | "operand_pdg_node_id"
             | "controller_pdg_node_id"
             | "value_pdg_node_id"
             | "cfg_successor_node_id"

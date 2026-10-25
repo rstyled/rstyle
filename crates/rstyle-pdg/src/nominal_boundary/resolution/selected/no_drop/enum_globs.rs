@@ -182,6 +182,18 @@ impl Scope {
         crate::source_evidence::plain_relative_path(path)
             .is_some_and(|names| self.contains_local(&names, &self.traits))
     }
+    pub fn direct_relative_trait(&self, names: &[String]) -> bool {
+        !self.unindexed
+            && names.len() >= 2
+            && self.traits.contains(
+                &self
+                    .namespace
+                    .iter()
+                    .chain(names)
+                    .cloned()
+                    .collect::<Namespace>(),
+            )
+    }
     fn contains_local(&self, path: &[String], declarations: &BTreeSet<Namespace>) -> bool {
         self.local_path(path)
             .is_some_and(|path| declarations.contains(&path))

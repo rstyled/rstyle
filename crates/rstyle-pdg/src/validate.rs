@@ -1528,3 +1528,14 @@ fn parameters_applicability(doc: &PdgDocument, caps: &BTreeMap<String, Capabilit
 
 #[cfg(test)]
 mod source_text_tests;
+
+/// Exact finite inventories retain multiplicity: neither side may contain duplicates.
+pub(crate) fn unique_inventory<T: PartialEq>(actual: &[T], expected: &[T]) -> bool {
+    actual.len() == expected.len()
+        && expected
+            .iter()
+            .all(|value| actual.iter().filter(|other| *other == value).count() == 1)
+        && actual
+            .iter()
+            .all(|value| expected.iter().filter(|other| *other == value).count() == 1)
+}

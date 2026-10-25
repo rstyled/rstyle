@@ -65,4 +65,12 @@ pub(crate) fn constructors(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
         &["expr_call", "expr_path"],
         constructor_candidate,
     )
+    .into_iter()
+    .filter(|node| {
+        crate::scalar_product_instances::activation::construct(node, facts)
+            .ok()
+            .flatten()
+            .is_none()
+    })
+    .collect()
 }

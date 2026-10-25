@@ -1335,6 +1335,9 @@ pub fn static_owner(
         );
     }
     let resolution = facts.nominal_resolution()?;
+    if resolution.scalar_product_static_owner(facts, implementation, nominal)? {
+        return Ok(());
+    }
     check_implementation(&resolution, facts, implementation)?;
 
     let owner = resolution

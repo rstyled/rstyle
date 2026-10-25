@@ -18,7 +18,8 @@ pub(in crate::data_documents) fn verify<const N: usize>(
 }
 
 fn exact_uses(edges: &[&PdgEdge], expected: &[&str]) -> Result<(), String> {
-    if edges.len() != expected.len()
+    let targets: Vec<_> = edges.iter().map(|edge| edge.target.as_str()).collect();
+    if !crate::validate::unique_inventory(&targets, expected)
         || edges.iter().any(|edge| {
             edge.subkind != "value_operand"
                 || edge.operand_position != Some(0)
@@ -28,9 +29,6 @@ fn exact_uses(edges: &[&PdgEdge], expected: &[&str]) -> Result<(), String> {
                 || edge.outcome.is_some()
                 || edge.loop_carried.is_some()
         })
-        || expected
-            .iter()
-            .any(|target| edges.iter().filter(|edge| edge.target == *target).count() != 1)
     {
         return Err("Saved borrowed Result has an unproved duplicate, alternate, storage or conditional ownership use".into());
     }

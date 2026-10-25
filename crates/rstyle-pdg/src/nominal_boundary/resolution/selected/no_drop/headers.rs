@@ -1,14 +1,17 @@
 //! Alias closure is conservative: ambiguous spellings enlarge rejection sets.
 use super::*;
 use std::collections::BTreeSet;
+pub(super) mod core_arithmetic;
 
 pub(super) struct Resolution {
+    pub precise_non_drop: bool,
     pub local_nominal: bool,
     pub standard_roots: bool,
     pub local_trait: bool,
     pub resolved_trait: Option<Namespace>,
     pub reference_product_debug: bool,
     pub reference_product_prelude: Option<prelude_traits::ReferenceTrait>,
+    pub core_arithmetic: Option<core_arithmetic::CheckedTrait>,
 }
 
 #[derive(Default)]
@@ -70,6 +73,9 @@ impl Names {
         if resolution.local_trait {
             return Ok(());
         }
+        if resolution.precise_non_drop && independently_non_drop(&resolution) {
+            return Ok(());
+        }
 
         let self_ty = transparent(item.self_ty.as_ref());
         let syn::Type::Path(ty) = self_ty else {
@@ -102,12 +108,21 @@ impl Names {
             && (known_trait(path)
                 || resolution.resolved_trait.as_deref().is_some_and(known_path)
                 || resolution.reference_product_debug
-                || resolution.reference_product_prelude.is_some())
+                || resolution.reference_product_prelude.is_some()
+                || resolution.core_arithmetic.is_some())
         {
             return Ok(());
         }
         Err(possible_destructor(path, &name))
     }
+}
+
+fn independently_non_drop(resolution: &Resolution) -> bool {
+    // This excludes a destructor; all implementation contents remain visited.
+    resolution.standard_roots
+        && (resolution.reference_product_prelude.is_some()
+            || resolution.core_arithmetic.is_some()
+            || resolution.resolved_trait.as_deref().is_some_and(known_path))
 }
 
 fn non_nominal_self(ty: &syn::Type) -> Result<(), String> {

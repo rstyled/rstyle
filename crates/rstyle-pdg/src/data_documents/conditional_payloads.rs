@@ -117,19 +117,6 @@ pub(super) fn binding(pair: PairView<'_>, binding: &HirNode, load: &PdgNode) -> 
     let declaration = super::serialized_operation(pair, &binding.span, |node| {
         node.category == NodeCategory::Declaration
     })?;
-    let symbol = binding
-        .binding
-        .as_ref()
-        .ok_or("Missing scalar payload binding")?;
-    if declaration.attributes.symbol_ids != [symbol.clone()]
-        || declaration.attributes.defines.len() != 1
-        || declaration.attributes.writes.len() != 1
-        || declaration.attributes.writes[0].symbol_id.as_ref() != Some(symbol)
-        || declaration.attributes.writes[0].location_id.is_some()
-        || !declaration.attributes.reads.is_empty()
-        || declaration.attributes.write_form.as_deref() != Some("initialization")
-    {
-        return Err("Payload does not define its exact scalar binding".into());
-    }
+    super::verify_binding_initialization(declaration, binding)?;
     super::verify_saved_operands(pair, declaration, &[load])
 }

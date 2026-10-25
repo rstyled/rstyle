@@ -182,9 +182,5 @@ impl<'tcx> Context<'tcx> {
 }
 
 fn encode<T: serde::Serialize>(kind: &str, record: &T) -> Option<PathRes> {
-    Some(PathRes {
-        kind: kind.into(),
-        target: None,
-        description: serde_json::to_string(record).ok()?,
-    })
+    PathRes::observation(kind, record).ok()
 }

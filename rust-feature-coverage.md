@@ -5350,3 +5350,26 @@ Validation:2,043 workspace tests pass/five existing skips plus doctests; fmt,
 warning-denied Clippy,style0/6,709 and patterns0/15 unchanged ignores pass.
 Retained logs: `/tmp/rstyle-431-landing-{nextest,clippy,style}-final.*`,
 `/tmp/rstyle-431-landing-patterns3.json`. Foreign native CI remains unverified.
+
+
+Data3.109 connects original time0.3.47 `ExactlyNDigits::<1/2/3>::parse`
+in the default/parsing context through Cargo capture, independent document/producer
+verification and strict admission. The bounded contract joins exact concrete ParsedItem<u8/u16>
+construction/no-drop ownership, ordered length/digit guards, distinct selector
+and body byte reads at identical physical locations, saved suffix components,
+Option success/failure values and checked decimal intervals (0..9/99/999).
+Neighboring source, macros and trait implementations remain exhaustively checked;
+new cleanup identity rules require the new policy. No generic callable-summary,
+N=4..9, parse_subsecond caller, rewrite-safety or detector-quality claim follows.
+
+The unchanged default/parsing selection gains five functions: the three parsers
+and the source-audited ComponentRange::{name,is_conditional} getters. Admissions
+24→29/1,506, zero losses; all276 historical pair results are unchanged and all406
+current pairs complete under strict replay. The unchanged no-default/parsing
+selection remains22/1,406, gain0/loss0, preserving all231 pair results. Its distinct
+lockfile resolves num-conv0.2.2 (default uses0.2.0): the three-export prelude remains
+outside the independently proved two-export namespace contract. This is a named
+remaining source dependency, not permission to ignore the glob or alter selection.
+Original runtime expectations pass229,554 checks per feature context; the Cargo
+composition includes graph/origin/guard/policy attacks and coherent owner tampering.
+Final gate evidence and next frontier are recorded in docs/rust-support-execution.md.

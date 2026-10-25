@@ -1,4 +1,4 @@
-//! Discharge only original block imports of exact same-module enum variants.
+//! Discharge original block enum globs with exact declaration ownership.
 use super::*;
 
 impl Closure<'_> {
@@ -37,7 +37,8 @@ impl Closure<'_> {
         };
         let name = path.ident.to_string();
         matches!(path.tree.as_ref(), syn::UseTree::Glob(_))
-            && self.enums.direct_module_enum(&name)
+            && (self.enums.direct_module_enum(&name)
+                || self.digit_products && self.imported_module_enum(&name))
             && !scope.contains_key(&name)
             && !self.names.aliases.contains(&name)
             && !self
@@ -46,7 +47,41 @@ impl Closure<'_> {
                 .skip(1)
                 .any(|scope| scope.contains_key(&name) || scope.contains_key("*"))
     }
+
+    fn imported_module_enum(&self, name: &str) -> bool {
+        let Some(environment) = self.dependency_sources else {
+            return false;
+        };
+        if !environment
+            .index
+            .imports
+            .contains_key(&(self.enums.namespace.clone(), name.into()))
+        {
+            return false;
+        }
+        let path = crate::source_evidence::qualified_name(&self.enums.namespace, name);
+        let Ok(target) =
+            crate::nominal_boundary::resolution::import_chains::resolve(path, &environment.index)
+        else {
+            return false;
+        };
+        let Some(declaration) = environment.index.declarations.get(&target) else {
+            return false;
+        };
+        let Some(module) = environment.modules.get(declaration.module_index) else {
+            return false;
+        };
+
+        let Some((name, namespace)) = target.split_last() else {
+            return false;
+        };
+        module.namespace == namespace
+            && self.enums.direct_module_enum_in(namespace, name)
+            && matches!(module.items.get(declaration.item_index), Some(syn::Item::Enum(item)) if item.ident == name)
+    }
 }
 
+#[cfg(test)]
+mod imported_tests;
 #[cfg(test)]
 mod tests;

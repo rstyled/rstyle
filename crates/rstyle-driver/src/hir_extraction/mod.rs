@@ -36,6 +36,7 @@ mod primitive_constants;
 mod result_propagation;
 mod results;
 mod scalar_constants;
+mod scalar_product_constructors;
 mod size_calls;
 mod slice_patterns;
 pub mod source;

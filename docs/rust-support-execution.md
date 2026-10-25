@@ -1192,3 +1192,34 @@ both original feature contexts. Proof and semantic-model leaves are prepared but
 unregistered/unvalidated; they are not delivered support. No nominal-only cleanup
 permission or fresh-product slot READ is justified. Full parse_subsecond and
 broader P01–P22 remain active.
+
+
+### Connected digit-prefix values (Data3.109)
+
+The root roadmap records the bounded contract and unchanged selections. Default
+Cargo capture/strict replay gains the three original ExactlyNDigits parsers and
+two audited ComponentRange getters:24→29/1,506, zero losses,276 old pair results
+preserved and406 current pairs complete. The no-default selection stays22/1,406,
+zero gains/losses and231 old pairs preserved. Its num-conv0.2.2 prelude adds Widen
+and lint metadata to the two-export proof; downstream source closure beyond that
+barrier remains unproved. Do not substitute the default lockfile to report gains.
+The original native oracle retains229,554 checks per context, zero mismatches.
+
+Next frontier: independently prove the complete newer anonymous-trait namespace,
+then recheck all no-default blockers. Callable summaries for Option<ParsedItem>
+remain a separate value/component/continuation contract; neither these admitted
+leaves nor the source-only trait receipts establish parse_subsecond support.
+N=4..9 and their callbacks/library operations remain excluded. No new runtime SHA
+operations, ignores, suppressions, scoring changes or frozen selection edits.
+
+
+Validation:2,088 workspace tests pass/five existing skips plus doctests; fmt,
+warning-denied Clippy,style0/6,923 and patterns0/15 unchanged ignores pass.
+Composition/adversarial test:8.31s on this runner; no controlled speedup claim.
+Fresh frozen run-p29c1auq verifies118 documents and preserves all60 identities,
+denominators, outcomes/reasons and blocker combinations:24 admitted/29 excluded/
+7 inactive, gain0/loss0 against run-t6jmzf89. Foreign native CI remains unverified.
+Evidence: `/tmp/rstyle-432-{nextest2.log,clippy5.log,fmt-final.log,style4.json,patterns3.log,frozen-comparison.json,default-final-strict-comparison.json,no-default-final-strict-comparison.json}`.
+Original default run: `target/rstyle/clones/run-dFHSan`; no-default strict replay:
+`target/rstyle/clones/run-jOLgpB`. All capture/assessment and natural selected-pair
+completeness checks pass; frozen matching remains intentionally budget-limited.

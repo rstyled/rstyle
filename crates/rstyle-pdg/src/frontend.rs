@@ -67,6 +67,17 @@ pub struct PathRes {
     pub description: String,
 }
 
+impl PathRes {
+    /// Serialize a typed compiler observation without granting semantic authority.
+    pub fn observation(kind: &str, value: &impl Serialize) -> Result<Self, serde_json::Error> {
+        Ok(Self {
+            kind: kind.into(),
+            target: None,
+            description: serde_json::to_string(value)?,
+        })
+    }
+}
+
 /// Operator dispatch evidence: built-in facts, never spelling inference.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

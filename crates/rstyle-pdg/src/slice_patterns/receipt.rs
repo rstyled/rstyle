@@ -67,11 +67,7 @@ pub struct Observation {
 
 impl Observation {
     pub fn resolution(&self) -> Result<PathRes, serde_json::Error> {
-        Ok(PathRes {
-            kind: RESOLUTION.into(),
-            target: None,
-            description: serde_json::to_string(self)?,
-        })
+        PathRes::observation(RESOLUTION, self)
     }
 
     pub fn decode(node: &HirNode) -> Result<Self, String> {

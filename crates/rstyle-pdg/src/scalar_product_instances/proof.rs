@@ -49,8 +49,16 @@ pub(in crate::nominal_boundary::resolution) fn capture_checked(
 }
 
 impl CheckedScalarProductInstance {
+    pub(crate) fn implementation(&self) -> crate::ByteSpan {
+        self.method.implementation
+    }
+
     pub(crate) fn instance(&self) -> &Instance {
         &self.instance
+    }
+
+    pub(crate) fn digits(&self) -> u8 {
+        self.method.digits()
     }
 
     pub(in crate::nominal_boundary::resolution) fn namespace(&self) -> &[String] {

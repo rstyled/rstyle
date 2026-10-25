@@ -10,6 +10,10 @@ pub(super) fn selected(
     selectors: &[usize],
     facts: &dyn EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
+    if let Some(origins) = crate::scalar_product_instances::origins::source(node, selectors, facts)?
+    {
+        return Ok(origins);
+    }
     let index = OwnedIndex::new(facts)?;
     selected_with(node, selectors, facts, &index)
 }

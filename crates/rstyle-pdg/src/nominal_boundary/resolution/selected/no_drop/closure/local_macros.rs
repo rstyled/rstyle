@@ -108,7 +108,10 @@ impl Closure<'_> {
                 .skip(1)
                 .any(|scope| scope.contains_key(&first))
         {
-            return Err("Cleanup imported macro has unresolved lexical shadowing".into());
+            return Err(format!(
+                "Cleanup imported macro {first} has unresolved lexical shadowing (unknown glob: {})",
+                self.unknown_glob()
+            ));
         }
         resolver.resolve(&self.enums.namespace, mac)
     }

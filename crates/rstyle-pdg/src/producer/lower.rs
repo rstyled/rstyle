@@ -21,6 +21,7 @@ mod product_result_propagation;
 mod result_maps;
 mod result_propagation;
 mod scalar_result_propagation;
+mod slice_prefix_patterns;
 
 use super::graph::*;
 use crate::{NodeCategory, frontend::*};
@@ -219,9 +220,19 @@ impl Builder<'_> {
     }
 
     fn expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if let Some(construct) =
+            crate::scalar_product_instances::activation::construct(node, self.facts)
+                .expect("checked digit constructor")
+        {
+            return self.digit_constructor(node, construct, flow);
+        }
         if crate::copy_tagged_values::body_operation(node, self.facts) {
             return self.copy_tagged_value(node, flow);
         }
+        self.ordinary_expression(node, flow)
+    }
+
+    fn ordinary_expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
         if crate::data_enums::constructor_candidate(node, self.facts)
             || crate::checked_options::constructor_candidate(node, self.facts)
             || crate::concrete_results::constructor_candidate(node, self.facts)
@@ -229,6 +240,16 @@ impl Builder<'_> {
             return self.data_constructor(node, flow);
         }
         lowerer(node, self.facts)(self, node, flow)
+    }
+
+    fn digit_constructor(&mut self, node: &HirNode, construct: &str, flow: Flow) -> Flow {
+        let evaluated = self.evaluate_operands(node, flow);
+        let operation = Operation {
+            construct: Some(construct.into()),
+            operands: evaluated.values,
+            ..template(node, NodeCategory::Computation)
+        };
+        self.emit(operation, evaluated.flow)
     }
 
     fn data_constructor(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -1181,6 +1202,13 @@ impl Builder<'_> {
     }
 
     fn scalar_match(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::scalar_product_instances::activation::candidate(self.facts) {
+            return self.slice_prefix_match(node, flow);
+        }
+        self.value_match(node, flow)
+    }
+
+    fn value_match(&mut self, node: &HirNode, flow: Flow) -> Flow {
         if crate::data_enums::match_candidate(node, self.facts) {
             return self.enum_match(node, flow);
         }

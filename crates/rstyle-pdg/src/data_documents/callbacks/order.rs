@@ -56,7 +56,7 @@ pub(in crate::data_documents) fn result(
         return Err("Callback invocation lacks its conditional result merge".into());
     }
     super::effects(merge, NodeCategory::Merge)?;
-    let site = site(pair, &merge.id)?;
+    let site = crate::data_documents::extension_record(pair, SITES, &merge.id)?;
     let alternatives = site["alternatives"]
         .as_array()
         .ok_or("Missing callback result alternatives")?;
@@ -83,25 +83,6 @@ pub(in crate::data_documents) fn result(
     Ok(())
 }
 
-pub(in crate::data_documents) fn site<'a>(
-    pair: PairView<'a>,
-    id: &str,
-) -> Result<&'a Value, String> {
-    let candidates = pair
-        .pdg
-        .extensions
-        .get(SITES)
-        .and_then(Value::as_array)
-        .ok_or("Missing callback value sites")?;
-    let mut candidates = candidates.iter().filter(|site| site["pdg_node_id"] == id);
-    let site = candidates.next().ok_or("Missing callback value site")?;
-    if candidates.next().is_some() {
-        return Err("Duplicate callback value site".into());
-    }
-
-    Ok(site)
-}
-
 fn operation(pair: PairView<'_>, node: &PdgNode) -> Result<String, String> {
     let map = crate::read_operation_map(&pair.pdg.extensions)?;
     let mut entries = map.iter().filter(|entry| entry.pdg_node_id == node.id);
@@ -122,7 +103,7 @@ pub(in crate::data_documents) fn completion(
     if node.category != NodeCategory::Merge {
         return Ok(BTreeSet::from([operation(pair, node)?]));
     }
-    let site = site(pair, &node.id)?;
+    let site = crate::data_documents::extension_record(pair, SITES, &node.id)?;
     let alternatives = site["alternatives"]
         .as_array()
         .ok_or("Missing eager argument completions")?;
@@ -171,4 +152,11 @@ pub(in crate::data_documents) fn before(
         );
     }
     Ok(())
+}
+
+pub(in crate::data_documents) fn site<'a>(
+    pair: PairView<'a>,
+    id: &str,
+) -> Result<&'a Value, String> {
+    crate::data_documents::extension_record(pair, SITES, id)
 }

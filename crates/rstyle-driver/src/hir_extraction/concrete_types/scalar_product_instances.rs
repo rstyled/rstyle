@@ -56,7 +56,9 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 }
 
-fn scalar_argument(arguments: ty::GenericArgsRef<'_>) -> Option<Argument> {
+pub(in crate::hir_extraction) fn scalar_argument(
+    arguments: ty::GenericArgsRef<'_>,
+) -> Option<Argument> {
     let [region, value] = &arguments[..] else {
         return None;
     };

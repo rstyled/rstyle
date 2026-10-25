@@ -30,6 +30,14 @@ pub enum Projection {
     Utf8Bytes,
     /// Element address retained by a checked Option value; usable only under Some.
     CheckedElement,
+    /// Constant byte position supplied only by a checked bounded prefix match.
+    PrefixElement {
+        position: u8,
+    },
+    /// Saved byte-slice pointer + start and length - start, including one-past.
+    PrefixSuffix {
+        start: u8,
+    },
     IndexedElement {
         operand_position: u64,
     },

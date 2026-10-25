@@ -271,10 +271,15 @@ fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
         Ok(false) => {}
         Err(reason) => return evidence_gap(&facts.body, &reason),
     }
+    let diagnostics = match crate::scalar_product_instances::activation::source_findings(facts) {
+        Ok(Some(diagnostics)) => diagnostics,
+        Ok(None) => facts.source_diagnostics.clone(),
+        Err(reason) => return evidence_gap(&facts.body, &reason),
+    };
     let source = Outcome {
-        diagnostics: facts.source_diagnostics.clone(),
+        rejected: !diagnostics.is_empty(),
+        diagnostics,
         gap: false,
-        rejected: !facts.source_diagnostics.is_empty(),
     };
 
     if crate::extraction_profile::ExtractionProfile::from_facts(facts)
@@ -667,6 +672,9 @@ fn check_special_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
 /// Check one construct; expanded subtrees report once at the outermost site.
 /// Closures own their bodies separately, so their subtrees are excluded too.
 fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
+    if let Some(outcome) = check_digit_product(node, ctx) {
+        return outcome;
+    }
     if let Some(outcome) = check_special_body(node, ctx) {
         return outcome;
     }
@@ -712,6 +720,24 @@ fn check_node(node: &HirNode, in_expansion: bool, ctx: &Ctx<'_>) -> Outcome {
         return check_match(node, ctx);
     }
     check_ordinary_node(node, in_expansion, ctx)
+}
+
+fn check_digit_product(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    match crate::scalar_product_instances::activation::operands(node, ctx.facts) {
+        Ok(Some(operands)) => Some(Outcome::combine(
+            operands
+                .into_iter()
+                .map(|operand| check_node(operand, false, ctx))
+                .collect(),
+        )),
+        Ok(None) => None,
+        Err(reason) => Some(error(
+            crate::scalar_product_instances::activation::VALUE_CAPABILITY,
+            "digit_product",
+            node,
+            &reason,
+        )),
+    }
 }
 
 fn check_transport_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {

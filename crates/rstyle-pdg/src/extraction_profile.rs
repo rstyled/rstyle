@@ -145,6 +145,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.checked-generated-dependency-namespaces",
     "rust.checked-local-macro-ownership",
     "rust.checked-external-expression-macro-ownership",
+    "rust.checked-digit-product-values",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -304,7 +305,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.108.0", 132)),
+            Self::DataV3 => Some(("3.109.0", 133)),
         }
     }
 

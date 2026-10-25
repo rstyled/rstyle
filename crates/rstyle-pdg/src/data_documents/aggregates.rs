@@ -148,6 +148,11 @@ fn structural_operands<'a>(
     node: &'a HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Result<Option<Vec<&'a HirNode>>, String> {
+    if let Some(operands) = crate::scalar_product_instances::activation::operands(node, facts)? {
+        // The guarded component verifier checks these exact constructors and
+        // their ordered operands; retain ordinary checks on every operand.
+        return Ok(Some(operands));
+    }
     if crate::result_maps::candidate(node, facts) {
         let checked = crate::result_maps::verify(node, facts)?;
         let receiver = node.children.first().ok_or("Missing Result map receiver")?;

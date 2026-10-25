@@ -1,6 +1,8 @@
 //! Source-pinned prelude identity, never inferred from the trait spelling alone.
 use super::*;
 use std::collections::BTreeMap;
+mod source_headers;
+pub(super) use source_headers::resolve as source_header;
 
 const SOURCES: &[(&str, &str)] = &[
     (

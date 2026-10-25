@@ -60,6 +60,9 @@ pub fn origins(
         return Ok(Vec::new());
     }
 
+    if let Some(origins) = crate::scalar_product_instances::origins::source(node, &[], facts)? {
+        return Ok(origins);
+    }
     if let Some(origins) = crate::owned_product_values::source(node, &[], facts)? {
         return Ok(origins);
     }
@@ -67,6 +70,15 @@ pub fn origins(
         return crate::data_reference_locals::selected(node, &[], facts);
     }
 
+    checked_value_origins(node, facts, text, &ty)
+}
+
+fn checked_value_origins(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    text: &str,
+    ty: &TypeToken,
+) -> Result<Vec<Origin>, String> {
     if let Some(operation) = crate::reference_instances::activation::operation(node, facts)? {
         let roots = origins(operation.receiver, facts)?;
         return operation.project(roots);
@@ -88,7 +100,7 @@ pub fn origins(
     {
         return origins;
     }
-    let origins = source_operation(node, facts, text, &ty)?;
+    let origins = source_operation(node, facts, text, ty)?;
 
     Ok(origins
         .into_iter()

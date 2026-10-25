@@ -107,3 +107,22 @@ fn generated_and_nested_destructor_aliases_still_close_the_proof() {
         );
     }
 }
+#[test]
+fn relative_trait_identity_requires_an_active_original_declaration() {
+    for (source, expected) in [
+        ("mod sealed { pub trait Sealed {} }", true),
+        ("mod sealed { use core::ops::Drop as Sealed; }", false),
+        ("mod sealed { pub struct Sealed; }", false),
+        ("#[cfg(absent)] mod sealed { pub trait Sealed {} }", false),
+        ("mod other { pub trait Sealed {} }", false),
+    ] {
+        let file = syn::parse_file(source).unwrap();
+        let items = file.items.iter().collect::<Vec<_>>();
+        let mut scope = super::Scope::inline(&items, &[], true).unwrap();
+        let path = vec!["sealed".into(), "Sealed".into()];
+        assert_eq!(scope.direct_relative_trait(&path), expected, "{source}");
+        assert!(!scope.direct_relative_trait(&["Sealed".into()]));
+        scope.unindexed = true;
+        assert!(!scope.direct_relative_trait(&path));
+    }
+}

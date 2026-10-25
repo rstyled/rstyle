@@ -65,3 +65,39 @@ fn historical_informational_exceptions_do_not_hide_other_fields() {
         })
     );
 }
+
+#[test]
+fn cast_operand_references_rename_without_changing_cast_order_or_types() {
+    let casts = serde_json::json!([
+        {"pdg_node_id":"cast", "operand_pdg_node_id":"input", "operand_type":"u8", "result_type":"u16"}
+    ]);
+    let names = BTreeMap::from([
+        ("cast".into(), "new-cast".into()),
+        ("input".into(), "new-input".into()),
+    ]);
+    assert_eq!(
+        normalize(casts, "rstyle.hir-coverage:integer-casts", &names),
+        serde_json::json!([
+            {"pdg_node_id":"new-cast", "operand_pdg_node_id":"new-input", "operand_type":"u8", "result_type":"u16"}
+        ])
+    );
+}
+
+#[test]
+fn digit_origin_inventory_renames_ids_without_reordering_components() {
+    let extension = "rstyle.data:digit-product-origins";
+    let renamed =
+        std::collections::BTreeMap::from([("z".into(), "n0".into()), ("a".into(), "n1".into())]);
+    let original = serde_json::json!({"values":[
+        {"pdg_node_id":"z", "value":{"components":[0,1]}},
+        {"pdg_node_id":"a", "value":{"components":[1,0]}}
+    ]});
+    let reordered = serde_json::json!({"values":[
+        {"pdg_node_id":"n1", "value":{"components":[1,0]}},
+        {"pdg_node_id":"n0", "value":{"components":[0,1]}}
+    ]});
+    assert_eq!(
+        normalize(original, extension, &renamed),
+        normalize(reordered, extension, &std::collections::BTreeMap::new())
+    );
+}

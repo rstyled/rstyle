@@ -331,6 +331,10 @@ pub(crate) fn call_nodes(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
     collect_source_kind(&facts.body, "expr_call", facts, &mut calls);
     calls.retain(|node| {
         !crate::call_summaries::static_intrinsic(node, facts)
+            && crate::scalar_product_instances::activation::construct(node, facts)
+                .ok()
+                .flatten()
+                .is_none()
             && !crate::checked_options::constructor_candidate(node, facts)
             && !crate::concrete_results::constructor_candidate(node, facts)
             && !crate::data_enums::constructor_candidate(node, facts)

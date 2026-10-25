@@ -29,7 +29,7 @@ pub fn assess(
 ) -> Result<Assessment, String> {
     let views = views::Views::new(facts)?;
     let failures = explicit_failures(graph);
-    let mut values = Values::new(facts, graph, analysis);
+    let mut values = Values::new(facts, graph, analysis)?;
     let mut assessment = Assessment {
         limitations: Vec::new(),
         checked_operations: Vec::new(),
@@ -39,11 +39,7 @@ pub fn assess(
         .iter()
         .filter(|n| analysis.reachable.contains(&n.id) || n.category == NodeCategory::FormalInput)
     {
-        let operands: Vec<_> = node
-            .operands
-            .iter()
-            .map(|id| values.constants.get(id).copied().flatten())
-            .collect();
+        let operands = values.operands(node);
         let value = constant(node, graph, analysis, &values.constants)
             .filter(|value| fits(facts, &node.ty, *value));
         let ordinary =
@@ -52,7 +48,11 @@ pub fn assess(
             .ranges
             .as_ref()
             .is_some_and(|ranges| ranges.safe(node));
-        let safe = ordinary || bounded;
+        let guarded_decimal = values
+            .decimal
+            .as_ref()
+            .is_some_and(|ranges| ranges.safe(node));
+        let safe = ordinary || bounded || guarded_decimal;
         let relevant = relevant(node)
             || views.relevant(node, graph)
             || values.ranges.is_some() && node.construct.as_deref() == Some("data.value-index");
@@ -60,7 +60,10 @@ pub fn assess(
             assessment.limitations.push(limitation(facts, node));
         }
         if relevant {
-            let evidence = proof(node, &operands, ordinary, bounded);
+            let evidence = decimal_proof(
+                proof(node, &operands, ordinary, bounded || guarded_decimal),
+                guarded_decimal && !ordinary && !bounded,
+            );
             assessment
                 .checked_operations
                 .push(with_failure(evidence, failures.contains(node.id.as_str())));
@@ -69,6 +72,17 @@ pub fn assess(
     }
 
     Ok(assessment)
+}
+
+fn decimal_proof(proof: Proof, guarded: bool) -> Proof {
+    if guarded {
+        Proof {
+            method: crate::slice_patterns::arithmetic::METHOD,
+            ..proof
+        }
+    } else {
+        proof
+    }
 }
 
 fn with_failure(proof: Proof, explicit: bool) -> Proof {
@@ -118,6 +132,7 @@ fn explicit_failures(graph: &Graph) -> BTreeSet<&str> {
 struct Values<'a> {
     constants: BTreeMap<String, Option<i128>>,
     ranges: Option<super::unsigned_ranges::Ranges<'a>>,
+    decimal: Option<crate::slice_patterns::arithmetic::Ranges>,
 }
 
 impl<'a> Values<'a> {
@@ -125,18 +140,29 @@ impl<'a> Values<'a> {
         facts: &dyn crate::unit_store::EvidenceFacts,
         graph: &'a Graph,
         analysis: &'a Analysis,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, String> {
+        Ok(Self {
+            decimal: crate::slice_patterns::arithmetic::Ranges::new(facts, graph, analysis)?,
             constants: BTreeMap::new(),
             ranges: super::unsigned_ranges::needed(facts, graph)
                 .then(|| super::unsigned_ranges::Ranges::new(facts, graph, analysis)),
-        }
+        })
+    }
+
+    fn operands(&self, node: &Operation) -> Vec<Option<i128>> {
+        node.operands
+            .iter()
+            .map(|id| self.constants.get(id).copied().flatten())
+            .collect()
     }
 
     fn observe(&mut self, node: &Operation, value: Option<i128>) {
         self.constants.insert(node.id.clone(), value);
         if let Some(ranges) = &mut self.ranges {
             ranges.observe(node, &self.constants);
+        }
+        if let Some(decimal) = &mut self.decimal {
+            decimal.observe(node, &self.constants);
         }
     }
 }

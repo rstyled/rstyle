@@ -15,6 +15,8 @@ fn abstraction(path: &[Projection]) -> &'static str {
             Projection::HelperIndex { .. } => Some("rstyle.formal-helper-index/1"),
             Projection::IndexedElement { .. } => Some("rstyle.formal-indexed-element/1"),
             Projection::CheckedElement => Some("rstyle.formal-checked-element/1"),
+            Projection::PrefixElement { .. } => Some("rstyle.formal-prefix-element/1"),
+            Projection::PrefixSuffix { .. } => Some("rstyle.formal-prefix-suffix/1"),
             _ => None,
         })
         .unwrap_or(ABSTRACTION)

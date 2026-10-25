@@ -375,6 +375,7 @@ fn read_edges(
                 | "data.index"
                 | "data.option-payload"
                 | "iterator.byte-position-prefix"
+                | "slice.prefix-byte"
                 | "data.mutable-scalar-load"
         )
     ) && node.symbol.is_none()

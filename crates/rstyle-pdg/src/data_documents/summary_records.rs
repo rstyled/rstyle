@@ -46,7 +46,7 @@ impl Record<'_> {
             node,
             summary,
         } = self;
-        let record = summary_record(pair, node)?;
+        let record = super::extension_record(pair, crate::call_summaries::KEY, &node.id)?;
 
         crate::call_summaries::verify_build(record, facts)?;
         if record["summary"] != serde_json::to_value(&summary).map_err(|error| error.to_string())?
@@ -79,25 +79,4 @@ impl Record<'_> {
             facts,
         )
     }
-}
-
-fn summary_record<'a>(
-    pair: PairView<'a>,
-    node: &crate::PdgNode,
-) -> Result<&'a serde_json::Value, String> {
-    let records = pair
-        .pdg
-        .extensions
-        .get(crate::call_summaries::KEY)
-        .and_then(serde_json::Value::as_array)
-        .ok_or("Missing call summary inventory")?;
-    let matched: Vec<_> = records
-        .iter()
-        .filter(|record| record["pdg_node_id"] == node.id)
-        .collect();
-    let [record] = matched.as_slice() else {
-        return Err("Missing or duplicate registered summary".into());
-    };
-
-    Ok(*record)
 }

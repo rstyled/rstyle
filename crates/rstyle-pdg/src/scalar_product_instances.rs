@@ -1,5 +1,9 @@
 //! Bounded observations of original generic byte-view/scalar tuple products.
 //! Shape consistency grants no source ownership, Copy, cleanup or value authority.
+pub(crate) mod activation;
+pub mod constructors;
+pub(crate) mod origins;
+
 use crate::concrete_types::byte_views::{
     explicit_lifetime_source as source_view, observed as observed_view,
 };

@@ -13,9 +13,23 @@ pub(super) fn install(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::scalar_product_instances::activation::when_checked(facts, |checked| {
+        crate::scalar_product_instances::origins::documents::install(pair, &checked, facts)
+    })?
+    .is_some()
+    {
+        return Ok(());
+    }
     if super::tagged_calls::install(pair, facts)? {
         return Ok(());
     }
+    install_standard_origins(pair, facts)
+}
+
+fn install_standard_origins(
+    pair: &mut Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     if crate::copy_tagged_values::candidate(facts) {
         let resolution = facts.nominal_resolution()?;
         let receipt = resolution
@@ -23,6 +37,13 @@ pub(super) fn install(
             .ok_or("Missing checked original conversion origins authority")?;
         return super::copy_tagged_values::origins::install(pair, facts, receipt);
     }
+    install_reference_origins(pair, facts)
+}
+
+fn install_reference_origins(
+    pair: &mut Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     for node in &mut pair.pdg.nodes {
         if reference(node)? {
             let origins = source_origins(node, facts)?;
@@ -32,6 +53,7 @@ pub(super) fn install(
             );
         }
     }
+
     Ok(())
 }
 
@@ -39,6 +61,13 @@ pub(super) fn verify(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::scalar_product_instances::activation::when_checked(facts, |checked| {
+        crate::scalar_product_instances::origins::documents::verify(pair, &checked, facts)
+    })?
+    .is_some()
+    {
+        return Ok(());
+    }
     if super::tagged_calls::verify(pair, facts)? {
         return Ok(());
     }
@@ -76,6 +105,7 @@ pub(super) fn verify(
             );
         }
     }
+
     Ok(())
 }
 
@@ -707,7 +737,10 @@ fn access_origins(
     crate::data_component_origins::selected(&ty, selectors, origin.parameter, origin.path)
 }
 
-fn verify_type(node: &PdgNode, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+pub(crate) fn verify_type(
+    node: &PdgNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
     if let Some(result) = super::result_maps::verify_type(node, facts) {
         return result;
     }
@@ -923,7 +956,7 @@ pub(super) fn source_node<'a>(
     Ok(source)
 }
 
-pub(super) fn wire_type(node: &PdgNode) -> Result<String, String> {
+pub(crate) fn wire_type(node: &PdgNode) -> Result<String, String> {
     let value = node
         .annotations
         .get("compat.rust.hir-r0:type")

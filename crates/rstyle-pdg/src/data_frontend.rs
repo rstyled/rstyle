@@ -35,6 +35,9 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
         verify_fields(facts)?;
         return observation.finish(Ok(()));
     }
+    if crate::scalar_product_instances::activation::candidate(facts) {
+        crate::scalar_product_instances::activation::verify(facts)?;
+    }
     crate::character_scalars::verify_function(facts)?;
     crate::float_scalars::verify_function(facts)?;
     crate::range_values::verify_function(facts)?;
@@ -79,6 +82,12 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    crate::extraction_profile::require_document(
+        profile,
+        crate::scalar_product_instances::activation::VALUE_CAPABILITY,
+        || crate::scalar_product_instances::activation::candidate(facts),
+        "Digit product values require their registered document policy",
+    )?;
     crate::extraction_profile::require_document(
         profile,
         crate::copy_tagged_values::CAPABILITY,
@@ -602,6 +611,9 @@ fn verify_nodes(
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if let Some(operands) = crate::scalar_product_instances::activation::operands(node, facts)? {
+        return verify_node_operands(node, facts, places, operands);
+    }
     if let Some(update) = crate::owned_product_locals::update_for(node, facts)? {
         verify_nodes(update.receiver(), facts, places)?;
         return verify_nodes(update.value(), facts, places);
@@ -635,6 +647,14 @@ fn verify_nodes(
     if crate::data_discards::candidate(node, facts) {
         return crate::data_discards::verify(node, facts);
     }
+    verify_sequence_nodes(node, facts, places)
+}
+
+fn verify_sequence_nodes(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    places: &crate::data_places::Places,
+) -> Result<(), String> {
     if crate::iterator_position::candidate(node, facts) {
         let checked = crate::iterator_position::verify(node, facts)?;
         verify_nodes(checked.receiver, facts, places)?;
@@ -683,6 +703,7 @@ fn verify_node_type(
         }
         data_types::parse_in(token, facts)?;
         if node.kind == "expr_path"
+            && crate::scalar_product_instances::activation::construct(node, facts)?.is_none()
             && !crate::checked_options::constructor_candidate(node, facts)
             && !crate::borrowed_result_errors::error_candidate(node, facts)
         {
@@ -761,11 +782,26 @@ fn verify_enum_node(
     Ok(())
 }
 
+fn digit_product_reference(node: &HirNode, facts: &dyn crate::unit_store::EvidenceFacts) -> bool {
+    crate::scalar_product_instances::activation::candidate(facts)
+        && node
+            .ty
+            .as_ref()
+            .and_then(|ty| ty.normalized.as_deref())
+            .and_then(|text| data_types::parse(text).ok())
+            .is_some_and(|ty| {
+                crate::data_origins::shared(&ty) && !matches!(ty, data_types::TypeToken::Shared(_))
+            })
+}
+
 fn verify_reference_origins(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
     places: &crate::data_places::Places,
 ) -> Result<(), String> {
+    if digit_product_reference(node, facts) {
+        return crate::scalar_product_instances::origins::verify_source_value(node, facts);
+    }
     if crate::lossless_integer_calls::message::verify(node, facts)? {
         return Ok(());
     }

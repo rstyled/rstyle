@@ -1,5 +1,9 @@
 //! Typed compiler observations for bounded byte-slice patterns; no admission proof.
+pub(crate) mod arithmetic;
+pub(crate) mod graph;
+pub(crate) mod locations;
 mod receipt;
+pub(crate) mod semantics;
 pub mod source;
 mod types;
 

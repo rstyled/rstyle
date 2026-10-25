@@ -909,3 +909,5 @@ fn install_call_tokens(node: &mut rstyle_pdg::HirNode) {
         dispatch.result_ty = result;
     }
 }
+
+pub(super) use scalar_product_instances::scalar_argument;

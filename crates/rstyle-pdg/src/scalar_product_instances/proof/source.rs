@@ -5,6 +5,13 @@ use crate::nominal_boundary::resolution::FunctionSource;
 pub(super) struct Method {
     pub(super) namespace: Namespace,
     digits: u8,
+    pub(super) implementation: crate::ByteSpan,
+}
+
+impl Method {
+    pub(super) fn digits(&self) -> u8 {
+        self.digits
+    }
 }
 
 pub(super) fn verify_method(
@@ -44,6 +51,7 @@ pub(super) fn verify_method(
     Ok(Method {
         namespace: method.namespace.clone(),
         digits: method.digits,
+        implementation: method.implementation,
     })
 }
 
@@ -83,28 +91,35 @@ impl MethodSearch<'_> {
             verify_owner_declaration(facts, module)?;
             super::super::super::function_attributes(facts, &owner.attrs)?;
             super::super::super::function_attributes(facts, &method.attrs)?;
-            if method.sig.ident != "parse"
-                || method.sig.receiver().is_some()
-                || !method.sig.generics.params.is_empty()
-                || method.sig.generics.where_clause.is_some()
-                || method.sig.constness.is_none()
-                || method.sig.asyncness.is_some()
-                || method.sig.unsafety.is_some()
-                || method.sig.abi.is_some()
-                || method.sig.variadic.is_some()
-            {
-                return Err(
-                    "Scalar product requires the original static nongeneric parse method".into(),
-                );
-            }
+            verify_signature(&method.sig)?;
             candidates.push(Method {
                 namespace: module.namespace.clone(),
                 digits,
+                implementation: crate::nominal_boundary::resolution::implementation_source_span(
+                    bytes, owner,
+                ),
             });
         }
 
         Ok(())
     }
+}
+
+fn verify_signature(signature: &syn::Signature) -> Result<(), String> {
+    if signature.ident != "parse"
+        || signature.receiver().is_some()
+        || !signature.generics.params.is_empty()
+        || signature.generics.where_clause.is_some()
+        || signature.constness.is_none()
+        || signature.asyncness.is_some()
+        || signature.unsafety.is_some()
+        || signature.abi.is_some()
+        || signature.variadic.is_some()
+    {
+        return Err("Scalar product requires the original static nongeneric parse method".into());
+    }
+
+    Ok(())
 }
 
 pub(super) fn concrete_owner(owner: &syn::ItemImpl, argument: Argument) -> Result<u8, String> {

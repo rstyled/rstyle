@@ -3,6 +3,35 @@ use super::*;
 use selected::no_drop::scalar_product_instances as proof;
 
 impl Resolution {
+    /// Identity-only ownership of the checked concrete const impl. This does
+    /// not register a callable summary for its reference-bearing result.
+    pub(super) fn scalar_product_static_owner(
+        &self,
+        facts: &HirFnFacts,
+        implementation: &ByteSpan,
+        nominal: &crate::concrete_types::Nominal,
+    ) -> Result<bool, String> {
+        let Some(receipt) = &self.scalar_product_source else {
+            return Ok(false);
+        };
+        if !supports(
+            facts,
+            crate::scalar_product_instances::activation::VALUE_CAPABILITY,
+        )? {
+            return Err("Concrete digit owner requires its value capability".into());
+        }
+        let mut owner = receipt
+            .checked_namespace(facts, &self.environment)?
+            .to_vec();
+        if receipt.implementation() != *implementation {
+            return Err("Concrete digit owner changes its exact original implementation".into());
+        }
+        owner.push("ExactlyNDigits".into());
+        self.check_nominal(&owner, nominal)?;
+
+        Ok(true)
+    }
+
     pub(super) fn capture_scalar_product(&mut self, facts: &HirFnFacts) -> Result<(), String> {
         let instances = self
             .trees
@@ -47,6 +76,49 @@ impl Resolution {
             .ok_or("Scalar product lacks its exact source/cleanup receipt")?;
         receipt.verify_owner(facts, &self.environment, instance)?;
         Ok(true)
+    }
+
+    /// Return the concrete digit count only after rechecking the exact owning
+    /// function, instance and current SourceContext through its source receipt.
+    pub(crate) fn checked_scalar_product_digits(
+        &self,
+        facts: &HirFnFacts,
+        tree: &TypeTree,
+    ) -> Result<u8, String> {
+        if !self.checked_scalar_product(facts, tree)? {
+            return Err("Digit source requires its exact scalar product instance".into());
+        }
+
+        self.scalar_product_source
+            .as_ref()
+            .map(|source| source.digits())
+            .ok_or_else(|| "Missing checked scalar product source".into())
+    }
+
+    /// Resolve a plain constructor path against this exact checked instance.
+    /// Inference here grants no cleanup or callable authority of its own.
+    pub(crate) fn scalar_product_constructor_type(
+        &self,
+        path: &syn::TypePath,
+    ) -> Result<TypeTree, String> {
+        if path.qself.is_some()
+            || path
+                .path
+                .segments
+                .iter()
+                .any(|segment| !matches!(segment.arguments, syn::PathArguments::None))
+        {
+            return Err(
+                "Scalar product constructor inference requires a plain original path".into(),
+            );
+        }
+
+        let scope = Scoped {
+            resolution: self,
+            namespace: &self.namespace,
+        };
+        exact_tree(path, &scope)?
+            .ok_or_else(|| "Constructor lacks its exact scalar instance source".into())
     }
 
     pub(super) fn bind_scalar_product(&mut self, facts: &HirFnFacts) -> Result<bool, String> {
