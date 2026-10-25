@@ -87,6 +87,7 @@ fn fixture(source: &str, declaration: &str, leaf: &str) -> Fixture {
     };
     let census = census(bytes);
     let receipt = AnonymousPrelude {
+        widening: None,
         census: Arc::new(census.clone()),
         module: site.target.clone(),
         traits: [definition("Extend"), definition("Truncate")],

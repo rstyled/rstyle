@@ -193,3 +193,30 @@ fn neighboring_and_grouped_unresolved_globs_retain_source_ambiguity() {
         }
     }
 }
+
+#[test]
+fn widening_prelude_metadata_composes_through_cargo_and_strict_replay() {
+    let directory = workspace_with_anonymous_prelude();
+    let source = directory.path().join("outside/src/lib.rs");
+    let original = std::fs::read_to_string(&source).unwrap();
+    std::fs::write(&source, original
+        .replace("pub trait Extend", "#[deprecated(since=\"0.2.2\",note=\"use Widen\")] #[allow(deprecated)] pub trait Extend")
+        .replace("pub use crate", "#[allow(deprecated)] pub use crate")
+        .replace("Truncate as _", "Truncate as _, Widen as _") + "pub trait Widen {}\n").unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &[
+            "--extraction-profile",
+            "hir-data-v3",
+            "--capture-dependency",
+            "scalar_dependency",
+        ],
+    );
+    assert!(output.status.success(), "{report}");
+    admitted(&report);
+    let (output, replayed) =
+        replay::replay(directory.path(), report["run_directory"].as_str().unwrap());
+    assert!(output.status.success(), "{replayed}");
+    assert_eq!(replayed["verification_policy"], "strict-replay");
+    admitted(&replayed);
+}

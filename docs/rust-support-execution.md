@@ -1223,3 +1223,28 @@ Evidence: `/tmp/rstyle-432-{nextest2.log,clippy5.log,fmt-final.log,style4.json,p
 Original default run: `target/rstyle/clones/run-dFHSan`; no-default strict replay:
 `target/rstyle/clones/run-jOLgpB`. All capture/assessment and natural selected-pair
 completeness checks pass; frozen matching remains intentionally budget-limited.
+
+
+Data3.110 / dependency source increment (fb4038a baseline): original
+num-conv0.2.2 Extend/Truncate/Widen export closure now checks all three identities,
+direct routes, complete module footprint and original attribute-free compiler
+spans. Only independently validated deprecation metadata gains permission; no
+trait bodies/effects are certified. Reuses checked owning units and cached XXH3
+source identities; selects the bounded shape before parsing rather than retrying
+the full legacy proof. No new ignores, suppressions, thresholds or source omissions.
+Fresh no-default run-fRDbW5 preserves1,406 identities,22 admissions and231 pairs;
+the three digit parsers now reach the next source barrier. Source audit identifies
+powerfmt0.2.1's changed alternate->with_alternate arm and docsrs root attributes;
+0.2.0's complete source receipt deliberately rejects it. Deranged0.5.9 is another
+changed dependency whose downstream closure remains unknown. Complete that
+source chain before claiming no-default digit support or advancing caller summaries.
+
+Validation:2,091 workspace tests pass/five existing skips plus doctests; fmt,
+warning-denied Clippy,style0/6,929 and patterns0/15 unchanged ignores pass.
+New Cargo composition/strict matching test:0.54s locally, no speedup claim.
+No-default strict run-fRDbW5 retains all231 pairs. Default fresh run-TI3XOT
+retains29/1,506 admissions and all406 pairs, gain0/loss0. Replaying the older
+3.109 default bundle under3.110 rejected hint::cold_path operation provenance;
+checks were preserved and the identical locked context recaptured. The frozen
+roster and foreign native CI were not rerun for this source-only increment.
+Evidence: `/tmp/rstyle-433-{unit2.log,cargo-test.log,nextest.log,clippy2.log,fmt.log,style-final.json,patterns.log,no-default-strict-comparison.json,default-fresh-strict-comparison.json}`.

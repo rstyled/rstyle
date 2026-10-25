@@ -45,6 +45,7 @@ pub struct AnonymousPrelude {
     module: Definition,
     traits: [Definition; 2],
     import: Site,
+    widening: Option<Definition>,
 }
 
 impl AnonymousPrelude {
@@ -60,6 +61,10 @@ impl AnonymousPrelude {
         &self.traits
     }
 
+    pub fn widening_trait(&self) -> Option<&Definition> {
+        self.widening.as_ref()
+    }
+
     pub fn import(&self) -> &Site {
         &self.import
     }
@@ -70,9 +75,31 @@ pub fn verify_anonymous_prelude(
     producer: &UnitCapture,
     consumer: &Import,
 ) -> Result<AnonymousPrelude, ProofError> {
-    inputs(&census, producer, consumer)?;
+    verify_prelude(census, producer, consumer, false)
+}
+
+pub fn verify_widening_anonymous_prelude(
+    census: Arc<Census>,
+    producer: &UnitCapture,
+    consumer: &Import,
+) -> Result<AnonymousPrelude, ProofError> {
+    verify_prelude(census, producer, consumer, true)
+}
+
+fn verify_prelude(
+    census: Arc<Census>,
+    producer: &UnitCapture,
+    consumer: &Import,
+    widening: bool,
+) -> Result<AnonymousPrelude, ProofError> {
+    let names: &[&str] = if widening {
+        &["Extend", "Truncate", "Widen"]
+    } else {
+        &["Extend", "Truncate"]
+    };
+    inputs(&census, producer, consumer, names.len())?;
     let source = source::Prelude::original(&census)?;
-    let sites = source.declarations(producer)?;
+    let sites = source.declarations(producer, names)?;
     exports(consumer, &sites)?;
     unsupported(producer, consumer, &sites)?;
 
@@ -80,11 +107,17 @@ pub fn verify_anonymous_prelude(
         census,
         module: consumer.site.target.clone(),
         traits: [sites[0].target.clone(), sites[1].target.clone()],
+        widening: sites.get(2).map(|site| site.target.clone()),
         import: consumer.site.clone(),
     })
 }
 
-fn inputs(census: &Census, producer: &UnitCapture, consumer: &Import) -> Result<(), ProofError> {
+fn inputs(
+    census: &Census,
+    producer: &UnitCapture,
+    consumer: &Import,
+    count: usize,
+) -> Result<(), ProofError> {
     if producer.identity != capture::IDENTITY
         || census.identity != crate::nominal_boundary::census::IDENTITY
     {
@@ -123,9 +156,9 @@ fn inputs(census: &Census, producer: &UnitCapture, consumer: &Import) -> Result<
         ));
     }
     identity(&site.target)?;
-    if consumer.exports.len() != 2 {
+    if consumer.exports.len() != count {
         return Err(ProofError::Contradictory(
-            "Anonymous prelude requires exactly two compiler exports",
+            "Anonymous prelude compiler export count differs",
         ));
     }
     // Neither value of raw `complete` grants source authority. The exact closed
@@ -155,7 +188,7 @@ fn same_definition(local: &Definition, foreign: &Definition) -> bool {
         && local.stable_crate_id == foreign.stable_crate_id
 }
 
-fn exports(consumer: &Import, sites: &[&Site; 2]) -> Result<(), ProofError> {
+fn exports(consumer: &Import, sites: &[&Site]) -> Result<(), ProofError> {
     for (export, site) in consumer.exports.iter().zip(sites) {
         let [route] = export.route.as_slice() else {
             return Err(ProofError::Unsupported(
@@ -181,7 +214,7 @@ fn exports(consumer: &Import, sites: &[&Site; 2]) -> Result<(), ProofError> {
 fn unsupported(
     producer: &UnitCapture,
     consumer: &Import,
-    sites: &[&Site; 2],
+    sites: &[&Site],
 ) -> Result<(), ProofError> {
     for finding in &producer.unsupported {
         let selected = same_definition(&finding.definition, &consumer.site.target)

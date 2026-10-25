@@ -70,7 +70,15 @@ impl Environment {
         }
         // A failed proof grants nothing; the unchanged original import is
         // still checked through the ordinary unresolved-import paths.
-        let Ok(receipt) = owner.anonymous_prelude() else {
+        let receipt = if crate::extraction_profile::facts_support(
+            input.facts(),
+            "rust.widening-prelude-source",
+        ) {
+            owner.anonymous_prelude_with_widening()
+        } else {
+            owner.anonymous_prelude()
+        };
+        let Ok(receipt) = receipt else {
             return;
         };
         if crate::dependency_namespaces::proof::verify_consumer(

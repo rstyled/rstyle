@@ -42,11 +42,22 @@ fn span(source: &str, text: &str) -> FileSpan {
 }
 
 fn declaration(source: &str, name: &str) -> Declaration {
-    let ordinal = if name == "Extend" { 0 } else { 1 };
+    let ordinal = match name {
+        "Extend" => 0,
+        "Truncate" => 1,
+        _ => 2,
+    };
     Declaration {
         site: Site {
             definition: definition(&format!("prelude::{{use#0}}::{{use#{ordinal}}}"), true),
-            declaration: span(source, "pub use crate::{Extend as _, Truncate as _};"),
+            declaration: span(
+                source,
+                if source.contains("Widen as _") {
+                    "pub use crate::{Extend as _, Truncate as _, Widen as _};"
+                } else {
+                    "pub use crate::{Extend as _, Truncate as _};"
+                },
+            ),
             leaf: span(source, name),
             owner: definition("prelude", true),
             scope: vec!["prelude".into()],
@@ -89,7 +100,12 @@ fn census(source: &str) -> Arc<Census> {
 }
 
 fn fixture(source: &str) -> Fixture {
-    let declarations = ["Extend", "Truncate"].map(|name| declaration(source, name));
+    let names: &[&str] = if source.contains("Widen as _") {
+        &["Extend", "Truncate", "Widen"]
+    } else {
+        &["Extend", "Truncate"]
+    };
+    let declarations: Vec<_> = names.iter().map(|name| declaration(source, name)).collect();
     let exports = declarations
         .iter()
         .map(|record| Export {
@@ -112,7 +128,7 @@ fn fixture(source: &str) -> Fixture {
         census: census(source),
         capture: UnitCapture {
             identity: capture::IDENTITY.into(),
-            declarations: declarations.into(),
+            declarations,
             imports: vec![],
             unsupported: vec![],
         },
@@ -271,5 +287,73 @@ fn original_root_attributes_require_literal_documentation_or_no_std() {
             matches!(verify(&fixture(&original)), Err(ProofError::Unsupported(_))),
             "{attribute}"
         );
+    }
+}
+
+fn widening_source() -> String {
+    SOURCE.replace("Truncate as _", "Truncate as _, Widen as _")
+        .replace("pub use crate", "#[allow(deprecated)] pub use crate")
+        .replace("pub trait Extend", "#[deprecated(since=\"0.2.2\", note=\"use Widen\")] #[allow(deprecated)] pub trait Extend")
+        + "pub trait Widen {}\n"
+}
+
+fn verify_widening(fixture: &Fixture) -> Result<AnonymousPrelude, ProofError> {
+    verify_widening_anonymous_prelude(
+        Arc::clone(&fixture.census),
+        &fixture.capture,
+        &fixture.import,
+    )
+}
+
+#[test]
+fn widening_footprint_requires_all_three_routes_and_preserves_legacy_boundary() {
+    let fixture = fixture(&widening_source());
+    assert!(verify(&fixture).is_err());
+    let receipt = verify_widening(&fixture).unwrap();
+    assert_eq!(receipt.widening_trait().unwrap().path, "Widen");
+    assert!(verify_widening(&self::fixture(SOURCE)).is_err());
+    let attacks: &[fn(&mut Fixture)] = &[
+        |f| {
+            f.import.exports.pop();
+        },
+        |f| f.import.exports.swap(1, 2),
+        |f| f.import.exports[2].route.clear(),
+        |f| f.import.exports[2].target.definition_identity.push('x'),
+        |f| f.capture.declarations[2].site.leaf.span.end += 1,
+        |f| f.capture.declarations[2].site.declaration.span.start -= 1,
+        |f| f.capture.declarations[2].site.owner = definition("other", true),
+        |f| f.capture.declarations[2].site.target = f.capture.declarations[0].site.target.clone(),
+        |f| {
+            f.capture
+                .declarations
+                .push(f.capture.declarations[2].clone())
+        },
+        |f| {
+            f.capture.unsupported.push(Unsupported {
+                definition: definition("Widen", true),
+                reason: "unproved".into(),
+            })
+        },
+    ];
+    for attack in attacks {
+        let mut changed = self::fixture(&widening_source());
+        attack(&mut changed);
+        assert!(verify_widening(&changed).is_err());
+    }
+}
+
+#[test]
+fn widening_metadata_does_not_authorize_cfg_expansions_or_hidden_items() {
+    let original = widening_source();
+    for source in [
+        original.replace("allow(deprecated)", "allow(unused)"),
+        original.replace("allow(deprecated)", "cfg(all())"),
+        original.replace("note=\"use Widen\"", "note=concat!(\"use Widen\")"),
+        original.replace("note=\"use Widen\"", "since=\"0.2.3\""),
+        original.replace("pub mod prelude", "#[allow(deprecated)] pub mod prelude"),
+        original.replace("; }", "; pub struct Hidden; }"),
+        original.replace("pub trait Widen", "#[cfg(all())] pub trait Widen"),
+    ] {
+        assert!(verify_widening(&fixture(&source)).is_err(), "{source}");
     }
 }

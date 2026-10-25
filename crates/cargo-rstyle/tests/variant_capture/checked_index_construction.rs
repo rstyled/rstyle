@@ -198,7 +198,7 @@ fn verify_pairs(report: &Value) {
         let index = shared_evidence::index(entry);
         let facts = analysis.function(index).unwrap();
         let pair = unit.pair(index).unwrap();
-        assert_eq!(pair.pdg.profile.version, "3.109.0");
+        assert_eq!(pair.pdg.profile.version, "3.110.0");
         rstyle_pdg::verification_policy::strict(|| {
             rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts)
         })

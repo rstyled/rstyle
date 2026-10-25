@@ -26,6 +26,7 @@ mod result_maps;
 mod scalar_aliases;
 mod scalar_products;
 mod selected;
+pub(crate) use selected::deprecated_metadata;
 pub(crate) use selected::no_drop::{expand_local_ident_macro, expand_local_ident_source};
 pub(crate) mod value_traits;
 pub(crate) use environment::{Environment, SourceOptions};

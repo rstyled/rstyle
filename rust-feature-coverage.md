@@ -5373,3 +5373,15 @@ remaining source dependency, not permission to ignore the glob or alter selectio
 Original runtime expectations pass229,554 checks per feature context; the Cargo
 composition includes graph/origin/guard/policy attacks and coherent owner tampering.
 Final gate evidence and next frontier are recorded in docs/rust-support-execution.md.
+
+Data3.110 independently closes num-conv0.2.2's complete three-trait anonymous
+prelude (Extend/Truncate/Widen), including bounded literal deprecation metadata,
+all original grouped/leaf coordinates and exact compiled routes. Historical
+policies retain the two-trait contract. Cargo capture, strict replay and matching
+exercise the constructor/getter family; altered routes, identities, metadata,
+coordinates, hidden items and unsupported producer evidence remain rejected.
+The unchanged no-default/parsing selection remains22/1,406, gain0/loss0; the
+previous prelude rejection advances to powerfmt0.2.1 macro source ownership.
+The latter changes the alternate expansion and requires a separate reviewed
+contract. Deranged0.5.9 also differs from the default lockfile; downstream source
+closure remains unproved. Option<ParsedItem> callable summaries remain separate.

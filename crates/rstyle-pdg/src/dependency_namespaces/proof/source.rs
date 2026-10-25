@@ -61,7 +61,8 @@ impl Prelude {
     pub(super) fn declarations<'a>(
         &self,
         producer: &'a UnitCapture,
-    ) -> Result<[&'a Site; 2], ProofError> {
+        names: &[&str],
+    ) -> Result<Vec<&'a Site>, ProofError> {
         let items = &self
             .module
             .content
@@ -73,15 +74,17 @@ impl Prelude {
                 "Prelude must contain exactly one original grouped reexport",
             ));
         };
-        public(&item.vis, &item.attrs)?;
-        let leaves = grouped(item)?;
-        let sites = [
-            self.site(producer, item, leaves[0])?,
-            self.site(producer, item, leaves[1])?,
-        ];
+        let widening = names.len() == 3;
+        metadata_public(&item.vis, &item.attrs, widening)?;
+        let leaves = grouped(item, names)?;
+        let sites = leaves
+            .iter()
+            .map(|leaf| self.site(producer, item, leaf))
+            .collect::<Result<Vec<_>, _>>()?;
         self.complete(producer, &sites)?;
-        self.original_trait("Extend")?;
-        self.original_trait("Truncate")?;
+        for name in names {
+            self.original_trait(name, widening)?;
+        }
 
         Ok(sites)
     }
@@ -92,7 +95,9 @@ impl Prelude {
         item: &syn::ItemUse,
         leaf: &syn::UseRename,
     ) -> Result<&'a Site, ProofError> {
-        let declaration = crate::source_evidence::original_span(&self.bytes, item.span());
+        let mut original = item.clone();
+        original.attrs.clear();
+        let declaration = crate::source_evidence::original_span(&self.bytes, original.span());
         // The pinned compiler records the use identifier, while the complete
         // original grouped declaration proves its exact `as _` rename.
         let leaf_span = crate::source_evidence::original_span(&self.bytes, leaf.ident.span());
@@ -161,14 +166,18 @@ impl Prelude {
         Ok(())
     }
 
-    fn complete(&self, producer: &UnitCapture, sites: &[&Site; 2]) -> Result<(), ProofError> {
+    fn complete(&self, producer: &UnitCapture, sites: &[&Site]) -> Result<(), ProofError> {
         let owner = &sites[0].owner;
-        if sites[1].owner != *owner
-            || sites[0].definition == sites[1].definition
-            || sites[0].target == sites[1].target
-            || sites[0].definition.definition_identity == sites[1].definition.definition_identity
-            || sites[0].target.definition_identity == sites[1].target.definition_identity
-        {
+        if sites.iter().enumerate().any(|(index, site)| {
+            site.owner != *owner
+                || sites[..index].iter().any(|other| {
+                    site.definition == other.definition
+                        || site.target == other.target
+                        || site.definition.definition_identity
+                            == other.definition.definition_identity
+                        || site.target.definition_identity == other.target.definition_identity
+                })
+        }) {
             return Err(ProofError::Contradictory(
                 "Anonymous reexports have duplicate or different owners",
             ));
@@ -182,7 +191,7 @@ impl Prelude {
             .iter()
             .filter(|record| in_module(&record.site))
             .count()
-            != 2
+            != sites.len()
             || producer
                 .imports
                 .iter()
@@ -195,7 +204,7 @@ impl Prelude {
         Ok(())
     }
 
-    fn original_trait(&self, name: &str) -> Result<(), ProofError> {
+    fn original_trait(&self, name: &str, widening: bool) -> Result<(), ProofError> {
         let traits: Vec<_> = self
             .root
             .items
@@ -210,7 +219,7 @@ impl Prelude {
                 "Missing or ambiguous original exported trait declaration",
             ));
         };
-        public(&item.vis, &item.attrs)
+        metadata_public(&item.vis, &item.attrs, widening)
     }
 }
 
@@ -245,7 +254,30 @@ fn public(visibility: &syn::Visibility, attributes: &[syn::Attribute]) -> Result
     Ok(())
 }
 
-fn grouped(item: &syn::ItemUse) -> Result<[&syn::UseRename; 2], ProofError> {
+fn metadata_public(
+    visibility: &syn::Visibility,
+    attributes: &[syn::Attribute],
+    widening: bool,
+) -> Result<(), ProofError> {
+    let ordinary: Vec<_> = attributes
+        .iter()
+        .filter(|attribute| {
+            !(widening
+                && (crate::source_evidence::single_identifier_attribute(
+                    &attribute.meta,
+                    "allow",
+                    "deprecated",
+                ) || crate::nominal_boundary::resolution::deprecated_metadata(&attribute.meta)))
+        })
+        .cloned()
+        .collect();
+    public(visibility, &ordinary)
+}
+
+fn grouped<'a>(
+    item: &'a syn::ItemUse,
+    names: &[&str],
+) -> Result<Vec<&'a syn::UseRename>, ProofError> {
     let syn::UseTree::Path(path) = &item.tree else {
         return Err(ProofError::Unsupported(
             "Prelude requires crate-qualified original grouped imports",
@@ -256,26 +288,20 @@ fn grouped(item: &syn::ItemUse) -> Result<[&syn::UseRename; 2], ProofError> {
             "Prelude requires one exact grouped import",
         ));
     };
-    if item.leading_colon.is_some() || path.ident != "crate" || group.items.len() != 2 {
+    if item.leading_colon.is_some() || path.ident != "crate" || group.items.len() != names.len() {
         return Err(ProofError::Unsupported(
             "Prelude group has unsupported prefix or inventory",
         ));
     }
-
-    let leaves: Vec<_> = group.items.iter().collect();
-    let (syn::UseTree::Rename(first), syn::UseTree::Rename(second)) = (leaves[0], leaves[1]) else {
-        return Err(ProofError::Unsupported(
-            "Prelude requires exactly two anonymous trait reexports",
-        ));
-    };
-    if first.ident != "Extend"
-        || second.ident != "Truncate"
-        || first.rename != "_"
-        || second.rename != "_"
-    {
-        return Err(ProofError::Unsupported(
-            "Prelude anonymous trait identities or order differ",
-        ));
-    }
-    Ok([first, second])
+    group
+        .items
+        .iter()
+        .zip(names)
+        .map(|(leaf, name)| match leaf {
+            syn::UseTree::Rename(leaf) if leaf.ident == name && leaf.rename == "_" => Ok(leaf),
+            _ => Err(ProofError::Unsupported(
+                "Prelude anonymous trait identities or order differ",
+            )),
+        })
+        .collect()
 }

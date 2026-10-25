@@ -1,7 +1,7 @@
 //! Bounded selected deprecation metadata; no expansion or runtime permission.
 use syn::{Token, punctuated::Punctuated};
 
-pub(super) fn deprecated(attribute: &syn::Meta) -> bool {
+pub(crate) fn deprecated(attribute: &syn::Meta) -> bool {
     let syn::Meta::List(list) = attribute else {
         return false;
     };

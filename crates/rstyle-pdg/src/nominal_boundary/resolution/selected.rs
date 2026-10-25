@@ -13,6 +13,7 @@ mod explicit_u8_attacks;
 mod function_cleanup_tests;
 pub(super) mod local_traits;
 mod metadata;
+pub(crate) use metadata::deprecated as deprecated_metadata;
 pub(super) mod no_drop;
 pub(super) mod passive;
 mod scalar_leaf;

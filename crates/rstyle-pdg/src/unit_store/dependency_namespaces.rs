@@ -84,6 +84,19 @@ impl CheckedDependencyNamespace<'_> {
     pub fn anonymous_prelude(
         &self,
     ) -> Result<crate::dependency_namespaces::proof::AnonymousPrelude, String> {
+        self.prelude(false)
+    }
+
+    pub(crate) fn anonymous_prelude_with_widening(
+        &self,
+    ) -> Result<crate::dependency_namespaces::proof::AnonymousPrelude, String> {
+        self.prelude(self.capture.imports[self.import].exports.len() == 3)
+    }
+
+    fn prelude(
+        &self,
+        widening: bool,
+    ) -> Result<crate::dependency_namespaces::proof::AnonymousPrelude, String> {
         let producer = crate::dependency_namespaces::unit_capture(self.owner.functions())?
             .ok_or("Missing original producer namespace capture")?;
         let facts = self
@@ -95,7 +108,13 @@ impl CheckedDependencyNamespace<'_> {
             .build
             .frontend_options
             .data::<Arc<crate::nominal_boundary::census::Census>>()?;
-        crate::dependency_namespaces::proof::verify_anonymous_prelude(
+        let verify = if widening {
+            crate::dependency_namespaces::proof::verify_widening_anonymous_prelude
+        } else {
+            crate::dependency_namespaces::proof::verify_anonymous_prelude
+        };
+
+        verify(
             Arc::clone(&census),
             &producer,
             &self.capture.imports[self.import],
