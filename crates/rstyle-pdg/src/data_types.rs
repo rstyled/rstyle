@@ -23,6 +23,7 @@ use crate::concrete_types::VariantShape;
 )]
 pub enum TypeToken {
     Scalar(String),
+    NonZero(crate::nonzero_values::Observation),
     Tuple(Vec<TypeToken>),
     Array {
         element: Box<TypeToken>,
@@ -72,6 +73,7 @@ impl TypeToken {
     pub fn from_tree(tree: &TypeTree) -> Self {
         match tree {
             TypeTree::Scalar(value) => Self::Scalar(value.clone()),
+            TypeTree::NonZero(observation) => Self::NonZero(observation.clone()),
             TypeTree::Tuple(values) => Self::Tuple(values.iter().map(Self::from_tree).collect()),
             TypeTree::Array { element, length } => Self::Array {
                 element: Box::new(Self::from_tree(element)),
@@ -391,11 +393,15 @@ fn check_fresh_capabilities(
     text: &str,
     profile: crate::extraction_profile::ExtractionProfile,
 ) -> Result<(), String> {
+    if text.contains("\"kind\":\"non_zero\"") {
+        return Err("NonZero values require a complete checked composition contract".into());
+    }
     if text.contains("\"kind\":\"range_to_usize\"")
         || text.contains("\"kind\":\"range_from_usize\"")
     {
         return Err("Checked range observation grants no standalone value permission".into());
     }
+
     if text.contains("\"kind\":\"result\"") && !profile.supports("rust.fresh-concrete-results") {
         return Err("Concrete Result requires its registered fresh-result capability".into());
     }
@@ -471,6 +477,7 @@ fn check(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), Str
 
 fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {
     match token {
+        TypeToken::NonZero(observation) => observation.check_shape(),
         TypeToken::MutableScalar(value) if depth == 0 && value == "usize" => Ok(()),
         TypeToken::Scalar(value)
             if scalar(value) || depth == 0 && matches!(value.as_str(), "char" | "f32" | "f64") =>
@@ -574,6 +581,9 @@ fn check_fieldless_variants(variants: &[(String, i64)]) -> Result<(), String> {
 
 fn recursive_element(token: &TypeToken) -> Option<&TypeToken> {
     match token {
+        TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::NonZero(_)) => {
+            Some(payload)
+        }
         TypeToken::Option(payload)
             if matches!(payload.as_ref(), TypeToken::ScalarProductInstance { .. }) =>
         {

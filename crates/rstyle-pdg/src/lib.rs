@@ -82,10 +82,12 @@ pub(crate) mod named_callbacks;
 pub mod nominal_binding;
 pub mod nominal_boundary;
 pub mod nominal_constants;
+pub mod nonzero_values;
 pub mod option_callbacks;
 pub mod option_propagation;
 mod owned_product_locals;
 mod owned_product_values;
+pub mod parsed_item_callbacks;
 pub mod primitive_constants;
 pub mod producer;
 pub mod product_constant_values;
@@ -151,3 +153,5 @@ mod tuple_assignment;
 
 mod owned_receiver;
 pub mod result_maps;
+
+mod structural_json;

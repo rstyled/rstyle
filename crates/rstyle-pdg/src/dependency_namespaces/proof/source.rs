@@ -224,20 +224,12 @@ impl Prelude {
 }
 
 fn root_attributes(attributes: &[syn::Attribute]) -> Result<(), ProofError> {
-    for attribute in attributes {
-        let supported = match &attribute.meta {
-            syn::Meta::Path(path) => path.is_ident("no_std"),
-            syn::Meta::NameValue(value) if value.path.is_ident("doc") => {
-                matches!(&value.value, syn::Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)))
-            }
-            _ => false,
-        };
-        if !supported {
-            return Err(ProofError::Unsupported(
-                "Producer root has unsupported namespace attributes",
-            ));
-        }
+    if !crate::source_evidence::literal_metadata(attributes, "no_std") {
+        return Err(ProofError::Unsupported(
+            "Producer root has unsupported namespace attributes",
+        ));
     }
+
     Ok(())
 }
 

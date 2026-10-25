@@ -11,6 +11,8 @@ pub use dependency_namespaces::CheckedDependencyNamespace;
 mod derived;
 mod instance_links;
 mod instances;
+#[cfg(test)]
+mod original_members_tests;
 mod product_instances;
 mod reference_forwarders;
 mod reference_instances;
@@ -53,6 +55,12 @@ mod sealed {
 /// helper views from being substituted from a different owning unit.
 pub trait EvidenceFacts: sealed::Sealed {
     fn facts(&self) -> &HirFnFacts;
+
+    /// Original evidence in this owning unit only. A raw generic member is not
+    /// a certified helper, callable summary, instantiated body or graph.
+    fn original_local_member(&self, _definition: &str) -> Result<Option<&HirFnFacts>, String> {
+        Ok(None)
+    }
 
     /// Raw generated-source observations from this owning unit; no proof authority.
     fn generated_source_capture(
@@ -182,6 +190,10 @@ impl EvidenceFacts for HirFnFacts {
 }
 
 impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
+    fn original_local_member(&self, definition: &str) -> Result<Option<&HirFnFacts>, String> {
+        T::original_local_member(*self, definition)
+    }
+
     fn dependency_namespace(
         &self,
         import: &crate::dependency_namespaces::capture::Import,
@@ -403,6 +415,26 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn original_local_member(&self, definition: &str) -> Result<Option<&HirFnFacts>, String> {
+        if definition.is_empty() {
+            return Err("Original member lookup requires an exact definition identity".into());
+        }
+        let mut selected = self.resolver.tables().functions.iter().filter(|facts| {
+            facts
+                .build
+                .frontend_options
+                .get("definition_identity")
+                .and_then(serde_json::Value::as_str)
+                == Some(definition)
+        });
+
+        let result = selected.next();
+        if selected.next().is_some() {
+            return Err("Original member has duplicate definitions in its owning unit".into());
+        }
+        Ok(result)
+    }
+
     fn dependency_namespace(
         &self,
         import: &crate::dependency_namespaces::capture::Import,

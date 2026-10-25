@@ -49,10 +49,12 @@ inventories still exclude nested-owner calls. Function pointers and capturing
 closures remain structurally unsupported; callable identity proves no purity,
 cleanup, body equivalence or invocation authority.
 
-Remaining complete chain: exact core NonZero value/no-drop summary and product
-type, original generic-member/source/substitution proof, guarded Option payload
-consumption with once-only callbacks and saved suffix/read scope, then strict
-original/replay admission and matching. These three functions still exclude.
+Checked semantic foundation now covers pinned native NonZero<u8/u16> values/
+no-drop, complete original same-unit flat_map body/substitutions and paired product
+shapes. Fresh capture retains29/1,406 admissions, gains0/losses0; strict replay
+preserves all406 pairs. These three functions still exclude: caller lexical/source
+and aggregate cleanup proof must connect to once-only guarded Option consumption,
+saved suffix/read scope and complete original/replay admission/matching.
 Evidence: `/tmp/rstyle-439-{comparison.json,observations.json,oracle.log}`.
 
 Strict replay verifies all 29 admissions and evaluates all 406 pairs; outcomes,

@@ -197,7 +197,7 @@ fn path_proof(
     }
     if matches!(
         tree,
-        TypeTree::RangeUsize { .. } | TypeTree::ScalarProductInstance(_)
+        TypeTree::RangeUsize { .. } | TypeTree::ScalarProductInstance(_) | TypeTree::NonZero(_)
     ) {
         return if resolution.resolve(path)? == *tree {
             Ok(())
@@ -209,6 +209,7 @@ fn path_proof(
         && matches!(
             payload.as_ref(),
             TypeTree::Scalar(_)
+                | TypeTree::NonZero(_)
                 | TypeTree::Tuple(_)
                 | TypeTree::Struct { .. }
                 | TypeTree::ScalarProductInstance(_)

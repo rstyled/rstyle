@@ -1,5 +1,6 @@
 use super::*;
 mod integration;
+mod nonzero;
 
 const ORIGINAL: &str =
     "#[derive(Debug)] pub(crate) struct ParsedItem<'a, T>(pub(crate) &'a [u8], pub(crate) T);";

@@ -1400,3 +1400,20 @@ another observation-only increment. This is evidence preparation, not family
 support or broad-goal completion. Evidence: `/tmp/rstyle-439-{comparison.json,
 observations.json,oracle.log,strict-comparison.json,nextest.log,refactor-test.log,
 clippy-final.log,style-final.json,patterns-final.log,frozen-comparison.json}`.
+
+Nonzero semantic contracts (371dfdc baseline; policy remains 3.115): exact native
+core u8/u16 NonZero construction/no-drop, original same-unit flat_map body and
+structural substitutions, and paired product shapes now have independent checks.
+No aggregate Copy, lexical, callback-guard or admission authority follows.
+Natural capture exposed and fixed raw NonZero field handling in derived neighbors;
+those neighbors remain captured and excluded. All 1,406 identities/build contexts
+persist: 29 admissions, zero gains/losses; 18 excluded diagnostic lists change.
+Strict replay verifies all 29 and preserves all 406 pair records exactly.
+Validation: 2,145 tests pass, five existing skips, doctests, fmt/Clippy, style
+0/7,050, patterns 0/15 unchanged ignores; real Cargo composition 0.37s with the
+prebuilt driver (one sample, no speedup claim). No new hashing or serialized keys.
+Next deliver complete original caller source/cleanup and guarded Option/suffix/read
+composition; week/day/dayo remain excluded. This foundation does not finish the
+family or broad goal. Frozen inventory was not rerun at this inactive checkpoint.
+Evidence: `/tmp/rstyle-440-{comparison.json,strict.json,nextest-final.log,
+clippy-neighbor.log,style-final.json,patterns-last.json,neighbor-inventory.log}`.

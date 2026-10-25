@@ -4,6 +4,8 @@ pub(crate) mod activation;
 pub mod constructors;
 pub(crate) mod forwarders;
 pub(crate) mod origins;
+mod payload;
+pub mod transformation;
 
 use crate::concrete_types::byte_views::{
     explicit_lifetime_source as source_view, observed as observed_view,
@@ -16,6 +18,10 @@ use serde::{Deserialize, Serialize};
 pub enum Argument {
     U8,
     U16,
+    #[serde(rename = "nonzero_u8")]
+    NonZeroU8,
+    #[serde(rename = "nonzero_u16")]
+    NonZeroU16,
 }
 
 impl Argument {
@@ -23,7 +29,13 @@ impl Argument {
         match self {
             Self::U8 => "u8",
             Self::U16 => "u16",
+            Self::NonZeroU8 => "NonZero<u8>",
+            Self::NonZeroU16 => "NonZero<u16>",
         }
+    }
+
+    pub fn matches_tree(self, tree: &TypeTree) -> bool {
+        self.matches_payload(tree)
     }
 }
 
@@ -94,7 +106,7 @@ impl Observation {
             || !matches!(&source_fields.unnamed[1].ty, syn::Type::Path(path)
                 if path.qself.is_none() && path.path.is_ident(parameter))
             || !observed_view(&view.ty)
-            || !matches!(&scalar.ty, TypeTree::Scalar(value) if value == self.argument.as_str())
+            || !self.argument.matches_tree(&scalar.ty)
         {
             return Err("Scalar product original fields or concrete substitution disagree".into());
         }

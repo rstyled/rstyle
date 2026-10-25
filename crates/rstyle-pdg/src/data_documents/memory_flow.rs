@@ -4,6 +4,7 @@ use super::*;
 use crate::data_types::TypeToken;
 use crate::field_locations::scalar_formals::{FormalObservation, ScalarFormalAccesses};
 use crate::producer::{self, memory};
+use crate::structural_json::object;
 use crate::{Definition, EdgeFamily, MemoryLocation, PdgEdge};
 use serde_json::Value;
 
@@ -1229,10 +1230,6 @@ fn order_items(items: &mut [Value], depth: usize, key: Option<&str>) {
         Some(key) => record_id(left, key).cmp(&record_id(right, key)),
         None => definition_order(left).cmp(&definition_order(right)),
     });
-}
-
-fn object<const N: usize>(fields: [(&str, Value); N]) -> Value {
-    fields.into_iter().collect()
 }
 
 fn record_id<'a>(record: &'a Value, field: &str) -> Option<&'a str> {

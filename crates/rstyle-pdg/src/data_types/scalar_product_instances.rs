@@ -16,7 +16,7 @@ pub(super) fn check(token: &TypeToken, depth: usize, entries: &mut usize) -> Res
     if view_name != "0"
         || value_name != "1"
         || !shared_byte_slice(view)
-        || !matches!(value, TypeToken::Scalar(value) if value == argument.as_str())
+        || !argument.matches_payload(value)
         || nominal
             .source_identity
             .as_ref()

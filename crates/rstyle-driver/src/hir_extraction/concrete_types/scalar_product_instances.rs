@@ -15,7 +15,7 @@ impl<'tcx> Capture<'_, 'tcx> {
         {
             return Ok(None);
         }
-        let Some(argument) = scalar_argument(instance.arguments) else {
+        let Some(argument) = self.product_argument(instance.arguments)? else {
             return Ok(None);
         };
         let definition = instance.definition;
@@ -53,6 +53,32 @@ impl<'tcx> Capture<'_, 'tcx> {
         observation.check_shape().map_err(Failure::Unsupported)?;
         self.origin(definition.did(), &observation.nominal)?;
         Ok(Some(TypeTree::ScalarProductInstance(Box::new(observation))))
+    }
+
+    fn product_argument(
+        &self,
+        arguments: ty::GenericArgsRef<'tcx>,
+    ) -> Result<Option<Argument>, Failure> {
+        if let Some(argument) = scalar_argument(arguments) {
+            return Ok(Some(argument));
+        }
+        let [region, value] = &arguments[..] else {
+            return Ok(None);
+        };
+        if !matches!(region.kind(), ty::GenericArgKind::Lifetime(_)) {
+            return Ok(None);
+        }
+        let ty::GenericArgKind::Type(value) = value.kind() else {
+            return Ok(None);
+        };
+
+        Ok(match self.nonzero_value(value)? {
+            Some(TypeTree::NonZero(observation)) => Some(match observation.scalar {
+                rstyle_pdg::nonzero_values::Scalar::U8 => Argument::NonZeroU8,
+                rstyle_pdg::nonzero_values::Scalar::U16 => Argument::NonZeroU16,
+            }),
+            _ => None,
+        })
     }
 }
 

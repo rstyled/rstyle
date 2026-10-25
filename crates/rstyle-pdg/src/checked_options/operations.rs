@@ -67,25 +67,25 @@ pub(crate) fn project(mut roots: Vec<Origin>) -> Vec<Origin> {
 
 pub(crate) fn semantics(construct: &str) -> serde_json::Value {
     match construct {
-        "data.option-some" => interpretation([
+        "data.option-some" => crate::structural_json::object([
             ("rule", "scalar-option-some".into()),
             ("payload_operand", 0.into()),
             ("variant", "some".into()),
             ("content_read", false.into()),
         ]),
-        "data.option-none" => interpretation([
+        "data.option-none" => crate::structural_json::object([
             ("rule", "scalar-option-none".into()),
             ("variant", "none".into()),
             ("has_payload", false.into()),
             ("content_read", false.into()),
         ]),
-        "data.option-value-payload" => interpretation([
+        "data.option-value-payload" => crate::structural_json::object([
             ("rule", "project-scalar-option-payload".into()),
             ("option_operand", 0.into()),
             ("requires", "some".into()),
             ("content_read", false.into()),
         ]),
-        "data.option-get" => interpretation([
+        "data.option-get" => crate::structural_json::object([
             ("rule", "index-less-than-length-option".into()),
             ("receiver_operand", 0.into()),
             ("index_operand", 1.into()),
@@ -93,30 +93,21 @@ pub(crate) fn semantics(construct: &str) -> serde_json::Value {
             ("failure", "none".into()),
             ("content_read", false.into()),
         ]),
-        "data.option-payload" => interpretation([
+        "data.option-payload" => crate::structural_json::object([
             ("rule", "copy-shared-scalar-payload".into()),
             ("option_operand", 0.into()),
             ("requires", "some".into()),
         ]),
-        "match.option-some" | "if.option-some" => interpretation([
+        "match.option-some" | "if.option-some" => crate::structural_json::object([
             ("rule", "option-is-some".into()),
             ("option_operand", 0.into()),
         ]),
-        "match.option-none" => interpretation([
+        "match.option-none" => crate::structural_json::object([
             ("rule", "option-is-none".into()),
             ("option_operand", 0.into()),
         ]),
         _ => unreachable!("registered checked Option operation"),
     }
-}
-
-fn interpretation<const N: usize>(fields: [(&str, serde_json::Value); N]) -> serde_json::Value {
-    serde_json::Value::Object(
-        fields
-            .into_iter()
-            .map(|(key, value)| (key.into(), value))
-            .collect(),
-    )
 }
 
 pub(crate) fn matches(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {

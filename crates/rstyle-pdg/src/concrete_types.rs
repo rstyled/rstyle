@@ -36,6 +36,8 @@ pub const MAX_SOURCE_BYTES: usize = 64 * 1024;
 #[serde(tag = "kind", content = "evidence", deny_unknown_fields)]
 pub enum TypeTree {
     Scalar(String),
+    /// Exact core nonzero integer identity; source/value permissions are separate.
+    NonZero(crate::nonzero_values::Observation),
     Tuple(Vec<TypeTree>),
     Array {
         element: Box<TypeTree>,
@@ -341,9 +343,27 @@ pub(crate) fn validate_observations<'a>(
     validation::observations(observations)
 }
 
+/// Shape consistency for raw observations; this grants no source or semantic authority.
+pub trait ObservationShape {
+    fn check_shape(&self) -> Result<(), String>;
+}
+
+impl ObservationShape for crate::nonzero_values::Observation {
+    fn check_shape(&self) -> Result<(), String> {
+        self.check_shape()
+    }
+}
+
+impl ObservationShape for crate::scalar_product_instances::Observation {
+    fn check_shape(&self) -> Result<(), String> {
+        self.check_shape()
+    }
+}
+
 fn check_shape(tree: &TypeTree) -> Result<(), String> {
     match tree {
-        TypeTree::ScalarProductInstance(instance) => instance.check_shape(),
+        TypeTree::NonZero(observation) => ObservationShape::check_shape(observation),
+        TypeTree::ScalarProductInstance(instance) => ObservationShape::check_shape(instance.as_ref()),
         TypeTree::RangeUsize { observation } => crate::range_values::authority::shape(observation),
         TypeTree::RangeFromUsize { observation } => crate::range_values::authority::range_from_shape(observation),
         TypeTree::RangeToUsize { observation } => crate::range_values::authority::range_to_shape(observation),
@@ -440,6 +460,7 @@ fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
 
 fn option_payload(tree: &TypeTree) -> bool {
     match tree {
+        TypeTree::NonZero(_) => true,
         TypeTree::ScalarProductInstance(_) => true,
         TypeTree::Scalar(value) => scalar(value) && value != "unit",
         TypeTree::Shared(value) => {

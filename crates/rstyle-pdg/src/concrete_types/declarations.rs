@@ -37,7 +37,8 @@ pub(super) fn check(source: &syn::Type, resolved: &TypeTree) -> Result<(), Strin
 fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String> {
     if matches!(
         resolved,
-        TypeTree::ScalarProductInstance(_)
+        TypeTree::NonZero(_)
+            | TypeTree::ScalarProductInstance(_)
             | TypeTree::RangeUsize { .. }
             | TypeTree::RangeToUsize { .. }
             | TypeTree::RangeFromUsize { .. }
@@ -50,6 +51,7 @@ fn check_path(source: &syn::TypePath, resolved: &TypeTree) -> Result<(), String>
         && matches!(
             payload.as_ref(),
             TypeTree::Scalar(_)
+                | TypeTree::NonZero(_)
                 | TypeTree::Tuple(_)
                 | TypeTree::Struct { .. }
                 | TypeTree::ScalarProductInstance(_)

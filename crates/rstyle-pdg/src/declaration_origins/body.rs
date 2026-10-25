@@ -169,6 +169,9 @@ fn contains_option(tree: &TypeTree) -> bool {
 
 fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
     Ok(match token {
+        // Reconstruct raw shape only. This declaration inventory supplies neither
+        // the core build authority nor source, cleanup or value permission.
+        TypeToken::NonZero(observation) => TypeTree::NonZero(observation.clone()),
         TypeToken::ScalarProductInstance { .. } => {
             return Err("Scalar product body authority requires exact instance evidence".into());
         }

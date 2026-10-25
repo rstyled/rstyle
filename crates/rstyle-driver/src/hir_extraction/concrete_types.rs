@@ -5,6 +5,7 @@ mod copy;
 mod fieldless_enums;
 mod generated_declarations;
 mod mixed_enums;
+mod nonzero_values;
 mod range_values;
 mod receivers;
 mod scalar_enums;
@@ -364,6 +365,9 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 
     fn storage(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
+        if let Some(nonzero) = self.nonzero_value(ty)? {
+            return Ok(nonzero);
+        }
         if let Some(range) = self.range_value(ty, depth)? {
             return Ok(range);
         }
