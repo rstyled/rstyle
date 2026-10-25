@@ -5434,3 +5434,14 @@ debug contexts. StateID macro/source ownership and unchecked array-result
 receipts remain separate blockers; this is not general array/trait/ownership
 support. Strict replay, matching and integrated gate evidence are recorded in
 docs/rust-support-execution.md and the checked-index-decode development corpus.
+
+Data3.115 connects original `StateID::{new, from_ne_bytes}` through the same
+checked SmallIndex chain after the preceding PatternID expansion. Exact temporal
+local binding and a complete bounded Struct/Impl predecessor roster preserve
+textual scope; no root namespace, derive, cleanup or effect authority follows.
+Unchanged native no-default selection:116→118/590, only those two gains, no losses.
+Four wrapper originals strictly replay at score1; all six selected original pairs
+complete and Accepted at unchanged thresholds. Unknown predecessors, cleanup-
+sensitive generated owners and historical policies remain closed. No new runtime
+hashing/serialized lookup. [Contract and evidence](eval/coverage-development/ordered-index-expansions/README.md);
+remaining higher callers require transitive summaries and guarded payload consumption.

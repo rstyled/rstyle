@@ -1,0 +1,91 @@
+{
+  "identity": "rstyle.development.ordered-index-expansions/1",
+  "status": "Source-first contract before new ordered-expansion implementation/measurement",
+  "source_context": "../checked-index-decode/selection.json (complete original primitives/int/root/module XXH3 checks and original index_type_impls definition/invocations)",
+  "source_obligation": "Exact original PatternID invocation immediately precedes StateID invocation at util::primitives module scope. Reinterpret no bodies as pure. Preserve complete generated ownership/cleanup and helper checks.",
+  "build_context": {
+    "package": "regex-automata0.4.18",
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "target": "aarch64-unknown-linux-gnu",
+    "features": [],
+    "default_features": false,
+    "debug_assertions": true,
+    "overflow_checks": true,
+    "panic": "unwind",
+    "opt_level": "No"
+  },
+  "unchanged_roster": 590,
+  "baseline_admitted": 116,
+  "functions": [
+    {
+      "name": "util::primitives::PatternID::new",
+      "fn_span": {
+        "start": 26841,
+        "end": 26919
+      },
+      "source_digest": "xxh3-64:df5e769e704470fe",
+      "outcome": "admitted",
+      "reasons": []
+    },
+    {
+      "name": "util::primitives::PatternID::from_ne_bytes",
+      "fn_span": {
+        "start": 26841,
+        "end": 26919
+      },
+      "source_digest": "xxh3-64:df5e769e704470fe",
+      "outcome": "admitted",
+      "reasons": []
+    },
+    {
+      "name": "util::primitives::StateID::new",
+      "fn_span": {
+        "start": 26921,
+        "end": 26991
+      },
+      "source_digest": "xxh3-64:bd1b7923afe4fc85",
+      "outcome": "excluded",
+      "reasons": [
+        "Unknown expansion prevents exact textual macro lookup",
+        "Macro-generated functions are deferred to rust.macros.",
+        "Required Unknown expansion prevents exact textual macro lookup evidence is unavailable; cannot certify this operation.",
+        "Required Unknown expansion prevents exact textual macro lookup evidence is unavailable; cannot certify this operation."
+      ]
+    },
+    {
+      "name": "util::primitives::StateID::from_ne_bytes",
+      "fn_span": {
+        "start": 26921,
+        "end": 26991
+      },
+      "source_digest": "xxh3-64:bd1b7923afe4fc85",
+      "outcome": "excluded",
+      "reasons": [
+        "Unknown expansion prevents exact textual macro lookup",
+        "Macro-generated functions are deferred to rust.macros.",
+        "Required Unknown expansion prevents exact textual macro lookup evidence is unavailable; cannot certify this operation.",
+        "Required Unknown expansion prevents exact textual macro lookup evidence is unavailable; cannot certify this operation."
+      ]
+    }
+  ],
+  "known_blockers": [
+    "StateID source joins currently fail exact textual macro lookup because earlier PatternID invocation poisons scope.",
+    "Complete impl/member/constructor/HIR-role, source namespace, non-Copy no-drop error, selected SmallIndex helper and exact generated map/map_err proofs remain mandatory after lookup.",
+    "Other generated StateID methods have distinct source/body/interface boundaries; not covered by sharing this template."
+  ],
+  "contract": "Separately gated complete single-rule ident-only predecessor substitution with exact current temporal binding and full source anchors; selected active emitted top-level items limited to Impl/Struct and known effective attributes. No top-level generated macro/import/module/extern/verbatim. Never heal earlier poison. Bounded aggregate substitution work. Textual scope proof grants no root-path, derive, Drop, value or effect permission.",
+  "independent_expectations": {
+    "admission": "Both StateID constructors in scope after full connected proof; retain both PatternID peers. Two new admissions are a hypothesis until measured.",
+    "values": "StateID::new(x) returns exact x iff x<=2147483646; otherwise error.attempted() is exact x as u64. StateID::from_ne_bytes decodes base256 in native order, same limit and exact error; independently fixed existing decode oracle already includes StateID.",
+    "matching": "Four generated wrapper originals have the same complete map/map_err graph topology with unary constructors and one exact pure total leaf call. All six pairs expected Accepted at unchanged thresholds; distinct nominal interfaces do not alone force rejection. Each owning replay Accepted score1.",
+    "negative": [
+      "Unknown predecessor remains unknown even followed by known inert expansion; no supported prefix.",
+      "Generated top-level macro redefinition/import/glob/module/extern, unknown attribute or selected cfg_attr cannot be treated as scope-inert.",
+      "Stale/changed definition, temporal binding, invocation/arguments, cfg or compiler owner/hygiene cannot reuse proof.",
+      "Body-local macro definitions cannot alter enclosing textual binding; a nested macro_export grants no root/builtin proof.",
+      "An expansion emitting Drop may preserve textual scope but must reject cleanup-dependent strict admission.",
+      "Historical policy, altered payload constructor/helper/guard/result source or effects remain rejected."
+    ]
+  }
+}

@@ -1,5 +1,7 @@
 use super::*;
 use crate::nominal_boundary::census::{IDENTITY, UnitFile};
+#[path = "tests/preceding.rs"]
+mod preceding;
 
 const DEFINITION: &str = "macro_rules! index_type_impls { ($name:ident, $err:ident, $iter:ident, $withiter:ident) => { impl $name { pub fn new(value: usize) -> Result<$name, $err> { SmallIndex::new(value).map($name).map_err($err) } } pub struct $err(SmallIndexError); pub struct $iter; pub struct $withiter; }; }";
 const PATTERN: &str =
@@ -42,6 +44,7 @@ fn check(
 ) -> Result<CheckedExpansion, String> {
     verify(Input {
         census,
+        preceding_expansions: false,
         cfgs: &[],
         namespace,
         definition: &anchor(census, definition),
@@ -100,6 +103,7 @@ fn state_arguments_are_independent_and_stale_pattern_anchor_cannot_transfer() {
     assert_eq!(expansion.bindings()[1].value, "StateIDError");
     assert!(
         verify(Input {
+            preceding_expansions: false,
             census: &state,
             cfgs: &[],
             namespace: &[],
@@ -219,6 +223,7 @@ fn stale_definition_and_invocation_coordinates_are_rejected() {
             }
             assert!(
                 verify(Input {
+                    preceding_expansions: false,
                     census: &proof,
                     cfgs: &[],
                     namespace: &[],
@@ -299,6 +304,7 @@ fn compiler_headers_normalize_exactly_and_source_coordinates_follow_template_occ
     let definition = anchor(&proof, "macro_rules! index_type_impls");
     let invocation = anchor(&proof, PATTERN.trim_end_matches(';'));
     let expansion = verify_compiler(CompilerInput {
+        preceding_expansions: false,
         census: &proof,
         cfgs: &[],
         definition_header: &definition,
@@ -347,6 +353,7 @@ fn compiler_headers_reject_complete_definition_or_invocation_as_header() {
     ] {
         assert!(
             verify_compiler(CompilerInput {
+                preceding_expansions: false,
                 census: &proof,
                 cfgs: &[],
                 definition_header: &definition_header,

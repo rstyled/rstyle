@@ -1,7 +1,7 @@
 //! Complete checked byte decoder and generated consuming wrappers.
 use super::*;
 
-fn source() -> String {
+pub(super) fn source() -> String {
     SOURCE.replace("value: usize", "value: [u8; 4]")
         .replace(
             "if value > 100 { return Err(BaseError { attempted: value as u64 }); }\n        Ok(Base(value as u32))",

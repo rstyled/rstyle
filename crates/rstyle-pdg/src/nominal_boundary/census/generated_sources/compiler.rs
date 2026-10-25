@@ -7,6 +7,7 @@ pub struct CompilerInput<'a> {
     pub cfgs: &'a [String],
     pub definition_header: &'a FileSpan,
     pub invocation_macro: &'a FileSpan,
+    pub preceding_expansions: bool,
 }
 
 pub fn verify_compiler(input: CompilerInput<'_>) -> Result<CheckedExpansion, String> {
@@ -39,6 +40,7 @@ fn verify_compiler_modules(
             namespace: &sites.namespace,
             definition: &sites.definition,
             invocation: &sites.invocation,
+            preceding_expansions: input.preceding_expansions,
         },
         modules,
         true,

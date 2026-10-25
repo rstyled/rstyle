@@ -107,6 +107,10 @@ fn verify_using(
             .as_ref()
             .ok_or("Missing local macro definition header")?,
         invocation_macro: &root.invocation.raw,
+        preceding_expansions: crate::extraction_profile::facts_support(
+            input.facts,
+            "rust.ordered-local-macro-source",
+        ),
     })?;
     authority::source(&input, observation, root, &expansion)?;
 

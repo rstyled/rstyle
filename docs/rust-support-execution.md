@@ -1347,3 +1347,28 @@ PatternID). Prove the complete preceding expansion's namespace effects before
 changing that restriction; sharing a macro template alone is insufficient.
 Transitive result summaries and week/day/dayo's NonZero/callback/residual chain
 remain separate higher-caller work. The broad coverage goal remains open.
+
+Data3.115 / ordered local macro source (8e8e0de baseline): original StateID::new
+and StateID::from_ne_bytes now join exact source ownership after PatternID.
+Complete bounded predecessor interpretation proves enclosing textual scope only;
+existing namespace/hygiene, full member ownership, no-drop and callee checks stay
+mandatory. Unknown scope is never healed. No new hashes or serialized lookup keys.
+Retained native run-zlTUUT→run-YrcTin preserves590 function/build identities apart
+from producer/navigation and gains exactly those two:116→118, zero losses.
+Four original/replay pairs Accepted score1; six distinct-original pairs complete
+and Accepted as independently specified. Full-library matching budget-incomplete.
+Original constructor oracle8202 inputs/context in all four feature/debug controls,
+zero mismatches; retained Data3.114 decoder oracle includes StateID. Foreign native
+CI unverified. Positive composition2.01s, negatives0.97s with prebuilt driver;
+initial focused25.19s included nested build, not a controlled comparison.
+Remaining frontier: StateID siblings have distinct source/interface blockers;
+transitive parser summaries, guarded payload consumption and source-required
+NonZero/callback/residual work remain open. The broad coverage goal is not complete.
+Validation:2,118 tests validated (2,117 passed full run; spacing-only style failure
+corrected and its test rerun passed), five existing skips, plus doctests. Fmt and
+warning-denied Clippy pass; style0/6,985 and patterns0/15 unchanged ignores.
+Frozen run-usp9j60b checks118 Data documents; all60 identities/outcomes/reasons,
+denominators and blockers unchanged24/29/7; R0/expanded also unchanged.
+Evidence: `/tmp/rstyle-438-{comparison.json,strict.log,oracle.json,nextest-final.log,
+style-retest.log,fmt-final.log,clippy-final.log,style-final.json,patterns-final.log,
+frozen-comparison.json}`. Documentation lands with this implementation.

@@ -154,6 +154,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.u32-usize-value-trait-calls",
     "rust.lossless-u32-usize-calls",
     "rust.u64-from-u32",
+    "rust.ordered-local-macro-source",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -313,7 +314,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.114.0", 141)),
+            Self::DataV3 => Some(("3.115.0", 142)),
         }
     }
 

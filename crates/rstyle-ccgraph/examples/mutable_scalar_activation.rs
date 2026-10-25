@@ -103,8 +103,8 @@ fn check_all(stores: [&UnitStore; 2], functions: &[Value]) -> Result<(), String>
         let source = function["source"]
             .as_str()
             .ok_or("Missing selected source")?;
-        if !sources.insert(source) {
-            return Err("Selected original source identity is duplicated".into());
+        if !sources.insert((source, function["name"].as_str())) {
+            return Err("Selected original source/name identity is duplicated".into());
         }
         let mut original = check(stores, &json!({"function": function}))?;
         original.key = format!("selected:{index}");

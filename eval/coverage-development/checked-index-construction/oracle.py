@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 RUNNER = r'''
-use regex_automata::{PatternID, util::primitives::SmallIndex};
+use regex_automata::{PatternID, util::primitives::{SmallIndex, StateID}};
 
 fn check(index: usize, counts: &mut [usize; 2]) {
     // Independent interval specification, fixed before evaluating admission.
@@ -29,13 +29,16 @@ fn check(index: usize, counts: &mut [usize; 2]) {
     let small = SmallIndex::new(index);
     let via_trait = <SmallIndex as TryFrom<usize>>::try_from(index);
     let pattern = PatternID::new(index);
+    let state = StateID::new(index);
     if index <= EXPECTED_MAX {
         let value = small.expect("index in independently specified interval");
         let trait_value = via_trait.expect("same interval via TryFrom");
         let wrapped = pattern.expect("same interval via generated constructor");
+        let state = state.expect("same independent interval via StateID constructor");
         assert_eq!(value.as_usize(), index);
         assert_eq!(trait_value.as_usize(), index);
         assert_eq!(wrapped.as_usize(), index);
+        assert_eq!(state.as_usize(), index);
         assert_eq!(format!("{value:?}"), format!("SmallIndex({index})"));
         assert_eq!(format!("{wrapped:?}"), format!("PatternID({index})"));
         counts[0] += 1;
@@ -43,9 +46,11 @@ fn check(index: usize, counts: &mut [usize; 2]) {
         let error = small.expect_err("index above independently specified interval");
         let trait_error = via_trait.expect_err("same failing interval via TryFrom");
         let wrapped = pattern.expect_err("same failing interval via generated constructor");
+        let state = state.expect_err("same independent failing interval via StateID");
         assert_eq!(error.attempted(), index as u64);
         assert_eq!(trait_error.attempted(), index as u64);
         assert_eq!(wrapped.attempted(), index as u64);
+        assert_eq!(state.attempted(), index as u64);
         assert_eq!(format!("{error:?}"), format!("SmallIndexError {{ attempted: {index} }}"));
         assert_eq!(format!("{wrapped:?}"),
                    format!("PatternIDError(SmallIndexError {{ attempted: {index} }})"));

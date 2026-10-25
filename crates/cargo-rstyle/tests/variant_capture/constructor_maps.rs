@@ -2,6 +2,7 @@
 use super::float_kernels::function;
 use super::*;
 mod bytes;
+mod ordered;
 
 const SOURCE: &str = r#"
 #![no_std]

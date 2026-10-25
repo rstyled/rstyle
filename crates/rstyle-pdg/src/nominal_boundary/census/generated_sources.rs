@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use syn::{parse::Parser, spanned::Spanned};
 mod compiler;
 mod globs;
+mod preceding;
 pub(crate) use compiler::verify_compiler_in;
 pub use compiler::{CompilerInput, verify_compiler};
 
@@ -17,6 +18,8 @@ pub struct Input<'a> {
     pub definition: &'a FileSpan,
     /// Full original invocation item, including its semicolon when present.
     pub invocation: &'a FileSpan,
+    /// Source grammar only; semantic callers must require its capability.
+    pub preceding_expansions: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,6 +37,7 @@ pub struct CheckedExpansion {
     items: Vec<syn::Item>,
     macro_path: Vec<String>,
     template_bom: bool,
+    substitution_bound: usize,
 }
 
 impl CheckedExpansion {
@@ -92,6 +96,8 @@ fn verify_modules(
             .collect(),
         definitions: Vec::new(),
         checked: None,
+        preceding_count: 0,
+        preceding_bytes: 0,
     };
     lookup.module(&[], macro_scope::Scope::default())?;
 
@@ -107,6 +113,8 @@ struct Lookup<'a> {
     modules: BTreeMap<Vec<String>, &'a Module>,
     definitions: Vec<(FileSpan, &'a syn::ItemMacro)>,
     checked: Option<CheckedExpansion>,
+    preceding_count: usize,
+    preceding_bytes: usize,
 }
 
 impl<'a> Lookup<'a> {
@@ -163,6 +171,9 @@ impl<'a> Lookup<'a> {
         item: &'a syn::Item,
         scope: &mut macro_scope::Scope,
     ) -> Result<(), String> {
+        if self.input.preceding_expansions && self.preceding(module, item, scope)? {
+            return Ok(());
+        }
         if let syn::Item::Use(import) = item
             && globs::closed(import, &self.modules, &self.configuration)?
         {
@@ -306,12 +317,10 @@ fn expand(
     // Bound substitution before cloning potentially repeated identifier tokens.
     let template_bytes = definition.mac.tokens.to_string().len();
     let argument_bytes = invocation.mac.tokens.to_string().len();
-    if template_bytes
+    let substitution_bound = template_bytes
         .checked_mul(argument_bytes)
-        .is_none_or(|bound| bound > super::MAX_BYTES)
-    {
-        return Err("Generated-source substitution exceeds the source budget".into());
-    }
+        .filter(|bound| *bound <= super::MAX_BYTES)
+        .ok_or("Generated-source substitution exceeds the source budget")?;
     let interpreter = if source_coordinates {
         crate::nominal_boundary::resolution::expand_local_ident_source
     } else {
@@ -330,6 +339,7 @@ fn expand(
         bindings,
         items: file.items,
         macro_path: Vec::new(),
+        substitution_bound,
         template_bom: input
             .census
             .files
