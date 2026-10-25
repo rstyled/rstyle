@@ -1,6 +1,7 @@
 //! One Cargo capture of the unchanged selected method bodies; the original
 //! whole-crate admission/oracle run remains a separate acceptance requirement.
 mod corruption;
+mod summaries;
 
 use super::*;
 use rstyle_pdg::{NodeCategory, PdgNode, producer::Pair};

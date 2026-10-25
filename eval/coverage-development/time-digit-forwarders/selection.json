@@ -1,0 +1,132 @@
+{
+  "identity": "rstyle.development.time-digit-forwarders/1",
+  "status": "source-selected originals; callable composition not yet admitted",
+  "package": {
+    "name": "time",
+    "version": "0.3.47",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47",
+    "manifest_identity": "xxh3-64:2a338875bc81fee0",
+    "file_identities": {
+      "Cargo.toml": "xxh3-64:2a338875bc81fee0",
+      "src/lib.rs": "xxh3-64:4b73910b394bbb70",
+      "src/parsing/mod.rs": "xxh3-64:a8674d6cecab7fe6",
+      "src/parsing/combinator/mod.rs": "xxh3-64:ca1f2ad22a69682b",
+      "src/parsing/combinator/rfc/iso8601.rs": "xxh3-64:3cc49e8a1fcb6a64"
+    }
+  },
+  "build": {
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "target": "aarch64-unknown-linux-gnu",
+    "pointer_width": 64,
+    "edition": "2024",
+    "opt_level": 0,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic": "unwind",
+    "capture_target": "original time library test=false",
+    "oracle_target": "original time library path dependency test=false in a temporary byte-preserving crate copy; append-only combinator oracle child and root trampoline; separate runner binary",
+    "contexts": [
+      {
+        "name": "default-parsing",
+        "default_features": true,
+        "features": [
+          "parsing"
+        ],
+        "feature_closure": [
+          "alloc",
+          "default",
+          "parsing",
+          "std"
+        ]
+      },
+      {
+        "name": "no-default-parsing",
+        "default_features": false,
+        "features": [
+          "parsing"
+        ],
+        "feature_closure": [
+          "parsing"
+        ]
+      }
+    ]
+  },
+  "functions": [
+    {
+      "name": "parsing::combinator::rfc::iso8601::hour",
+      "file": "src/parsing/combinator/rfc/iso8601.rs",
+      "start": 4870,
+      "end": 4980,
+      "identity": "xxh3-64:f13e8fadf4f46328",
+      "source": "pub(crate) const fn hour(input: &[u8]) -> Option<ParsedItem<'_, u8>> {\n    ExactlyNDigits::<2>::parse(input)\n}",
+      "expected_source_classification": "in-scope",
+      "baseline_outcome": "excluded"
+    },
+    {
+      "name": "parsing::combinator::rfc::iso8601::min",
+      "file": "src/parsing/combinator/rfc/iso8601.rs",
+      "start": 5014,
+      "end": 5123,
+      "identity": "xxh3-64:34ee33ad467b30e7",
+      "source": "pub(crate) const fn min(input: &[u8]) -> Option<ParsedItem<'_, u8>> {\n    ExactlyNDigits::<2>::parse(input)\n}",
+      "expected_source_classification": "in-scope",
+      "baseline_outcome": "excluded"
+    }
+  ],
+  "declarations": [
+    {
+      "name": "ExactlyNDigits",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 3212,
+      "end": 3275,
+      "source": "#[derive(Debug)]\npub(crate) struct ExactlyNDigits<const N: u8>;"
+    },
+    {
+      "name": "ParsedItem",
+      "file": "src/parsing/mod.rs",
+      "start": 300,
+      "end": 388,
+      "source": "#[derive(Debug)]\npub(crate) struct ParsedItem<'a, T>(pub(crate) &'a [u8], pub(crate) T);"
+    }
+  ],
+  "contract": {
+    "success": "At least two bytes, both in independent ASCII digit table; decimal 0..99 for both hour and min. No clock-domain validation.",
+    "result": "Forward exact Some/None once; Some scalar field1 and saved input[2..] suffix field0 with pointer/length/content. None contains no components.",
+    "effects": "Conditional distinct selector/body prefix reads; immutable input; no hidden cleanup or extra caller effects.",
+    "outside_scope": [
+      "week/day/dayo",
+      "parse_subsecond",
+      "general callbacks",
+      "generic instantiation",
+      "cross-package helpers"
+    ]
+  },
+  "oracle_cases": {
+    "exhaustive_two_byte_inputs": 65536,
+    "short_checks": 514,
+    "exhaustive_two_byte_checks": 131072,
+    "valid_binary_suffix_checks": 51200,
+    "valid_suffix_variant_checks": 1400,
+    "pointer_checks": 8,
+    "expected_checks_per_context": 184194
+  },
+  "blockers": [
+    "Parser-only source/no-drop receipt must become caller-specific without borrowing method namespace",
+    "Option/product tagged result transport including exact suffix and scalar components",
+    "Conditional prefix reads must retain distinct operation/access identities beneath callee graph scope",
+    "Concrete inherent source path ExactlyNDigits::<2> rejected by no-arguments grammar despite existing exact unit link",
+    "Broad parser candidate intercepts forwarding result before caller-specific proof"
+  ],
+  "unknowns": [
+    "Additional blockers may emerge when complete caller graph replay is connected; no caller admission forecast"
+  ],
+  "baseline": {
+    "revision": "a8197d9",
+    "no_default_report": "/tmp/rstyle-434-no-default-strict.json",
+    "default_report": "/tmp/rstyle-434-default-strict.json",
+    "selected_family_admissions": 0,
+    "frozen_inventory_changed": false
+  },
+  "identity_provenance": "Existing captured XXH3 source identities and immutable original source coordinates; separate development selection."
+}

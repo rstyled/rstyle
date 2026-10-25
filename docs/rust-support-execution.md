@@ -1281,3 +1281,22 @@ cleanup receipts permit them. Expect decimal0..99 and exact input[2..] on succes
 short/nondigit input returns None. Preserve mismatched reads, suffix/component
 origins, callee identity/build and hidden-drop negatives. General callbacks and
 parse_subsecond remain outside this first forwarding contract.
+
+Data3.112 / digit-parser callable summaries (a8197d9 baseline): complete original
+parser graphs supply exact read occurrences and a guarded suffix component;
+caller activation remains closed. The separate `time-digit-forwarders` selection
+fixes hour/min source/build identities, complete known blockers and independent
+0..99/suffix expectations before admission. Native oracle184,194 checks/context,
+zero mismatches. Fresh unchanged selections: no-default27/1,406, default29/1,506;
+zero gains/losses and all351/406 strict pair records unchanged.
+Evidence: `/tmp/rstyle-435-{forwarder-oracle.json,no-default-comparison.json,default-comparison.json}`.
+Next: caller-specific namespace/cleanup receipt, exact concrete inherent call
+proof, then callee-scoped conditional reads and complete tagged return transport.
+Final gates:2,095 tests pass/five existing skips plus doctests; fmt, warning-denied
+Clippy, style0/6,935 and patterns0/15 unchanged ignores. Frozen run-4r7lfxke
+retains all60 identities/outcomes/blockers:24 admitted/29 excluded/7 inactive,
+118 checked documents. Strict linked replay constructs all three original
+summaries in both contexts; diagnostic derivation observations are2–8ms each,
+not a controlled throughput comparison. New composition test2.1s; existing8.3s.
+Logs: `/tmp/rstyle-435-{nextest-final.log,clippy-final.log,fmt-final.log,style-final.json,patterns-final.log,frozen-comparison.json,summary-timings.json}`.
+Foreign native CI remains unverified. Caller support and the broad goal remain open.

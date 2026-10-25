@@ -148,6 +148,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.checked-digit-product-values",
     "rust.widening-prelude-source",
     "rust.checked-corrected-expression-macro-ownership",
+    "rust.checked-digit-product-summaries",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -307,7 +308,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.111.0", 135)),
+            Self::DataV3 => Some(("3.112.0", 136)),
         }
     }
 

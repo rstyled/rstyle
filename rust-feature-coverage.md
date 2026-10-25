@@ -5395,3 +5395,16 @@ contexts. No-default gains these three and ComponentRange::{name,is_conditional}
 22→27/1,406, loss0; all231 previous pair records persist and all351 current pairs
 complete. Caller support still requires Option/product summaries, residual/value
 flow, generic callbacks and the other branches of each complete original caller.
+
+Data3.112 prepares checked callable summaries for the original one-to-three-digit
+parsers. Each summary retains its verified callee graph, distinct conditional
+selector/body reads and Some-only suffix component; None and the scalar payload
+remain in the complete tagged result graph. Source/cleanup authority is still
+parser-specific: this does not admit forwarding callers. Historical policies do
+not acquire the new summary requirement.
+Unchanged selections retain27/1,406 and29/1,506 admissions, gain0/loss0, with all
+351/406 strict pair records preserved. The separate source-selected hour/min
+oracle passes184,194 checks in each feature context. Their remaining connected
+blockers are caller source ownership, exact `::<2>` inherent routing and guarded
+result/read substitution. No new driver instance transport is needed: both calls
+already have exact unit links. See the compact execution evidence for validation.

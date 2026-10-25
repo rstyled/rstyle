@@ -5,6 +5,7 @@ use crate::{HirFnFacts, HirNode, producer};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub(crate) mod digit_products;
 mod external;
 pub(crate) mod instances;
 mod product_conversions;
@@ -416,6 +417,10 @@ fn propagation_operand<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Opti
 pub(crate) fn certify_view(
     facts: &dyn EvidenceFacts,
 ) -> Result<Option<(Summary, producer::Pair)>, String> {
+    if digit_products::candidate(facts) {
+        return digit_products::certify(facts);
+    }
+
     if !crate::helper_references::supported_result(facts)? {
         return Ok(None);
     }
@@ -492,6 +497,10 @@ pub(crate) fn verify_shared_callee(
     callee: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     producer::verify(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
+    if digit_products::candidate(callee) {
+        return digit_products::verify(callee, helper.pair(), helper.summary());
+    }
+
     let outputs = check_boundary(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
     if (!crate::verification_policy::is_generated()
         || crate::scalar_loop_helpers::has_loop(helper.pair().as_view())
@@ -623,6 +632,9 @@ fn verify_callee(dependency: &Dependency) -> Result<(), String> {
     };
     let pair = producer::verify_serialized_view(serialized, &dependency.frontend)
         .map_err(|errors| errors.join("; "))?;
+    if digit_products::candidate(&dependency.frontend) {
+        return digit_products::verify(&dependency.frontend, &pair, &dependency.summary);
+    }
     let outputs =
         check_boundary(&pair, &dependency.frontend).map_err(|errors| errors.join("; "))?;
     if (!crate::verification_policy::is_generated()
