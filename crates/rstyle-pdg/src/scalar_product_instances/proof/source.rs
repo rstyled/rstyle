@@ -274,7 +274,7 @@ fn declaration_attributes(facts: &HirFnFacts, attributes: &[syn::Attribute]) -> 
     Ok(())
 }
 
-pub(super) fn unshadowed_byte(
+pub(in crate::nominal_boundary::resolution::selected::no_drop) fn unshadowed_byte(
     facts: &HirFnFacts,
     environment: &Environment,
     namespace: &[String],
@@ -287,7 +287,8 @@ pub(super) fn unshadowed_byte(
         for item in &module.items {
             if configuration.active(crate::conditional_source::item_attributes(item))? {
                 if let syn::Item::Use(import) = item
-                    && crate::scalar_product_instances::forwarders::candidate(facts)
+                    && (crate::scalar_product_instances::forwarders::candidate(facts)
+                        || crate::nonzero_digit_calls::candidate(facts))
                     && environment.anonymous_use(&module.namespace, import)
                 {
                     continue;

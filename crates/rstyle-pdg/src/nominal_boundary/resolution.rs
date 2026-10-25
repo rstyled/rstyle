@@ -73,6 +73,7 @@ pub struct Resolution {
     copy_conversion_source: Option<CheckedCopyConversion>,
     scalar_product_source:
         Option<selected::no_drop::scalar_product_instances::CheckedScalarProductInstance>,
+    nonzero_product_source: Option<selected::no_drop::nonzero_products::CheckedNonzeroProduct>,
     transport_sources: Option<result_maps::TransportSources>,
 }
 
@@ -454,7 +455,7 @@ fn capture_function_sources(
     resolution: &mut Resolution,
 ) -> Result<(), String> {
     resolution.capture_scalar_product(input.facts())?;
-    if resolution.scalar_product_source.is_some() {
+    if resolution.scalar_product_source.is_some() || resolution.nonzero_product_source.is_some() {
         return Ok(());
     }
 
@@ -670,6 +671,7 @@ fn declaration_resolution(
         scalar_result_source: None,
         copy_conversion_source: None,
         scalar_product_source: None,
+        nonzero_product_source: None,
         transport_sources: None,
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
@@ -1493,6 +1495,12 @@ impl PathResolution for Scoped<'_> {
 
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
         if let Some(tree) = range_from::resolve(path, self)? {
+            return Ok(tree);
+        }
+        if let Some(receipt) = &self.resolution.nonzero_product_source
+            && let Some(tree) =
+                selected::no_drop::nonzero_products::resolve(receipt, path, self.namespace)?
+        {
             return Ok(tree);
         }
         if let Some(tree) = scalar_products::resolve(path, self)? {

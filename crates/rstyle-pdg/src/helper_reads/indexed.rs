@@ -34,6 +34,7 @@ pub(super) fn substitute(
         .iter()
         .any(|part| matches!(part, Projection::PrefixElement { .. }))
         && !crate::scalar_product_instances::forwarders::candidate(facts)
+        && !crate::nonzero_digit_calls::candidate(facts)
     {
         return Err("Prefix reads require their exact guarded whole-result caller".into());
     }

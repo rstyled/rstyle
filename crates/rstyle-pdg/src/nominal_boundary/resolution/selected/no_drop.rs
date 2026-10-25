@@ -24,6 +24,8 @@ pub(super) mod scalar_errors;
 pub(in crate::nominal_boundary::resolution) fn default_prelude(facts: &HirFnFacts) -> bool {
     crate::data_library::registry_for(facts).is_some_and(prelude_traits::pinned)
 }
+#[path = "../../../scalar_product_instances/nonzero_source.rs"]
+pub(in crate::nominal_boundary::resolution) mod nonzero_products;
 mod product_fields;
 pub(in crate::nominal_boundary::resolution) mod reference_products;
 #[path = "../../../scalar_product_instances/proof.rs"]

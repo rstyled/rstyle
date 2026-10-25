@@ -1,21 +1,19 @@
 # Rust support execution frontier
 
 Authority: [delivery plan](rust-support-parallel-delivery.md) and repository-root
-[roadmap](../rust-feature-coverage.md). Updated 2026-10-24. All P01–P22 routes
+[roadmap](../rust-feature-coverage.md). Updated 2026-10-25. All P01–P22 routes
 remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; Data3.99 connects original generated
-`regex-automata0.4.18::PatternID::new` through `SmallIndex::new`, exact unary
-constructor callbacks and three distinct fresh Result types. Native unchanged
-owners gain only that function:112→113/590 without defaults,158→159/2,582 with
-defaults; zero losses and identical source/build selections. All six declared
-std/no_std target contexts strictly replay ten originals and finish all45 selected
-original-pair evaluations. Cross-target capture is not foreign native execution.
-The [bounded contract](extraction-profiles/constructor-result-maps-v1.md) excludes
-stored Results, general payload binding/callbacks and general generated callables.
-Broader P01–P22 work remains active; historical evidence stays unchanged.
+Branch `feature/rust-feature-coverage`; Data3.116 connects original
+`time0.3.47::{week,day,dayo}` through checked digit-parser summaries, exact
+noncapturing callbacks, original `ParsedItem::flat_map` and native NonZero<u8/u16>.
+The no-drop proof preserves the non-Copy product, saved suffix, guarded reads and
+both distinct None paths. General callbacks, generic bodies, drop/unwind and
+transitive parser summaries remain separate. Validation and unchanged-selection
+measurements are recorded at the end of this file; earlier milestones below are
+historical. Broader P01–P22 work remains active.
 
 Compiler nightly-2026-09-30, commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`; native aarch64 Linux,
@@ -1417,3 +1415,35 @@ composition; week/day/dayo remain excluded. This foundation does not finish the
 family or broad goal. Frozen inventory was not rerun at this inactive checkpoint.
 Evidence: `/tmp/rstyle-440-{comparison.json,strict.json,nextest-final.log,
 clippy-neighbor.log,style-final.json,patterns-last.json,neighbor-inventory.log}`.
+
+Nonzero family activation (42974a5 baseline; Data3.116): original time week/day/dayo
+now connect complete caller source/cleanup, exact original flat_map substitutions,
+pinned NonZero semantics and guarded suffix/read transport. Native unchanged
+selections gain only these three:29→32/1,406 without defaults and31→34/1,506 with
+defaults, zero losses. Strict replay verifies all32/34 and completes496/561 pairs;
+all406/465 historical pair records persist. Capture output directories and producer
+revision normalize; original identities and build settings remain identical.
+Independent original oracle259,952 checks/context, zero mismatches.
+
+Matching boundary: week/day Accepted score1 as expected; both cross-width pairs
+with dayo also score1, failing the source-based negative matching expectation.
+Current graph labels deliberately ignore types/operators/literals/callee names.
+No detector/scoring changes; no behavioral-equivalence or quality claim follows.
+Full post-refactor suite2,148 tests/5 existing skips plus doctests passes. Fmt and
+warning-denied Clippy pass; style0/7,124 and patterns0/15 unchanged ignores. Shared
+source-receipt, representation and sequencing helpers remove new duplication;
+no new hashing or serialized lookup keys. Positive Cargo composition2.30s with
+prebuilt driver (one sample, no performance comparison).
+
+Next frontier: transitive callable summaries and broader concrete payload/error
+flow. Original parse_date is not unlocked: its complete chain also needs captured
+FnMut state, mutable Parsed/ExtendedKind updates, aggregate destructuring, relevant
+macro ownership, multi-error Result conversion and the remaining year/month/dayk
+helpers. Audit a smaller complete caller before another activation; do not count
+this leaf family as the whole ISO-8601 parser. Broader Rust coverage remains active.
+Evidence: `/tmp/rstyle-441-{strict-comparison.json,default-strict-comparison.json,
+oracle.json,nextest-integrated.log,pattern-clippy.log,style-final.json,
+patterns-final.json}`.
+Frozen run-cjypvid0 verifies118 Data documents; all60 original identities,
+assessments, blockers and denominators match run-u1um8uxj at24/29/7. R0 and
+expanded also remain identical. Comparison: `/tmp/rstyle-441-frozen-comparison.json`.

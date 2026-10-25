@@ -23,6 +23,16 @@ fn install_guarded_origins(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
+    if super::nonzero_digits::install(pair, facts)? {
+        return Ok(true);
+    }
+    install_product_origins(pair, facts)
+}
+
+fn install_product_origins(
+    pair: &mut Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
     if super::digit_calls::install(pair, facts)? {
         return Ok(true);
     }
@@ -112,6 +122,9 @@ fn verify_guarded_origins(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
+    if super::nonzero_digits::verify(pair, facts)? {
+        return Ok(true);
+    }
     if super::digit_calls::verify(pair, facts)? {
         return Ok(true);
     }

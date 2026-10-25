@@ -155,3 +155,5 @@ mod owned_receiver;
 pub mod result_maps;
 
 mod structural_json;
+
+mod nonzero_digit_calls;

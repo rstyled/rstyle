@@ -253,6 +253,9 @@ fn context(
 }
 
 fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
+    if let Some(outcome) = check_nonzero_source(facts) {
+        return outcome;
+    }
     if let Some(outcome) = check_transport_source(facts) {
         return outcome;
     }
@@ -298,6 +301,21 @@ fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
             "complete pre-expansion source and conditional-source resolution",
         ))
     }
+}
+
+fn check_nonzero_source(facts: &dyn crate::unit_store::EvidenceFacts) -> Option<Outcome> {
+    if !crate::nonzero_digit_calls::candidate(facts) {
+        return None;
+    }
+    Some(match crate::nonzero_digit_calls::verify(facts) {
+        Ok(Some(_)) => Outcome::ok(),
+        result => evidence_gap(
+            &facts.body,
+            &result
+                .err()
+                .unwrap_or_else(|| "Missing complete nonzero receipt".into()),
+        ),
+    })
 }
 
 fn check_transport_source(facts: &dyn crate::unit_store::EvidenceFacts) -> Option<Outcome> {
@@ -684,6 +702,19 @@ fn check_digit_forwarder_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> 
 }
 
 fn check_special_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if node == &ctx.facts.body && crate::nonzero_digit_calls::candidate(ctx.facts) {
+        return Some(match crate::nonzero_digit_calls::verify(ctx.facts) {
+            Ok(Some(_)) => Outcome::ok(),
+            result => error(
+                crate::nonzero_digit_calls::CAPABILITY,
+                "nonzero_call",
+                node,
+                &result
+                    .err()
+                    .unwrap_or_else(|| "Missing complete nonzero receipt".into()),
+            ),
+        });
+    }
     check_digit_forwarder_body(node, ctx)
         .or_else(|| check_tagged_forwarder_body(node, ctx))
         .or_else(|| check_copy_conversion_body(node, ctx))

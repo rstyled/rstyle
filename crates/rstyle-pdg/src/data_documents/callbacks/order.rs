@@ -160,3 +160,13 @@ pub(in crate::data_documents) fn site<'a>(
 ) -> Result<&'a Value, String> {
     crate::data_documents::extension_record(pair, SITES, id)
 }
+
+pub(in crate::data_documents) fn sequence(
+    pair: PairView<'_>,
+    nodes: &[&PdgNode],
+) -> Result<(), String> {
+    for adjacent in nodes.windows(2) {
+        before(pair, &completion(pair, adjacent[0])?, adjacent[1])?;
+    }
+    Ok(())
+}

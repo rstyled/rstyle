@@ -78,6 +78,16 @@ impl Resolution {
             .build
             .frontend_options
             .data::<declaration_origins::Origins>()?;
+        if matches!(
+            instance.argument,
+            crate::scalar_product_instances::Argument::NonZeroU8
+                | crate::scalar_product_instances::Argument::NonZeroU16
+        ) {
+            self.nonzero_product_source = Some(selected::no_drop::nonzero_products::capture(
+                facts, self, &origins, instance,
+            )?);
+            return Ok(());
+        }
         self.scalar_product_source = Some(proof::capture_checked(facts, self, &origins, instance)?);
         Ok(())
     }
@@ -90,11 +100,15 @@ impl Resolution {
         let TypeTree::ScalarProductInstance(instance) = tree else {
             return Ok(false);
         };
-        let receipt = self
-            .scalar_product_source
-            .as_ref()
-            .ok_or("Scalar product lacks its exact source/cleanup receipt")?;
-        receipt.verify_owner(facts, &self.environment, instance)?;
+        if let Some(receipt) = &self.nonzero_product_source {
+            receipt.verify_owner(facts, &self.environment, instance)?;
+        } else {
+            let receipt = self
+                .scalar_product_source
+                .as_ref()
+                .ok_or("Scalar product lacks its exact source/cleanup receipt")?;
+            receipt.verify_owner(facts, &self.environment, instance)?;
+        }
         Ok(true)
     }
 
@@ -142,13 +156,32 @@ impl Resolution {
     }
 
     pub(super) fn bind_scalar_product(&mut self, facts: &HirFnFacts) -> Result<bool, String> {
-        let Some(receipt) = &self.scalar_product_source else {
+        let Some(namespace) = self.scalar_product_namespace(facts)? else {
             return Ok(false);
         };
-        self.namespace = receipt
-            .checked_namespace(facts, &self.environment)?
-            .to_vec();
+        self.namespace = namespace.to_vec();
         Ok(true)
+    }
+    pub(super) fn scalar_product_namespace<'a>(
+        &'a self,
+        facts: &HirFnFacts,
+    ) -> Result<Option<&'a [String]>, String> {
+        if let Some(receipt) = &self.nonzero_product_source {
+            return receipt
+                .checked_namespace(facts, &self.environment)
+                .map(Some);
+        }
+        self.scalar_product_source
+            .as_ref()
+            .map(|receipt| receipt.checked_namespace(facts, &self.environment))
+            .transpose()
+    }
+
+    fn scalar_product_instance(&self) -> Option<&crate::scalar_product_instances::Observation> {
+        self.nonzero_product_source
+            .as_ref()
+            .or(self.scalar_product_source.as_ref())
+            .map(|source| source.instance())
     }
 }
 
@@ -162,12 +195,20 @@ pub(super) fn resolve(
     let TypeTree::ScalarProductInstance(instance) = &tree else {
         unreachable!()
     };
-    verify_arguments(path, instance.argument)?;
+    if scope.resolution.nonzero_product_source.is_some() {
+        concrete_types::source_proof::verify_top_syntax(
+            argument(path)?,
+            &instance.fields[1].ty,
+            scope,
+        )?;
+    } else {
+        verify_arguments(path, instance.argument)?;
+    }
     Ok(Some(tree))
 }
 
 fn exact_tree(path: &syn::TypePath, scope: &Scoped<'_>) -> Result<Option<TypeTree>, String> {
-    let Some(receipt) = &scope.resolution.scalar_product_source else {
+    let Some(checked) = scope.resolution.scalar_product_instance() else {
         return Ok(None);
     };
     let mut name = path.clone();
@@ -182,48 +223,54 @@ fn exact_tree(path: &syn::TypePath, scope: &Scoped<'_>) -> Result<Option<TypeTre
     let Some(TypeTree::ScalarProductInstance(instance)) = scope.resolution.trees.get(&key) else {
         return Ok(None);
     };
-    if instance.as_ref() != receipt.instance() {
+    if instance.as_ref() != checked {
         return Err("Scalar product spelling differs from the checked exact instance".into());
     }
-    receipt.verify_namespace(scope.namespace)?;
+    if let Some(receipt) = &scope.resolution.nonzero_product_source {
+        receipt.verify_namespace(scope.namespace)?;
+    } else {
+        scope
+            .resolution
+            .scalar_product_source
+            .as_ref()
+            .ok_or("Missing exact scalar source")?
+            .verify_namespace(scope.namespace)?;
+    }
     Ok(Some(TypeTree::ScalarProductInstance(instance.clone())))
+}
+
+fn argument(path: &syn::TypePath) -> Result<&syn::Type, String> {
+    let Some(last) = path.path.segments.last() else {
+        return Err("Missing scalar product type name".into());
+    };
+    let syn::PathArguments::AngleBracketed(arguments) = &last.arguments else {
+        return Err("Scalar product source type requires its concrete argument".into());
+    };
+    if arguments.colon2_token.is_some() {
+        return Err("Scalar product type cannot use a turbofish".into());
+    }
+    let arguments = arguments.args.iter().collect::<Vec<_>>();
+
+    match arguments.as_slice() {
+        [syn::GenericArgument::Type(scalar)]
+        | [
+            syn::GenericArgument::Lifetime(_),
+            syn::GenericArgument::Type(scalar),
+        ] => Ok(scalar),
+        _ => Err("Scalar product requires one exact scalar and optional lifetime".into()),
+    }
 }
 
 fn verify_arguments(
     path: &syn::TypePath,
     expected: crate::scalar_product_instances::Argument,
 ) -> Result<(), String> {
-    let Some(last) = path.path.segments.last() else {
-        return Err("Missing scalar product type name".into());
-    };
-    match &last.arguments {
-        syn::PathArguments::None => {
-            Err("Scalar product source type requires its concrete argument".into())
-        }
-        syn::PathArguments::AngleBracketed(arguments) if arguments.colon2_token.is_none() => {
-            let arguments = arguments.args.iter().collect::<Vec<_>>();
-            let scalar = match arguments.as_slice() {
-                [syn::GenericArgument::Type(scalar)] => scalar,
-                [
-                    syn::GenericArgument::Lifetime(_),
-                    syn::GenericArgument::Type(scalar),
-                ] => scalar,
-                _ => {
-                    return Err(
-                        "Scalar product requires one exact scalar and optional lifetime".into(),
-                    );
-                }
-            };
-            if !matches!(scalar, syn::Type::Path(value) if value.qself.is_none() && value.path.is_ident(expected.as_str()))
-            {
-                return Err(
-                    "Scalar product type argument differs from its checked substitution".into(),
-                );
-            }
-            Ok(())
-        }
-        _ => Err("Unsupported scalar product generic arguments".into()),
+    let scalar = argument(path)?;
+    if !matches!(scalar, syn::Type::Path(value) if value.qself.is_none() && value.path.is_ident(expected.as_str()))
+    {
+        return Err("Scalar product type argument differs from its checked substitution".into());
     }
+    Ok(())
 }
 
 #[cfg(test)]

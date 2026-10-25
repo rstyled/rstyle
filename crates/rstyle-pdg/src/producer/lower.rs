@@ -12,6 +12,7 @@ mod iterator_position;
 mod loops;
 mod mutable_scalars;
 mod named_callbacks;
+mod nonzero_digits;
 mod option_if_let;
 mod option_propagation;
 mod options;
@@ -220,6 +221,16 @@ impl Builder<'_> {
     }
 
     fn expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if node == &self.facts.body && crate::nonzero_digit_calls::candidate(self.facts) {
+            let checked = crate::nonzero_digit_calls::verify(self.facts)
+                .expect("checked nonzero composition")
+                .expect("complete nonzero receipt");
+            return self.nonzero_digits(&checked, flow);
+        }
+        self.product_expression(node, flow)
+    }
+
+    fn product_expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
         if let Some(construct) =
             crate::scalar_product_instances::activation::construct(node, self.facts)
                 .expect("checked digit constructor")

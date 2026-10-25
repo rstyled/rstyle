@@ -46,19 +46,28 @@ impl Checked<'_> {
 }
 
 pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::facts_support(facts, CAPABILITY)
-        && facts.body.kind == "expr_block"
-        && matches!(facts.body.children.as_slice(), [call] if call.kind == "expr_call")
-        && facts
-            .signature
-            .return_ty
-            .normalized
-            .as_deref()
-            .and_then(|text| crate::data_types::parse(text).ok())
-            .is_some_and(|ty| {
-                matches!(ty, crate::data_types::TypeToken::Option(payload)
-                if matches!(*payload, crate::data_types::TypeToken::ScalarProductInstance { .. }))
-            })
+    product_argument(facts, CAPABILITY, "expr_call").is_some()
+}
+
+pub(crate) fn product_argument(
+    facts: &dyn EvidenceFacts,
+    capability: &str,
+    kind: &str,
+) -> Option<super::Argument> {
+    if !crate::extraction_profile::facts_support(facts, capability)
+        || facts.body.kind != "expr_block"
+        || !matches!(facts.body.children.as_slice(), [call] if call.kind == kind)
+    {
+        return None;
+    }
+    let ty = crate::data_types::parse(facts.signature.return_ty.normalized.as_deref()?).ok()?;
+    match ty {
+        crate::data_types::TypeToken::Option(payload) => match *payload {
+            crate::data_types::TypeToken::ScalarProductInstance { argument, .. } => Some(argument),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 pub(crate) fn source_shape(facts: &dyn EvidenceFacts) -> Result<(), String> {

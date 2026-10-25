@@ -125,7 +125,7 @@ fn verify_flow(
     ] {
         super::verify_saved_operands(pair, node, &operands)?;
     }
-    order(pair, [receiver, created, environment, selector])?;
+    super::callbacks::order::sequence(pair, &[receiver, created, environment, selector])?;
     super::conditional_payloads::verify(pair, selector, prefix)?;
     super::conditional_payloads::verify(pair, selector, capture)?;
     super::conditional_payloads::guarded(pair, selector, empty, crate::CfgEdgeKind::False)?;
@@ -163,17 +163,6 @@ fn verify_result(
             })
     {
         return Err("Iterator result loses prefix-on-nonempty/None-on-empty selection".into());
-    }
-    Ok(())
-}
-
-fn order(pair: PairView<'_>, nodes: [&PdgNode; 4]) -> Result<(), String> {
-    for adjacent in nodes.windows(2) {
-        super::callbacks::order::before(
-            pair,
-            &super::callbacks::order::completion(pair, adjacent[0])?,
-            adjacent[1],
-        )?;
     }
     Ok(())
 }

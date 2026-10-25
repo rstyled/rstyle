@@ -27,7 +27,8 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
         let places = crate::data_places::Places::verify(facts)?;
         return observation.finish(verify_nodes(&facts.body, facts, &places));
     }
-    if crate::scalar_product_instances::forwarders::verify(facts)?.is_some()
+    if crate::nonzero_digit_calls::verify(facts)?.is_some()
+        || crate::scalar_product_instances::forwarders::verify(facts)?.is_some()
         || crate::copy_tagged_values::call_wrappers::verify_function(facts)?
     {
         verify_fields(facts)?;
@@ -84,6 +85,7 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    crate::nonzero_digit_calls::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,
         crate::scalar_product_instances::activation::VALUE_CAPABILITY,

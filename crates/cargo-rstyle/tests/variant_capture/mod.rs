@@ -201,3 +201,5 @@ fn variant_observation_does_not_certify_rest_struct_or_reference_patterns() {
 }
 
 mod concrete_results;
+
+mod nonzero_digit_sources;

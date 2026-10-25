@@ -5,6 +5,7 @@ use super::selected::no_drop::scalar_result_owners::CheckedScalarResultSource;
 use super::*;
 use syn::visit::Visit;
 mod copy_conversions;
+mod nonzero_products;
 
 /// Original Result path and its optional selected constructor tag.
 pub(super) struct ResultSource<'a> {
@@ -114,11 +115,9 @@ impl Resolution {
             return Err("Option source lacks its exact scalar product receipt".into());
         }
 
-        let receipt = self
-            .scalar_product_source
-            .as_ref()
+        let namespace = self
+            .scalar_product_namespace(facts)?
             .ok_or("Missing scalar product source")?;
-        let namespace = receipt.checked_namespace(facts, &self.environment)?;
         crate::data_library::verify_sysroot_roots(
             facts,
             &["core", "std"],
@@ -705,7 +704,8 @@ impl Scope<'_, '_> {
                 .split("::")
                 .map(str::to_owned)
                 .collect();
-            if crate::scalar_product_instances::forwarders::candidate(self.facts)
+            if (crate::scalar_product_instances::forwarders::candidate(self.facts)
+                || crate::nonzero_digit_calls::candidate(self.facts))
                 && self
                     .environment
                     .anonymous_glob(&self.module.namespace, &prefix)

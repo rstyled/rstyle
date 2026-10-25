@@ -39,26 +39,35 @@ non-digits at each position, binary suffixes, zero/non-calendar controls and sav
 backing pointer checks. Native execution passes259,952 checks in each context,
 zero mismatches. No new SHA or checksum substrate.
 
-Observation preparation, Data3.115 unchanged: original no-default captures
-run-03B1Il→run-NZ2AGB retain29/1,406 admissions, zero gains/losses and identical
-function/build identities, outcomes and reasons (producer/navigation normalized).
-All three original closures now have explicit empty-environment structural
-identities; separately scoped inventories retain the selected original flat_map
-call and complete u8/u16→NonZero substitution/function-item signatures. Root
-inventories still exclude nested-owner calls. Function pointers and capturing
-closures remain structurally unsupported; callable identity proves no purity,
-cleanup, body equivalence or invocation authority.
+Data3.116 connects this complete family through real Cargo capture and strict
+replay. The previous Data3.115 preparation/foundation retained29/1,406 admissions
+and all406 pairs. Connected native no-default selection29→32/1,406 and default
+selection31→34/1,506 gain only week/day/dayo, with no losses or changed original
+identities/build settings (capture navigation and producer revision normalized).
+Strict replay verifies all32/34 and evaluates all496/561 comparisons; all406/465
+historical pair records remain identical. Source-selected expectations and frozen
+identities in selection.json remain unchanged.
 
-Checked semantic foundation now covers pinned native NonZero<u8/u16> values/
-no-drop, complete original same-unit flat_map body/substitutions and paired product
-shapes. Fresh capture retains29/1,406 admissions, gains0/losses0; strict replay
-preserves all406 pairs. These three functions still exclude: caller lexical/source
-and aggregate cleanup proof must connect to once-only guarded Option consumption,
-saved suffix/read scope and complete original/replay admission/matching.
-Evidence: `/tmp/rstyle-439-{comparison.json,observations.json,oracle.log}`.
+The producer saves the original parser result and suffix, consumes its scalar
+once under Some, and keeps parser-None and zero-None separate. An independent
+17-node document check verifies typed operands, ordering, guards, result merges,
+call-scoped reads and source bounds. Exact member source/substitutions, lexical
+builtin ownership and no-drop fields are prerequisites; ParsedItem acquires no
+Copy permission. General callbacks/generics/drop support does not follow.
 
-Strict replay verifies all 29 admissions and evaluates all 406 pairs; outcomes,
-reasons and pair records match retained 3.113 evidence. Integrated validation:
-2,119 tests plus doctests pass; fmt/Clippy clean, rstyle zero violations,
-patterns zero candidates with 15 unchanged ignores. Frozen 60-function inventory
-unchanged at 24 admitted /29 excluded /7 inactive (118 Data documents).
+Matching control: week/day is Accepted at score1 as expected. The source-based
+negative expectation for week/dayo and day/dayo is **not met**: both also score1.
+The existing structural matcher ignores types, literals, operators and callee
+names in graph labels. Runtime expectations retain the different widths/types;
+no thresholds or labels changed to force these comparisons. This delivery makes
+no behavioral-equivalence, detector-quality or rewrite-safety claim.
+
+Native oracle passes259,952 checks/context with zero mismatches. Validation:
+2,148 workspace tests and doctests, fmt/Clippy, rstyle0/7,124 and patterns0 with15
+unchanged ignores. Positive composition2.30s with prebuilt driver, one sample,
+not a controlled speedup. No new hashing, serialized lookup keys or graph caches.
+Native authority is pinned to aarch64 Linux; foreign native execution is unverified.
+Evidence: `/tmp/rstyle-441-{strict-comparison.json,default-strict-comparison.json,
+oracle.json,nextest-integrated.log,style-final.json,patterns-final.json}`.
+Frozen sixty unchanged at24 admitted/29 excluded/7 inactive;118 Data documents
+verified in run-cjypvid0, with R0/expanded assessments also unchanged.

@@ -110,7 +110,9 @@ fn check_method_inventory(
 ) -> Result<(), String> {
     let mut expected = 0;
     for method in calls.iter().filter(|node| node.kind == "expr_method_call") {
-        if crate::result_maps::candidate(method, facts) {
+        if crate::nonzero_digit_calls::covers_method(method, facts)? {
+            // The complete consuming callback is checked as guarded value flow.
+        } else if crate::result_maps::candidate(method, facts) {
             // The complete chain proves constructor-only branch operations;
             // each map is independently replayed by data_documents::result_maps.
             crate::result_maps::verify(method, facts)?;

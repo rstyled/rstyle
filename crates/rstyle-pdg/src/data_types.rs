@@ -205,6 +205,12 @@ fn named_tokens<T, U>(
         .collect()
 }
 
+pub(crate) fn concrete_text(tree: &TypeTree) -> String {
+    TypeToken::from_tree(tree)
+        .text()
+        .expect("checked concrete type")
+}
+
 pub fn token(tree: &TypeTree) -> Result<String, String> {
     converted::get(tree, || checked_token(tree))
 }
@@ -255,7 +261,8 @@ pub(crate) fn parse_in(
     text: &str,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<TypeToken, String> {
-    if crate::scalar_product_instances::forwarders::permits_type(text, facts)?
+    if crate::nonzero_digit_calls::permits_type(text, facts)?
+        || crate::scalar_product_instances::forwarders::permits_type(text, facts)?
         || crate::scalar_product_instances::activation::permits_type(text, facts)?
         || crate::copy_tagged_values::call_wrappers::permits_type(text, facts)?
         || crate::copy_tagged_values::permits_type(text, facts)?

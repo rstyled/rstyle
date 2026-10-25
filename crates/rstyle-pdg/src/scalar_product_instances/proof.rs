@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[path = "proof/source.rs"]
-mod source;
+pub(super) mod source;
 #[cfg(test)]
 #[path = "proof/tests.rs"]
 mod tests;
@@ -64,6 +64,19 @@ pub(in crate::nominal_boundary::resolution) fn capture_checked(
 }
 
 impl CheckedScalarProductInstance {
+    pub(super) fn output_source(
+        instance: &Instance,
+        owner: copy_products::Owner,
+        environment: &Environment,
+    ) -> Self {
+        Self {
+            instance: instance.clone(),
+            owner,
+            context: copy_products::SourceContext::capture(environment),
+            method: None,
+        }
+    }
+
     pub(crate) fn implementation(&self) -> Option<crate::ByteSpan> {
         self.method.as_ref().map(|method| method.implementation)
     }
@@ -121,7 +134,10 @@ impl CheckedScalarProductInstance {
     }
 }
 
-fn verify_interface(interface: &InterfaceObservations, instance: &Instance) -> Result<(), String> {
+pub(super) fn verify_interface(
+    interface: &InterfaceObservations,
+    instance: &Instance,
+) -> Result<(), String> {
     interface.validate()?;
     let Observation::Captured {
         ty: TypeTree::Option(payload),
@@ -166,7 +182,7 @@ fn reject_other_instances(tree: &TypeTree, instance: &Instance) -> Result<(), St
     Ok(())
 }
 
-fn verify_declaration(
+pub(super) fn verify_declaration(
     facts: &HirFnFacts,
     resolution: &Resolution,
     origins: &Origins,
@@ -217,7 +233,7 @@ pub(in crate::nominal_boundary::resolution) fn verify_fields(
             facts,
         },
         parameter: &parameter.ident,
-        argument: instance.argument,
+        argument: &instance.fields[1].ty,
     };
     for field in &instance.fields {
         source_proof::verify_top_spelling(&field.declaration, &field.ty, &scope)?;
@@ -229,13 +245,13 @@ pub(in crate::nominal_boundary::resolution) fn verify_fields(
 struct Substitution<'a> {
     scope: builtin_options::DeclarationScope<'a>,
     parameter: &'a syn::Ident,
-    argument: Argument,
+    argument: &'a TypeTree,
 }
 
 impl PathResolution for Substitution<'_> {
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
         if path.qself.is_none() && path.path.is_ident(self.parameter) {
-            return Ok(TypeTree::Scalar(self.argument.as_str().into()));
+            return Ok(self.argument.clone());
         }
         self.scope.resolve(path)
     }

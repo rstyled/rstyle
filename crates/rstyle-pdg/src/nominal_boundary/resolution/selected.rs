@@ -822,6 +822,14 @@ pub(super) fn check_function_namespace(
     resolution: &Resolution,
     namespace: &[String],
 ) -> Result<(), String> {
+    if let Some(source) = &resolution.nonzero_product_source {
+        if source.checked_namespace(input.facts(), &resolution.environment)? != namespace {
+            return Err(
+                "Nonzero product namespace differs from its exact checked caller source".into(),
+            );
+        }
+        return Ok(());
+    }
     if let Some(source) = &resolution.scalar_product_source {
         if source.checked_namespace(input.facts(), &resolution.environment)? != namespace {
             return Err("Scalar product function namespace differs from its checked source".into());

@@ -7,7 +7,9 @@ pub(super) fn verify(
     callee: Option<&dyn EvidenceFacts>,
     nominal: Option<&Nominal>,
 ) -> Result<Option<bool>, String> {
-    if !crate::scalar_product_instances::forwarders::candidate(facts) {
+    if !crate::scalar_product_instances::forwarders::candidate(facts)
+        && !crate::nonzero_digit_calls::candidate(facts)
+    {
         return Ok(None);
     }
     let syn::Expr::Call(call) = crate::source_evidence::original_expression(node, facts)? else {

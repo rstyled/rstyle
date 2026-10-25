@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.99.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.116.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -5446,13 +5446,18 @@ sensitive generated owners and historical policies remain closed. No new runtime
 hashing/serialized lookup. [Contract and evidence](eval/coverage-development/ordered-index-expansions/README.md);
 remaining higher callers require transitive summaries and guarded payload consumption.
 
-Nonzero parser preparation retains Data3.115: the separate source-first
-`time::{week,day,dayo}` family connects checked digit results to NonZero payloads.
-Exact function items and empty closures retain separately scoped flat_map calls.
-Pinned native NonZero<u8/u16> value/no-drop contracts and complete original
-same-unit flat_map source/substitution checks are now independently verified;
-aggregate cleanup, lexical ownership and caller graph authority remain separate.
-Native oracle: 259,952 checks/context previously passed; fresh no-default capture
-retains 29/1,406 admissions, gains 0/losses 0. Strict replay preserves all 406 pairs.
-Next connect caller source/cleanup and guarded Option payload/suffix/read lowering.
-[Source contract](eval/coverage-development/time-nonzero-digits/README.md).
+Data3.116 connects the original `time::{week,day,dayo}` family end to end:
+checked digit-parser calls, original same-unit `ParsedItem::flat_map`, exact empty
+callbacks and pinned native NonZero<u8/u16>. Complete source/cleanup proof keeps
+the product non-Copy, saves its suffix before consumption, preserves conditional
+reads and separates parser-None from zero-None. The earlier Data3.115 foundation
+retained29/1,406 admissions and all406 pairs; connected native selections now gain
+only these three:29→32/1,406 without defaults and31→34/1,506 with defaults, no losses.
+Strict replay verifies all admissions and completes496/561 comparisons, preserving
+all406/465 historical pair records. Independent oracle259,952 checks/context,
+zero mismatches. Broader callbacks, generic bodies and drop/unwind stay separate.
+The structural detector also accepts both behaviorally different cross-width
+comparisons at score1: the negative matching expectation failed. Extraction
+coverage establishes neither behavioral equivalence nor rewrite safety.
+[Bounded source contract](eval/coverage-development/time-nonzero-digits/README.md)
+and [validation/frontier](docs/rust-support-execution.md).

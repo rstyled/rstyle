@@ -49,6 +49,10 @@ pub struct Observation {
 }
 
 impl Observation {
+    pub(crate) fn type_token(&self) -> String {
+        crate::data_types::concrete_text(&TypeTree::ScalarProductInstance(Box::new(self.clone())))
+    }
+
     /// Check original declaration bytes and exact bounded scalar substitution.
     /// Compiler instance selection and contextual source closure remain separate.
     pub fn check_shape(&self) -> Result<(), String> {

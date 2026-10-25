@@ -29,6 +29,11 @@ struct SummaryCapture<'a> {
 
 impl SummaryCapture<'_> {
     fn visit(&self, node: &HirNode) -> Result<Vec<Value>, String> {
+        if node == &self.facts.body && crate::nonzero_digit_calls::candidate(self.facts) {
+            let checked =
+                crate::nonzero_digit_calls::verify(self.facts)?.ok_or("Missing nonzero receipt")?;
+            return self.visit(checked.parser());
+        }
         if crate::result_maps::candidate(node, self.facts) {
             let checked = crate::result_maps::verify(node, self.facts)?;
             return self.visit(checked.receiver);
