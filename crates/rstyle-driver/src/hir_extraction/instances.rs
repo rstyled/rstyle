@@ -11,6 +11,7 @@ use serde::Serialize;
 
 mod adjustments;
 mod borrowed_operations;
+mod callbacks;
 mod calls;
 mod comparisons;
 pub(super) mod diagnostic;
@@ -41,6 +42,8 @@ pub(super) fn capture(
     let mut scan = Scan {
         context,
         calls: Vec::new(),
+        callbacks: Vec::new(),
+        observe_callbacks: true,
     };
     scan.visit_expr(body.value);
 
@@ -49,6 +52,7 @@ pub(super) fn capture(
         scope: "owning-body direct FnDef and method generic/trait calls; closure/function-pointer calls and nested owners excluded",
         complete: true,
         calls: scan.calls,
+        callbacks: scan.callbacks,
     };
     let value = serde_json::to_value(inventory).map_err(|error| error.to_string())?;
     facts.build.frontend_options.insert(KEY.into(), value);
@@ -61,6 +65,8 @@ struct Inventory {
     scope: &'static str,
     complete: bool,
     calls: Vec<Observation>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    callbacks: Vec<callbacks::Observation>,
 }
 
 #[derive(Serialize)]
@@ -110,15 +116,22 @@ struct Signature {
 struct Scan<'a, 'tcx> {
     context: &'a Context<'tcx>,
     calls: Vec<Observation>,
+    callbacks: Vec<callbacks::Observation>,
+    observe_callbacks: bool,
 }
 
-impl<'v> Visitor<'v> for Scan<'_, '_> {
-    fn visit_expr(&mut self, expression: &'v Expr<'v>) {
+impl<'tcx> Visitor<'tcx> for Scan<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         // These bodies have their own typeck owner and must never inherit this one.
-        if matches!(
-            expression.kind,
-            ExprKind::Closure(_) | ExprKind::ConstBlock(_)
-        ) {
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            if self.observe_callbacks
+                && let Some(observation) = callbacks::observe(self.context, expression)
+            {
+                self.callbacks.push(observation);
+            }
+            return;
+        }
+        if matches!(expression.kind, ExprKind::ConstBlock(_)) {
             return;
         }
         if let Some((definition, arguments)) = self.call(expression) {

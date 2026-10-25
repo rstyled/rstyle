@@ -1,0 +1,240 @@
+{
+  "package": {
+    "name": "time",
+    "version": "0.3.47",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47",
+    "manifest_identity": "xxh3-64:2a338875bc81fee0",
+    "file_identities": {
+      "Cargo.toml": "xxh3-64:2a338875bc81fee0",
+      "src/lib.rs": "xxh3-64:4b73910b394bbb70",
+      "src/parsing/mod.rs": "xxh3-64:a8674d6cecab7fe6",
+      "src/parsing/combinator/mod.rs": "xxh3-64:ca1f2ad22a69682b",
+      "src/parsing/combinator/rfc/iso8601.rs": "xxh3-64:3cc49e8a1fcb6a64",
+      "src/parsing/combinator/rfc/mod.rs": "xxh3-64:8923b3a737f67168",
+      "Cargo.lock": "xxh3-64:feb91ff8c71d5f21"
+    }
+  },
+  "build": {
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "target": "aarch64-unknown-linux-gnu",
+    "pointer_width": 64,
+    "edition": "2024",
+    "opt_level": 0,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic": "unwind",
+    "capture_target": "original time library test=false",
+    "oracle_target": "original time library path dependency test=false in a temporary byte-preserving crate copy; append-only combinator oracle child and root trampoline; separate runner binary",
+    "contexts": [
+      {
+        "name": "default-parsing",
+        "default_features": true,
+        "features": [
+          "parsing"
+        ],
+        "feature_closure": [
+          "alloc",
+          "default",
+          "parsing",
+          "std"
+        ]
+      },
+      {
+        "name": "no-default-parsing",
+        "default_features": false,
+        "features": [
+          "parsing"
+        ],
+        "feature_closure": [
+          "parsing"
+        ]
+      }
+    ]
+  },
+  "identity": "rstyle.development.time-nonzero-digits/1",
+  "status": "Original source and independent expectations frozen before new admission measurement; no runtime/admission claim",
+  "inventory_policy": "Separate development selection; all prior frozen identities/denominators unchanged",
+  "functions": [
+    {
+      "name": "parsing::combinator::rfc::iso8601::week",
+      "file": "src/parsing/combinator/rfc/iso8601.rs",
+      "start": 3546,
+      "end": 3708,
+      "identity": "xxh3-64:14698190ae9cfad5",
+      "source": "pub(crate) fn week(input: &[u8]) -> Option<ParsedItem<'_, NonZero<u8>>> {\n    ExactlyNDigits::<2>::parse(input).and_then(|parsed| parsed.flat_map(NonZero::new))\n}",
+      "expected_source_classification": "in-scope under declared bounded contract",
+      "baseline_outcome": "unmeasured"
+    },
+    {
+      "name": "parsing::combinator::rfc::iso8601::day",
+      "file": "src/parsing/combinator/rfc/iso8601.rs",
+      "start": 3750,
+      "end": 3911,
+      "identity": "xxh3-64:e315243af9112229",
+      "source": "pub(crate) fn day(input: &[u8]) -> Option<ParsedItem<'_, NonZero<u8>>> {\n    ExactlyNDigits::<2>::parse(input).and_then(|parsed| parsed.flat_map(NonZero::new))\n}",
+      "expected_source_classification": "in-scope under declared bounded contract",
+      "baseline_outcome": "unmeasured"
+    },
+    {
+      "name": "parsing::combinator::rfc::iso8601::dayo",
+      "file": "src/parsing/combinator/rfc/iso8601.rs",
+      "start": 4675,
+      "end": 4838,
+      "identity": "xxh3-64:888a2fd2ce6ac558",
+      "source": "pub(crate) fn dayo(input: &[u8]) -> Option<ParsedItem<'_, NonZero<u16>>> {\n    ExactlyNDigits::<3>::parse(input).and_then(|parsed| parsed.flat_map(NonZero::new))\n}",
+      "expected_source_classification": "in-scope under declared bounded contract",
+      "baseline_outcome": "unmeasured"
+    }
+  ],
+  "declarations": [
+    {
+      "name": "ExactlyNDigits",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 3212,
+      "end": 3275,
+      "source": "#[derive(Debug)]\npub(crate) struct ExactlyNDigits<const N: u8>;"
+    },
+    {
+      "name": "ParsedItem",
+      "file": "src/parsing/mod.rs",
+      "start": 300,
+      "end": 388,
+      "source": "#[derive(Debug)]\npub(crate) struct ParsedItem<'a, T>(pub(crate) &'a [u8], pub(crate) T);"
+    },
+    {
+      "name": "complete generic ParsedItem implementation",
+      "file": "src/parsing/mod.rs",
+      "start": 390,
+      "end": 1728,
+      "identity": "xxh3-64:e344684700193df9",
+      "source": "impl<'a, T> ParsedItem<'a, T> {\n    /// Map the value to a new value, preserving the remaining input.\n    #[inline]\n    pub(crate) fn map<U>(self, f: impl FnOnce(T) -> U) -> ParsedItem<'a, U> {\n        ParsedItem(self.0, f(self.1))\n    }\n\n    /// Map the value to a new, optional value, preserving the remaining input.\n    #[inline]\n    pub(crate) fn flat_map<U>(self, f: impl FnOnce(T) -> Option<U>) -> Option<ParsedItem<'a, U>> {\n        Some(ParsedItem(self.0, f(self.1)?))\n    }\n\n    /// Consume the stored value with the provided function. The remaining input is returned.\n    #[must_use = \"this returns the remaining input\"]\n    #[inline]\n    pub(crate) fn consume_value(self, f: impl FnOnce(T) -> Option<()>) -> Option<&'a [u8]> {\n        f(self.1)?;\n        Some(self.0)\n    }\n\n    /// Discard the stored value, returning the remaining input.\n    #[must_use = \"this returns the remaining input\"]\n    #[inline]\n    pub(crate) fn discard_value(self) -> &'a [u8] {\n        self.0\n    }\n\n    /// Filter the value with the provided function. If the function returns `false`, the value\n    /// is discarded and `None` is returned. Otherwise, the value is preserved and `Some(self)` is\n    /// returned.\n    #[inline]\n    pub(crate) fn filter(self, f: impl FnOnce(&T) -> bool) -> Option<Self> {\n        f(&self.1).then_some(self)\n    }\n}"
+    },
+    {
+      "name": "parsing::combinator::ExactlyNDigits::<1>::parse",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 3355,
+      "end": 3576,
+      "identity": "xxh3-64:e9cd83c4e5990d95",
+      "compiler_definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 2858378771551965954))",
+      "original_function_index": 863,
+      "expected_source_classification": "in-scope",
+      "source": "pub(crate) const fn parse(input: &[u8]) -> Option<ParsedItem<'_, u8>> {\n        match input {\n            [a @ b'0'..=b'9', remaining @ ..] => Some(ParsedItem(remaining, *a - b'0')),\n            _ => None,\n        }\n    }"
+    },
+    {
+      "name": "parsing::combinator::ExactlyNDigits::<2>::parse",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 3659,
+      "end": 3999,
+      "identity": "xxh3-64:71ecaec99a1b69e1",
+      "compiler_definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 11671035611995079826))",
+      "original_function_index": 864,
+      "expected_source_classification": "in-scope",
+      "source": "pub(crate) const fn parse(input: &[u8]) -> Option<ParsedItem<'_, u8>> {\n        match input {\n            [a @ b'0'..=b'9', b @ b'0'..=b'9', remaining @ ..] => {\n                let a = *a - b'0';\n                let b = *b - b'0';\n                Some(ParsedItem(remaining, a * 10 + b))\n            }\n            _ => None,\n        }\n    }"
+    },
+    {
+      "name": "parsing::combinator::ExactlyNDigits::<3>::parse",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 4084,
+      "end": 4593,
+      "identity": "xxh3-64:ee0c24eb313827e9",
+      "compiler_definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 14188121876640702095))",
+      "original_function_index": 865,
+      "expected_source_classification": "in-scope",
+      "source": "pub(crate) const fn parse(input: &[u8]) -> Option<ParsedItem<'_, u16>> {\n        match input {\n            [\n                a @ b'0'..=b'9',\n                b @ b'0'..=b'9',\n                c @ b'0'..=b'9',\n                remaining @ ..,\n            ] => {\n                let a = (*a - b'0') as u16;\n                let b = (*b - b'0') as u16;\n                let c = (*c - b'0') as u16;\n                Some(ParsedItem(remaining, a * 100 + b * 10 + c))\n            }\n            _ => None,\n        }\n    }"
+    }
+  ],
+  "dependency_functions": [
+    {
+      "name": "parsing::combinator::ExactlyNDigits::<1>::parse",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 3355,
+      "end": 3576,
+      "identity": "xxh3-64:e9cd83c4e5990d95",
+      "compiler_definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 2858378771551965954))",
+      "original_function_index": 863,
+      "expected_source_classification": "in-scope",
+      "source": "pub(crate) const fn parse(input: &[u8]) -> Option<ParsedItem<'_, u8>> {\n        match input {\n            [a @ b'0'..=b'9', remaining @ ..] => Some(ParsedItem(remaining, *a - b'0')),\n            _ => None,\n        }\n    }"
+    },
+    {
+      "name": "parsing::combinator::ExactlyNDigits::<2>::parse",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 3659,
+      "end": 3999,
+      "identity": "xxh3-64:71ecaec99a1b69e1",
+      "compiler_definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 11671035611995079826))",
+      "original_function_index": 864,
+      "expected_source_classification": "in-scope",
+      "source": "pub(crate) const fn parse(input: &[u8]) -> Option<ParsedItem<'_, u8>> {\n        match input {\n            [a @ b'0'..=b'9', b @ b'0'..=b'9', remaining @ ..] => {\n                let a = *a - b'0';\n                let b = *b - b'0';\n                Some(ParsedItem(remaining, a * 10 + b))\n            }\n            _ => None,\n        }\n    }"
+    },
+    {
+      "name": "parsing::combinator::ExactlyNDigits::<3>::parse",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 4084,
+      "end": 4593,
+      "identity": "xxh3-64:ee0c24eb313827e9",
+      "compiler_definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 14188121876640702095))",
+      "original_function_index": 865,
+      "expected_source_classification": "in-scope",
+      "source": "pub(crate) const fn parse(input: &[u8]) -> Option<ParsedItem<'_, u16>> {\n        match input {\n            [\n                a @ b'0'..=b'9',\n                b @ b'0'..=b'9',\n                c @ b'0'..=b'9',\n                remaining @ ..,\n            ] => {\n                let a = (*a - b'0') as u16;\n                let b = (*b - b'0') as u16;\n                let c = (*c - b'0') as u16;\n                Some(ParsedItem(remaining, a * 100 + b * 10 + c))\n            }\n            _ => None,\n        }\n    }"
+    }
+  ],
+  "core_source_obligations": [
+    {
+      "path": "library/core/src/option.rs",
+      "member": "Option<T>::and_then<U,F>",
+      "requirement": "Actual selected instance and FnOnce invocation, None branch omits callback; reviewed summary, no generic purity assumption."
+    },
+    {
+      "path": "library/core/src/num/nonzero.rs",
+      "member": "NonZero<u8/u16>::new",
+      "requirement": "Exact selected core operation/type and zero/nonzero semantics; existing unsafe niche implementation is not general unsafe permission."
+    }
+  ],
+  "blocker_dag": [
+    "Use delivered ExactlyNDigits::<2/3>::parse graph/summary with existing exact unit link, caller-scoped distinct conditional selector/body reads and saved suffix.",
+    "Current digit forwarder recognizes only one-tail expr_call returning whole product Option; week/day/dayo have an expr_method_call consuming the tagged result. Prove independent complete caller source/namespace and no-drop closure.",
+    "Option::and_then on Option<ParsedItem<u8/u16>> must bind actual selected core method, aggregate payload, no-capture closure identity/environment and normal once-only FnOnce call on Some; no invocation on None.",
+    "Concrete ParsedItem::flat_map<u8/u16,NonZero<u8/u16>,NonZero::new item> requires exact selected impl/member, T/U/F substitutions and full instance identity; current scalar call instances cannot identify these aggregate/callback arguments.",
+    "flat_map saves field0 suffix and field1 value; invokes supplied function exactly once, applies concrete Option ? and constructs Some(ParsedItem(saved suffix, nonzero payload)); None has no reference outputs. Preserve partial moves/evaluation order and ownership, not an invented Copy for ParsedItem.",
+    "Exact NonZero<u8/u16> value/type observations and no-drop contract; NonZero::new is zero->None/nonzero->Some original value. Its actual core body uses niche transmute; require bounded source-required operation summary, no arbitrary unsafe admission.",
+    "Existing scalar product constructor schema only accepts Scalar generic/payload types; support NonZero identity/value without erasing niche to unrestricted integer or using display spelling.",
+    "Connect guarded aggregate Option/NonZero/component results and callable summaries to original caller graph and independently reconstruct strict original/replay proof; full Cargo capture/admission/matching and unchanged selection deltas remain required."
+  ],
+  "unknowns": [
+    "No current capture/admission forecast for this family; selected concrete flat_map/closure/function-item instances and exact operation paths must be confirmed from retained/fresh full Cargo evidence.",
+    "Existing namespace proofs cover hour/min in same source module but do not automatically authorize new methods, core NonZero or callback effects.",
+    "Transitive callable summaries for newly admitted week/day/dayo remain a separate up-stack obligation unless explicitly delivered."
+  ],
+  "contract": {
+    "success": "week/day require two ASCII digits and value01..99; dayo requires three ASCII digits and value001..999. No calendar validation: week54/99, day32/99, dayo367/999 succeed.",
+    "failure": "Short prefix, non-digit in any required position or all-zero prefix returns None. Trailing bytes are unconstrained and unread.",
+    "origins": "On Some, exact numeric payload and original input[N..] suffix pointer/length/content; reference component exists only on Some. Immutable source/backing.",
+    "outside_scope": [
+      "General callbacks or generic callable instantiation",
+      "Stored closures/captures/mutable callbacks",
+      "Calendar validity",
+      "General unsafe/niche casts",
+      "Other NonZero operations",
+      "Higher parser mutation/error-conversion chains"
+    ]
+  },
+  "oracle_cases": {
+    "exhaustive_two_byte_checks_week_day": 131072,
+    "two_byte_short_checks_week_day": 514,
+    "dayo_short_checks_all_0_1_2_byte_inputs": 65793,
+    "two_digit_binary_suffix_checks": 51200,
+    "two_digit_suffix_variant_checks": 1400,
+    "all_decimal_triples_with_seven_suffixes": 7000,
+    "dayo_invalid_position_checks": 2952,
+    "pointer_lexical_zero_controls": 21,
+    "expected_checks_per_context": 259952
+  },
+  "negative_expectations": [
+    "Zero accepted or nonzero rejected; accidental calendar validation; wrong decimal width/value; trailing-byte consumption.",
+    "Callback on None, double invocation, skipped callback, wrong payload/member/NonZero instance.",
+    "Flattened/synthetic suffix origins, borrowed suffix from rebound input, reference output on None, altered conditional read inventory.",
+    "Hidden Drop/effect/capture/source omission, wrong core/trait/member/cfg identity, malformed generic substitutions and historical-policy activation."
+  ],
+  "identity_provenance": "Original XXH3 source spans and complete-file context identities; source-only checks are not capture/strict semantic evidence."
+}

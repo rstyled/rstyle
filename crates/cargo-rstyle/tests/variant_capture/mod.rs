@@ -13,6 +13,7 @@ mod bool_lengths;
 mod borrowed_accel;
 mod boundaries;
 mod byte_comparisons;
+mod callable_observations;
 mod cfg_if_modules;
 mod character_escapes;
 mod character_leaf;

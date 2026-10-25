@@ -1,4 +1,5 @@
 //! Bounded structural observations; displays never identify nominal types.
+mod callables;
 mod constructor;
 
 use super::Definition;
@@ -64,6 +65,14 @@ enum Structural {
     TupleConstructor {
         #[serde(flatten)]
         observation: Box<constructor::Observation>,
+    },
+    FunctionItem {
+        #[serde(flatten)]
+        observation: Box<callables::FunctionItem>,
+    },
+    NoncapturingClosure {
+        #[serde(flatten)]
+        observation: Box<callables::Closure>,
     },
     ErasedRegion,
 }
@@ -180,7 +189,13 @@ fn structural<'tcx>(
             definition: super::definition_record(tcx, definition.did()),
             arguments: nested_arguments(tcx, arguments, depth + 1, budget)?,
         }),
-        ty::FnDef(..) => constructor::capture(tcx, value, depth, budget),
+        ty::FnDef(definition, _)
+            if matches!(tcx.def_kind(*definition), rustc_hir::def::DefKind::Ctor(..)) =>
+        {
+            constructor::capture(tcx, value, depth, budget)
+        }
+        ty::FnDef(..) => callables::function_item(tcx, value, depth, budget),
+        ty::Closure(..) => callables::closure(tcx, value, depth, budget),
         _ => Err("type form is outside structural instance identity"),
     }
 }

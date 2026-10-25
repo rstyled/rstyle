@@ -1372,3 +1372,31 @@ denominators and blockers unchanged24/29/7; R0/expanded also unchanged.
 Evidence: `/tmp/rstyle-438-{comparison.json,strict.log,oracle.json,nextest-final.log,
 style-retest.log,fmt-final.log,clippy-final.log,style-final.json,patterns-final.log,
 frozen-comparison.json}`. Documentation lands with this implementation.
+
+Nonzero digit-parser preparation (b0da666 baseline; policy stays 3.115):
+source-selected original time 0.3.47 week/day/dayo connect digit parsers to
+NonZero payloads. Bounded function-item and empty-closure identities now retain
+nested flat_map calls in a separate callback scope with the correct typeck owner.
+Capturing closures/function pointers remain unsupported; no body, effect or
+admission authority follows. No new hashing or lookup cache.
+
+Independent native oracle: 259,952 checks in each default/no-default context;
+lexical values 01..99 and 001..999, exact suffix pointers, zero/short/non-digit
+rejection, explicit non-calendar controls. Fresh no-default capture
+run-03B1Il→run-NZ2AGB preserves all 1,406 function/build identities and outcome
+reasons: 29 admissions, zero gains/losses. Strict replay verifies all 29 and
+completes all 406 pairs, identical to the retained 3.113 strict outcomes/reasons
+and pair records. The selected trio still excludes.
+
+Validation: all 2,119 tests pass, five existing skips, plus doctests; final test
+helper refactor also passes its focused test. Fmt and warning-denied Clippy pass;
+rstyle 0/6,990, patterns 0 candidates/15 unchanged ignores. Frozen run-u1um8uxj
+checks 118 Data documents; all 60 identities/outcomes/reasons, denominators and
+blockers unchanged (24/29/7); R0/expanded also unchanged.
+
+Next connect the core NonZero type/value/no-drop contract, complete original
+flat_map source/substitution proof and guarded Option/suffix transport before
+another observation-only increment. This is evidence preparation, not family
+support or broad-goal completion. Evidence: `/tmp/rstyle-439-{comparison.json,
+observations.json,oracle.log,strict-comparison.json,nextest.log,refactor-test.log,
+clippy-final.log,style-final.json,patterns-final.log,frozen-comparison.json}`.

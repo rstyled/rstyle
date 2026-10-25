@@ -70,6 +70,7 @@ fn generated_source_diagnostics_distinguish_members_and_constructor_instances() 
     );
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     check_constructor_observations(&report);
+    check_callback_observations(&report);
     check_raw_origins(&report);
 }
 
@@ -102,13 +103,35 @@ fn check_constructor_observations(report: &Value) {
             assert!(text.contains(name.split("::").next().unwrap()));
         }
     }
-    for name in ["function_callback", "enum_callback", "other_callbacks"] {
+}
+
+fn check_callback_observations(report: &Value) {
+    let function_calls = function(report, "function_callback")["facts"]["build"]
+        ["frontend_options"]["rstyle.rust.call-instances"]["calls"].as_array().unwrap();
+    assert_eq!(function_calls.len(), 1);
+    assert_eq!(function_calls[0]["status"], "resolved");
+    assert!(
+        function_calls[0]["requested_arguments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|argument| argument["identity"]["kind"] == "function_item")
+    );
+    assert_eq!(function(report, "function_callback")["outcome"], "excluded");
+    for (name, expected) in [
+        ("enum_callback", &["unsupported"][..]),
+        (
+            "other_callbacks",
+            &["unsupported", "resolved", "unsupported"][..],
+        ),
+    ] {
         let calls = function(report, name)["facts"]["build"]["frontend_options"]
             ["rstyle.rust.call-instances"]["calls"].as_array().unwrap();
-        assert!(
-            !calls.is_empty() && calls.iter().all(|call| call["status"] == "unsupported"),
-            "{name}"
-        );
+        let statuses: Vec<_> = calls
+            .iter()
+            .map(|call| call["status"].as_str().unwrap())
+            .collect();
+        assert_eq!(statuses, expected, "{name}");
     }
 }
 

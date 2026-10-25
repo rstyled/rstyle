@@ -5445,3 +5445,13 @@ complete and Accepted at unchanged thresholds. Unknown predecessors, cleanup-
 sensitive generated owners and historical policies remain closed. No new runtime
 hashing/serialized lookup. [Contract and evidence](eval/coverage-development/ordered-index-expansions/README.md);
 remaining higher callers require transitive summaries and guarded payload consumption.
+
+Nonzero parser preparation retains Data3.115: the separate source-first
+`time::{week,day,dayo}` family connects checked digit results to NonZero payloads.
+Compiler observations now distinguish exact function items and empty closures,
+retaining nested flat_map calls under their callback owner. No callable/admission
+permission follows. Native oracle: 259,952 checks/context pass; unchanged
+no-default selection remains 29/1,406, gains 0/losses 0. Strict replay verifies
+all 29 and completes all 406 pairs without changes. Next connect NonZero
+value/ownership, original flat_map proof and guarded payload/suffix lowering.
+[Source contract](eval/coverage-development/time-nonzero-digits/README.md).
