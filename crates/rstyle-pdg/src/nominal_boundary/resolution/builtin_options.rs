@@ -705,6 +705,13 @@ impl Scope<'_, '_> {
                 .split("::")
                 .map(str::to_owned)
                 .collect();
+            if crate::scalar_product_instances::forwarders::candidate(self.facts)
+                && self
+                    .environment
+                    .anonymous_glob(&self.module.namespace, &prefix)
+            {
+                return Ok(());
+            }
             if selected::lexical_glob_excludes(
                 self.facts,
                 self.environment,

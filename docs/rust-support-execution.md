@@ -1300,3 +1300,25 @@ summaries in both contexts; diagnostic derivation observations are2–8ms each,
 not a controlled throughput comparison. New composition test2.1s; existing8.3s.
 Logs: `/tmp/rstyle-435-{nextest-final.log,clippy-final.log,fmt-final.log,style-final.json,patterns-final.log,frozen-comparison.json,summary-timings.json}`.
 Foreign native CI remains unverified. Caller support and the broad goal remain open.
+
+Data3.113 / original digit forwarders (74c5550 baseline): hour/min now retain
+one saved formal, the complete guarded callee return and distinct conditional
+read occurrences. Caller-specific namespace/no-drop ownership and literal const
+selection are independently checked; builtin Option lookup consumes the existing
+complete anonymous-prelude proof. No graph duplication, new hashes or driver
+instance transport. Wrong widths/implementations, altered call/result scope,
+missing/merged reads, flattened origins, extra work and historical policy fail closed.
+Fresh strict no-default run-v0MNmH:27→29/1,406; default run-FtevPu:29→31/1,506.
+Only hour/min gain admission; zero losses, all351/406 old pair records unchanged,
+all406/465 current pairs complete and the original wrapper pair Accepted in both.
+Native oracle184,194 checks/context, zero mismatches. Frozen run-3lqxqg29 checks118
+Data documents; all60 identities, denominators, outcomes/reasons and blockers
+remain unchanged:24 admitted/29 excluded/7 inactive. Foreign native CI is unverified.
+Final gates:2,097 tests pass/five existing skips plus doctests; fmt, warning-denied
+Clippy, style0/6,964 and patterns0/15 unchanged ignores. New composition test1.79s,
+including semantic call-selection and document attacks; no controlled speed claim.
+Evidence: `/tmp/rstyle-436-{landing-nextest.log,landing-clippy.log,landing-fmt.log,landing-style.log,landing-patterns.log,no-default-comparison.json,default-comparison.json,oracle.json,frozen-comparison.json}`.
+Remaining frontier: transitive whole-result callable summaries and guarded payload
+consumption; week/day/dayo also require NonZero and verified callback composition.
+parse_subsecond additionally needs N4..9, residuals/conversions and its loop branch.
+These are complete caller chains to audit before activation; the broad goal remains open.

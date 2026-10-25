@@ -13,17 +13,30 @@ pub(super) fn install(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if install_guarded_origins(pair, facts)? {
+        return Ok(());
+    }
+    install_standard_origins(pair, facts)
+}
+
+fn install_guarded_origins(
+    pair: &mut Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    if super::digit_calls::install(pair, facts)? {
+        return Ok(true);
+    }
     if crate::scalar_product_instances::activation::when_checked(facts, |checked| {
         crate::scalar_product_instances::origins::documents::install(pair, &checked, facts)
     })?
     .is_some()
     {
-        return Ok(());
+        return Ok(true);
     }
     if super::tagged_calls::install(pair, facts)? {
-        return Ok(());
+        return Ok(true);
     }
-    install_standard_origins(pair, facts)
+    Ok(false)
 }
 
 fn install_standard_origins(
@@ -61,22 +74,8 @@ pub(super) fn verify(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
-    if crate::scalar_product_instances::activation::when_checked(facts, |checked| {
-        crate::scalar_product_instances::origins::documents::verify(pair, &checked, facts)
-    })?
-    .is_some()
-    {
+    if verify_guarded_origins(pair, facts)? {
         return Ok(());
-    }
-    if super::tagged_calls::verify(pair, facts)? {
-        return Ok(());
-    }
-    if crate::copy_tagged_values::candidate(facts) {
-        let resolution = facts.nominal_resolution()?;
-        let receipt = resolution
-            .copy_conversion_source(facts.facts())?
-            .ok_or("Missing checked original conversion origins authority")?;
-        return super::copy_tagged_values::origins::verify(pair, facts, receipt);
     }
     for node in &pair.pdg.nodes {
         verify_type(node, facts)?;
@@ -107,6 +106,34 @@ pub(super) fn verify(
     }
 
     Ok(())
+}
+
+fn verify_guarded_origins(
+    pair: crate::producer::PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    if super::digit_calls::verify(pair, facts)? {
+        return Ok(true);
+    }
+    if crate::scalar_product_instances::activation::when_checked(facts, |checked| {
+        crate::scalar_product_instances::origins::documents::verify(pair, &checked, facts)
+    })?
+    .is_some()
+    {
+        return Ok(true);
+    }
+    if super::tagged_calls::verify(pair, facts)? {
+        return Ok(true);
+    }
+
+    if crate::copy_tagged_values::candidate(facts) {
+        let resolution = facts.nominal_resolution()?;
+        let receipt = resolution
+            .copy_conversion_source(facts.facts())?
+            .ok_or("Missing checked original conversion origins authority")?;
+        return super::copy_tagged_values::origins::verify(pair, facts, receipt).map(|()| true);
+    }
+    Ok(false)
 }
 
 fn reference(node: &PdgNode) -> Result<bool, String> {

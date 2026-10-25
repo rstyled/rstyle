@@ -1,4 +1,5 @@
 //! Resolved concrete inherent ownership and shared receiver correspondence.
+mod digit_forwarders;
 pub(crate) mod lifetimes;
 mod result_maps;
 
@@ -158,6 +159,9 @@ fn ufcs_owner_matches(
     if node.kind != "expr_call" {
         return Ok(true);
     }
+    if let Some(matched) = digit_forwarders::verify(node, caller, None, Some(nominal))? {
+        return Ok(matched);
+    }
     if let Some(matched) = result_maps::verify(node, caller, Some(nominal))? {
         return Ok(matched);
     }
@@ -220,6 +224,9 @@ fn source_resolved_in(
     if resolution.get("inherent").is_none() {
         return Ok(false);
     }
+    if let Some(matched) = digit_forwarders::verify(node, facts, callee, None)? {
+        return Ok(matched);
+    }
     if let Some(matched) = result_maps::verify(node, facts, None)? {
         return Ok(matched);
     }
@@ -227,6 +234,15 @@ fn source_resolved_in(
         return Ok(false);
     }
 
+    resolved_expression(node, facts, callee, &resolution)
+}
+
+fn resolved_expression(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    callee: Option<&dyn crate::unit_store::EvidenceFacts>,
+    resolution: &serde_json::Value,
+) -> Result<bool, String> {
     let source = facts
         .source
         .bytes

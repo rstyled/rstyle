@@ -663,8 +663,29 @@ fn check_tagged_forwarder_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome>
     )
 }
 
+fn check_digit_forwarder_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if node != &ctx.facts.body || !crate::scalar_product_instances::forwarders::candidate(ctx.facts)
+    {
+        return None;
+    }
+    Some(
+        match crate::scalar_product_instances::forwarders::verify(ctx.facts) {
+            Ok(Some(_)) => Outcome::ok(),
+            result => error(
+                crate::scalar_product_instances::forwarders::CAPABILITY,
+                "digit_call",
+                node,
+                &result
+                    .err()
+                    .unwrap_or_else(|| "Missing exact digit forwarder proof".into()),
+            ),
+        },
+    )
+}
+
 fn check_special_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
-    check_tagged_forwarder_body(node, ctx)
+    check_digit_forwarder_body(node, ctx)
+        .or_else(|| check_tagged_forwarder_body(node, ctx))
         .or_else(|| check_copy_conversion_body(node, ctx))
         .or_else(|| check_transport_body(node, ctx))
 }

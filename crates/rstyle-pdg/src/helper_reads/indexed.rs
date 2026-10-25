@@ -9,7 +9,9 @@ pub(super) fn contains(path: &[Projection]) -> bool {
     path.iter().any(|step| {
         matches!(
             step,
-            Projection::IndexedElement { .. } | Projection::HelperIndex { .. }
+            Projection::IndexedElement { .. }
+                | Projection::HelperIndex { .. }
+                | Projection::PrefixElement { .. }
         )
     })
 }
@@ -25,6 +27,15 @@ pub(super) fn substitute(
     }
     if !crate::extraction_profile::facts_support(facts, CAPABILITY) {
         return Err("Indexed helper reads require their registered capability".into());
+    }
+
+    if read
+        .path
+        .iter()
+        .any(|part| matches!(part, Projection::PrefixElement { .. }))
+        && !crate::scalar_product_instances::forwarders::candidate(facts)
+    {
+        return Err("Prefix reads require their exact guarded whole-result caller".into());
     }
 
     let tail = read
@@ -87,7 +98,8 @@ pub(super) fn project(value: TypeToken, projection: &Projection) -> Result<TypeT
             TypeToken::Slice(element) | TypeToken::Array { element, .. },
             Projection::IndexedElement {
                 operand_position: 1,
-            },
+            }
+            | Projection::PrefixElement { .. },
         ) if matches!(element.as_ref(), TypeToken::Scalar(_)) => Ok(*element),
         _ => Err("Indexed helper selector contradicts its concrete type".into()),
     }

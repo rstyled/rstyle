@@ -14,3 +14,8 @@ is a prerequisite; it does not establish caller admission, matching completeness
 rewrite safety or held-out detector quality. Dependency locks used for admission
 measurements remain the existing context-specific locks; the native oracle is a
 separate behavioral check.
+
+The selection retains the pre-activation baseline. Data3.113 admits both originals
+in both locked contexts through exact same-unit whole-return forwarding. Callee
+conditions and individual read occurrences remain scoped under the saved call;
+this does not grant general payload consumption or transitive caller summaries.

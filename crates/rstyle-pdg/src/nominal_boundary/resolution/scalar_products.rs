@@ -3,6 +3,26 @@ use super::*;
 use selected::no_drop::scalar_product_instances as proof;
 
 impl Resolution {
+    pub(crate) fn verify_digit_call_path(
+        &self,
+        owner: &syn::TypePath,
+        digits: u8,
+        selected: &str,
+    ) -> Result<(), String> {
+        let name = Scoped {
+            resolution: self,
+            namespace: &self.namespace,
+        }
+        .name(owner)?;
+        if !self.environment.index.declarations.contains_key(&name)
+            || name.last().is_none_or(|name| name != "ExactlyNDigits")
+            || selected != format!("{}::<{digits}>::parse", name.join("::"))
+        {
+            return Err("Digit call changes its lexical owner or concrete selected path".into());
+        }
+        Ok(())
+    }
+
     /// Identity-only ownership of the checked concrete const impl. This does
     /// not register a callable summary for its reference-bearing result.
     pub(super) fn scalar_product_static_owner(
@@ -23,7 +43,7 @@ impl Resolution {
         let mut owner = receipt
             .checked_namespace(facts, &self.environment)?
             .to_vec();
-        if receipt.implementation() != *implementation {
+        if receipt.implementation() != Some(*implementation) {
             return Err("Concrete digit owner changes its exact original implementation".into());
         }
         owner.push("ExactlyNDigits".into());
@@ -91,8 +111,8 @@ impl Resolution {
 
         self.scalar_product_source
             .as_ref()
-            .map(|source| source.digits())
-            .ok_or_else(|| "Missing checked scalar product source".into())
+            .ok_or("Missing checked scalar product source")?
+            .digits()
     }
 
     /// Resolve a plain constructor path against this exact checked instance.
@@ -165,9 +185,7 @@ fn exact_tree(path: &syn::TypePath, scope: &Scoped<'_>) -> Result<Option<TypeTre
     if instance.as_ref() != receipt.instance() {
         return Err("Scalar product spelling differs from the checked exact instance".into());
     }
-    if scope.namespace.as_slice() != receipt.namespace() {
-        return Err("Scalar product source requires its exact checked method namespace".into());
-    }
+    receipt.verify_namespace(scope.namespace)?;
     Ok(Some(TypeTree::ScalarProductInstance(instance.clone())))
 }
 

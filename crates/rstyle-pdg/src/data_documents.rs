@@ -19,6 +19,7 @@ mod checked_slice_views;
 mod checked_suffix_views;
 mod conditional_payloads;
 pub(crate) mod copy_tagged_values;
+mod digit_calls;
 mod fieldless_enums;
 mod float_scalars;
 mod helper_option_callbacks;

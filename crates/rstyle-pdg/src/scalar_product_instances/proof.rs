@@ -17,7 +17,7 @@ pub(crate) struct CheckedScalarProductInstance {
     instance: Instance,
     owner: copy_products::Owner,
     context: copy_products::SourceContext,
-    method: source::Method,
+    method: Option<source::Method>,
 }
 
 pub(in crate::nominal_boundary::resolution) fn capture_checked(
@@ -35,10 +35,25 @@ pub(in crate::nominal_boundary::resolution) fn capture_checked(
     let environment = &resolution.environment;
     environment.check_input_owner(facts)?;
     crate::declaration_origins::verify_in(&interface, origins, environment)?;
-    let method = source::verify_method(facts, environment, instance.argument)?;
+    let method = if crate::scalar_product_instances::forwarders::candidate(facts) {
+        crate::scalar_product_instances::forwarders::source_shape(facts)?;
+        None
+    } else {
+        Some(source::verify_method(
+            facts,
+            environment,
+            instance.argument,
+        )?)
+    };
     verify_declaration(facts, resolution, origins, instance)?;
-    let owner =
-        copy_products::Owner::capture_at(facts, environment, origins, method.namespace.clone())?;
+    let owner = match &method {
+        Some(method) => {
+            copy_products::Owner::capture_at(facts, environment, origins, method.namespace.clone())?
+        }
+        None => copy_products::Owner::capture(facts, environment, origins)?,
+    };
+
+    source::unshadowed_byte(facts, environment, owner.namespace())?;
 
     Ok(CheckedScalarProductInstance {
         instance: instance.clone(),
@@ -49,20 +64,29 @@ pub(in crate::nominal_boundary::resolution) fn capture_checked(
 }
 
 impl CheckedScalarProductInstance {
-    pub(crate) fn implementation(&self) -> crate::ByteSpan {
-        self.method.implementation
+    pub(crate) fn implementation(&self) -> Option<crate::ByteSpan> {
+        self.method.as_ref().map(|method| method.implementation)
     }
 
     pub(crate) fn instance(&self) -> &Instance {
         &self.instance
     }
 
-    pub(crate) fn digits(&self) -> u8 {
-        self.method.digits()
+    pub(crate) fn digits(&self) -> Result<u8, String> {
+        self.method
+            .as_ref()
+            .map(source::Method::digits)
+            .ok_or_else(|| "Forwarding source does not own a digit parser implementation".into())
     }
 
-    pub(in crate::nominal_boundary::resolution) fn namespace(&self) -> &[String] {
-        &self.method.namespace
+    pub(in crate::nominal_boundary::resolution) fn verify_namespace(
+        &self,
+        namespace: &[String],
+    ) -> Result<(), String> {
+        if self.owner.namespace() != namespace {
+            return Err("Scalar product source requires its exact checked method namespace".into());
+        }
+        Ok(())
     }
 
     pub(in crate::nominal_boundary::resolution) fn verify_owner(
@@ -93,7 +117,7 @@ impl CheckedScalarProductInstance {
             .data::<InterfaceObservations>()?;
         verify_interface(&interface, &self.instance)?;
 
-        Ok(&self.method.namespace)
+        Ok(self.owner.namespace())
     }
 }
 

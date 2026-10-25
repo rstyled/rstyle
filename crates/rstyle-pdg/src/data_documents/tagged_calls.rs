@@ -19,7 +19,7 @@ struct Contract {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-enum Role {
+pub(super) enum Role {
     Input,
     Output,
 }
@@ -29,7 +29,7 @@ pub(super) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<bool
         return Ok(false);
     };
     let contract = contract(facts, &checked)?;
-    let roles = graph(pair.as_view(), facts, &checked)?;
+    let roles = graph(pair.as_view(), facts, &checked, false)?;
 
     pair.pdg.extensions.insert(
         KEY.into(),
@@ -78,7 +78,7 @@ pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<bo
             "Tagged call contract changes its saved argument, scope or callee proof".into(),
         );
     }
-    let roles = graph(pair, facts, &checked)?;
+    let roles = graph(pair, facts, &checked, false)?;
     for node in &pair.pdg.nodes {
         let role: Role = serde_json::from_value(
             node.annotations
@@ -122,7 +122,8 @@ struct Values<'a> {
 fn operations<'a>(
     pair: PairView<'a>,
     facts: &dyn EvidenceFacts,
-    checked: &crate::copy_tagged_values::call_wrappers::Checked<'_>,
+    checked: &(impl crate::copy_tagged_values::call_wrappers::WholeCall + ?Sized),
+    reads: bool,
 ) -> Result<Values<'a>, String> {
     let formal = &facts.signature.params[0];
     let values = Values {
@@ -137,7 +138,7 @@ fn operations<'a>(
     };
 
     if pair.pdg.nodes.len() != 4
-        || !pair.pdg.memory_locations.is_empty()
+        || !reads && !pair.pdg.memory_locations.is_empty()
         || pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Complete
         || values.input.attributes.position != Some(0)
         || values.input.attributes.symbol_ids != [formal.symbol.clone()]
@@ -148,12 +149,12 @@ fn operations<'a>(
             "Tagged forwarding requires its complete four-operation saved-value graph".into(),
         );
     }
-    call_effects(values.call)?;
+    call_effects(values.call, reads)?;
     Ok(values)
 }
 
-fn call_effects(call: &PdgNode) -> Result<(), String> {
-    if !call.attributes.reads.is_empty()
+fn call_effects(call: &PdgNode, reads: bool) -> Result<(), String> {
+    if !reads && !call.attributes.reads.is_empty()
         || !call.attributes.writes.is_empty()
         || !call.attributes.defines.is_empty()
         || !call.attributes.symbol_ids.is_empty()
@@ -165,12 +166,23 @@ fn call_effects(call: &PdgNode) -> Result<(), String> {
     Ok(())
 }
 
-fn graph(
+pub(super) fn graph(
     pair: PairView<'_>,
     facts: &dyn EvidenceFacts,
-    checked: &crate::copy_tagged_values::call_wrappers::Checked<'_>,
+    checked: &(impl crate::copy_tagged_values::call_wrappers::WholeCall + ?Sized),
+    reads: bool,
 ) -> Result<BTreeMap<String, Role>, String> {
-    let values = operations(pair, facts, checked)?;
+    if reads
+        && (pair.pdg.extensions.contains_key(KEY)
+            || pair
+                .pdg
+                .nodes
+                .iter()
+                .any(|node| node.annotations.contains_key(ROLE_KEY)))
+    {
+        return Err("Digit forwarding cannot claim an unrelated Copy tagged contract".into());
+    }
+    let values = operations(pair, facts, checked, reads)?;
     edges(pair, &values)?;
     copy_tagged_values::graph::returned(pair, checked.call(), values.call)?;
 
@@ -220,7 +232,7 @@ fn edges(pair: PairView<'_>, values: &Values<'_>) -> Result<(), String> {
 
 fn inventory(
     pair: PairView<'_>,
-    checked: &crate::copy_tagged_values::call_wrappers::Checked<'_>,
+    checked: &(impl crate::copy_tagged_values::call_wrappers::WholeCall + ?Sized),
     roles: &BTreeMap<String, Role>,
 ) -> Result<(), String> {
     if pair

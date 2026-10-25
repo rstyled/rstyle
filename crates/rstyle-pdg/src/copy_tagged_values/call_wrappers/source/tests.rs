@@ -12,7 +12,10 @@ fn whole_return_shape_rejects_evaluation_and_control_flow_changes() {
         "let _ = Output::from(value); Output::from(value)",
     ] {
         let source = format!("fn wrap(value: Input) -> Output {{ {body} }}");
-        assert!(shape(&syn::parse_str(&source).unwrap()).is_err(), "{body}");
+        assert!(
+            shape(&syn::parse_str(&source).unwrap(), false).is_err(),
+            "{body}"
+        );
     }
 }
 
@@ -30,7 +33,7 @@ fn source_signature_shape_rejects_extra_authority() {
     ] {
         let source = format!("{signature} {{ Output::from(value) }}");
         assert!(
-            shape(&syn::parse_str(&source).unwrap()).is_err(),
+            shape(&syn::parse_str(&source).unwrap(), false).is_err(),
             "{signature}"
         );
     }
@@ -39,7 +42,7 @@ fn source_signature_shape_rejects_extra_authority() {
 #[test]
 fn whole_return_shape_is_only_a_candidate_and_requires_independent_proofs() {
     let source = syn::parse_str("fn wrap(value: Input) -> Output { Output::from(value) }").unwrap();
-    assert!(shape(&source).is_ok());
+    assert!(shape(&source, false).is_ok());
 }
 
 #[test]

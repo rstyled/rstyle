@@ -1,5 +1,5 @@
 //! Whole-return callers retain the verified callee proof in its own scope.
-mod source;
+pub(crate) mod source;
 
 use super::origins::WireContract;
 use crate::{
@@ -98,4 +98,34 @@ pub(crate) fn verify(facts: &dyn EvidenceFacts) -> Result<Option<Checked<'_>>, S
     };
     source::verify(facts, &checked)?;
     Ok(Some(checked))
+}
+
+/// Common source correspondence for exact immediate whole-value forwarding.
+pub(crate) trait WholeCall {
+    fn call(&self) -> &HirNode;
+    fn actual(&self) -> &HirNode;
+    fn formal(&self) -> &HirNode;
+    fn input(&self) -> &TypeTree;
+    fn output(&self) -> &TypeTree;
+    fn permits_const(&self) -> bool {
+        false
+    }
+}
+
+impl WholeCall for Checked<'_> {
+    fn call(&self) -> &HirNode {
+        self.call()
+    }
+    fn actual(&self) -> &HirNode {
+        self.actual()
+    }
+    fn formal(&self) -> &HirNode {
+        self.formal()
+    }
+    fn input(&self) -> &TypeTree {
+        self.input()
+    }
+    fn output(&self) -> &TypeTree {
+        self.output()
+    }
 }

@@ -5408,3 +5408,17 @@ oracle passes184,194 checks in each feature context. Their remaining connected
 blockers are caller source ownership, exact `::<2>` inherent routing and guarded
 result/read substitution. No new driver instance transport is needed: both calls
 already have exact unit links. See the compact execution evidence for validation.
+
+Data3.113 connects original time0.3.47 ISO-8601 `hour` and `min` through real
+Cargo capture, strict verification/admission and matching in both locked contexts.
+Independent caller namespace/no-drop proof, exact lexical `::<2>` implementation
+selection and the already-proved anonymous prelude now join the complete callee
+return graph. One saved shared argument supplies every conditional selector/body
+read; each occurrence retains its call scope. The whole Some/None result passes
+unchanged, including decimal0..99 and the exact saved input[2..] suffix.
+No-default gains these two:27→29/1,406; default29→31/1,506; zero losses.
+All351/406 previous pair records persist; all406/465 current pairs complete,
+including the independently expected hour/min match. Frozen membership and
+selection identities remain unchanged. General payload consumption, transitive
+forwarder summaries, NonZero/callback chains and N4..9 remain separate blockers;
+this does not activate parse_subsecond or general generic call resolution.

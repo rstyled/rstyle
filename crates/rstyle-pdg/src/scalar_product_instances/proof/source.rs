@@ -46,7 +46,6 @@ pub(super) fn verify_method(
     let [method] = candidates.as_slice() else {
         return Err("Scalar product requires a unique original concrete digit method".into());
     };
-    unshadowed_byte(facts, environment, &method.namespace)?;
 
     Ok(Method {
         namespace: method.namespace.clone(),
@@ -275,7 +274,7 @@ fn declaration_attributes(facts: &HirFnFacts, attributes: &[syn::Attribute]) -> 
     Ok(())
 }
 
-fn unshadowed_byte(
+pub(super) fn unshadowed_byte(
     facts: &HirFnFacts,
     environment: &Environment,
     namespace: &[String],
@@ -287,6 +286,12 @@ fn unshadowed_byte(
         }
         for item in &module.items {
             if configuration.active(crate::conditional_source::item_attributes(item))? {
+                if let syn::Item::Use(import) = item
+                    && crate::scalar_product_instances::forwarders::candidate(facts)
+                    && environment.anonymous_use(&module.namespace, import)
+                {
+                    continue;
+                }
                 byte_binding(item)?;
             }
         }

@@ -27,7 +27,9 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
         let places = crate::data_places::Places::verify(facts)?;
         return observation.finish(verify_nodes(&facts.body, facts, &places));
     }
-    if crate::copy_tagged_values::call_wrappers::verify_function(facts)? {
+    if crate::scalar_product_instances::forwarders::verify(facts)?.is_some()
+        || crate::copy_tagged_values::call_wrappers::verify_function(facts)?
+    {
         verify_fields(facts)?;
         return observation.finish(Ok(()));
     }

@@ -8,10 +8,10 @@ use syn::spanned::Spanned;
 #[cfg(test)]
 mod tests;
 
-pub(super) fn verify(facts: &dyn EvidenceFacts, checked: &Checked<'_>) -> Result<(), String> {
+pub(crate) fn verify(facts: &dyn EvidenceFacts, checked: &impl WholeCall) -> Result<(), String> {
     let resolution = facts.nominal_resolution()?;
     let source = crate::data_frontend::source_function(facts, Some(&resolution))?;
-    shape(&source)?;
+    shape(&source, checked.permits_const())?;
     let Some(syn::FnArg::Typed(parameter)) = source.sig.inputs.first() else {
         return Err("Tagged caller requires one ordinary formal".into());
     };
@@ -34,14 +34,14 @@ pub(super) fn verify(facts: &dyn EvidenceFacts, checked: &Checked<'_>) -> Result
     binding_source(facts, checked, binding)
 }
 
-fn shape(source: &syn::ItemFn) -> Result<(), String> {
+pub(crate) fn shape(source: &syn::ItemFn, permits_const: bool) -> Result<(), String> {
     let signature = &source.sig;
     if !source.attrs.is_empty()
         || !signature.generics.params.is_empty()
         || signature.generics.where_clause.is_some()
         || signature.unsafety.is_some()
         || signature.asyncness.is_some()
-        || signature.constness.is_some()
+        || signature.constness.is_some() && !permits_const
         || signature.abi.is_some()
         || signature.variadic.is_some()
         || signature.inputs.len() != 1
@@ -68,7 +68,7 @@ fn immutable_binding(binding: &syn::PatIdent) -> Result<(), String> {
     Ok(())
 }
 
-fn interface(facts: &dyn EvidenceFacts, checked: &Checked<'_>) -> Result<(), String> {
+fn interface(facts: &dyn EvidenceFacts, checked: &impl WholeCall) -> Result<(), String> {
     let observed = facts
         .build
         .frontend_options
@@ -106,7 +106,7 @@ fn interface(facts: &dyn EvidenceFacts, checked: &Checked<'_>) -> Result<(), Str
 
 fn syntax(
     facts: &dyn EvidenceFacts,
-    checked: &Checked<'_>,
+    checked: &impl WholeCall,
     source: &syn::ItemFn,
 ) -> Result<(), String> {
     let [syn::Stmt::Expr(syn::Expr::Call(call), None)] = source.block.stmts.as_slice() else {
@@ -139,7 +139,7 @@ fn syntax(
 
 fn binding_source(
     facts: &dyn EvidenceFacts,
-    checked: &Checked<'_>,
+    checked: &impl WholeCall,
     binding: &syn::PatIdent,
 ) -> Result<(), String> {
     let formal = &facts.signature.params[0];
@@ -171,6 +171,18 @@ struct Resolver<'a> {
 impl PathResolution for Resolver<'_> {
     fn resolve(&self, path: &syn::TypePath) -> Result<TypeTree, String> {
         self.resolution.resolve(path)
+    }
+
+    fn scalar_option(&self, path: &syn::TypePath, payload: &TypeTree) -> Result<(), String> {
+        if matches!(payload, TypeTree::ScalarProductInstance(_)) {
+            return self.resolution.verify_scalar_product_option_type(
+                self.facts.facts(),
+                path,
+                payload,
+            );
+        }
+        self.resolution
+            .verify_product_option_type(self.facts.facts(), path, payload)
     }
 
     fn concrete_result(

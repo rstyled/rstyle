@@ -232,6 +232,7 @@ fn project(value: TypeToken, projection: &Projection) -> Result<TypeToken, Strin
             value,
             selector @ (Projection::HelperIndex { .. }
             | Projection::IndexedElement { .. }
+            | Projection::PrefixElement { .. }
             | Projection::IteratorPrefix { .. }
             | Projection::ByteWindow { .. }),
         ) => indexed::project(value, selector),

@@ -36,7 +36,10 @@ pub(super) fn covers_pattern(finding: &crate::HirDiagnostic, pattern: &HirNode) 
 }
 
 pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
-    if !crate::extraction_profile::facts_support(facts, VALUE_CAPABILITY) {
+    if !crate::extraction_profile::facts_support(facts, VALUE_CAPABILITY)
+        || facts.body.kind != "expr_block"
+        || !matches!(facts.body.children.as_slice(), [matched] if matched.kind == "expr_match")
+    {
         return false;
     }
     let Some(text) = facts.signature.return_ty.normalized.as_deref() else {

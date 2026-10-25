@@ -2,6 +2,7 @@
 //! Shape consistency grants no source ownership, Copy, cleanup or value authority.
 pub(crate) mod activation;
 pub mod constructors;
+pub(crate) mod forwarders;
 pub(crate) mod origins;
 
 use crate::concrete_types::byte_views::{
