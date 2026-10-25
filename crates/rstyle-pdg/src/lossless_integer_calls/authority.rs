@@ -34,8 +34,10 @@ pub(super) fn verify(
     let callee = crate::data_library::callee(node)?;
     definition(&callee, kind.path(), registry)?;
     match (kind, &callee.implementation) {
-        (Kind::Convert, Some(implementation)) if implementation.implementation.is_none() => {
-            definition(implementation, IMPLEMENTATION, registry)?;
+        (_, Some(implementation))
+            if kind.is_conversion() && implementation.implementation.is_none() =>
+        {
+            definition(implementation, kind.implementation(), registry)?;
         }
         // Original call-instances independently proves the selected impl. The
         // legacy callee descriptor may contain only the requested trait method.
@@ -57,8 +59,10 @@ pub(super) fn target(width: &crate::CountFact, registry: &Registry) -> Result<()
 
 pub(super) fn sources(registry: &Registry) -> Result<(), String> {
     // Source pins are reviewed semantic contracts, not routine byte checks.
-    // In this exact source, the 64-bit ptr impl uses impl_try_from_unbounded!,
-    // whose body is Ok(value as Self); no error value is ever constructed.
+    // In this exact source, the 64-bit ptr impl uses impl_try_from_unbounded!
+    // directly for usize=>u64 and through rev!(..., usize=>u32,u64) for
+    // u32=>usize. Both expand to Error=TryFromIntError and Ok(value as Self);
+    // no error value is ever constructed. Other target configurations differ.
     for (file, expected) in SOURCES {
         let actual = registry
             .source_digests

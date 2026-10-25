@@ -1,6 +1,7 @@
 //! Fixed semantic expectations and hostile observations are specified independently.
 use super::*;
 use serde_json::{Value, json};
+mod u32_usize;
 
 fn registry() -> crate::data_library::Registry {
     let mut registry: crate::data_library::Registry =
@@ -8,6 +9,7 @@ fn registry() -> crate::data_library::Registry {
     for (key, value) in [
         (CONVERT, "try-trait"),
         (IMPLEMENTATION, "exact-impl"),
+        (U32_USIZE_IMPLEMENTATION, "exact-u32-usize-impl"),
         (EXPECT, "expect-method"),
         (ERROR, "actual-error"),
         (authority::STABLE_CORE, "selected-core"),
@@ -33,8 +35,8 @@ fn builtin(name: &str) -> Value {
 }
 
 fn call(kind: Kind) -> Value {
-    let conversion = kind == Kind::Convert;
-    let mut arguments = json!([builtin("u64"), builtin("usize")]);
+    let conversion = kind.is_conversion();
+    let mut arguments = json!([builtin(kind.output()), builtin(kind.input())]);
     if !conversion {
         arguments[1]["identity"] = json!({"kind":"adt", "arguments":[],
             "definition":definition(ERROR,"actual-error")});
@@ -42,20 +44,30 @@ fn call(kind: Kind) -> Value {
     let (requested, selected) = if conversion {
         (
             definition(CONVERT, "try-trait"),
-            definition(IMPLEMENTATION, "exact-impl"),
+            definition(
+                kind.implementation(),
+                if kind.conversion() == Kind::Convert {
+                    "exact-impl"
+                } else {
+                    "exact-u32-usize-impl"
+                },
+            ),
         )
     } else {
         let definition = definition(EXPECT, "expect-method");
         (definition.clone(), definition)
     };
-    let result = "core::result::Result<u64, core::num::TryFromIntError>";
+    let result = format!(
+        "core::result::Result<{}, core::num::TryFromIntError>",
+        kind.output()
+    );
     json!({"hir":{"krate":0,"owner":4,"local":8}, "span":{"start":10,"end":24},
         "status":"resolved", "expanded":false, "requested":requested, "selected":selected,
         "requested_arguments":arguments,
         "selected_arguments":if conversion {json!([])} else {arguments.clone()},
         "signature":{"display_only":true,
-            "inputs":if conversion {json!(["usize"])} else {json!([result,"&str"])},
-            "output":if conversion {result} else {"u64"}}})
+            "inputs":if conversion {json!([kind.input()])} else {json!([result.as_str(),"&str"])},
+            "output":if conversion {result.as_str()} else {kind.output()}}})
 }
 
 fn node() -> HirNode {
@@ -76,7 +88,12 @@ fn inventory() -> Value {
 #[test]
 fn raw_conversion_and_expect_require_distinct_exact_selected_substitutions() {
     let registry = registry();
-    for kind in [Kind::Convert, Kind::Expect] {
+    for kind in [
+        Kind::Convert,
+        Kind::Expect,
+        Kind::ConvertU32Usize,
+        Kind::ExpectUsize,
+    ] {
         assert!(selection::relationship(&call(kind), kind, &registry).is_ok());
         for field in ["requested", "selected"] {
             for (key, value) in [
@@ -246,7 +263,12 @@ fn spelling(value: &mut Value, root: &str) {
 fn std_and_no_std_displays_preserve_the_same_concrete_core_implementation() {
     let registry = registry();
     for root in ["std::", "core::"] {
-        for kind in [Kind::Convert, Kind::Expect] {
+        for kind in [
+            Kind::Convert,
+            Kind::Expect,
+            Kind::ConvertU32Usize,
+            Kind::ExpectUsize,
+        ] {
             let mut observation = call(kind);
             spelling(&mut observation, root);
             assert!(selection::relationship(&observation, kind, &registry).is_ok());

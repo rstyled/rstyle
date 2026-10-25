@@ -8,7 +8,10 @@ pub(crate) fn verify_document_policy(
 ) -> Result<(), String> {
     crate::extraction_profile::require_document(
         profile,
-        crate::local_value_trait_calls::CAPABILITY,
+        crate::local_value_trait_calls::captured_contract(facts)
+            .map_or(crate::local_value_trait_calls::CAPABILITY, |contract| {
+                contract.capability()
+            }),
         || candidate(facts),
         "Primitive trait receivers require their registered document policy",
     )
@@ -18,7 +21,9 @@ pub(crate) fn receiver(facts: &HirFnFacts, observation: &Observation) -> Result<
     if !candidate(facts) {
         return Ok(false);
     }
-    if !supports(facts, crate::local_value_trait_calls::CAPABILITY)? {
+    let contract = crate::local_value_trait_calls::captured_contract(facts)
+        .ok_or("Missing primitive trait receiver contract")?;
+    if !supports(facts, contract.capability())? {
         return Err("Primitive trait receiver requires its registered source policy".into());
     }
     let environment = standalone_environment(facts)?;
@@ -51,7 +56,7 @@ pub(crate) fn receiver(facts: &HirFnFacts, observation: &Observation) -> Result<
     if matched != 1 {
         return Err("Primitive receiver lacks one exact original trait implementation".into());
     }
-    if !matches!(observation, Observation::Captured { ty: TypeTree::Scalar(name) } if name == "usize")
+    if !matches!(observation, Observation::Captured { ty: TypeTree::Scalar(name) } if name == contract.input())
     {
         return Err("Primitive trait receiver contradicts captured interface".into());
     }
@@ -71,7 +76,9 @@ fn verify_member(
     let key = lexical(environment, &module.namespace, names)?;
     let expected = source_evidence::plain_relative_path(&member.trait_identity)
         .ok_or("Primitive selected trait identity is not an original path")?;
-    if key != expected || !member.self_type.path.is_ident("usize") {
+    let contract = crate::local_value_trait_calls::captured_contract(facts)
+        .ok_or("Missing primitive trait source contract")?;
+    if key != expected || !member.self_type.path.is_ident(contract.input()) {
         return Err("Primitive trait source binding differs from selected implementation".into());
     }
 
@@ -93,12 +100,7 @@ fn verify_member(
 }
 
 pub(crate) fn candidate(facts: &HirFnFacts) -> bool {
-    facts.signature.has_self
-        && facts
-            .signature
-            .params
-            .first()
-            .is_some_and(|parameter| parameter.ty.normalized.as_deref() == Some("usize"))
+    facts.signature.has_self && crate::local_value_trait_calls::captured_contract(facts).is_some()
 }
 
 fn lexical(

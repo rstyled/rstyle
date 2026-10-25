@@ -20,6 +20,7 @@ pub mod cfg;
 mod character_ascii;
 pub mod character_ranges;
 pub mod character_scalars;
+pub(crate) mod checked_index_bytes;
 pub(crate) mod checked_lengths;
 mod checked_option_products;
 pub mod checked_options;

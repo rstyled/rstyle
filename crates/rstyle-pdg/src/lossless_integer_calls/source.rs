@@ -29,11 +29,13 @@ pub(super) fn verify(node: &HirNode, kind: Kind, facts: &dyn EvidenceFacts) -> R
 }
 
 pub(super) fn operands(source: &syn::Expr, kind: Kind) -> Result<Vec<&syn::Expr>, String> {
-    match kind {
-        Kind::Convert => Ok(vec![crate::source_evidence::primitive_conversion(
-            source, "u64",
-        )?]),
-        Kind::Expect => expect(source),
+    if kind.is_conversion() {
+        Ok(vec![crate::source_evidence::primitive_conversion(
+            source,
+            kind.output(),
+        )?])
+    } else {
+        expect(source)
     }
 }
 

@@ -7,7 +7,9 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, 
     if node.kind != "expr_lit"
         || node.ty.as_ref().and_then(|ty| ty.normalized.as_deref())
             != Some("{\"kind\":\"shared\",\"value\":{\"kind\":\"str\"}}")
-        || !crate::extraction_profile::facts_support(facts, CAPABILITY)
+        || ![CAPABILITY, U32_USIZE_CAPABILITY]
+            .into_iter()
+            .any(|capability| crate::extraction_profile::facts_support(facts, capability))
     {
         return Ok(false);
     }
@@ -17,7 +19,7 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, 
     let [parent] = parents.as_slice() else {
         return Ok(false);
     };
-    if kind(parent, facts) != Some(Kind::Expect) {
+    if !kind(parent, facts).is_some_and(|kind| !kind.is_conversion()) {
         return Ok(false);
     }
     resolve(parent, facts)?.ok_or("Missing total expect for literal diagnostic")?;

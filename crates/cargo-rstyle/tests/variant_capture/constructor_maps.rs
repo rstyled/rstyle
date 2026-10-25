@@ -1,6 +1,7 @@
 //! Generated constructors preserve both Result payloads through selected helpers.
 use super::float_kernels::function;
 use super::*;
+mod bytes;
 
 const SOURCE: &str = r#"
 #![no_std]

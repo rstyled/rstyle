@@ -1,4 +1,5 @@
 //! Exact original impl/member syntax; lexical trait binding belongs to the caller.
+use super::Contract;
 use crate::{ByteSpan, HirFnFacts};
 use syn::spanned::Spanned;
 
@@ -16,6 +17,7 @@ pub(crate) struct SourceMember {
     pub trait_identity: syn::Path,
     pub method_name: String,
     roster: Vec<Method>,
+    contract: Contract,
 }
 
 pub(crate) fn member(
@@ -37,9 +39,12 @@ pub(crate) fn member(
     }
 
     super::model::original(facts)?;
-    captured_signature(facts)?;
-    let (trait_identity, method_name) = selected_path(&facts.name)?;
-    if method_name != source.method_name {
+    let contract = captured_signature(facts)?;
+    if !crate::extraction_profile::facts_support(facts, contract.capability()) {
+        return Err("Local value trait source requires its registered route capability".into());
+    }
+    let (trait_identity, method_name) = selected_path(&facts.name, contract)?;
+    if method_name != source.method_name || source.contract != contract {
         return Err("Local value trait selected member differs from original method".into());
     }
     source.trait_identity = trait_identity;
@@ -62,23 +67,28 @@ pub(super) fn syntax(
         || !item.generics.params.is_empty()
         || item.generics.where_clause.is_some()
         || self_type.qself.is_some()
-        || !self_type.path.is_ident("usize")
         || crate::source_evidence::plain_relative_path(trait_path).is_none()
     {
         return Err(
-            "Local value trait requires an ordinary nongeneric usize implementation".into(),
+            "Local value trait requires an ordinary nongeneric primitive implementation".into(),
         );
     }
 
-    let roster = impl_roster(item)?;
     let selected = signature(&method.sig)?;
-    if selected.output != "u64"
-        || !method.attrs.is_empty()
+    let input = self_type
+        .path
+        .get_ident()
+        .ok_or("Local value trait owner is not a primitive name")?
+        .to_string();
+    let contract = Contract::from_types(&input, &selected.output)
+        .ok_or("Local value trait selected member is outside its exact primitive routes")?;
+    let roster = impl_roster(item, contract)?;
+    if !method.attrs.is_empty()
         || method.defaultness.is_some()
         || !matches!(method.vis, syn::Visibility::Inherited)
     {
         return Err(
-            "Local value trait selected member requires original usize -> u64 signature".into(),
+            "Local value trait selected member requires its original plain signature".into(),
         );
     }
     Ok(SourceMember {
@@ -87,10 +97,11 @@ pub(super) fn syntax(
         trait_identity: trait_path.clone(),
         method_name: selected.name,
         roster,
+        contract,
     })
 }
 
-fn impl_roster(item: &syn::ItemImpl) -> Result<Vec<Method>, String> {
+fn impl_roster(item: &syn::ItemImpl, contract: Contract) -> Result<Vec<Method>, String> {
     let mut roster = Vec::new();
     for member in &item.items {
         let syn::ImplItem::Fn(method) = member else {
@@ -107,6 +118,9 @@ fn impl_roster(item: &syn::ItemImpl) -> Result<Vec<Method>, String> {
             );
         }
         let signature = signature(&method.sig)?;
+        if !contract.permits_output(&signature.output) {
+            return Err("Local value trait sibling result is outside its route contract".into());
+        }
         if roster
             .iter()
             .any(|previous: &Method| previous.name == signature.name)
@@ -193,7 +207,7 @@ fn signature(signature: &syn::Signature) -> Result<Method, String> {
         .get_ident()
         .ok_or("Local value trait result is not a primitive name")?
         .to_string();
-    if output.qself.is_some() || !matches!(name.as_str(), "u8" | "u16" | "u32" | "u64") {
+    if output.qself.is_some() || !matches!(name.as_str(), "u8" | "u16" | "u32" | "u64" | "usize") {
         return Err("Local value trait result is outside its primitive contract".into());
     }
     Ok(Method {
@@ -202,18 +216,18 @@ fn signature(signature: &syn::Signature) -> Result<Method, String> {
     })
 }
 
-pub(super) fn selected_path(name: &str) -> Result<(syn::Path, String), String> {
+pub(super) fn selected_path(name: &str, contract: Contract) -> Result<(syn::Path, String), String> {
     let mut path: syn::ExprPath = syn::parse_str(name).map_err(|error| error.to_string())?;
     let qself = path
         .qself
         .ok_or("Local value trait selected path lacks its concrete owner")?;
     if qself.as_token.is_none()
         || qself.position + 1 != path.path.segments.len()
-        || !matches!(qself.ty.as_ref(), syn::Type::Path(ty) if ty.qself.is_none() && ty.path.is_ident("usize"))
+        || !matches!(qself.ty.as_ref(), syn::Type::Path(ty) if ty.qself.is_none() && ty.path.is_ident(contract.input()))
         || crate::source_evidence::plain_relative_path(&path.path).is_none()
     {
         return Err(
-            "Local value trait selected path is not its concrete usize implementation".into(),
+            "Local value trait selected path is not its concrete primitive implementation".into(),
         );
     }
 
@@ -229,8 +243,11 @@ pub(super) fn selected_path(name: &str) -> Result<(syn::Path, String), String> {
     Ok((path.path, method))
 }
 
-pub(super) fn captured_signature(facts: &HirFnFacts) -> Result<(), String> {
+pub(super) fn captured_signature(facts: &HirFnFacts) -> Result<Contract, String> {
     let signature = &facts.signature;
+    let contract = super::captured_contract(facts)
+        .ok_or("Local value trait captured signature is outside its exact primitive routes")?;
+
     let [parameter] = signature.params.as_slice() else {
         return Err("Local value trait captured signature lacks its single self operand".into());
     };
@@ -247,18 +264,18 @@ pub(super) fn captured_signature(facts: &HirFnFacts) -> Result<(), String> {
             .as_ref()
             .is_none_or(|receiver| receiver.snippet != "self")
         || parameter.position != 0
-        || parameter.ty.normalized.as_deref() != Some("usize")
+        || parameter.ty.normalized.as_deref() != Some(contract.input())
         || parameter.pat.kind != "pat_binding"
         || parameter.pat.binding_mut != Some(false)
         || parameter.pat.snippet != "self"
         || parameter.pat.binding.as_ref() != Some(&parameter.symbol)
-        || signature.return_ty.normalized.as_deref() != Some("u64")
+        || signature.return_ty.normalized.as_deref() != Some(contract.output())
     {
         return Err(
             "Local value trait captured signature contradicts original primitive self".into(),
         );
     }
-    Ok(())
+    Ok(contract)
 }
 
 fn range(bytes: &str, method: &syn::ImplItemFn) -> ByteSpan {

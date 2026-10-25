@@ -117,7 +117,7 @@ fn results(facts: &HirFnFacts) -> Result<[TypeTree; 3], String> {
     if !shape::scalar_product(success)
         || !shape::error_product(error)
         || !matches!(interface.parameters.as_slice(), [Observation::Captured {
-            ty: TypeTree::Scalar(token) }] if crate::concrete_types::scalar(token) && token != "unit")
+            ty }] if crate::checked_index_bytes::parameter(facts, ty))
     {
         return Err(
             "Transport requires finite scalar success and named scalar error products".into(),

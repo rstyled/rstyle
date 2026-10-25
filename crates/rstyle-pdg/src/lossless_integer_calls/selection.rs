@@ -58,8 +58,8 @@ pub(super) fn relationship(call: &Value, kind: Kind, registry: &Registry) -> Res
     definition(&call["requested"], kind.path(), registry)?;
     definition(
         &call["selected"],
-        if kind == Kind::Convert {
-            IMPLEMENTATION
+        if kind.is_conversion() {
+            kind.implementation()
         } else {
             EXPECT
         },
@@ -68,17 +68,17 @@ pub(super) fn relationship(call: &Value, kind: Kind, registry: &Registry) -> Res
 
     let requested = arguments(&call["requested_arguments"])?;
     let selected = arguments(&call["selected_arguments"])?;
-    if kind == Kind::Convert {
+    if kind.is_conversion() {
         if requested.len() != 2 || !selected.is_empty() {
             return Err("Lossless TryFrom substitutions disagree".into());
         }
-        builtin(&requested[0], "u64")?;
-        builtin(&requested[1], "usize")?;
+        builtin(&requested[0], kind.output())?;
+        builtin(&requested[1], kind.input())?;
     } else {
         if requested.len() != 2 || selected != requested || call["requested"] != call["selected"] {
             return Err("Lossless expect selected substitutions disagree".into());
         }
-        builtin(&requested[0], "u64")?;
+        builtin(&requested[0], kind.output())?;
         error(&requested[1], registry)?;
     }
     signature(&call["signature"], kind)
@@ -139,10 +139,14 @@ fn definition(value: &Value, expected: &str, registry: &Registry) -> Result<(), 
 }
 
 fn signature(value: &Value, kind: Kind) -> Result<(), String> {
-    let result = "core::result::Result<u64, core::num::TryFromIntError>";
-    let (inputs, output) = match kind {
-        Kind::Convert => (serde_json::json!(["usize"]), result),
-        Kind::Expect => (serde_json::json!([result, "&str"]), "u64"),
+    let result = format!(
+        "core::result::Result<{}, core::num::TryFromIntError>",
+        kind.output()
+    );
+    let (inputs, output) = if kind.is_conversion() {
+        (serde_json::json!([kind.input()]), result.as_str())
+    } else {
+        (serde_json::json!([result, "&str"]), kind.output())
     };
 
     // Display strings only cross-check the independently proved substitutions.

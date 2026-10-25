@@ -59,6 +59,7 @@
     }
   ],
   "definitions": {
+    "std::convert::num::<impl std::convert::From<u32> for u64>::from": "DefPathHash(Fingerprint(5614226571623188065, 17849264329362732583))",
     "std::result::Result::<T, E>::map": "DefPathHash(Fingerprint(5614226571623188065, 2573605953444394354))",
     "std::result::Result::<T, E>::map_err": "DefPathHash(Fingerprint(5614226571623188065, 8323227334072579304))",
     "rust.result-constructor-maps.core-crate": "StableCrateId(5614226571623188065)",

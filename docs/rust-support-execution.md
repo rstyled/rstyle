@@ -1322,3 +1322,28 @@ Remaining frontier: transitive whole-result callable summaries and guarded paylo
 consumption; week/day/dayo also require NonZero and verified callback composition.
 parse_subsecond additionally needs N4..9, residuals/conversions and its loop branch.
 These are complete caller chains to audit before activation; the broad goal remains open.
+
+Data3.114 / checked native index decoding (97d500e working-tree integration):
+original regex-automata0.4.18 SmallIndex::from_ne_bytes → PatternID::from_ne_bytes
+now composes with the selected local U32::as_usize helper. Separate array-Result,
+u32→usize and u32→u64 gates reuse existing ownership/source/summary authority;
+no new runtime hashing, graph copying or serialized lookup. Historical policies
+remain closed; malformed source, implementations, operands, graph and policy reject.
+Retained native no-default captures run-FjQeCg → run-zlTUUT preserve590 identities/
+build contexts and gain exactly those three:113→116, zero losses. Baseline producer
+74c5550+dirty/policy3.113 is a retained executable, not a clean97d500e rebuild.
+Strict original/replay:three Accepted score1; all three distinct-original pairs
+complete and Rejected as predeclared (WL or size gate). Full-library matching
+remains budget-incomplete. Native oracle270352 inputs/API/context, all four
+feature/debug controls, zero mismatches; foreign native CI remains unverified.
+Final gates:2,111 tests pass/five existing skips plus doctests; fmt, warning-denied
+Clippy, style0/6,982 and patterns0/15 unchanged ignores. New composition1.77s,
+a single observation. Frozen run-qgircimn checks118 Data documents and preserves
+all60 identities/outcomes/reasons/blockers and denominators,24/29/7; older profiles
+also unchanged. Evidence: `/tmp/rstyle-437-{comparison.json,strict-final.log,oracle.json,nextest-final.log,clippy-final.log,fmt-final.log,style.json,patterns.log,frozen-comparison.json}`.
+Next shared source bottleneck: generated-source lookup treats an earlier local
+item-macro invocation as unknown and poisons later textual lookup (StateID follows
+PatternID). Prove the complete preceding expansion's namespace effects before
+changing that restriction; sharing a macro template alone is insufficient.
+Transitive result summaries and week/day/dayo's NonZero/callback/residual chain
+remain separate higher-caller work. The broad coverage goal remains open.

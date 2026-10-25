@@ -5422,3 +5422,15 @@ including the independently expected hour/min match. Frozen membership and
 selection identities remain unchanged. General payload consumption, transitive
 forwarder summaries, NonZero/callback chains and N4..9 remain separate blockers;
 this does not activate parse_subsecond or general generic call resolution.
+
+Data3.114 connects original regex-automata0.4.18 checked native byte decoding:
+SmallIndex::from_ne_bytes → generated PatternID::from_ne_bytes, including the
+actual local U32::as_usize helper. Exact [u8;4] Result inputs, selected64-bit
+u32→usize TryFrom/expect totality and u32→u64 From reuse existing source,
+no-drop, helper and constructor-map proofs under separate capability gates.
+The unchanged native no-default selection gains those three:113→116/590,
+zero losses. Original native oracle passes270352 inputs/API in all four feature/
+debug contexts. StateID macro/source ownership and unchecked array-result
+receipts remain separate blockers; this is not general array/trait/ownership
+support. Strict replay, matching and integrated gate evidence are recorded in
+docs/rust-support-execution.md and the checked-index-decode development corpus.

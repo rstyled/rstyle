@@ -57,7 +57,23 @@ fn conversion(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Conversion, S
             id: "rstyle.data.scalar.from-u16-usize",
         });
     }
+    if crate::extraction_profile::facts_support(facts, "rust.u64-from-u32")
+        && dispatch.operand_tys == ["u32"]
+        && dispatch.result_ty == "u64"
+    {
+        return Ok(u32_widening());
+    }
     Err("Concrete scalar From instantiation is not registered".into())
+}
+
+fn u32_widening() -> Conversion {
+    Conversion {
+        input: "u32",
+        output: "u64",
+        implementation: "std::convert::num::<impl std::convert::From<u32> for u64>::from",
+        core_implementation: "core::convert::num::<impl core::convert::From<u32> for u64>::from",
+        id: "rstyle.data.scalar.from-u32-u64",
+    }
 }
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {

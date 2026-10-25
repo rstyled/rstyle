@@ -249,9 +249,12 @@ fn lossless_message(
         .collect();
     (arguments.len() == 1
         && path.segments.iter().all(|segment| segment.args.is_none())
-        && (names == ["u64", "try_from"]
-            || names == ["core", "primitive", "u64", "try_from"]
-            || names == ["std", "primitive", "u64", "try_from"]))
+        && (["u64", "usize"].into_iter().any(|target| {
+            (target == "u64" || profile.supports("rust.lossless-u32-usize-calls"))
+                && (names == [target, "try_from"]
+                    || names == ["core", "primitive", target, "try_from"]
+                    || names == ["std", "primitive", target, "try_from"])
+        })))
     .then_some(message.span)
 }
 

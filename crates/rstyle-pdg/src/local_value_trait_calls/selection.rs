@@ -1,5 +1,5 @@
 //! Keep requested local trait and selected original implementation distinct.
-use super::{model, source};
+use super::{Contract, model, source};
 use crate::{HirNode, unit_store::EvidenceFacts};
 use serde_json::Value;
 
@@ -50,7 +50,14 @@ pub(crate) fn verify(
         );
     }
 
-    source::captured_signature(callee)?;
+    let contract = call_contract(&call)?;
+    if source::captured_signature(callee)? != contract
+        || !crate::extraction_profile::facts_support(callee, contract.capability())
+    {
+        return Err(
+            "Local value trait callee changes the independently gated primitive route".into(),
+        );
+    }
     // Ordinary same-build, source-namespace and callee body/effects verification
     // remains mandatory in the surrounding helper pipeline.
     Ok(())
@@ -63,6 +70,10 @@ fn checked_call(node: &HirNode, caller: &dyn EvidenceFacts) -> Result<model::Cal
         .get("rstyle.rust.call-instances")
         .ok_or("Local value trait lacks its independent original call inventory")?;
     let call = original_call(inventory, node)?;
+    let contract = call_contract(&call)?;
+    if !crate::extraction_profile::facts_support(caller, contract.capability()) {
+        return Err("Local value trait call requires its registered route capability".into());
+    }
     call.requested.local(caller)?;
     call.selected.local(caller)?;
 
@@ -104,8 +115,7 @@ pub(super) fn original_call(inventory: &Value, node: &HirNode) -> Result<model::
         || call.expanded
         || call.compiled_dependency.is_some()
         || call.signature["display_only"] != true
-        || call.signature["inputs"] != serde_json::json!(["usize"])
-        || call.signature["output"] != "u64"
+        || call_contract(&call).is_err()
     {
         return Err("Local value trait call lacks exact original resolved scalar signature".into());
     }
@@ -113,8 +123,9 @@ pub(super) fn original_call(inventory: &Value, node: &HirNode) -> Result<model::
 }
 
 pub(super) fn relationship(call: &model::Call) -> Result<(), String> {
-    model::self_argument(&call.requested_arguments)?;
-    let (trait_path, member) = source::selected_path(&call.selected.path)?;
+    let contract = call_contract(call)?;
+    model::self_argument(&call.requested_arguments, contract.input())?;
+    let (trait_path, member) = source::selected_path(&call.selected.path, contract)?;
     let expected = trait_path
         .segments
         .iter()
@@ -143,6 +154,7 @@ pub(super) fn relationship(call: &model::Call) -> Result<(), String> {
 }
 
 fn requested(node: &HirNode, call: &model::Call) -> Result<(), String> {
+    let contract = call_contract(call)?;
     let resolution = node
         .res
         .as_ref()
@@ -167,11 +179,11 @@ fn requested(node: &HirNode, call: &model::Call) -> Result<(), String> {
         || node.dispatch.as_ref().is_none_or(|dispatch| {
             dispatch.kind != "resolved_method"
                 || dispatch.op != call.requested.path
-                || dispatch.operand_tys != ["usize"]
-                || dispatch.result_ty != "u64"
+                || dispatch.operand_tys != [contract.input()]
+                || dispatch.result_ty != contract.output()
         })
-        || node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some("u64")
-        || operand.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some("usize")
+        || node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some(contract.output())
+        || operand.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some(contract.input())
     {
         return Err(
             "Local value trait loses its original primitive receiver/result dispatch".into(),
@@ -189,7 +201,7 @@ fn original_source(
     let syn::Expr::MethodCall(method) = crate::data_aggregates::ungroup(&syntax) else {
         return Err("Local value trait requires original method-call syntax".into());
     };
-    let (_, name) = source::selected_path(&call.selected.path)?;
+    let (_, name) = source::selected_path(&call.selected.path, call_contract(call)?)?;
     if !method.args.is_empty()
         || method.turbofish.is_some()
         || !method.attrs.is_empty()
@@ -203,3 +215,20 @@ fn original_source(
     };
     crate::source_evidence::verify_child_source(method.receiver.as_ref(), operand, node, caller)
 }
+
+fn call_contract(call: &model::Call) -> Result<Contract, String> {
+    let inputs = call.signature["inputs"]
+        .as_array()
+        .ok_or("Local value trait call signature lacks concrete inputs")?;
+    let [input] = inputs.as_slice() else {
+        return Err("Local value trait call signature requires one primitive input".into());
+    };
+    input
+        .as_str()
+        .zip(call.signature["output"].as_str())
+        .and_then(|(input, output)| Contract::from_types(input, output))
+        .ok_or("Local value trait call signature is outside its exact primitive routes".into())
+}
+
+#[cfg(test)]
+mod dispatch_tests;

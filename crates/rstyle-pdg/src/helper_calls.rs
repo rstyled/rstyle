@@ -851,6 +851,7 @@ fn serialized_helper_count(pair: producer::PairView<'_>, records: &[Value]) -> u
                                 | "data.integer.try-u32-usize"
                                 | "data.integer.try-usize-u16"
                                 | "data.integer.try-usize-u64"
+                                | "data.integer.lossless-try-u32-usize"
                         )
                     )
                     || records.iter().any(|record| {

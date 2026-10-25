@@ -1,0 +1,318 @@
+{
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18"
+  },
+  "inventory_policy": "Separate development closure; preserve original frozen sixty, Match construction and all existing identity/denominator selections.",
+  "context_files": [
+    {
+      "path": "Cargo.toml",
+      "byte_length": 4300,
+      "checksum": "xxh3-64:3cf618cce43eae27",
+      "role": "Complete original file consistency; full capture source census still required"
+    },
+    {
+      "path": "src/lib.rs",
+      "byte_length": 30727,
+      "checksum": "xxh3-64:ab006308993a85c1",
+      "role": "Complete original file consistency; full capture source census still required"
+    },
+    {
+      "path": "src/util/mod.rs",
+      "byte_length": 1963,
+      "checksum": "xxh3-64:a9e9874bc032778e",
+      "role": "Complete original file consistency; full capture source census still required"
+    },
+    {
+      "path": "src/util/primitives.rs",
+      "byte_length": 27691,
+      "checksum": "xxh3-64:9f3383a64b18378f",
+      "role": "Complete original file consistency; full capture source census still required"
+    },
+    {
+      "path": "src/util/int.rs",
+      "byte_length": 6514,
+      "checksum": "xxh3-64:ab93af24618069e1",
+      "role": "Complete original file consistency; full capture source census still required"
+    }
+  ],
+  "build_selection": {
+    "target": "Original regex-automata library; test=false",
+    "edition": "2021",
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "pointer_width": 64,
+    "debug_assertions": true,
+    "overflow_checks": true,
+    "panic_strategy": "unwind",
+    "optimization": "No",
+    "contexts": [
+      {
+        "name": "default",
+        "default_features": true,
+        "features": [],
+        "expected_feature_closure": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ]
+      },
+      {
+        "name": "no-default",
+        "default_features": false,
+        "features": [],
+        "expected_feature_closure": []
+      }
+    ],
+    "additional_oracle_control": "debug_assertions=false at opt-level0 selects release U32 cast body; separate runtime control, no broader release admission claim"
+  },
+  "identity": "rstyle.development.checked-index-decode/1",
+  "status": "Source and independent expectations frozen BEFORE new decode admission measurement; no admission/runtime result claimed",
+  "functions": [
+    {
+      "name": "SmallIndex::from_ne_bytes",
+      "path": "src/util/primitives.rs",
+      "start": 10065,
+      "end": 10383,
+      "source": "pub fn from_ne_bytes(\n        bytes: [u8; 4],\n    ) -> Result<SmallIndex, SmallIndexError> {\n        let id = u32::from_ne_bytes(bytes);\n        if id > SmallIndex::MAX.as_u32() {\n            return Err(SmallIndexError { attempted: u64::from(id) });\n        }\n        Ok(SmallIndex::new_unchecked(id.as_usize()))\n    }",
+      "checksum": "xxh3-64:f21dd78cce7efb29",
+      "role": "Primary original target"
+    },
+    {
+      "name": "<u32 as U32>::as_usize",
+      "path": "src/util/int.rs",
+      "start": 3009,
+      "end": 3245,
+      "source": "fn as_usize(self) -> usize {\n        #[cfg(debug_assertions)]\n        {\n            usize::try_from(self).expect(\"u32 overflowed usize\")\n        }\n        #[cfg(not(debug_assertions))]\n        {\n            self as usize\n        }\n    }",
+      "checksum": "xxh3-64:a80b5288f44df5b4",
+      "role": "Required private selected local trait dependency"
+    },
+    {
+      "name": "SmallIndex::new_unchecked",
+      "path": "src/util/primitives.rs",
+      "start": 8126,
+      "end": 8295,
+      "source": "pub const fn new_unchecked(index: usize) -> SmallIndex {\n        // FIXME: Use as_u32() once const functions in traits are stable.\n        SmallIndex(index as u32)\n    }",
+      "checksum": "xxh3-64:274ac644daea29f2",
+      "role": "Required success helper; only callsite range proof justifies target caller"
+    },
+    {
+      "name": "SmallIndexError::attempted",
+      "path": "src/util/primitives.rs",
+      "start": 14015,
+      "end": 14076,
+      "source": "pub fn attempted(&self) -> u64 {\n        self.attempted\n    }",
+      "checksum": "xxh3-64:ae29ce433af0ee71",
+      "role": "Natural error result consumer; include only once complete owned result transport connects"
+    },
+    {
+      "name": "SmallIndex::as_u32",
+      "path": "src/util/primitives.rs",
+      "start": 9143,
+      "end": 9199,
+      "source": "pub const fn as_u32(&self) -> u32 {\n        self.0\n    }",
+      "checksum": "xxh3-64:f2fa9b07aa840f13",
+      "role": "Required MAX observer and public success consumer"
+    }
+  ],
+  "generated_members": [
+    {
+      "name": "PatternID::from_ne_bytes template",
+      "path": "src/util/primitives.rs",
+      "start": 18636,
+      "end": 18785,
+      "source": "pub fn from_ne_bytes(bytes: [u8; 4]) -> Result<$name, $err> {\n                SmallIndex::from_ne_bytes(bytes).map($name).map_err($err)\n            }",
+      "checksum": "xxh3-64:a3dfa7bef23b818f",
+      "role": "Primary generated target; template is not emitted source identity"
+    },
+    {
+      "name": "StateID::from_ne_bytes template",
+      "path": "src/util/primitives.rs",
+      "start": 18636,
+      "end": 18785,
+      "source": "pub fn from_ne_bytes(bytes: [u8; 4]) -> Result<$name, $err> {\n                SmallIndex::from_ne_bytes(bytes).map($name).map_err($err)\n            }",
+      "checksum": "xxh3-64:a3dfa7bef23b818f",
+      "role": "Contingent sibling, same template; unknown-expansion source lookup remains a separate gate"
+    }
+  ],
+  "source_obligations": [
+    {
+      "name": "complete index_type_impls macro definition",
+      "path": "src/util/primitives.rs",
+      "start": 15039,
+      "end": 25196,
+      "source": "macro_rules! index_type_impls {\n    ($name:ident, $err:ident, $iter:ident, $withiter:ident) => {\n        impl $name {\n            /// The maximum value.\n            pub const MAX: $name = $name(SmallIndex::MAX);\n\n            /// The total number of values that can be represented.\n            pub const LIMIT: usize = SmallIndex::LIMIT;\n\n            /// The zero value.\n            pub const ZERO: $name = $name(SmallIndex::ZERO);\n\n            /// The number of bytes that a single value uses in memory.\n            pub const SIZE: usize = SmallIndex::SIZE;\n\n            /// Create a new value that is represented by a \"small index.\"\n            ///\n            /// If the given index exceeds the maximum allowed value, then this\n            /// returns an error.\n            #[inline]\n            pub fn new(value: usize) -> Result<$name, $err> {\n                SmallIndex::new(value).map($name).map_err($err)\n            }\n\n            /// Create a new value without checking whether the given argument\n            /// exceeds the maximum.\n            ///\n            /// Using this routine with an invalid value will result in\n            /// unspecified behavior, but *not* undefined behavior. In\n            /// particular, an invalid ID value is likely to cause panics or\n            /// possibly even silent logical errors.\n            ///\n            /// Callers must never rely on this type to be within a certain\n            /// range for memory safety.\n            #[inline]\n            pub const fn new_unchecked(value: usize) -> $name {\n                $name(SmallIndex::new_unchecked(value))\n            }\n\n            /// Like `new`, but panics if the given value is not valid.\n            #[inline]\n            pub fn must(value: usize) -> $name {\n                $name::new(value).expect(concat!(\n                    \"invalid \",\n                    stringify!($name),\n                    \" value\"\n                ))\n            }\n\n            /// Return the internal value as a `usize`. This is guaranteed to\n            /// never overflow `usize`.\n            #[inline]\n            pub const fn as_usize(&self) -> usize {\n                self.0.as_usize()\n            }\n\n            /// Return the internal value as a `u64`. This is guaranteed to\n            /// never overflow.\n            #[inline]\n            pub const fn as_u64(&self) -> u64 {\n                self.0.as_u64()\n            }\n\n            /// Return the internal value as a `u32`. This is guaranteed to\n            /// never overflow `u32`.\n            #[inline]\n            pub const fn as_u32(&self) -> u32 {\n                self.0.as_u32()\n            }\n\n            /// Return the internal value as a i32`. This is guaranteed to\n            /// never overflow an `i32`.\n            #[inline]\n            pub const fn as_i32(&self) -> i32 {\n                self.0.as_i32()\n            }\n\n            /// Returns one more than this value as a usize.\n            ///\n            /// Since values represented by a \"small index\" have constraints\n            /// on their maximum value, adding `1` to it will always fit in a\n            /// `usize`, `u32` and a `i32`.\n            #[inline]\n            pub fn one_more(&self) -> usize {\n                self.0.one_more()\n            }\n\n            /// Decode this value from the bytes given using the native endian\n            /// byte order for the current target.\n            ///\n            /// If the decoded integer is not representable as a small index\n            /// for the current target, then this returns an error.\n            #[inline]\n            pub fn from_ne_bytes(bytes: [u8; 4]) -> Result<$name, $err> {\n                SmallIndex::from_ne_bytes(bytes).map($name).map_err($err)\n            }\n\n            /// Decode this value from the bytes given using the native endian\n            /// byte order for the current target.\n            ///\n            /// This is analogous to `new_unchecked` in that is does not check\n            /// whether the decoded integer is representable as a small index.\n            #[inline]\n            pub fn from_ne_bytes_unchecked(bytes: [u8; 4]) -> $name {\n                $name(SmallIndex::from_ne_bytes_unchecked(bytes))\n            }\n\n            /// Return the underlying integer as raw bytes in native endian\n            /// format.\n            #[inline]\n            pub fn to_ne_bytes(&self) -> [u8; 4] {\n                self.0.to_ne_bytes()\n            }\n\n            /// Returns an iterator over all values from 0 up to and not\n            /// including the given length.\n            ///\n            /// If the given length exceeds this type's limit, then this\n            /// panics.\n            pub(crate) fn iter(len: usize) -> $iter {\n                $iter::new(len)\n            }\n        }\n\n        // We write our own Debug impl so that we get things like PatternID(5)\n        // instead of PatternID(SmallIndex(5)).\n        impl core::fmt::Debug for $name {\n            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {\n                f.debug_tuple(stringify!($name)).field(&self.as_u32()).finish()\n            }\n        }\n\n        impl<T> core::ops::Index<$name> for [T] {\n            type Output = T;\n\n            #[inline]\n            fn index(&self, index: $name) -> &T {\n                &self[index.as_usize()]\n            }\n        }\n\n        impl<T> core::ops::IndexMut<$name> for [T] {\n            #[inline]\n            fn index_mut(&mut self, index: $name) -> &mut T {\n                &mut self[index.as_usize()]\n            }\n        }\n\n        #[cfg(feature = \"alloc\")]\n        impl<T> core::ops::Index<$name> for Vec<T> {\n            type Output = T;\n\n            #[inline]\n            fn index(&self, index: $name) -> &T {\n                &self[index.as_usize()]\n            }\n        }\n\n        #[cfg(feature = \"alloc\")]\n        impl<T> core::ops::IndexMut<$name> for Vec<T> {\n            #[inline]\n            fn index_mut(&mut self, index: $name) -> &mut T {\n                &mut self[index.as_usize()]\n            }\n        }\n\n        impl From<u8> for $name {\n            fn from(value: u8) -> $name {\n                $name(SmallIndex::from(value))\n            }\n        }\n\n        impl TryFrom<u16> for $name {\n            type Error = $err;\n\n            fn try_from(value: u16) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        impl TryFrom<u32> for $name {\n            type Error = $err;\n\n            fn try_from(value: u32) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        impl TryFrom<u64> for $name {\n            type Error = $err;\n\n            fn try_from(value: u64) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        impl TryFrom<usize> for $name {\n            type Error = $err;\n\n            fn try_from(value: usize) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        #[cfg(test)]\n        impl quickcheck::Arbitrary for $name {\n            fn arbitrary(gen: &mut quickcheck::Gen) -> $name {\n                $name(SmallIndex::arbitrary(gen))\n            }\n        }\n\n        /// This error occurs when a value could not be constructed.\n        ///\n        /// This occurs when given an integer exceeding the maximum allowed\n        /// value.\n        ///\n        /// When the `std` feature is enabled, this implements the `Error`\n        /// trait.\n        #[derive(Clone, Debug, Eq, PartialEq)]\n        pub struct $err(SmallIndexError);\n\n        impl $err {\n            /// Returns the value that could not be converted to an ID.\n            pub fn attempted(&self) -> u64 {\n                self.0.attempted()\n            }\n        }\n\n        #[cfg(feature = \"std\")]\n        impl std::error::Error for $err {}\n\n        impl core::fmt::Display for $err {\n            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {\n                write!(\n                    f,\n                    \"failed to create {} from {:?}, which exceeds {:?}\",\n                    stringify!($name),\n                    self.attempted(),\n                    $name::MAX,\n                )\n            }\n        }\n\n        #[derive(Clone, Debug)]\n        pub(crate) struct $iter(SmallIndexIter);\n\n        impl $iter {\n            fn new(len: usize) -> $iter {\n                assert!(\n                    len <= $name::LIMIT,\n                    \"cannot create iterator for {} when number of \\\n                     elements exceed {:?}\",\n                    stringify!($name),\n                    $name::LIMIT,\n                );\n                $iter(SmallIndexIter { rng: 0..len })\n            }\n        }\n\n        impl Iterator for $iter {\n            type Item = $name;\n\n            fn next(&mut self) -> Option<$name> {\n                self.0.next().map($name)\n            }\n        }\n\n        /// An iterator adapter that is like std::iter::Enumerate, but attaches\n        /// small index values instead. It requires `ExactSizeIterator`. At\n        /// construction, it ensures that the index of each element in the\n        /// iterator is representable in the corresponding small index type.\n        #[derive(Clone, Debug)]\n        pub(crate) struct $withiter<I> {\n            it: I,\n            ids: $iter,\n        }\n\n        impl<I: Iterator + ExactSizeIterator> $withiter<I> {\n            fn new(it: I) -> $withiter<I> {\n                let ids = $name::iter(it.len());\n                $withiter { it, ids }\n            }\n        }\n\n        impl<I: Iterator + ExactSizeIterator> Iterator for $withiter<I> {\n            type Item = ($name, I::Item);\n\n            fn next(&mut self) -> Option<($name, I::Item)> {\n                let item = self.it.next()?;\n                // Number of elements in this iterator must match, according\n                // to contract of ExactSizeIterator.\n                let id = self.ids.next().unwrap();\n                Some((id, item))\n            }\n        }\n    };\n}",
+      "checksum": "xxh3-64:ac894356aadf7352",
+      "role": "Original definition and ALL neighboring generated members, not a callable source certificate"
+    },
+    {
+      "name": "SmallIndexError declaration",
+      "path": "src/util/primitives.rs",
+      "start": 13825,
+      "end": 13914,
+      "source": "#[derive(Clone, Debug, Eq, PartialEq)]\npub struct SmallIndexError {\n    attempted: u64,\n}",
+      "checksum": "xxh3-64:85b57c6a50c7061e",
+      "role": "Non-Copy scalar-field error; derives retained"
+    },
+    {
+      "name": "SmallIndex declaration",
+      "path": "src/util/primitives.rs",
+      "start": 6401,
+      "end": 6533,
+      "source": "#[derive(\n    Clone, Copy, Debug, Default, Eq, Hash, PartialEq, PartialOrd, Ord,\n)]\n#[repr(transparent)]\npub struct SmallIndex(u32);",
+      "checksum": "xxh3-64:995765cd451234f6",
+      "role": "Positive Copy scalar newtype declaration"
+    },
+    {
+      "name": "PatternID declaration",
+      "path": "src/util/primitives.rs",
+      "start": 26004,
+      "end": 26128,
+      "source": "#[derive(Clone, Copy, Default, Eq, Hash, PartialEq, PartialOrd, Ord)]\n#[repr(transparent)]\npub struct PatternID(SmallIndex);",
+      "checksum": "xxh3-64:b80f5638ab9f2122",
+      "role": "Complete nested Copy product owner"
+    },
+    {
+      "name": "SmallIndex MAX 32/64",
+      "path": "src/util/primitives.rs",
+      "start": 6590,
+      "end": 6831,
+      "source": "#[cfg(any(target_pointer_width = \"32\", target_pointer_width = \"64\"))]\n    pub const MAX: SmallIndex =\n        // FIXME: Use as_usize() once const functions in traits are stable.\n        SmallIndex::new_unchecked(core::i32::MAX as usize - 1);",
+      "checksum": "xxh3-64:8d6a6355d9c32471",
+      "role": "Active MAX source with actual const helper initializer"
+    },
+    {
+      "name": "SmallIndex MAX 16",
+      "path": "src/util/primitives.rs",
+      "start": 6870,
+      "end": 6994,
+      "source": "#[cfg(target_pointer_width = \"16\")]\n    pub const MAX: SmallIndex =\n        SmallIndex::new_unchecked(core::isize::MAX - 1);",
+      "checksum": "xxh3-64:4f641de2f99a47f3",
+      "role": "Inactive MAX alternative retained; NOT supported target"
+    },
+    {
+      "name": "PatternID macro invocation",
+      "path": "src/util/primitives.rs",
+      "start": 26841,
+      "end": 26920,
+      "source": "index_type_impls!(PatternID, PatternIDError, PatternIDIter, WithPatternIDIter);",
+      "checksum": "xxh3-64:828a446321bbe8da",
+      "role": "Exact definition/invocation binding needed for callable and error owners"
+    },
+    {
+      "name": "StateID neighboring invocation",
+      "path": "src/util/primitives.rs",
+      "start": 26921,
+      "end": 26992,
+      "source": "index_type_impls!(StateID, StateIDError, StateIDIter, WithStateIDIter);",
+      "checksum": "xxh3-64:dcaca45351e7018c",
+      "role": "Neighbor must remain visible; not silently omitted"
+    },
+    {
+      "name": "complete private U32 trait",
+      "path": "src/util/int.rs",
+      "start": 2842,
+      "end": 2984,
+      "source": "pub(crate) trait U32 {\n    fn as_usize(self) -> usize;\n    fn low_u8(self) -> u8;\n    fn low_u16(self) -> u16;\n    fn high_u16(self) -> u16;\n}",
+      "checksum": "xxh3-64:e26e85786e564952",
+      "role": "Retain complete trait roster"
+    },
+    {
+      "name": "complete U32 for u32 implementation",
+      "path": "src/util/int.rs",
+      "start": 2986,
+      "end": 3424,
+      "source": "impl U32 for u32 {\n    fn as_usize(self) -> usize {\n        #[cfg(debug_assertions)]\n        {\n            usize::try_from(self).expect(\"u32 overflowed usize\")\n        }\n        #[cfg(not(debug_assertions))]\n        {\n            self as usize\n        }\n    }\n\n    fn low_u8(self) -> u8 {\n        self as u8\n    }\n\n    fn low_u16(self) -> u16 {\n        self as u16\n    }\n\n    fn high_u16(self) -> u16 {\n        (self >> 16) as u16\n    }\n}",
+      "checksum": "xxh3-64:5c0982d23133859f",
+      "role": "Retain every neighbor and debug/release-selected body"
+    }
+  ],
+  "known_blocker_dag": [
+    "Original static Result owner: scalar_result_owners/source.rs::interface currently requires scalar parameters; exact by-value [u8;4] input needs justified owner evidence.",
+    "Generated Result maps: result_maps/request.rs::results currently requires one scalar input; extend exact [u8;4] transport with formal binding/HIR and whole source proof.",
+    "Native decode: existing data_bytes exact u32::from_ne_bytes summary must bind actual selected core identity, target endianness and original array input; no handwritten replacement.",
+    "MAX chain: active 32/64-bit MAX initializer and as_u32 receiver/member/source identity, then exact comparison guard and success/error branch.",
+    "Success chain: actual u32 U32::as_usize selected member, complete private trait/impl/import/module ownership; local_value_trait_calls currently accepts usize->u64 only.",
+    "Checked debug conversion: actual core TryFrom<u32> for usize plus immediate expect must be proved total at selected width64; lossless_integer_calls currently accepts usize->u64 only. Release cast is separately selected source, not a debug substitute.",
+    "Error chain: actual u64::from(u32) selection and signature/summary must be confirmed; non-Copy scalar error needs existing complete no-drop declaration/ownership and exact attempted field.",
+    "Success product chain: SmallIndex::new_unchecked call/result summary and exact value, no invariant shortcut before guard.",
+    "PatternID generated callable: complete macro definition/invocation/member/hygiene/HIR and namespace proof; distinct fresh Result types; exact ordered map/map_err constructor callbacks and once-only branch payload transport.",
+    "Whole pipeline: original full Cargo capture -> complete extraction -> strict original/replay verification -> admission -> matching, plus unchanged selection gains/losses. Runtime source-copy evidence cannot replace this."
+  ],
+  "readiness_unknowns": [
+    "Historical /tmp/rstyle-408-default-final.json excludes SmallIndex decode, both generated decoders and U32::as_usize, but predates current source improvements; these are not current measured outcomes.",
+    "Current actual u32->usize local/core selection, u32->u64 From evidence, MAX observation and original complete namespace diagnostics need current full-owner evidence.",
+    "StateID::new historically retained unknown-expansion source lookup; shared decoder template does not discharge StateID emitted source ownership.",
+    "Current end-to-end decoder admissions and complete matching delta are unmeasured."
+  ],
+  "independent_expectations": [
+    "For selected width64, mathematically decode four bytes by base256 accumulation in target native byte order, without from_ne_bytes/to_ne_bytes or tested constructors in expected-value computation.",
+    "Decoded x<=2147483646 returns exact x for original SmallIndex, PatternID and separately classified StateID APIs. Larger x returns exact attempted=x as u64.",
+    "Boundary cases 0,1,MAX-1,MAX,MAX+1,2^31,2^32-2,2^32-1; all 65536 16-bit byte patterns embedded in low/high/interior pairs and all positions; deterministic 32-bit samples and endian-sensitive asymmetric bytes.",
+    "Canonical debug and separately labeled release-selected runtime controls preserve values; private exact U32 copy is diagnostic only. Public runtime agreement does not prove original source, no-drop, strict extraction or matching."
+  ],
+  "negative_expectations": [
+    "Wrong endianness, swapped/repeated/missing byte, signed decode, threshold off-by-one, truncation/default attempted field, wrong variant or reused branch payload must fail.",
+    "Wrong/missing source spans, full context checksums, macro member/invocation/hygiene, trait roster/selected impl, core conversion or target/build evidence reject.",
+    "Hidden effects/drop, source omission, fabricated Copy/no-drop, 16-bit MAX or 16-bit conversion treated as selected64-bit semantics, historical-profile activation reject.",
+    "A sibling passing runtime or sharing template cannot authorize StateID source lookup or count as admission."
+  ],
+  "oracle_scope": {
+    "public": "Original SmallIndex, PatternID and StateID from_ne_bytes and public as_u32/error attempted consumers; StateID runtime does not imply extraction readiness.",
+    "private": "Exact complete U32 trait/impl copied solely as labeled diagnostic; not original private-helper extraction.",
+    "callbacks": "Constructor count/order remain source/verifier adversarial obligations; uninstrumented original APIs do not expose callback counts."
+  },
+  "matching_expectations": {
+    "original_replay": "Every selected function matches its independently verified owning-unit replay with Accepted score1.",
+    "distinct_decoders": "Expected Rejected for each distinct pair: the base decoder graph, generated map/map_err wrapper graph and scalar conversion helper have different retained work and interfaces. Nominal interface differences alone are not a hard matching gate; inspect complete stage results without changing thresholds.",
+    "development": "Generated alpha wrapper peers must match; changed guards/byte decode/error conversion/selected implementation or payload evidence must fail semantic replay without changing matching thresholds."
+  },
+  "observations": {
+    "profile": "Data3.114",
+    "capture_context": "native aarch64 Linux, no-default, debug assertions enabled",
+    "unchanged_roster": 590,
+    "admitted_before": 113,
+    "admitted_after": 116,
+    "gains": [
+      "SmallIndex::from_ne_bytes",
+      "PatternID::from_ne_bytes",
+      "<u32 as U32>::as_usize"
+    ],
+    "losses": [],
+    "strict_original_replay": "Three Accepted score1; all three distinct-original pairs complete and Rejected as expected",
+    "native_oracle": "270352 inputs/API/context, default/no-default x debug true/false, zero mismatches",
+    "remaining": "StateID unresolved textual macro lookup; unchecked decoder source/array-result receipt; foreign native execution unverified",
+    "full_library_matching": "Incomplete explicit zero-pair budget; separate selected matching complete"
+  }
+}

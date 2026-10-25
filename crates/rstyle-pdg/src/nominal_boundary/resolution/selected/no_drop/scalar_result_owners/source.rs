@@ -77,8 +77,8 @@ pub(super) fn interface<'a>(
         return Ok(None);
     }
     if interface.parameters.iter().any(|parameter| {
-        !matches!(parameter, Observation::Captured { ty: TypeTree::Scalar(token) }
-            if concrete_types::scalar(token) && token != "unit")
+        !matches!(parameter, Observation::Captured { ty }
+            if crate::checked_index_bytes::parameter(facts, ty))
     }) {
         return Ok(None);
     }

@@ -14,22 +14,7 @@ fn classifiers_connect_complete_constructor_projection_and_caller_chains() {
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 23);
     for function in functions {
-        let expected_positive = matches!(
-            function["facts"]["name"].as_str().unwrap(),
-            "Unit::new_byte"
-                | "Unit::new_end"
-                | "Unit::byte"
-                | "Unit::end"
-                | "roundtrip"
-                | "saved"
-                | "Unit::code"
-                | "Unit::is_end"
-                | "byte_code"
-                | "end_code"
-                | "byte_is_end"
-                | "end_is_end"
-                | "narrowing"
-        );
+        let expected_positive = positive_classifier(function["facts"]["name"].as_str().unwrap());
         if function["facts"]["name"] == "narrowing" {
             assert_eq!(function["extraction_evidence"]["cfg"]["status"], "partial");
         }
@@ -54,12 +39,34 @@ fn classifiers_connect_complete_constructor_projection_and_caller_chains() {
     }
 }
 
+fn positive_classifier(name: &str) -> bool {
+    matches!(
+        name,
+        "Unit::new_byte"
+            | "Unit::new_end"
+            | "Unit::byte"
+            | "Unit::end"
+            | "roundtrip"
+            | "saved"
+            | "Unit::code"
+            | "Unit::is_end"
+            | "byte_code"
+            | "end_code"
+            | "byte_is_end"
+            | "end_is_end"
+            | "narrowing"
+            // Data3.114 registers this previously excluded conversion.
+            | "unregistered_widen"
+    )
+}
+
 #[test]
 fn classifier_summaries_reject_changed_semantics_and_operands() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
         "pub fn widen(x: u16) -> usize { usize::from(x) }\n\
+         pub fn widen_u32(x: u32) -> u64 { u64::from(x) }\n\
          pub fn tag(x: Option<u16>) -> bool { x.is_some() }",
     )
     .unwrap();

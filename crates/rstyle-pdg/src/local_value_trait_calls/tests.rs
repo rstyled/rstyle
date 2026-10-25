@@ -1,5 +1,6 @@
 //! Source and observation adversaries; these tests grant no body/admission proof.
-use super::{model, selection, source};
+use super::{Contract, model, selection, source};
+pub(super) mod u32_usize;
 use serde_json::{Value, json};
 
 const IMPL: &str = r#"
@@ -81,18 +82,23 @@ fn original_trait_declaration_must_match_the_complete_impl_without_defaults() {
 
 #[test]
 fn selected_path_keeps_the_concrete_owner_and_trait_member_distinct() {
-    assert!(source::selected_path("<usize as util::int::Usize>::as_u64").is_ok());
+    assert!(
+        source::selected_path("<usize as util::int::Usize>::as_u64", Contract::UsizeU64).is_ok()
+    );
     for name in [
         "util::int::Usize::as_u64",
         "<u32 as util::int::Usize>::as_u64",
         "<usize as util::int::Usize<u32>>::as_u64",
         "<usize>::as_u64",
     ] {
-        assert!(source::selected_path(name).is_err(), "{name}");
+        assert!(
+            source::selected_path(name, Contract::UsizeU64).is_err(),
+            "{name}"
+        );
     }
 }
 
-fn node() -> crate::HirNode {
+pub(super) fn node() -> crate::HirNode {
     serde_json::from_value(json!({
         "hir":{"krate":0,"owner":4,"local":8},"span":{"start":10,"end":24},
         "kind":"expr_method_call","snippet":"index.as_u64()", "ty":null,

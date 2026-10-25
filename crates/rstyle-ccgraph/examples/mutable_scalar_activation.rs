@@ -1,4 +1,4 @@
-//! Strict original/replay matching for the frozen backtracking selection.
+//! Strict original/replay matching for source-selected original functions.
 use rstyle_ccgraph::{CcgraphConfig, Decision};
 use rstyle_pdg::{unit_store::UnitStore, verification_policy};
 use serde_json::{Value, json};
@@ -121,7 +121,11 @@ fn check_all(stores: [&UnitStore; 2], functions: &[Value]) -> Result<(), String>
     println!(
         "{}",
         json!({"selected_originals":originals.len(),
-        "evaluated_original_pairs":report.pairs.len(),"complete":true})
+        "evaluated_original_pairs":report.pairs.len(),"complete":true,
+        "pairs":report.pairs.iter().map(|pair| json!({
+            "first":pair.first,"second":pair.second,"decision":pair.decision,
+            "score":pair.displayed_score,"stages":pair.stages,
+        })).collect::<Vec<_>>()})
     );
     Ok(())
 }

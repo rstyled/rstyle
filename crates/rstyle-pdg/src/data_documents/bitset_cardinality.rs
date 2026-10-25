@@ -62,7 +62,7 @@ fn verify_message_inventory(
             .iter()
             .filter(|source| {
                 crate::lossless_integer_calls::kind(source, facts)
-                    == Some(crate::lossless_integer_calls::Kind::Expect)
+                    .is_some_and(|kind| !kind.is_conversion())
             })
             .count()
     {
@@ -77,10 +77,7 @@ fn verify_call(
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
     if let Some(kind) = crate::lossless_integer_calls::kind(source, facts) {
-        if !crate::extraction_profile::policy_supports(
-            &pair.pdg.profile,
-            crate::lossless_integer_calls::CAPABILITY,
-        ) {
+        if !crate::extraction_profile::policy_supports(&pair.pdg.profile, kind.capability()) {
             return Err("Lossless conversion requires its registered document policy".into());
         }
         let summary = crate::lossless_integer_calls::resolve(source, facts)?
@@ -94,7 +91,7 @@ fn verify_call(
             summary,
         }
         .verify_pure(pair, facts, kind.construct())?;
-        return if kind == crate::lossless_integer_calls::Kind::Expect {
+        return if !kind.is_conversion() {
             verify_message(pair, source, facts)
         } else {
             Ok(())

@@ -82,7 +82,7 @@ enum Builtin {
     Builtin { name: String },
 }
 
-pub(super) fn self_argument(arguments: &[Argument]) -> Result<(), String> {
+pub(super) fn self_argument(arguments: &[Argument], input: &str) -> Result<(), String> {
     let [argument] = arguments else {
         return Err("Local value trait requires its single concrete Self substitution".into());
     };
@@ -91,9 +91,9 @@ pub(super) fn self_argument(arguments: &[Argument]) -> Result<(), String> {
         || argument.value.is_empty()
         || !argument.display_only
         || argument.identity_status != "known"
-        || name != "usize"
+        || name != input
     {
-        return Err("Local value trait Self lacks structural builtin usize identity".into());
+        return Err("Local value trait Self lacks its structural builtin input identity".into());
     }
     Ok(())
 }
