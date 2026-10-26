@@ -60,14 +60,24 @@ and reexported hidden Drop variants exclude every selected function; incomplete,
 changed or reordered type inventories and the historical3.118 downgrade reject.
 Final fmt/Clippy clean, style0/7,256 and patterns0/15 unchanged ignores.
 
-Default-feature capture is **incomplete**, with no admission claim: the existing
-concrete-observation depth/entry budget aborts at
-`dfa::sparse::Transitions::<T>::try_state`. Its long body repeatedly observes the
-expanded error tree. Investigate capture work/accounting before broadening this
-context; do not increase budgets or convert incomplete evidence to unsupported or
-admitted. The independent default runtime oracle still passes. Foreign native CI
-is unrun. General payload storage/moves, cleanup/unwind, map_err callbacks, `?`,
-callable arithmetic summaries and shl remain separate blockers.
+Default-feature capture now completes after function-local reuse of completed
+root type observations/tokens:2,582 functions/110 admissions, independently checked
+selected source/build contexts. The three selected originals remain **excluded**:
+cleanup source proof follows imported alloc::vec in dfa::dense into an unknown
+external root before consulting existing pinned library authority. This is the
+next source-boundary blocker, not a missing capture or admitted error chain.
+The formerly failing counter reached4,097 entries at depth1; caching avoids repeated
+work without changing limits. Genuine oversized trees and repeated interface
+inventories still fail incomplete; nested char remains unsupported after a root
+char observation. No-default all590 function records,138 strict replay checks and
+9,453 pair records remain identical. Full2,181 tests/doctests, fmt/Clippy, style0
+and patterns0 pass. Timings are not controlled speedup measurements.
+Foreign native CI is unrun. General payload storage/moves, cleanup/unwind,
+map_err callbacks and callable arithmetic summaries remain separate. Audit found
+all direct arithmetic callers need unsafe or stateful iterator support; prioritize
+`check_slice_len::<u8>` → `try_read_u32` instead, requiring concrete generic identity,
+unit/tuple success Results, guarded callable error origins, saved read/panic evidence
+and same-error propagation. Expand to other widths and validators after it connects.
 
 Evidence: `/tmp/rstyle-448-{comparison.json,strict-comparison.json,nextest.log,
 focused-final.log,clippy-final.log,style-final.json,patterns-final.json,
@@ -76,3 +86,9 @@ natural-final.json,default-final.json}`; unchanged runtime oracle:
 indexing pass. The natural no-default run took27.18s/375,744KiB peak; the final
 focused composition test took2.25s with binaries built. These are workload timings,
 not controlled speedup measurements.
+
+Capture reuse evidence: `/tmp/rstyle-449-{comparison.json,strict-comparison.json,
+nextest.log,clippy.log,style.json,patterns.json,default-before.json,
+default-after.json,no-default.json}`. Exact rustc Ty keys remain function-local;
+recursive capture never reuses root-only permission, budget failures never become
+cached Unsupported values, and per-use constant/environment evidence stays intact.

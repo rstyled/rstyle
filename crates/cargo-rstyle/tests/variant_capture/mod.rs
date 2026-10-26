@@ -41,6 +41,7 @@ mod local_from;
 mod look_flags;
 mod named_callbacks;
 mod named_error_shapes;
+mod observation_reuse;
 mod span_lengths;
 mod static_string_products;
 mod tagged_string_observations;

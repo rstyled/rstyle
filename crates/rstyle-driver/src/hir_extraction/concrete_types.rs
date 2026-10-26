@@ -8,6 +8,7 @@ mod mixed_enums;
 mod nonzero_values;
 mod range_values;
 mod receivers;
+mod reuse;
 mod scalar_enums;
 mod scalar_product_instances;
 
@@ -39,6 +40,7 @@ struct Capture<'a, 'tcx> {
     generated_origins:
         std::collections::BTreeMap<String, rstyle_pdg::declaration_origins::GeneratedOrigin>,
     product_selections: Vec<rstyle_pdg::product_constant_values::SelectedUse>,
+    reuse: reuse::Completed<'tcx>,
 }
 
 pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
@@ -52,6 +54,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         origins: std::collections::BTreeMap::new(),
         generated_origins: std::collections::BTreeMap::new(),
         product_selections: Vec::new(),
+        reuse: reuse::Completed::default(),
     };
     let parameters = facts
         .signature
@@ -165,10 +168,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             self.ctx.typeck.node_type_opt(id)
         };
         let Some(ty) = ty else { return Ok(None) };
-        match self.observe(ty)? {
-            Observation::Captured { ty } => rstyle_pdg::data_types::token(&ty).map(Some),
-            Observation::Unsupported { .. } => Ok(None),
-        }
+        self.type_token(ty)
     }
 
     fn node_tokens(
@@ -298,20 +298,13 @@ impl<'tcx> Capture<'_, 'tcx> {
         Ok(())
     }
 
-    fn observe(&mut self, ty: Ty<'tcx>) -> Result<Observation, String> {
-        match self.tree(ty, 0) {
-            Ok(ty) => Ok(Observation::Captured { ty }),
-            Err(Failure::Unsupported(reason)) => Ok(Observation::Unsupported { reason }),
-            Err(Failure::Budget(reason)) => Err(reason),
-        }
-    }
-
     fn tree(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
         self.entries += 1;
         if depth > MAX_DEPTH || self.entries > MAX_ENTRIES {
-            return Err(Failure::Budget(
-                "Concrete type observation exceeds depth/entry budget".into(),
-            ));
+            return Err(Failure::Budget(format!(
+                "Concrete type observation exceeds depth/entry budget (depth {depth}/{MAX_DEPTH}, entries {}/{MAX_ENTRIES})",
+                self.entries
+            )));
         }
         match ty.kind() {
             ty::Int(_) | ty::Uint(_) | ty::Bool => Ok(TypeTree::Scalar(ty.to_string())),

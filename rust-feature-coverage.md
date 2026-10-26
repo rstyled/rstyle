@@ -5513,3 +5513,12 @@ equivalence or rewrite safety. Default capture remains incomplete at the existin
 concrete-observation budget; foreign native CI is unrun. Callable arithmetic
 summaries, map_err/? and broader ownership remain open. Broad goal active.
 [Contract, limitations and evidence](eval/coverage-development/wire-arithmetic-errors/README.md).
+
+Capture-work repair (Data3.119 unchanged): exact function-local root type/token
+reuse restores complete default regex-automata assessment (2,582 functions/110
+admissions) without raising budgets. The selected wire chain remains excluded
+there by imported alloc macro source ownership; investigate that shared S09
+barrier next. No-default all590 records/138 admissions/9,453 pair records persist.
+Full2,181 tests/doctests and fmt/Clippy/style/patterns pass. Direct arithmetic
+callers need unsafe/stateful iterator work; next safe parser target is concrete
+`check_slice_len::<u8>` → `try_read_u32`, after macro ownership is resolved.

@@ -8,7 +8,7 @@ remain active in the plan; this record contains current decisions and evidence.
 
 Branch `feature/rust-feature-coverage`; Data3.119 connects original checked
 wire add/mul to fresh named errors. Native no-default138/590 admissions; default
-capture is incomplete at the concrete-observation budget. Callable arithmetic
+capture is complete; the selected family is excluded by imported macro source ownership. Callable arithmetic
 summaries, map_err/? and broader ownership remain open. See the latest evidence
 below; earlier milestones are historical. Broader P01–P22 work remains active.
 
@@ -1614,3 +1614,34 @@ serialized lookup keys. Natural capture27.18s/375,744KiB peak; focused compositi
 Evidence: `/tmp/rstyle-448-{comparison.json,strict-comparison.json,
 frozen-comparison.json,nextest.log,focused-final.log,clippy-final.log,
 style-final.json,patterns-final.json,natural-final.json,default-final.json}`.
+
+Concrete observation reuse (Data3.119 unchanged): previous failure is confirmed
+as4,097 cumulative entries at depth1. Exact rustc Ty caches reuse only completed
+root observations/normalized tokens within one fixed function Capture; recursive
+depth/visiting checks, first-pass origins, per-use selections and all limits remain.
+The repeated-reference regression formerly failed capture; now all161 original
+reads remain, while its unregistered call remains excluded. Oversized single trees
+and repeated interface inventories still fail incomplete; root char cannot warm
+nested char permission. Full2,181 tests/5 existing skips plus doctests pass;
+fmt/Clippy clean, style0/7,257 and patterns0/15 unchanged ignores. No-default all590
+function records,138 admissions/276 strict imports and9,453 pair records match
+ceec464 exactly. Default assessment now completes:110/2,582; this is restored
+capture, not a110-admission gain from a failed denominator.
+
+The unchanged selected default originals still exclude: dense.rs imports alloc::vec
+and cleanup ownership routing rejects that external path before existing pinned
+library authority. Next prove exact library import routing while retaining unique
+imports, shadowing, unknown globs and whole macro-argument traversal; no blanket
+builtin fallback. Then source-select check_slice_len::<u8>→try_read_u32 with concrete
+instance identity, unit/tuple Results, guarded static-error summaries and same-error
+propagation. All seven direct add/mul callers need unsafe or stateful iterator/
+mutable collection support; summaries alone would unlock none. Do not prioritize
+shl solely for a smaller syntax fixture. Higher safe validators require additional
+scalar payloads and ordered mismatch cases. Foreign native CI unrun; goal active.
+Evidence: `/tmp/rstyle-449-{comparison.json,strict-comparison.json,nextest.log,
+clippy.log,style.json,patterns.json,default-before.json,default-after.json,
+no-default.json}`. Default capture104.76s/1,255,592KiB peak; no-default26.85s/
+368,640KiB. No controlled speedup claim and no new SHA256/serialized lookup keys.
+Frozen run-y8_t2xlf matches run-yvqmo2nk in every profile: all60 identities,
+results/reasons/blockers/denominators and118 Data documents;24/29/7 unchanged.
+Comparison: `/tmp/rstyle-449-frozen-comparison.json`.
