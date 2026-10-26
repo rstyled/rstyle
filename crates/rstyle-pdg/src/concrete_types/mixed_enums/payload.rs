@@ -33,7 +33,9 @@ impl Payload for TypeTree {
 
     fn fields(&self) -> Option<impl Iterator<Item = &Self>> {
         match self {
-            Self::Struct { fields, .. } => Some(fields.iter().map(|field| &field.ty)),
+            Self::Struct { fields, .. } | Self::GeneratedStruct { fields, .. } => {
+                Some(fields.iter().map(|field| &field.ty))
+            }
             _ => None,
         }
     }

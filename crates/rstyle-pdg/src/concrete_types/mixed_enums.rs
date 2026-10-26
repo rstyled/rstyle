@@ -61,14 +61,14 @@ fn declaration(source: &str) -> Result<syn::ItemEnum, String> {
         || !value
             .variants
             .iter()
-            .any(|variant| matches!(variant.fields, syn::Fields::Unit))
+            .any(|variant| matches!(variant.fields, syn::Fields::Unit | syn::Fields::Named(_)))
         || !value
             .variants
             .iter()
             .any(|variant| !variant.fields.is_empty())
     {
         return Err(
-            "Mixed enum requires bounded nongeneric unit/payload variants and implicit tags".into(),
+            "Mixed enum requires bounded nongeneric payload variants and implicit tags".into(),
         );
     }
     Ok(value)
@@ -122,9 +122,9 @@ fn check_variant(
             {
                 if original.ident.as_ref().map(ToString::to_string).as_ref() != Some(name)
                     || field.name != *name
-                    || !matches!(&field.ty, TypeTree::Scalar(value) if scalar(value) && value != "unit")
+                    || !closed_payload(&field.ty)
                 {
-                    return Err("Named enum field identity or scalar payload disagrees".into());
+                    return Err("Named enum field identity or closed payload disagrees".into());
                 }
                 check_field(source, position, original, field)?;
             }

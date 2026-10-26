@@ -476,7 +476,7 @@ impl<'tcx> Capture<'_, 'tcx> {
             && definition
                 .variants()
                 .iter()
-                .any(|variant| variant.fields.is_empty())
+                .any(|variant| variant.fields.is_empty() || variant.ctor_kind().is_none())
         {
             self.mixed_enum(definition, arguments, depth)
         } else {

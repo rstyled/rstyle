@@ -30,7 +30,7 @@ pub(super) fn check(
         || variants.len() > crate::concrete_types::MAX_VARIANTS
         || !variants
             .iter()
-            .any(|(_, shape)| matches!(shape, VariantShape::Unit {}))
+            .any(|(_, shape)| matches!(shape, VariantShape::Unit {} | VariantShape::Named { .. }))
         || !variants.iter().any(|(_, shape)| {
             matches!(
                 shape,
@@ -38,7 +38,7 @@ pub(super) fn check(
             )
         })
     {
-        return Err("Mixed enum requires complete bounded source/unit/payload evidence".into());
+        return Err("Mixed enum requires complete bounded source/payload evidence".into());
     }
     for (name, shape) in variants {
         if name.is_empty() || !names.insert(name) {
@@ -46,10 +46,13 @@ pub(super) fn check(
         }
         if let VariantShape::Named { fields } = shape {
             let mut names = std::collections::BTreeSet::new();
-            if fields.is_empty() || fields.len() > crate::concrete_types::MAX_FIELDS
-                || fields.iter().any(|(name, value)| name.is_empty() || !names.insert(name)
-                    || !matches!(value, TypeToken::Scalar(value) if crate::concrete_types::scalar(value) && value != "unit")) {
-                return Err("Named enum requires unique ordered scalar fields".into());
+            if fields.is_empty()
+                || fields.len() > crate::concrete_types::MAX_FIELDS
+                || fields
+                    .iter()
+                    .any(|(name, _)| name.is_empty() || !names.insert(name))
+            {
+                return Err("Named enum requires unique ordered fields".into());
             }
         }
         for field in shape.fields() {
@@ -60,6 +63,30 @@ pub(super) fn check(
         }
     }
     Ok(())
+}
+
+/// New observations must not acquire the older unit/scalar ownership permission.
+pub(super) fn requires_payload_evidence(ty: &TypeToken) -> bool {
+    match ty {
+        TypeToken::MixedEnum { variants, .. } => {
+            !variants.iter().any(|(_, shape)| matches!(shape, VariantShape::Unit {}))
+                || variants.iter().any(|(_, shape)| {
+                    matches!(shape, VariantShape::Named { fields } if fields.iter().any(|(_, value)| !matches!(value, TypeToken::Scalar(_))))
+                        || shape.fields().any(requires_payload_evidence)
+                })
+        }
+        TypeToken::Struct { fields, .. } | TypeToken::Enum { variants: fields, .. } => {
+            fields.iter().any(|(_, field)| requires_payload_evidence(field))
+        }
+        TypeToken::Tuple(values) => values.iter().any(requires_payload_evidence),
+        TypeToken::Result { ok, err } => {
+            crate::concrete_types::payload_errors::GRAMMAR.permits(ok, err)
+                || requires_payload_evidence(ok) || requires_payload_evidence(err)
+        }
+        TypeToken::Shared(value) | TypeToken::Slice(value) | TypeToken::Option(value)
+        | TypeToken::Array { element: value, .. } => requires_payload_evidence(value),
+        _ => false,
+    }
 }
 
 pub(super) fn borrowed_use(ty: &TypeToken) -> bool {
@@ -92,5 +119,67 @@ pub(super) fn reference_payload(ty: &TypeToken) -> bool {
         | TypeToken::Array { element: value, .. }
         | TypeToken::Option(value) => reference_payload(value),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn error(payload: TypeToken, unit: bool) -> TypeToken {
+        let nominal = Nominal {
+            source_identity: Some("source".into()),
+            package_name: "sample".into(),
+            package_version: "1".into(),
+            manifest_digest: crate::source_identity::checksum(b"manifest"),
+            definition_path: "sample::Error".into(),
+            declaration_digest: crate::source_identity::checksum(b"declaration"),
+        };
+        let mut variants = vec![(
+            "Value".into(),
+            VariantShape::Named {
+                fields: vec![("value".into(), payload)],
+            },
+        )];
+        if unit {
+            variants.push(("Empty".into(), VariantShape::Unit {}));
+        }
+        TypeToken::MixedEnum { nominal, variants }
+    }
+
+    #[test]
+    fn diagnostic_payload_shapes_never_inherit_historical_owned_or_borrowed_permission() {
+        for (payload, unit) in [
+            (TypeToken::Scalar("usize".into()), false),
+            (TypeToken::Shared(Box::new(TypeToken::Str)), true),
+        ] {
+            let ty = error(payload, unit);
+            let TypeToken::MixedEnum { nominal, .. } = &ty else {
+                unreachable!()
+            };
+            let owner = TypeToken::Struct {
+                nominal: nominal.clone(),
+                fields: vec![("0".into(), ty.clone())],
+            };
+            let result = TypeToken::Result {
+                ok: Box::new(TypeToken::Scalar("usize".into())),
+                err: Box::new(owner.clone()),
+            };
+            for ty in [
+                ty,
+                owner.clone(),
+                TypeToken::Shared(Box::new(owner)),
+                result,
+            ] {
+                let wire = ty.text().unwrap();
+                assert_eq!(parse(&wire).unwrap(), ty);
+                for profile in [
+                    crate::extraction_profile::ExtractionProfile::DataV2,
+                    crate::extraction_profile::ExtractionProfile::DataV3,
+                ] {
+                    assert!(parse_for(&wire, profile).is_err());
+                }
+            }
+        }
     }
 }

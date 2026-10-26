@@ -10,6 +10,7 @@ pub use fieldless_enums::{
 pub mod lifetimes;
 mod mixed_enums;
 mod option_spelling;
+pub(crate) mod payload_errors;
 pub(crate) use option_spelling::result_arguments;
 mod scalar_enums;
 pub(crate) mod static_string_results;
@@ -408,7 +409,8 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
 
 /// This bounded shape grants neither Copy, drop freedom nor value permission.
 fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {
-    if static_string_results::observed(ok, err)
+    if payload_errors::observed(ok, err)
+        || static_string_results::observed(ok, err)
         || crate::result_maps::types::observed_result(ok, err)
         || crate::borrowed_result_types::tree_result(ok, err)
         || crate::concrete_results::fresh_products::GRAMMAR.permits(

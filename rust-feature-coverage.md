@@ -5490,3 +5490,13 @@ neither behavioral equivalence nor rewrite safety. Higher transitive callers,
 guarded payloads and broader cleanup remain separate.
 [Contract](eval/coverage-development/generated-index-conversions/README.md) and
 [validation/frontier](docs/rust-support-execution.md).
+
+
+Wire add/mul error-flow preparation (Data3.118 unchanged): complete diagnostic
+capture now preserves all10 named variants/15 payload fields, static-string
+fields and both generated error children. Admission stays131/590, gain0/loss0;
+all selected callers remain excluded pending exact generated imports, complete
+no-drop ownership and guarded Option→Result/helper composition. Original oracle
+443,721 checks in each of four contexts passes. This advances a concrete shared
+error chain, with no additional feature row claimed supported.
+[Contract and next proof](eval/coverage-development/wire-arithmetic-errors/README.md).

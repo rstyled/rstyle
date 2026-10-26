@@ -343,6 +343,12 @@ fn parse_context(
 }
 
 fn check_guarded_value_evidence(ty: &TypeToken) -> Result<(), String> {
+    if mixed_owners::requires_payload_evidence(ty) {
+        return Err(
+            "Named enum payloads require unavailable complete ownership and guarded value evidence"
+                .into(),
+        );
+    }
     if scalar_product_instances::contains(ty) {
         return Err("Scalar product values require exact guarded instance evidence".into());
     }
@@ -542,6 +548,7 @@ fn check_result(
     let unit_result = matches!(ok, TypeToken::Scalar(value) if value == "unit")
         && matches!(err, TypeToken::Struct { fields, .. } if matches!(fields.as_slice(), [(name, TypeToken::Scalar(value))] if name == "0" && value == "unit"));
     if !unit_result
+        && !crate::concrete_types::payload_errors::GRAMMAR.permits(ok, err)
         && !crate::concrete_types::static_string_results::GRAMMAR.permits(ok, err)
         && !crate::result_maps::types::token_result(ok, err)
         && !crate::borrowed_result_types::GRAMMAR.permits(ok, err)

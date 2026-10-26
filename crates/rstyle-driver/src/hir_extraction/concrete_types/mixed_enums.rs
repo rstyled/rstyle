@@ -147,10 +147,6 @@ impl<'tcx> Capture<'_, 'tcx> {
             ));
         }
         let ty = self.mixed_field_type(site, field)?;
-        if !matches!(&ty, TypeTree::Scalar(value) if rstyle_pdg::concrete_types::scalar(value) && value != "unit")
-        {
-            return Err(unsupported("Named enum requires scalar fields"));
-        }
         Ok(ty)
     }
 

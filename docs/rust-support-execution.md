@@ -1533,3 +1533,36 @@ count these eight wrappers as supporting their higher callers. Broad goal active
 [Contract](../eval/coverage-development/generated-index-conversions/README.md).
 Evidence: `/tmp/rstyle-444-{comparison.json,strict-comparison.json,oracle.json,
 frozen-comparison.json,nextest.log,clippy.log,style.json,patterns.json}`.
+
+
+Wire arithmetic prerequisite (Data3.118/145 capabilities unchanged): source-first
+selection fixes original regex-automata add/mul → arithmetic_overflow, complete
+10-variant/15-field error and both generated children. Cargo capture now retains
+the complete payload tree/Result rather than losing it at the first named enum.
+Existing policies explicitly reject these diagnostic shapes; no ownership, Copy,
+cleanup, origin or callable authority follows. Hidden Drop/memory payloads and
+18 omitted/reordered/changed-field attacks reject. Native no-default131/590,
+gain0/loss0, identities/build contexts unchanged. Independent original oracle:
+443,721 mathematical/error-variant/static-pointer checks in each of four contexts,
+zero mismatches. New Cargo regression0.386s; full suite2,160 passes/5 skips plus
+doctests, style0/7,159 and patterns0/15 unchanged ignores. No new hashing,
+serialized lookup keys or whole-unit parsing/indexing.
+
+Next: detach the existing generated declaration proof from current map-callable
+ownership; resolve exact import/reexport chains to those checked declarations;
+prove the entire error's recursive no-drop closure; then compose guarded
+checked-Option payloads and constructor/helper Results. Current source failure
+is the generated nominal import terminus, not an invalid alias. No additional
+capture protocol is justified. HalfMatch::must additionally requires actual
+Debug/formatting effects; ISO parse_date also needs stored mutable closures and
+several missing parser families. The memory audit selects LineWrapper::wrap_blocks
+as a later Result/post-state bridge, without claiming Encoder::encode support.
+[Selection/contract](../eval/coverage-development/wire-arithmetic-errors/README.md).
+Evidence: `/tmp/rstyle-445-{natural-shapes.json,comparison.json,oracle.json,nextest.log,
+clippy-final.log,policy-final.log,capture-final.log,style-final.json,patterns-final.json}`.
+Final fmt/Clippy and focused policy/Cargo rechecks pass after consolidating the
+new guard into one tree traversal. All131 original/replay checks (262 imports)
+and8,515 pair records match the prior checkpoint exactly. Frozen run-yvqmo2nk
+matches run-lz6j5gtm: all60 identities/results/reasons/blockers/denominators,
+24/29/7 and118 verified Data documents; R0/expanded unchanged. Comparisons:
+`/tmp/rstyle-445-{strict-comparison.json,frozen-comparison.json}`. Broad goal active.
