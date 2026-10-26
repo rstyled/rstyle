@@ -60,11 +60,11 @@ and reexported hidden Drop variants exclude every selected function; incomplete,
 changed or reordered type inventories and the historical3.118 downgrade reject.
 Final fmt/Clippy clean, style0/7,256 and patterns0/15 unchanged ignores.
 
-Default-feature capture now completes after function-local reuse of completed
+At Data3.119, default-feature capture completed after function-local reuse of completed
 root type observations/tokens:2,582 functions/110 admissions, independently checked
-selected source/build contexts. The three selected originals remain **excluded**:
+selected source/build contexts. At that checkpoint, the three selected originals remained **excluded**:
 cleanup source proof follows imported alloc::vec in dfa::dense into an unknown
-external root before consulting existing pinned library authority. This is the
+external root before consulting existing pinned library authority. This was the
 next source-boundary blocker, not a missing capture or admitted error chain.
 The formerly failing counter reached4,097 entries at depth1; caching avoids repeated
 work without changing limits. Genuine oversized trees and repeated interface
@@ -92,3 +92,14 @@ nextest.log,clippy.log,style.json,patterns.json,default-before.json,
 default-after.json,no-default.json}`. Exact rustc Ty keys remain function-local;
 recursive capture never reuses root-only permission, budget failures never become
 cached Unsupported values, and per-use constant/environment evidence stays intact.
+
+
+Data3.120 removes that default-build blocker through unique pinned alloc macro
+imports and native std::thread_local routing. Both use existing complete cleanup
+argument/initializer walkers; no macro body receives function-effect authority.
+The unchanged three originals now admit in both contexts. Default110→198/2,582
+includes88 source-audited gains/zero losses;51 already admitted without defaults.
+No-default138/590 and every compact function record remain identical. New Cargo
+composition0.94s; shadowing, globs, hidden Drop, missing/private/changed exports,
+missing native TLS and historical3.119 policies reject. Further validation and
+reader prerequisites remain in the [execution record](../../../docs/rust-support-execution.md).

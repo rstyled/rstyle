@@ -1645,3 +1645,28 @@ no-default.json}`. Default capture104.76s/1,255,592KiB peak; no-default26.85s/
 Frozen run-y8_t2xlf matches run-yvqmo2nk in every profile: all60 identities,
 results/reasons/blockers/denominators and118 Data documents;24/29/7 unchanged.
 Comparison: `/tmp/rstyle-449-frozen-comparison.json`.
+
+
+Pinned library cleanup routing (Data3.120/148 capabilities): exact unique
+alloc::{vec,format} and native std::thread_local imports now reach their existing
+source contracts; full arguments/initializers, shadowing, globs, attributes and
+pins still check. Original default wire arithmetic/error family connects;
+regex-automata110→198/2,582,88 gains/no losses (51 previously supported without
+defaults;37 incidental gains source-audited). No-default138/590 and every function
+record unchanged. Strict672 original/replay imports,336 self-comparisons and
+28,956 cross-pairs complete; all9,453 prior no-default pairs/verification records
+identical. Default add/mul still structurally Accepted at1 despite unequal runtime
+results: no equivalence/rewrite claim. Frozen run-v3l_x3bs preserves all60 identities,
+results/reasons/blockers/denominators,24/29/7 and118 Data documents; other profiles
+unchanged. Full2,188 tests/5 existing skips plus doctests, fmt/Clippy pass;
+style0/7,258, patterns0/15 unchanged ignores. Cargo composition0.94s; original
+source/build identities rechecked against the unchanged selection and retained
+443,721-check/context runtime oracle. Foreign native CI unrun. No new runtime
+hashing/serialized lookup/index pass. Default capture211.74s/1,294,168KiB and strict
+replay401.91s/4,694,532KiB do more supported work; no-default capture27.10s/368,804KiB.
+No controlled performance claim. Evidence: `/tmp/rstyle-450-{comparison.json,
+strict-comparison.json,gains-audit.json,frozen-comparison.json,nextest.log,
+clippy.log,style.json,patterns.json}`. Next: check_slice_len::<u8>→try_read_u32,
+requiring concrete instance identity, unit/tuple Results, guarded callable error
+origins and same-error propagation; then other widths and ordered validators.
+General alloc/TLS effects, arbitrary macros and cleanup remain separate. Goal active.

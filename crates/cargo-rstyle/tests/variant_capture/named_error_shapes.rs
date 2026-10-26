@@ -1,6 +1,7 @@
 //! Whole named errors compose through checked arithmetic and exact helper origins.
 use super::{float_kernels::function, *};
 mod attacks;
+mod library_macros;
 use rstyle_pdg::concrete_types::{InterfaceObservations, Observation, TypeTree, VariantShape};
 
 const SOURCE: &str = r#"

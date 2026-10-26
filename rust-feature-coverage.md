@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.119.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.120.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -5522,3 +5522,14 @@ barrier next. No-default all590 records/138 admissions/9,453 pair records persis
 Full2,181 tests/doctests and fmt/Clippy/style/patterns pass. Direct arithmetic
 callers need unsafe/stateful iterator work; next safe parser target is concrete
 `check_slice_len::<u8>` → `try_read_u32`, after macro ownership is resolved.
+
+
+Data3.120 routes unique original alloc::{vec,format} and native std::thread_local
+imports to their existing pinned cleanup-source contracts. Qualified alloc paths,
+all invocation arguments, lexical shadowing, attributes, unknown globs and platform
+requirements retain independent checks; no new function-effect authority follows.
+Default regex-automata110→198/2,582,88 gains/zero losses; unchanged no-default
+138/590 with all590 function records identical. This connects the selected original
+wire arithmetic/error family under defaults and unlocks other supported families
+behind the shared S09 barrier. Validation and remaining reader frontier:
+[execution record](docs/rust-support-execution.md).

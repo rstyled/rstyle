@@ -1,6 +1,6 @@
 {
   "identity": "rstyle.development.wire-arithmetic-errors/1",
-  "status": "Data3.119: complete native no-default capture/strict admission/matching; default capture complete but selected family excluded by imported macro source ownership; foreign native CI unrun",
+  "status": "Data3.120: complete native default/no-default capture, strict replay and matching; foreign native CI unrun",
   "package": {
     "name": "regex-automata",
     "version": "0.4.18",

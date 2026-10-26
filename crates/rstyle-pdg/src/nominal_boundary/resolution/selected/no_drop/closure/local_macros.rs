@@ -113,6 +113,11 @@ impl Closure<'_> {
                 self.unknown_glob()
             ));
         }
+        if self.library_macro_imports
+            && resolver.library_invocation(&self.enums.namespace, mac, self.library)?
+        {
+            return Ok(None);
+        }
         resolver.resolve(&self.enums.namespace, mac)
     }
 }

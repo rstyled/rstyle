@@ -6,6 +6,8 @@ use std::sync::Arc;
 
 const WITNESS: &str = "fn witness() {}";
 const ORIGINAL: &str = include_str!("../macros/ownership/fixtures/internal_macros.rs.txt");
+#[path = "imported_macro_tests/library.rs"]
+mod library;
 
 fn source(imports: &str, body: &str) -> String {
     format!(

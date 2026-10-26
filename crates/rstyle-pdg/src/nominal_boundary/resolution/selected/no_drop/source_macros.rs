@@ -2,6 +2,7 @@
 mod collect;
 #[cfg(test)]
 mod enum_glob_tests;
+mod library;
 mod paths;
 #[cfg(test)]
 mod tests;
@@ -9,6 +10,8 @@ mod tests;
 use super::*;
 use crate::source_evidence::qualified_name as joined;
 use std::collections::{BTreeMap, BTreeSet};
+
+pub(super) const LIBRARY_CAPABILITY: &str = "rust.pinned-cleanup-macro-imports";
 
 type Key = Vec<String>;
 
