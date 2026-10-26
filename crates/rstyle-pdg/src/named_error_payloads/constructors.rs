@@ -112,6 +112,7 @@ fn field_operands<'a>(
     syntax: &syn::ExprStruct,
     fields: &[(String, crate::concrete_types::Field)],
 ) -> Result<Vec<FieldOperand<'a>>, String> {
+    field_shape(fields, facts)?;
     let declared: Vec<_> = fields.iter().map(|(name, _)| name.as_str()).collect();
 
     let slots = source::slots(syntax, &declared)?;
@@ -128,16 +129,15 @@ fn field_operands<'a>(
     for ((syntax_field, operand), position) in syntax.fields.iter().zip(&node.children).zip(slots) {
         let (name, field) = &fields[position];
 
-        source::static_type(
-            &syn::parse_str::<syn::Type>(&field.declaration).map_err(|e| e.to_string())?,
-        )?;
-
         let expected = TypeToken::from_tree(&field.ty);
-
-        if expected != TypeToken::Shared(Box::new(TypeToken::Str))
+        let declaration =
+            syn::parse_str::<syn::Type>(&field.declaration).map_err(|e| e.to_string())?;
+        source::payload_type(&declaration, &expected)?;
+        if expected == TypeToken::Scalar("u32".into())
+            && !crate::extraction_profile::facts_support(facts, SCALAR_CAPABILITY)
             || crate::data_aggregates::parsed_type(operand)? != expected
         {
-            return Err("Named error payload is outside exact static-string fields".into());
+            return Err("Named error payload is outside its exact supported field type".into());
         }
 
         crate::source_evidence::verify_child_source(&syntax_field.expr, operand, node, facts)?;
@@ -152,4 +152,27 @@ fn field_operands<'a>(
     }
 
     Ok(operands)
+}
+
+fn field_shape(
+    fields: &[(String, crate::concrete_types::Field)],
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    let types: Vec<_> = fields
+        .iter()
+        .map(|(_, field)| TypeToken::from_tree(&field.ty))
+        .collect();
+    let static_string = TypeToken::Shared(Box::new(TypeToken::Str));
+    if types == [static_string]
+        || crate::extraction_profile::facts_support(facts, SCALAR_CAPABILITY)
+            && types
+                == [
+                    TypeToken::Scalar("u32".into()),
+                    TypeToken::Scalar("u32".into()),
+                ]
+    {
+        Ok(())
+    } else {
+        Err("Named error requires one static-string field or two builtin-u32 fields".into())
+    }
 }

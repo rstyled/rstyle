@@ -7,6 +7,7 @@ use serde_json::Value;
 
 pub(crate) mod digit_products;
 mod external;
+pub(crate) mod guarded_effects;
 pub(crate) mod instances;
 pub(crate) mod named_errors;
 mod product_conversions;
@@ -94,6 +95,9 @@ fn summary(
     boundary: Boundary,
 ) -> Result<Summary, String> {
     match boundary.tagged_output {
+        Some(output) if guarded_effects::candidate(facts) => {
+            guarded_effects::summary(facts, pair, output)
+        }
         Some(output) if slice_lengths::candidate(facts) => slice_lengths::summary(facts, output),
         Some(output) if named_errors::candidate(facts) => named_errors::summary(facts, output),
         Some(output) => tagged_conversions::summary(facts, output),
@@ -227,6 +231,9 @@ fn local_resolution(callee: &HirFnFacts) -> Option<Value> {
 
 /// Guarded named-error results require their complete family-specific source proof.
 pub(crate) fn guarded_error_supported(facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    if guarded_effects::supported(facts)? {
+        return Ok(true);
+    }
     if slice_lengths::candidate(facts) {
         slice_lengths::source_contract(facts)?;
         return Ok(true);
@@ -516,7 +523,8 @@ fn verify_shared(
     helper: &crate::unit_store::HelperView<'_>,
 ) -> Result<(), String> {
     let callee = helper.frontend();
-    let selected = slice_lengths::verify_dependency(node, caller, &callee, helper.summary())?
+    let selected = guarded_effects::verify_dependency(node, caller, &callee, helper.summary())?
+        || slice_lengths::verify_dependency(node, caller, &callee, helper.summary())?
         || named_errors::verify_dependency(node, caller, &callee, helper.summary())?
         || tagged_conversions::verify_dependency(node, caller, &callee, helper.summary())?
         || reference_forwarders::verify(node, caller, &callee)?
@@ -566,6 +574,16 @@ fn check_boundary(
     facts: &dyn EvidenceFacts,
 ) -> Result<Boundary, Vec<String>> {
     if let Some(output) =
+        guarded_effects::derive(facts, pair.as_view()).map_err(|error| vec![error])?
+    {
+        check_read_only_boundary(pair, facts, &None)?;
+
+        return Ok(Boundary {
+            reference_outputs: None,
+            tagged_output: Some(output),
+        });
+    }
+    if let Some(output) =
         slice_lengths::derive(facts, pair.as_view()).map_err(|error| vec![error])?
     {
         return Ok(Boundary {
@@ -599,10 +617,19 @@ fn check_legacy_boundary(
     pair: &producer::Pair,
     facts: &dyn EvidenceFacts,
 ) -> Result<ReferenceOutputs, Vec<String>> {
+    let outputs = crate::helper_references::returned(facts, pair).map_err(|error| vec![error])?;
+    check_read_only_boundary(pair, facts, &outputs)?;
+    Ok(outputs)
+}
+
+fn check_read_only_boundary(
+    pair: &producer::Pair,
+    facts: &dyn EvidenceFacts,
+    outputs: &ReferenceOutputs,
+) -> Result<(), Vec<String>> {
     let loop_proof = crate::scalar_loop_helpers::verify_if_loop(facts, pair.as_view())
         .map_err(|error| vec![error])?;
-    let outputs = crate::helper_references::returned(facts, pair).map_err(|error| vec![error])?;
-    let view = crate::helper_views::projected(facts, &outputs);
+    let view = crate::helper_views::projected(facts, outputs);
     let byte_reads = crate::extraction_profile::facts_support(facts, "rust.accelerator-packing")
         && crate::helper_normal_flow::supported(facts, pair.as_view());
     let component = crate::helper_component_outputs::supported(facts);
@@ -642,7 +669,7 @@ fn check_legacy_boundary(
         ]);
     }
 
-    Ok(outputs)
+    Ok(())
 }
 
 pub fn verify(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, String> {
@@ -666,7 +693,10 @@ fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, 
     let resolution = direct_resolution(node).ok_or("Unresolved direct helper call")?;
     let dependency: Dependency = transport::decode(&resolution[KEY])
         .map_err(|_| "Missing or invalid verified callee dependency")?;
-    if dependency.summary.identity == slice_lengths::SUMMARY {
+    if matches!(
+        dependency.summary.identity.as_str(),
+        slice_lengths::SUMMARY | guarded_effects::SUMMARY
+    ) {
         return Err(
             "Checked slice-length summary requires its retained original-owner instance".into(),
         );

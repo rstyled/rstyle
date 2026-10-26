@@ -51,6 +51,7 @@ pub(crate) mod result_propagation;
 mod scalar_enums;
 mod scalar_from;
 pub(crate) mod scalar_result_propagation;
+mod scalar_tuple_bindings;
 mod size_calls;
 pub(crate) mod slice_lengths;
 mod subslice_views;
@@ -58,6 +59,7 @@ mod summary_records;
 mod tagged_calls;
 mod value_consumers;
 mod value_fields;
+pub(crate) mod wire_validators;
 pub(crate) use locations::{LocationContext, correspondence as location_correspondence};
 
 use crate::{
@@ -448,6 +450,7 @@ fn verify_call_operations(
     checked_slice_views::verify(pair, facts)?;
     checked_suffix_views::verify(pair, facts)?;
     scalar_result_propagation::verify(pair, facts)?;
+    scalar_tuple_bindings::verify(pair, facts)?;
     named_error_result_propagation::verify(pair, facts)?;
     product_result_propagation::verify(pair, facts)?;
     result_maps::verify(pair, facts)?;

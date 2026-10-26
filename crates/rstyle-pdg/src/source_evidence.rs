@@ -18,6 +18,8 @@ mod syntax;
 pub(crate) use syntax::{plain_type_path, plain_value_path, unique_active};
 mod variant_paths;
 pub(crate) use variant_paths::qualified_variant;
+mod assertion_scopes;
+pub(crate) use assertion_scopes::closed_assertion_body;
 
 #[cfg(test)]
 mod tests;
@@ -1002,4 +1004,35 @@ pub(crate) fn all_pairs<L, R>(
 /// Append one lexical source name while preserving its original module route.
 pub(crate) fn qualified_name(namespace: &[String], name: &str) -> Vec<String> {
     namespace.iter().cloned().chain([name.to_owned()]).collect()
+}
+
+/// Gate a structural family at its complete first statement; no proof authority.
+pub(crate) fn initial_statement(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    capability: &str,
+    predicate: impl FnOnce(&HirNode) -> bool,
+) -> bool {
+    crate::extraction_profile::facts_support(facts, capability)
+        && facts.body.children.first().is_some_and(predicate)
+}
+
+/// Require equal cardinality and exactly one match for each expected identity.
+pub(crate) fn require_exact_coverage<T, U>(
+    actual: &[T],
+    expected: &[U],
+    matches: impl Fn(&T, &U) -> bool,
+    diagnostic: &str,
+) -> Result<(), String> {
+    if actual.len() != expected.len()
+        || expected.iter().any(|expected| {
+            actual
+                .iter()
+                .filter(|actual| matches(actual, expected))
+                .count()
+                != 1
+        })
+    {
+        return Err(diagnostic.into());
+    }
+    Ok(())
 }

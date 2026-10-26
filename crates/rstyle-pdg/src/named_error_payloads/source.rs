@@ -114,3 +114,19 @@ pub(super) fn span(
 
     Ok(())
 }
+
+/// Only original builtin u32 spelling or the independently checked static string.
+pub(super) fn payload_type(ty: &syn::Type, token: &TypeToken) -> Result<(), String> {
+    match token {
+        TypeToken::Shared(inner) if **inner == TypeToken::Str => static_type(ty),
+        TypeToken::Scalar(name) if name == "u32" => {
+            if matches!(ty, syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("u32"))
+            {
+                Ok(())
+            } else {
+                Err("Scalar error payload requires original builtin u32 spelling".into())
+            }
+        }
+        _ => Err("Named error field is outside static-string or builtin-u32 payloads".into()),
+    }
+}

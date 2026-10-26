@@ -84,3 +84,28 @@ fn source_signature_does_not_invent_generic_or_unsafe_callable_permission() {
         );
     }
 }
+
+#[test]
+fn scalar_payload_spelling_does_not_admit_aliases_or_other_widths() {
+    let token = TypeToken::Scalar("u32".into());
+    assert!(source::payload_type(&syn::parse_str("u32").unwrap(), &token).is_ok());
+    for spelling in [
+        "u64",
+        "usize",
+        "Alias",
+        "core::primitive::u32",
+        "&u32",
+        "(u32, u32)",
+    ] {
+        assert!(
+            source::payload_type(&syn::parse_str(spelling).unwrap(), &token).is_err(),
+            "{spelling}"
+        );
+    }
+    for token in [
+        TypeToken::Scalar("u64".into()),
+        TypeToken::Scalar("usize".into()),
+    ] {
+        assert!(source::payload_type(&syn::parse_str("u32").unwrap(), &token).is_err());
+    }
+}

@@ -1,5 +1,8 @@
 //! Selected core implementations, exact substitutions, and complete residual type.
-use super::capture::{Shape, Witness};
+use super::{
+    Mode,
+    capture::{Shape, Witness},
+};
 use crate::result_propagation::authority::{Protocol, SOURCE_DIGESTS};
 use crate::{HirNode, unit_store::EvidenceFacts};
 
@@ -43,8 +46,6 @@ pub(super) fn verify(
 
     protocol.variant(&witness.continue_arm.variant, "Continue")?;
 
-    concrete_shape(&witness.shape)?;
-
     signatures(witness)
 }
 
@@ -57,7 +58,7 @@ pub(super) fn signatures(witness: &Witness) -> Result<(), String> {
 
     let conversion = &witness.conversion;
 
-    concrete_shape(shape)?;
+    concrete_shape_for(shape, Mode::from_identity(&witness.identity)?)?;
     let output = &shape.output;
 
     if branch.arguments != [shape.input.as_str()]
@@ -66,7 +67,11 @@ pub(super) fn signatures(witness: &Witness) -> Result<(), String> {
         || branch.output != shape.control_flow
         || residual.arguments != [output.as_str(), shape.residual.as_str()]
         || residual.implementation_arguments
-            != ["(u32, usize)", shape.error.as_str(), shape.error.as_str()]
+            != [
+                shape.output_payload.as_str(),
+                shape.error.as_str(),
+                shape.error.as_str(),
+            ]
         || residual.input != shape.residual
         || &residual.output != output
         || conversion.arguments != [shape.error.as_str(), shape.error.as_str()]
@@ -81,13 +86,21 @@ pub(super) fn signatures(witness: &Witness) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn concrete_shape(shape: &Shape) -> Result<(), String> {
+    concrete_shape_for(shape, Mode::UnitToReader)
+}
+
+pub(super) fn concrete_shape_for(shape: &Shape, mode: Mode) -> Result<(), String> {
     let result = ["core::result::Result", "std::result::Result"];
 
     let control = ["core::ops::ControlFlow", "std::ops::ControlFlow"];
 
-    if shape.payload != "()"
-        || shape.output_payload != "(u32, usize)"
+    let payloads = match mode {
+        Mode::UnitToReader => ("()", "(u32, usize)"),
+        Mode::ReaderToScalar => ("(u32, usize)", "usize"),
+    };
+    if (shape.payload.as_str(), shape.output_payload.as_str()) != payloads
         || !result
             .iter()
             .any(|path| shape.input == format!("{path}<{}, {}>", shape.payload, shape.error))
@@ -98,12 +111,13 @@ pub(super) fn concrete_shape(shape: &Shape) -> Result<(), String> {
             .iter()
             .any(|path| shape.residual == format!("{path}<!, {}>", shape.error))
         || !control.iter().any(|path| {
-            shape.control_flow == format!("{path}<{}, ()>", shape.residual)
-                || shape.control_flow == format!("{path}<{}>", shape.residual)
+            shape.control_flow == format!("{path}<{}, {}>", shape.residual, shape.payload)
+                || mode == Mode::UnitToReader
+                    && shape.control_flow == format!("{path}<{}>", shape.residual)
         })
     {
         return Err(
-            "Named error reader propagation requires exact unit/tuple Result and residual ControlFlow"
+            "Named error propagation requires exact selected payloads and residual ControlFlow"
                 .into(),
         );
     }

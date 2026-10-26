@@ -5560,3 +5560,12 @@ read/panic summaries, tuple-success propagation/binding, static literal roots an
 ordered mismatch constructors to complete both original validators.
 [Contract](eval/coverage-development/wire-fallible-readers/README.md) and
 [validation/frontier](docs/rust-support-execution.md). Broad goal active.
+
+Data3.122 connects original `try_read_u32` → `read_version/read_endianness_check`
+through checked read/panic summaries, tuple-success `?` and saved bindings, static
+error roots and ordered scalar mismatch constructors. Default199→203/2,582 and
+no-default139→143/590: exactly both validators and both constructors, zero losses.
+No broader move/drop or unsafe-deserializer support follows. Next source-audited
+consumer: default-only `Flags::from_bytes`, requiring complete aggregate-success
+ownership and tuple→aggregate propagation.
+[Bounded contract and remaining blockers](eval/coverage-development/wire-fallible-readers/README.md).

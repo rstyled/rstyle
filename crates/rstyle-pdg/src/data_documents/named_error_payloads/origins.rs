@@ -235,3 +235,25 @@ fn carried(role: &'static str, root: &FormalRoot, route: &[Component]) -> Result
 fn value(source: &impl Serialize) -> Result<Value, String> {
     serde_json::to_value(source).map_err(|error| error.to_string())
 }
+
+pub(super) fn scalar_constructor(
+    inputs: &[&PdgNode],
+    reads: &[&PdgNode],
+    outputs: [&PdgNode; 3],
+    contract: &WireContract,
+) -> Result<BTreeMap<String, Value>, String> {
+    if !crate::helper_calls::named_errors::empty_scalar_contract(contract) {
+        return Err("Scalar constructor cannot publish incomplete reference cases".into());
+    }
+    let empty = value(&Carried {
+        role: "scalar",
+        origins: vec![],
+    })?;
+    Ok(inputs
+        .iter()
+        .copied()
+        .chain(reads.iter().copied())
+        .chain(outputs)
+        .map(|node| (node.id.clone(), empty.clone()))
+        .collect())
+}

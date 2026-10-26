@@ -618,7 +618,7 @@ impl<'tcx> Context<'tcx> {
                 .map(|resolved_ty| resolved(resolved_ty, self.snippet(ty.span))),
             ..self.node(ty.hir_id, ty.span, "ty_annotation")
         });
-        let children = std::iter::once(self.pattern(local.pat))
+        let children = std::iter::once(self.local_pattern(local.pat))
             .chain(annotation)
             .chain(local.init.map(|e| self.expression(e)))
             .chain(local.els.map(|b| self.node(b.hir_id, b.span, "let_else")))
@@ -627,6 +627,39 @@ impl<'tcx> Context<'tcx> {
         HirNode {
             children,
             ..self.node(local.hir_id, local.span, "stmt_let")
+        }
+    }
+
+    fn local_pattern(&self, pattern: &hir::Pat<'tcx>) -> HirNode {
+        let PatKind::Tuple(children, rest) = pattern.kind else {
+            return self.pattern(pattern);
+        };
+        let permitted = self.profile.supports("rust.named-error-validator-flow")
+            && rest.as_opt_usize().is_none()
+            && !children.is_empty()
+            && children.len() <= rstyle_pdg::concrete_types::MAX_FIELDS
+            && children.iter().all(|child| {
+                matches!(
+                    child.kind,
+                    PatKind::Binding(
+                        hir::BindingMode(hir::ByRef::No, hir::Mutability::Not),
+                        _,
+                        _,
+                        None
+                    )
+                ) && matches!(
+                    self.typeck.pat_ty(child).kind(),
+                    ty::Bool | ty::Int(_) | ty::Uint(_) | ty::Char
+                )
+            });
+        if !permitted {
+            return self.pattern(pattern);
+        }
+
+        HirNode {
+            kind: "pat_scalar_tuple".into(),
+            children: children.iter().map(|child| self.pattern(child)).collect(),
+            ..self.pattern(pattern)
         }
     }
 

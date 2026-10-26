@@ -20,8 +20,9 @@ use crate::{
 };
 
 pub(crate) const CAPABILITY: &str = "rust.named-error-payload-flow";
+pub(crate) const SCALAR_CAPABILITY: &str = "rust.named-error-validator-flow";
 
-pub(crate) struct StaticFormal<'a> {
+pub(crate) struct Formal<'a> {
     pub position: u32,
     pub pattern: &'a HirNode,
     pub token: TypeToken,
@@ -32,7 +33,7 @@ pub(crate) struct FieldOperand<'a> {
     pub position: usize,
     pub name: String,
     pub operand: &'a HirNode,
-    pub formal: StaticFormal<'a>,
+    pub formal: Formal<'a>,
 }
 
 pub(crate) enum Constructor<'a> {
@@ -49,7 +50,7 @@ pub(crate) enum Constructor<'a> {
 }
 
 pub(crate) struct Function<'a> {
-    pub formal: StaticFormal<'a>,
+    pub formals: Vec<Formal<'a>>,
     pub wrapper: Constructor<'a>,
     pub variant: Constructor<'a>,
 }
@@ -65,7 +66,9 @@ pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
             .as_deref()
             .is_some_and(|text| text.contains("\"kind\":\"mixed_enum\""))
         && !facts.signature.has_self
-        && facts.signature.params.len() == 1
+        && (facts.signature.params.len() == 1
+            || facts.signature.params.len() == 2
+                && crate::extraction_profile::facts_support(facts, SCALAR_CAPABILITY))
         && facts.body.kind == "expr_block"
         && matches!(facts.body.children.as_slice(), [tail]
 
@@ -86,7 +89,7 @@ pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<Function<'_>,
 
     let tail = source_tail(facts)?;
 
-    let formal = static_formal(facts, 0)?;
+    let formals = formals::constructor_formals(facts)?;
 
     let wrapper = constructor(tail, facts)?.ok_or("Missing fresh error wrapper")?;
 
@@ -111,12 +114,10 @@ pub(crate) fn verify_function(facts: &dyn EvidenceFacts) -> Result<Function<'_>,
         return Err("Fresh named error payload differs from its exact wrapper field".into());
     }
 
-    if fields.len() != 1 || fields[0].formal.position != formal.position {
-        return Err("Fresh named error constructor changes its sole formal payload".into());
-    }
+    verify_formal_coverage(fields, &formals)?;
 
     Ok(Function {
-        formal,
+        formals,
         wrapper,
         variant,
     })
@@ -127,7 +128,8 @@ fn source_tail(facts: &dyn EvidenceFacts) -> Result<&HirNode, String> {
 
     source::signature(&syntax)?;
 
-    if syntax.sig.inputs.len() != 1
+    if !matches!(syntax.sig.inputs.len(), 1 | 2)
+        || syntax.sig.inputs.len() != facts.signature.params.len()
         || syntax.block.stmts.len() != 1
         || facts.body.kind != "expr_block"
     {
@@ -169,4 +171,20 @@ fn verify_return(facts: &dyn EvidenceFacts, token: &TypeToken) -> Result<(), Str
     }
 
     Ok(())
+}
+
+fn verify_formal_coverage(
+    fields: &[FieldOperand<'_>],
+    formals: &[Formal<'_>],
+) -> Result<(), String> {
+    crate::source_evidence::require_exact_coverage(
+        fields,
+        formals,
+        |field, formal| {
+            field.formal.position == formal.position
+                && field.formal.pattern.hir == formal.pattern.hir
+                && field.formal.token == formal.token
+        },
+        "Fresh named error must preserve every original formal exactly once",
+    )
 }

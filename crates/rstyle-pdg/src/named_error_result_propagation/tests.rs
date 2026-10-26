@@ -117,3 +117,128 @@ fn reader_protocol_is_not_historical_scalar_authority() {
     );
     assert_ne!(CAPABILITY, crate::scalar_result_propagation::CAPABILITY);
 }
+
+fn validator_witness() -> Value {
+    let mut value = witness();
+    let input = "std::result::Result<(u32, usize), Error>";
+    let output = "std::result::Result<usize, Error>";
+    let control = "std::ops::ControlFlow<std::result::Result<!, Error>, (u32, usize)>";
+    value["identity"] = json!(capture::VALIDATOR_IDENTITY);
+    value["shape"] = json!({
+        "input":input, "output":output, "payload":"(u32, usize)", "output_payload":"usize",
+        "error":"Error", "residual":"std::result::Result<!, Error>", "control_flow":control,
+    });
+    value["branch"]["arguments"] = json!([input]);
+    value["branch"]["implementation_arguments"] = json!(["(u32, usize)", "Error"]);
+    value["branch"]["input"] = json!(input);
+    value["branch"]["output"] = json!(control);
+    value["residual"]["arguments"][0] = json!(output);
+    value["residual"]["implementation_arguments"][0] = json!("usize");
+    value["residual"]["output"] = json!(output);
+    value
+}
+
+#[test]
+fn tuple_to_scalar_validator_pins_actual_payload_and_reflexive_error_conversion() {
+    let value = validator_witness();
+    let parsed: Witness = serde_json::from_value(value.clone()).unwrap();
+    authority::signatures(&parsed).unwrap();
+    authority::concrete_shape_for(&parsed.shape, Mode::ReaderToScalar).unwrap();
+    assert!(authority::concrete_shape_for(&parsed.shape, Mode::UnitToReader).is_err());
+    for (pointer, replacement) in [
+        ("/identity", json!(capture::IDENTITY)),
+        ("/branch/implementation_arguments/0", json!("()")),
+        (
+            "/branch/output",
+            json!("std::ops::ControlFlow<std::result::Result<!, Error>>"),
+        ),
+        ("/residual/arguments/0", json!(parsed.shape.input)),
+        ("/residual/output", json!(parsed.shape.input)),
+        (
+            "/residual/implementation_arguments/0",
+            json!("(u32, usize)"),
+        ),
+        ("/residual/implementation_arguments/2", json!("OtherError")),
+        ("/conversion/arguments/1", json!("OtherError")),
+        ("/conversion/input", json!("OtherError")),
+    ] {
+        let mut changed = value.clone();
+        *changed.pointer_mut(pointer).unwrap() = replacement;
+        assert!(
+            authority::signatures(&serde_json::from_value(changed).unwrap()).is_err(),
+            "{pointer}"
+        );
+    }
+}
+
+#[test]
+fn validator_continuation_cannot_default_to_unit_or_reorder_tuple_components() {
+    let original = validator_witness();
+    for (field, replacement) in [
+        ("payload", "()"),
+        ("payload", "(usize, u32)"),
+        ("payload", "(u16, usize)"),
+        ("payload", "(u32, u64)"),
+        ("payload", "(u32, usize, usize)"),
+        ("output_payload", "u32"),
+        ("output_payload", "()"),
+        ("output_payload", "(u32, usize)"),
+        (
+            "control_flow",
+            "std::ops::ControlFlow<std::result::Result<!, Error>>",
+        ),
+        (
+            "control_flow",
+            "std::ops::ControlFlow<std::result::Result<!, Error>, ()>",
+        ),
+        ("output", "std::result::Result<usize, OtherError>"),
+        ("residual", "std::result::Result<(u32, usize), Error>"),
+    ] {
+        let mut changed = original["shape"].clone();
+        changed[field] = json!(replacement);
+        assert!(
+            authority::concrete_shape_for(
+                &serde_json::from_value(changed).unwrap(),
+                Mode::ReaderToScalar
+            )
+            .is_err(),
+            "{field}: {replacement}"
+        );
+    }
+}
+
+#[test]
+fn transitions_keep_the_historical_success_vocabulary_and_document_meanings_separate() {
+    let unit = TypeToken::Scalar("unit".into());
+    let scalar = TypeToken::Scalar("usize".into());
+    let tuple = TypeToken::Tuple(vec![TypeToken::Scalar("u32".into()), scalar.clone()]);
+    assert!(payloads_match(Mode::UnitToReader, &unit, &tuple));
+    assert!(payloads_match(Mode::ReaderToScalar, &tuple, &scalar));
+    for (input, output) in [
+        (&unit, &scalar),
+        (&tuple, &tuple),
+        (&scalar, &scalar),
+        (&scalar, &tuple),
+    ] {
+        assert!(!payloads_match(Mode::ReaderToScalar, input, output));
+    }
+    assert!(!success(&scalar));
+    assert_ne!(
+        Mode::UnitToReader.identity(),
+        Mode::ReaderToScalar.identity()
+    );
+    assert_ne!(
+        Mode::UnitToReader.resolution(),
+        Mode::ReaderToScalar.resolution()
+    );
+    assert_ne!(
+        Mode::UnitToReader.capability(),
+        Mode::ReaderToScalar.capability()
+    );
+    assert!(
+        Mode::ReaderToScalar
+            .constructs()
+            .iter()
+            .all(|construct| !Mode::UnitToReader.constructs().contains(construct))
+    );
+}

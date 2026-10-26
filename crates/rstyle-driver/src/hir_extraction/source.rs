@@ -104,12 +104,7 @@ impl<'a> Visitor<'a> for Owned {
     }
 
     fn visit_local(&mut self, local: &'a ast::Local) {
-        if self.profile.supports("rust.scalar-enum-values")
-            && matches!(local.pat.kind, ast::PatKind::Wild)
-            && local.ty.is_none()
-            && let ast::LocalKind::Init(value) = &local.kind
-        {
-            self.visit_expr(value);
+        if self.visit_special_local(local) {
             return;
         }
 
@@ -181,9 +176,48 @@ impl<'a> Visitor<'a> for Owned {
 }
 
 impl Owned {
+    fn visit_special_local(&mut self, local: &ast::Local) -> bool {
+        if self.profile.supports("rust.scalar-enum-values")
+            && matches!(local.pat.kind, ast::PatKind::Wild)
+            && local.ty.is_none()
+            && let ast::LocalKind::Init(value) = &local.kind
+        {
+            self.visit_expr(value);
+            return true;
+        }
+
+        if self.profile.supports("rust.named-error-validator-flow")
+            && local.ty.is_none()
+            && let ast::PatKind::Tuple(children) = &local.pat.kind
+            && !children.is_empty()
+            && children.len() <= rstyle_pdg::concrete_types::MAX_FIELDS
+            && children.iter().all(|child| {
+                matches!(
+                    child.kind,
+                    ast::PatKind::Ident(
+                        ast::BindingMode(ast::ByRef::No, ast::Mutability::Not),
+                        _,
+                        None
+                    )
+                )
+            })
+            && let ast::LocalKind::Init(value) = &local.kind
+        {
+            for child in children {
+                self.visit_pat(child);
+            }
+            self.visit_expr(value);
+            return true;
+        }
+
+        false
+    }
+
     fn with_literal_message(&mut self, expression: &ast::Expr) {
         let previous = self.literal_message;
-        if let Some(span) = lossless_message(expression, self.profile) {
+        if let Some(span) = lossless_message(expression, self.profile)
+            .or_else(|| validator_message(expression, self.profile))
+        {
             self.literal_message = Some(span);
         }
 
@@ -202,6 +236,36 @@ impl Owned {
 
         visit::walk_expr(self, expression);
     }
+}
+
+/// Retain one candidate literal actual. Typed whole-source and escaping-origin
+/// checks in the Data frontend remain mandatory; syntax grants no call authority.
+fn validator_message(
+    expression: &ast::Expr,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Option<Span> {
+    if !profile.supports("rust.named-error-validator-flow") {
+        return None;
+    }
+    let ast::ExprKind::Try(call) = &expression.kind else {
+        return None;
+    };
+
+    let ast::ExprKind::Call(_, arguments) = &call.kind else {
+        return None;
+    };
+    let [_, message] = arguments.as_slice() else {
+        return None;
+    };
+
+    let ast::ExprKind::Lit(literal) = &message.kind else {
+        return None;
+    };
+    matches!(
+        literal.kind,
+        ast::token::LitKind::Str | ast::token::LitKind::StrRaw(_)
+    )
+    .then_some(message.span)
 }
 
 /// Syntactic candidate only; independent HIR/core/source checks grant semantics.
@@ -223,6 +287,7 @@ fn lossless_message(
     let [message] = method.args.as_slice() else {
         return None;
     };
+
     let ast::ExprKind::Lit(literal) = &message.kind else {
         return None;
     };

@@ -1762,3 +1762,30 @@ Frozen reproduction `target/hir-coverage/run-mhlxtnst` preserves all60 identitie
 outcomes/reasons/blockers/denominators and118 Data documents:24 admitted/29 excluded/
 7 inactive. R0 and expanded profiles are also unchanged. Comparison:
 `/tmp/rstyle-452-frozen-comparison.json`.
+
+Data3.122 / guarded validator integration (150 capabilities). Original
+regex-automata0.4.18 `try_read_u32` → `read_version/read_endianness_check` now
+connects callable tagged read/panic summaries, saved scalar tuple bindings,
+exact tuple→usize same-error `?`, static error roots and ordered two-u32 mismatch
+constructors. Standard assertion scopes require retained resolution/source proof
+and recursive argument closure; old policies and hidden-item rejection persist.
+
+Unchanged selections: default199→203/2,582; no-default139→143/590. Exactly both
+validators and both constructors gain admission, zero losses. Strict original/
+serialized replay:692 imports,346 self-comparisons,30,656 complete cross-pairs;
+all29,292 prior pairs persist. Frozen run-ifumaiut preserves every60 identity,
+outcome, reason, blocker and denominator (24/29/7),118 Data documents and both
+older profiles. Oracle285,339 cases/context × four native contexts, zero
+mismatches; foreign native CI remains unrun. Full2,242 tests/5 existing skips
+and doctests pass; fmt/Clippy/style0/7,619/patterns0 pass,15 ignores unchanged.
+
+Capture default231.78s/1,779,916KiB; no-default30.13s/402,056KiB. Strict replay
+208.48s/6,168,624KiB and42.31s/1,347,784KiB respectively; whole-unit replay
+memory remains open. New fixture6.66s in the full run. Mutation checks use typed
+verification, retaining original serialized replay; no new runtime hash/cache key.
+Evidence: `/tmp/rstyle-453-{default,no-default}-comparison.json`,
+`/tmp/rstyle-453-{strict,frozen}-comparison.json`, `/tmp/rstyle-453-oracle.json`,
+`/tmp/rstyle-453-nextest-final2.log`, `/tmp/rstyle-453-{style,patterns}-final.json`.
+Next: source-selected default-only `Flags::from_bytes`, requiring aggregate
+success ownership/construction and tuple→aggregate propagation. Validator callers
+are unsafe DFA deserializers; broader coverage and rewrite safety remain open.

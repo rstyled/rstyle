@@ -36,7 +36,8 @@ fn install_reader_origins(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
-    Ok(super::slice_lengths::install(pair, facts)?
+    Ok(super::wire_validators::install(pair, facts)?
+        || super::slice_lengths::install(pair, facts)?
         || super::fallible_readers::install(pair, facts)?)
 }
 
@@ -133,6 +134,9 @@ fn verify_guarded_origins(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
+    if super::wire_validators::verify(pair, facts)? {
+        return Ok(true);
+    }
     super::slice_lengths::verify(pair, facts)?;
     super::fallible_readers::verify(pair, facts)?;
     if crate::helper_calls::slice_lengths::candidate(facts)

@@ -98,6 +98,11 @@ pub(crate) enum Condition {
         condition: HirRef,
         outcome: bool,
     },
+    /// Exact saved Result scrutinee in this function's source/graph scope.
+    ResultTag {
+        scrutinee: HirRef,
+        is_ok: bool,
+    },
     Selected(Guard),
     Complement(Guard),
 }

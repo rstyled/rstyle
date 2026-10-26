@@ -14,11 +14,7 @@ impl Builder<'_> {
                 early_return: checked.early_return,
                 output_type: checked.output_token,
                 payload_type: checked.payload_token,
-                constructs: [
-                    "try.reader-result-is-err",
-                    "try.reader-result-error",
-                    "try.reader-result-ok-unit",
-                ],
+                constructs: checked.mode.constructs(),
             },
             evaluated,
         )

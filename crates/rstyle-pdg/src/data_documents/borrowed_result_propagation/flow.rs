@@ -104,16 +104,12 @@ fn exact_edges(
     actual: &[(&str, CfgEdgeKind)],
     expected: &[(&str, CfgEdgeKind)],
 ) -> Result<(), String> {
-    if actual.len() != expected.len()
-        || expected
-            .iter()
-            .any(|edge| actual.iter().filter(|actual| *actual == edge).count() != 1)
-    {
-        return Err(
-            "Borrowed Result branch bypasses a selected payload or its mandatory return".into(),
-        );
-    }
-    Ok(())
+    crate::source_evidence::require_exact_coverage(
+        actual,
+        expected,
+        |actual, expected| actual == expected,
+        "Borrowed Result branch bypasses a selected payload or its mandatory return",
+    )
 }
 
 #[cfg(test)]

@@ -12,18 +12,24 @@ use crate::{HirNode, named_error_result_propagation as propagation, unit_store::
 pub(crate) const KEY: &str = "rstyle.data:fallible-reader-origins";
 
 pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::facts_support(facts, propagation::CAPABILITY)
-        && facts.body.children.first().is_some_and(|statement| {
-            statement.kind == "stmt_semi"
-                && statement
-                    .children
-                    .first()
-                    .is_some_and(|node| propagation::candidate(node, facts))
-        })
+    crate::source_evidence::initial_statement(facts, propagation::CAPABILITY, |statement| {
+        statement.kind == "stmt_semi"
+            && statement
+                .children
+                .first()
+                .is_some_and(|node| propagation::candidate(node, facts))
+    })
 }
 
 pub(crate) fn verify_source(facts: &dyn EvidenceFacts) -> Result<bool, String> {
     crate::source_evidence::source_present(facts, source::verify)
+}
+
+pub(crate) fn source_contract(
+    facts: &dyn EvidenceFacts,
+) -> Result<crate::copy_tagged_values::origins::WireContract, String> {
+    let checked = source::verify(facts)?.ok_or("Missing whole guarded reader source")?;
+    origins::contract(facts, &checked)
 }
 
 pub(crate) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<bool, String> {

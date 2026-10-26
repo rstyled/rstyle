@@ -6,25 +6,40 @@ use super::*;
 pub(crate) fn static_formal(
     facts: &dyn EvidenceFacts,
     position: u32,
-) -> Result<StaticFormal<'_>, String> {
+) -> Result<Formal<'_>, String> {
+    formal(facts, position, TypeToken::Shared(Box::new(TypeToken::Str)))
+}
+
+pub(super) fn constructor_formals(facts: &dyn EvidenceFacts) -> Result<Vec<Formal<'_>>, String> {
+    if facts.bindings.len() != facts.signature.params.len() {
+        return Err("Named error constructor cannot contain additional bindings".into());
+    }
+    match facts.signature.params.len() {
+        1 => Ok(vec![static_formal(facts, 0)?]),
+        2 if crate::extraction_profile::facts_support(facts, SCALAR_CAPABILITY) => (0..2)
+            .map(|position| formal(facts, position, TypeToken::Scalar("u32".into())))
+            .collect(),
+        _ => Err("Named error constructor requires one static or two scalar formals".into()),
+    }
+}
+
+fn formal(
+    facts: &dyn EvidenceFacts,
+    position: u32,
+    token: TypeToken,
+) -> Result<Formal<'_>, String> {
     let syntax: syn::ItemFn = syn::parse_str(&facts.source.bytes).map_err(|e| e.to_string())?;
-
     source::signature(&syntax)?;
-
     let argument = argument(&syntax, position)?;
-
+    source::payload_type(&argument.ty, &token)?;
     let parameter = facts
         .signature
         .params
         .get(position as usize)
         .filter(|parameter| parameter.position == position)
-        .ok_or("Static string formal lacks exact source position")?;
-
-    let token = TypeToken::Shared(Box::new(TypeToken::Str));
+        .ok_or("Named error formal lacks exact source position")?;
     parameter_type(parameter, &token)?;
-
     source::span(argument.pat.as_ref(), parameter.name_span, facts)?;
-
     source::span(argument.ty.as_ref(), parameter.ty_span, facts)?;
     binding(facts, parameter, &argument.pat)?;
 
@@ -32,13 +47,11 @@ pub(crate) fn static_formal(
         .build
         .frontend_options
         .data::<InterfaceObservations>()?;
-
     if !matches!(interface.parameters.get(position as usize), Some(Observation::Captured { ty }) if TypeToken::from_tree(ty) == token)
     {
-        return Err("Static string formal lacks complete captured interface evidence".into());
+        return Err("Named error formal lacks complete captured interface evidence".into());
     }
-
-    Ok(StaticFormal {
+    Ok(Formal {
         position,
         pattern: &parameter.pat,
         token,
@@ -48,7 +61,7 @@ pub(crate) fn static_formal(
 pub(super) fn formal_operand<'a>(
     node: &HirNode,
     facts: &'a dyn EvidenceFacts,
-) -> Result<StaticFormal<'a>, String> {
+) -> Result<Formal<'a>, String> {
     if node.kind != "expr_path"
         || !node.children.is_empty()
         || node.expansion.is_some()
@@ -71,7 +84,8 @@ pub(super) fn formal_operand<'a>(
         .find(|parameter| &parameter.pat.hir == target)
         .ok_or("Named error field is not an original formal")?;
 
-    let formal = static_formal(facts, parameter.position)?;
+    let token = crate::data_aggregates::parsed_type(node)?;
+    let formal = formal(facts, parameter.position, token)?;
 
     if crate::data_aggregates::parsed_type(node)? != formal.token {
         return Err("Named error operand changes its formal type".into());
@@ -95,8 +109,6 @@ fn argument(syntax: &syn::ItemFn, position: u32) -> Result<&syn::PatType, String
     if !argument.attrs.is_empty() {
         return Err("Static string formal cannot hide conditional source attributes".into());
     }
-
-    source::static_type(&argument.ty)?;
 
     let syn::Pat::Ident(ident) = argument.pat.as_ref() else {
         return Err("Static string formal requires a plain identifier".into());

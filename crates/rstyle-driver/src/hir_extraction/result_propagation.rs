@@ -18,7 +18,7 @@ pub(super) enum Protocol {
     Result,
     BorrowedResult,
     ScalarResult,
-    NamedErrorResult,
+    NamedErrorResult(rstyle_pdg::named_error_result_propagation::Mode),
     ProductResult,
     Option,
 }
@@ -62,11 +62,7 @@ impl Protocol {
                 rstyle_pdg::borrowed_result_propagation::capture::RESOLUTION,
                 rstyle_pdg::borrowed_result_propagation::capture::IDENTITY,
             ),
-            Self::NamedErrorResult => (
-                rstyle_pdg::named_error_result_propagation::CAPABILITY,
-                rstyle_pdg::named_error_result_propagation::capture::RESOLUTION,
-                rstyle_pdg::named_error_result_propagation::capture::IDENTITY,
-            ),
+            Self::NamedErrorResult(mode) => (mode.capability(), mode.resolution(), mode.identity()),
             Self::ScalarResult => (
                 "rust.scalar-success-result-propagation",
                 rstyle_pdg::scalar_result_propagation::capture::RESOLUTION,
@@ -88,11 +84,17 @@ impl Protocol {
 
 impl<'tcx> Context<'tcx> {
     pub(super) fn result_propagation(&self, root: &Expr<'tcx>) -> Option<PathRes> {
-        self.propagation_capture(root, Protocol::Result)
-            .or_else(|| self.propagation_capture(root, Protocol::BorrowedResult))
-            .or_else(|| self.propagation_capture(root, Protocol::ScalarResult))
-            .or_else(|| self.propagation_capture(root, Protocol::NamedErrorResult))
-            .or_else(|| self.propagation_capture(root, Protocol::ProductResult))
+        use rstyle_pdg::named_error_result_propagation::Mode;
+        [
+            Protocol::Result,
+            Protocol::BorrowedResult,
+            Protocol::ScalarResult,
+            Protocol::NamedErrorResult(Mode::UnitToReader),
+            Protocol::NamedErrorResult(Mode::ReaderToScalar),
+            Protocol::ProductResult,
+        ]
+        .into_iter()
+        .find_map(|protocol| self.propagation_capture(root, protocol))
     }
 
     pub(super) fn propagation_capture(
@@ -178,8 +180,10 @@ impl<'tcx> Context<'tcx> {
                 CapturedShape::BorrowedResult(self.borrowed_result_shape(operand, branch)?),
                 Some(self.propagation_conversion(root, operand)?),
             ),
-            Protocol::NamedErrorResult => (
-                CapturedShape::NamedErrorResult(self.named_error_result_shape(operand, branch)?),
+            Protocol::NamedErrorResult(mode) => (
+                CapturedShape::NamedErrorResult(
+                    self.named_error_result_shape(operand, branch, mode)?,
+                ),
                 Some(self.propagation_conversion(root, operand)?),
             ),
             Protocol::ScalarResult => (

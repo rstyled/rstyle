@@ -9,6 +9,9 @@ use crate::{
 };
 
 pub(super) fn derive(function: &Function<'_>) -> Result<WireContract, String> {
+    if function.formals.len() == 2 {
+        return Ok(empty_contract());
+    }
     let route = output_route(function)?;
     let input = vec![Component::SharedReferent];
     Ok(WireContract {
@@ -26,8 +29,8 @@ pub(super) fn derive(function: &Function<'_>) -> Result<WireContract, String> {
             condition: Condition::Always,
             leaves: vec![Leaf {
                 root: FormalRoot {
-                    parameter: function.formal.position as usize,
-                    binding: function.formal.pattern.hir.clone(),
+                    parameter: function.formals[0].position as usize,
+                    binding: function.formals[0].pattern.hir.clone(),
                 },
                 input,
                 output: route,
@@ -70,8 +73,8 @@ fn variant_route(function: &Function<'_>) -> Result<Route, String> {
     let [field] = fields.as_slice() else {
         return Err("Fresh error helper output requires its sole static formal payload".into());
     };
-    if field.formal.position != function.formal.position
-        || field.formal.pattern.hir != function.formal.pattern.hir
+    if field.formal.position != function.formals[0].position
+        || field.formal.pattern.hir != function.formals[0].pattern.hir
     {
         return Err("Fresh error helper output changes its exact static formal".into());
     }
@@ -83,4 +86,27 @@ fn variant_route(function: &Function<'_>) -> Result<Route, String> {
         },
         Component::SharedReferent,
     ])
+}
+
+fn empty_contract() -> WireContract {
+    WireContract {
+        input_cases: vec![Case {
+            kind: CaseKind::Whole,
+            components: vec![],
+        }],
+        output_cases: vec![Case {
+            kind: CaseKind::Whole,
+            components: vec![],
+        }],
+        alternatives: vec![Alternative {
+            input: CaseKind::Whole,
+            output: CaseKind::Whole,
+            condition: Condition::Always,
+            leaves: vec![],
+        }],
+    }
+}
+
+pub(crate) fn empty_scalar_contract(contract: &WireContract) -> bool {
+    contract == &empty_contract()
 }

@@ -1,4 +1,4 @@
-//! Exact unit-to-reader propagation with independently no-drop named errors.
+//! Exact reader and validator propagation with independently no-drop named errors.
 mod authority;
 pub mod capture;
 #[cfg(test)]
@@ -9,7 +9,62 @@ use capture::Witness;
 
 pub const CAPABILITY: &str = "rust.named-error-reader-flow";
 
+pub const VALIDATOR_CAPABILITY: &str = "rust.named-error-validator-flow";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    UnitToReader,
+    ReaderToScalar,
+}
+
+impl Mode {
+    pub const fn capability(self) -> &'static str {
+        match self {
+            Self::UnitToReader => CAPABILITY,
+            Self::ReaderToScalar => VALIDATOR_CAPABILITY,
+        }
+    }
+
+    pub const fn identity(self) -> &'static str {
+        match self {
+            Self::UnitToReader => capture::IDENTITY,
+            Self::ReaderToScalar => capture::VALIDATOR_IDENTITY,
+        }
+    }
+
+    pub const fn resolution(self) -> &'static str {
+        match self {
+            Self::UnitToReader => capture::RESOLUTION,
+            Self::ReaderToScalar => capture::VALIDATOR_RESOLUTION,
+        }
+    }
+
+    pub const fn constructs(self) -> [&'static str; 3] {
+        match self {
+            Self::UnitToReader => [
+                "try.reader-result-is-err",
+                "try.reader-result-error",
+                "try.reader-result-ok-unit",
+            ],
+            Self::ReaderToScalar => [
+                "try.validator-result-is-err",
+                "try.validator-result-error",
+                "try.validator-result-ok-tuple",
+            ],
+        }
+    }
+
+    pub(super) fn from_identity(identity: &str) -> Result<Self, String> {
+        match identity {
+            capture::IDENTITY => Ok(Self::UnitToReader),
+            capture::VALIDATOR_IDENTITY => Ok(Self::ReaderToScalar),
+            _ => Err("Unregistered named-error propagation identity".into()),
+        }
+    }
+}
+
 pub struct Checked<'a> {
+    pub mode: Mode,
     pub operand: &'a HirNode,
     pub early_return: &'a HirNode,
     pub input_token: String,
@@ -19,19 +74,30 @@ pub struct Checked<'a> {
 }
 
 pub fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::gated_node(node, facts, CAPABILITY, |node| {
-        node.kind == "expr_try_desugar"
-            && node
-                .res
-                .as_ref()
-                .is_some_and(|res| res.kind == capture::RESOLUTION)
-    })
+    mode(node, facts).is_some()
+}
+
+pub fn mode_candidate(node: &HirNode, facts: &dyn EvidenceFacts, expected: Mode) -> bool {
+    mode(node, facts) == Some(expected)
+}
+
+fn mode(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Mode> {
+    let resolution = node.res.as_ref()?;
+    if node.kind != "expr_try_desugar" {
+        return None;
+    }
+    [Mode::UnitToReader, Mode::ReaderToScalar]
+        .into_iter()
+        .find(|mode| {
+            resolution.kind == mode.resolution()
+                && crate::extraction_profile::facts_support(facts, mode.capability())
+        })
 }
 
 pub fn verify<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Result<Checked<'a>, String> {
-    let witness = checked_witness(node, facts)?;
+    let (mode, witness) = checked_witness(node, facts)?;
 
-    authority::concrete_shape(&witness.shape)?;
+    authority::concrete_shape_for(&witness.shape, mode)?;
     let (operand, early_return, residual) =
         crate::scalar_result_propagation::structure_with_generated(
             node,
@@ -51,7 +117,7 @@ pub fn verify<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Result<Checke
 
     let payload_token = crate::data_aggregates::token(node)?.to_owned();
 
-    let error_token = types(&input_token, &output_token, &payload_token, facts)?;
+    let error_token = types(node, operand, facts, mode)?;
 
     if crate::data_aggregates::token(residual)? != output_token
         || crate::data_aggregates::token(early_return)? != output_token
@@ -64,6 +130,7 @@ pub fn verify<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Result<Checke
     crate::result_propagation::source::verify(node, operand, facts)?;
 
     Ok(Checked {
+        mode,
         operand,
         early_return,
         input_token,
@@ -73,7 +140,7 @@ pub fn verify<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Result<Checke
     })
 }
 
-fn checked_witness(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Witness, String> {
+fn checked_witness(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(Mode, Witness), String> {
     if !candidate(node, facts) || node.expansion.is_some() || node.dispatch.is_some() {
         return Err(
             "Named error reader Result propagation requires its original supported question mark"
@@ -93,27 +160,35 @@ fn checked_witness(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Witness,
     let witness: Witness =
         serde_json::from_str(&resolution.description).map_err(|e| e.to_string())?;
 
-    if witness.identity != capture::IDENTITY
+    let mode = mode(node, facts).ok_or("Named-error propagation lacks its active mode")?;
+    if witness.identity != mode.identity()
         || witness.root != node.hir
         || witness.try_span != node.span
     {
         return Err("Named error reader Result witness identifies another expression".into());
     }
 
-    Ok(witness)
+    Ok((mode, witness))
 }
 
 fn types(
-    input: &str,
-    output: &str,
-    payload: &str,
+    node: &HirNode,
+    operand: &HirNode,
     facts: &dyn EvidenceFacts,
+    mode: Mode,
 ) -> Result<String, String> {
-    let input = crate::data_types::parse(input)?;
+    let input = crate::data_aggregates::parsed_type(operand)?;
 
-    let output = crate::data_types::parse(output)?;
+    let output = crate::data_types::parse(
+        facts
+            .signature
+            .return_ty
+            .normalized
+            .as_deref()
+            .ok_or("Missing complete Result return type")?,
+    )?;
 
-    let payload = crate::data_types::parse(payload)?;
+    let payload = crate::data_aggregates::parsed_type(node)?;
 
     let TypeToken::Result { ok, err } = input else {
         return Err("Named error reader propagation operand is not Result".into());
@@ -127,13 +202,9 @@ fn types(
         return Err("Named error reader propagation return is not Result".into());
     };
 
-    if *ok != payload
-        || *ok != TypeToken::Scalar("unit".into())
-        || !reader_tuple(&output_ok)
-        || err != output_err
-    {
+    if *ok != payload || !payloads_match(mode, &ok, &output_ok) || err != output_err {
         return Err(
-            "Reader propagation requires unit input, exact (u32, usize) output and identical error"
+            "Named-error propagation changes its exact payload transition or identical error"
                 .into(),
         );
     }
@@ -143,6 +214,13 @@ fn types(
         return Err("Reader propagation error differs from its complete no-drop boundary".into());
     }
     err.text()
+}
+
+fn payloads_match(mode: Mode, input: &TypeToken, output: &TypeToken) -> bool {
+    match mode {
+        Mode::UnitToReader => *input == TypeToken::Scalar("unit".into()) && reader_tuple(output),
+        Mode::ReaderToScalar => reader_tuple(input) && *output == TypeToken::Scalar("usize".into()),
+    }
 }
 
 pub(crate) fn success(token: &TypeToken) -> bool {

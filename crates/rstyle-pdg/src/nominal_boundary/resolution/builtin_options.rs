@@ -677,7 +677,14 @@ impl Scope<'_, '_> {
         };
         let function: syn::ItemFn = syn::parse_str(&self.facts.source.bytes)
             .map_err(|_| "Result constructor lacks its exact original signature")?;
-        crate::source_evidence::closed_body(&function.block)?;
+        if supports(
+            self.facts,
+            crate::data_documents::wire_validators::CAPABILITY,
+        )? {
+            crate::source_evidence::closed_assertion_body(&function.block, self.facts)?;
+        } else {
+            crate::source_evidence::closed_body(&function.block)?;
+        }
         bindings.visit_signature(&function.sig);
         bindings.visit_block(&function.block);
         for block in &self.blocks {

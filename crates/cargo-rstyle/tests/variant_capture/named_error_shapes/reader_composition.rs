@@ -3,7 +3,7 @@ use super::*;
 use serde_json::json;
 
 const KEY: &str = "rstyle.data:fallible-reader-origins";
-const READERS: &str = r#"
+pub(super) const READERS: &str = r#"
 use core::mem::size_of;
 impl Error {
     pub fn buffer_too_small(what: &'static str) -> Error {

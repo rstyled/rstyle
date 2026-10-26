@@ -5,8 +5,9 @@ Source-selected before admission assessment: complete regex-automata0.4.18,
 `DeserializeError::buffer_too_small` dependencies. `selection.json` fixes original
 spans/XXH3 checksums, complete context files, default/no-default library builds,
 and the complete ten-variant error/dependency closure. Existing frozen inventories
-and denominators remain unchanged. Data3.121 connects the tier1 reader through
-its checked concrete length-helper instance; later tiers remain deferred.
+and denominators remain unchanged. Data3.122 connects the tier1 reader through
+its checked concrete length-helper instance and both tier3 validators; tier2
+remains deferred.
 
 The first contract covers every byte-slice length, usize minimum and explicit
 static message. The length helper returns BufferTooSmall iff `len < minimum`,
@@ -28,10 +29,9 @@ must preserve that flag and diagnostic. Activation must independently prove the
 whole source/HIR body and discharge that exact call restriction; changing the
 original scan flag is not proof.
 
-Tier2 (`try_read_u16/u128` and their existing readers) and tier3
-(`read_version/read_endianness_check`) are frozen deferred selections. They are
-runtime controls only until their whole compositions admit. Tier3 additionally
-requires tuple-success propagation, exact scalar-field mismatch constructors,
+Tier2 (`try_read_u16/u128` and their existing readers) remains a frozen deferred
+selection and runtime control. Tier3 (`read_version/read_endianness_check`)
+additionally requires tuple-success propagation, exact scalar-field mismatch constructors,
 literal static error origins and the original assertion effects. Short-input
 BufferTooSmall errors must precede version/endianness mismatches.
 
@@ -122,3 +122,20 @@ outcomes/reasons/blockers/denominators and118 Data documents:24 admitted/29 excl
 `/tmp/rstyle-452-frozen-comparison.json`. Strict original/serialized replay covers
 all338 admitted originals across the two natural contexts:676 imports,338 accepted
 self-comparisons and29,292 complete cross-pairs, with all28,956 old pairs unchanged.
+
+Data3.122 connects the original reader → `read_version/read_endianness_check`
+family. Checked no-drop tagged results can carry read/panic summaries; exact
+reader-tuple→usize same-error `?`, immutable saved scalar tuple components,
+source-backed static error roots and ordered two-u32 mismatch constructors
+compose through the original active assertion. Assertion lexical closure requires
+its exact retained standard expansion and recursively checks every argument;
+hidden items/macros and historical policies retain rejection. No general move,
+destructor, generic residual conversion or validator callable summary is implied.
+
+Both unchanged selections gain exactly those two validators and two constructors:
+default199→203/2,582; no-default139→143/590, zero losses. The original generic
+length helper and wider readers remain excluded. The next audited safe consumer
+is default-only `dfa::dense::Flags::from_bytes`: aggregate-success ownership,
+tuple→aggregate propagation and complete struct/tuple construction remain open.
+Direct validator callers are unsafe DFA deserializers with additional table,
+pointer, cursor and ownership blockers; they are outside this contract.

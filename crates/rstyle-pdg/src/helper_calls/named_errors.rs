@@ -1,5 +1,6 @@
 //! Complete fresh-error constructor helpers; effects and typed routes stay verified.
 mod source;
+pub(crate) use source::empty_scalar_contract;
 #[cfg(test)]
 mod tests;
 
@@ -60,7 +61,10 @@ pub(super) fn summary(
 }
 
 pub(crate) fn validate_shape(summary: &super::Summary) -> Result<&WireContract, String> {
-    super::tagged_conversions::validate_shape_as(summary, SUMMARY)
+    if summary.argument_types.len() == 1 {
+        return super::tagged_conversions::validate_shape_as(summary, SUMMARY);
+    }
+    validate_scalar_shape(summary)
 }
 
 /// Unlike concrete From selection, these ordinary inherent calls retain every
@@ -77,6 +81,14 @@ pub(super) fn verify_dependency(
     if !crate::extraction_profile::facts_support(caller, CAPABILITY) || !candidate(callee) {
         return Err("Fresh error helper lacks registered caller/callee capabilities".into());
     }
+    if summary.argument_types.len() == 2
+        && !crate::extraction_profile::facts_support(
+            caller,
+            crate::named_error_payloads::SCALAR_CAPABILITY,
+        )
+    {
+        return Err("Scalar named error helper requires its registered caller capability".into());
+    }
     let contract = validate_shape(summary)?;
     if contract != &source_contract(callee)?
         || summary.argument_types != super::argument_types(callee)?
@@ -90,4 +102,33 @@ pub(super) fn verify_dependency(
     super::check_signature(node, caller, &resolution, callee)?;
     crate::inherent_calls::verify(node, caller, callee, &resolution)?;
     Ok(true)
+}
+
+fn validate_scalar_shape(summary: &super::Summary) -> Result<&WireContract, String> {
+    if summary.identity != SUMMARY
+        || summary.argument_types != ["u32", "u32"]
+        || summary.result_type.is_empty()
+        || summary.result_dependence != super::tagged_conversions::RESULT_DEPENDENCE
+        || summary.argument_evaluation != "source-order-once/1"
+        || summary.mutates_arguments
+        || summary.memory_effects
+        || summary.may_panic
+        || !summary.always_returns
+        || summary.bounded_loop.is_some()
+        || summary.reference_outputs.is_some()
+        || summary.component_outputs.is_some()
+        || summary.memory_reads.is_some()
+    {
+        return Err("Scalar named error helper changes its complete constructor contract".into());
+    }
+    let contract = summary
+        .tagged_output
+        .as_ref()
+        .ok_or("Scalar named error lacks its explicit empty reference cases")?;
+    if !source::empty_scalar_contract(contract) {
+        return Err(
+            "Scalar named error helper invents reference components or alternatives".into(),
+        );
+    }
+    Ok(contract)
 }

@@ -39,32 +39,86 @@ fn constructor(
     else {
         unreachable!()
     };
-    let [field] = fields.as_slice() else {
-        return Err("Incomplete named error fields".into());
-    };
-
-    let input = input(pair, &function.formal.pattern.span, 0)?;
-    let read = value_operation(pair, field.operand)?;
+    let inputs = constructor_inputs(pair, function)?;
+    let reads = fields
+        .iter()
+        .map(|field| value_operation(pair, field.operand))
+        .collect::<Result<Vec<_>, _>>()?;
     let named = operation(pair, payload, "data.named-error")?;
     let wrapper = operation(pair, source, "data.named-error-wrapper")?;
 
-    let slots = serde_json::to_string(&[(field.position, field.name.as_str())])
-        .map_err(|e| e.to_string())?;
-    descriptor(named, Some(variant), &slots)?;
+    named_descriptor(named, variant, fields)?;
     descriptor(wrapper, None, "0")?;
-    super::super::copy_tagged_values::origins::verify_definition(pair, input, read)?;
-
-    edge(pair, read, named)?;
+    verify_fields(pair, fields, &inputs, &reads)?;
+    verify_saved_operands(pair, named, &reads)?;
+    for read in &reads {
+        before(pair, read, named)?;
+        consumers(pair, read, &[named], "value_operand")?;
+    }
     edge(pair, named, wrapper)?;
-    consumers(pair, input, &[read], "reaching_definition")?;
-
-    consumers(pair, read, &[named], "value_operand")?;
     consumers(pair, named, &[wrapper], "value_operand")?;
     super::super::copy_tagged_values::graph::returned(pair, source, wrapper)?;
 
     let returned = returned(pair, source)?;
     let contract = crate::helper_calls::named_errors::source_contract(facts)?;
-    origins::constructor([input, read, named, wrapper, returned], &contract)
+    if function.formals.len() == 2 {
+        return origins::scalar_constructor(&inputs, &reads, [named, wrapper, returned], &contract);
+    }
+    origins::constructor([inputs[0], reads[0], named, wrapper, returned], &contract)
+}
+
+fn constructor_inputs<'a>(
+    pair: PairView<'a>,
+    function: &crate::named_error_payloads::Function<'_>,
+) -> Result<Vec<&'a PdgNode>, String> {
+    if function.formals.len() == 2 {
+        crate::extraction_profile::require_document(
+            &pair.pdg.profile,
+            crate::named_error_payloads::SCALAR_CAPABILITY,
+            || true,
+            "Scalar named error construction requires its registered document policy",
+        )?;
+    }
+    function
+        .formals
+        .iter()
+        .map(|formal| input(pair, &formal.pattern.span, u64::from(formal.position)))
+        .collect()
+}
+
+fn named_descriptor(
+    node: &PdgNode,
+    variant: &str,
+    fields: &[crate::named_error_payloads::FieldOperand<'_>],
+) -> Result<(), String> {
+    let slots: Vec<_> = fields
+        .iter()
+        .map(|field| (field.position, field.name.as_str()))
+        .collect();
+    descriptor(
+        node,
+        Some(variant),
+        &serde_json::to_string(&slots).map_err(|error| error.to_string())?,
+    )
+}
+
+fn verify_fields(
+    pair: PairView<'_>,
+    fields: &[crate::named_error_payloads::FieldOperand<'_>],
+    inputs: &[&PdgNode],
+    reads: &[&PdgNode],
+) -> Result<(), String> {
+    for (field, read) in fields.iter().zip(reads) {
+        let input = inputs
+            .get(field.formal.position as usize)
+            .ok_or("Missing named error formal input")?;
+        super::super::copy_tagged_values::origins::verify_definition(pair, input, read)?;
+        consumers(pair, input, &[read], "reaching_definition")?;
+    }
+    for adjacent in reads.windows(2) {
+        before(pair, adjacent[0], adjacent[1])?;
+    }
+    Ok(())
 }
 
 fn descriptor(node: &PdgNode, tag: Option<&str>, literal: &str) -> Result<(), String> {

@@ -24,6 +24,7 @@ mod product_result_propagation;
 mod result_maps;
 mod result_propagation;
 mod scalar_result_propagation;
+mod scalar_tuple_bindings;
 mod slice_prefix_patterns;
 
 use super::graph::*;
@@ -667,6 +668,9 @@ impl Builder<'_> {
     }
 
     fn declaration(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::scalar_tuple_bindings::candidate(node, self.facts) {
+            return self.scalar_tuple_binding(node, flow);
+        }
         if crate::data_discards::candidate(node, self.facts) {
             return self.emit(
                 Operation {
@@ -678,6 +682,10 @@ impl Builder<'_> {
             );
         }
 
+        self.initialized_declaration(node, flow)
+    }
+
+    fn initialized_declaration(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let initializer = node
             .children
             .iter()
@@ -1584,11 +1592,13 @@ fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flo
         .is_some_and(|res| res.kind == crate::borrowed_result_propagation::capture::RESOLUTION)
     {
         Builder::borrowed_result_propagation
-    } else if node
-        .res
-        .as_ref()
-        .is_some_and(|res| res.kind == crate::named_error_result_propagation::capture::RESOLUTION)
-    {
+    } else if node.res.as_ref().is_some_and(|res| {
+        matches!(
+            res.kind.as_str(),
+            crate::named_error_result_propagation::capture::RESOLUTION
+                | crate::named_error_result_propagation::capture::VALIDATOR_RESOLUTION
+        )
+    }) {
         Builder::named_error_result_propagation
     } else if node
         .res

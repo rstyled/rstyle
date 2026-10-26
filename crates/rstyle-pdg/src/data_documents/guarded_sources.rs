@@ -61,3 +61,16 @@ pub(super) fn install_records(
     }
     Ok(())
 }
+
+/// Each source role owns one serialized operation; aliasing cannot overwrite proof.
+pub(super) fn insert_role(
+    roles: &mut BTreeMap<String, Value>,
+    node: &PdgNode,
+    value: impl serde::Serialize,
+) -> Result<(), String> {
+    let value = serde_json::to_value(value).map_err(|error| error.to_string())?;
+    if roles.insert(node.id.clone(), value).is_some() {
+        return Err("Origin roles alias the same serialized operation".into());
+    }
+    Ok(())
+}

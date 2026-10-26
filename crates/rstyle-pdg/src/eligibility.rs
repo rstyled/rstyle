@@ -882,6 +882,12 @@ fn check_option_propagation(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 }
 
 fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if crate::static_string_values::candidate(node, ctx.facts) {
+        return Some(check_static_string(node, ctx));
+    }
+    if crate::scalar_tuple_bindings::candidate(node, ctx.facts) {
+        return Some(check_scalar_tuple_binding(node, ctx));
+    }
     if crate::result_maps::candidate(node, ctx.facts) {
         return Some(check_result_map(node, ctx));
     }
@@ -921,12 +927,49 @@ fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         return Some(check_callback(node, ctx));
     }
     if crate::data_discards::candidate(node, ctx.facts) {
-        return Some(match crate::data_discards::verify(node, ctx.facts) {
-            Ok(()) => Outcome::ok(),
-            Err(reason) => error("rust.scalar-enum-values", "copy_discard", node, &reason),
-        });
+        return Some(check_copy_discard(node, ctx));
     }
     None
+}
+
+fn check_copy_discard(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::data_discards::verify(node, ctx.facts) {
+        Ok(()) => Outcome::ok(),
+        Err(reason) => error("rust.scalar-enum-values", "copy_discard", node, &reason),
+    }
+}
+
+fn check_static_string(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::static_string_values::verify(node, ctx.facts) {
+        Ok(_) => Outcome::ok(),
+        Err(reason) => error(
+            crate::static_string_values::CAPABILITY,
+            "static_string_value",
+            node,
+            &reason,
+        ),
+    }
+}
+
+fn check_scalar_tuple_binding(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::scalar_tuple_bindings::verify(node, ctx.facts) {
+        Ok(checked) => Outcome::combine(
+            std::iter::once(check_node(checked.initializer, false, ctx))
+                .chain(
+                    checked
+                        .entries
+                        .iter()
+                        .map(|entry| check_pat_node(entry.pattern, ctx)),
+                )
+                .collect(),
+        ),
+        Err(reason) => error(
+            crate::scalar_tuple_bindings::CAPABILITY,
+            "scalar_tuple_binding",
+            node,
+            &reason,
+        ),
+    }
 }
 
 fn check_result_map(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
