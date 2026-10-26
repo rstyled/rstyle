@@ -164,6 +164,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.named-error-reader-flow",
     "rust.named-error-validator-flow",
     "rust.named-error-product-reader-flow",
+    "rust.named-error-owned-transfer",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -325,7 +326,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.123.0", 151)),
+            Self::DataV3 => Some(("3.124.0", 152)),
         }
     }
 

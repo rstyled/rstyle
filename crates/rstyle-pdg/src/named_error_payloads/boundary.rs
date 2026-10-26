@@ -65,7 +65,8 @@ pub(crate) fn permits_type(text: &str, facts: &dyn EvidenceFacts) -> Result<bool
         unreachable!()
     };
 
-    let permitted = token == TypeToken::from_tree(&error)
+    let permitted = owned::permits_type(text, facts)?
+        || token == TypeToken::from_tree(&error)
         || token == TypeToken::from_tree(&fields[0].ty)
         || matches!(&token, TypeToken::Result { ok, err }
             if success(ok, facts)? && err.as_ref() == &TypeToken::from_tree(&error));

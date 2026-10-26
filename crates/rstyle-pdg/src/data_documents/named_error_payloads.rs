@@ -13,7 +13,7 @@ pub(crate) fn verify_source(facts: &dyn EvidenceFacts) -> Result<bool, String> {
 }
 
 pub(crate) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<bool, String> {
-    super::guarded_sources::Policy {
+    let installed = super::guarded_sources::Policy {
         key: KEY,
         coverage: super::guarded_sources::Coverage::Matching,
     }
@@ -24,10 +24,14 @@ pub(crate) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<bool
             source: source::verify,
             graph: graph::verify,
         },
-    )
+    )?;
+    graph::install_owned(pair, facts)?;
+    Ok(installed)
 }
 
 pub(crate) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    graph::verify_owned(pair, facts)?;
+
     let Some(checked) = source::verify(facts)? else {
         if pair
             .pdg

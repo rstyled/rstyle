@@ -109,3 +109,72 @@ fn scalar_payload_spelling_does_not_admit_aliases_or_other_widths() {
         assert!(source::payload_type(&syn::parse_str("u32").unwrap(), &token).is_err());
     }
 }
+
+#[test]
+fn owned_error_grammar_requires_generated_provenance_and_exact_scalar_child() {
+    // These independently constructed shapes provide no cleanup or admission proof.
+    let (original, child) = owned_error_fixture();
+    assert!(owned::shape(&original));
+    let ordinary = TypeTree::Struct {
+        nominal: original.nominal_identity().unwrap().clone(),
+        source: "struct Wrapper(Error);".into(),
+        fields: original.nominal_fields().cloned().collect(),
+    };
+    assert!(!owned::shape(&ordinary));
+    for change in 0..4 {
+        let mut changed = original.clone();
+        let TypeTree::GeneratedStruct { fields, .. } = &mut changed else {
+            unreachable!()
+        };
+        match change {
+            0 => fields[0].name = "other".into(),
+            1 => fields[0].position = 1,
+            2 => fields[0].ty = TypeTree::Shared(Box::new(child.clone())),
+            _ => fields[0].ty = TypeTree::Scalar("u64".into()),
+        }
+        assert!(!owned::shape(&changed), "change {change}");
+    }
+    assert!(!owned::shape(&child));
+}
+
+fn owned_error_fixture() -> (TypeTree, TypeTree) {
+    let nominal = Nominal {
+        source_identity: Some("package".into()),
+        package_name: "fixture".into(),
+        package_version: "1".into(),
+        manifest_digest: crate::source_identity::checksum(b"manifest"),
+        definition_path: "Error".into(),
+        declaration_digest: crate::source_identity::checksum(b"declaration"),
+    };
+    let leaf = crate::concrete_types::Field {
+        position: 0,
+        name: "attempted".into(),
+        declaration: "u64".into(),
+        ty: TypeTree::Scalar("u64".into()),
+    };
+    let child = TypeTree::Struct {
+        nominal: nominal.clone(),
+        source: "struct Error { attempted: u64 }".into(),
+        fields: vec![leaf],
+    };
+    let field = crate::concrete_types::Field {
+        position: 0,
+        name: "0".into(),
+        declaration: "Error".into(),
+        ty: child.clone(),
+    };
+    let definition = crate::generated_sources::capture::Definition {
+        path: "Wrapper".into(),
+        definition_identity: "definition".into(),
+        crate_name: "fixture".into(),
+        stable_crate_id: "crate".into(),
+        local: true,
+    };
+    let original = TypeTree::GeneratedStruct {
+        nominal: nominal.clone(),
+        template: "struct Wrapper(Error);".into(),
+        definition: Box::new(definition),
+        fields: vec![field.clone()],
+    };
+    (original, child)
+}

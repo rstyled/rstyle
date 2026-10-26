@@ -2,6 +2,7 @@
 mod boundary;
 mod constructors;
 mod formals;
+pub(crate) mod owned;
 mod source;
 pub(crate) use boundary::{error_tree, permits_type};
 pub(crate) use constructors::constructor;
@@ -68,7 +69,8 @@ pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
         && !facts.signature.has_self
         && (facts.signature.params.len() == 1
             || facts.signature.params.len() == 2
-                && crate::extraction_profile::facts_support(facts, SCALAR_CAPABILITY))
+                && (crate::extraction_profile::facts_support(facts, SCALAR_CAPABILITY)
+                    || owned::candidate(facts)))
         && facts.body.kind == "expr_block"
         && matches!(facts.body.children.as_slice(), [tail]
 

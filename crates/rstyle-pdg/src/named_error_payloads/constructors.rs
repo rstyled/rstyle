@@ -132,7 +132,7 @@ fn field_operands<'a>(
         let expected = TypeToken::from_tree(&field.ty);
         let declaration =
             syn::parse_str::<syn::Type>(&field.declaration).map_err(|e| e.to_string())?;
-        source::payload_type(&declaration, &expected)?;
+        source::payload_type_in(&declaration, &expected, facts)?;
         if expected == TypeToken::Scalar("u32".into())
             && !crate::extraction_profile::facts_support(facts, SCALAR_CAPABILITY)
             || crate::data_aggregates::parsed_type(operand)? != expected
@@ -162,6 +162,19 @@ fn field_shape(
         .iter()
         .map(|(_, field)| TypeToken::from_tree(&field.ty))
         .collect();
+    if let Some(transfer) = owned::checked(facts)? {
+        if types
+            == [
+                TypeToken::from_tree(&transfer.input),
+                TypeToken::Shared(Box::new(TypeToken::Str)),
+            ]
+        {
+            return Ok(());
+        }
+        return Err(
+            "Owned error constructor changes its declared whole error/message fields".into(),
+        );
+    }
     let static_string = TypeToken::Shared(Box::new(TypeToken::Str));
     if types == [static_string]
         || crate::extraction_profile::facts_support(facts, SCALAR_CAPABILITY)

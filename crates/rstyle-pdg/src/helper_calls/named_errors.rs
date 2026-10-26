@@ -10,6 +10,9 @@ use crate::{
 };
 
 pub(crate) const CAPABILITY: &str = "rust.named-error-helper-calls";
+pub(crate) const OWNED_SUMMARY: &str = "rstyle.helper.named-error-owned-constructor/1";
+pub(crate) const OWNED_DEPENDENCE: &str = "verified-whole-owned-transfer-and-static-substitution/1";
+
 pub(crate) const SUMMARY: &str = "rstyle.helper.named-error-constructor/1";
 
 /// Structural routing only; no name or available summary grants permission.
@@ -56,11 +59,19 @@ pub(super) fn summary(
     output: WireContract,
 ) -> Result<super::Summary, String> {
     let mut summary = super::tagged_conversions::summary(facts, output)?;
-    summary.identity = SUMMARY.into();
+    if crate::named_error_payloads::owned::checked(facts)?.is_some() {
+        summary.identity = OWNED_SUMMARY.into();
+        summary.result_dependence = OWNED_DEPENDENCE.into();
+    } else {
+        summary.identity = SUMMARY.into();
+    }
     Ok(summary)
 }
 
 pub(crate) fn validate_shape(summary: &super::Summary) -> Result<&WireContract, String> {
+    if summary.identity == OWNED_SUMMARY {
+        return validate_owned_shape(summary);
+    }
     if summary.argument_types.len() == 1 {
         return super::tagged_conversions::validate_shape_as(summary, SUMMARY);
     }
@@ -75,19 +86,30 @@ pub(super) fn verify_dependency(
     callee: &dyn EvidenceFacts,
     summary: &super::Summary,
 ) -> Result<bool, String> {
-    if summary.identity != SUMMARY {
+    if summary.identity != SUMMARY && summary.identity != OWNED_SUMMARY {
         return Ok(false);
     }
     if !crate::extraction_profile::facts_support(caller, CAPABILITY) || !candidate(callee) {
         return Err("Fresh error helper lacks registered caller/callee capabilities".into());
     }
-    if summary.argument_types.len() == 2
+    if summary.identity == SUMMARY
+        && summary.argument_types.len() == 2
         && !crate::extraction_profile::facts_support(
             caller,
             crate::named_error_payloads::SCALAR_CAPABILITY,
         )
     {
         return Err("Scalar named error helper requires its registered caller capability".into());
+    }
+    if summary.identity == OWNED_SUMMARY
+        && (!crate::extraction_profile::facts_support(
+            caller,
+            crate::named_error_payloads::owned::CAPABILITY,
+        ) || owned_transfer(callee)?.is_none())
+    {
+        return Err(
+            "Owned error helper lacks its checked callee transfer and caller capability".into(),
+        );
     }
     let contract = validate_shape(summary)?;
     if contract != &source_contract(callee)?
@@ -130,5 +152,41 @@ fn validate_scalar_shape(summary: &super::Summary) -> Result<&WireContract, Stri
             "Scalar named error helper invents reference components or alternatives".into(),
         );
     }
+    Ok(contract)
+}
+
+/// Source meaning only: consume this receipt after verifying the selected
+/// complete callee dependency. The distinct summary identity never proves a move.
+pub(crate) fn owned_transfer(
+    facts: &dyn EvidenceFacts,
+) -> Result<Option<crate::named_error_payloads::owned::Transfer>, String> {
+    if !crate::named_error_payloads::owned::candidate(facts) {
+        return Ok(None);
+    }
+    crate::named_error_payloads::verify_function(facts)?;
+    crate::named_error_payloads::owned::checked(facts)
+}
+
+fn validate_owned_shape(summary: &super::Summary) -> Result<&WireContract, String> {
+    if summary.identity != OWNED_SUMMARY
+        || summary.argument_types.len() != 2
+        || summary.result_dependence != OWNED_DEPENDENCE
+        || summary.argument_evaluation != "source-order-once/1"
+        || summary.mutates_arguments
+        || summary.memory_effects
+        || summary.may_panic
+        || !summary.always_returns
+        || summary.bounded_loop.is_some()
+        || summary.reference_outputs.is_some()
+        || summary.component_outputs.is_some()
+        || summary.memory_reads.is_some()
+    {
+        return Err("Owned error helper changes its bounded transfer/effect contract".into());
+    }
+    let contract = summary
+        .tagged_output
+        .as_ref()
+        .ok_or("Owned error helper lacks explicit static reference route")?;
+    source::owned_shape(summary, contract)?;
     Ok(contract)
 }

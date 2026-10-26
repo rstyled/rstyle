@@ -76,12 +76,12 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.123.0");
+    assert_eq!(profile.policy().version, "3.124.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 151);
+    assert_eq!(profile.capabilities().len(), 152);
     assert!(profile.supports("rust.pinned-cleanup-macro-imports"));
     assert!(profile.supports("rust.named-error-reader-flow"));
     let mut before_readers = profile.policy();
@@ -287,4 +287,16 @@ fn slice_prefix_observations_do_not_extend_historical_policies() {
     ] {
         assert!(!profile.supports(capability));
     }
+}
+
+#[test]
+fn owned_error_transfer_does_not_extend_historical_policies() {
+    let profile = rstyle_pdg::extraction_profile::ExtractionProfile::DataV3;
+    assert!(profile.supports("rust.named-error-owned-transfer"));
+    let mut before_owned_errors = profile.policy();
+    before_owned_errors.version = "3.123.0".into();
+    assert!(!rstyle_pdg::extraction_profile::policy_supports(
+        &before_owned_errors,
+        "rust.named-error-owned-transfer"
+    ));
 }

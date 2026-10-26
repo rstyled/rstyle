@@ -257,3 +257,40 @@ pub(super) fn scalar_constructor(
         .map(|node| (node.id.clone(), empty.clone()))
         .collect())
 }
+
+pub(super) struct OwnedNodes<'a> {
+    pub error: [&'a PdgNode; 2],
+    pub message: [&'a PdgNode; 2],
+    pub outputs: [&'a PdgNode; 3],
+}
+
+pub(super) fn owned_constructor(
+    nodes: OwnedNodes<'_>,
+    contract: &WireContract,
+    transfer: &crate::named_error_payloads::owned::Transfer,
+) -> Result<BTreeMap<String, Value>, String> {
+    let [named, wrapper, returned] = nodes.outputs;
+
+    let mut roles = constructor(
+        [nodes.message[0], nodes.message[1], named, wrapper, returned],
+        contract,
+    )?;
+    if transfer.parameter != 0 {
+        return Err("Owned error constructor changes transferred input position".into());
+    }
+    for (node, role) in nodes
+        .error
+        .into_iter()
+        .zip(["whole_owned_input", "whole_owned_move"])
+    {
+        super::super::guarded_sources::insert_role(
+            &mut roles,
+            node,
+            Carried {
+                role,
+                origins: vec![],
+            },
+        )?;
+    }
+    Ok(roles)
+}

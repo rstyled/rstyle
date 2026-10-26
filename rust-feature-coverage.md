@@ -5578,3 +5578,14 @@ no-default143/590 unchanged, zero losses. Strict historical comparisons and the
 frozen60 persist. General aggregate Results and unsafe DFA callers remain open.
 [Contract/oracle](eval/coverage-development/wire-flag-parser/README.md) and
 [validation/next connected frontier](docs/rust-support-execution.md).
+
+
+Data3.124 connects original `DeserializeError::{state_id_error,pattern_id_error}`
+through exact one-use generated-error moves, whole no-drop/source proof, static
+message origins and distinct verified callable summaries. Default204→206/2,582
+and no-default143→145/590: exactly both constructors, zero losses. This advances
+the frozen ID-reader chain; readers still require nominal tuple Results, generated
+SIZE/import authority, capturing `map_err`, same-error `?` and complete read/panic
+composition. General moves/drop remain open.
+[Contract/oracle](eval/coverage-development/wire-id-readers/README.md) and
+[validation/frontier](docs/rust-support-execution.md).

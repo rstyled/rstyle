@@ -119,3 +119,139 @@ fn scalar_constructor_requires_all_empty_cases_and_historical_effect_flags() {
         assert!(validate_shape(&changed).is_err(), "mutation {mutation}");
     }
 }
+
+fn owned_summary() -> super::super::Summary {
+    let (input, output, nominal) = owned_types();
+    super::super::Summary {
+        identity: OWNED_SUMMARY.into(),
+        result_dependence: OWNED_DEPENDENCE.into(),
+        argument_types: vec![
+            input.text().unwrap(),
+            crate::data_types::TypeToken::Shared(Box::new(crate::data_types::TypeToken::Str))
+                .text()
+                .unwrap(),
+        ],
+        result_type: output.text().unwrap(),
+        tagged_output: Some(owned_contract(nominal)),
+        ..fixture()
+    }
+}
+
+fn owned_types() -> (
+    crate::data_types::TypeToken,
+    crate::data_types::TypeToken,
+    crate::concrete_types::Nominal,
+) {
+    use crate::{concrete_types::VariantShape, data_types::TypeToken};
+    let nominal: crate::concrete_types::Nominal = serde_json::from_value(serde_json::json!({
+        "source_identity":"package","package_name":"fixture","package_version":"1",
+        "manifest_digest":crate::source_identity::checksum(b"manifest"),"definition_path":"Error",
+        "declaration_digest":crate::source_identity::checksum(b"decl")
+    }))
+    .unwrap();
+    let input = TypeToken::Struct {
+        nominal: nominal.clone(),
+        fields: vec![(
+            "0".into(),
+            TypeToken::Struct {
+                nominal: nominal.clone(),
+                fields: vec![("attempted".into(), TypeToken::Scalar("u64".into()))],
+            },
+        )],
+    };
+    let output = TypeToken::Struct {
+        nominal: nominal.clone(),
+        fields: vec![(
+            "0".into(),
+            TypeToken::MixedEnum {
+                nominal: nominal.clone(),
+                variants: vec![(
+                    "State".into(),
+                    VariantShape::Named {
+                        fields: vec![
+                            ("err".into(), input.clone()),
+                            ("what".into(), TypeToken::Shared(Box::new(TypeToken::Str))),
+                        ],
+                    },
+                )],
+            },
+        )],
+    };
+    (input, output, nominal)
+}
+
+fn owned_contract(nominal: crate::concrete_types::Nominal) -> WireContract {
+    use crate::copy_tagged_values::origins::{Component, FormalRoot, Leaf};
+    let route = vec![
+        Component::ProductField {
+            nominal: nominal.clone(),
+            position: 0,
+            name: "0".into(),
+        },
+        Component::EnumPayload {
+            nominal,
+            variant: "State".into(),
+            position: 1,
+        },
+        Component::SharedReferent,
+    ];
+    WireContract {
+        input_cases: vec![Case {
+            kind: CaseKind::Whole,
+            components: vec![vec![Component::SharedReferent]],
+        }],
+        output_cases: vec![Case {
+            kind: CaseKind::Whole,
+            components: vec![route.clone()],
+        }],
+        alternatives: vec![Alternative {
+            input: CaseKind::Whole,
+            output: CaseKind::Whole,
+            condition: Condition::Always,
+            leaves: vec![Leaf {
+                root: FormalRoot {
+                    parameter: 1,
+                    binding: crate::HirRef {
+                        krate: 0,
+                        owner: 3,
+                        local: 4,
+                    },
+                },
+                input: vec![Component::SharedReferent],
+                output: route,
+                guard: None,
+            }],
+        }],
+    }
+}
+
+#[test]
+fn owned_summary_keeps_static_routing_distinct_from_move_authority() {
+    let original = owned_summary();
+    validate_shape(&original).unwrap();
+    for change in 0..8 {
+        let mut changed = original.clone();
+        match change {
+            0 => changed.identity = SUMMARY.into(),
+            1 => {
+                changed.result_dependence =
+                    super::super::tagged_conversions::RESULT_DEPENDENCE.into()
+            }
+            2 => changed.argument_types.swap(0, 1),
+            3 => changed.mutates_arguments = true,
+            4 => changed.may_panic = true,
+            5 => {
+                changed.tagged_output.as_mut().unwrap().alternatives[0].leaves[0]
+                    .root
+                    .parameter = 0
+            }
+            6 => changed.tagged_output.as_mut().unwrap().alternatives[0].leaves[0]
+                .output
+                .clear(),
+            _ => changed.tagged_output.as_mut().unwrap().alternatives[0]
+                .leaves
+                .clear(),
+        }
+        assert!(validate_shape(&changed).is_err(), "change {change}");
+    }
+}

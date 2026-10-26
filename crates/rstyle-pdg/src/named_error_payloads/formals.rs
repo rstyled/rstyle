@@ -14,6 +14,12 @@ pub(super) fn constructor_formals(facts: &dyn EvidenceFacts) -> Result<Vec<Forma
     if facts.bindings.len() != facts.signature.params.len() {
         return Err("Named error constructor cannot contain additional bindings".into());
     }
+    if let Some(transfer) = owned::checked(facts)? {
+        return Ok(vec![
+            formal(facts, 0, TypeToken::from_tree(&transfer.input))?,
+            static_formal(facts, 1)?,
+        ]);
+    }
     match facts.signature.params.len() {
         1 => Ok(vec![static_formal(facts, 0)?]),
         2 if crate::extraction_profile::facts_support(facts, SCALAR_CAPABILITY) => (0..2)
@@ -31,7 +37,7 @@ fn formal(
     let syntax: syn::ItemFn = syn::parse_str(&facts.source.bytes).map_err(|e| e.to_string())?;
     source::signature(&syntax)?;
     let argument = argument(&syntax, position)?;
-    source::payload_type(&argument.ty, &token)?;
+    source::payload_type_in(&argument.ty, &token, facts)?;
     let parameter = facts
         .signature
         .params

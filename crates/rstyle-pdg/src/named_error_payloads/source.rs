@@ -130,3 +130,17 @@ pub(super) fn payload_type(ty: &syn::Type, token: &TypeToken) -> Result<(), Stri
         _ => Err("Named error field is outside static-string or builtin-u32 payloads".into()),
     }
 }
+
+/// Nominal owned payloads remain limited to the independently checked whole
+/// mixed constructor; historical scalar/static spelling rules are unchanged.
+pub(super) fn payload_type_in(
+    ty: &syn::Type,
+    token: &TypeToken,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    if matches!(token, TypeToken::Struct { .. }) {
+        owned::spelling(ty, token, facts)
+    } else {
+        payload_type(ty, token)
+    }
+}

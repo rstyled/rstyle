@@ -1822,3 +1822,40 @@ wrapper returns BufferTooSmall first. Higher consumers add mutable stored
 closures/cursor state or loops. Freeze source identities/expectations and resolve
 remaining receipt/type-observation unknowns before production edits. Broad goal
 remains active; no general moves/drop, unsafe, detector-quality or rewrite claim.
+
+Data3.124 / owned error constructor integration (152 capabilities). Both original
+`DeserializeError::{state_id_error,pattern_id_error}` now admit and publish
+separate callable summaries. Complete generated declaration/no-drop proof and
+once-only graph consumers establish whole-error transfer; static message routes
+remain distinct. No general moves, partial initialization or destructor model is
+claimed. This closes the owned-constructor prerequisite of the selected ID readers.
+
+Default204→206/2,582; no-default143→145/590: exactly both constructors, zero losses.
+Strict702 imports/351 self-comparisons/31,555 cross-pairs preserve all30,859 prior
+pair records. Frozen run-jpfpic28 preserves all60 identities, outcomes, reasons,
+blockers and denominators (24 admitted/29 excluded/7 inactive); older profiles
+are unchanged. Independent original-crate oracle323,154 cases/context × four
+native contexts passes; native macOS/x86 CI remains unrun. Full2,255 tests plus
+doctests pass/5 existing skips; fmt/Clippy, rstyle0/7,681 and patterns0 pass with
+all15 ignored identities unchanged. New composition fixture1.05s in the full run.
+No new runtime hashes or serialized cache keys; typed adversaries retain original
+serialized replay without repeated mutation seals.
+
+Observed capture default235.89s/1,800,056KiB; no-default30.79s/403,876KiB. Strict
+replay215.48s/6,252,912KiB and40.99s/1,365,416KiB. Whole-unit replay memory remains
+open; these are single observations with additional supported work, not equal-work
+speed claims. Evidence: `/tmp/rstyle-455-{default,no-default}-comparison.json`,
+`/tmp/rstyle-455-{strict,frozen}-comparison.json`, `/tmp/rstyle-455-oracle.json`,
+`/tmp/rstyle-455-nextest-final.log`, `/tmp/rstyle-455-{style,patterns}-final.json`.
+
+Next connected target remains all three original safe ID readers. Ready seams:
+complete nominal tuple Result observations with all declaration origins; generated
+caller/import and associated-SIZE source authority; saved prefix read/bounds/panic
+composition; immediate Err-only capturing map_err using the proved constructor;
+nominal→tuple same-error propagation; then callable and checked-wrapper composition.
+Decoder source-body summaries already exist. Do not stack observation-only commits
+or claim the readers from separate construct fixtures. Source-required callback
+capture and generated-owner interactions still need proof; stored mutable callbacks,
+loop-heavy sparse consumers and unsafe DFA deserialization remain separate.
+[Selection/contract/oracle](../eval/coverage-development/wire-id-readers/README.md).
+Broad goal remains active; extraction grants no detector-quality or rewrite claim.
