@@ -2,6 +2,7 @@
 use super::{float_kernels::function, *};
 mod attacks;
 mod library_macros;
+mod product_composition;
 mod reader_composition;
 mod reader_observations;
 mod validator_composition;

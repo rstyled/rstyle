@@ -36,9 +36,20 @@ fn install_reader_origins(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
-    Ok(super::wire_validators::install(pair, facts)?
-        || super::slice_lengths::install(pair, facts)?
-        || super::fallible_readers::install(pair, facts)?)
+    type Installer = fn(&mut Pair, &dyn crate::unit_store::EvidenceFacts) -> Result<bool, String>;
+    let installers: [Installer; 4] = [
+        super::reader_products::install,
+        super::wire_validators::install,
+        super::slice_lengths::install,
+        super::fallible_readers::install,
+    ];
+
+    for install in installers {
+        if install(pair, facts)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn install_product_origins(
@@ -134,7 +145,8 @@ fn verify_guarded_origins(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
-    if super::wire_validators::verify(pair, facts)? {
+    if super::reader_products::verify(pair, facts)? || super::wire_validators::verify(pair, facts)?
+    {
         return Ok(true);
     }
     super::slice_lengths::verify(pair, facts)?;

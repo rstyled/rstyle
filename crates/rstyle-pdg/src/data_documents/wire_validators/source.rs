@@ -12,7 +12,7 @@ pub(super) struct Checked<'a> {
     pub success_read: &'a HirNode,
 }
 
-pub(super) struct Reader<'a> {
+pub(in crate::data_documents) struct Reader<'a> {
     pub question: &'a HirNode,
     pub propagation: propagation::Checked<'a>,
     pub slice: &'a HirNode,
@@ -77,8 +77,16 @@ fn reader_source<'a>(
     question: &'a HirNode,
     facts: &'a dyn EvidenceFacts,
 ) -> Result<Reader<'a>, String> {
+    reader_source_for(question, facts, propagation::Mode::ReaderToScalar)
+}
+
+pub(in crate::data_documents) fn reader_source_for<'a>(
+    question: &'a HirNode,
+    facts: &'a dyn EvidenceFacts,
+    mode: propagation::Mode,
+) -> Result<Reader<'a>, String> {
     let propagation = propagation::verify(question, facts)?;
-    if propagation.mode != propagation::Mode::ReaderToScalar {
+    if propagation.mode != mode {
         return Err("Wire validator requires exact reader-to-scalar propagation".into());
     }
     let [slice, message] = propagation.operand.children.as_slice() else {
@@ -108,7 +116,9 @@ fn candidate(facts: &dyn EvidenceFacts) -> bool {
     })
 }
 
-fn binding_shape(binding: &crate::scalar_tuple_bindings::Checked<'_>) -> Result<(), String> {
+pub(in crate::data_documents) fn binding_shape(
+    binding: &crate::scalar_tuple_bindings::Checked<'_>,
+) -> Result<(), String> {
     if !matches!(binding.entries.as_slice(), [first, second]
         if first.position == 0 && second.position == 1 && first.token == "u32" && second.token == "usize")
     {
@@ -204,7 +214,7 @@ pub(super) fn syntax_roles(function: &syn::ItemFn) -> Result<(), String> {
     Ok(())
 }
 
-fn syntax_interface(function: &syn::ItemFn) -> Result<(), String> {
+pub(in crate::data_documents) fn syntax_interface(function: &syn::ItemFn) -> Result<(), String> {
     let signature = &function.sig;
     if !crate::source_evidence::literal_metadata(&function.attrs, "inline")
         || crate::source_evidence::has_body_attributes(&function.block)
@@ -491,7 +501,10 @@ fn read(node: &HirNode, binding: &HirNode) -> Result<(), String> {
     )
 }
 
-fn statement_order(facts: &dyn EvidenceFacts, syntax: &syn::ItemFn) -> Result<(), String> {
+pub(in crate::data_documents) fn statement_order(
+    facts: &dyn EvidenceFacts,
+    syntax: &syn::ItemFn,
+) -> Result<(), String> {
     if syntax.block.stmts.len() != facts.body.children.len() {
         return Err("Wire validator cannot omit original statements".into());
     }

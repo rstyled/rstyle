@@ -58,7 +58,8 @@ fn check_ordinary_function(facts: &dyn crate::unit_store::EvidenceFacts) -> Resu
     crate::range_values::verify_function(facts)?;
     let guarded_error = crate::data_documents::named_error_payloads::verify_source(facts)?
         || crate::data_documents::fallible_readers::verify_source(facts)?
-        || crate::data_documents::wire_validators::verify_source(facts)?;
+        || crate::data_documents::wire_validators::verify_source(facts)?
+        || crate::data_documents::reader_products::verify_source(facts)?;
     if !guarded_error {
         crate::concrete_results::verify_function(facts)?;
     }

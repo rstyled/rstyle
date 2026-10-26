@@ -44,6 +44,7 @@ mod product_instances;
 pub(crate) mod product_result_propagation;
 mod propagation;
 mod read_accesses;
+pub(crate) mod reader_products;
 mod reference_instances;
 mod reference_products;
 pub(crate) mod result_maps;

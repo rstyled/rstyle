@@ -1,7 +1,7 @@
 //! Complete fallible wire validators, preserving static error roots and effects.
-mod graph;
-mod origins;
-mod source;
+pub(super) mod graph;
+pub(super) mod origins;
+pub(super) mod source;
 #[cfg(test)]
 mod tests;
 

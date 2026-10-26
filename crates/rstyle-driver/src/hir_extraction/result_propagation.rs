@@ -91,6 +91,7 @@ impl<'tcx> Context<'tcx> {
             Protocol::ScalarResult,
             Protocol::NamedErrorResult(Mode::UnitToReader),
             Protocol::NamedErrorResult(Mode::ReaderToScalar),
+            Protocol::NamedErrorResult(Mode::ReaderToCopyProduct),
             Protocol::ProductResult,
         ]
         .into_iter()

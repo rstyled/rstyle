@@ -37,6 +37,33 @@ impl<'tcx> Context<'tcx> {
         })
     }
 
+    // Observation only: source ownership, builtin Copy and no-drop are checked
+    // independently after capture, never inferred from these scalar fields.
+    fn reader_copy_product(&self, output: Ty<'tcx>) -> bool {
+        let ty::Tuple(values) = output.kind() else {
+            return false;
+        };
+        let [product, count] = values.as_slice() else {
+            return false;
+        };
+        if *count != self.tcx.types.usize {
+            return false;
+        }
+
+        let ty::Adt(owner, arguments) = product.kind() else {
+            return false;
+        };
+        owner.is_struct()
+            && owner.did().is_local()
+            && arguments.is_empty()
+            && owner.non_enum_variant().fields.len() == 3
+            && owner
+                .non_enum_variant()
+                .fields
+                .iter()
+                .all(|field| field.ty(self.tcx, arguments).skip_norm_wip() == self.tcx.types.bool)
+    }
+
     fn named_error_payloads(&self, mode: Mode, input: Ty<'tcx>, output: Ty<'tcx>) -> bool {
         let tuple = |value: Ty<'tcx>| {
             matches!(value.kind(), ty::Tuple(values)
@@ -45,6 +72,7 @@ impl<'tcx> Context<'tcx> {
         match mode {
             Mode::UnitToReader => input.is_unit() && tuple(output),
             Mode::ReaderToScalar => tuple(input) && output == self.tcx.types.usize,
+            Mode::ReaderToCopyProduct => tuple(input) && self.reader_copy_product(output),
         }
     }
 }

@@ -5569,3 +5569,12 @@ No broader move/drop or unsafe-deserializer support follows. Next source-audited
 consumer: default-only `Flags::from_bytes`, requiring complete aggregate-success
 ownership and tuple→aggregate propagation.
 [Bounded contract and remaining blockers](eval/coverage-development/wire-fallible-readers/README.md).
+
+
+Data3.123 connects original `try_read_u32` → `dfa::dense::Flags::from_bytes`:
+independent Copy/no-drop success ownership, aggregate-result `?`, saved local
+fields/count and complete read/error/origin composition. Default203→204/2,582;
+no-default143/590 unchanged, zero losses. Strict historical comparisons and the
+frozen60 persist. General aggregate Results and unsafe DFA callers remain open.
+[Contract/oracle](eval/coverage-development/wire-flag-parser/README.md) and
+[validation/next connected frontier](docs/rust-support-execution.md).

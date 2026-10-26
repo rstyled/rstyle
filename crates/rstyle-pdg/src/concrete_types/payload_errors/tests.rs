@@ -47,6 +47,26 @@ fn scalar(name: &str) -> TypeTree {
     TypeTree::Scalar(name.into())
 }
 
+fn reader_success() -> TypeTree {
+    TypeTree::Tuple(vec![
+        TypeTree::Struct {
+            nominal: nominal("Flags"),
+            source: "struct Flags { a: bool, b: bool, c: bool }".into(),
+            fields: ["a", "b", "c"]
+                .into_iter()
+                .enumerate()
+                .map(|(position, name)| Field {
+                    position,
+                    name: name.into(),
+                    declaration: "bool".into(),
+                    ty: scalar("bool"),
+                })
+                .collect(),
+        },
+        scalar("usize"),
+    ])
+}
+
 #[test]
 fn bounded_success_observations_and_tokens_agree() {
     let error = error_tree();
@@ -55,10 +75,78 @@ fn bounded_success_observations_and_tokens_agree() {
         scalar("unit"),
         scalar("usize"),
         TypeTree::Tuple(vec![scalar("u32"), scalar("usize")]),
+        reader_success(),
     ] {
         assert!(observed(&success, &error));
         assert!(GRAMMAR.permits(&TypeToken::from_tree(&success), &token));
     }
+}
+
+#[test]
+fn reader_product_bounds_do_not_admit_adjacent_products() {
+    let error = error_tree();
+    for change in 0..9 {
+        let mut changed = reader_success();
+        let TypeTree::Tuple(values) = &mut changed else {
+            unreachable!()
+        };
+        match change {
+            0 => values.reverse(),
+            1 => values[1] = scalar("u32"),
+            2 => values.push(scalar("usize")),
+            3 => values[0] = TypeTree::Shared(Box::new(values[0].clone())),
+            4 => values[0] = TypeTree::Tuple(vec![scalar("bool"); 3]),
+            _ => {
+                let TypeTree::Struct { fields, .. } = &mut values[0] else {
+                    unreachable!()
+                };
+                match change {
+                    5 => {
+                        fields.pop();
+                    }
+                    6 => fields.push(fields[0].clone()),
+                    7 => fields[1].ty = scalar("u8"),
+                    _ => fields[1].ty = TypeTree::Shared(Box::new(scalar("bool"))),
+                }
+            }
+        }
+        assert!(!observed(&changed, &error), "change {change}");
+        assert!(
+            !reader_product(&TypeToken::from_tree(&changed)),
+            "change {change}"
+        );
+    }
+}
+
+#[test]
+fn generated_product_observation_is_not_an_ordinary_success_struct() {
+    let mut success = reader_success();
+    let TypeTree::Tuple(values) = &mut success else {
+        unreachable!()
+    };
+    let TypeTree::Struct {
+        nominal,
+        source,
+        fields,
+    } = values[0].clone()
+    else {
+        unreachable!()
+    };
+    values[0] = TypeTree::GeneratedStruct {
+        nominal,
+        template: source,
+        fields,
+        definition: Box::new(crate::generated_sources::capture::Definition {
+            path: "Flags".into(),
+            definition_identity: "generated-flags".into(),
+            crate_name: "shape-only".into(),
+            stable_crate_id: "shape-only".into(),
+            local: true,
+        }),
+    };
+    // Canonical tokens erase generation; the full observation retains this bound.
+    assert!(reader_product(&TypeToken::from_tree(&success)));
+    assert!(!observed(&success, &error_tree()));
 }
 
 #[test]
@@ -138,6 +226,7 @@ fn observations_do_not_grant_existing_copy_or_fresh_scalar_ownership() {
             TypeToken::Scalar("u32".into()),
             TypeToken::Scalar("usize".into()),
         ]),
+        TypeToken::from_tree(&reader_success()),
     ] {
         assert!(GRAMMAR.permits(&success, &error));
 

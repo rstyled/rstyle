@@ -99,6 +99,10 @@ pub(super) fn concrete_shape_for(shape: &Shape, mode: Mode) -> Result<(), String
     let payloads = match mode {
         Mode::UnitToReader => ("()", "(u32, usize)"),
         Mode::ReaderToScalar => ("(u32, usize)", "usize"),
+        Mode::ReaderToCopyProduct => {
+            product_payload(&shape.output_payload)?;
+            ("(u32, usize)", shape.output_payload.as_str())
+        }
     };
     if (shape.payload.as_str(), shape.output_payload.as_str()) != payloads
         || !result
@@ -122,4 +126,19 @@ pub(super) fn concrete_shape_for(shape: &Shape, mode: Mode) -> Result<(), String
         );
     }
     Ok(())
+}
+
+// Observed spelling is never ownership proof. The facts-stage verifier requires
+// the exact complete captured product token and independent Copy/no-drop receipts.
+fn product_payload(text: &str) -> Result<(), String> {
+    let ty: syn::Type = syn::parse_str(text).map_err(|error| error.to_string())?;
+    if matches!(ty, syn::Type::Tuple(tuple) if tuple.elems.len() == 2
+        && matches!(&tuple.elems[0], syn::Type::Path(path) if path.qself.is_none()
+            && path.path.segments.iter().all(|segment| matches!(segment.arguments, syn::PathArguments::None)))
+        && matches!(&tuple.elems[1], syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident("usize")))
+    {
+        Ok(())
+    } else {
+        Err("Product reader requires an exact nongeneric product/usize tuple".into())
+    }
 }

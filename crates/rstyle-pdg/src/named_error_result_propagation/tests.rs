@@ -242,3 +242,92 @@ fn transitions_keep_the_historical_success_vocabulary_and_document_meanings_sepa
             .all(|construct| !Mode::UnitToReader.constructs().contains(construct))
     );
 }
+
+fn product_witness() -> Value {
+    let mut value = validator_witness();
+    let output = "std::result::Result<(dfa::dense::Flags, usize), Error>";
+    value["identity"] = json!(capture::PRODUCT_IDENTITY);
+    value["shape"]["output"] = json!(output);
+    value["shape"]["output_payload"] = json!("(dfa::dense::Flags, usize)");
+    value["residual"]["arguments"][0] = json!(output);
+    value["residual"]["implementation_arguments"][0] = json!("(dfa::dense::Flags, usize)");
+    value["residual"]["output"] = json!(output);
+    value
+}
+
+#[test]
+fn product_reader_requires_exact_tuple_residual_and_same_error_conversion() {
+    let value = product_witness();
+    let parsed: Witness = serde_json::from_value(value.clone()).unwrap();
+    authority::signatures(&parsed).unwrap();
+    for (pointer, replacement) in [
+        ("/identity", json!(capture::VALIDATOR_IDENTITY)),
+        ("/identity", json!(capture::IDENTITY)),
+        ("/branch/implementation_arguments/0", json!("()")),
+        ("/residual/arguments/0", json!(parsed.shape.input)),
+        ("/residual/output", json!(parsed.shape.input)),
+        ("/residual/implementation_arguments/0", json!("usize")),
+        ("/residual/implementation_arguments/2", json!("OtherError")),
+        ("/conversion/arguments/1", json!("OtherError")),
+        (
+            "/conversion/implementation_arguments/0",
+            json!("OtherError"),
+        ),
+        ("/conversion/output", json!("OtherError")),
+        (
+            "/shape/control_flow",
+            json!("std::ops::ControlFlow<std::result::Result<!, Error>>"),
+        ),
+    ] {
+        let mut changed = value.clone();
+        *changed.pointer_mut(pointer).unwrap() = replacement;
+        assert!(
+            authority::signatures(&serde_json::from_value(changed).unwrap()).is_err(),
+            "{pointer}"
+        );
+    }
+}
+
+#[test]
+fn product_reader_observed_shape_cannot_authorize_other_payload_grammars() {
+    let original: Witness = serde_json::from_value(product_witness()).unwrap();
+    for payload in [
+        "Flags",
+        "(Flags, u64)",
+        "(usize, Flags)",
+        "(Flags, usize, usize)",
+        "(&Flags, usize)",
+        "(Flags<u8>, usize)",
+        "(<T as Trait>::Flags, usize)",
+        "([bool; 3], usize)",
+        "((bool, bool, bool), usize)",
+    ] {
+        let mut shape = original.shape.clone();
+        shape.output_payload = payload.into();
+        shape.output = format!("std::result::Result<{payload}, Error>");
+        assert!(
+            authority::concrete_shape_for(&shape, Mode::ReaderToCopyProduct).is_err(),
+            "{payload}"
+        );
+    }
+    for mode in [Mode::UnitToReader, Mode::ReaderToScalar] {
+        assert!(authority::concrete_shape_for(&original.shape, mode).is_err());
+        assert_ne!(mode.capability(), Mode::ReaderToCopyProduct.capability());
+        assert_ne!(mode.identity(), Mode::ReaderToCopyProduct.identity());
+        assert_ne!(mode.resolution(), Mode::ReaderToCopyProduct.resolution());
+        assert!(
+            Mode::ReaderToCopyProduct
+                .constructs()
+                .iter()
+                .all(|item| !mode.constructs().contains(item))
+        );
+    }
+    // These spelling checks provide no product ownership or Copy authority.
+    // Full facts-stage checks must independently identify the exact declaration.
+    for payload in ["(Flags, usize)", "(dfa::dense::Flags, usize)"] {
+        let mut shape = original.shape.clone();
+        shape.output_payload = payload.into();
+        shape.output = format!("std::result::Result<{payload}, Error>");
+        authority::concrete_shape_for(&shape, Mode::ReaderToCopyProduct).unwrap();
+    }
+}

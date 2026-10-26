@@ -68,18 +68,34 @@ pub(super) fn derive(
     ops: &graph::Operations<'_>,
 ) -> Result<BTreeMap<String, Value>, String> {
     let mut roles = scalar_roles(ops)?;
-    reference_roles(&mut roles, facts, checked, ops)?;
-    error_roles(&mut roles, checked, &ops.reader)?;
+    for (id, role) in reader_roles(facts, &checked.reader, &ops.reader, ops.inputs[0])? {
+        if roles.insert(id, role).is_some() {
+            return Err("Origin roles alias the same serialized operation".into());
+        }
+    }
 
     Ok(roles)
 }
 
-fn reference_roles(
-    roles: &mut BTreeMap<String, Value>,
+pub(in crate::data_documents) fn reader_roles(
     facts: &dyn EvidenceFacts,
-    checked: &source::Checked<'_>,
-    ops: &graph::Operations<'_>,
-) -> Result<(), String> {
+    source: &source::Reader<'_>,
+    ops: &graph::Reader<'_>,
+    input: &PdgNode,
+) -> Result<BTreeMap<String, Value>, String> {
+    let mut roles = reference_roles(facts, source, ops, input)?;
+    error_roles(&mut roles, source, ops)?;
+    Ok(roles)
+}
+
+fn reference_roles(
+    facts: &dyn EvidenceFacts,
+    source: &source::Reader<'_>,
+    ops: &graph::Reader<'_>,
+    input: &PdgNode,
+) -> Result<BTreeMap<String, Value>, String> {
+    let mut roles = BTreeMap::new();
+
     let formal = Origin {
         root: Root::Formal {
             parameter: 0,
@@ -87,9 +103,9 @@ fn reference_roles(
         },
         route: vec![Component::SharedReferent],
     };
-    for node in [ops.inputs[0], ops.reader.slice] {
+    for node in [input, ops.slice] {
         insert(
-            roles,
+            &mut roles,
             node,
             Carried {
                 role: "formal_reference",
@@ -99,26 +115,26 @@ fn reference_roles(
     }
     let literal = Origin {
         root: Root::StaticLiteral {
-            descriptor: &checked.reader.literal,
+            descriptor: &source.literal,
         },
         route: vec![Component::SharedReferent],
     };
     insert(
-        roles,
-        ops.reader.message,
+        &mut roles,
+        ops.message,
         Carried {
             role: "static_literal",
             origins: vec![literal],
         },
-    )
+    )?;
+    Ok(roles)
 }
 
 fn error_roles(
     roles: &mut BTreeMap<String, Value>,
-    checked: &source::Checked<'_>,
+    source: &source::Reader<'_>,
     ops: &graph::Reader<'_>,
 ) -> Result<(), String> {
-    let source = &checked.reader;
     let scope = call_scope(source, ops);
     let origin = Origin {
         root: Root::StaticLiteral {

@@ -2,8 +2,8 @@
 use super::*;
 use crate::concrete_types::{Field, VariantShape};
 
-/// Select only a complete observed error family. Every collected dependency is
-/// checked separately; the receipt confers no Copy or stored-value permission.
+/// Select a complete error family and, when separately activated, its exact
+/// success product. Every collected dependency receives its own proof.
 pub(in crate::nominal_boundary::resolution) fn selection(
     facts: &HirFnFacts,
     resolution: &Resolution,
@@ -18,9 +18,11 @@ pub(in crate::nominal_boundary::resolution) fn selection(
     let Observation::Captured { ty } = &interface.result else {
         return Ok(None);
     };
+    let product = reader_product(facts, ty)?;
     let error = match ty {
         TypeTree::Result { ok, err }
-            if matches!(ok.as_ref(), TypeTree::Scalar(value) if value == "usize")
+            if product.is_some()
+                || matches!(ok.as_ref(), TypeTree::Scalar(value) if value == "usize")
                 || supports(facts, crate::named_error_result_propagation::CAPABILITY)?
                     && crate::named_error_result_propagation::success(
                         &crate::data_types::TypeToken::from_tree(ok),
@@ -42,12 +44,26 @@ pub(in crate::nominal_boundary::resolution) fn selection(
     }
     verify(facts, resolution, error)?;
 
+    Ok(Some(select_dependencies(facts, resolution, product)?))
+}
+
+fn select_dependencies(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    product: Option<&TypeTree>,
+) -> Result<super::super::Selection, String> {
     let mut selection = super::super::Selection::default();
     for (key, tree) in &resolution.trees {
-        verify(facts, resolution, tree)?;
+        if product == Some(tree) {
+            let origins = facts.build.frontend_options.data::<Origins>()?;
+            copy_products::verify(facts, tree, resolution, &origins)?;
+            selection.copies.insert(key.clone());
+        } else {
+            verify(facts, resolution, tree)?;
+        }
         selection.no_drop.insert(key.clone());
     }
-    Ok(Some(selection))
+    Ok(selection)
 }
 
 pub(in crate::nominal_boundary::resolution) fn function_namespace(
@@ -75,6 +91,9 @@ pub(in crate::nominal_boundary::resolution) fn function_namespace(
     }
 
     let certificate = verify(facts, resolution, error)?;
+    if let Some(product) = reader_product(facts, ty)? {
+        return product_namespace(facts, resolution, namespace, product);
+    }
     let mut owner: Namespace = certificate
         .nominal()
         .definition_path
@@ -85,6 +104,56 @@ pub(in crate::nominal_boundary::resolution) fn function_namespace(
     if owner != namespace {
         return Err("Fresh named error callable is outside its checked cleanup namespace".into());
     }
+    super::super::check_namespace_with_closure(
+        facts,
+        &resolution.environment,
+        namespace,
+        Some(&certificate),
+    )?;
+    Ok(true)
+}
+
+fn reader_product<'a>(
+    facts: &HirFnFacts,
+    result: &'a TypeTree,
+) -> Result<Option<&'a TypeTree>, String> {
+    if !supports(facts, crate::reader_products::CAPABILITY)? {
+        return Ok(None);
+    }
+    let TypeTree::Result { ok, .. } = result else {
+        return Ok(None);
+    };
+    if !crate::reader_products::shape(&crate::data_types::TypeToken::from_tree(ok)) {
+        return Ok(None);
+    }
+    let TypeTree::Tuple(values) = ok.as_ref() else {
+        return Ok(None);
+    };
+
+    Ok(match values.as_slice() {
+        [product @ TypeTree::Struct { .. }, TypeTree::Scalar(size)] if size == "usize" => {
+            Some(product)
+        }
+        _ => None,
+    })
+}
+
+fn product_namespace(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    namespace: &[String],
+    product: &TypeTree,
+) -> Result<bool, String> {
+    let observation = copy_owners::source::observation(facts)?
+        .ok_or("Reader product requires its exact original inherent observation")?;
+    let owner = copy_owners::source::resolve(facts, resolution, &observation)?
+        .ok_or("Reader product requires its independently resolved inherent owner")?;
+    if owner.root != *product || owner.namespace != namespace {
+        return Err("Reader product callable differs from its exact original success owner".into());
+    }
+
+    let origins = facts.build.frontend_options.data::<Origins>()?;
+    let certificate = copy_products::verify(facts, product, resolution, &origins)?;
     super::super::check_namespace_with_closure(
         facts,
         &resolution.environment,

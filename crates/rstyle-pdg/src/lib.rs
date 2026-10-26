@@ -96,6 +96,7 @@ pub mod product_constant_values;
 pub mod product_instances;
 pub mod product_result_propagation;
 pub mod range_values;
+mod reader_products;
 pub mod reference_instances;
 pub mod result_propagation;
 pub mod scalar_constants;

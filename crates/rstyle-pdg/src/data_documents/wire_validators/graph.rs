@@ -11,7 +11,7 @@ pub(super) struct Operations<'a> {
     pub tail: Tail<'a>,
 }
 
-pub(super) struct Reader<'a> {
+pub(in crate::data_documents) struct Reader<'a> {
     pub slice: &'a PdgNode,
     pub message: &'a PdgNode,
     pub call: &'a PdgNode,
@@ -114,7 +114,7 @@ fn operations<'a>(
     })
 }
 
-fn reader_operations<'a>(
+pub(in crate::data_documents) fn reader_operations<'a>(
     pair: PairView<'a>,
     checked: &source::Reader<'_>,
 ) -> Result<Reader<'a>, String> {
@@ -383,7 +383,7 @@ fn sequences(pair: PairView<'_>, ops: &Operations<'_>) -> Result<(), String> {
     Ok(())
 }
 
-fn literal(
+pub(in crate::data_documents) fn literal(
     node: &PdgNode,
     descriptor: &crate::static_string_values::Descriptor,
 ) -> Result<(), String> {

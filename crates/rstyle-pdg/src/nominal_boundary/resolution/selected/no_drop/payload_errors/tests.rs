@@ -2,6 +2,8 @@
 use super::*;
 use crate::concrete_types::{MixedVariant, Nominal};
 
+mod reader_products;
+
 fn nominal(name: &str, source: &str) -> Nominal {
     Nominal {
         source_identity: Some("source-only".into()),

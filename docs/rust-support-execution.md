@@ -1789,3 +1789,36 @@ Evidence: `/tmp/rstyle-453-{default,no-default}-comparison.json`,
 Next: source-selected default-only `Flags::from_bytes`, requiring aggregate
 success ownership/construction and tuple→aggregate propagation. Validator callers
 are unsafe DFA deserializers; broader coverage and rewrite safety remain open.
+
+
+Data3.123 / bounded aggregate reader integration (151 capabilities). Original
+`try_read_u32` → `Flags::from_bytes` now admits with actual builtin Copy/no-drop
+proof, exact tuple→aggregate propagation, saved field/count computations and
+complete guarded error/read/panic origins. Default203→204/2,582: sole gain Flags;
+no-default143/590 unchanged, zero losses. Strict694 imports/347 self-comparisons/
+30,859 complete cross-pairs preserve all30,656 historical records. Frozen60
+identities/outcomes/reasons/blockers/denominators,118 Data documents and older
+profiles are unchanged (24 admitted/29 excluded/7 inactive).
+
+Independent whole-original oracle82,368 cases × two default debug-assertions
+contexts passes; foreign native CI is unrun. Full2,250 tests/5 existing skips,
+doctests, fmt/Clippy, rstyle0/7,660 and patterns0 pass;15 ignores unchanged.
+New fixture7.83s in the full run; typed adversaries retain original serialized
+replay without repeated seals. No new runtime hashes or serialized cache keys.
+Capture default231.85s/1,797,360KiB; no-default30.21s/401,892KiB. Strict replay
+224.61s/6,213,304KiB and41.96s/1,347,744KiB respectively; whole-unit replay memory
+remains open. Evidence: `/tmp/rstyle-454-{default,no-default}-comparison.json`,
+`/tmp/rstyle-454-{strict,frozen}-comparison.json`, `/tmp/rstyle-454-oracle.json`,
+`/tmp/rstyle-454-nextest-final.log`, `/tmp/rstyle-454-{style,patterns}-final.json`.
+
+Next source-audited candidate: original wire `read_state_id`,
+`try_read_state_id`, `read_pattern_id` and their two error constructors in both
+unchanged contexts. Decoder summaries and generated-error no-drop proofs already
+exist; confirm their selected call/import and associated-SIZE receipts before
+redesigning. Remaining chain: capturing `map_err`, one-use owned error + static
+string construction, nominal tuple-success propagation and complete bounds/read/
+panic composition. Direct readers must retain short-input panics; the checked
+wrapper returns BufferTooSmall first. Higher consumers add mutable stored
+closures/cursor state or loops. Freeze source identities/expectations and resolve
+remaining receipt/type-observation unknowns before production edits. Broad goal
+remains active; no general moves/drop, unsafe, detector-quality or rewrite claim.
