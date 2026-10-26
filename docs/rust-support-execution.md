@@ -1504,3 +1504,32 @@ Broad coverage goal remains active.
 Frozen run-u89zcvsw verifies118 Data documents and matches run-luj4fm3q:
 all60 identities/results/blockers/denominators unchanged at24/29/7; R0 and
 expanded also match. `/tmp/rstyle-443-frozen-comparison.json` retains the comparison.
+
+
+Data3.118 connects all eight original PatternID/StateID unsigned TryFrom
+wrappers through the complete three-call chain and independently verified
+SmallIndex implementation. Exact requested/selected identities, substitutions,
+lexical ownership, Copy success and no-drop error remain required. Cheap raw
+candidate indexing precedes owning-unit proof; no new hashes or serialized
+lookup keys. Native no-default admissions123→131/590: eight gains, zero losses,
+all source identities/build contexts unchanged.
+
+Full suite2,158 passes/5 existing skips plus doctests; fmt/Clippy clean;
+style0/7,156 and patterns0/15 unchanged ignores. Positive composition4.802s
+(one sample),288 adversarial mutations plus selected-body corruption, historical
+policy and mixed-owner negatives. Independent original oracle270,438 checks per
+context across four feature/debug contexts, zero mismatches. All131 admissions
+pass original/replay verification (262 imports); complete8,515 comparisons retain
+all7,503 historical pair records exactly. All28 new-family pairs are structurally
+Accepted at1, including cross-width inputs: no behavioral equivalence or rewrite
+safety claim. Frozen run-lz6j5gtm matches run-u89zcvsw: all60 identities/results,
+blockers/denominators at24/29/7,118 Data documents; R0/expanded unchanged.
+
+Remaining frontier: audit complete transitive callers and their guarded payload
+consumption before extending summaries. Imported generated payload aliases,
+unresolved neighboring macros, generic instances and broader cleanup remain
+closed; PatternID::must still needs expect/formatting/panic evidence. Do not
+count these eight wrappers as supporting their higher callers. Broad goal active.
+[Contract](../eval/coverage-development/generated-index-conversions/README.md).
+Evidence: `/tmp/rstyle-444-{comparison.json,strict-comparison.json,oracle.json,
+frozen-comparison.json,nextest.log,clippy.log,style.json,patterns.json}`.

@@ -288,6 +288,9 @@ pub(crate) fn call_link(
     node: &crate::HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Option<serde_json::Value> {
+    if let Some(link) = crate::result_maps::trait_leaf::link(node, facts) {
+        return Some(link);
+    }
     let association = call_association(node, facts)?;
 
     Some(association_resolution(&association))
@@ -342,6 +345,9 @@ pub(crate) fn call_resolution(
     node: &crate::HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Option<serde_json::Value> {
+    if let Some(link) = crate::result_maps::trait_leaf::resolution(node, facts) {
+        return Some(link);
+    }
     let association = call_association(node, facts)?;
     let resolution = facts.nominal_resolution().ok()?;
     let owner = syn::TypePath {

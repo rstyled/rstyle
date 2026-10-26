@@ -98,3 +98,10 @@ fn observation(facts: &HirFnFacts) -> Result<Option<model::Observation>, String>
 
     Ok(Some(observation))
 }
+
+/// Original owning member proof only; surrounding helper validation supplies effects.
+pub(crate) fn verified_member(facts: &HirFnFacts) -> Result<model::Observation, String> {
+    let observation = observation(facts)?.ok_or("Missing selected TryFrom owner")?;
+    owner::verify(facts, &observation, &RegistryAuthority)?;
+    Ok(observation)
+}

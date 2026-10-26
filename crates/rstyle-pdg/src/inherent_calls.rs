@@ -2,6 +2,7 @@
 mod digit_forwarders;
 pub(crate) mod lifetimes;
 mod result_maps;
+pub(crate) use result_maps::{call_owner as generated_call_owner, leaf as generated_leaf_source};
 
 use crate::{ByteSpan, HirFnFacts, HirNode, data_types::TypeToken};
 use serde::{Deserialize, Serialize};

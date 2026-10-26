@@ -701,7 +701,10 @@ fn requested_member(
         .dispatch
         .as_ref()
         .ok_or("Missing resolved helper signature")?;
-    Ok(if resolution.get("tryfrom_requested").is_some() {
+    Ok(if resolution.get("generated_tryfrom_requested").is_some() {
+        crate::result_maps::trait_leaf::verify_selection(node, caller, callee, resolution)?;
+        resolution["generated_tryfrom_requested"].as_str() == Some(dispatch.op.as_str())
+    } else if resolution.get("tryfrom_requested").is_some() {
         crate::tryfrom_calls::verify_selection(
             crate::tryfrom_calls::SelectionInput {
                 node,

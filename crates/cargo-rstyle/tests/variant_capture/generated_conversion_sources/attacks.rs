@@ -91,3 +91,85 @@ pub(super) fn source(original: &HirFnFacts) {
         );
     }
 }
+
+pub(super) fn calls(original: &HirFnFacts) {
+    for (path, value) in [
+        ("/status", json!("unsupported")),
+        ("/expanded", json!(false)),
+        ("/span/start", json!(999)),
+        ("/requested/definition_identity", json!("foreign")),
+        ("/selected/stable_crate_id", json!("foreign")),
+        ("/requested_arguments/1/identity/name", json!("u8")),
+        (
+            "/requested_arguments/0/identity/definition/path",
+            json!("Other"),
+        ),
+        ("/selected_arguments", json!([{}])),
+        ("/signature/inputs", json!(["u8"])),
+        ("/signature/output", json!("()")),
+    ] {
+        let mut changed = original.clone();
+        let inventory = changed
+            .build
+            .frontend_options
+            .get_mut("rstyle.rust.call-instances")
+            .unwrap();
+        let call = inventory["calls"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|call| {
+                call["requested"]["path"]
+                    .as_str()
+                    .unwrap()
+                    .ends_with("TryFrom::try_from")
+            })
+            .unwrap();
+        *call.pointer_mut(path).unwrap() = value;
+        assert!(probe(&changed).is_err(), "accepted changed leaf {path}");
+    }
+    roster(original);
+}
+
+fn roster(original: &HirFnFacts) {
+    for mutation in 0..3 {
+        let mut changed = original.clone();
+        let inventory = changed
+            .build
+            .frontend_options
+            .get_mut("rstyle.rust.call-instances")
+            .unwrap();
+        match mutation {
+            0 => inventory["complete"] = false.into(),
+            1 => {
+                inventory["calls"].as_array_mut().unwrap().pop();
+            }
+            2 => {
+                let call = inventory["calls"][2].clone();
+                inventory["calls"].as_array_mut().unwrap().push(call);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            probe(&changed).is_err(),
+            "accepted changed call roster {mutation}"
+        );
+    }
+}
+
+pub(super) fn selected_body(entry: &Value) {
+    crate::shared_evidence::reject_edit(entry, |bundle, index| {
+        let calls = bundle["functions"][index]["build"]["frontend_options"]
+            ["rstyle.rust.call-instances"]["calls"].as_array_mut().unwrap();
+        let leaf = calls
+            .iter_mut()
+            .find(|call| {
+                call["requested"]["path"]
+                    .as_str()
+                    .unwrap()
+                    .ends_with("TryFrom::try_from")
+            })
+            .unwrap();
+        leaf["selected"]["definition_identity"] = "another-selected-body".into();
+    });
+}

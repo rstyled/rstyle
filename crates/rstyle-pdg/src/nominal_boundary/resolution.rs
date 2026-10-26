@@ -1711,6 +1711,11 @@ pub fn probe_generated_conversion_source(
         },
         &environment,
     )?;
+    if crate::extraction_profile::facts_support(facts, crate::result_maps::trait_leaf::CAPABILITY) {
+        crate::result_maps::request::verify(facts.facts(), &member)?
+            .ok_or("Generated conversion lacks its complete raw transport request")?;
+    }
+
     Ok(member.roles().len())
 }
 

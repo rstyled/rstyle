@@ -17,6 +17,7 @@ pub(crate) struct TransportRequest {
     roles: Vec<Role>,
     leaf: HirRef,
     root: HirRef,
+    trait_leaf: Option<crate::tryfrom_calls::model::Call>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,6 +29,10 @@ struct Role {
 }
 
 impl TransportRequest {
+    pub(crate) fn trait_leaf(&self) -> Option<&crate::tryfrom_calls::model::Call> {
+        self.trait_leaf.as_ref()
+    }
+
     pub(crate) fn result_types(&self) -> [&TypeTree; 3] {
         [&self.results[0], &self.results[1], &self.results[2]]
     }
@@ -67,7 +72,12 @@ pub(crate) fn verify(
     }
     let chain = shape::chain(facts)?;
     let results = results(facts)?;
-    let calls = calls(facts, [&chain.map.hir, &chain.root.hir])?;
+    let trait_leaf = super::trait_leaf::capture(facts, member, &results[0], chain.leaf)?;
+    let calls = calls(
+        facts,
+        [&chain.map.hir, &chain.root.hir],
+        trait_leaf.is_some(),
+    )?;
     identities::verify(facts, &calls)?;
     let constructors = substitutions(&results, &calls)?;
     exact_types(&chain, &results)?;
@@ -76,6 +86,7 @@ pub(crate) fn verify(
 
     Ok(Some(TransportRequest {
         results,
+        trait_leaf,
         constructors,
         calls,
         roles,
@@ -137,7 +148,7 @@ fn results(facts: &HirFnFacts) -> Result<[TypeTree; 3], String> {
     ])
 }
 
-fn calls(facts: &HirFnFacts, hirs: [&HirRef; 2]) -> Result<[Call; 2], String> {
+fn calls(facts: &HirFnFacts, hirs: [&HirRef; 2], conversion: bool) -> Result<[Call; 2], String> {
     let raw = facts
         .build
         .frontend_options
@@ -147,7 +158,7 @@ fn calls(facts: &HirFnFacts, hirs: [&HirRef; 2]) -> Result<[Call; 2], String> {
     if inventory.identity != "rstyle.rust.call-instance-observations/1"
         || !inventory.complete
         || inventory.scope.is_empty()
-        || inventory.calls.len() != 2
+        || inventory.calls.len() != if conversion { 3 } else { 2 }
     {
         return Err("Incomplete constructor transport call-instance roster".into());
     }

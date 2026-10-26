@@ -1,6 +1,6 @@
 {
   "identity": "rstyle.development.generated-index-conversions/1",
-  "status": "source-selected; diagnostic source evidence only; no admission activation",
+  "status": "source-selected; connected under Data3.118 in the measured native no-default context",
   "package": {
     "name": "regex-automata",
     "version": "0.4.18",
@@ -74,7 +74,7 @@
       "start": 26841,
       "end": 26919,
       "checksum": "xxh3-64:df5e769e704470fe",
-      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; complete admission awaits independent lexical/cleanup and leaf-call transport proof"
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
     },
     {
       "name": "<util::primitives::PatternID as core::convert::TryFrom<u32>>::try_from",
@@ -83,7 +83,7 @@
       "start": 26841,
       "end": 26919,
       "checksum": "xxh3-64:df5e769e704470fe",
-      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; complete admission awaits independent lexical/cleanup and leaf-call transport proof"
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
     },
     {
       "name": "<util::primitives::PatternID as core::convert::TryFrom<u64>>::try_from",
@@ -92,7 +92,7 @@
       "start": 26841,
       "end": 26919,
       "checksum": "xxh3-64:df5e769e704470fe",
-      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; complete admission awaits independent lexical/cleanup and leaf-call transport proof"
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
     },
     {
       "name": "<util::primitives::PatternID as core::convert::TryFrom<usize>>::try_from",
@@ -101,7 +101,7 @@
       "start": 26841,
       "end": 26919,
       "checksum": "xxh3-64:df5e769e704470fe",
-      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; complete admission awaits independent lexical/cleanup and leaf-call transport proof"
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
     },
     {
       "name": "<util::primitives::StateID as core::convert::TryFrom<u16>>::try_from",
@@ -110,7 +110,7 @@
       "start": 26921,
       "end": 26991,
       "checksum": "xxh3-64:bd1b7923afe4fc85",
-      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; complete admission awaits independent lexical/cleanup and leaf-call transport proof"
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
     },
     {
       "name": "<util::primitives::StateID as core::convert::TryFrom<u32>>::try_from",
@@ -119,7 +119,7 @@
       "start": 26921,
       "end": 26991,
       "checksum": "xxh3-64:bd1b7923afe4fc85",
-      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; complete admission awaits independent lexical/cleanup and leaf-call transport proof"
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
     },
     {
       "name": "<util::primitives::StateID as core::convert::TryFrom<u64>>::try_from",
@@ -128,7 +128,7 @@
       "start": 26921,
       "end": 26991,
       "checksum": "xxh3-64:bd1b7923afe4fc85",
-      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; complete admission awaits independent lexical/cleanup and leaf-call transport proof"
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
     },
     {
       "name": "<util::primitives::StateID as core::convert::TryFrom<usize>>::try_from",
@@ -137,7 +137,7 @@
       "start": 26921,
       "end": 26991,
       "checksum": "xxh3-64:bd1b7923afe4fc85",
-      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; complete admission awaits independent lexical/cleanup and leaf-call transport proof"
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
     }
   ],
   "generated_members": [
@@ -148,7 +148,7 @@
       "end": 21474,
       "checksum": "xxh3-64:95ac6f2423436f1c",
       "source": "impl TryFrom<u16> for $name {\n            type Error = $err;\n\n            fn try_from(value: u16) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
-      "expected_source_classification": "in-scope for diagnostic source association; admission requires lexical/cleanup and complete selected-call transport proof"
+      "expected_source_classification": "in-scope for exact source association and complete selected-call transport; no general macro or trait permission"
     },
     {
       "name": "PatternID/StateID TryFrom<u32> template",
@@ -157,7 +157,7 @@
       "end": 21699,
       "checksum": "xxh3-64:c13385dcda3f0b27",
       "source": "impl TryFrom<u32> for $name {\n            type Error = $err;\n\n            fn try_from(value: u32) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
-      "expected_source_classification": "in-scope for diagnostic source association; admission requires lexical/cleanup and complete selected-call transport proof"
+      "expected_source_classification": "in-scope for exact source association and complete selected-call transport; no general macro or trait permission"
     },
     {
       "name": "PatternID/StateID TryFrom<u64> template",
@@ -166,7 +166,7 @@
       "end": 21924,
       "checksum": "xxh3-64:b69ae735393564eb",
       "source": "impl TryFrom<u64> for $name {\n            type Error = $err;\n\n            fn try_from(value: u64) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
-      "expected_source_classification": "in-scope for diagnostic source association; admission requires lexical/cleanup and complete selected-call transport proof"
+      "expected_source_classification": "in-scope for exact source association and complete selected-call transport; no general macro or trait permission"
     },
     {
       "name": "PatternID/StateID TryFrom<usize> template",
@@ -175,7 +175,7 @@
       "end": 22153,
       "checksum": "xxh3-64:d2b69908d4346350",
       "source": "impl TryFrom<usize> for $name {\n            type Error = $err;\n\n            fn try_from(value: usize) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
-      "expected_source_classification": "in-scope for diagnostic source association; admission requires lexical/cleanup and complete selected-call transport proof"
+      "expected_source_classification": "in-scope for exact source association and complete selected-call transport; no general macro or trait permission"
     }
   ],
   "expectations": {
@@ -198,5 +198,6 @@
     "complete original lexical/nominal and no-drop ownership",
     "exact third trait-selected leaf call through existing Result constructor maps",
     "complete real Cargo, strict replay, matching and unchanged-selection measurement"
-  ]
+  ],
+  "blocker_chain_status": "connected for the eight declared originals in the measured native no-default context; broader callers require separate complete evidence"
 }

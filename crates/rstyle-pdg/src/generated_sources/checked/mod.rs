@@ -90,14 +90,22 @@ pub(crate) fn verify_in(
     input: Input<'_>,
     environment: &crate::nominal_boundary::resolution::Environment,
 ) -> Result<CheckedMember, String> {
+    let conversion = crate::extraction_profile::facts_support(
+        input.facts,
+        crate::result_maps::trait_leaf::CAPABILITY,
+    ) && input
+        .facts
+        .build
+        .frontend_options
+        .contains_key("rstyle.rust.generated-conversion-member");
     verify_using(
         input,
         |source| source::verify_compiler_in(source, environment),
-        false,
+        conversion,
     )
 }
 
-/// Diagnostic source association only; production callable routing stays closed.
+/// Diagnostic source association, independent of production capability routing.
 pub(crate) fn verify_conversion_in(
     input: Input<'_>,
     environment: &crate::nominal_boundary::resolution::Environment,

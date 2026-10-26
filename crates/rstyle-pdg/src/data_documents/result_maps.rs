@@ -34,6 +34,18 @@ pub(crate) fn verify_document_policy(
 ) -> Result<(), String> {
     crate::extraction_profile::require_document(
         profile,
+        result_maps::trait_leaf::CAPABILITY,
+        || {
+            facts
+                .build
+                .frontend_options
+                .contains_key("rstyle.rust.generated-conversion-member")
+                && result_maps::tail_candidate(facts)
+        },
+        "Generated TryFrom maps require their registered document policy",
+    )?;
+    crate::extraction_profile::require_document(
+        profile,
         result_maps::CAPABILITY,
         || facts.body.any(&|node| result_maps::candidate(node, facts)),
         "Constructor Result maps require their registered document policy",

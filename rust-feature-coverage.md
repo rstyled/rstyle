@@ -5476,3 +5476,17 @@ PatternID/StateID TryFrom wrappers. This grants no callable or cleanup authority
 native no-default admissions remain123/590, zero gains/losses. Next connect the
 complete three-call roster and lexical/no-drop ownership through the existing
 Result constructor transport. [Contract](eval/coverage-development/generated-index-conversions/README.md).
+
+
+Data3.118 completes those eight original PatternID/StateID unsigned TryFrom
+wrappers: exact three-call selection composes with existing Result constructor
+transport, lexical ownership and no-drop error proof. Native no-default
+admissions123→131/590, eight gains/zero losses; historical source/build identities
+and all7,503 previous pair results persist. Full suite2,158 passes, fmt/Clippy
+clean, style/patterns zero; independent oracle has zero mismatches in four
+contexts. Frozen60 unchanged at24/29/7. The structural matcher accepts all28
+wrapper pairs, including different input widths; extraction coverage establishes
+neither behavioral equivalence nor rewrite safety. Higher transitive callers,
+guarded payloads and broader cleanup remain separate.
+[Contract](eval/coverage-development/generated-index-conversions/README.md) and
+[validation/frontier](docs/rust-support-execution.md).

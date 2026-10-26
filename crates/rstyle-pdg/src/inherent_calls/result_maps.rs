@@ -45,7 +45,7 @@ pub(super) fn verify(
     Ok(Some(true))
 }
 
-fn leaf(function: &syn::ImplItemFn) -> Result<&syn::ExprCall, String> {
+pub(crate) fn leaf(function: &syn::ImplItemFn) -> Result<&syn::ExprCall, String> {
     let [syn::Stmt::Expr(syn::Expr::MethodCall(outer), None)] = function.block.stmts.as_slice()
     else {
         return Err("Generated helper requires one whole transport expression".into());
@@ -74,6 +74,22 @@ fn leaf(function: &syn::ImplItemFn) -> Result<&syn::ExprCall, String> {
 }
 
 fn owner(call: &syn::ExprCall, selected: &str, nominal: &Nominal) -> Result<syn::TypePath, String> {
+    let source = call_owner(call)?;
+    if selected != format!("{}::{}", nominal.definition_path, source.method) {
+        return Err(
+            "Generated helper selected definition differs from its exact source owner/method"
+                .into(),
+        );
+    }
+    Ok(source.owner)
+}
+
+pub(crate) struct SourceCall {
+    pub owner: syn::TypePath,
+    pub method: String,
+}
+
+pub(crate) fn call_owner(call: &syn::ExprCall) -> Result<SourceCall, String> {
     let syn::Expr::Path(path) = call.func.as_ref() else {
         return Err("Generated helper callee is not a concrete static path".into());
     };
@@ -83,10 +99,7 @@ fn owner(call: &syn::ExprCall, selected: &str, nominal: &Nominal) -> Result<syn:
     let method = names
         .last()
         .ok_or("Generated helper callee has no method")?;
-    if path.qself.is_some()
-        || names.len() < 2
-        || selected != format!("{}::{method}", nominal.definition_path)
-    {
+    if path.qself.is_some() || names.len() < 2 {
         return Err(
             "Generated helper selected definition differs from its exact source owner/method"
                 .into(),
@@ -96,9 +109,12 @@ fn owner(call: &syn::ExprCall, selected: &str, nominal: &Nominal) -> Result<syn:
     owner.segments.pop();
     owner.segments.pop_punct();
 
-    Ok(syn::TypePath {
-        qself: None,
-        path: owner,
+    Ok(SourceCall {
+        owner: syn::TypePath {
+            qself: None,
+            path: owner,
+        },
+        method: method.clone(),
     })
 }
 

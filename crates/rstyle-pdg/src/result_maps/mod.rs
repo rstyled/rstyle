@@ -5,6 +5,7 @@ mod ownership;
 pub(crate) mod request;
 mod shape;
 pub(crate) mod source;
+pub(crate) mod trait_leaf;
 pub(crate) mod types;
 
 use crate::{HirNode, concrete_types::TypeTree, unit_store::EvidenceFacts};
