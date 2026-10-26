@@ -14,7 +14,7 @@ fn syntax(bytes: &str) -> Result<syntax::Paths, String> {
             _ => None,
         })
         .ok_or("Missing method")?;
-    syntax::implementation(&item, method)
+    syntax::implementation(&item, method, "usize")
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn substitution_identity_cannot_be_inferred_from_usize_display() {
     let checked = |value: Value| -> Result<(), String> {
         let argument: model::Argument =
             serde_json::from_value(value).map_err(|error| error.to_string())?;
-        owner::usize_type(argument.known()?)
+        super::input::structural(argument.known()?, "usize")
     };
     assert!(checked(baseline.clone()).is_ok());
     for (key, value) in [
@@ -233,4 +233,65 @@ fn core_names_do_not_replace_mandatory_independent_authority() {
             .verify(&facts(), CoreRole::Trait, &definition)
             .is_err()
     );
+}
+
+#[test]
+fn unsigned_source_input_must_agree_with_trait_and_parameter() {
+    for input in ["usize", "u16", "u32", "u64"] {
+        let original = IMPL.replace("usize", input);
+        let item: syn::ItemImpl = syn::parse_str(&original).unwrap();
+        let syn::ImplItem::Fn(method) = &item.items[1] else {
+            panic!("method")
+        };
+        syntax::implementation(&item, method, input).unwrap();
+        for other in ["usize", "u16", "u32", "u64", "i32", "bool"] {
+            if input != other {
+                assert!(syntax::implementation(&item, method, other).is_err());
+            }
+        }
+    }
+}
+
+#[test]
+fn added_unsigned_inputs_require_their_registered_profile() {
+    let mut facts = facts();
+    facts.signature.params = vec![crate::ParamFact {
+        symbol: "input".into(),
+        position: 0,
+        name_span: node().span,
+        ty_span: node().span,
+        ty: crate::ResolvedTy {
+            normalized: Some("usize".into()),
+            observed: "usize".into(),
+            spelling: "usize".into(),
+        },
+        pat: node(),
+    }];
+    let mut historical = crate::extraction_profile::ExtractionProfile::DataV3.policy();
+    historical.version = "3.116.0".into();
+    assert!(!crate::extraction_profile::policy_supports(
+        &historical,
+        super::input::CAPABILITY
+    ));
+    for scalar in ["u16", "u32", "u64"] {
+        facts.signature.params[0].ty.normalized = Some(scalar.into());
+        facts
+            .build
+            .frontend_options
+            .insert("extraction_profile".into(), json!("hir-data-v3"));
+        assert_eq!(super::input::captured(&facts).unwrap(), scalar);
+        facts
+            .build
+            .frontend_options
+            .insert("extraction_profile".into(), json!("hir-data-v2"));
+        assert!(super::input::captured(&facts).is_err());
+    }
+    for scalar in ["i64", "bool", "u8", "u128", "T", ""] {
+        facts.signature.params[0].ty.normalized = Some(scalar.into());
+        facts
+            .build
+            .frontend_options
+            .insert("extraction_profile".into(), json!("hir-data-v3"));
+        assert!(super::input::captured(&facts).is_err());
+    }
 }

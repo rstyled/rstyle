@@ -61,7 +61,7 @@ pub(super) fn sources(registry: &Registry) -> Result<(), String> {
     // Source pins are reviewed semantic contracts, not routine byte checks.
     // In this exact source, the 64-bit ptr impl uses impl_try_from_unbounded!
     // directly for usize=>u64 and through rev!(..., usize=>u32,u64) for
-    // u32=>usize. Both expand to Error=TryFromIntError and Ok(value as Self);
+    // u32=>usize and u64=>usize. These expand to Error=TryFromIntError and Ok(value as Self);
     // no error value is ever constructed. Other target configurations differ.
     for (file, expected) in SOURCES {
         let actual = registry

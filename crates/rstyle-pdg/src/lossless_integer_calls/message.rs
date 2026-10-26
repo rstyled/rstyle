@@ -7,9 +7,13 @@ pub(crate) fn verify(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<bool, 
     if node.kind != "expr_lit"
         || node.ty.as_ref().and_then(|ty| ty.normalized.as_deref())
             != Some("{\"kind\":\"shared\",\"value\":{\"kind\":\"str\"}}")
-        || ![CAPABILITY, U32_USIZE_CAPABILITY]
-            .into_iter()
-            .any(|capability| crate::extraction_profile::facts_support(facts, capability))
+        || ![
+            CAPABILITY,
+            U32_USIZE_CAPABILITY,
+            crate::tryfrom_calls::input::CAPABILITY,
+        ]
+        .into_iter()
+        .any(|capability| crate::extraction_profile::facts_support(facts, capability))
     {
         return Ok(false);
     }

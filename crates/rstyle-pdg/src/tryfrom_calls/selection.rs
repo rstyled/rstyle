@@ -89,7 +89,7 @@ fn checked_call(
     owner::local(caller, &call.selected)?;
     let (success, _) = super::result(caller)?;
     let [self_argument, input] = call.requested_arguments.as_slice() else {
-        return Err("TryFrom call requires concrete Self and usize substitutions".into());
+        return Err("TryFrom call requires concrete Self and exact unsigned substitutions".into());
     };
     let nominal = success
         .nominal_parts()
@@ -97,7 +97,7 @@ fn checked_call(
         .0;
     let self_definition = owner::nominal(self_argument.known()?, nominal)?;
     owner::local(caller, &self_definition)?;
-    owner::usize_type(input.known()?)?;
+    input::structural(input.known()?, input::captured(caller.facts())?)?;
     if !call.selected_arguments.is_empty() || call.selected == call.requested {
         return Err("TryFrom call requires a distinct nongeneric local implementation".into());
     }
@@ -162,15 +162,16 @@ fn requested(node: &HirNode, caller: &dyn EvidenceFacts, call: &model::Call) -> 
         return Err("TryFrom node contradicts actual requested core member".into());
     }
     let [operand] = node.children.as_slice() else {
-        return Err("TryFrom requires its single evaluated usize argument".into());
+        return Err("TryFrom requires its single evaluated exact unsigned argument".into());
     };
+    let scalar = input::captured(caller.facts())?;
     if node.kind != "expr_call"
         || node.expansion.is_some()
-        || operand.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some("usize")
+        || operand.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some(scalar)
         || node.dispatch.as_ref().is_none_or(|dispatch| {
             dispatch.kind != "resolved_direct"
                 || dispatch.op != call.requested.path
-                || dispatch.operand_tys != ["usize"]
+                || dispatch.operand_tys != [scalar]
                 || Some(dispatch.result_ty.as_str())
                     != node
                         .ty
@@ -201,7 +202,7 @@ fn result_node(node: &HirNode, caller: &dyn EvidenceFacts, display: &Value) -> R
         .is_some_and(|normalized| normalized != &token)
         || ty.observed != caller.signature.return_ty.observed
         || display["display_only"] != true
-        || display["inputs"] != serde_json::json!(["usize"])
+        || display["inputs"] != serde_json::json!([input::captured(caller.facts())?])
         || display["output"]
             .as_str()
             .map(|output| output.replace("std::", "core::"))

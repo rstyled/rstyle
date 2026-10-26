@@ -6,74 +6,83 @@ pub(crate) const CAPABILITY: &str = "rust.scalar-from-conversions";
 pub(crate) const CONSTRUCT: &str = "data.scalar-from";
 const TRAIT: &str = "std::convert::From::from";
 const CORE_TRAIT: &str = "core::convert::From::from";
-const CORE_IMPLEMENTATION: &str =
-    "core::convert::num::<impl core::convert::From<u16> for u32>::from";
-const IMPLEMENTATION: &str = "std::convert::num::<impl std::convert::From<u16> for u32>::from";
-
 struct Conversion {
     input: &'static str,
     output: &'static str,
     implementation: &'static str,
     core_implementation: &'static str,
     id: &'static str,
+    capability: &'static str,
 }
 
-fn conversion(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<Conversion, String> {
+const CONVERSIONS: &[Conversion] = &[
+    Conversion {
+        input: "u16",
+        output: "u32",
+        capability: CAPABILITY,
+        implementation: "std::convert::num::<impl std::convert::From<u16> for u32>::from",
+        core_implementation: "core::convert::num::<impl core::convert::From<u16> for u32>::from",
+        id: "rstyle.data.scalar.from-u16-u32",
+    },
+    Conversion {
+        input: "u8",
+        output: "usize",
+        capability: "rust.usize-from-u8",
+        implementation: "std::convert::num::<impl std::convert::From<u8> for usize>::from",
+        core_implementation: "core::convert::num::<impl core::convert::From<u8> for usize>::from",
+        id: "rstyle.data.scalar.from-u8-usize",
+    },
+    Conversion {
+        input: "u16",
+        output: "usize",
+        capability: "rust.tagged-unit-classifiers",
+        implementation: "std::convert::num::<impl std::convert::From<u16> for usize>::from",
+        core_implementation: "core::convert::num::<impl core::convert::From<u16> for usize>::from",
+        id: "rstyle.data.scalar.from-u16-usize",
+    },
+    Conversion {
+        input: "u32",
+        output: "u64",
+        capability: "rust.u64-from-u32",
+        implementation: "std::convert::num::<impl std::convert::From<u32> for u64>::from",
+        core_implementation: "core::convert::num::<impl core::convert::From<u32> for u64>::from",
+        id: "rstyle.data.scalar.from-u32-u64",
+    },
+    Conversion {
+        input: "u16",
+        output: "u64",
+        capability: crate::tryfrom_calls::input::CAPABILITY,
+        implementation: "std::convert::num::<impl std::convert::From<u16> for u64>::from",
+        core_implementation: "core::convert::num::<impl core::convert::From<u16> for u64>::from",
+        id: "rstyle.data.scalar.from-u16-u64",
+    },
+];
+
+fn conversion(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<&'static Conversion, String> {
     let dispatch = node
         .dispatch
         .as_ref()
         .ok_or("Missing scalar From dispatch")?;
-    if dispatch.operand_tys == ["u16"] && dispatch.result_ty == "u32" {
-        return Ok(Conversion {
-            input: "u16",
-            output: "u32",
-            implementation: IMPLEMENTATION,
-            core_implementation: CORE_IMPLEMENTATION,
-            id: "rstyle.data.scalar.from-u16-u32",
-        });
-    }
-    if crate::extraction_profile::facts_support(facts, "rust.usize-from-u8")
-        && dispatch.operand_tys == ["u8"]
-        && dispatch.result_ty == "usize"
-    {
-        return Ok(Conversion {
-            input: "u8",
-            output: "usize",
-            implementation: "std::convert::num::<impl std::convert::From<u8> for usize>::from",
-            core_implementation: "core::convert::num::<impl core::convert::From<u8> for usize>::from",
-            id: "rstyle.data.scalar.from-u8-usize",
-        });
-    }
-
-    if crate::extraction_profile::facts_support(facts, "rust.tagged-unit-classifiers")
-        && dispatch.operand_tys == ["u16"]
-        && dispatch.result_ty == "usize"
-    {
-        return Ok(Conversion {
-            input: "u16",
-            output: "usize",
-            implementation: "std::convert::num::<impl std::convert::From<u16> for usize>::from",
-            core_implementation: "core::convert::num::<impl core::convert::From<u16> for usize>::from",
-            id: "rstyle.data.scalar.from-u16-usize",
-        });
-    }
-    if crate::extraction_profile::facts_support(facts, "rust.u64-from-u32")
-        && dispatch.operand_tys == ["u32"]
-        && dispatch.result_ty == "u64"
-    {
-        return Ok(u32_widening());
-    }
-    Err("Concrete scalar From instantiation is not registered".into())
+    CONVERSIONS
+        .iter()
+        .find(|conversion| {
+            dispatch.operand_tys == [conversion.input]
+                && dispatch.result_ty == conversion.output
+                && crate::extraction_profile::facts_support(facts, conversion.capability)
+        })
+        .ok_or_else(|| "Concrete scalar From instantiation is not registered".into())
 }
 
-fn u32_widening() -> Conversion {
-    Conversion {
-        input: "u32",
-        output: "u64",
-        implementation: "std::convert::num::<impl std::convert::From<u32> for u64>::from",
-        core_implementation: "core::convert::num::<impl core::convert::From<u32> for u64>::from",
-        id: "rstyle.data.scalar.from-u32-u64",
+pub(crate) fn verify_document_policy(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+    policy: &crate::ProfileId,
+) -> Result<(), String> {
+    let conversion = conversion(node, facts)?;
+    if !crate::extraction_profile::policy_supports(policy, conversion.capability) {
+        return Err("Scalar From requires its exact registered document policy".into());
     }
+    Ok(())
 }
 
 pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
@@ -114,8 +123,8 @@ pub(crate) fn resolve(
     {
         return Err("Scalar From types disagree with the registered conversion".into());
     }
-    authority(node, facts, &conversion)?;
-    source(node, operand, facts, &conversion)?;
+    authority(node, facts, conversion)?;
+    source(node, operand, facts, conversion)?;
     Ok(Some(Summary {
         id: conversion.id.into(),
         version: "1.0.0".into(),

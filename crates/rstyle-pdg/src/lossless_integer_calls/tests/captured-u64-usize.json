@@ -1,0 +1,467 @@
+[
+  {
+    "target": "aarch64-unknown-linux-gnu",
+    "calls": [
+      {
+        "expanded": false,
+        "hir": {
+          "krate": 0,
+          "local": 4,
+          "owner": 4
+        },
+        "requested": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 13696516745186059528))",
+          "local": false,
+          "path": "std::result::Result::<T, E>::expect",
+          "stable_crate_id": "StableCrateId(5614226571623188065)"
+        },
+        "requested_arguments": [
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "usize"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "usize"
+          },
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "core",
+                "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 11361430071574088585))",
+                "local": false,
+                "path": "std::num::TryFromIntError",
+                "stable_crate_id": "StableCrateId(5614226571623188065)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "std::num::TryFromIntError"
+          }
+        ],
+        "selected": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 13696516745186059528))",
+          "local": false,
+          "path": "std::result::Result::<T, E>::expect",
+          "stable_crate_id": "StableCrateId(5614226571623188065)"
+        },
+        "selected_arguments": [
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "usize"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "usize"
+          },
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "core",
+                "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 11361430071574088585))",
+                "local": false,
+                "path": "std::num::TryFromIntError",
+                "stable_crate_id": "StableCrateId(5614226571623188065)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "std::num::TryFromIntError"
+          }
+        ],
+        "signature": {
+          "display_only": true,
+          "inputs": [
+            "std::result::Result<usize, std::num::TryFromIntError>",
+            "&str"
+          ],
+          "output": "usize"
+        },
+        "span": {
+          "end": 79,
+          "start": 30
+        },
+        "status": "resolved"
+      },
+      {
+        "expanded": false,
+        "hir": {
+          "krate": 0,
+          "local": 6,
+          "owner": 4
+        },
+        "requested": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 9706828146766316131))",
+          "local": false,
+          "path": "std::convert::TryFrom::try_from",
+          "stable_crate_id": "StableCrateId(5614226571623188065)"
+        },
+        "requested_arguments": [
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "usize"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "usize"
+          },
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "u64"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "u64"
+          }
+        ],
+        "selected": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 13802873073332988584))",
+          "local": false,
+          "path": "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u64> for usize>::try_from",
+          "stable_crate_id": "StableCrateId(5614226571623188065)"
+        },
+        "selected_arguments": [],
+        "signature": {
+          "display_only": true,
+          "inputs": [
+            "u64"
+          ],
+          "output": "std::result::Result<usize, std::num::TryFromIntError>"
+        },
+        "span": {
+          "end": 48,
+          "start": 30
+        },
+        "status": "resolved"
+      }
+    ]
+  },
+  {
+    "target": "x86_64-unknown-linux-gnu",
+    "calls": [
+      {
+        "expanded": false,
+        "hir": {
+          "krate": 0,
+          "local": 4,
+          "owner": 4
+        },
+        "requested": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(2625310331494506890, 5188931152859883101))",
+          "local": false,
+          "path": "std::result::Result::<T, E>::expect",
+          "stable_crate_id": "StableCrateId(2625310331494506890)"
+        },
+        "requested_arguments": [
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "usize"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "usize"
+          },
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "core",
+                "definition_identity": "DefPathHash(Fingerprint(2625310331494506890, 13012524897237559042))",
+                "local": false,
+                "path": "std::num::TryFromIntError",
+                "stable_crate_id": "StableCrateId(2625310331494506890)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "std::num::TryFromIntError"
+          }
+        ],
+        "selected": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(2625310331494506890, 5188931152859883101))",
+          "local": false,
+          "path": "std::result::Result::<T, E>::expect",
+          "stable_crate_id": "StableCrateId(2625310331494506890)"
+        },
+        "selected_arguments": [
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "usize"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "usize"
+          },
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "core",
+                "definition_identity": "DefPathHash(Fingerprint(2625310331494506890, 13012524897237559042))",
+                "local": false,
+                "path": "std::num::TryFromIntError",
+                "stable_crate_id": "StableCrateId(2625310331494506890)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "std::num::TryFromIntError"
+          }
+        ],
+        "signature": {
+          "display_only": true,
+          "inputs": [
+            "std::result::Result<usize, std::num::TryFromIntError>",
+            "&str"
+          ],
+          "output": "usize"
+        },
+        "span": {
+          "end": 79,
+          "start": 30
+        },
+        "status": "resolved"
+      },
+      {
+        "expanded": false,
+        "hir": {
+          "krate": 0,
+          "local": 6,
+          "owner": 4
+        },
+        "requested": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(2625310331494506890, 9922540286851272703))",
+          "local": false,
+          "path": "std::convert::TryFrom::try_from",
+          "stable_crate_id": "StableCrateId(2625310331494506890)"
+        },
+        "requested_arguments": [
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "usize"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "usize"
+          },
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "u64"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "u64"
+          }
+        ],
+        "selected": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(2625310331494506890, 17876112623146492282))",
+          "local": false,
+          "path": "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u64> for usize>::try_from",
+          "stable_crate_id": "StableCrateId(2625310331494506890)"
+        },
+        "selected_arguments": [],
+        "signature": {
+          "display_only": true,
+          "inputs": [
+            "u64"
+          ],
+          "output": "std::result::Result<usize, std::num::TryFromIntError>"
+        },
+        "span": {
+          "end": 48,
+          "start": 30
+        },
+        "status": "resolved"
+      }
+    ]
+  },
+  {
+    "target": "arm64-apple-macosx",
+    "calls": [
+      {
+        "expanded": false,
+        "hir": {
+          "krate": 0,
+          "local": 4,
+          "owner": 4
+        },
+        "requested": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(9963928104983068931, 1424182529748467235))",
+          "local": false,
+          "path": "std::result::Result::<T, E>::expect",
+          "stable_crate_id": "StableCrateId(9963928104983068931)"
+        },
+        "requested_arguments": [
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "usize"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "usize"
+          },
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "core",
+                "definition_identity": "DefPathHash(Fingerprint(9963928104983068931, 3546623178798440016))",
+                "local": false,
+                "path": "std::num::TryFromIntError",
+                "stable_crate_id": "StableCrateId(9963928104983068931)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "std::num::TryFromIntError"
+          }
+        ],
+        "selected": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(9963928104983068931, 1424182529748467235))",
+          "local": false,
+          "path": "std::result::Result::<T, E>::expect",
+          "stable_crate_id": "StableCrateId(9963928104983068931)"
+        },
+        "selected_arguments": [
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "usize"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "usize"
+          },
+          {
+            "display_only": true,
+            "identity": {
+              "arguments": [],
+              "definition": {
+                "crate": "core",
+                "definition_identity": "DefPathHash(Fingerprint(9963928104983068931, 3546623178798440016))",
+                "local": false,
+                "path": "std::num::TryFromIntError",
+                "stable_crate_id": "StableCrateId(9963928104983068931)"
+              },
+              "kind": "adt"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "std::num::TryFromIntError"
+          }
+        ],
+        "signature": {
+          "display_only": true,
+          "inputs": [
+            "std::result::Result<usize, std::num::TryFromIntError>",
+            "&str"
+          ],
+          "output": "usize"
+        },
+        "span": {
+          "end": 79,
+          "start": 30
+        },
+        "status": "resolved"
+      },
+      {
+        "expanded": false,
+        "hir": {
+          "krate": 0,
+          "local": 6,
+          "owner": 4
+        },
+        "requested": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(9963928104983068931, 2125372284746408303))",
+          "local": false,
+          "path": "std::convert::TryFrom::try_from",
+          "stable_crate_id": "StableCrateId(9963928104983068931)"
+        },
+        "requested_arguments": [
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "usize"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "usize"
+          },
+          {
+            "display_only": true,
+            "identity": {
+              "kind": "builtin",
+              "name": "u64"
+            },
+            "identity_status": "known",
+            "kind": "type",
+            "value": "u64"
+          }
+        ],
+        "selected": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(9963928104983068931, 12755631642637046129))",
+          "local": false,
+          "path": "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u64> for usize>::try_from",
+          "stable_crate_id": "StableCrateId(9963928104983068931)"
+        },
+        "selected_arguments": [],
+        "signature": {
+          "display_only": true,
+          "inputs": [
+            "u64"
+          ],
+          "output": "std::result::Result<usize, std::num::TryFromIntError>"
+        },
+        "span": {
+          "end": 48,
+          "start": 30
+        },
+        "status": "resolved"
+      }
+    ]
+  }
+]

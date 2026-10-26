@@ -2,6 +2,7 @@
 use super::*;
 use serde_json::{Value, json};
 mod u32_usize;
+mod u64_usize;
 
 fn registry() -> crate::data_library::Registry {
     let mut registry: crate::data_library::Registry =
@@ -10,6 +11,10 @@ fn registry() -> crate::data_library::Registry {
         (CONVERT, "try-trait"),
         (IMPLEMENTATION, "exact-impl"),
         (U32_USIZE_IMPLEMENTATION, "exact-u32-usize-impl"),
+        (
+            Kind::ConvertU64Usize.implementation(),
+            "exact-u64-usize-impl",
+        ),
         (EXPECT, "expect-method"),
         (ERROR, "actual-error"),
         (authority::STABLE_CORE, "selected-core"),
@@ -46,10 +51,10 @@ fn call(kind: Kind) -> Value {
             definition(CONVERT, "try-trait"),
             definition(
                 kind.implementation(),
-                if kind.conversion() == Kind::Convert {
-                    "exact-impl"
-                } else {
-                    "exact-u32-usize-impl"
+                match kind.conversion() {
+                    Kind::Convert => "exact-impl",
+                    Kind::ConvertU64Usize => "exact-u64-usize-impl",
+                    _ => "exact-u32-usize-impl",
                 },
             ),
         )
@@ -93,6 +98,8 @@ fn raw_conversion_and_expect_require_distinct_exact_selected_substitutions() {
         Kind::Expect,
         Kind::ConvertU32Usize,
         Kind::ExpectUsize,
+        Kind::ConvertU64Usize,
+        Kind::ExpectU64Usize,
     ] {
         assert!(selection::relationship(&call(kind), kind, &registry).is_ok());
         for field in ["requested", "selected"] {
@@ -268,6 +275,8 @@ fn std_and_no_std_displays_preserve_the_same_concrete_core_implementation() {
             Kind::Expect,
             Kind::ConvertU32Usize,
             Kind::ExpectUsize,
+            Kind::ConvertU64Usize,
+            Kind::ExpectU64Usize,
         ] {
             let mut observation = call(kind);
             spelling(&mut observation, root);

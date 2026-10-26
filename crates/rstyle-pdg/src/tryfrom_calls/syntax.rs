@@ -10,6 +10,7 @@ pub(super) struct Paths {
 pub(super) fn implementation(
     item: &syn::ItemImpl,
     method: &syn::ImplItemFn,
+    input: &str,
 ) -> Result<Paths, String> {
     let Some((None, trait_path, _)) = &item.trait_ else {
         return Err("TryFrom requires a positive original trait impl".into());
@@ -25,8 +26,8 @@ pub(super) fn implementation(
             "TryFrom requires exactly its concrete original method and associated Error".into(),
         );
     }
-    trait_argument(trait_path)?;
-    signature(method)?;
+    trait_argument(trait_path, input)?;
+    signature(method, input)?;
     let error = associated_error(item)?;
     let syn::ReturnType::Type(_, result) = &method.sig.output else {
         return Err("TryFrom requires an explicit Result return".into());
@@ -67,7 +68,7 @@ fn associated_error(item: &syn::ItemImpl) -> Result<&syn::ImplItemType, String> 
     Ok(error)
 }
 
-fn signature(method: &syn::ImplItemFn) -> Result<(), String> {
+fn signature(method: &syn::ImplItemFn, scalar: &str) -> Result<(), String> {
     let signature = &method.sig;
     if method.defaultness.is_some()
         || !matches!(method.vis, syn::Visibility::Inherited)
@@ -90,18 +91,20 @@ fn signature(method: &syn::ImplItemFn) -> Result<(), String> {
     if !matches!(input.pat.as_ref(), syn::Pat::Ident(binding)
         if binding.by_ref.is_none() && binding.mutability.is_none() && binding.subpat.is_none())
         || !input.attrs.is_empty()
-        || !path(&input.ty)?.path.is_ident("usize")
+        || !path(&input.ty)?.path.is_ident(scalar)
     {
-        return Err("TryFrom original argument must bind builtin usize once".into());
+        return Err(
+            "TryFrom original argument must bind its exact builtin unsigned input once".into(),
+        );
     }
 
     Ok(())
 }
 
-fn trait_argument(path: &syn::Path) -> Result<(), String> {
+fn trait_argument(path: &syn::Path, scalar: &str) -> Result<(), String> {
     let last = path.segments.last().ok_or("Empty TryFrom trait path")?;
     let syn::PathArguments::AngleBracketed(arguments) = &last.arguments else {
-        return Err("TryFrom requires explicit usize trait argument".into());
+        return Err("TryFrom requires its explicit exact unsigned trait argument".into());
     };
     if last.ident != "TryFrom"
         || arguments.colon2_token.is_some()
@@ -111,7 +114,7 @@ fn trait_argument(path: &syn::Path) -> Result<(), String> {
             .take(path.segments.len() - 1)
             .any(|part| !part.arguments.is_empty())
         || !matches!(arguments.args.iter().collect::<Vec<_>>().as_slice(),
-            [syn::GenericArgument::Type(syn::Type::Path(input))] if input.qself.is_none() && input.path.is_ident("usize"))
+            [syn::GenericArgument::Type(syn::Type::Path(input))] if input.qself.is_none() && input.path.is_ident(scalar))
     {
         return Err("TryFrom source trait path changes concrete input".into());
     }

@@ -1447,3 +1447,35 @@ patterns-final.json}`.
 Frozen run-cjypvid0 verifies118 Data documents; all60 original identities,
 assessments, blockers and denominators match run-u1um8uxj at24/29/7. R0 and
 expanded also remain identical. Comparison: `/tmp/rstyle-441-frozen-comparison.json`.
+
+Unsigned conversion family (54d95f0 baseline; Data3.117): original regex-automata
+SmallIndex TryFrom<u16/u32/u64/usize> connects exact input/source/selected impl,
+associated Error, local U16/U64 helpers and pinned core widening/native conversion.
+Native no-default roster118→123/590: three conversion and two helper gains, no
+losses, unchanged original identities/build contexts. Strictly verify/admit all123
+from the complete owner and serialized replay; all7,503 original comparisons
+complete. Each selected function matches its replay at score1; the six cross-input
+comparisons reject at unchanged thresholds. No behavioral-equivalence claim.
+
+Independent original oracle270,438 public-API checks/context across default/
+no-default and debug true/false, zero mismatches. Exact core pins captured for
+Linux ARM/Linux x86/macOS ARM; foreign native CI and default/release extraction
+are not claimed. Full suite2,154 passes/5 existing skips plus doctests; fmt and
+warning-denied Clippy pass; style0/7,125, patterns0/15 unchanged ignores. The
+complete Cargo fixture takes2.41s with prebuilt driver in the full run (single
+sample, no performance comparison). No new runtime hashing/serialized lookup.
+The conversion table shares production and document-policy selection.
+
+Next frontier: generated PatternID/StateID TryFrom callers remain excluded.
+They require independently verified trait-impl/associated Error expansion
+ownership followed by complete Result map/map_err value/error transport; existing
+inherent-constructor evidence does not cover them. Other error/payload, generic
+and memory lanes remain separate. Broad coverage goal stays active.
+[Source contract](../eval/coverage-development/unsigned-index-conversions/README.md).
+Evidence: `/tmp/rstyle-442-{comparison.json,oracle.json,all-strict-summary.json,
+selected-strict-summary.json,nextest.log,clippy-recheck.log,style-final.log,
+patterns-final.log,pin-test-final.log}`.
+Frozen run-luj4fm3q checks118 Data documents; all60 identities/assessments,
+blockers and denominators match run-cjypvid0 at24/29/7. R0 and expanded also
+match exactly. Final target-pin cardinality/identity tests pass3/3; fmt/Clippy
+rechecked clean. Comparison: `/tmp/rstyle-442-frozen-comparison.json`.

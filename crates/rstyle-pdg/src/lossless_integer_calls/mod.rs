@@ -25,6 +25,8 @@ pub(crate) enum Kind {
     Expect,
     ConvertU32Usize,
     ExpectUsize,
+    ConvertU64Usize,
+    ExpectU64Usize,
 }
 
 impl Kind {
@@ -34,13 +36,15 @@ impl Kind {
             Self::Expect => "data.integer.expect-ok-u64",
             Self::ConvertU32Usize => "data.integer.lossless-try-u32-usize",
             Self::ExpectUsize => "data.integer.lossless-expect-ok-usize",
+            Self::ConvertU64Usize => "data.integer.lossless-try-u64-usize",
+            Self::ExpectU64Usize => "data.integer.lossless-expect-u64-usize",
         }
     }
 
     fn path(self) -> &'static str {
         match self {
-            Self::Convert | Self::ConvertU32Usize => CONVERT,
-            Self::Expect | Self::ExpectUsize => EXPECT,
+            Self::Convert | Self::ConvertU32Usize | Self::ConvertU64Usize => CONVERT,
+            Self::Expect | Self::ExpectUsize | Self::ExpectU64Usize => EXPECT,
         }
     }
 }
@@ -66,6 +70,8 @@ pub(crate) fn kind(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Kind> {
         Kind::Expect,
         Kind::ConvertU32Usize,
         Kind::ExpectUsize,
+        Kind::ConvertU64Usize,
+        Kind::ExpectU64Usize,
     ]
     .into_iter()
     .find(|kind| {

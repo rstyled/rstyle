@@ -208,7 +208,7 @@ mod tests {
                 other.result_propagation_source_digests
             );
             assert_eq!(arm.operations.len(), other.operations.len());
-            assert_eq!(arm.definitions.len(), 80);
+            assert_eq!(arm.definitions.len(), 82);
             assert_eq!(
                 arm.definitions.keys().collect::<Vec<_>>(),
                 other.definitions.keys().collect::<Vec<_>>()

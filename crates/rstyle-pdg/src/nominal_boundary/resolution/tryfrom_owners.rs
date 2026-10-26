@@ -63,7 +63,7 @@ pub(super) fn lexical(
     member: &crate::tryfrom_calls::SourceMember,
     closure: &selected::no_drop::CheckedNoDrop,
 ) -> Result<(), String> {
-    trait_binding(facts, scope, &member.trait_path, closure)?;
+    trait_binding(facts, scope, member, closure)?;
     if scope.resolve(&member.self_type)? != member.success
         || scope.resolve(&member.error_type)? != member.error
     {
@@ -201,9 +201,10 @@ fn unshadowed(
 fn trait_binding(
     facts: &HirFnFacts,
     scope: &Scoped<'_>,
-    path: &syn::Path,
+    member: &crate::tryfrom_calls::SourceMember,
     closure: &selected::no_drop::CheckedNoDrop,
 ) -> Result<(), String> {
+    let path = &member.trait_path;
     let names: Vec<_> = path
         .segments
         .iter()
@@ -219,7 +220,10 @@ fn trait_binding(
     {
         return Err("TryFrom requires its reviewed direct core/prelude binding".into());
     }
-    for name in ["usize"].into_iter().chain(prelude.then_some("TryFrom")) {
+    for name in [member.input.as_str()]
+        .into_iter()
+        .chain(prelude.then_some("TryFrom"))
+    {
         unshadowed(facts, &scope.resolution.environment, scope.namespace, name)?;
     }
 
@@ -322,7 +326,8 @@ fn call_association(
             "std::convert::TryFrom::try_from",
         ]
         .contains(&dispatch.op.as_str())
-        || dispatch.operand_tys != ["usize"]
+        || dispatch.operand_tys.as_slice()
+            != [crate::tryfrom_calls::input::captured(facts.facts()).ok()?]
         || !crate::extraction_profile::facts_support(facts, crate::tryfrom_calls::CAPABILITY)
     {
         return None;
@@ -407,7 +412,12 @@ pub(crate) fn verify_document_policy(
 ) -> Result<(), String> {
     crate::extraction_profile::require_document(
         profile,
-        crate::tryfrom_calls::CAPABILITY,
+        if crate::tryfrom_calls::input::captured(facts.facts()).is_ok_and(|input| input != "usize")
+        {
+            crate::tryfrom_calls::input::CAPABILITY
+        } else {
+            crate::tryfrom_calls::CAPABILITY
+        },
         || {
             facts.build.frontend_options.contains_key(crate::tryfrom_calls::KEY)
             && facts.build.frontend_options.data::<InterfaceObservations>().is_ok_and(|interface| {

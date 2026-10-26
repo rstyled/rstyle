@@ -43,6 +43,7 @@ mod span_lengths;
 mod static_string_products;
 mod tagged_string_observations;
 mod transition_callbacks;
+mod unsigned_index_conversions;
 mod word_classifiers;
 
 fn descendants<'a>(node: &'a rstyle_pdg::HirNode, output: &mut Vec<&'a rstyle_pdg::HirNode>) {

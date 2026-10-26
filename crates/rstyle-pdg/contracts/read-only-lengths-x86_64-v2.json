@@ -138,7 +138,9 @@
     "std::result::Result::<T, E>::expect": "DefPathHash(Fingerprint(2625310331494506890, 5188931152859883101))",
     "rstyle.lossless-integer.core-stable-crate-id": "StableCrateId(2625310331494506890)",
     "std::num::TryFromIntError": "DefPathHash(Fingerprint(2625310331494506890, 13012524897237559042))",
-    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<usize> for u64>::try_from": "DefPathHash(Fingerprint(2625310331494506890, 7258545129528161828))"
+    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<usize> for u64>::try_from": "DefPathHash(Fingerprint(2625310331494506890, 7258545129528161828))",
+    "std::convert::num::<impl std::convert::From<u16> for u64>::from": "DefPathHash(Fingerprint(2625310331494506890, 3869593704916397337))",
+    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u64> for usize>::try_from": "DefPathHash(Fingerprint(2625310331494506890, 17876112623146492282))"
   },
   "alloc_macro_exports": {
     "library": {

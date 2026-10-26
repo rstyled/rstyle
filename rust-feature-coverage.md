@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.116.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.117.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -5461,3 +5461,11 @@ comparisons at score1: the negative matching expectation failed. Extraction
 coverage establishes neither behavioral equivalence nor rewrite safety.
 [Bounded source contract](eval/coverage-development/time-nonzero-digits/README.md)
 and [validation/frontier](docs/rust-support-execution.md).
+
+Data3.117 connects the complete original regex-automata SmallIndex unsigned
+TryFrom family (u16/u32/u64/usize), including the selected local U16/U64 helpers
+and exact core conversions. Native no-default admissions118→123/590, five gains,
+zero losses; all identities/build settings persist. Original oracle270,438 API
+checks/context across default/no-default and debug/release-body controls, zero
+mismatches. Generated PatternID/StateID trait wrappers remain separately deferred.
+[Contract, strict replay and validation](eval/coverage-development/unsigned-index-conversions/README.md).

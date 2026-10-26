@@ -59,14 +59,6 @@ pub(crate) fn endpoint(arguments: &[Argument]) -> Result<&Structural, String> {
     argument.known()
 }
 
-pub(super) fn usize_type(identity: &Structural) -> Result<(), String> {
-    if !matches!(identity, Structural::Builtin { name } if name == "usize") {
-        return Err("TryFrom input differs from exact builtin usize".into());
-    }
-
-    Ok(())
-}
-
 pub(super) fn verify(
     facts: &HirFnFacts,
     observation: &Observation,
@@ -83,7 +75,7 @@ pub(super) fn verify(
             .ok_or("TryFrom success lacks a concrete nominal owner")?
             .0,
     )?;
-    usize_type(input.known()?)?;
+    input::structural(input.known()?, input::captured(facts)?)?;
     let associated = observation
         .associated_error
         .as_ref()
@@ -187,9 +179,9 @@ fn signature(
     authority: &dyn CoreAuthority,
 ) -> Result<(), String> {
     let [input] = signature.inputs.as_slice() else {
-        return Err("TryFrom signature requires its single usize input".into());
+        return Err("TryFrom signature requires its single exact unsigned input".into());
     };
-    usize_type(endpoint(input)?)?;
+    input::structural(endpoint(input)?, input::captured(facts)?)?;
     let Structural::Adt {
         definition,
         arguments,
@@ -225,10 +217,10 @@ fn captured_signature(facts: &HirFnFacts) -> Result<(), String> {
         || facts.signature.abi.known_value() != Some("Rust")
         || !facts.signature.generics.is_empty()
         || facts.signature.params.len() != 1
-        || facts.signature.params[0].ty.normalized.as_deref() != Some("usize")
     {
-        return Err("TryFrom capture requires original safe nongeneric fn(usize)".into());
+        return Err("TryFrom capture requires original safe nongeneric unsigned signature".into());
     }
+    input::captured(facts)?;
     let (ok, err) = super::result(facts)?;
     let result = TypeToken::Result {
         ok: Box::new(TypeToken::from_tree(&ok)),

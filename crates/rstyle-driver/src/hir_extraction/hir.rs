@@ -755,6 +755,11 @@ impl Context<'_> {
             || self.profile.supports("rust.tagged-unit-classifiers")
                 && signature.inputs() == [self.tcx.types.u16]
                 && signature.output() == self.tcx.types.usize
+            || self
+                .profile
+                .supports("rust.unsigned-index-conversion-family")
+                && signature.inputs() == [self.tcx.types.u16]
+                && signature.output() == self.tcx.types.u64
             || self.profile.supports("rust.u64-from-u32")
                 && signature.inputs() == [self.tcx.types.u32]
                 && signature.output() == self.tcx.types.u64

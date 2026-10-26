@@ -2,7 +2,7 @@
 use super::float_kernels::function;
 use super::*;
 
-const SOURCE: &str = r#"
+pub(super) const SOURCE: &str = r#"
 #![no_std]
 #[derive(Copy, Clone)]
 pub struct Index(u32);
@@ -198,7 +198,7 @@ fn verify_pairs(report: &Value) {
         let index = shared_evidence::index(entry);
         let facts = analysis.function(index).unwrap();
         let pair = unit.pair(index).unwrap();
-        assert_eq!(pair.pdg.profile.version, "3.116.0");
+        assert_eq!(pair.pdg.profile.version, "3.117.0");
         rstyle_pdg::verification_policy::strict(|| {
             rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts)
         })

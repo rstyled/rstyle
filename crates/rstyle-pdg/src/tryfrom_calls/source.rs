@@ -6,6 +6,7 @@ use syn::spanned::Spanned;
 #[derive(Clone)]
 pub(crate) struct SourceMember {
     pub self_type: syn::TypePath,
+    pub input: String,
     pub trait_path: syn::Path,
     pub error_type: syn::TypePath,
     pub result_type: syn::TypePath,
@@ -31,7 +32,8 @@ pub(crate) fn source_member(
     let Some(observation) = super::observation(facts)? else {
         return Ok(None);
     };
-    let paths = syntax::implementation(item, method)?;
+    let input = input::captured(facts)?;
+    let paths = syntax::implementation(item, method, input)?;
     owner::verify(facts, &observation, authority)?;
     let (success, error) = super::result(facts)?;
     let implementation_span = ByteSpan {
@@ -52,6 +54,7 @@ pub(crate) fn source_member(
 
     Ok(Some(SourceMember {
         self_type: paths.self_type,
+        input: input.into(),
         trait_path: paths.trait_path,
         error_type: paths.error_type,
         result_type: paths.result_type,
@@ -72,7 +75,8 @@ pub(crate) fn verify_owner(
 ) -> Result<(), String> {
     let observation = super::observation(facts)?.ok_or("Missing retained TryFrom owner")?;
     let (success, error) = super::result(facts)?;
-    if observation != member.observation
+    if input::captured(facts)? != member.input
+        || observation != member.observation
         || success != member.success
         || error != member.error
         || facts.fn_span != member.function_span

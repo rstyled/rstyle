@@ -49,7 +49,7 @@ fn original_complete_u32_trait_retains_both_bodies_and_all_siblings() {
 #[test]
 fn u32_source_rejects_other_routes_and_incomplete_or_changed_trait_rosters() {
     for (before, after) in [
-        ("for u32", "for u16"),
+        ("for u32", "for i32"),
         ("for u32", "for usize"),
         ("-> usize", "-> u64"),
         ("as_usize(self)", "as_usize(&self)"),
