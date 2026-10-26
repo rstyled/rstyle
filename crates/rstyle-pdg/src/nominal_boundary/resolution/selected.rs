@@ -48,6 +48,18 @@ pub(super) fn verify(
     resolution: &Resolution,
     owner: Option<&crate::product_instances::CheckedProjection>,
 ) -> Result<Selection, String> {
+    if let Some(selection) = no_drop::payload_errors::selection(facts, resolution)? {
+        return Ok(selection);
+    }
+    verify_ordinary_selection(facts, origins, resolution, owner)
+}
+
+fn verify_ordinary_selection(
+    facts: &HirFnFacts,
+    origins: &Origins,
+    resolution: &Resolution,
+    owner: Option<&crate::product_instances::CheckedProjection>,
+) -> Result<Selection, String> {
     let trees = &resolution.trees;
     let environment = &resolution.environment;
     if trees.is_empty() && !supports(facts, "rust.accelerator-packing")? {
@@ -818,6 +830,17 @@ fn module_attribute(
 }
 
 pub(super) fn check_function_namespace(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &Resolution,
+    namespace: &[String],
+) -> Result<(), String> {
+    if no_drop::payload_errors::function_namespace(input.facts(), resolution, namespace)? {
+        return Ok(());
+    }
+    check_ordinary_function_namespace(input, resolution, namespace)
+}
+
+fn check_ordinary_function_namespace(
     input: &dyn crate::unit_store::EvidenceFacts,
     resolution: &Resolution,
     namespace: &[String],

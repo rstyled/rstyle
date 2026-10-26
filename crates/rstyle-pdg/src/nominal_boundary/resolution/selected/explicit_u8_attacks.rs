@@ -64,6 +64,7 @@ impl Case {
             scalar_product_source: None,
             nonzero_product_source: None,
             transport_sources: None,
+            generated_declarations: Vec::new(),
         };
         DeclarationChecker {
             resolution: &resolution,

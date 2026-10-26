@@ -1,6 +1,6 @@
 {
   "identity": "rstyle.development.wire-arithmetic-errors/1",
-  "status": "complete diagnostic payload capture at Data3.118; selected functions remain unsupported; oracle grants no admission",
+  "status": "Data3.119: complete native no-default capture/strict admission/matching; default capture budget incomplete; foreign native CI unrun",
   "package": {
     "name": "regex-automata",
     "version": "0.4.18",

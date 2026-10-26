@@ -4,6 +4,9 @@ use crate::{HirNode, NodeCategory, PdgNode, producer::PairView, unit_store::Evid
 use std::collections::BTreeMap;
 
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    if super::named_error_payloads::verify_source(facts)? {
+        return super::named_error_payloads::verify(pair, facts);
+    }
     let mut constructors = Vec::new();
     collect(&facts.body, &mut constructors, facts)?;
     if constructors.is_empty() {

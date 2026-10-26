@@ -26,6 +26,7 @@ pub(in crate::nominal_boundary::resolution) fn default_prelude(facts: &HirFnFact
 }
 #[path = "../../../scalar_product_instances/nonzero_source.rs"]
 pub(in crate::nominal_boundary::resolution) mod nonzero_products;
+pub(in crate::nominal_boundary::resolution) mod payload_errors;
 mod product_fields;
 pub(in crate::nominal_boundary::resolution) mod reference_products;
 #[path = "../../../scalar_product_instances/proof.rs"]

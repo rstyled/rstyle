@@ -23,6 +23,9 @@ fn install_guarded_origins(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
+    if super::named_error_payloads::install(pair, facts)? {
+        return Ok(true);
+    }
     if super::nonzero_digits::install(pair, facts)? {
         return Ok(true);
     }
@@ -122,6 +125,11 @@ fn verify_guarded_origins(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
+    if super::named_error_payloads::verify_source(facts)? {
+        super::named_error_payloads::verify(pair, facts)?;
+        return Ok(true);
+    }
+    super::named_error_payloads::verify(pair, facts)?;
     if super::nonzero_digits::verify(pair, facts)? {
         return Ok(true);
     }

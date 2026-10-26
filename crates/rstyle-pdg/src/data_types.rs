@@ -261,7 +261,8 @@ pub(crate) fn parse_in(
     text: &str,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<TypeToken, String> {
-    if crate::nonzero_digit_calls::permits_type(text, facts)?
+    if crate::named_error_payloads::permits_type(text, facts)?
+        || crate::nonzero_digit_calls::permits_type(text, facts)?
         || crate::scalar_product_instances::forwarders::permits_type(text, facts)?
         || crate::scalar_product_instances::activation::permits_type(text, facts)?
         || crate::copy_tagged_values::call_wrappers::permits_type(text, facts)?

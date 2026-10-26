@@ -79,6 +79,7 @@ pub(crate) mod lossless_integer_calls;
 pub mod model;
 pub(crate) mod mutable_scalars;
 pub(crate) mod named_callbacks;
+mod named_error_payloads;
 pub mod nominal_binding;
 pub mod nominal_boundary;
 pub mod nominal_constants;

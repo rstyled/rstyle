@@ -41,10 +41,18 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
     if crate::scalar_product_instances::activation::candidate(facts) {
         crate::scalar_product_instances::activation::verify(facts)?;
     }
+
+    observation.finish(check_ordinary_function(facts))
+}
+
+fn check_ordinary_function(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     crate::character_scalars::verify_function(facts)?;
     crate::float_scalars::verify_function(facts)?;
     crate::range_values::verify_function(facts)?;
-    crate::concrete_results::verify_function(facts)?;
+    let named_error = crate::data_documents::named_error_payloads::verify_source(facts)?;
+    if !named_error {
+        crate::concrete_results::verify_function(facts)?;
+    }
     crate::checked_option_products::verify_function(facts)?;
     crate::mutable_scalars::verify(facts)?;
     let interface = interface(facts)?;
@@ -60,8 +68,11 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
     }
 
     verify_fields(facts)?;
+    if named_error {
+        return Ok(());
+    }
     let places = crate::data_places::Places::verify(facts)?;
-    observation.finish(verify_nodes(&facts.body, facts, &places))
+    verify_nodes(&facts.body, facts, &places)
 }
 
 pub(crate) fn source_function(

@@ -8,6 +8,7 @@ use serde_json::Value;
 pub(crate) mod digit_products;
 mod external;
 pub(crate) mod instances;
+pub(crate) mod named_errors;
 mod product_conversions;
 mod reference_forwarders;
 pub(crate) mod tagged_conversions;
@@ -18,6 +19,15 @@ mod transport_lexical;
 pub const KEY: &str = "verified_helper";
 pub(crate) const MAX_DEPTH: usize = 8;
 pub(crate) const MAX_BYTES: usize = 8 * 1024 * 1024;
+
+/// Route a source candidate only when its helper capability is registered.
+fn capability_candidate(
+    facts: &dyn EvidenceFacts,
+    capability: &str,
+    source_candidate: fn(&dyn EvidenceFacts) -> bool,
+) -> bool {
+    crate::extraction_profile::facts_support(facts, capability) && source_candidate(facts)
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -83,6 +93,7 @@ fn summary(
     boundary: Boundary,
 ) -> Result<Summary, String> {
     match boundary.tagged_output {
+        Some(output) if named_errors::candidate(facts) => named_errors::summary(facts, output),
         Some(output) => tagged_conversions::summary(facts, output),
         None => legacy_summary(facts, pair, boundary.reference_outputs),
     }
@@ -470,7 +481,8 @@ fn verify_shared(
     helper: &crate::unit_store::HelperView<'_>,
 ) -> Result<(), String> {
     let callee = helper.frontend();
-    let selected = tagged_conversions::verify_dependency(node, caller, &callee, helper.summary())?
+    let selected = named_errors::verify_dependency(node, caller, &callee, helper.summary())?
+        || tagged_conversions::verify_dependency(node, caller, &callee, helper.summary())?
         || reference_forwarders::verify(node, caller, &callee)?
         || product_conversions::verify(node, caller, &callee)?;
     let resolution = selected_resolution(node, caller).ok_or("Unresolved direct helper call")?;
@@ -517,6 +529,14 @@ fn check_boundary(
     pair: &producer::Pair,
     facts: &dyn EvidenceFacts,
 ) -> Result<Boundary, Vec<String>> {
+    if let Some(output) =
+        named_errors::derive(facts, pair.as_view()).map_err(|error| vec![error])?
+    {
+        return Ok(Boundary {
+            reference_outputs: None,
+            tagged_output: Some(output),
+        });
+    }
     if let Some(output) =
         tagged_conversions::derive(facts, pair.as_view()).map_err(|error| vec![error])?
     {
@@ -603,12 +623,14 @@ fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, 
     let dependency: Dependency = transport::decode(&resolution[KEY])
         .map_err(|_| "Missing or invalid verified callee dependency")?;
     check_depth(&dependency.frontend.body, 1)?;
-    if !tagged_conversions::verify_dependency(
-        node,
-        caller,
-        &dependency.frontend,
-        &dependency.summary,
-    )? {
+    if !named_errors::verify_dependency(node, caller, &dependency.frontend, &dependency.summary)?
+        && !tagged_conversions::verify_dependency(
+            node,
+            caller,
+            &dependency.frontend,
+            &dependency.summary,
+        )?
+    {
         check_signature(node, caller, &resolution, &dependency.frontend)?;
         crate::inherent_calls::verify(node, caller, &dependency.frontend, &resolution)?;
     }

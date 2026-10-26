@@ -31,6 +31,7 @@ pub(crate) mod locations;
 mod memory_flow;
 mod mutable_scalars;
 pub(crate) mod named_callbacks;
+pub(crate) mod named_error_payloads;
 mod nonzero_digits;
 mod option_if_let;
 pub(crate) mod option_propagation;

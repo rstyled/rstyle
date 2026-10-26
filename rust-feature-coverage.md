@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.117.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.119.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -129,7 +129,7 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Data-v3 3.41.0 additionally supports [bounded cyclic prefix scans](docs/extraction-profiles/cyclic-prefix-scans-v1.md): reducible loop-body/condition merges with finite iteration-local availability. General iterator/value-carrying exit and broader caller compositions remain open. |
 | F11 | Labelled and value-carrying exits | Missing | `'outer: loop { break 'outer; }`, `break x` | Exact target resolution and value/frontier dependencies; also labelled block expressions. |
 | F12 | Iterator `for` loops | Missing | `for x in xs { ... }` | Iterator protocol, yielded values, effects, drop, and source/desugaring correspondence; not covered by scalar `while`. |
-| F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. Data-v3 3.42.0 adds [owned bool/integer Option values](docs/extraction-profiles/scalar-option-byte-widths-v1.md), exact Some/None construction, early returns, saved local values and supported helper transport. Data-v3 3.51–3.52 connect [pinned integer Results and immediate checked-sub Option unwrap](docs/extraction-profiles/end-of-input-v1.md). Data-v3 3.78–3.79 adds fresh `Result<(), E>` for independently proved no-drop unit-field errors and [exact same-error `?`](docs/extraction-profiles/same-error-result-propagation-v1.md), including method forwarding and nested/sequential composition. Data-v3 3.80 connects [Option reference `?` into Copy products](docs/extraction-profiles/checked-reference-option-propagation-v1.md). Data-v3 3.81 connects [borrowed Result parser flow](docs/extraction-profiles/checked-borrowed-result-flow-v1.md), reconstructing a fresh same-error exit when the success type changes. General payload binding, saved Results, other residual conversions and cleanup remain missing. |
+| F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. Data-v3 3.42.0 adds [owned bool/integer Option values](docs/extraction-profiles/scalar-option-byte-widths-v1.md), exact Some/None construction, early returns, saved local values and supported helper transport. Data-v3 3.51–3.52 connect [pinned integer Results and immediate checked-sub Option unwrap](docs/extraction-profiles/end-of-input-v1.md). Data-v3 3.78–3.79 adds fresh `Result<(), E>` for independently proved no-drop unit-field errors and [exact same-error `?`](docs/extraction-profiles/same-error-result-propagation-v1.md), including method forwarding and nested/sequential composition. Data-v3 3.80 connects [Option reference `?` into Copy products](docs/extraction-profiles/checked-reference-option-propagation-v1.md). Data-v3 3.81 connects [borrowed Result parser flow](docs/extraction-profiles/checked-borrowed-result-flow-v1.md), reconstructing a fresh same-error exit when the success type changes. Data3.119 connects [checked arithmetic to fresh named errors](eval/coverage-development/wire-arithmetic-errors/README.md), preserving conditional static-field origins and complete no-drop proof. Callable arithmetic Results, general payload binding, saved Results, other residual conversions and cleanup remain missing. |
 | F14 | Assertion macros | Partial | `assert!(b);`, `debug_assert!(b);` | Data-v3 3.6.0 supports unformatted standard assertions, original invocation/condition correspondence, one condition evaluation, debug settings and disclosed omitted panic flow; see [assertion contract](docs/extraction-profiles/scalar-assertions-v1.md). Data-v3 3.52.0 adds [literal scalar diagnostics](docs/extraction-profiles/end-of-input-v1.md); Data-v3 3.53 adds standard two-operand bool/integer assert_eq!/debug_assert_eq! with ordered snapshots. Explicit messages on comparisons, custom comparisons/formatting and general exceptional flow remain missing. |
 | F15 | General panic/unwind/cleanup flow | Missing | `panic!("bad")`, `catch_unwind(f)` | Current extraction is bounded normal flow; omitted applicable exceptional flow is disclosed, not represented as complete. |
 
@@ -5501,3 +5501,15 @@ no-drop ownership and guarded Option→Result/helper composition. Original oracl
 443,721 checks in each of four contexts passes. This advances a concrete shared
 error chain, with no additional feature row claimed supported.
 [Contract and next proof](eval/coverage-development/wire-arithmetic-errors/README.md).
+
+Data3.119 connects original `wire::{add,mul}` → `arithmetic_overflow` through
+checked generated imports, complete non-Copy error no-drop proof and guarded
+static-field constructor summaries. Native no-default admissions131→138/590,
+seven gains/zero losses; all prior131 replay checks/8,515 pair records persist.
+Strict276 imports and9,453 comparisons complete; frozen60 unchanged at24/29/7.
+Full2,177 tests plus doctests pass; fmt/Clippy/style/patterns clean. The structural
+matcher accepts behaviorally distinct add/mul at1, so extraction establishes no
+equivalence or rewrite safety. Default capture remains incomplete at the existing
+concrete-observation budget; foreign native CI is unrun. Callable arithmetic
+summaries, map_err/? and broader ownership remain open. Broad goal active.
+[Contract, limitations and evidence](eval/coverage-development/wire-arithmetic-errors/README.md).

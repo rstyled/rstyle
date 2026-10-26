@@ -1,7 +1,9 @@
 //! Source-only generated error proof on unchanged selected wire functions.
 use rstyle_pdg::{
     concrete_types::{InterfaceObservations, Observation, TypeTree, VariantShape},
-    nominal_boundary::resolution::probe_generated_declaration_sources,
+    nominal_boundary::resolution::{
+        probe_generated_declaration_sources, probe_named_error_cleanup,
+    },
     unit_store::UnitStore,
 };
 use serde_json::Value;
@@ -44,6 +46,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err("Missing complete error observation".into());
         };
         proofs += probe_generated_declaration_sources(&facts, &children(ty)?)?;
+        if probe_named_error_cleanup(&facts)? != 5 {
+            return Err("Cleanup proof omits a complete nominal dependency".into());
+        }
     }
     println!(
         "{}",

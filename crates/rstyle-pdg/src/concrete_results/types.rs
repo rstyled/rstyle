@@ -81,6 +81,14 @@ pub(crate) fn payload(
     let TypeToken::Result { ok, err } = crate::data_aggregates::parsed_type(node)? else {
         return Err("Result construction requires its concrete two-child type".into());
     };
+    if let Some(error) = crate::named_error_payloads::error_tree(facts)? {
+        if ok.as_ref() != &TypeToken::Scalar("usize".into())
+            || err.as_ref() != &TypeToken::from_tree(&error)
+        {
+            return Err("Named error Result differs from its exact checked return boundary".into());
+        }
+        return Ok((*ok, *err));
+    }
     if crate::copy_tagged_values::candidate(facts) {
         verify_conversion_payload(&ok, &err, facts)?;
         return Ok((*ok, *err));

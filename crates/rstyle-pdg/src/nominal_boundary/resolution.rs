@@ -76,6 +76,8 @@ pub struct Resolution {
         Option<selected::no_drop::scalar_product_instances::CheckedScalarProductInstance>,
     nonzero_product_source: Option<selected::no_drop::nonzero_products::CheckedNonzeroProduct>,
     transport_sources: Option<result_maps::TransportSources>,
+    generated_declarations:
+        Vec<crate::generated_sources::declarations::CheckedGeneratedDeclaration>,
 }
 
 fn requires_mixed_owner(tree: &TypeTree) -> bool {
@@ -424,7 +426,7 @@ pub(crate) fn verify_in(
         None
     };
 
-    let mut resolution = declaration_resolution(facts, interface, Rc::clone(&environment))?;
+    let mut resolution = declaration_resolution(input, interface, Rc::clone(&environment))?;
     if owner.is_none() {
         capture_function_sources(input, &mut resolution)?;
     }
@@ -644,10 +646,21 @@ fn probe_product_result(
 }
 
 fn declaration_resolution(
-    facts: &HirFnFacts,
+    input: &dyn crate::unit_store::EvidenceFacts,
     interface: &InterfaceObservations,
     environment: Rc<Environment>,
 ) -> Result<Resolution, String> {
+    let generated = supports(input.facts(), generated_declarations::CAPABILITY)?;
+    declaration_resolution_with_generated(input, interface, environment, generated)
+}
+
+fn declaration_resolution_with_generated(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    interface: &InterfaceObservations,
+    environment: Rc<Environment>,
+    generated: bool,
+) -> Result<Resolution, String> {
+    let facts = input.facts();
     environment.check_context(facts)?;
     let origins = facts
         .build
@@ -674,6 +687,7 @@ fn declaration_resolution(
         scalar_product_source: None,
         nonzero_product_source: None,
         transport_sources: None,
+        generated_declarations: Vec::new(),
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
         local_import_chains: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,
@@ -681,6 +695,10 @@ fn declaration_resolution(
     };
 
     collect_interface(&context, &mut resolution.trees)?;
+    if generated {
+        resolution.generated_declarations =
+            generated_declarations::capture(input, &resolution, &origins)?;
+    }
     verify_declarations(&resolution, &origins, facts)?;
     Ok(resolution)
 }
@@ -1042,6 +1060,9 @@ fn verify_declarations(
     for (key, tree) in &resolution.trees {
         if tree.generated_parts().is_some() {
             result_maps::validate_generated(facts, origins, &resolution.environment, tree)?;
+            if let Some(receipt) = resolution.generated_declaration(tree) {
+                verify_declaration_fields(resolution, facts, receipt.namespace(), tree)?;
+            }
             continue;
         }
         let (nominal, _) = tree.nominal_parts().ok_or("Non-nominal registry entry")?;
@@ -1594,7 +1615,11 @@ impl Scoped<'_> {
 
     fn checked_name(&self, names: Namespace) -> Result<Namespace, String> {
         if self.resolution.local_import_chains {
-            return import_chains::resolve(names, &self.resolution.environment.index);
+            return import_chains::resolve_generated(
+                names,
+                &self.resolution.environment.index,
+                &self.resolution.generated_declarations,
+            );
         }
         if !self
             .resolution
@@ -1696,7 +1721,9 @@ pub(crate) fn range_from_call(
     range_from::call(node, caller)
 }
 
-pub use generated_declarations::probe_generated_declaration_sources;
+pub use generated_declarations::{
+    probe_generated_declaration_sources, probe_generated_error_imports, probe_named_error_cleanup,
+};
 
 /// Diagnostic source/instance association only; grants no nominal, cleanup or call permission.
 pub fn probe_generated_conversion_source(

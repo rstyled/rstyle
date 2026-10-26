@@ -1,19 +1,16 @@
 # Rust support execution frontier
 
 Authority: [delivery plan](rust-support-parallel-delivery.md) and repository-root
-[roadmap](../rust-feature-coverage.md). Updated 2026-10-25. All P01–P22 routes
+[roadmap](../rust-feature-coverage.md). Updated 2026-10-26. All P01–P22 routes
 remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; Data3.116 connects original
-`time0.3.47::{week,day,dayo}` through checked digit-parser summaries, exact
-noncapturing callbacks, original `ParsedItem::flat_map` and native NonZero<u8/u16>.
-The no-drop proof preserves the non-Copy product, saved suffix, guarded reads and
-both distinct None paths. General callbacks, generic bodies, drop/unwind and
-transitive parser summaries remain separate. Validation and unchanged-selection
-measurements are recorded at the end of this file; earlier milestones below are
-historical. Broader P01–P22 work remains active.
+Branch `feature/rust-feature-coverage`; Data3.119 connects original checked
+wire add/mul to fresh named errors. Native no-default138/590 admissions; default
+capture is incomplete at the concrete-observation budget. Callable arithmetic
+summaries, map_err/? and broader ownership remain open. See the latest evidence
+below; earlier milestones are historical. Broader P01–P22 work remains active.
 
 Compiler nightly-2026-09-30, commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`; native aarch64 Linux,
@@ -1588,3 +1585,32 @@ patterns0/15 unchanged ignores. All262 original/replay imports,131 self-comparis
 and8,515 original pair records match the prior checkpoint exactly. New Cargo
 composition regression0.48s in the focused run. Native foreign-host CI is unrun.
 Evidence: `/tmp/rstyle-446-{nextest.log,final-test.log,clippy-final.log,fmt.log,style.json,patterns.json,comparison.json,frozen-comparison.json,strict-comparison.json,fresh-probe.log}`.
+
+Connected wire arithmetic errors (Data3.119/147 capabilities): complete ten-variant,
+15-field/five-nominal no-drop closure and checked generated import termini compose
+with static-field constructor summaries and guarded Option→Result arithmetic.
+Native no-default131→138/590, zero losses; all source/build selections persist.
+Four incidental constructors fit the same source-audited contract. Strict276
+original/replay imports,138 self-comparisons and9,453 cross-pairs complete;
+all131 prior verification records/8,515 pair records are identical. Structural
+add/mul acceptance at1 fails semantic separation; no equivalence/rewrite claim.
+Frozen run-5d5p51ww preserves all60 identities/results/reasons/blockers/denominators,
+24/29/7 and118 Data documents; R0/expanded unchanged. Full2,177 tests/5 existing
+skips plus doctests pass; final routing refactor17 focused tests/doctests pass.
+Fmt/Clippy clean, style0/7,256, patterns0/15 unchanged ignores. Fifteen resealed
+origin/guard attacks and direct/reexported hidden Drop negatives reject.
+
+Default-feature capture is incomplete: existing concrete-observation depth/entry
+budget aborts at sparse Transitions::try_state. Do not enlarge the budget or
+relabel missing capture as unsupported; investigate repeated type observation
+work/accounting before claiming this context. Independent unchanged-original
+oracle443,721 checks/context remains green across four runtime contexts; foreign
+native CI unrun. Next source-selected error-flow frontier: callable guarded
+arithmetic Results, then required map_err/? composition; shl and higher parser
+callers need their complete additional blockers audited. No new SHA256 or
+serialized lookup keys. Natural capture27.18s/375,744KiB peak; focused composition
+2.25s, not a controlled performance comparison. Broad goal active.
+[Contract](../eval/coverage-development/wire-arithmetic-errors/README.md).
+Evidence: `/tmp/rstyle-448-{comparison.json,strict-comparison.json,
+frozen-comparison.json,nextest.log,focused-final.log,clippy-final.log,
+style-final.json,patterns-final.json,natural-final.json,default-final.json}`.

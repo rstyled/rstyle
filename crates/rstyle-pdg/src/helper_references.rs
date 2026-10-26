@@ -15,7 +15,8 @@ pub fn supported_result(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<
         return Ok(true);
     }
     let result = result_type(facts)?;
-    Ok(crate::helper_calls::tagged_conversions::supported(facts)?
+    Ok(crate::helper_calls::named_errors::supported(facts)?
+        || crate::helper_calls::tagged_conversions::supported(facts)?
         || crate::helper_component_outputs::supported(facts)
         || !data_origins::shared(&result)
         || matches!(result, TypeToken::Shared(_)))

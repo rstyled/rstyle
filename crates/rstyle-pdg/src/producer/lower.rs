@@ -12,6 +12,7 @@ mod iterator_position;
 mod loops;
 mod mutable_scalars;
 mod named_callbacks;
+mod named_error_payloads;
 mod nonzero_digits;
 mod option_if_let;
 mod option_propagation;
@@ -244,6 +245,12 @@ impl Builder<'_> {
     }
 
     fn ordinary_expression(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        if crate::named_error_payloads::constructor(node, self.facts)
+            .expect("checked named error value")
+            .is_some()
+        {
+            return self.named_error_constructor(node, flow);
+        }
         if crate::data_enums::constructor_candidate(node, self.facts)
             || crate::checked_options::constructor_candidate(node, self.facts)
             || crate::concrete_results::constructor_candidate(node, self.facts)

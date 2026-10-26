@@ -1,74 +1,78 @@
 # Original checked arithmetic error chain
 
-Source-selected before activation: regex-automata0.4.18 `util::wire::{add,mul}`
-→ `DeserializeError::arithmetic_overflow`. Original source spans, complete files,
-all ten `DeserializeErrorKind` variants, generated PatternID/StateID error macro
-and invocations are frozen in `selection.json`. Historical inventories are untouched.
+Source-selected before activation: unchanged regex-automata0.4.18
+`util::wire::{add,mul}` → `DeserializeError::arithmetic_overflow`.
+`selection.json` freezes original functions, build contexts, complete files,
+all ten error variants/15 fields and both generated error children. Frozen
+historical selections remain untouched.
 
-Contract: checked usize addition/multiplication return the exact mathematical
-value when representable, otherwise the original `ArithmeticOverflow` variant
-retaining the exact static `what` reference. No panic is permitted. The error is
-non-Copy; its complete ownership/no-drop proof must cover every variant, including
-the generated error members. An unused variant is not permission to omit it.
+Data3.119 supports the complete chain in the native no-default Cargo context.
+Checked usize addition/multiplication returns the mathematical value when it fits,
+otherwise the exact ArithmeticOverflow variant retaining the static `what` pointer
+and length. No panic is permitted. Constructor summaries retain the exact
+wrapper/variant/field/reference route; arithmetic retains empty Ok origins and a
+None-guarded Err route from formal2. Every graph operation, saved operand, payload
+guard, consumer and return is checked. The non-Copy error's no-drop proof covers
+all ten variants and five nominal dependencies, including unused variants and both
+generated children. Checked imports/reexports terminate at exact source receipts;
+these receipts grant no Copy, arbitrary macro, derive or callable authority.
 
-Initial Data3.118 capture lost the complete type (`Scalar enum requires single
-tuple payloads`). The observation increment retains all ten variants,
-15 fields and both generated error children for all three originals; it grants
-no value or cleanup permission. Remaining blockers: precise imports ending at
-independently checked generated declarations; recursive whole-error no-drop proof;
-static-string/reference component transport; guarded checked-Option payload →
-Result construction; constructor/helper summary linking.
-Checked_add/mul operations are already registered. Unresolved: which existing
-aggregate-origin and guarded payload machinery can be reused without new transport.
-`shl` additionally needs conversion, captured map_err and Result `?`; it remains
-outside this first selection. Formatting, generic enum support and cleanup are
-separate work.
+The bounded constructor contract is one unchanged explicit static-string formal,
+one fresh named variant field and its unary wrapper. Source review confirms four
+additional unchanged constructors (`generic`, `buffer_too_small`, `invalid_usize`,
+`label_mismatch`) fit it. They are measured incidental gains, not additions to the
+three-function frozen development selection. add/mul consume a constructor summary;
+this does not yet make add/mul callable helpers or support propagation through `?`.
 
-Independent oracle uses u128 mathematical sum/product, all256² small pairs,
-15² boundary pairs and8,192 deterministic full-width pairs, each against three
-static messages and both operations; plus three direct helper checks:
-**443,721 checks/context**. Errors are matched against the private original variant
-and string pointer/length. Any original panic fails the run. No production result
-or capture output supplies expected values.
-
-Required adversaries: wrong/missing error variant; dropped variant inventory;
-changed generated child/declaration; custom Drop; altered lifetime/static source;
-wrong saved operands or arithmetic kind; missing payload guard; changed helper or
-build identity. These are future semantic-verifier requirements, not tests already
-executed by the runtime oracle.
+Independent oracle: u128 mathematical sum/product, all256² small pairs,
+15² boundary pairs and8,192 deterministic full-width pairs, three static messages,
+both operations and three direct helper checks. Original errors are matched against
+the private variant and exact string pointer/length; panic fails. **443,721 checks
+per context**, zero mismatches in default/no-default × debug assertions on/off.
+The append-only harness checks every copied original byte. Expected values never
+come from production extraction. These prior runtime results remain applicable to
+the unchanged originals; they do not grant capture/admission authority.
 
 ```sh
 python3 eval/coverage-development/wire-arithmetic-errors/oracle.py
 python3 eval/coverage-development/wire-arithmetic-errors/oracle.py --run-native --output /tmp/wire-arithmetic-oracle.json
 ```
 
-Source checks and all four native contexts pass443,721 checks each, zero
-mismatches. Native no-default extraction retains131/590 admissions unchanged;
-all three targets remain excluded. This is a prerequisite, not connected support.
-Native runner copies the entire original package, verifies every original byte,
-appends a private-module oracle and root bridge, and executes a separate runner.
-Original functions, manifests and module paths remain byte-identical. Default and
-no-default × debug assertions on/off use pinned compiler/64-bit hosts; opt-level0,
-overflow checks and unwind remain explicit. This establishes original runtime
-expectations, not admission, strict verification, matching or detector quality.
+Measured no-default admissions: **131→138/590**, seven gains/zero losses, identical
+source/build selections. Capture and assessment complete; zero-pair roster matching
+is explicitly incomplete. Separate strict verification imports all138 originals
+and replays (276 imports), checks138 original/replay comparisons at Accepted1,
+and completes9,453 cross-original comparisons. All131 prior verification records
+and8,515 pair records persist exactly.
 
-Generated declaration source proof now works independently of the current map
-wrapper's callable receipt, including declaration-only macros with no generated
-methods. It checks exact local roots, lexical substitution, cfg activity,
-module/compiler identity and the unary constructor/field roster. Existing callable
-owner checks remain required on the callable route. Derives, Drop/Copy and effects
-receive no authority from this source receipt. Both original generated error
-children pass from all three selected originals (six source proofs).
+Independent semantic expectation distinguishes add(2,3)=5 from mul(2,3)=6.
+The structural matcher nevertheless accepts add/mul at score1; this fails an
+expectation of semantic separation and establishes no equivalence or rewrite
+safety. Both constructor/arithmetic comparisons reject. Extraction support and
+detector quality remain separate claims.
 
-Next connect import/reexport termination to these checked declarations and reuse
-the generated-error cleanup checks recursively. Captured names alone are not
-source authority. The full ten-variant cleanup closure precedes activation.
-Evidence: `/tmp/rstyle-445-{natural-shapes.json,comparison.json,oracle.json}`.
+Validation: full2,177-test suite plus doctests passes; final routing refactor has
+17 focused tests plus doctests passing. Multiline signature and import/reexport
+composition run through real Cargo and strict replay. Fifteen resealed graph
+attacks reject changed static/component origins, missing annotations, flattened
+origins, changed None guards, nonempty Ok routes and removed branches. Both direct
+and reexported hidden Drop variants exclude every selected function; incomplete,
+changed or reordered type inventories and the historical3.118 downgrade reject.
+Final fmt/Clippy clean, style0/7,256 and patterns0/15 unchanged ignores.
 
-Source-only replay on a retained original owning bundle:
-```sh
-cargo run -p rstyle-pdg --example wire_declaration_probe -- UNIT_BUNDLE eval/coverage-development/wire-arithmetic-errors/selection.json
-```
-The probe batches both declarations through one lexical environment per caller;
-production capture adds their existing observed roots to the existing roster pass.
-It adds no serialized lookup keys or source hashes.
+Default-feature capture is **incomplete**, with no admission claim: the existing
+concrete-observation depth/entry budget aborts at
+`dfa::sparse::Transitions::<T>::try_state`. Its long body repeatedly observes the
+expanded error tree. Investigate capture work/accounting before broadening this
+context; do not increase budgets or convert incomplete evidence to unsupported or
+admitted. The independent default runtime oracle still passes. Foreign native CI
+is unrun. General payload storage/moves, cleanup/unwind, map_err callbacks, `?`,
+callable arithmetic summaries and shl remain separate blockers.
+
+Evidence: `/tmp/rstyle-448-{comparison.json,strict-comparison.json,nextest.log,
+focused-final.log,clippy-final.log,style-final.json,patterns-final.json,
+natural-final.json,default-final.json}`; unchanged runtime oracle:
+`/tmp/rstyle-445-oracle.json`. No new SHA256, serialized lookup keys or whole-unit
+indexing pass. The natural no-default run took27.18s/375,744KiB peak; the final
+focused composition test took2.25s with binaries built. These are workload timings,
+not controlled speedup measurements.

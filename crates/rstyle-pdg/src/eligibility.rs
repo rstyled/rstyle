@@ -702,6 +702,20 @@ fn check_digit_forwarder_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> 
 }
 
 fn check_special_body(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
+    if node.hir == ctx.facts.body.hir && node.span == ctx.facts.body.span {
+        match crate::data_documents::named_error_payloads::verify_source(ctx.facts) {
+            Ok(true) => return Some(Outcome::ok()),
+            Err(reason) => {
+                return Some(error(
+                    crate::named_error_payloads::CAPABILITY,
+                    "named_error",
+                    node,
+                    &reason,
+                ));
+            }
+            Ok(false) => {}
+        }
+    }
     if node == &ctx.facts.body && crate::nonzero_digit_calls::candidate(ctx.facts) {
         return Some(match crate::nonzero_digit_calls::verify(ctx.facts) {
             Ok(Some(_)) => Outcome::ok(),

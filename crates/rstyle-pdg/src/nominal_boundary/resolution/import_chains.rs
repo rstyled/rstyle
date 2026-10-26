@@ -1,7 +1,15 @@
 //! Follow exact local nominal reexports in the independently closed lexical index.
 use super::*;
 
-pub(super) fn resolve(mut names: Namespace, index: &Index) -> Result<Namespace, String> {
+pub(super) fn resolve(names: Namespace, index: &Index) -> Result<Namespace, String> {
+    resolve_generated(names, index, &[])
+}
+
+pub(super) fn resolve_generated(
+    mut names: Namespace,
+    index: &Index,
+    generated: &[crate::generated_sources::declarations::CheckedGeneratedDeclaration],
+) -> Result<Namespace, String> {
     let mut seen = std::collections::BTreeSet::new();
     for _ in 0..crate::concrete_types::MAX_DEPTH {
         if !seen.insert(names.clone()) {
@@ -14,7 +22,9 @@ pub(super) fn resolve(mut names: Namespace, index: &Index) -> Result<Namespace, 
         {
             return Err("Local nominal path crosses an ambiguous module import".into());
         }
-        if index.declarations.contains_key(&names) {
+        if index.declarations.contains_key(&names)
+            || generated_declarations::contains(generated, &names)
+        {
             return Ok(names);
         }
         let (name, namespace) = names.split_last().ok_or("Empty local nominal import")?;

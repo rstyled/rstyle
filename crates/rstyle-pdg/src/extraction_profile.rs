@@ -158,6 +158,8 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.checked-nonzero-digit-composition",
     "rust.unsigned-index-conversion-family",
     "rust.generated-checked-tryfrom-maps",
+    "rust.named-error-payload-flow",
+    "rust.named-error-helper-calls",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -317,7 +319,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.118.0", 145)),
+            Self::DataV3 => Some(("3.119.0", 147)),
         }
     }
 

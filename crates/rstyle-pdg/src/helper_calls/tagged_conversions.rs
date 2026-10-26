@@ -14,8 +14,7 @@ pub(crate) const RESULT_DEPENDENCE: &str = "verified-guarded-component-substitut
 
 /// Candidate routing only; this does not establish graph or helper-call authority.
 pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::facts_support(facts, CAPABILITY)
-        && crate::copy_tagged_values::candidate(facts)
+    super::capability_candidate(facts, CAPABILITY, crate::copy_tagged_values::candidate)
 }
 
 pub(crate) fn supported(facts: &dyn EvidenceFacts) -> Result<bool, String> {
@@ -113,7 +112,14 @@ pub(super) fn summary(
 }
 
 pub(super) fn validate_shape(summary: &super::Summary) -> Result<&WireContract, String> {
-    if summary.identity != SUMMARY
+    validate_shape_as(summary, SUMMARY)
+}
+
+pub(super) fn validate_shape_as<'a>(
+    summary: &'a super::Summary,
+    identity: &str,
+) -> Result<&'a WireContract, String> {
+    if summary.identity != identity
         || summary.result_dependence != RESULT_DEPENDENCE
         || summary.argument_evaluation != "source-order-once/1"
         || summary.argument_types.len() != 1

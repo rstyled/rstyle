@@ -1,13 +1,21 @@
-//! Complete payload inventories are diagnostics, never supported-prefix proofs.
+//! Whole named errors compose through checked arithmetic and exact helper origins.
 use super::{float_kernels::function, *};
+mod attacks;
 use rstyle_pdg::concrete_types::{InterfaceObservations, Observation, TypeTree, VariantShape};
 
 const SOURCE: &str = r#"
 #![no_std]
+mod generated {
 pub struct Attempt { attempted: u64 }
 macro_rules! errors { ($name:ident) => { pub struct $name(Attempt); }; }
 errors!(FirstError);
 errors!(SecondError);
+}
+mod api {
+    pub use super::generated::FirstError as First;
+    pub use super::generated::SecondError as Second;
+}
+use api::{First as FirstError, Second as SecondError};
 pub enum ErrorKind {
     Generic { msg: &'static str },
     BufferTooSmall { what: &'static str },
@@ -24,7 +32,11 @@ pub struct Error(ErrorKind);
 pub fn arithmetic_overflow(what: &'static str) -> Error {
     Error(ErrorKind::ArithmeticOverflow { what })
 }
-pub fn add(a: usize, b: usize, what: &'static str) -> Result<usize, Error> {
+pub fn add(
+    a: usize,
+    b: usize,
+    what: &'static str,
+) -> Result<usize, Error> {
     match a.checked_add(b) {
         Some(c) => Ok(c),
         None => Err(arithmetic_overflow(what)),
@@ -48,7 +60,7 @@ pub fn hidden_memory(value: HiddenMemory) -> usize { 0 }
 "#;
 
 #[test]
-fn named_error_observations_retain_every_payload_without_granting_value_authority() {
+fn named_error_payloads_compose_checked_arithmetic_without_omitting_cleanup() {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), SOURCE).unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
@@ -59,7 +71,7 @@ fn named_error_observations_retain_every_payload_without_granting_value_authorit
     );
     for name in ["arithmetic_overflow", "add", "mul"] {
         let entry = function(&report, name);
-        assert_eq!(entry["outcome"], "excluded");
+        assert_eq!(entry["outcome"], "admitted", "{name}: {}", entry["reasons"]);
         let (store, index) = shared_evidence::load(entry);
         let interface = store.functions()[index]
             .build
@@ -73,6 +85,8 @@ fn named_error_observations_retain_every_payload_without_granting_value_authorit
                 interface.result
             );
         };
+        verify_complete_pair(&store, index);
+        attacks::reject(entry);
         check_error(ty);
         if name == "arithmetic_overflow" {
             check_generated_sources(&store, index, ty);
@@ -201,10 +215,58 @@ fn check_generated_sources(
     let analysis = store.analysis();
     let facts = analysis.function(index).unwrap();
     assert_eq!(
+        rstyle_pdg::nominal_boundary::resolution::probe_named_error_cleanup(&facts).unwrap(),
+        5
+    );
+    assert_eq!(
+        rstyle_pdg::nominal_boundary::resolution::probe_generated_error_imports(&facts).unwrap(),
+        2
+    );
+    assert_eq!(
         rstyle_pdg::nominal_boundary::resolution::probe_generated_declaration_sources(
             &facts, &trees
         )
         .unwrap(),
         2
     );
+}
+
+fn verify_complete_pair(store: &rstyle_pdg::unit_store::UnitStore, index: usize) {
+    let analysis = store.analysis();
+    let facts = analysis.function(index).unwrap();
+    let original = store.pair(index).unwrap();
+    rstyle_pdg::producer::verify(original, &facts).unwrap();
+    rstyle_ccgraph::admit_produced(original, &facts).unwrap();
+    let mut pair = rstyle_pdg::producer::Pair {
+        pdg: original.pdg.clone(),
+        cfg: original.cfg.clone(),
+    };
+    pair.pdg.profile.version = "3.118.0".into();
+    pair.cfg.profile.version = "3.118.0".into();
+    assert!(rstyle_ccgraph::admit_produced(&pair, &facts).is_err());
+}
+
+#[test]
+fn named_error_cleanup_rejects_drop_in_an_unused_generated_variant() {
+    for destructor in [
+        "impl Drop for FirstError { fn drop(&mut self) {} }",
+        "mod hidden { use crate::FirstError as Alias; impl Drop for Alias { fn drop(&mut self) {} } }",
+    ] {
+        let directory = clone_workspace();
+        std::fs::write(
+            directory.path().join("src/lib.rs"),
+            format!("{SOURCE}\n{destructor}"),
+        )
+        .unwrap();
+        let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        for name in ["arithmetic_overflow", "add", "mul"] {
+            let entry = function(&report, name);
+            assert_eq!(entry["outcome"], "excluded", "{name}: {destructor}");
+        }
+    }
 }
