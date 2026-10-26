@@ -108,7 +108,10 @@ fn check(
 }
 
 fn fixture() -> (Fixture, TypeTree, GeneratedOrigin) {
-    let mut fixture = Fixture::new();
+    from_fixture(Fixture::new())
+}
+
+fn from_fixture(mut fixture: Fixture) -> (Fixture, TypeTree, GeneratedOrigin) {
     let source = &fixture.census.files[0];
     let raw = fixture.span(DECLARATION);
     let template = crate::SourceText::from_snapshot(source.bytes.clone(), raw.span).unwrap();
@@ -206,4 +209,146 @@ fn nominal(path: &str, source: &crate::SourceText) -> Nominal {
         definition_path: path.into(),
         declaration_digest: source.identity().into(),
     }
+}
+
+fn independent_check(
+    fixture: &Fixture,
+    tree: &TypeTree,
+    origin: &GeneratedOrigin,
+) -> Result<CheckedGeneratedDeclaration, String> {
+    independent::verify_using(
+        IndependentInput {
+            facts: &fixture.facts,
+            capture: &fixture.capture,
+            tree,
+            origin,
+        },
+        &fixture.census,
+        crate::nominal_boundary::census::generated_sources::verify_compiler,
+    )
+}
+
+#[test]
+fn ordinary_caller_needs_no_generated_function_observation_or_global_completeness() {
+    let (mut fixture, tree, origin) = fixture();
+    fixture.capture.outcomes.clear();
+    fixture.capture.complete = false;
+    fixture.facts.name = "wire::arithmetic_overflow".into();
+    fixture
+        .facts
+        .build
+        .frontend_options
+        .remove("definition_identity");
+    let receipt = independent_check(&fixture, &tree, &origin).unwrap();
+    assert_eq!(receipt.tree(), &tree);
+    assert_eq!(receipt.constructor().definition_identity, "ctor:error");
+    assert!(check(&fixture, &tree, &origin).is_err());
+}
+
+#[test]
+fn independent_declaration_checks_exact_root() {
+    for mutation in 0..11 {
+        let (mut fixture, tree, mut origin) = fixture();
+        match mutation {
+            0 => origin.defining_expansion = "StateID-root".into(),
+            1 => fixture.capture.expansions[0].parent = Some("outer".into()),
+            2 => fixture.capture.expansions[0].edition = "2018".into(),
+            3 => fixture.capture.expansions[0].invocation.marks = origin.origin.marks.clone(),
+            4 => fixture.capture.expansions[0]
+                .macro_definition
+                .as_mut()
+                .unwrap()
+                .path
+                .push('x'),
+            5 => fixture.capture.expansions[0]
+                .macro_definition
+                .as_mut()
+                .unwrap()
+                .stable_crate_id
+                .clear(),
+            6 => {
+                fixture.capture.expansions[0]
+                    .definition
+                    .as_mut()
+                    .unwrap()
+                    .span
+                    .end -= 1
+            }
+            7 => fixture.capture.expansions[0].invocation.raw.span.end -= 1,
+            8 => fixture
+                .capture
+                .expansions
+                .push(fixture.capture.expansions[0].clone()),
+            9 => fixture.capture.expansions[0].local_inner_macros = true,
+            _ => fixture.capture.expansions[0].kind = ExpansionKind::Derive,
+        }
+        assert!(
+            independent_check(&fixture, &tree, &origin).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn independent_declaration_checks_module_and_complete_direct_roster() {
+    for mutation in 11..17 {
+        let (mut fixture, tree, origin) = fixture();
+        match mutation {
+            11 => fixture
+                .capture
+                .emitted
+                .last_mut()
+                .unwrap()
+                .parent
+                .definition_identity
+                .push('x'),
+            12 => {
+                fixture.capture.emitted.pop();
+            }
+            13 => fixture
+                .capture
+                .emitted
+                .push(fixture.capture.emitted.last().unwrap().clone()),
+            14 => {
+                let len = fixture.capture.emitted.len();
+                fixture.capture.emitted[len - 3]
+                    .parent
+                    .stable_crate_id
+                    .clear();
+            }
+            15 => {
+                let len = fixture.capture.emitted.len();
+                fixture.capture.emitted[len - 3].parent.local = false;
+            }
+            _ => {
+                let len = fixture.capture.emitted.len();
+                fixture.capture.emitted[len - 3]
+                    .parent
+                    .definition_identity
+                    .push('x');
+            }
+        }
+        assert!(
+            independent_check(&fixture, &tree, &origin).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn source_inactive_declaration_cannot_be_revived_by_an_emitted_row() {
+    let source = include_str!("../checked/tests/source.rs").replace(
+        DECLARATION,
+        &format!("#[cfg(not(feature = \"hide_error\"))] {DECLARATION}"),
+    );
+    let (mut fixture, tree, origin) = from_fixture(Fixture::with_source(&source));
+    independent_check(&fixture, &tree, &origin).unwrap();
+    fixture
+        .facts
+        .build
+        .cfgs
+        .push("feature=\"hide_error\"".into());
+    assert!(
+        matches!(independent_check(&fixture, &tree, &origin), Err(error) if error.contains("inactive"))
+    );
 }

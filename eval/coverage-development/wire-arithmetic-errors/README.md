@@ -12,7 +12,7 @@ non-Copy; its complete ownership/no-drop proof must cover every variant, includi
 the generated error members. An unused variant is not permission to omit it.
 
 Initial Data3.118 capture lost the complete type (`Scalar enum requires single
-tuple payloads`). The pending observation increment retains all ten variants,
+tuple payloads`). The observation increment retains all ten variants,
 15 fields and both generated error children for all three originals; it grants
 no value or cleanup permission. Remaining blockers: precise imports ending at
 independently checked generated declarations; recursive whole-error no-drop proof;
@@ -52,8 +52,23 @@ no-default × debug assertions on/off use pinned compiler/64-bit hosts; opt-leve
 overflow checks and unwind remain explicit. This establishes original runtime
 expectations, not admission, strict verification, matching or detector quality.
 
-Next proof reuses existing expansion/declaration and generated-error cleanup
-checks, detached from the current map wrapper's callable receipt. Imported names
-must terminate at a checked emitted declaration; captured names alone are not
+Generated declaration source proof now works independently of the current map
+wrapper's callable receipt, including declaration-only macros with no generated
+methods. It checks exact local roots, lexical substitution, cfg activity,
+module/compiler identity and the unary constructor/field roster. Existing callable
+owner checks remain required on the callable route. Derives, Drop/Copy and effects
+receive no authority from this source receipt. Both original generated error
+children pass from all three selected originals (six source proofs).
+
+Next connect import/reexport termination to these checked declarations and reuse
+the generated-error cleanup checks recursively. Captured names alone are not
 source authority. The full ten-variant cleanup closure precedes activation.
 Evidence: `/tmp/rstyle-445-{natural-shapes.json,comparison.json,oracle.json}`.
+
+Source-only replay on a retained original owning bundle:
+```sh
+cargo run -p rstyle-pdg --example wire_declaration_probe -- UNIT_BUNDLE eval/coverage-development/wire-arithmetic-errors/selection.json
+```
+The probe batches both declarations through one lexical environment per caller;
+production capture adds their existing observed roots to the existing roster pass.
+It adds no serialized lookup keys or source hashes.

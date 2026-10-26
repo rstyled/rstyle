@@ -1,5 +1,5 @@
 //! Independent source ownership only; body effects and callable permission stay separate.
-mod authority;
+pub(super) mod authority;
 mod conversion;
 mod roles;
 mod roster;

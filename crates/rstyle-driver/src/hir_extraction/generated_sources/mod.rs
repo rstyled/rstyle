@@ -42,35 +42,57 @@ pub(super) fn capture(
     }
 
     let mut roots = Roots::new(tcx);
-    let selected = selected(tcx, facts, &mut roots);
-    if selected.is_empty() {
+    let selected = Selection::capture(tcx, facts, &mut roots)?;
+    if selected.functions.is_empty() && selected.roots.is_empty() {
         return Ok(());
     }
     let provenance = Provenance::new(tcx, &options.sources);
     let capture = unit_capture(provenance, facts, &selected, &mut roots);
 
     // One unit record: consumers join outcomes by their exact definition identity.
-    facts[selected[0].index]
-        .build
-        .frontend_options
-        .insert_data(capture);
+    facts[selected
+        .functions
+        .first()
+        .map_or(0, |selection| selection.index)]
+    .build
+    .frontend_options
+    .insert_data(capture);
     Ok(())
+}
+
+fn declaration_roots(facts: &[HirFnFacts]) -> Result<BTreeSet<String>, String> {
+    let mut roots = BTreeSet::new();
+    for facts in facts {
+        if facts
+            .build
+            .frontend_options
+            .contains_key(rstyle_pdg::declaration_origins::KEY)
+        {
+            let origins = facts
+                .build
+                .frontend_options
+                .data::<rstyle_pdg::declaration_origins::Origins>()?;
+            roots.extend(
+                origins
+                    .generated
+                    .iter()
+                    .map(|origin| origin.defining_expansion.clone()),
+            );
+        }
+    }
+    Ok(roots)
 }
 
 fn unit_capture<'tcx>(
     mut provenance: Provenance<'_, 'tcx>,
     facts: &[HirFnFacts],
-    selected: &[Selected],
+    selected: &Selection,
     roots: &mut Roots<'tcx>,
 ) -> Arc<UnitCapture> {
-    let root_ids: BTreeSet<_> = selected
-        .iter()
-        .filter_map(|selection| selection.root.as_ref().ok().map(|root| identity(*root)))
-        .collect();
-    let (emitted, mut outcomes) = roster::capture(&mut provenance, roots, &root_ids);
+    let (emitted, mut outcomes) = roster::capture(&mut provenance, roots, &selected.roots);
 
     outcomes.extend(
-        selected.iter().map(|selection| {
+        selected.functions.iter().map(|selection| {
             observation_outcome(&mut provenance, selection, &facts[selection.index])
         }),
     );
@@ -105,6 +127,31 @@ fn observation_outcome(
             owner: definition_record(provenance.tcx, selection.id.to_def_id()),
             reason,
         },
+    }
+}
+
+struct Selection {
+    functions: Vec<Selected>,
+    roots: BTreeSet<String>,
+}
+
+impl Selection {
+    fn capture(
+        tcx: TyCtxt<'_>,
+        facts: &[HirFnFacts],
+        roots: &mut Roots<'_>,
+    ) -> Result<Self, String> {
+        let functions = selected(tcx, facts, roots);
+        let mut root_ids = declaration_roots(facts)?;
+        root_ids.extend(
+            functions
+                .iter()
+                .filter_map(|selection| selection.root.as_ref().ok().map(|root| identity(*root))),
+        );
+        Ok(Self {
+            functions,
+            roots: root_ids,
+        })
     }
 }
 

@@ -139,7 +139,10 @@ pub(super) fn validate_generated(
     Ok(true)
 }
 
-fn origin<'a>(origins: &'a Origins, tree: &TypeTree) -> Result<&'a GeneratedOrigin, String> {
+pub(super) fn origin<'a>(
+    origins: &'a Origins,
+    tree: &TypeTree,
+) -> Result<&'a GeneratedOrigin, String> {
     let nominal = tree
         .nominal_identity()
         .ok_or("Generated source requires a nominal type")?;

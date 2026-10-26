@@ -1,7 +1,13 @@
 //! Exact generated tuple declarations, distinct from original-byte declarations.
-use super::{capture::*, checked::CheckedMember};
+use super::{
+    capture::*,
+    checked::{CheckedMember, authority},
+};
+use crate::nominal_boundary::census::generated_sources::CheckedExpansion;
+mod independent;
 use crate::nominal_boundary::census::Census;
 use crate::{HirFnFacts, concrete_types::TypeTree, declaration_origins::GeneratedOrigin};
+pub(crate) use independent::{IndependentInput, verify_in};
 use syn::spanned::Spanned;
 
 pub(crate) struct Input<'a> {
@@ -36,7 +42,51 @@ impl CheckedGeneratedDeclaration {
     }
 }
 
+struct SourceInput<'a> {
+    facts: &'a HirFnFacts,
+    census: &'a Census,
+    capture: &'a UnitCapture,
+    expansion: &'a CheckedExpansion,
+    tree: &'a TypeTree,
+    origin: &'a GeneratedOrigin,
+}
+
 pub(crate) fn verify(input: Input<'_>) -> Result<CheckedGeneratedDeclaration, String> {
+    let owner_identity = input
+        .facts
+        .build
+        .frontend_options
+        .get("definition_identity")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("Generated declaration lacks exact owning function identity")?;
+
+    if input.member.owner().definition_identity != owner_identity
+        || input.member.defining_expansion() != input.origin.defining_expansion
+    {
+        return Err(
+            "Generated declaration belongs to another exact checked member expansion".into(),
+        );
+    }
+    let source = SourceInput {
+        facts: input.facts,
+        census: input.census,
+        capture: input.capture,
+        expansion: input.member.expansion(),
+        tree: input.tree,
+        origin: input.origin,
+    };
+
+    let module = independent::module(&source)?;
+    if module != module_owner(&input)? {
+        return Err(
+            "Generated struct and checked callable belong to different exact modules".into(),
+        );
+    }
+
+    verify_source(source)
+}
+
+fn verify_source(input: SourceInput<'_>) -> Result<CheckedGeneratedDeclaration, String> {
     let (nominal, definition, template, fields) = input
         .tree
         .generated_parts()
@@ -44,38 +94,23 @@ pub(crate) fn verify(input: Input<'_>) -> Result<CheckedGeneratedDeclaration, St
     if &input.origin.nominal != nominal || &input.origin.definition != definition {
         return Err("Generated declaration origin identifies another exact type".into());
     }
-    local(input.facts, definition)?;
+
+    authority::local(input.facts, definition)?;
     original(&input, template)?;
     let item = selected(&input, definition)?;
+
     field(&input, item, fields)?;
     let constructor = emitted(&input, definition)?;
 
     Ok(CheckedGeneratedDeclaration {
         tree: input.tree.clone(),
         item: item.clone(),
-        namespace: input.member.namespace().to_vec(),
+        namespace: input.expansion.namespace().to_vec(),
         constructor,
     })
 }
 
-fn local(facts: &HirFnFacts, definition: &Definition) -> Result<(), String> {
-    let compiled = facts
-        .build
-        .frontend_options
-        .get("rstyle.rust.compiled-crate")
-        .ok_or("Generated declaration lacks compiled crate identity")?;
-    if !definition.local
-        || definition.definition_identity.is_empty()
-        || compiled["identity"] != "rstyle.rust.compiled-crate/1"
-        || compiled["crate_name"].as_str() != Some(&definition.crate_name)
-        || compiled["stable_crate_id"].as_str() != Some(&definition.stable_crate_id)
-    {
-        return Err("Generated declaration belongs to another exact compiled crate".into());
-    }
-    Ok(())
-}
-
-fn original(input: &Input<'_>, template: &crate::SourceText) -> Result<(), String> {
+fn original(input: &SourceInput<'_>, template: &crate::SourceText) -> Result<(), String> {
     let raw = &input.origin.origin.raw;
     let file = input
         .census
@@ -95,33 +130,22 @@ fn original(input: &Input<'_>, template: &crate::SourceText) -> Result<(), Strin
         return Err("Generated declaration template differs from original compiler bytes".into());
     }
 
-    let owner_identity = input
-        .facts
-        .build
-        .frontend_options
-        .get("definition_identity")
-        .and_then(serde_json::Value::as_str)
-        .ok_or("Generated declaration lacks exact owning function identity")?;
-    if input.member.owner().definition_identity != owner_identity
-        || input.member.defining_expansion() != input.origin.defining_expansion
-        || input.origin.origin.marks
-            != [Mark {
-                expansion: input.origin.defining_expansion.clone(),
-                transparency: Transparency::SemiOpaque,
-            }]
+    if input.origin.origin.marks
+        != [Mark {
+            expansion: input.origin.defining_expansion.clone(),
+            transparency: Transparency::SemiOpaque,
+        }]
     {
-        return Err(
-            "Generated declaration belongs to another exact checked member expansion".into(),
-        );
+        return Err("Generated declaration lacks its exact defining hygiene".into());
     }
     Ok(())
 }
 
 fn selected<'a>(
-    input: &'a Input<'_>,
+    input: &'a SourceInput<'_>,
     definition: &Definition,
 ) -> Result<&'a syn::ItemStruct, String> {
-    let expansion = input.member.expansion();
+    let expansion = input.expansion;
     let mut candidates = expansion.items().iter().filter_map(|item| match item {
         syn::Item::Struct(item)
             if item_span(item)
@@ -149,11 +173,15 @@ fn selected<'a>(
         return Err("Generated declaration source inventory or substituted name disagrees".into());
     }
 
+    let configuration = crate::conditional_source::Configuration::new(&input.facts.build.cfgs);
+    if !configuration.active(&item.attrs)? {
+        return Err("Generated declaration is inactive in the selected build".into());
+    }
     Ok(item)
 }
 
 fn field(
-    input: &Input<'_>,
+    input: &SourceInput<'_>,
     item: &syn::ItemStruct,
     fields: &[crate::concrete_types::Field],
 ) -> Result<(), String> {
@@ -181,7 +209,7 @@ fn field(
 
     payload_identity(input, path, &field.ty)?;
 
-    let span = input.member.expansion().source_span(source.ty.span());
+    let span = input.expansion.source_span(source.ty.span());
     let file = input
         .census
         .files
@@ -200,7 +228,7 @@ fn field(
 }
 
 fn payload_identity(
-    input: &Input<'_>,
+    input: &SourceInput<'_>,
     source: &syn::TypePath,
     observed: &TypeTree,
 ) -> Result<(), String> {
@@ -214,7 +242,7 @@ fn payload_identity(
         );
     };
     let expected = input
-        .member
+        .expansion
         .namespace()
         .iter()
         .cloned()
@@ -245,7 +273,7 @@ fn item_span(item: &syn::ItemStruct) -> Result<proc_macro2::Span, String> {
         .ok_or_else(|| "Generated declaration has noncontiguous original coordinates".into())
 }
 
-fn emitted(input: &Input<'_>, definition: &Definition) -> Result<Definition, String> {
+fn emitted(input: &SourceInput<'_>, definition: &Definition) -> Result<Definition, String> {
     let mut matching = input
         .capture
         .emitted
@@ -256,16 +284,11 @@ fn emitted(input: &Input<'_>, definition: &Definition) -> Result<Definition, Str
         || &structure.definition != definition
         || structure.kind != "Struct"
         || structure.origin != input.origin.origin
-        || structure.parent.path != input.member.namespace().join("::")
+        || structure.parent.path != input.expansion.namespace().join("::")
     {
         return Err("Generated struct emitted identity, source or parent disagrees".into());
     }
-    local(input.facts, &structure.parent)?;
-    if &structure.parent != module_owner(input)? {
-        return Err(
-            "Generated struct and checked callable belong to different exact modules".into(),
-        );
-    }
+    independent::module(input)?;
 
     let children: Vec<_> = input
         .capture
@@ -326,7 +349,7 @@ fn module_owner<'a>(input: &'a Input<'_>) -> Result<&'a Definition, String> {
 }
 
 fn child<'a>(
-    input: &Input<'_>,
+    input: &SourceInput<'_>,
     children: &[&'a Emitted],
     kind: &str,
 ) -> Result<&'a Emitted, String> {
@@ -338,14 +361,15 @@ fn child<'a>(
         return Err("Duplicate generated tuple direct definition".into());
     }
 
-    local(input.facts, &child.definition)?;
+    authority::local(input.facts, &child.definition)?;
+    independent::unique(input.capture, &child.definition)?;
     if child.definition.definition_identity == child.parent.definition_identity {
         return Err("Generated direct child reuses its owner identity".into());
     }
     Ok(child)
 }
 
-fn field_origin(input: &Input<'_>, emitted: &Emitted) -> Result<(), String> {
+fn field_origin(input: &SourceInput<'_>, emitted: &Emitted) -> Result<(), String> {
     let item = selected(input, &input.origin.definition)?;
     let syn::Fields::Unnamed(fields) = &item.fields else {
         return Err("Generated field owner is not a tuple".into());
@@ -355,7 +379,7 @@ fn field_origin(input: &Input<'_>, emitted: &Emitted) -> Result<(), String> {
         .first()
         .ok_or("Missing generated tuple field")?;
 
-    if emitted.origin.raw != input.member.expansion().source_span(field.span())
+    if emitted.origin.raw != input.expansion.source_span(field.span())
         || emitted.origin.marks != input.origin.origin.marks
     {
         return Err("Generated tuple field lacks its exact emitted original source anchor".into());

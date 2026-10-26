@@ -45,7 +45,7 @@ pub(super) fn selected<'a>(input: &Input<'a>) -> Result<(&'a Observation, &'a Ex
     Ok((observation, root))
 }
 
-fn root_scope(facts: &HirFnFacts, root: &Expansion) -> Result<(), String> {
+pub(crate) fn root_scope(facts: &HirFnFacts, root: &Expansion) -> Result<(), String> {
     if root.expansion.is_empty()
         || root.parent.is_some()
         || root.kind != ExpansionKind::Bang
@@ -68,7 +68,7 @@ fn root_scope(facts: &HirFnFacts, root: &Expansion) -> Result<(), String> {
     )
 }
 
-pub(super) fn local(facts: &HirFnFacts, definition: &Definition) -> Result<(), String> {
+pub(crate) fn local(facts: &HirFnFacts, definition: &Definition) -> Result<(), String> {
     if definition.path.is_empty() {
         return Err("Generated definition differs from exact compiled local crate".into());
     }
@@ -77,7 +77,7 @@ pub(super) fn local(facts: &HirFnFacts, definition: &Definition) -> Result<(), S
 
 /// rustc names the crate-root module with the empty path. Only an exact
 /// independently checked module namespace can authorize that parent spelling.
-pub(super) fn module_parent(
+pub(crate) fn module_parent(
     facts: &HirFnFacts,
     definition: &Definition,
     namespace: &[String],

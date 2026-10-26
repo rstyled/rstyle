@@ -74,6 +74,9 @@ fn named_error_observations_retain_every_payload_without_granting_value_authorit
             );
         };
         check_error(ty);
+        if name == "arithmetic_overflow" {
+            check_generated_sources(&store, index, ty);
+        }
         check_canonical_shape(ty);
         check_inventory_mutations(ty);
     }
@@ -173,4 +176,35 @@ fn check_negative_storage(report: &Value) {
             other => panic!("Unexpected storage observation: {other:?}"),
         }
     }
+}
+
+fn check_generated_sources(
+    store: &rstyle_pdg::unit_store::UnitStore,
+    index: usize,
+    tree: &TypeTree,
+) {
+    let TypeTree::Struct { fields, .. } = tree else {
+        panic!("Expected error owner")
+    };
+    let TypeTree::MixedEnum { variants, .. } = &fields[0].ty else {
+        panic!("Expected complete error")
+    };
+    let trees: Vec<_> = variants[8..]
+        .iter()
+        .map(|variant| {
+            let VariantShape::Named { fields } = &variant.shape else {
+                panic!("Expected named payload")
+            };
+            &fields[0].1.ty
+        })
+        .collect();
+    let analysis = store.analysis();
+    let facts = analysis.function(index).unwrap();
+    assert_eq!(
+        rstyle_pdg::nominal_boundary::resolution::probe_generated_declaration_sources(
+            &facts, &trees
+        )
+        .unwrap(),
+        2
+    );
 }

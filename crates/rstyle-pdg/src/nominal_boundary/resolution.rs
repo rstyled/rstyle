@@ -16,6 +16,7 @@ mod default_owners;
 pub(crate) mod environment;
 mod float_constants;
 mod fresh_products;
+mod generated_declarations;
 pub(crate) mod nominal_constants;
 pub(crate) mod tryfrom_owners;
 pub(crate) use fresh_products::CheckedFreshProduct;
@@ -1694,6 +1695,8 @@ pub(crate) fn range_from_call(
 ) -> Result<(), String> {
     range_from::call(node, caller)
 }
+
+pub use generated_declarations::probe_generated_declaration_sources;
 
 /// Diagnostic source/instance association only; grants no nominal, cleanup or call permission.
 pub fn probe_generated_conversion_source(

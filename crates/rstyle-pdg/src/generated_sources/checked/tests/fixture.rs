@@ -16,13 +16,17 @@ pub(crate) struct Fixture {
 
 impl Fixture {
     pub fn new() -> Self {
+        Self::with_source(SOURCE)
+    }
+
+    pub fn with_source(source: &str) -> Self {
         let census = Census {
             identity: CENSUS_IDENTITY.into(),
             context: crate::nominal_boundary::tests::context(),
             files: vec![UnitFile {
                 path: "/sample/src/lib.rs".into(),
-                bytes: SOURCE.into(),
-                digest: crate::source_identity::checksum(SOURCE.as_bytes()),
+                bytes: source.into(),
+                digest: crate::source_identity::checksum(source.as_bytes()),
             }],
             expansions: Vec::new(),
             documentation: Vec::new(),

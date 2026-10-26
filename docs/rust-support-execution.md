@@ -1566,3 +1566,25 @@ and8,515 pair records match the prior checkpoint exactly. Frozen run-yvqmo2nk
 matches run-lz6j5gtm: all60 identities/results/reasons/blockers/denominators,
 24/29/7 and118 verified Data documents; R0/expanded unchanged. Comparisons:
 `/tmp/rstyle-445-{strict-comparison.json,frozen-comparison.json}`. Broad goal active.
+
+Generated error declaration proof (Data3.118 unchanged): ordinary callers now
+verify exact generated tuple declarations without a generated callable receipt.
+Declaration-only macros seed the existing unit roster from captured origins;
+no new hashes, serialized keys or source-index pass. Callable owner checks remain
+intact; cfg-inactive declarations, conflicting module/compiler identities and
+incomplete/forged root or child rosters reject. All six declaration source proofs
+pass on the three unchanged wire originals. This grants no derive, cleanup, Copy
+or callable authority. Fresh no-default remains131/590, zero gains/losses, with
+identical identities, build contexts, outcomes and reasons. Frozen60 remains
+24/29/7 with all profiles and blocker combinations unchanged.
+
+Two preparatory increments have produced no admissions. Source observation and
+declaration ownership are now sufficient for this target: prioritize connecting
+checked import termini, recursive whole-error no-drop and guarded Result/helper
+composition before further diagnostic expansion. Broad goal remains active.
+Validation:2,164 tests pass (the full run's spacing failure was corrected and
+rechecked separately), plus doctests; final fmt/Clippy clean, style0/7,167 and
+patterns0/15 unchanged ignores. All262 original/replay imports,131 self-comparisons
+and8,515 original pair records match the prior checkpoint exactly. New Cargo
+composition regression0.48s in the focused run. Native foreign-host CI is unrun.
+Evidence: `/tmp/rstyle-446-{nextest.log,final-test.log,clippy-final.log,fmt.log,style.json,patterns.json,comparison.json,frozen-comparison.json,strict-comparison.json,fresh-probe.log}`.
