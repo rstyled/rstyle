@@ -2,6 +2,7 @@
 use super::*;
 use crate::concrete_types::{MixedVariant, Nominal};
 
+mod id_readers;
 mod reader_products;
 
 fn nominal(name: &str, source: &str) -> Nominal {

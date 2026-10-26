@@ -124,7 +124,9 @@ fn constructor_inputs<'a>(
     function
         .formals
         .iter()
-        .map(|formal| input(pair, &formal.pattern.span, u64::from(formal.position)))
+        .map(|formal| {
+            serialized_formal_input(pair, &formal.pattern.span, u64::from(formal.position))
+        })
         .collect()
 }
 
@@ -224,20 +226,6 @@ fn operation<'a>(
     Ok(node)
 }
 
-fn input<'a>(
-    pair: PairView<'a>,
-    span: &crate::ByteSpan,
-    position: u64,
-) -> Result<&'a PdgNode, String> {
-    let input = serialized_operation(pair, span, |node| {
-        node.category == NodeCategory::FormalInput
-    })?;
-    if input.attributes.position != Some(position) {
-        return Err("Named error formal changes original position".into());
-    }
-    Ok(input)
-}
-
 fn returned<'a>(pair: PairView<'a>, source: &HirNode) -> Result<&'a PdgNode, String> {
     serialized_operation(pair, &source.span, |node| {
         node.category == NodeCategory::Return
@@ -311,7 +299,7 @@ fn owned_annotations(
         .ok_or("Missing exact whole owned error field")?;
     let source = &facts.body.children[0];
     let operations = [
-        input(pair, &function.formals[0].pattern.span, 0)?,
+        serialized_formal_input(pair, &function.formals[0].pattern.span, 0)?,
         value_operation(pair, field.operand)?,
         operation(pair, payload, "data.named-error")?,
         operation(pair, source, "data.named-error-wrapper")?,

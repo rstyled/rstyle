@@ -245,19 +245,11 @@ impl<'a> Expressions<'a, '_> {
     }
 
     fn complete(self) -> Result<BTreeMap<String, serde_json::Value>, String> {
-        if self.roles.len() != self.pair.pdg.nodes.len()
-            || self
-                .pair
-                .pdg
-                .nodes
-                .iter()
-                .any(|node| !self.roles.contains_key(&node.id))
-        {
-            return Err(
-                "Reader product contains omitted, duplicate or unaccounted operations".into(),
-            );
-        }
-        Ok(self.roles)
+        super::super::guarded_sources::complete_roles(
+            self.pair,
+            self.roles,
+            "Reader product contains omitted, duplicate or unaccounted operations",
+        )
     }
 
     fn expression(&mut self, source: &HirNode) -> Result<&'a PdgNode, String> {

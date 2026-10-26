@@ -331,3 +331,61 @@ fn product_reader_observed_shape_cannot_authorize_other_payload_grammars() {
         authority::concrete_shape_for(&shape, Mode::ReaderToCopyProduct).unwrap();
     }
 }
+
+fn id_reader_witness() -> Value {
+    let mut value = product_witness();
+    let input = "std::result::Result<util::primitives::StateID, Error>";
+    let output = "std::result::Result<(util::primitives::StateID, usize), Error>";
+    let payload = "util::primitives::StateID";
+    let control = format!("std::ops::ControlFlow<std::result::Result<!, Error>, {payload}>");
+    value["identity"] = json!(capture::ID_READER_IDENTITY);
+    value["shape"]["input"] = json!(input);
+    value["shape"]["output"] = json!(output);
+    value["shape"]["payload"] = json!(payload);
+    value["shape"]["output_payload"] = json!("(util::primitives::StateID, usize)");
+    value["shape"]["control_flow"] = json!(control);
+    value["branch"]["arguments"] = json!([input]);
+    value["branch"]["implementation_arguments"] = json!([payload, "Error"]);
+    value["branch"]["input"] = json!(input);
+    value["branch"]["output"] = json!(control);
+    value["residual"]["arguments"][0] = json!(output);
+    value["residual"]["implementation_arguments"][0] = json!("(util::primitives::StateID, usize)");
+    value["residual"]["output"] = json!(output);
+    value
+}
+
+#[test]
+fn id_reader_propagation_preserves_nominal_identity_and_error_conversion() {
+    let original = id_reader_witness();
+    let parsed: Witness = serde_json::from_value(original.clone()).unwrap();
+    authority::signatures(&parsed).unwrap();
+    for mode in [
+        Mode::UnitToReader,
+        Mode::ReaderToScalar,
+        Mode::ReaderToCopyProduct,
+    ] {
+        assert!(authority::concrete_shape_for(&parsed.shape, mode).is_err());
+        assert_ne!(mode.capability(), Mode::IdToReader.capability());
+        assert_ne!(mode.identity(), Mode::IdToReader.identity());
+        assert_ne!(mode.resolution(), Mode::IdToReader.resolution());
+    }
+    for (pointer, replacement) in [
+        ("/identity", json!(capture::PRODUCT_IDENTITY)),
+        (
+            "/shape/output_payload",
+            json!("(util::primitives::PatternID, usize)"),
+        ),
+        ("/shape/payload", json!("usize")),
+        ("/branch/implementation_arguments/0", json!("u32")),
+        ("/residual/implementation_arguments/2", json!("OtherError")),
+        ("/conversion/input", json!("OtherError")),
+        ("/residual/output", json!(parsed.shape.input)),
+    ] {
+        let mut changed = original.clone();
+        *changed.pointer_mut(pointer).unwrap() = replacement;
+        assert!(
+            authority::signatures(&serde_json::from_value(changed).unwrap()).is_err(),
+            "{pointer}"
+        );
+    }
+}

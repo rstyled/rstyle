@@ -10,3 +10,7 @@ pub const VALIDATOR_RESOLUTION: &str = "resolved_named_error_validator_propagati
 /// Reader payload continued into a separately proved Copy product result.
 pub const PRODUCT_IDENTITY: &str = "rstyle.rust.named-error-product-reader-propagation/1";
 pub const PRODUCT_RESOLUTION: &str = "resolved_named_error_product_reader_propagation";
+
+/// A concrete nominal ID continued into an independently proved ID/count reader.
+pub const ID_READER_IDENTITY: &str = "rstyle.rust.named-error-id-reader-propagation/1";
+pub const ID_READER_RESOLUTION: &str = "resolved_named_error_id_reader_propagation";

@@ -285,6 +285,26 @@ pub struct BuildFacts<Options = FrontendOptions> {
 }
 
 impl<Options> BuildFacts<Options> {
+    /// Preserve every captured build setting without cloning frontend observations.
+    pub(crate) fn settings(&self) -> BuildFacts<()> {
+        BuildFacts {
+            frontend_options: (),
+            producer_revision: self.producer_revision.clone(),
+            rustc_version: self.rustc_version.clone(),
+            rustc_commit: self.rustc_commit.clone(),
+            edition: self.edition.clone(),
+            target_triple: self.target_triple.clone(),
+            pointer_width: self.pointer_width.clone(),
+            data_layout: self.data_layout.clone(),
+            cfgs: self.cfgs.clone(),
+            features: self.features.clone(),
+            overflow_checks: self.overflow_checks.clone(),
+            debug_assertions: self.debug_assertions.clone(),
+            panic_strategy: self.panic_strategy.clone(),
+            opt_level: self.opt_level.clone(),
+        }
+    }
+
     pub(crate) fn try_map_options<T>(
         self,
         map: impl FnOnce(Options) -> Result<T, String>,

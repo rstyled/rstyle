@@ -22,7 +22,11 @@ pub(super) fn verify(
         .rsplit("::")
         .next()
         .ok_or("Missing associated constant member")?;
-    let owner = path_owner(path, member)?;
+    let owner = crate::source_evidence::associated_owner(
+        &path,
+        member,
+        "Product constant use differs from original associated constant path",
+    )?;
     let actual = Scoped {
         resolution: authority.resolution,
         namespace: &authority.resolution.namespace,
@@ -71,30 +75,6 @@ fn compiled(facts: &HirFnFacts, record: &ProductConstant) -> Result<(), String> 
         return Err("Product constant differs from original compiled crate association".into());
     }
     Ok(())
-}
-
-fn path_owner(path: syn::ExprPath, member: &str) -> Result<syn::TypePath, String> {
-    let segments = &path.path.segments;
-    if path.qself.is_some()
-        || !path.attrs.is_empty()
-        || path.path.leading_colon.is_some()
-        || segments.len() < 2
-        || segments.iter().any(|part| !part.arguments.is_empty())
-        || Some(member)
-            != segments
-                .last()
-                .map(|part| part.ident.to_string())
-                .as_deref()
-    {
-        return Err("Product constant use differs from original associated constant path".into());
-    }
-    Ok(syn::TypePath {
-        qself: None,
-        path: syn::Path {
-            leading_colon: None,
-            segments: segments.iter().take(segments.len() - 1).cloned().collect(),
-        },
-    })
 }
 
 fn local_scope(
@@ -260,7 +240,12 @@ mod tests {
     #[test]
     fn associated_paths_keep_owner_and_member_syntax() {
         let path: syn::ExprPath = syn::parse_str("SmallIndex::MAX").unwrap();
-        assert!(path_owner(path, "MAX").unwrap().path.is_ident("SmallIndex"));
+        assert!(
+            crate::source_evidence::associated_owner(&path, "MAX", "invalid path")
+                .unwrap()
+                .path
+                .is_ident("SmallIndex")
+        );
         for original in [
             "MAX",
             "SmallIndex::OTHER",
@@ -268,7 +253,10 @@ mod tests {
             "::SmallIndex::MAX",
         ] {
             let path = syn::parse_str(original).unwrap();
-            assert!(path_owner(path, "MAX").is_err(), "{original}");
+            assert!(
+                crate::source_evidence::associated_owner(&path, "MAX", "invalid path").is_err(),
+                "{original}"
+            );
         }
     }
 

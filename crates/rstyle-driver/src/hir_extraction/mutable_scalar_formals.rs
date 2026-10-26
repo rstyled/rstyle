@@ -1,10 +1,10 @@
 //! Compiler observations connected to existing formal-location evidence only.
-use super::hir::Context;
+use super::hir::{Context, hir_id};
 use rstyle_pdg::{
-    HirFnFacts, HirRef,
+    HirFnFacts,
     field_locations::{FieldObservations, scalar_formals::*},
 };
-use rustc_hir::{self as hir, Mutability};
+use rustc_hir::Mutability;
 use rustc_middle::ty::{self, Ty};
 
 pub(super) fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
@@ -38,17 +38,6 @@ pub(super) fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), S
     facts.build.frontend_options.insert_data(fields);
 
     Ok(())
-}
-
-fn hir_id(reference: &HirRef) -> hir::HirId {
-    hir::HirId {
-        owner: hir::OwnerId {
-            def_id: hir::def_id::LocalDefId {
-                local_def_index: hir::def_id::DefIndex::from_u32(reference.owner),
-            },
-        },
-        local_id: hir::ItemLocalId::from_u32(reference.local),
-    }
 }
 
 fn observation(ty: Option<Ty<'_>>) -> FormalObservation {

@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.120.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.125.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -5588,4 +5588,16 @@ the frozen ID-reader chain; readers still require nominal tuple Results, generat
 SIZE/import authority, capturing `map_err`, same-error `?` and complete read/panic
 composition. General moves/drop remain open.
 [Contract/oracle](eval/coverage-development/wire-id-readers/README.md) and
+[validation/frontier](docs/rust-support-execution.md).
+
+
+Data3.125 connects original `read_pattern_id/read_state_id/try_read_state_id`
+through generated SIZE ownership, Copy/no-drop nominal tuple Results, saved
+read/bounds/panic evidence, Err-only static-capturing `map_err` and exact owned
+error propagation. Default206→210/2,582; no-default145→148/590, zero losses.
+The extra default gain is `Special::write_to_len` through the same SIZE proof.
+Direct readers are callable; the checked wrapper remains terminal until nested
+precheck/Result conditions can be summarized. Stored mutable callbacks, cursor
+state and validation still block `Special::from_bytes`; general moves/drop remain
+open. [Contract/oracle](eval/coverage-development/wire-id-readers/README.md) and
 [validation/frontier](docs/rust-support-execution.md).

@@ -15,6 +15,7 @@ pub(crate) use definitions::require_definition;
 mod conversions;
 pub(crate) use conversions::primitive_conversion;
 mod syntax;
+pub(crate) use syntax::associated_owner;
 pub(crate) use syntax::{plain_type_path, plain_value_path, unique_active};
 mod variant_paths;
 pub(crate) use variant_paths::qualified_variant;
@@ -64,6 +65,18 @@ pub(crate) fn verify_binding_read(
             != crate::data_aggregates::parsed_type(binding)?
     {
         return Err(diagnostic.into());
+    }
+    Ok(())
+}
+
+/// Exact plain immutable binding shape, independent of its declaration context.
+pub(crate) fn plain_immutable_binding(node: &HirNode, reason: &str) -> Result<(), String> {
+    if node.kind != "pat_binding"
+        || node.binding_mut != Some(false)
+        || node.binding.is_none()
+        || !node.children.is_empty()
+    {
+        return Err(reason.into());
     }
     Ok(())
 }
@@ -851,6 +864,8 @@ fn resolved_summary(
     (node.hir == *hir
         && (crate::inherent_calls::source_resolved(node, facts).unwrap_or(false)
             || crate::local_value_trait_calls::resolution(node, facts).is_some()
+            || crate::id_error_maps::candidate(node, facts)
+                && crate::id_error_maps::verify(node, facts).is_ok()
             || crate::helper_option_callbacks::candidate(node, facts)
                 && crate::helper_option_callbacks::verify_source(node, facts).is_ok()
             || crate::named_callbacks::candidate(node, facts)

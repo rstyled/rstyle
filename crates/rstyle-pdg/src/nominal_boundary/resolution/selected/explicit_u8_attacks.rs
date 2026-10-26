@@ -65,6 +65,7 @@ impl Case {
             nonzero_product_source: None,
             transport_sources: None,
             generated_declarations: Vec::new(),
+            id_reader_constant_chains: Default::default(),
         };
         DeclarationChecker {
             resolution: &resolution,

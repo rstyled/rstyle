@@ -1,6 +1,6 @@
 {
   "identity": "rstyle.development.wire-id-readers/1",
-  "status": "Source-selected before admission assessment; Data3.124 connects both owned-error constructors in unchanged default/no-default contexts; all three readers remain excluded pending the declared full blocker chain",
+  "status": "Source-selected before admission assessment; Data3.125 connects all three safe readers and both owned-error constructors in unchanged default/no-default contexts; checked wrapper remains terminal without a callable summary",
   "package": {
     "name": "regex-automata",
     "version": "0.4.18",

@@ -24,6 +24,17 @@ pub fn reference(id: HirId) -> HirRef {
     }
 }
 
+pub(super) fn hir_id(reference: &rstyle_pdg::HirRef) -> hir::HirId {
+    hir::HirId {
+        owner: hir::OwnerId {
+            def_id: hir::def_id::LocalDefId {
+                local_def_index: hir::def_id::DefIndex::from_u32(reference.owner),
+            },
+        },
+        local_id: hir::ItemLocalId::from_u32(reference.local),
+    }
+}
+
 pub fn symbol(id: HirId) -> String {
     format!(
         "s:{}:{}",
@@ -382,6 +393,7 @@ impl<'tcx> Context<'tcx> {
             .map(|(resolution, _)| resolution)
             .or_else(|| self.fieldless_variant(res))
             .or_else(|| self.bool_array_resolution(res))
+            .or_else(|| self.id_reader_constant_resolution(res))
             .or_else(|| self.constant_resolution(res))
             .or_else(|| self.primitive_constant_resolution(res))
             .or_else(|| {
@@ -612,6 +624,7 @@ impl<'tcx> Context<'tcx> {
 
     fn declaration(&self, local: &hir::LetStmt<'tcx>) -> HirNode {
         let annotation = local.ty.map(|ty| HirNode {
+            res: self.id_reader_annotation(ty),
             ty: self
                 .typeck
                 .node_type_opt(local.pat.hir_id)

@@ -99,6 +99,13 @@ pub(super) fn concrete_shape_for(shape: &Shape, mode: Mode) -> Result<(), String
     let payloads = match mode {
         Mode::UnitToReader => ("()", "(u32, usize)"),
         Mode::ReaderToScalar => ("(u32, usize)", "usize"),
+        Mode::IdToReader => {
+            product_payload(&shape.output_payload)?;
+            if shape.output_payload != format!("({}, usize)", shape.payload) {
+                return Err("ID reader must preserve its exact nominal success payload".into());
+            }
+            (shape.payload.as_str(), shape.output_payload.as_str())
+        }
         Mode::ReaderToCopyProduct => {
             product_payload(&shape.output_payload)?;
             ("(u32, usize)", shape.output_payload.as_str())

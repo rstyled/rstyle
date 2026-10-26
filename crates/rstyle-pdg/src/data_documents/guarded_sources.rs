@@ -74,3 +74,21 @@ pub(super) fn insert_role(
     }
     Ok(())
 }
+
+/// A complete family must account for every serialized operation exactly once.
+pub(super) fn complete_roles(
+    pair: PairView<'_>,
+    roles: BTreeMap<String, Value>,
+    diagnostic: &str,
+) -> Result<BTreeMap<String, Value>, String> {
+    if roles.len() != pair.pdg.nodes.len()
+        || pair
+            .pdg
+            .nodes
+            .iter()
+            .any(|node| !roles.contains_key(&node.id))
+    {
+        return Err(diagnostic.into());
+    }
+    Ok(roles)
+}

@@ -37,7 +37,9 @@ fn install_reader_origins(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
     type Installer = fn(&mut Pair, &dyn crate::unit_store::EvidenceFacts) -> Result<bool, String>;
-    let installers: [Installer; 4] = [
+    let installers: [Installer; 6] = [
+        super::id_reader_checks::install,
+        super::id_readers::install,
         super::reader_products::install,
         super::wire_validators::install,
         super::slice_lengths::install,
@@ -145,7 +147,10 @@ fn verify_guarded_origins(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
-    if super::reader_products::verify(pair, facts)? || super::wire_validators::verify(pair, facts)?
+    if super::id_reader_checks::verify(pair, facts)?
+        || super::id_readers::verify(pair, facts)?
+        || super::reader_products::verify(pair, facts)?
+        || super::wire_validators::verify(pair, facts)?
     {
         return Ok(true);
     }
@@ -820,6 +825,9 @@ pub(crate) fn verify_type(
     node: &PdgNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    if let Some(result) = super::id_error_maps::verify_type(node, facts) {
+        return result;
+    }
     if let Some(result) = super::result_maps::verify_type(node, facts) {
         return result;
     }
@@ -1009,6 +1017,9 @@ pub(super) fn source_node<'a>(
     node: &PdgNode,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
 ) -> Result<&'a HirNode, String> {
+    if let Some(source) = super::id_error_maps::source_node(node, facts) {
+        return source;
+    }
     if let Some(source) = super::result_maps::source_node(node, facts) {
         return source;
     }

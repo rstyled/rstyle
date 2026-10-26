@@ -103,6 +103,7 @@ pub(in crate::nominal_boundary::resolution::selected::no_drop) fn resolution(
         nonzero_product_source: None,
         transport_sources: None,
         generated_declarations: Vec::new(),
+        id_reader_constant_chains: Default::default(),
     }
 }
 

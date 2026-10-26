@@ -33,8 +33,16 @@ pub(crate) fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
 }
 
 pub(crate) fn sources(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
+    method_sources(facts, candidate)
+}
+
+pub(crate) fn method_sources(
+    facts: &dyn EvidenceFacts,
+    candidate: impl Fn(&HirNode, &dyn EvidenceFacts) -> bool,
+) -> Vec<&HirNode> {
     let mut nodes = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut nodes);
+
     nodes
         .into_iter()
         .filter(|node| candidate(node, facts))

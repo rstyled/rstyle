@@ -1,5 +1,6 @@
 //! Resolved concrete inherent ownership and shared receiver correspondence.
 mod digit_forwarders;
+mod id_reader_decoders;
 pub(crate) mod lifetimes;
 mod result_maps;
 pub(crate) use result_maps::{call_owner as generated_call_owner, leaf as generated_leaf_source};
@@ -136,6 +137,10 @@ pub(crate) fn verify(
         } else {
             Ok(())
         };
+    }
+
+    if id_reader_decoders::verify(node, caller, callee, resolution)? {
+        return Ok(());
     }
 
     let expected = definition(callee)?.ok_or("Missing captured inherent callee ownership")?;

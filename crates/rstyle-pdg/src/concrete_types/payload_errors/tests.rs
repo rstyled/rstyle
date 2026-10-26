@@ -1,6 +1,8 @@
 use super::*;
 use crate::concrete_types::{Field, MixedVariant, VariantShape};
 
+mod id_readers;
+
 fn nominal(name: &str) -> Nominal {
     Nominal {
         source_identity: Some("shape-only".into()),

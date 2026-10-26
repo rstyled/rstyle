@@ -123,11 +123,17 @@ impl<'tcx> Capture<'_, 'tcx> {
         if self.ctx.profile.supports("rust.concrete-read-only-data") {
             self.install_tokens(facts, interface)?;
             self.install_receivers(facts)?;
-            if self.ctx.profile.supports("rust.immediate-option-callbacks") {
-                self.callback_environments(&mut facts.body)?;
-            }
+            self.install_callback_environments(facts)?;
         }
         Ok(())
+    }
+
+    fn install_callback_environments(&mut self, facts: &mut HirFnFacts) -> Result<(), String> {
+        if self.ctx.profile.supports("rust.immediate-option-callbacks") {
+            self.callback_environments(&mut facts.body)?;
+        }
+        let ctx = self.ctx;
+        ctx.capture_id_error_maps(&mut facts.body, &mut |ty| self.observe(ty))
     }
 
     fn install_tokens(

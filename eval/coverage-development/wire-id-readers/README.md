@@ -29,18 +29,28 @@ Native execution is coordinator-scheduled: default/no-default ×debug assertions
 on/off, opt-level0, overflow checks and unwind panics. Reuse existing XXH3 source
 and whole-copy checks; no production sources are omitted or replaced.
 
-Data3.124 admits both original error constructors and publishes distinct callable
-summaries: exact generated-error provenance, whole no-drop proof, one-use move
-receipts and parameter1 static-message routing. Neither empty reference origins
-nor a matching type token supplies move authority. Default204→206/2,582 and
-no-default143→145/590, zero losses. All three readers remain excluded.
+Data3.125 connects all three original safe readers to the Data3.124 owned-error
+constructors. The two direct readers publish read/panic summaries. The checked
+wrapper admits as a complete root but publishes no callable summary: the current
+flat conditions cannot combine its precheck with the callee's nested Result tag.
 
-Existing decoder source-body helper summaries and complete generated error no-drop
-proofs are dependencies. Remaining connected work: ordinary generated caller/
-associated SIZE ownership; nominal tuple Results; saved prefix reads/panics;
-capturing map_err with exact Err-only invocation; same-error nominal→tuple
-propagation; callable reader and checked wrapper composition.
-Generated caller receipts and aggregate ownership interactions remain unknown
-until proved. Reject hidden Drop, changed variants/limits/actuals, lost pointers,
-callback-order changes and omitted panic/read/guard evidence. Stored mutable
-callbacks, loop-heavy sparse validation and unsafe DFA loading stay deferred.
+The contract now includes exact generated SIZE ownership, independently checked
+Copy/no-drop nominal ID tuple results, saved prefix reads and bounds, an immediate
+Err-only callback with immutable static capture, one-use owned error transfer and
+nominal-to-tuple same-error `?`. Wrong errors/messages/counts/guards, hidden Drop,
+changed saved values, missing effects and CFG bypasses remain rejected. Captured
+shapes alone never establish ownership, source authority or cleanup.
+
+Unchanged selections: default206→210/2,582; no-default145→148/590; zero losses.
+Default additionally admits `Special::write_to_len`: its exact source is
+`8 * StateID::SIZE`, independently expected32. Existing admitted records and
+nominal declaration receipts remain unchanged; excluded functions can retain
+additional concrete declarations without gaining admission.
+
+Stored mutable callbacks, cursor updates, nested guarded callable outputs,
+loop-heavy sparse validation and unsafe DFA loading remain open. In particular,
+`Special::from_bytes` also needs its captured mutable reader, tuple binding and
+`?`, aggregate construction, `validate` and assertion/helper composition. These
+readers do not certify that caller. See the
+[execution record](../../../docs/rust-support-execution.md) for completed gates
+and retained evidence.

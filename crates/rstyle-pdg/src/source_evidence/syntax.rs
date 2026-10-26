@@ -8,6 +8,31 @@ pub(crate) fn plain_type_path(value: &syn::Type, name: &str) -> bool {
     matches!(value, syn::Type::Path(path) if path.qself.is_none() && path.path.is_ident(name))
 }
 
+/// Split an exact concrete associated member path without granting nominal authority.
+pub(crate) fn associated_owner(
+    path: &syn::ExprPath,
+    member: &str,
+    error: &str,
+) -> Result<syn::TypePath, String> {
+    let parts = &path.path.segments;
+    if path.qself.is_some()
+        || !path.attrs.is_empty()
+        || path.path.leading_colon.is_some()
+        || parts.len() < 2
+        || parts.last().is_none_or(|part| part.ident != member)
+        || parts.iter().any(|part| !part.arguments.is_empty())
+    {
+        return Err(error.into());
+    }
+    Ok(syn::TypePath {
+        qself: None,
+        path: syn::Path {
+            leading_colon: None,
+            segments: parts.iter().take(parts.len() - 1).cloned().collect(),
+        },
+    })
+}
+
 /// Require exactly one eligible original item; inspect all items and propagate cfg errors.
 pub(crate) fn unique_active<T>(
     items: impl IntoIterator<Item = T>,

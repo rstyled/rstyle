@@ -292,6 +292,11 @@ fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
 }
 
 fn check_instance_source(facts: &dyn crate::unit_store::EvidenceFacts) -> Option<Outcome> {
+    match crate::data_documents::id_readers::source_findings(facts) {
+        Ok(Some(_)) => return Some(Outcome::ok()),
+        Ok(None) => {}
+        Err(reason) => return Some(evidence_gap(&facts.body, &reason)),
+    }
     match crate::slice_length_instances::activation::verify(facts) {
         Ok(true) => return Some(Outcome::ok()),
         Ok(false) => {}
@@ -888,6 +893,10 @@ fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
     if crate::scalar_tuple_bindings::candidate(node, ctx.facts) {
         return Some(check_scalar_tuple_binding(node, ctx));
     }
+    if crate::id_error_maps::candidate(node, ctx.facts) {
+        return Some(check_id_error_map(node, ctx));
+    }
+
     if crate::result_maps::candidate(node, ctx.facts) {
         return Some(check_result_map(node, ctx));
     }
@@ -895,15 +904,7 @@ fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         return Some(check_option_if_let(node, ctx));
     }
     if crate::bool_constants::candidate(node) {
-        return Some(match crate::bool_constants::verify_node(node, ctx.facts) {
-            Ok(()) => Outcome::ok(),
-            Err(reason) => error(
-                crate::bool_constants::CAPABILITY,
-                "const_table",
-                node,
-                &reason,
-            ),
-        });
+        return Some(check_value_contract(node, ctx, ValueContract::BoolConstant));
     }
 
     if crate::iterator_position::candidate(node, ctx.facts) {
@@ -927,15 +928,45 @@ fn check_data_contract(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
         return Some(check_callback(node, ctx));
     }
     if crate::data_discards::candidate(node, ctx.facts) {
-        return Some(check_copy_discard(node, ctx));
+        return Some(check_value_contract(node, ctx, ValueContract::CopyDiscard));
     }
     None
 }
 
-fn check_copy_discard(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
-    match crate::data_discards::verify(node, ctx.facts) {
+fn check_id_error_map(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
+    match crate::id_error_maps::verify(node, ctx.facts) {
+        Ok(checked) => check_node(checked.receiver, false, ctx),
+        Err(reason) => error(
+            crate::id_reader_types::CAPABILITY,
+            "id_error_map",
+            node,
+            &reason,
+        ),
+    }
+}
+
+enum ValueContract {
+    BoolConstant,
+    CopyDiscard,
+}
+
+fn check_value_contract(node: &HirNode, ctx: &Ctx<'_>, contract: ValueContract) -> Outcome {
+    let (capability, construct, verified) = match contract {
+        ValueContract::BoolConstant => (
+            crate::bool_constants::CAPABILITY,
+            "const_table",
+            crate::bool_constants::verify_node(node, ctx.facts),
+        ),
+        ValueContract::CopyDiscard => (
+            "rust.scalar-enum-values",
+            "copy_discard",
+            crate::data_discards::verify(node, ctx.facts),
+        ),
+    };
+
+    match verified {
         Ok(()) => Outcome::ok(),
-        Err(reason) => error("rust.scalar-enum-values", "copy_discard", node, &reason),
+        Err(reason) => error(capability, construct, node, &reason),
     }
 }
 
@@ -1276,7 +1307,8 @@ fn resolved_data_constant(node: &HirNode) -> bool {
     matches!(
         node.resolution_kind(),
         Some(
-            crate::scalar_constants::RESOLUTION
+            crate::id_reader_constants::RESOLUTION
+                | crate::scalar_constants::RESOLUTION
                 | crate::primitive_constants::RESOLUTION
                 | crate::nominal_constants::RESOLUTION
         )
@@ -1591,6 +1623,13 @@ fn check_path(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
 fn constant_path(node: &HirNode, ctx: &Ctx<'_>) -> Option<Outcome> {
     let resolution = node.res.as_ref()?;
     let (capability, result) = match resolution.kind.as_str() {
+        crate::id_reader_constants::RESOLUTION => (
+            crate::id_reader_constants::CAPABILITY,
+            ctx.facts
+                .nominal_resolution()
+                .and_then(|proof| proof.verify_id_reader_constant(node, ctx.facts))
+                .map(|_| ()),
+        ),
         crate::nominal_constants::RESOLUTION => (
             crate::product_constant_values::CAPABILITY,
             crate::product_constant_values::verify(node, ctx.facts).map(|_| ()),

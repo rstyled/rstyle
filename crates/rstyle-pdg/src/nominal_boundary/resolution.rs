@@ -2,7 +2,7 @@
 
 use super::{CONTEXT_KEY, UnitContext, census};
 use crate::{
-    ByteSpan, HirFnFacts,
+    ByteSpan, HirFnFacts, HirNode,
     concrete_types::{
         self, InterfaceObservations, Observation, TypeTree, source_proof::PathResolution,
     },
@@ -17,6 +17,7 @@ pub(crate) mod environment;
 mod float_constants;
 mod fresh_products;
 mod generated_declarations;
+pub(crate) mod id_reader_constants;
 pub(crate) mod nominal_constants;
 pub(crate) mod tryfrom_owners;
 pub(crate) use fresh_products::CheckedFreshProduct;
@@ -78,6 +79,7 @@ pub struct Resolution {
     transport_sources: Option<result_maps::TransportSources>,
     generated_declarations:
         Vec<crate::generated_sources::declarations::CheckedGeneratedDeclaration>,
+    id_reader_constant_chains: std::cell::RefCell<id_reader_constants::memo::Memo>,
 }
 
 fn requires_mixed_owner(tree: &TypeTree) -> bool {
@@ -100,6 +102,22 @@ fn requires_mixed_owner(tree: &TypeTree) -> bool {
 }
 
 impl Resolution {
+    pub(crate) fn verify_id_reader_constant(
+        &self,
+        node: &HirNode,
+        facts: &dyn crate::unit_store::EvidenceFacts,
+    ) -> Result<u64, String> {
+        id_reader_constants::verify(node, facts, self)
+    }
+
+    pub(crate) fn verify_id_reader_annotation(
+        &self,
+        node: &HirNode,
+        facts: &dyn crate::unit_store::EvidenceFacts,
+    ) -> Result<u64, String> {
+        id_reader_constants::verify_annotation(node, facts, self)
+    }
+
     /// A receipt is reusable only for the same immutable source/member inputs.
     pub(crate) fn copy_conversion_source(
         &self,
@@ -688,6 +706,7 @@ fn declaration_resolution_with_generated(
         nonzero_product_source: None,
         transport_sources: None,
         generated_declarations: Vec::new(),
+        id_reader_constant_chains: Default::default(),
         array_views: supports(facts, "rust.borrowed-array-views")?,
         scalar_aliases: supports(facts, "rust.accelerator-packing")?,
         local_import_chains: supports(facts, crate::concrete_types::EXPLICIT_U8_CAPABILITY)?,

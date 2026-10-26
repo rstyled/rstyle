@@ -50,6 +50,9 @@ impl CheckedMap<'_> {
 }
 
 pub fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
+    if crate::id_error_maps::candidate(node, facts) {
+        return false;
+    }
     crate::extraction_profile::gated_node(node, facts, CAPABILITY, |node| {
         node.kind == "expr_method_call"
             && node.res.as_ref().is_some_and(|resolution| {

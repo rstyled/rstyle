@@ -1,6 +1,6 @@
 //! Independent replay of serialized prefix operations, never producer output.
 mod bindings;
-mod flow;
+pub(crate) mod flow;
 mod join;
 mod operations;
 

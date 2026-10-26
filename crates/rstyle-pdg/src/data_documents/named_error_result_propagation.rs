@@ -15,6 +15,10 @@ const PRODUCT_KEY: &str = "rstyle.data:named-error-product-reader-propagation";
 const PRODUCT_WITNESS: &str = "rstyle.data:named-error-product-reader-propagation-types";
 const PRODUCT_CONSTRUCTS: [&str; 3] = propagation::Mode::ReaderToCopyProduct.constructs();
 
+const ID_READER_KEY: &str = "rstyle.data:named-error-id-reader-propagation";
+const ID_READER_WITNESS: &str = "rstyle.data:named-error-id-reader-propagation-types";
+const ID_READER_CONSTRUCTS: [&str; 3] = propagation::Mode::IdToReader.constructs();
+
 const CONTRACT: super::propagation::Contract<3> = super::propagation::Contract {
     key: KEY,
     constructs: CONSTRUCTS,
@@ -51,11 +55,24 @@ const PRODUCT_CONTRACT: super::propagation::Contract<3> = super::propagation::Co
     invocation,
 };
 
+const ID_READER_CONTRACT: super::propagation::Contract<3> = super::propagation::Contract {
+    key: ID_READER_KEY,
+    constructs: ID_READER_CONSTRUCTS,
+    capability: crate::id_reader_types::CAPABILITY,
+    policy_error: "Named error ID reader Result propagation requires its registered document policy",
+    candidate: |node, facts| {
+        propagation::mode_candidate(node, facts, propagation::Mode::IdToReader)
+    },
+    semantics: id_reader_semantics,
+    invocation,
+};
+
 fn contract(mode: propagation::Mode) -> &'static super::propagation::Contract<3> {
     match mode {
         propagation::Mode::UnitToReader => &CONTRACT,
         propagation::Mode::ReaderToScalar => &VALIDATOR_CONTRACT,
         propagation::Mode::ReaderToCopyProduct => &PRODUCT_CONTRACT,
+        propagation::Mode::IdToReader => &ID_READER_CONTRACT,
     }
 }
 
@@ -64,6 +81,7 @@ fn witness_key(mode: propagation::Mode) -> &'static str {
         propagation::Mode::UnitToReader => WITNESS,
         propagation::Mode::ReaderToScalar => VALIDATOR_WITNESS,
         propagation::Mode::ReaderToCopyProduct => PRODUCT_WITNESS,
+        propagation::Mode::IdToReader => ID_READER_WITNESS,
     }
 }
 
@@ -73,7 +91,8 @@ pub(crate) fn verify_document_policy(
 ) -> Result<(), String> {
     CONTRACT.verify_document_policy(profile, facts)?;
     VALIDATOR_CONTRACT.verify_document_policy(profile, facts)?;
-    PRODUCT_CONTRACT.verify_document_policy(profile, facts)
+    PRODUCT_CONTRACT.verify_document_policy(profile, facts)?;
+    ID_READER_CONTRACT.verify_document_policy(profile, facts)
 }
 
 fn sources(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
@@ -85,7 +104,12 @@ fn sources(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
 }
 
 pub(super) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<(), String> {
-    for contract in [&CONTRACT, &VALIDATOR_CONTRACT, &PRODUCT_CONTRACT] {
+    for contract in [
+        &CONTRACT,
+        &VALIDATOR_CONTRACT,
+        &PRODUCT_CONTRACT,
+        &ID_READER_CONTRACT,
+    ] {
         contract.install(pair);
     }
 
@@ -131,6 +155,7 @@ fn metadata(source: &HirNode, checked: &propagation::Checked<'_>) -> serde_json:
         identity: match checked.mode {
             propagation::Mode::UnitToReader => "rstyle.rust.named-error-reader-flow-types/1",
             propagation::Mode::ReaderToScalar => "rstyle.rust.named-error-validator-flow-types/1",
+            propagation::Mode::IdToReader => "rstyle.rust.named-error-id-reader-flow-types/1",
             propagation::Mode::ReaderToCopyProduct => {
                 "rstyle.rust.named-error-product-reader-flow-types/1"
             }
@@ -185,11 +210,25 @@ fn product_rules() -> [serde_json::Value; 3] {
     ].map(|text| serde_json::from_str(text).expect("Named error product reader Result rules are static JSON"))
 }
 
+fn id_reader_semantics(construct: &str) -> serde_json::Value {
+    static RULES: std::sync::OnceLock<[serde_json::Value; 3]> = std::sync::OnceLock::new();
+    super::propagation::semantic_rule(construct, &ID_READER_CONSTRUCTS, &RULES, id_reader_rules)
+}
+
+fn id_reader_rules() -> [serde_json::Value; 3] {
+    [
+        r#"{"rule":"inspect-saved-core-result-tag/1","result_operand":0,"true":"err","false":"ok","moves_payload":false,"content_read":false}"#,
+        r#"{"rule":"move-named-error-rewrap-id-reader-result/1","result_operand":0,"requires":"err","payload":"same-error-once","output":"Err(error)","conversion":"pinned-reflexive-from/1","reference_routes":"preserve-saved-err-components","forwards_input_result":false,"content_read":false}"#,
+        r#"{"rule":"saved-core-result-id-payload/1","result_operand":0,"requires":"ok","payload":"exact-checked-nominal-id","reference_origins":[],"content_read":false}"#,
+    ].map(|text| serde_json::from_str(text).expect("Named error ID reader Result rules are static JSON"))
+}
+
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
     for mode in [
         propagation::Mode::UnitToReader,
         propagation::Mode::ReaderToScalar,
         propagation::Mode::ReaderToCopyProduct,
+        propagation::Mode::IdToReader,
     ] {
         contract(mode).verify_annotations(
             pair,
@@ -261,7 +300,9 @@ fn operation_effects(
         "Named error reader Result propagation invents value effects",
     )?;
 
-    let mode = if PRODUCT_CONSTRUCTS.contains(&construct) {
+    let mode = if ID_READER_CONSTRUCTS.contains(&construct) {
+        propagation::Mode::IdToReader
+    } else if PRODUCT_CONSTRUCTS.contains(&construct) {
         propagation::Mode::ReaderToCopyProduct
     } else if VALIDATOR_CONSTRUCTS.contains(&construct) {
         propagation::Mode::ReaderToScalar

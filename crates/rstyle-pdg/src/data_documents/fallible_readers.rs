@@ -2,7 +2,7 @@
 mod graph;
 mod native;
 mod origins;
-mod source;
+pub(in crate::data_documents) mod source;
 #[cfg(test)]
 mod tests;
 

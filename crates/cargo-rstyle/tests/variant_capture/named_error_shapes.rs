@@ -276,3 +276,5 @@ fn named_error_cleanup_rejects_drop_in_an_unused_generated_variant() {
         }
     }
 }
+
+mod id_readers;

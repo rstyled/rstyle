@@ -25,6 +25,9 @@ mod fieldless_enums;
 mod float_scalars;
 mod guarded_sources;
 mod helper_option_callbacks;
+pub(crate) mod id_error_maps;
+pub(crate) mod id_reader_checks;
+pub(crate) mod id_readers;
 mod index_reads;
 mod indirect_reads;
 mod iterator_position;
@@ -454,6 +457,7 @@ fn verify_call_operations(
     scalar_tuple_bindings::verify(pair, facts)?;
     named_error_result_propagation::verify(pair, facts)?;
     product_result_propagation::verify(pair, facts)?;
+    id_error_maps::verify(pair, facts)?;
     result_maps::verify(pair, facts)?;
     owned_product_values::verify(pair, facts)?;
     borrowed_result_errors::verify(pair, facts)?;
@@ -707,6 +711,21 @@ fn serialized_operation_mut<'a>(
         .ok_or_else(|| "Missing serialized source operation".into())
 }
 
+pub(crate) fn serialized_formal_input<'a>(
+    pair: PairView<'a>,
+    span: &crate::ByteSpan,
+    position: u64,
+) -> Result<&'a PdgNode, String> {
+    let input = serialized_operation(pair, span, |node| {
+        node.category == NodeCategory::FormalInput
+    })?;
+    if input.attributes.position != Some(position) {
+        return Err("Formal input changes its original position".into());
+    }
+
+    Ok(input)
+}
+
 pub(crate) fn serialized_operation<'a>(
     pair: crate::producer::PairView<'a>,
     span: &crate::ByteSpan,
@@ -718,9 +737,12 @@ pub(crate) fn serialized_operation<'a>(
                 source.start == u64::from(span.start) && source.end == u64::from(span.end)
             })
     });
-    let node = candidates
-        .next()
-        .ok_or("Missing serialized source operation")?;
+    let node = candidates.next().ok_or_else(|| {
+        format!(
+            "Missing serialized source operation at {}..{}",
+            span.start, span.end
+        )
+    })?;
     if candidates.next().is_some() {
         return Err("Ambiguous serialized source operation".into());
     }
@@ -960,6 +982,20 @@ pub(crate) fn value_operation<'a>(
 }
 
 fn method_value(pair: PairView<'_>, source: &crate::HirNode, node: &PdgNode) -> bool {
+    if source.kind == "expr_method_call"
+        && source
+            .children
+            .last()
+            .is_some_and(|node| node.kind == "expr_closure")
+        && crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            crate::id_error_maps::CAPABILITY,
+        )
+        && node.attributes.construct.as_deref() == Some(crate::id_error_maps::RESULT)
+    {
+        return node.category == NodeCategory::Merge
+            && node.attributes.construct.as_deref() == Some(crate::id_error_maps::RESULT);
+    }
     let mapped = source.kind == "expr_method_call"
         && crate::extraction_profile::policy_supports(
             &pair.pdg.profile,

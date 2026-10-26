@@ -8,6 +8,7 @@ mod checked_suffix_views;
 mod copy_tagged_values;
 mod enums;
 mod helper_option_callbacks;
+mod id_error_maps;
 mod iterator_position;
 mod loops;
 mod mutable_scalars;
@@ -329,20 +330,35 @@ impl Builder<'_> {
     }
 
     fn path(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        match node.res.as_ref().map(|res| res.kind.as_str()) {
-            Some(crate::nominal_constants::RESOLUTION) => self.product_constant(node, flow),
-            Some(crate::bool_constants::RESOLUTION) => self.bool_array_constant(node, flow),
-            _ => self.constant_or_read(node, flow),
-        }
+        let lowerer: fn(&mut Self, &HirNode, Flow) -> Flow =
+            match node.res.as_ref().map(|res| res.kind.as_str()) {
+                Some(crate::id_reader_constants::RESOLUTION) => Self::id_reader_width,
+                Some(crate::nominal_constants::RESOLUTION) => Self::product_constant,
+                Some(crate::bool_constants::RESOLUTION) => Self::bool_array_constant,
+                Some(
+                    crate::scalar_constants::RESOLUTION | crate::primitive_constants::RESOLUTION,
+                ) => Self::constant,
+                _ => Self::read,
+            };
+
+        lowerer(self, node, flow)
     }
 
-    fn constant_or_read(&mut self, node: &HirNode, flow: Flow) -> Flow {
-        match node.res.as_ref().map(|res| res.kind.as_str()) {
-            Some(crate::scalar_constants::RESOLUTION | crate::primitive_constants::RESOLUTION) => {
-                self.constant(node, flow)
-            }
-            _ => self.read(node, flow),
-        }
+    fn id_reader_width(&mut self, node: &HirNode, flow: Flow) -> Flow {
+        let value = self
+            .facts
+            .nominal_resolution()
+            .and_then(|resolution| resolution.verify_id_reader_constant(node, self.facts))
+            .expect("verified original ID width");
+
+        self.emit(
+            Operation {
+                literal: Some(value.to_string()),
+                construct: Some("constant.id-reader-width".into()),
+                ..template(node, NodeCategory::Computation)
+            },
+            flow,
+        )
     }
 
     fn reference_unit(&mut self, node: &HirNode, flow: Flow) -> Flow {
@@ -759,7 +775,9 @@ impl Builder<'_> {
 
     fn invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let lower: fn(&mut Self, &HirNode, Flow) -> Flow =
-            if crate::result_maps::candidate(node, self.facts) {
+            if crate::id_error_maps::candidate(node, self.facts) {
+                Self::id_error_map
+            } else if crate::result_maps::candidate(node, self.facts) {
                 Self::result_map
             } else if crate::checked_slice_views::suffix::candidate(node, self.facts) {
                 Self::checked_suffix_get
@@ -1177,6 +1195,24 @@ impl Builder<'_> {
         )
     }
 
+    fn merge_construct(&self, node: &HirNode) -> Option<String> {
+        if crate::id_error_maps::candidate(node, self.facts) {
+            Some(crate::id_error_maps::RESULT.into())
+        } else if crate::result_maps::candidate(node, self.facts) {
+            Some(crate::result_maps::RESULT.into())
+        } else if crate::helper_option_callbacks::candidate(node, self.facts) {
+            Some(crate::helper_option_callbacks::RESULT.into())
+        } else if crate::named_callbacks::candidate(node, self.facts) {
+            Some(crate::named_callbacks::RESULT.into())
+        } else if crate::option_callbacks::candidate(node, self.facts) {
+            Some("callback.option-result".into())
+        } else if crate::iterator_position::candidate(node, self.facts) {
+            Some("iterator.position-result".into())
+        } else {
+            None
+        }
+    }
+
     fn merge_selected(&mut self, node: &HirNode, selection: MergeSelection) -> String {
         let MergeSelection {
             controller,
@@ -1187,22 +1223,12 @@ impl Builder<'_> {
         let guards = normalize(alternatives.iter().flat_map(|a| a.guards.clone()).collect());
         let mut merge = Operation {
             id: id.clone(),
-            construct: if crate::result_maps::candidate(node, self.facts) {
-                Some(crate::result_maps::RESULT.into())
-            } else if crate::helper_option_callbacks::candidate(node, self.facts) {
-                Some(crate::helper_option_callbacks::RESULT.into())
-            } else if crate::named_callbacks::candidate(node, self.facts) {
-                Some(crate::named_callbacks::RESULT.into())
-            } else if crate::option_callbacks::candidate(node, self.facts) {
-                Some("callback.option-result".into())
-            } else if crate::iterator_position::candidate(node, self.facts) {
-                Some("iterator.position-result".into())
-            } else {
-                None
-            },
+            construct: self.merge_construct(node),
             ..template(node, NodeCategory::Merge)
         };
-        if crate::result_maps::candidate(node, self.facts) {
+        if !crate::id_error_maps::candidate(node, self.facts)
+            && crate::result_maps::candidate(node, self.facts)
+        {
             merge.role = crate::result_maps::verify(node, self.facts)
                 .expect("checked constructor Result merge")
                 .role()
@@ -1598,6 +1624,7 @@ fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flo
             crate::named_error_result_propagation::capture::RESOLUTION
                 | crate::named_error_result_propagation::capture::VALIDATOR_RESOLUTION
                 | crate::named_error_result_propagation::capture::PRODUCT_RESOLUTION
+                | crate::named_error_result_propagation::capture::ID_READER_RESOLUTION
         )
     }) {
         Builder::named_error_result_propagation

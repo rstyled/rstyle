@@ -73,6 +73,12 @@ impl<'tcx> Context<'tcx> {
             Mode::UnitToReader => input.is_unit() && tuple(output),
             Mode::ReaderToScalar => tuple(input) && output == self.tcx.types.usize,
             Mode::ReaderToCopyProduct => tuple(input) && self.reader_copy_product(output),
+            Mode::IdToReader => {
+                matches!(input.kind(), ty::Adt(owner, arguments)
+                if owner.is_struct() && owner.did().is_local() && arguments.is_empty())
+                    && matches!(output.kind(), ty::Tuple(values)
+                    if values.as_slice() == [input, self.tcx.types.usize])
+            }
         }
     }
 }

@@ -2,7 +2,7 @@
 mod shape;
 
 use super::{Result, model::Observation};
-use crate::{BuildFacts, HirFnFacts};
+use crate::HirFnFacts;
 use serde_json::Value;
 
 const ORIGINAL_OPTIONS: [&str; 9] = [
@@ -48,7 +48,7 @@ pub(in crate::reference_instances) fn snapshot(
     if original.name != canonical.name
         || original.fn_span != canonical.fn_span
         || original.source != canonical.source
-        || settings(&original.build) != settings(&canonical.build)
+        || original.build.settings() != canonical.build.settings()
     {
         return Err(
             "Reference diagnostic changed complete canonical source/HIR/build evidence".into(),
@@ -101,25 +101,6 @@ fn definition(canonical: &HirFnFacts, observed: &super::model::Definition) -> Re
         return Err("Constructor observation is detached from its canonical compiler owner".into());
     }
     Ok(())
-}
-
-fn settings(build: &BuildFacts) -> BuildFacts<()> {
-    BuildFacts {
-        frontend_options: (),
-        producer_revision: build.producer_revision.clone(),
-        rustc_version: build.rustc_version.clone(),
-        rustc_commit: build.rustc_commit.clone(),
-        edition: build.edition.clone(),
-        target_triple: build.target_triple.clone(),
-        pointer_width: build.pointer_width.clone(),
-        data_layout: build.data_layout.clone(),
-        cfgs: build.cfgs.clone(),
-        features: build.features.clone(),
-        overflow_checks: build.overflow_checks.clone(),
-        debug_assertions: build.debug_assertions.clone(),
-        panic_strategy: build.panic_strategy.clone(),
-        opt_level: build.opt_level.clone(),
-    }
 }
 
 fn bindings(original: &HirFnFacts, canonical: &HirFnFacts) -> Result<()> {

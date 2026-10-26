@@ -9,11 +9,26 @@ use rustc_middle::ty;
 
 impl<'tcx> Context<'tcx> {
     pub(super) fn callback_children(&self, expr: &Expr<'tcx>) -> Option<Vec<HirNode>> {
+        if self.profile.supports(rstyle_pdg::id_error_maps::CAPABILITY)
+            && self.immediate_error_map(expr)
+        {
+            return self.closure_children(expr, |pattern| self.pattern(pattern));
+        }
+
         if !self.profile.supports("rust.immediate-option-callbacks")
             || !self.immediate_option_callback(expr)
         {
             return None;
         }
+
+        self.closure_children(expr, |pattern| self.callback_pattern(pattern))
+    }
+
+    pub(super) fn closure_children(
+        &self,
+        expr: &Expr<'tcx>,
+        pattern: impl Fn(&hir::Pat<'tcx>) -> HirNode,
+    ) -> Option<Vec<HirNode>> {
         let ExprKind::Closure(closure) = expr.kind else {
             return None;
         };
@@ -33,10 +48,29 @@ impl<'tcx> Context<'tcx> {
                 .iter()
                 // These bindings belong to the callback, not the outer
                 // function interface. In particular, leave param_index unset.
-                .map(|parameter| self.callback_pattern(parameter.pat))
+                .map(|parameter| pattern(parameter.pat))
                 .chain(std::iter::once(self.expression(body.value)))
                 .collect(),
         )
+    }
+
+    pub(super) fn immediate_core_callback(&self, expression: &Expr<'tcx>, paths: &[&str]) -> bool {
+        let hir::Node::Expr(parent) = self.tcx.parent_hir_node(expression.hir_id) else {
+            return false;
+        };
+        let ExprKind::MethodCall(_, _, arguments, _) = parent.kind else {
+            return false;
+        };
+        if !matches!(arguments, [argument] if argument.hir_id == expression.hir_id) {
+            return false;
+        }
+        let Some(definition) = self.typeck.type_dependent_def_id(parent.hir_id) else {
+            return false;
+        };
+
+        !definition.is_local()
+            && self.tcx.crate_name(definition.krate).as_str() == "core"
+            && paths.contains(&self.tcx.def_path_str(definition).as_str())
     }
 
     pub(super) fn named_option_function(

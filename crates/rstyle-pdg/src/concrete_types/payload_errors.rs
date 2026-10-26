@@ -15,6 +15,14 @@ pub(super) fn observed(ok: &TypeTree, err: &TypeTree) -> bool {
     {
         return false;
     }
+
+    if id_reader(&success) && crate::id_reader_types::product(ok).is_none() {
+        return false;
+    }
+    if id_value(&success) && crate::id_reader_types::original_value(ok).is_none() {
+        return false;
+    }
+
     GRAMMAR.permits(&success, &TypeToken::from_tree(err))
 }
 
@@ -25,12 +33,38 @@ fn success(token: &TypeToken) -> bool {
         TypeToken::Scalar(value) => matches!(value.as_str(), "unit" | "usize"),
         TypeToken::Tuple(values) => {
             reader_product(token)
+                || id_reader(token)
                 || matches!(values.as_slice(),
             [TypeToken::Scalar(first), TypeToken::Scalar(second)]
             if first == "u32" && second == "usize")
         }
+        TypeToken::Struct { .. } => id_value(token),
         _ => false,
     }
+}
+
+/// Exactly two scalar tuple wrappers and a saved byte count; no ownership claim.
+pub(crate) fn id_reader(token: &TypeToken) -> bool {
+    let TypeToken::Tuple(values) = token else {
+        return false;
+    };
+    let [value, TypeToken::Scalar(size)] = values.as_slice() else {
+        return false;
+    };
+    size == "usize" && id_value(value)
+}
+
+/// Exact nested ID value vocabulary, without a saved byte count or ownership.
+pub(crate) fn id_value(token: &TypeToken) -> bool {
+    let TypeToken::Struct { fields, .. } = token else {
+        return false;
+    };
+    let [(outer, TypeToken::Struct { fields, .. })] = fields.as_slice() else {
+        return false;
+    };
+    outer == "0"
+        && matches!(fields.as_slice(), [(inner, TypeToken::Scalar(value))]
+            if inner == "0" && value == "u32")
 }
 
 /// Observational vocabulary only; source, Copy and cleanup need independent proof.

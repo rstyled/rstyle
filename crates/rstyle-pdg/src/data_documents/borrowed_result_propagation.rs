@@ -225,14 +225,17 @@ impl Operations<'_> {
 
         let live = super::live_operations(pair)?;
 
-        if [saved, selector, error, success, returned]
-            .iter()
-            .any(|node| !live.contains(&node.id))
+        let completed = completion(pair, saved)?;
+        let reached = crate::reachable_vertices(pair.cfg);
+        if !completed.iter().all(|node| reached.contains(node))
+            || [selector, error, success, returned]
+                .iter()
+                .any(|node| !live.contains(&node.id))
         {
             return Err("Borrowed Result propagation loses a reachable complete branch".into());
         }
 
-        before(pair, &completion(pair, saved)?, selector)?;
+        before(pair, &completed, selector)?;
 
         before(pair, &completion(pair, selector)?, error)?;
 

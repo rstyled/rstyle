@@ -146,7 +146,9 @@ fn named_error_payload(
                 facts,
                 crate::named_error_result_propagation::CAPABILITY,
             ) && crate::named_error_result_propagation::success(ok)
-            || crate::reader_products::success(ok, facts)?)
+            || crate::reader_products::success(ok, facts)?
+            || crate::id_reader_types::success(ok, facts)?
+            || crate::id_reader_types::value(ok, facts)?)
             || err != &TypeToken::from_tree(&error)
         {
             return Err("Named error Result differs from its exact checked return boundary".into());

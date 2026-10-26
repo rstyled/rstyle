@@ -169,14 +169,10 @@ fn interface(facts: &dyn EvidenceFacts, syntax: &syn::ItemFn) -> Result<(), Stri
 }
 
 fn immutable(pattern: &HirNode) -> Result<(), String> {
-    if pattern.kind != "pat_binding"
-        || pattern.binding_mut != Some(false)
-        || pattern.binding.is_none()
-        || !pattern.children.is_empty()
-    {
-        return Err("Reader product requires an immutable plain binding".into());
-    }
-    Ok(())
+    crate::source_evidence::plain_immutable_binding(
+        pattern,
+        "Reader product requires an immutable plain binding",
+    )
 }
 fn read(node: &HirNode, binding: &HirNode) -> Result<(), String> {
     crate::source_evidence::verify_binding_read(

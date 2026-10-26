@@ -2,14 +2,14 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(super) struct Flow<'a> {
+pub(crate) struct Flow<'a> {
     pair: PairView<'a>,
     mapping: BTreeMap<String, String>,
     traversal: Traversal<'a>,
 }
 
 impl<'a> Flow<'a> {
-    pub(super) fn new(pair: PairView<'a>) -> Result<Self, String> {
+    pub(crate) fn new(pair: PairView<'a>) -> Result<Self, String> {
         let mut mapping = BTreeMap::new();
         for entry in crate::read_operation_map(&pair.pdg.extensions)? {
             if mapping
@@ -33,14 +33,14 @@ impl<'a> Flow<'a> {
         })
     }
 
-    pub(super) fn operation(&self, node: &PdgNode) -> Result<&str, String> {
+    pub(crate) fn operation(&self, node: &PdgNode) -> Result<&str, String> {
         self.mapping
             .get(&node.id)
             .map(String::as_str)
             .ok_or("Prefix graph operation lacks CFG mapping".into())
     }
 
-    pub(super) fn outgoing(
+    pub(crate) fn outgoing(
         &self,
         node: &PdgNode,
         expected: &[(CfgEdgeKind, &PdgNode)],

@@ -44,9 +44,9 @@ fn operations<'a>(
     let none = &expression.children[root.option.none_arm + 1].children[0];
     Ok(Operations {
         inputs: [
-            input(pair, &facts.signature.params[0].pat.span, 0)?,
-            input(pair, &facts.signature.params[1].pat.span, 1)?,
-            input(pair, &facts.signature.params[2].pat.span, 2)?,
+            serialized_formal_input(pair, &facts.signature.params[0].pat.span, 0)?,
+            serialized_formal_input(pair, &facts.signature.params[1].pat.span, 1)?,
+            serialized_formal_input(pair, &facts.signature.params[2].pat.span, 2)?,
         ],
         left: value_operation(pair, &root.option.scrutinee.children[0])?,
         right: value_operation(pair, &root.option.scrutinee.children[1])?,

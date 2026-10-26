@@ -18,6 +18,7 @@ pub enum Mode {
     UnitToReader,
     ReaderToScalar,
     ReaderToCopyProduct,
+    IdToReader,
 }
 
 impl Mode {
@@ -26,6 +27,7 @@ impl Mode {
             Self::UnitToReader => CAPABILITY,
             Self::ReaderToScalar => VALIDATOR_CAPABILITY,
             Self::ReaderToCopyProduct => PRODUCT_CAPABILITY,
+            Self::IdToReader => crate::id_reader_types::CAPABILITY,
         }
     }
 
@@ -34,6 +36,7 @@ impl Mode {
             Self::UnitToReader => capture::IDENTITY,
             Self::ReaderToScalar => capture::VALIDATOR_IDENTITY,
             Self::ReaderToCopyProduct => capture::PRODUCT_IDENTITY,
+            Self::IdToReader => capture::ID_READER_IDENTITY,
         }
     }
 
@@ -42,6 +45,7 @@ impl Mode {
             Self::UnitToReader => capture::RESOLUTION,
             Self::ReaderToScalar => capture::VALIDATOR_RESOLUTION,
             Self::ReaderToCopyProduct => capture::PRODUCT_RESOLUTION,
+            Self::IdToReader => capture::ID_READER_RESOLUTION,
         }
     }
 
@@ -57,6 +61,11 @@ impl Mode {
                 "try.product-reader-result-error",
                 "try.product-reader-result-ok-tuple",
             ],
+            Self::IdToReader => [
+                "try.id-reader-result-is-err",
+                "try.id-reader-result-error",
+                "try.id-reader-result-ok-id",
+            ],
             Self::ReaderToScalar => [
                 "try.validator-result-is-err",
                 "try.validator-result-error",
@@ -70,6 +79,7 @@ impl Mode {
             capture::IDENTITY => Ok(Self::UnitToReader),
             capture::VALIDATOR_IDENTITY => Ok(Self::ReaderToScalar),
             capture::PRODUCT_IDENTITY => Ok(Self::ReaderToCopyProduct),
+            capture::ID_READER_IDENTITY => Ok(Self::IdToReader),
             _ => Err("Unregistered named-error propagation identity".into()),
         }
     }
@@ -102,6 +112,7 @@ fn mode(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Mode> {
         Mode::UnitToReader,
         Mode::ReaderToScalar,
         Mode::ReaderToCopyProduct,
+        Mode::IdToReader,
     ]
     .into_iter()
     .find(|mode| {
@@ -224,8 +235,8 @@ fn types(
                 .into(),
         );
     }
-    if mode == Mode::ReaderToCopyProduct {
-        copy_product_boundary(&output_ok, &output_err, facts)?;
+    if matches!(mode, Mode::ReaderToCopyProduct | Mode::IdToReader) {
+        copy_product_boundary(&output_ok, &output_err, facts, mode)?;
     }
 
     let error = crate::named_error_payloads::error_tree(facts)?
@@ -240,6 +251,7 @@ fn copy_product_boundary(
     success: &TypeToken,
     error: &TypeToken,
     facts: &dyn EvidenceFacts,
+    mode: Mode,
 ) -> Result<(), String> {
     use crate::concrete_types::{InterfaceObservations, Observation};
     let interface = facts
@@ -249,8 +261,10 @@ fn copy_product_boundary(
     if !matches!(&interface.result, Observation::Captured { ty }
     if TypeToken::from_tree(ty) == TypeToken::Result {
         ok: Box::new(success.clone()), err: Box::new(error.clone())
-    }) || !crate::reader_products::success(success, facts)?
-    {
+    }) || !match mode {
+        Mode::IdToReader => crate::id_reader_types::success(success, facts)?,
+        _ => crate::reader_products::success(success, facts)?,
+    } {
         return Err(
             "Product reader output lacks complete independently checked Copy ownership".into(),
         );
@@ -263,6 +277,10 @@ fn payloads_match(mode: Mode, input: &TypeToken, output: &TypeToken) -> bool {
         Mode::UnitToReader => *input == TypeToken::Scalar("unit".into()) && reader_tuple(output),
         Mode::ReaderToScalar => reader_tuple(input) && *output == TypeToken::Scalar("usize".into()),
         Mode::ReaderToCopyProduct => reader_tuple(input) && crate::reader_products::shape(output),
+        Mode::IdToReader => {
+            crate::id_reader_types::shape(output)
+                && matches!(output, TypeToken::Tuple(values) if values.first() == Some(input))
+        }
     }
 }
 

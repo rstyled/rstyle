@@ -33,7 +33,7 @@ fn shape(tree: &TypeTree, depth: usize) -> bool {
 }
 
 /// The caller owns capability activation; all nominal fields need actual proof.
-pub(in crate::nominal_boundary::resolution::selected) fn verify(
+pub(in crate::nominal_boundary::resolution) fn verify(
     facts: &HirFnFacts,
     tree: &TypeTree,
     resolution: &Resolution,

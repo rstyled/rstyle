@@ -10,15 +10,22 @@ mod tests;
 pub(crate) const CAPABILITY: &str = "rust.named-error-validator-flow";
 pub(crate) const SUMMARY: &str = "rstyle.helper.guarded-read-only-body/1";
 
+const FAMILY: super::source_family::Family = super::source_family::Family {
+    capability: CAPABILITY,
+    candidate: crate::data_documents::fallible_readers::candidate,
+    source: crate::data_documents::fallible_readers::verify_source,
+    identity: SUMMARY,
+    validate: validate_shape,
+};
+
 pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
-    crate::extraction_profile::facts_support(facts, CAPABILITY)
-        && crate::data_documents::fallible_readers::candidate(facts)
+    FAMILY.candidate(facts)
 }
 
 /// Checked no-drop results are separate from Copy interfaces. Source proof here
 /// grants no permission to publish a summary without complete graph replay.
 pub(crate) fn supported(facts: &dyn EvidenceFacts) -> Result<bool, String> {
-    Ok(candidate(facts) && crate::data_documents::fallible_readers::verify_source(facts)?)
+    FAMILY.supported(facts)
 }
 
 pub(crate) fn derive(
@@ -49,14 +56,7 @@ pub(super) fn summary(
     pair: &crate::producer::Pair,
     output: WireContract,
 ) -> Result<super::Summary, String> {
-    let mut summary = super::legacy_summary(facts, pair, None)?;
-
-    summary.identity = SUMMARY.into();
-    summary.result_dependence = super::tagged_conversions::RESULT_DEPENDENCE.into();
-    summary.tagged_output = Some(output);
-
-    validate_shape(&summary)?;
-    Ok(summary)
+    FAMILY.summary(facts, pair, output)
 }
 
 pub(crate) fn validate_shape(summary: &super::Summary) -> Result<&WireContract, String> {

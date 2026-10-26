@@ -1859,3 +1859,44 @@ capture and generated-owner interactions still need proof; stored mutable callba
 loop-heavy sparse consumers and unsafe DFA deserialization remain separate.
 [Selection/contract/oracle](../eval/coverage-development/wire-id-readers/README.md).
 Broad goal remains active; extraction grants no detector-quality or rewrite claim.
+
+Data3.125 / ID reader integration (153 capabilities), baseline47712a1.
+Original `read_pattern_id/read_state_id/try_read_state_id` now complete capture,
+verification, strict admission and matching in both unchanged contexts. Exact
+SIZE ownership, Copy/no-drop tuple success, Err-only immutable-capture callbacks,
+one-use owned error transfer, same-error `?` and read/bounds/panic evidence connect
+as one chain. Direct readers publish summaries; the checked wrapper stays terminal
+because nested precheck/callee-tag conditions are not representable by the flat
+summary schema. Default206→210/2,582 and no-default145→148/590; zero losses.
+The collateral default gain `Special::write_to_len` is independently source-audited:
+`8 * StateID::SIZE` returns32. Existing admitted records and nominal declarations
+are unchanged; excluded captures retain additional declaration observations.
+
+Validation:2,276 tests/5 existing skips plus doctests pass; fmt and warnings-denied
+Clippy clean; rstyle0/7,885 and patterns0 with15 unchanged ignores. Composition
+fixture6.61s. Strict716 imports/358 self-comparisons/32,823 cross-pairs preserve
+all31,555 historical pair records. Frozen run-jpfpic28 retains all60 identities,
+outcomes/reasons/blockers/denominators and older profiles (24 admitted/29 excluded/
+7 inactive). Original native oracle323,154 cases/context ×four aarch64 Linux
+contexts has zero mismatches; native macOS/x86 CI remains unrun. No new runtime
+SHA256 or serialized cache keys. Capture default248.73s/1,851,404KiB and
+no-default33.73s/421,508KiB; strict247.68s/6,443,280KiB and49.09s/1,434,448KiB.
+These single observations include additional supported work, not equal-work
+performance claims; whole-unit replay memory remains open.
+Evidence: `/tmp/rstyle-456-{default,no-default}-comparison.json`,
+`/tmp/rstyle-456-{strict,frozen}-comparison.json`, `/tmp/rstyle-456-oracle.json`,
+`/tmp/rstyle-456-nextest-final.log`, `/tmp/rstyle-456-{style,patterns}-final.json`.
+
+Next frontier, source audit before activation: (1) callable lane checks nested
+precheck/Result conditions for `try_read_state_id`; (2) error-flow lane freezes
+`try_read_u16_as_usize/try_read_u32_as_usize`, complete tuple-binding/capturing
+and_then→map→map_err and selected TryFrom/error ownership; (3) resolution lane
+proves those exact conversion implementations and prerequisites, including the
+still-excluded `try_read_u16`; (4) memory lane audits the stored mutable
+slice/nread closure in `Special::from_bytes` together with `validate`, comparisons,
+err macros and assertion/helper calls. The latter is not ready: local storage,
+ordered state updates, nested summaries and validation are connected blockers.
+Keep shared types/origins/summary registration coordinator-owned; independent
+expectations and tamper cases belong with each bounded delivery. No new production
+assignment is ready merely from an exclusion message. Broad goal stays active;
+this milestone grants no general move/drop, detector-quality or rewrite claim.

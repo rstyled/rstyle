@@ -13,6 +13,8 @@ mod external_imports;
 mod float_scalars;
 mod generated_sources;
 mod hir;
+mod id_error_maps;
+mod id_reader_constants;
 mod inherent;
 mod instances;
 pub(crate) fn capture_instance_diagnostics(

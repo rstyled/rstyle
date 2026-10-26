@@ -59,7 +59,9 @@ fn check_ordinary_function(facts: &dyn crate::unit_store::EvidenceFacts) -> Resu
     let guarded_error = crate::data_documents::named_error_payloads::verify_source(facts)?
         || crate::data_documents::fallible_readers::verify_source(facts)?
         || crate::data_documents::wire_validators::verify_source(facts)?
-        || crate::data_documents::reader_products::verify_source(facts)?;
+        || crate::data_documents::reader_products::verify_source(facts)?
+        || crate::data_documents::id_readers::verify_source(facts)?
+        || crate::data_documents::id_reader_checks::verify_source(facts)?;
     if !guarded_error {
         crate::concrete_results::verify_function(facts)?;
     }
@@ -657,6 +659,11 @@ fn verify_nodes(
         let checked = crate::result_propagation::verify(node, facts)?;
         return verify_nodes(checked.operand, facts, places);
     }
+    if crate::id_error_maps::candidate(node, facts) {
+        let checked = crate::id_error_maps::verify(node, facts)?;
+        verify_node_type(node, facts)?;
+        return verify_nodes(checked.receiver, facts, places);
+    }
     if crate::result_maps::candidate(node, facts) {
         let checked = crate::result_maps::verify(node, facts)?;
         verify_node_type(node, facts)?;
@@ -877,6 +884,16 @@ fn verify_path(
     facts: &dyn crate::unit_store::EvidenceFacts,
     token: &str,
 ) -> Result<(), String> {
+    if node
+        .res
+        .as_ref()
+        .is_some_and(|resolution| resolution.kind == crate::id_reader_constants::RESOLUTION)
+    {
+        return facts
+            .nominal_resolution()?
+            .verify_id_reader_constant(node, facts)
+            .map(|_| ());
+    }
     if crate::product_constant_values::candidate(node) {
         return crate::product_constant_values::verify(node, facts).map(|_| ());
     }
@@ -903,24 +920,32 @@ fn verify_path(
         .as_ref()
         .is_some_and(|resolution| resolution.kind == crate::scalar_constants::RESOLUTION)
     {
-        if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
-            .supports("rust.resolved-scalar-constants")
-        {
-            return Err("Resolved scalar constants require their registered capability".into());
-        }
-        let constant =
-            crate::scalar_constants::ScalarConstant::verify(node, facts.build.pointer_width.value)?;
-        if crate::float_scalars::is_float(&constant.ty) {
-            facts
-                .nominal_resolution()?
-                .verify_float_constant(node, &constant, facts)?;
-        }
+        verify_scalar_constant(node, facts)?;
         return Ok(());
     }
     if crate::fieldless_enums::value_candidate(node, facts) {
         return crate::fieldless_enums::value(node, facts).map(|_| ());
     }
     verify_binding_path(node, facts, token)
+}
+
+fn verify_scalar_constant(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.resolved-scalar-constants")
+    {
+        return Err("Resolved scalar constants require their registered capability".into());
+    }
+    let constant =
+        crate::scalar_constants::ScalarConstant::verify(node, facts.build.pointer_width.value)?;
+    if crate::float_scalars::is_float(&constant.ty) {
+        facts
+            .nominal_resolution()?
+            .verify_float_constant(node, &constant, facts)?;
+    }
+    Ok(())
 }
 
 fn verify_binding_path(

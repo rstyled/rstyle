@@ -19,9 +19,11 @@ pub(in crate::nominal_boundary::resolution) fn selection(
         return Ok(None);
     };
     let product = reader_product(facts, ty)?;
+    let id_product = id_reader_product(facts, ty)?;
     let error = match ty {
         TypeTree::Result { ok, err }
             if product.is_some()
+                || id_product.is_some()
                 || matches!(ok.as_ref(), TypeTree::Scalar(value) if value == "usize")
                 || supports(facts, crate::named_error_result_propagation::CAPABILITY)?
                     && crate::named_error_result_propagation::success(
@@ -44,17 +46,20 @@ pub(in crate::nominal_boundary::resolution) fn selection(
     }
     verify(facts, resolution, error)?;
 
-    Ok(Some(select_dependencies(facts, resolution, product)?))
+    Ok(Some(select_dependencies(
+        facts, resolution, product, id_product,
+    )?))
 }
 
 fn select_dependencies(
     facts: &HirFnFacts,
     resolution: &Resolution,
     product: Option<&TypeTree>,
+    id_product: Option<&TypeTree>,
 ) -> Result<super::super::Selection, String> {
     let mut selection = super::super::Selection::default();
     for (key, tree) in &resolution.trees {
-        if product == Some(tree) {
+        if product == Some(tree) || id_dependency(id_product, tree) {
             let origins = facts.build.frontend_options.data::<Origins>()?;
             copy_products::verify(facts, tree, resolution, &origins)?;
             selection.copies.insert(key.clone());
@@ -64,6 +69,26 @@ fn select_dependencies(
         selection.no_drop.insert(key.clone());
     }
     Ok(selection)
+}
+
+fn id_dependency(product: Option<&TypeTree>, tree: &TypeTree) -> bool {
+    let Some(root @ TypeTree::Struct { fields, .. }) = product else {
+        return false;
+    };
+    root == tree || matches!(fields.as_slice(), [field] if &field.ty == tree)
+}
+
+fn id_reader_product<'a>(
+    facts: &HirFnFacts,
+    result: &'a TypeTree,
+) -> Result<Option<&'a TypeTree>, String> {
+    if !supports(facts, crate::id_reader_types::CAPABILITY)? {
+        return Ok(None);
+    }
+    let TypeTree::Result { ok, .. } = result else {
+        return Ok(None);
+    };
+    Ok(crate::id_reader_types::product(ok))
 }
 
 pub(in crate::nominal_boundary::resolution) fn function_namespace(

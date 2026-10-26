@@ -156,6 +156,10 @@ fn structural_operands<'a>(
         // their ordered operands; retain ordinary checks on every operand.
         return Ok(Some(operands));
     }
+    if crate::id_error_maps::candidate(node, facts) {
+        crate::id_error_maps::verify(node, facts)?;
+        return Ok(Some(vec![&node.children[0]]));
+    }
     if crate::result_maps::candidate(node, facts) {
         let checked = crate::result_maps::verify(node, facts)?;
         let receiver = node.children.first().ok_or("Missing Result map receiver")?;
@@ -278,6 +282,7 @@ pub(super) fn method_result(node: &PdgNode) -> bool {
                     | crate::named_callbacks::RESULT
                     | crate::helper_option_callbacks::RESULT
                     | crate::result_maps::RESULT
+                    | crate::id_error_maps::RESULT
             )
         )
 }

@@ -139,7 +139,7 @@ fn interface(facts: &dyn EvidenceFacts) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn implicit_slice_lifetime(facts: &dyn EvidenceFacts) -> bool {
+pub(in crate::data_documents) fn implicit_slice_lifetime(facts: &dyn EvidenceFacts) -> bool {
     matches!(facts.signature.generics.as_slice(), [lifetime]
         if lifetime.name == "'_"
             && facts.signature.params.first().is_some_and(|parameter|
@@ -147,7 +147,7 @@ pub(super) fn implicit_slice_lifetime(facts: &dyn EvidenceFacts) -> bool {
                     && lifetime.span.end.checked_sub(lifetime.span.start) == Some(1)))
 }
 
-pub(super) fn formal(
+pub(in crate::data_documents) fn formal(
     node: &HirNode,
     position: usize,
     facts: &dyn EvidenceFacts,

@@ -6,7 +6,8 @@ pub(crate) const SUMMARY: &str = "rstyle.helper.checked-normal-body/1";
 pub(crate) fn supported(facts: &dyn EvidenceFacts, pair: PairView<'_>) -> bool {
     pair.cfg.extraction_evidence.status == crate::ExtractionStatus::Partial
         && (copy_context(facts)
-            || crate::helper_calls::guarded_effects::supported(facts).unwrap_or(false))
+            || crate::helper_calls::guarded_effects::supported(facts).unwrap_or(false)
+            || crate::helper_calls::id_readers::supported(facts).unwrap_or(false))
 }
 
 pub(crate) fn copy_context(facts: &dyn EvidenceFacts) -> bool {
