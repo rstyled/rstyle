@@ -22,6 +22,7 @@ mod provenance;
 pub(super) mod publication;
 pub(super) mod reference_diagnostic;
 mod reference_owners;
+mod slice_projection;
 pub(super) use publication::capture as capture_projections;
 pub(in crate::hir_extraction) mod types;
 

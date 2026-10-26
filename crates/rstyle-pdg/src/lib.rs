@@ -107,6 +107,7 @@ pub mod scalar_product_instances;
 pub mod scalar_result_propagation;
 pub mod size_calls;
 pub mod size_constants;
+pub mod slice_length_instances;
 pub mod slice_patterns;
 pub mod source_evidence;
 pub mod source_identity;

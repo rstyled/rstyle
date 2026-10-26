@@ -16,6 +16,18 @@ pub(in crate::hir_extraction) fn capture(
     if options.selected() != ExtractionProfile::DataV3 {
         return Ok(());
     }
+
+    super::slice_projection::capture(tcx, scanned, options, facts)?;
+    capture_scalars(tcx, scanned, options, facts);
+    Ok(())
+}
+
+fn capture_scalars(
+    tcx: TyCtxt<'_>,
+    scanned: &[source::Function],
+    options: &Options<'_>,
+    facts: &mut [HirFnFacts],
+) {
     let owners: BTreeMap<_, _> = tcx
         .hir_body_owners()
         .filter(|id| candidate(tcx, id.to_def_id()))
@@ -38,7 +50,6 @@ pub(in crate::hir_extraction) fn capture(
                 "complete":true,"requests":entries}),
         );
     }
-    Ok(())
 }
 
 pub(super) fn candidate(tcx: TyCtxt<'_>, id: DefId) -> bool {

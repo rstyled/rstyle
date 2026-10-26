@@ -5533,3 +5533,15 @@ Default regex-automata110→198/2,582,88 gains/zero losses; unchanged no-default
 wire arithmetic/error family under defaults and unlocks other supported families
 behind the shared S09 barrier. Validation and remaining reader frontier:
 [execution record](docs/rust-support-execution.md).
+
+
+Fallible-reader proof inputs (Data3.120 unchanged): selected original
+`check_slice_len::<u8>` → `try_read_u32` now retains concrete original-owner
+type/receiver observations and complete unit/tuple Result error declarations.
+These grant no source, obligation, cleanup or admission authority: default
+198/2,582 and no-default138/590 remain unchanged, gain0/loss0. The original
+generic `slice.len()` deferred source rejection remains intact. Next connect
+independent instance verification, guarded error summaries and changing-success
+same-error `?`; do not stack further observation-only milestones.
+[Contract/oracle](eval/coverage-development/wire-fallible-readers/README.md) and
+[validation/frontier](docs/rust-support-execution.md).

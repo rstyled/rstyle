@@ -7,7 +7,7 @@ pub(crate) mod type_scopes;
 pub(crate) use candidates::Candidates;
 pub(crate) mod checked_activation;
 mod positions;
-pub(crate) use attributes::{literal_metadata, single_identifier_attribute};
+pub(crate) use attributes::{has_body_attributes, literal_metadata, single_identifier_attribute};
 mod exact_pairs;
 pub(crate) use exact_pairs::exact_pairs;
 mod definitions;
@@ -84,6 +84,11 @@ pub(crate) fn closed_body(body: &syn::Block) -> Result<(), String> {
         return Err("Source body has unresolved block-local item/macro scopes".into());
     }
     Ok(())
+}
+
+/// Locate original syntax without repeating parser span conversion at each caller.
+pub(crate) fn syntax_span(bytes: &str, syntax: &impl syn::spanned::Spanned) -> ByteSpan {
+    original_span(bytes, syntax.span())
 }
 
 /// Convert a parser span to original UTF-8 offsets, retaining a leading BOM.

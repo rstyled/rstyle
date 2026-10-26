@@ -2,14 +2,25 @@
 use super::{Nominal, TypeTree};
 use crate::data_types::{ResultGrammar, TypeToken};
 
-pub(crate) const GRAMMAR: ResultGrammar = ResultGrammar {
-    success: |token| matches!(token, TypeToken::Scalar(value) if value == "usize"),
-    error,
-};
+#[cfg(test)]
+mod tests;
+
+pub(crate) const GRAMMAR: ResultGrammar = ResultGrammar { success, error };
 
 pub(super) fn observed(ok: &TypeTree, err: &TypeTree) -> bool {
-    matches!(ok, TypeTree::Scalar(value) if value == "usize")
-        && error(&TypeToken::from_tree(err)).is_some()
+    GRAMMAR.permits(&TypeToken::from_tree(ok), &TypeToken::from_tree(err))
+}
+
+// This bounded vocabulary is shared by capture validation and canonical tokens.
+// It does not select source, cleanup, constructors or helper-call authority.
+fn success(token: &TypeToken) -> bool {
+    match token {
+        TypeToken::Scalar(value) => matches!(value.as_str(), "unit" | "usize"),
+        TypeToken::Tuple(values) => matches!(values.as_slice(),
+            [TypeToken::Scalar(first), TypeToken::Scalar(second)]
+            if first == "u32" && second == "usize"),
+        _ => false,
+    }
 }
 
 fn error(token: &TypeToken) -> Option<&Nominal> {

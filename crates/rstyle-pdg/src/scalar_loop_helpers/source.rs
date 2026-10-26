@@ -1,7 +1,8 @@
 //! Exact source grammar supplies the rank, exit condition and update order.
+use crate::source_evidence::syntax_span as span;
 use crate::{ByteSpan, unit_store::EvidenceFacts};
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
-use syn::{ext::IdentExt, spanned::Spanned};
+use syn::ext::IdentExt;
 
 pub(super) struct Shape {
     pub loop_span: ByteSpan,
@@ -220,10 +221,6 @@ fn body_tokens(source: &str) -> Result<String, String> {
         }
         _ => Err("Missing original bounded scalar helper body".into()),
     }
-}
-
-fn span(source: &str, syntax: &impl Spanned) -> ByteSpan {
-    crate::source_evidence::original_span(source, syntax.span())
 }
 
 fn initializer_span(source: &str, statement: &syn::Stmt) -> Result<ByteSpan, String> {

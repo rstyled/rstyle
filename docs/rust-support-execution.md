@@ -1670,3 +1670,44 @@ clippy.log,style.json,patterns.json}`. Next: check_slice_len::<u8>→try_read_u3
 requiring concrete instance identity, unit/tuple Results, guarded callable error
 origins and same-error propagation; then other widths and ordered validators.
 General alloc/TLS effects, arbitrary macros and cleanup remain separate. Goal active.
+
+
+Fallible-reader proof inputs (Data3.120/148 capabilities unchanged): original
+regex-automata0.4.18 `check_slice_len::<u8>` → `try_read_u32` is source-selected
+with full error/dependency roster and independent native oracle285,339 cases in
+each default/no-default × debug-on/off context, zero mismatches. Observation-only
+u8 owner overlay records13 typed nodes,1 concrete len method and6 actual call
+receipts in no-default (19,901 minified bytes); original generic HIR, ordinals,
+source_scan_complete=false and deferred len diagnostic remain intact. Unit and
+`(u32,usize)` error interfaces now retain declarations without granting ownership.
+Default198/2,582 and no-default138/590 unchanged, gain0/loss0; all original source/
+build identities and admitted records persist. Excluded records gain complete
+error declarations and richer rejection diagnostics; earlier declarations remain.
+No capability/version increase, new runtime hashing or serialized lookup keys.
+
+Exact-tree gates:2,200 tests pass/5 existing skips plus doctests; fmt/Clippy clean,
+style0/7,296 and patterns0/15 unchanged ignores. Focused Cargo composition1.32s.
+Natural captures213.04s/1,288,708KiB default and27.70s/367,744KiB no-default; these
+are single observations, not controlled performance claims. Foreign native CI
+unrun. Evidence: `/tmp/rstyle-451-{default,no-default}-comparison.json`,
+`/tmp/rstyle-451-final-{fmt,clippy,nextest,style,patterns}.log`,
+`/tmp/wire-fallible-readers-oracle.json`. Frozen run-n4m4nmj0 matches
+run-yvqmo2nk: all60 identities/results/reasons/blockers/denominators,24/29/7 and
+118 Data documents; other profiles unchanged. Comparison:
+`/tmp/rstyle-451-frozen-comparison.json`.
+
+Next connected delivery: terminal original try_read_u32 admission, with its
+concrete length helper callable dependency. Reuse private InstanceProof/retained
+owners; independently verify the entire original source/HIR, substitution and
+pinned len authority, then cover only its exact deferred finding through
+checked_activation::deferred_call and checked source-input ownership. Add bounded
+unit/tuple named-error no-drop boundaries, real boolean-guarded message routes,
+and same-error unit→tuple `?` reconstructing the output-typed Err. Keep saved
+slice/read/panic evidence, including the existing read_u32 ByteWindow4 summary.
+Do not broaden scalar instance authority, spoof the one-argument error-constructor
+summary, or make the reader itself callable before this root composition works.
+Resealed substitution/build/callee/guard/origin/ordering/cleanup adversaries and
+strict original admission/matching are required before claiming support. This
+foundational checkpoint follows the88-admission milestone; another observation-
+only increment would require replanning. Broad goal active.
+[Source contract](../eval/coverage-development/wire-fallible-readers/README.md).

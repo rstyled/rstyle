@@ -1,4 +1,20 @@
 //! Exact list metadata containing one unqualified identifier.
+use syn::visit::Visit;
+
+/// Inspect every nested body attribute without granting any source authority.
+pub(crate) fn has_body_attributes(block: &syn::Block) -> bool {
+    struct Attributes(bool);
+    impl<'ast> Visit<'ast> for Attributes {
+        fn visit_attribute(&mut self, _: &'ast syn::Attribute) {
+            self.0 = true;
+        }
+    }
+
+    let mut attributes = Attributes(false);
+    attributes.visit_block(block);
+    attributes.0
+}
+
 pub(crate) fn single_identifier_attribute(attribute: &syn::Meta, name: &str, value: &str) -> bool {
     matches!(attribute, syn::Meta::List(list) if list.path.is_ident(name)
         && list.parse_args::<syn::Ident>().is_ok_and(|ident| ident == value))
