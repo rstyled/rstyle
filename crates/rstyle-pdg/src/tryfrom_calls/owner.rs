@@ -7,7 +7,7 @@ pub(super) struct Identity {
     pub error: Definition,
 }
 
-pub(super) fn local(facts: &HirFnFacts, definition: &Definition) -> Result<(), String> {
+pub(crate) fn local(facts: &HirFnFacts, definition: &Definition) -> Result<(), String> {
     let compiled = facts
         .build
         .frontend_options
@@ -27,7 +27,7 @@ pub(super) fn local(facts: &HirFnFacts, definition: &Definition) -> Result<(), S
     Ok(())
 }
 
-pub(super) fn nominal(identity: &Structural, nominal: &Nominal) -> Result<Definition, String> {
+pub(crate) fn nominal(identity: &Structural, nominal: &Nominal) -> Result<Definition, String> {
     let Structural::Adt {
         definition,
         arguments,
@@ -149,7 +149,7 @@ fn definitions(
     Ok(())
 }
 
-pub(super) fn core(
+pub(crate) fn core(
     facts: &HirFnFacts,
     role: CoreRole,
     definition: &Definition,
@@ -178,6 +178,25 @@ fn signature(
     identity: &Identity,
     authority: &dyn CoreAuthority,
 ) -> Result<(), String> {
+    let expected = |definition: &Definition| Structural::Adt {
+        definition: definition.clone(),
+        arguments: vec![],
+    };
+
+    structural_signature(
+        facts,
+        signature,
+        &[expected(&identity.success), expected(&identity.error)],
+        authority,
+    )
+}
+
+pub(crate) fn structural_signature(
+    facts: &HirFnFacts,
+    signature: &Signature,
+    payloads: &[Structural; 2],
+    authority: &dyn CoreAuthority,
+) -> Result<(), String> {
     let [input] = signature.inputs.as_slice() else {
         return Err("TryFrom signature requires its single exact unsigned input".into());
     };
@@ -190,11 +209,7 @@ fn signature(
         return Err("TryFrom signature result lacks structural core Result identity".into());
     };
     core(facts, CoreRole::Result, definition, authority)?;
-    let expected = |definition: &Definition| Structural::Adt {
-        definition: definition.clone(),
-        arguments: vec![],
-    };
-    if arguments != &[expected(&identity.success), expected(&identity.error)]
+    if arguments != payloads
         || signature.bound_variables != 0
         || signature.abi != "\"Rust\""
         || signature.safety != "Safe"

@@ -5469,3 +5469,10 @@ zero losses; all identities/build settings persist. Original oracle270,438 API
 checks/context across default/no-default and debug/release-body controls, zero
 mismatches. Generated PatternID/StateID trait wrappers remain separately deferred.
 [Contract, strict replay and validation](eval/coverage-development/unsigned-index-conversions/README.md).
+
+Generated unsigned-conversion source foundation (Data3.117 unchanged): exact
+macro/member/Error/selected-identity proof now covers the eight original
+PatternID/StateID TryFrom wrappers. This grants no callable or cleanup authority:
+native no-default admissions remain123/590, zero gains/losses. Next connect the
+complete three-call roster and lexical/no-drop ownership through the existing
+Result constructor transport. [Contract](eval/coverage-development/generated-index-conversions/README.md).

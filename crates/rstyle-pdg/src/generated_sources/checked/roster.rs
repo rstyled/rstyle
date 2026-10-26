@@ -22,15 +22,13 @@ pub(super) fn verify(
     input: &Input<'_>,
     observation: &Observation,
     expansion: &source::CheckedExpansion,
+    conversion: bool,
 ) -> Result<Selection, String> {
     let emitted = unique_definition(input.capture, &observation.implementation)?;
-    if emitted.kind != "Impl { of_trait: false }" {
-        return Err("Generated callable owner is not an exact inherent implementation".into());
-    }
-    authority::module_parent(input.facts, &emitted.parent, expansion.namespace())?;
-    let (implementation, item) = selected_impl(observation, expansion, emitted)?;
+    let owner = implementation_owner(input, observation, expansion, conversion)?;
+    let (implementation, item) = selected_impl(observation, expansion, emitted, owner.as_deref())?;
     let configuration = Configuration::new(&input.facts.build.cfgs);
-    let members = members(item, &configuration)?;
+    let members = members(item, &configuration, conversion)?;
     let mut actual: Vec<_> = input
         .capture
         .emitted
@@ -65,6 +63,40 @@ pub(super) fn verify(
     })
 }
 
+fn implementation_owner(
+    input: &Input<'_>,
+    observation: &Observation,
+    expansion: &source::CheckedExpansion,
+    conversion: bool,
+) -> Result<Option<String>, String> {
+    let emitted = unique_definition(input.capture, &observation.implementation)?;
+    if emitted.kind
+        != if conversion {
+            "Impl { of_trait: true }"
+        } else {
+            "Impl { of_trait: false }"
+        }
+    {
+        return Err(
+            "Generated callable owner differs from the required implementation kind".into(),
+        );
+    }
+    authority::module_parent(input.facts, &emitted.parent, expansion.namespace())?;
+
+    let owner = if conversion {
+        let (_, item) = original_impl(expansion, emitted)?;
+        Some(super::conversion::verify(
+            input,
+            observation,
+            expansion,
+            item,
+        )?)
+    } else {
+        None
+    };
+    Ok(owner)
+}
+
 fn unique_definition<'a>(
     capture: &'a UnitCapture,
     definition: &Definition,
@@ -84,9 +116,13 @@ fn selected_impl<'a>(
     observation: &Observation,
     expansion: &'a source::CheckedExpansion,
     emitted: &Emitted,
+    converted_owner: Option<&str>,
 ) -> Result<(usize, &'a syn::ItemImpl), String> {
     let (index, item) = original_impl(expansion, emitted)?;
-    if observation.implementation.path != impl_owner(item, expansion)? {
+    let owner = converted_owner
+        .map(str::to_owned)
+        .map_or_else(|| impl_owner(item, expansion), Ok)?;
+    if observation.implementation.path != owner {
         return Err("Generated impl identity differs from substituted nominal syntax".into());
     }
 
@@ -161,7 +197,11 @@ struct Member {
     span: proc_macro2::Span,
 }
 
-fn members(item: &syn::ItemImpl, configuration: &Configuration<'_>) -> Result<Vec<Member>, String> {
+fn members(
+    item: &syn::ItemImpl,
+    configuration: &Configuration<'_>,
+    conversion: bool,
+) -> Result<Vec<Member>, String> {
     let mut members = Vec::new();
     for (index, item) in item.items.iter().enumerate() {
         let (attrs, kind, name, span) = match item {
@@ -182,6 +222,15 @@ fn members(item: &syn::ItemImpl, configuration: &Configuration<'_>) -> Result<Ve
                         .join(item.ty.span())
                         .ok_or("Missing constant header")?,
                 )?,
+            ),
+            syn::ImplItem::Type(item) if conversion => (
+                &item.attrs,
+                "AssocTy",
+                &item.ident,
+                item.type_token
+                    .span
+                    .join(item.ident.span())
+                    .ok_or("Missing associated type header")?,
             ),
             _ => return Err("Generated implementation has an unresolved member inventory".into()),
         };

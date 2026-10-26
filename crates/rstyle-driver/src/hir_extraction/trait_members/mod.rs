@@ -39,7 +39,7 @@ pub(super) fn capture(
         return Ok(());
     }
 
-    let outcome = match conversions::observe(context, owner) {
+    let outcome = match conversions::observe(context, owner, false) {
         Ok(observation) => Outcome::Observed {
             observation: Box::new(observation),
         },
@@ -47,6 +47,33 @@ pub(super) fn capture(
     };
     facts.build.frontend_options.insert(
         KEY.into(),
+        serde_json::to_value(outcome).map_err(|error| error.to_string())?,
+    );
+    capture_generated(context, owner, facts)?;
+    Ok(())
+}
+
+fn capture_generated(
+    context: &Context<'_>,
+    owner: LocalDefId,
+    facts: &mut HirFnFacts,
+) -> Result<(), String> {
+    if !candidate(context.tcx, owner, &["try_from_fn"])
+        || !context.tcx.def_span(owner).from_expansion()
+    {
+        return Ok(());
+    }
+    let outcome = match conversions::observe(context, owner, true) {
+        Ok(mut observation) => {
+            observation.identity = "rstyle.rust.generated-conversion-member-observation/1";
+            Outcome::Observed {
+                observation: Box::new(observation),
+            }
+        }
+        Err(reason) => Outcome::Unsupported { reason },
+    };
+    facts.build.frontend_options.insert(
+        "rstyle.rust.generated-conversion-member".into(),
         serde_json::to_value(outcome).map_err(|error| error.to_string())?,
     );
     Ok(())
@@ -69,6 +96,7 @@ fn candidate(
 fn source_span(
     tcx: rustc_middle::ty::TyCtxt<'_>,
     definition: DefId,
+    generated: bool,
 ) -> Result<rustc_span::Span, String> {
     let local = definition
         .as_local()
@@ -78,7 +106,7 @@ fn source_span(
         rustc_hir::Node::ImplItem(item) => item.span,
         _ => return Err("Conversion source requires an original impl or member".into()),
     };
-    if span.from_expansion() {
+    if span.from_expansion() && !generated {
         return Err("Generated conversion source remains unsupported".into());
     }
     Ok(span)

@@ -123,7 +123,7 @@ fn selected(tcx: TyCtxt<'_>, facts: &[HirFnFacts], roots: &mut Roots<'_>) -> Vec
                 local_def_index: rustc_hir::def_id::DefIndex::from_u32(facts.body.hir.owner),
             };
             let node = tcx.hir_node_by_def_id(id);
-            tcx.inherent_impl_of_assoc(id.to_def_id())?;
+            implementation(tcx, id)?;
             if !node
                 .fn_sig()
                 .is_some_and(|signature| signature.span.from_expansion())
@@ -147,9 +147,8 @@ fn observe(
     facts: &HirFnFacts,
 ) -> Result<Observation, String> {
     let tcx = provenance.tcx;
-    let implementation = tcx
-        .inherent_impl_of_assoc(id.to_def_id())
-        .ok_or("Generated callable is not an inherent implementation member")?;
+    let implementation = implementation(tcx, id)
+        .ok_or("Generated callable lacks its selected concrete implementation")?;
 
     let node = tcx.hir_node_by_def_id(id);
     let signature = node
@@ -166,4 +165,18 @@ fn observe(
         body: provenance.origin(body.value.span)?,
         nodes: nodes::capture(provenance, facts)?,
     })
+}
+
+// Capturing a trait member supplies no source, cleanup or callable permission.
+fn implementation(tcx: TyCtxt<'_>, id: LocalDefId) -> Option<DefId> {
+    if let Some(implementation) = tcx.inherent_impl_of_assoc(id.to_def_id()) {
+        return Some(implementation);
+    }
+    let method = tcx
+        .opt_associated_item(id.to_def_id())?
+        .trait_item_def_id()?;
+    if tcx.get_diagnostic_item(rustc_span::Symbol::intern("try_from_fn")) != Some(method) {
+        return None;
+    }
+    tcx.impl_of_assoc(id.to_def_id())
 }

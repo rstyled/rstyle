@@ -1,13 +1,13 @@
 //! Bounded original syntax only; lexical identity and body semantics stay separate.
 
-pub(super) struct Paths {
+pub(crate) struct Paths {
     pub self_type: syn::TypePath,
     pub trait_path: syn::Path,
     pub error_type: syn::TypePath,
     pub result_type: syn::TypePath,
 }
 
-pub(super) fn implementation(
+pub(crate) fn implementation(
     item: &syn::ItemImpl,
     method: &syn::ImplItemFn,
     input: &str,
@@ -122,7 +122,7 @@ fn trait_argument(path: &syn::Path, scalar: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn result_arguments(
+pub(crate) fn result_arguments(
     result: &syn::TypePath,
 ) -> Result<(&syn::TypePath, &syn::TypePath), String> {
     let last = result

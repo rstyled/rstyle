@@ -1,5 +1,6 @@
 //! Independent source ownership only; body effects and callable permission stay separate.
 mod authority;
+mod conversion;
 mod roles;
 mod roster;
 #[cfg(test)]
@@ -82,21 +83,36 @@ impl CheckedMember {
 
 #[cfg(test)]
 pub(crate) fn verify(input: Input<'_>) -> Result<CheckedMember, String> {
-    verify_using(input, source::verify_compiler)
+    verify_using(input, source::verify_compiler, false)
 }
 
 pub(crate) fn verify_in(
     input: Input<'_>,
     environment: &crate::nominal_boundary::resolution::Environment,
 ) -> Result<CheckedMember, String> {
-    verify_using(input, |source| {
-        source::verify_compiler_in(source, environment)
-    })
+    verify_using(
+        input,
+        |source| source::verify_compiler_in(source, environment),
+        false,
+    )
+}
+
+/// Diagnostic source association only; production callable routing stays closed.
+pub(crate) fn verify_conversion_in(
+    input: Input<'_>,
+    environment: &crate::nominal_boundary::resolution::Environment,
+) -> Result<CheckedMember, String> {
+    verify_using(
+        input,
+        |source| source::verify_compiler_in(source, environment),
+        true,
+    )
 }
 
 fn verify_using(
     input: Input<'_>,
     expansion: impl FnOnce(source::CompilerInput<'_>) -> Result<source::CheckedExpansion, String>,
+    conversion: bool,
 ) -> Result<CheckedMember, String> {
     let (observation, root) = authority::selected(&input)?;
     let expansion = expansion(source::CompilerInput {
@@ -114,7 +130,7 @@ fn verify_using(
     })?;
     authority::source(&input, observation, root, &expansion)?;
 
-    let selection = roster::verify(&input, observation, &expansion)?;
+    let selection = roster::verify(&input, observation, &expansion, conversion)?;
     let function = selection.function(&expansion);
     let roles = roles::verify(&input, observation, function, &expansion)?;
     Ok(CheckedMember {

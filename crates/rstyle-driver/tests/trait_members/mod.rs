@@ -1,6 +1,7 @@
 //! Real compiler owning-member associations, independently specified before capture.
 use super::*;
 use serde_json::Value;
+mod generated;
 
 const KEY: &str = "rstyle.rust.concrete-conversion-member";
 const SOURCE: &str = r#"
@@ -32,10 +33,14 @@ pub fn ordinary(v: u8) -> u8 { v }
 "#;
 
 fn captured(profile: &str) -> Vec<HirFnFacts> {
+    captured_source(profile, SOURCE)
+}
+
+fn captured_source(profile: &str, source: &str) -> Vec<HirFnFacts> {
     let directory = directory();
     let input = directory.join("members.rs");
     let facts = directory.join("facts.json");
-    std::fs::write(&input, SOURCE).unwrap();
+    std::fs::write(&input, source).unwrap();
     let output = selected_invocation(&input, &facts, Some(profile))
         .env("RSTYLE_DIAGNOSTIC_CAPTURE_ONLY", "1")
         .env("RSTYLE_DIAGNOSTIC_FACTS_DIR", directory.join("snapshots"))

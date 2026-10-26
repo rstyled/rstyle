@@ -12,6 +12,7 @@ pub(super) fn observe<'tcx>(
     context: &Context<'tcx>,
     owner: LocalDefId,
     reference: ty::TraitRef<'tcx>,
+    generated: bool,
 ) -> Result<Option<model::AssociatedError>, String> {
     let tcx = context.tcx;
     if tcx.get_diagnostic_item(Symbol::intern("TryFrom")) != Some(reference.def_id) {
@@ -45,7 +46,11 @@ pub(super) fn observe<'tcx>(
     Ok(Some(model::AssociatedError {
         trait_member: definition_record(tcx, declaration),
         implementation_member: definition_record(tcx, member),
-        source: file_span(tcx, &context.sources, super::source_span(tcx, member)?)?,
+        source: file_span(
+            tcx,
+            &context.sources,
+            super::source_span(tcx, member, generated)?,
+        )?,
         declared_type: types::endpoint(tcx, declared)?,
         normalized_projection: types::endpoint(tcx, projected)?,
     }))

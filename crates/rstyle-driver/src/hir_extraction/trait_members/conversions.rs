@@ -11,6 +11,7 @@ use rustc_span::{Symbol, sym};
 pub(super) fn observe(
     context: &Context<'_>,
     owner: LocalDefId,
+    generated: bool,
 ) -> Result<model::Observation, String> {
     let tcx = context.tcx;
     let method = tcx
@@ -44,6 +45,7 @@ pub(super) fn observe(
             reference,
             selected,
         },
+        generated,
     )
 }
 
@@ -99,6 +101,7 @@ struct Association<'tcx> {
 fn observation<'tcx>(
     context: &Context<'tcx>,
     association: Association<'tcx>,
+    generated: bool,
 ) -> Result<model::Observation, String> {
     let Association {
         owner,
@@ -114,7 +117,7 @@ fn observation<'tcx>(
     if !trait_arguments.complete() || !selected_arguments.complete() {
         return Err("Conversion arguments lack complete structural identity".into());
     }
-    let method_span = method_span(context, owner, implementation)?;
+    let method_span = method_span(context, owner, implementation, generated)?;
     Ok(model::Observation {
         identity: "rstyle.rust.concrete-conversion-member-observation/1",
         admission_authority: false,
@@ -125,17 +128,17 @@ fn observation<'tcx>(
         implementation_source: file_span(
             tcx,
             &context.sources,
-            super::source_span(tcx, implementation)?,
+            super::source_span(tcx, implementation, generated)?,
         )?,
         method_source: file_span(tcx, &context.sources, method_span)?,
         method_header: header(tcx, owner)?,
-        members: members(context, implementation)?,
+        members: members(context, implementation, generated)?,
         trait_arguments,
         selected: definition_record(tcx, selected.def_id()),
         selected_arguments,
         requested_signature: signature_observation(tcx, owner, method, reference.args)?,
         selected_signature: signature_observation(tcx, owner, selected.def_id(), selected.args)?,
-        associated_error: errors::observe(context, owner, reference)?,
+        associated_error: errors::observe(context, owner, reference, generated)?,
     })
 }
 
@@ -143,6 +146,7 @@ fn method_span(
     context: &Context<'_>,
     owner: LocalDefId,
     implementation: DefId,
+    generated: bool,
 ) -> Result<rustc_span::Span, String> {
     let tcx = context.tcx;
     let node = tcx.hir_node_by_def_id(owner);
@@ -150,13 +154,17 @@ fn method_span(
     let body = tcx.hir_body(node.body_id().ok_or("Conversion method lacks body")?);
 
     let span = signature.span.to(body.value.span);
-    if span.from_expansion() || tcx.def_span(implementation).from_expansion() {
+    if !generated && (span.from_expansion() || tcx.def_span(implementation).from_expansion()) {
         return Err("Generated conversion member source remains unsupported".into());
     }
     Ok(span)
 }
 
-fn members(context: &Context<'_>, implementation: DefId) -> Result<Vec<model::Member>, String> {
+fn members(
+    context: &Context<'_>,
+    implementation: DefId,
+    generated: bool,
+) -> Result<Vec<model::Member>, String> {
     context
         .tcx
         .associated_items(implementation)
@@ -170,7 +178,7 @@ fn members(context: &Context<'_>, implementation: DefId) -> Result<Vec<model::Me
                 source: file_span(
                     context.tcx,
                     &context.sources,
-                    super::source_span(context.tcx, item.def_id)?,
+                    super::source_span(context.tcx, item.def_id, generated)?,
                 )?,
             })
         })

@@ -1695,6 +1695,25 @@ pub(crate) fn range_from_call(
     range_from::call(node, caller)
 }
 
+/// Diagnostic source/instance association only; grants no nominal, cleanup or call permission.
+pub fn probe_generated_conversion_source(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<usize, String> {
+    let environment = standalone_environment(facts.facts())?;
+    let capture = facts
+        .generated_source_capture()?
+        .ok_or("Missing generated source capture")?;
+    let member = crate::generated_sources::checked::verify_conversion_in(
+        crate::generated_sources::checked::Input {
+            facts: facts.facts(),
+            census: environment.census(),
+            capture: &capture,
+        },
+        &environment,
+    )?;
+    Ok(member.roles().len())
+}
+
 #[cfg(test)]
 mod imports_tests {
     use super::*;

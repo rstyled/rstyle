@@ -21,7 +21,7 @@ pub(super) fn capture(
     owner: LocalDefId,
     facts: &mut HirFnFacts,
 ) -> Result<(), String> {
-    let outcome = match conversions::observe(context, owner) {
+    let outcome = match conversions::observe(context, owner, false) {
         Ok(mut observation) => {
             observation.identity = "rstyle.rust.concrete-default-member-observation/1";
             Outcome::Observed {
@@ -155,8 +155,8 @@ fn check_selected<'tcx>(
     let implementation = tcx
         .impl_of_assoc(owner.to_def_id())
         .ok_or("Default member has no impl")?;
-    super::source_span(tcx, owner.to_def_id())?;
-    super::source_span(tcx, implementation)?;
+    super::source_span(tcx, owner.to_def_id(), false)?;
+    super::source_span(tcx, implementation, false)?;
     let reference = tcx
         .impl_trait_ref(implementation)
         .instantiate_identity()

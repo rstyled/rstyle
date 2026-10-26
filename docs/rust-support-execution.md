@@ -1479,3 +1479,28 @@ Frozen run-luj4fm3q checks118 Data documents; all60 identities/assessments,
 blockers and denominators match run-cjypvid0 at24/29/7. R0 and expanded also
 match exactly. Final target-pin cardinality/identity tests pass3/3; fmt/Clippy
 rechecked clean. Comparison: `/tmp/rstyle-442-frozen-comparison.json`.
+
+Generated conversion source foundation (7cba124 baseline; Data3.117 unchanged):
+all eight original PatternID/StateID unsigned TryFrom members pass exact source,
+associated Error/projection, core identity, substitution and complete HIR-role
+proof. Production admission remains closed. Unchanged native no-default roster:
+123/590, no gains/losses; all identities and build contexts persist. Only the
+eight wrappers change exclusion reasons after retaining the new observations.
+
+The Cargo fixture checks both owners/four inputs and184 adversarial mutations;
+raw capture also checks generic/lookalike/inactive and historical-profile cases.
+Full suite2,157 passes/5 existing skips plus doctests; fmt/Clippy clean;
+style0/7,141 and patterns0/15 unchanged ignores. New composition1.35s in the full
+run (one sample, no speedup claim). Shared original/generated signature checking
+removes duplicate proof logic; no new runtime hashing or serialized lookup keys.
+Next connect exact third trait-call evidence and complete lexical/no-drop proof;
+do not relax the existing two-map roster or certify neighboring impls by name.
+[Contract](../eval/coverage-development/generated-index-conversions/README.md).
+Evidence: `/tmp/rstyle-443-{comparison.json,source-tests.log,source-probe.log,
+nextest.log,clippy.log,style.json,patterns.json,strict-comparison.json}`.
+Strictly verify/admit all123 from the complete unit and serialized replay;
+all246 imports and7,503 pair records match the previous checkpoint exactly.
+Broad coverage goal remains active.
+Frozen run-u89zcvsw verifies118 Data documents and matches run-luj4fm3q:
+all60 identities/results/blockers/denominators unchanged at24/29/7; R0 and
+expanded also match. `/tmp/rstyle-443-frozen-comparison.json` retains the comparison.

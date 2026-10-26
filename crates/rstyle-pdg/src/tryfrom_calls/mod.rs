@@ -6,14 +6,17 @@ pub(crate) mod model;
 mod owner;
 mod selection;
 mod source;
-mod syntax;
+pub(crate) mod syntax;
 #[cfg(test)]
 mod tests;
 
 use crate::{HirFnFacts, concrete_types::TypeTree};
 pub(crate) use authority::RegistryAuthority;
 pub(crate) use model::Definition;
-pub(crate) use owner::endpoint;
+pub(crate) use owner::{
+    core as verify_core, endpoint, local as verify_local, nominal as verify_nominal,
+    structural_signature as verify_signature,
+};
 pub(crate) use selection::{Association, SelectionInput, association, verify_selection};
 pub(crate) use source::{SourceMember, source_member, verify_owner};
 

@@ -2,7 +2,7 @@
 use super::float_kernels::function;
 use super::*;
 
-const INPUTS: &str = r#"
+pub(super) const INPUTS: &str = r#"
 trait U16 { fn as_usize(self) -> usize; }
 impl U16 for u16 { fn as_usize(self) -> usize { usize::from(self) } }
 trait U32 { fn as_usize(self) -> usize; }
