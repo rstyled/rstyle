@@ -28,7 +28,8 @@ impl DependencyClosure {
             let store = pending[index]
                 .take()
                 .ok_or("Missing closure source owner")?;
-            completed[index] = Some(Arc::new(rebuild(store, index, &plan, &completed)?));
+            let rebuilt = rebuild(store, index, &plan, &completed)?;
+            completed[index] = Some(Arc::new(rebuilt.with_slice_length_instances()?));
         }
 
         let units = completed

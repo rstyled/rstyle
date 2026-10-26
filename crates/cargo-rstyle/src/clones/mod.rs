@@ -358,6 +358,7 @@ fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {
 
 fn consume_unit(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), String> {
     let (store, bindings) = load_unit(request, result)?;
+    let store = store.with_slice_length_instances()?;
     consume_store(Arc::new(store), bindings, request, result)
 }
 

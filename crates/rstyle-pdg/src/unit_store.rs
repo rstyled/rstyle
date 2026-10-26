@@ -16,6 +16,7 @@ mod original_members_tests;
 mod product_instances;
 mod reference_forwarders;
 mod reference_instances;
+mod slice_instances;
 pub use dependency_closure::DependencyClosure;
 mod manifest;
 mod namespace;
@@ -92,6 +93,16 @@ pub trait EvidenceFacts: sealed::Sealed {
 
     /// Only an immutable, separately verified instance owner supplies this
     /// witness. Raw frontend records and serialized flags supply none.
+    /// Only a separately verified original shared-slice instance supplies this token.
+    fn slice_length_instance(&self) -> Option<&crate::slice_length_instances::CheckedProjection> {
+        None
+    }
+
+    /// Retained original definition for the independently checked instance only.
+    fn slice_length_original(&self) -> Option<&HirFnFacts> {
+        None
+    }
+
     fn scalar_instance(&self) -> Option<&crate::scalar_instances::CheckedProjection> {
         None
     }
@@ -231,6 +242,14 @@ impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
         T::scalar_instance(*self)
     }
 
+    fn slice_length_instance(&self) -> Option<&crate::slice_length_instances::CheckedProjection> {
+        T::slice_length_instance(*self)
+    }
+
+    fn slice_length_original(&self) -> Option<&HirFnFacts> {
+        T::slice_length_original(*self)
+    }
+
     fn verify_source_inputs(&self) -> Result<(), String> {
         T::verify_source_inputs(*self)
     }
@@ -301,7 +320,7 @@ impl Serialize for dyn EvidenceFacts + '_ {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct HelperRecord {
     function: FunctionId,
@@ -334,6 +353,7 @@ pub struct UnitStore {
     namespace_associations: Vec<dependency_namespaces::Association>,
     external_links: Vec<BTreeMap<Site, ExternalTarget>>,
     instance: Option<instances::InstanceRecord>,
+    slice_instance: Option<slice_instances::SliceInstanceRecord>,
     reference_instance: Option<reference_instances::ReferenceInstanceRecord>,
     reference_forwarder: Option<reference_forwarders::ForwarderRecord>,
     product_instance: Option<product_instances::ProductInstanceRecord>,
@@ -391,6 +411,7 @@ struct Tables<'a> {
     certified: &'a [Option<HelperId>],
     external_links: &'a [BTreeMap<Site, ExternalTarget>],
     instance: Option<&'a instances::InstanceRecord>,
+    slice_instance: Option<&'a slice_instances::SliceInstanceRecord>,
     reference_instance: Option<&'a reference_instances::ReferenceInstanceRecord>,
     reference_forwarder: Option<&'a reference_forwarders::ForwarderRecord>,
     product_instance: Option<&'a product_instances::ProductInstanceRecord>,
@@ -453,6 +474,9 @@ impl EvidenceFacts for FunctionView<'_> {
     fn generated_source_capture(
         &self,
     ) -> Result<Option<Arc<crate::generated_sources::capture::UnitCapture>>, String> {
+        if let Some(instance) = self.resolver.tables().slice_instance {
+            return instance.generated_source_capture();
+        }
         self.resolver
             .sources()
             .generated_capture(self.resolver.tables().functions)
@@ -482,6 +506,18 @@ impl EvidenceFacts for FunctionView<'_> {
         (self.id.0 == 0)
             .then_some(self.resolver.tables().instance?)
             .map(|instance| &instance.checked)
+    }
+
+    fn slice_length_instance(&self) -> Option<&crate::slice_length_instances::CheckedProjection> {
+        (self.id.0 == 0)
+            .then_some(self.resolver.tables().slice_instance?)
+            .map(|instance| &instance.checked)
+    }
+
+    fn slice_length_original(&self) -> Option<&HirFnFacts> {
+        (self.id.0 == 0)
+            .then_some(self.resolver.tables().slice_instance?)
+            .map(|instance| instance.original())
     }
 
     fn verify_source_inputs(&self) -> Result<(), String> {
@@ -660,6 +696,7 @@ impl UnitStore {
 
     fn has_instance(&self) -> bool {
         self.instance.is_some()
+            || self.slice_instance.is_some()
             || self.reference_instance.is_some()
             || self.reference_forwarder.is_some()
             || self.product_instance.is_some()
@@ -824,6 +861,7 @@ impl UnitStore {
             certified: &self.certified,
             external_links: &self.external_links,
             instance: self.instance.as_ref(),
+            slice_instance: self.slice_instance.as_ref(),
             reference_instance: self.reference_instance.as_ref(),
             reference_forwarder: self.reference_forwarder.as_ref(),
             product_instance: self.product_instance.as_ref(),
@@ -894,6 +932,7 @@ impl Builder {
                 namespace_associations: Vec::new(),
                 external_links: vec![BTreeMap::new(); pending.len()],
                 instance: None,
+                slice_instance: None,
                 reference_instance: None,
                 reference_forwarder: None,
                 product_instance: None,
@@ -907,7 +946,17 @@ impl Builder {
         })
     }
 
-    fn capture(mut self) -> Result<UnitStore, String> {
+    fn capture(self) -> Result<UnitStore, String> {
+        let selected = (0..self.store.functions.len())
+            .map(|index| local_id(index, FunctionId))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.capture_functions(selected)
+    }
+
+    // Retained helper proofs are rechecked through this fresh Builder resolver.
+    fn capture_functions(mut self, selected: Vec<FunctionId>) -> Result<UnitStore, String> {
+        self.pending = selected.clone();
+
         for _depth in 0..=crate::helper_calls::MAX_DEPTH {
             let completed = self.prepare()?;
             if completed.is_empty() {
@@ -915,8 +964,7 @@ impl Builder {
             }
             self.install(completed)?;
         }
-        for id in (0..self.store.functions.len()).map(|index| local_id(index, FunctionId)) {
-            let id = id?;
+        for &id in &selected {
             self.depth(id)?;
             crate::helper_reads::check_budgets(&FunctionView {
                 resolver: &self,
@@ -929,19 +977,17 @@ impl Builder {
                 )
             })?;
         }
-        self.complete_roots()?;
+        self.complete_roots(&selected)?;
         Ok(self.store)
     }
 
-    fn complete_roots(&mut self) -> Result<(), String> {
-        for index in 0..self.store.functions.len() {
+    fn complete_roots(&mut self, selected: &[FunctionId]) -> Result<(), String> {
+        for &id in selected {
+            let index = id.0 as usize;
             if self.store.roots[index].is_some() {
                 continue;
             }
-            let view = FunctionView {
-                resolver: self,
-                id: local_id(index, FunctionId)?,
-            };
+            let view = FunctionView { resolver: self, id };
             if crate::classify(&view).status == crate::EligibilityVerdict::Eligible {
                 let pair = crate::producer::produce(&view)
                     .map_err(|errors| format!("Root {}: {}", view.name, errors.join("; ")))?;

@@ -5,6 +5,7 @@ mod tests;
 use super::*;
 use crate::dependency_namespaces::capture::Import;
 
+#[derive(Clone)]
 pub(super) struct Association {
     pub dependency: usize,
     pub compiled_dependency: serde_json::Value,

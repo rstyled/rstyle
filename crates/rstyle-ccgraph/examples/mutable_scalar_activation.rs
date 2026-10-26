@@ -1,6 +1,9 @@
 //! Strict original/replay matching for source-selected original functions.
 use rstyle_ccgraph::{CcgraphConfig, Decision};
-use rstyle_pdg::{unit_store::UnitStore, verification_policy};
+use rstyle_pdg::{
+    unit_store::{UnitAnalysis, UnitStore},
+    verification_policy,
+};
 use serde_json::{Value, json};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -15,12 +18,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut replay = Vec::new();
     store.write_bundle(&mut replay)?;
     let replay = UnitStore::from_bundle(&replay)?;
+    let store = store.with_slice_length_instances()?;
+    let replay = replay.with_slice_length_instances()?;
 
     verification_policy::strict(|| {
+        // Each immutable owner gets its own analysis and policy-local proof cache.
+        // Replaying every selected graph does not require rebuilding its source
+        // census once per function; original and serialized replay stay separate.
+        let original_analysis = store.analysis();
+        let replay_analysis = replay.analysis();
+        let analyses = [&original_analysis, &replay_analysis];
         if let Some(functions) = selection["functions"].as_array() {
-            check_all([&store, &replay], functions)
+            check_all([&store, &replay], analyses, functions)
         } else {
-            check([&store, &replay], &selection).map(|_| ())
+            check([&store, &replay], analyses, &selection).map(|_| ())
         }
     })?;
     Ok(())
@@ -28,13 +39,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn check(
     stores: [&UnitStore; 2],
+    analyses: [&UnitAnalysis<'_>; 2],
     selection: &Value,
 ) -> Result<rstyle_ccgraph::ImportedFunction, String> {
     let mut imports = Vec::new();
     for (replay, store) in stores.into_iter().enumerate() {
         let index = selected_index(store, selection)?;
-        let analysis = store.analysis();
-        let view = analysis
+        let view = analyses[replay]
             .function(index)
             .ok_or("Missing owning function view")?;
         let pair = store.pair(index).ok_or_else(|| {
@@ -93,7 +104,11 @@ fn selected_index(store: &UnitStore, selection: &Value) -> Result<usize, String>
     Ok(*index)
 }
 
-fn check_all(stores: [&UnitStore; 2], functions: &[Value]) -> Result<(), String> {
+fn check_all(
+    stores: [&UnitStore; 2],
+    analyses: [&UnitAnalysis<'_>; 2],
+    functions: &[Value],
+) -> Result<(), String> {
     if functions.is_empty() {
         return Err("Expected at least one selected original".into());
     }
@@ -106,7 +121,7 @@ fn check_all(stores: [&UnitStore; 2], functions: &[Value]) -> Result<(), String>
         if !sources.insert((source, function["name"].as_str())) {
             return Err("Selected original source/name identity is duplicated".into());
         }
-        let mut original = check(stores, &json!({"function": function}))?;
+        let mut original = check(stores, analyses, &json!({"function": function}))?;
         original.key = format!("selected:{index}");
         originals.push(original);
     }

@@ -16,14 +16,6 @@ pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
     super::capability_candidate(facts, CAPABILITY, crate::named_error_payloads::candidate)
 }
 
-pub(crate) fn supported(facts: &dyn EvidenceFacts) -> Result<bool, String> {
-    if !candidate(facts) {
-        return Ok(false);
-    }
-    crate::named_error_payloads::verify_function(facts)?;
-    Ok(true)
-}
-
 /// A complete produced/verified callee pair precedes summary publication. Recheck
 /// the dedicated document semantics even in trusted-generated verification mode.
 pub(crate) fn derive(
@@ -51,7 +43,11 @@ pub(crate) fn derive(
 
 /// Exact formal-to-component source meaning; this alone grants no graph authority.
 pub(crate) fn source_contract(facts: &dyn EvidenceFacts) -> Result<WireContract, String> {
-    source::derive(&crate::named_error_payloads::verify_function(facts)?)
+    crate::source_evidence::source_contract(
+        facts,
+        crate::named_error_payloads::verify_function,
+        source::derive,
+    )
 }
 
 pub(super) fn summary(

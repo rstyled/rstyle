@@ -5,17 +5,8 @@ pub(crate) fn operands<'a>(
     node: &'a HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Option<Result<Vec<&'a HirNode>, String>> {
-    if crate::product_result_propagation::candidate(node, facts) {
-        return Some(
-            crate::product_result_propagation::verify(node, facts)
-                .map(|checked| vec![checked.operand]),
-        );
-    }
-    if crate::scalar_result_propagation::candidate(node, facts) {
-        return Some(
-            crate::scalar_result_propagation::verify(node, facts)
-                .map(|checked| vec![checked.operand]),
-        );
+    if let Some(operands) = propagation_operands(node, facts) {
+        return Some(operands);
     }
     if crate::checked_slice_views::suffix::candidate(node, facts) {
         return Some(
@@ -51,9 +42,35 @@ pub(crate) fn operands<'a>(
     None
 }
 
+fn propagation_operands<'a>(
+    node: &'a HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Option<Result<Vec<&'a HirNode>, String>> {
+    if crate::product_result_propagation::candidate(node, facts) {
+        return Some(
+            crate::product_result_propagation::verify(node, facts)
+                .map(|checked| vec![checked.operand]),
+        );
+    }
+    if crate::named_error_result_propagation::candidate(node, facts) {
+        return Some(
+            crate::named_error_result_propagation::verify(node, facts)
+                .map(|checked| vec![checked.operand]),
+        );
+    }
+    if crate::scalar_result_propagation::candidate(node, facts) {
+        return Some(
+            crate::scalar_result_propagation::verify(node, facts)
+                .map(|checked| vec![checked.operand]),
+        );
+    }
+    None
+}
+
 pub(super) fn used(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
     crate::product_result_propagation::candidate(node, facts)
         || crate::scalar_result_propagation::candidate(node, facts)
+        || crate::named_error_result_propagation::candidate(node, facts)
         || crate::checked_slice_views::suffix::candidate(node, facts)
         || crate::borrowed_result_propagation::candidate(node, facts)
         || crate::checked_slice_views::candidate(node, facts)

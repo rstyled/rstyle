@@ -5545,3 +5545,18 @@ independent instance verification, guarded error summaries and changing-success
 same-error `?`; do not stack further observation-only milestones.
 [Contract/oracle](eval/coverage-development/wire-fallible-readers/README.md) and
 [validation/frontier](docs/rust-support-execution.md).
+
+
+Data3.121 connects original `check_slice_len::<u8>` → `try_read_u32`:
+whole-owner concrete instance proof, guarded no-drop error summaries and exact
+unit→tuple same-error `?`, preserving native reads and panic evidence. Default
+198→199/2,582 and no-default138→139/590; sole gain is the original reader, zero
+losses. Generic originals and opaque-loop callers remain excluded. Inventory-only
+receipts account for unavailable calls without granting call-site authority.
+Targeted recapture follows the reverse caller closure and preserves existing
+PDG/CFG bytes; equal-work no-default repeats improve36.75–38.40→29.84–30.26s.
+The reader is a terminal root, not yet callable. Next connect tagged outputs with
+read/panic summaries, tuple-success propagation/binding, static literal roots and
+ordered mismatch constructors to complete both original validators.
+[Contract](eval/coverage-development/wire-fallible-readers/README.md) and
+[validation/frontier](docs/rust-support-execution.md). Broad goal active.

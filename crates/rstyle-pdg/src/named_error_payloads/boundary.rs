@@ -16,9 +16,7 @@ pub(crate) fn error_tree(facts: &dyn EvidenceFacts) -> Result<Option<TypeTree>, 
     };
 
     let error = match ty {
-        TypeTree::Result { ok, err } if matches!(ok.as_ref(), TypeTree::Scalar(value) if value == "usize") => {
-            err.as_ref()
-        }
+        TypeTree::Result { ok, err } if success(&TypeToken::from_tree(ok), facts) => err.as_ref(),
         error @ TypeTree::Struct { .. } => error,
         _ => return Ok(None),
     };
@@ -69,11 +67,17 @@ pub(crate) fn permits_type(text: &str, facts: &dyn EvidenceFacts) -> Result<bool
 
     let permitted = token == TypeToken::from_tree(&error)
         || token == TypeToken::from_tree(&fields[0].ty)
-        || token
-            == (TypeToken::Result {
-                ok: Box::new(TypeToken::Scalar("usize".into())),
-                err: Box::new(TypeToken::from_tree(&error)),
-            });
+        || matches!(&token, TypeToken::Result { ok, err }
+            if success(ok, facts) && err.as_ref() == &TypeToken::from_tree(&error));
 
     Ok(permitted)
+}
+
+/// Historical scalar permission remains independent of the reader extension.
+fn success(token: &TypeToken, facts: &dyn EvidenceFacts) -> bool {
+    matches!(token, TypeToken::Scalar(value) if value == "usize")
+        || crate::extraction_profile::facts_support(
+            facts,
+            crate::named_error_result_propagation::CAPABILITY,
+        ) && crate::named_error_result_propagation::success(token)
 }

@@ -19,6 +19,13 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
 pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     let observation =
         crate::diagnostics::Stage::new("source.data_frontend", &facts.name, None).enter();
+    if crate::slice_length_instances::activation::verify(facts)? {
+        // The private proof covers every source/HIR/type role. Its bounded
+        // dependency contract supplies conditional error components; ordinary
+        // reference origins cannot represent the two distinct Result cases.
+        crate::helper_calls::slice_lengths::source_contract(facts)?;
+        return observation.finish(Ok(()));
+    }
     if crate::product_instances::activation::verify(facts)?
         || crate::scalar_instances::activation::verify(facts)?
         || crate::reference_instances::activation::verify(facts)?
@@ -49,8 +56,9 @@ fn check_ordinary_function(facts: &dyn crate::unit_store::EvidenceFacts) -> Resu
     crate::character_scalars::verify_function(facts)?;
     crate::float_scalars::verify_function(facts)?;
     crate::range_values::verify_function(facts)?;
-    let named_error = crate::data_documents::named_error_payloads::verify_source(facts)?;
-    if !named_error {
+    let guarded_error = crate::data_documents::named_error_payloads::verify_source(facts)?
+        || crate::data_documents::fallible_readers::verify_source(facts)?;
+    if !guarded_error {
         crate::concrete_results::verify_function(facts)?;
     }
     crate::checked_option_products::verify_function(facts)?;
@@ -68,7 +76,7 @@ fn check_ordinary_function(facts: &dyn crate::unit_store::EvidenceFacts) -> Resu
     }
 
     verify_fields(facts)?;
-    if named_error {
+    if guarded_error {
         return Ok(());
     }
     let places = crate::data_places::Places::verify(facts)?;
@@ -221,6 +229,8 @@ fn verify_result_document_policy(
     crate::data_documents::option_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::borrowed_result_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::scalar_result_propagation::verify_document_policy(profile, facts)?;
+    crate::data_documents::named_error_result_propagation::verify_document_policy(profile, facts)?;
+    crate::data_documents::slice_lengths::verify_document_policy(profile, facts)?;
     crate::data_documents::product_result_propagation::verify_document_policy(profile, facts)?;
     crate::data_documents::result_maps::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(

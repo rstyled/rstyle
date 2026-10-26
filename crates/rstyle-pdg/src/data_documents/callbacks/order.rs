@@ -127,6 +127,15 @@ pub(in crate::data_documents) fn completion(
     Ok(completed)
 }
 
+/// Complete every original alternative of an operation before the consumer.
+pub(in crate::data_documents) fn completed_before(
+    pair: PairView<'_>,
+    earlier: &PdgNode,
+    later: &PdgNode,
+) -> Result<(), String> {
+    before(pair, &completion(pair, earlier)?, later)
+}
+
 pub(in crate::data_documents) fn before(
     pair: PairView<'_>,
     earlier: &BTreeSet<String>,

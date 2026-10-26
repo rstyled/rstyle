@@ -5,7 +5,8 @@ Source-selected before admission assessment: complete regex-automata0.4.18,
 `DeserializeError::buffer_too_small` dependencies. `selection.json` fixes original
 spans/XXH3 checksums, complete context files, default/no-default library builds,
 and the complete ten-variant error/dependency closure. Existing frozen inventories
-and denominators remain unchanged. Admission is not delivered yet.
+and denominators remain unchanged. Data3.121 connects the tier1 reader through
+its checked concrete length-helper instance; later tiers remain deferred.
 
 The first contract covers every byte-slice length, usize minimum and explicit
 static message. The length helper returns BufferTooSmall iff `len < minimum`,
@@ -70,7 +71,7 @@ No general generic, unsafe, arbitrary callback, owned storage or unwind-cleanup
 support is in the first contract. Matching quality and rewrite safety remain
 separate from extraction coverage.
 
-Current capture checkpoint: exact local u8 call receipts retain the complete
+Historical Data3.120 capture checkpoint: exact local u8 call receipts retain the complete
 original-owner type overlay, including concrete len receiver/signature and ordered
 builtin-dereference/shared-borrow adjustments. The original generic HIR and source
 rejection are unchanged. Unit and `(u32,usize)` success/error observations grant
@@ -80,3 +81,44 @@ identities and every admitted record (apart from transient evidence navigation):
 198/2,582 and138/590, zero gains/losses. Excluded records gain error declaration
 observations; previous declarations remain unchanged. No new runtime hashing or
 serialized lookup keys. Evidence: `/tmp/rstyle-451-{default,no-default}-comparison.json`.
+
+
+Data3.121 connected boundary: the entire original `try_read_u32` now admits in
+both selected Cargo contexts, using a separately verified concrete length helper.
+The original generic definition remains excluded and every original function
+entry is retained. Complete receipt inventories include opaque unsupported loops;
+only a retained exact HIR call can authorize linking. Missing or altered receipts,
+source diagnostics, substitutions or owner evidence cannot certify a prefix.
+Native byte reads and their real conditional panic evidence remain explicit.
+The reader itself has no callable summary yet.
+
+Fresh unchanged selections: default198→199/2,582 and no-default138→139/590, sole
+gain `util::wire::try_read_u32`, zero losses; every earlier admitted record is
+unchanged apart from evidence navigation. Independent source oracle passes285,339
+cases in each of four native aarch64 Linux contexts. Foreign native CI remains
+unrun. New adversaries cover receipt completeness, unsupported-loop boundaries,
+exact guards/origins/scopes and whole reader graph semantics.
+
+Activation recaptures the reverse local caller closure in O(V+E), retaining
+unchanged graph/helper tables and rebuilding proof caches. Cases with affected
+existing roots/helpers or private projections fall back to complete recapture.
+Cargo composition verifies all original facts and prior PDG/CFG bytes survive.
+No new runtime hashing or serialized lookup keys. Alternating equal-work warmed
+no-default repeats preserve all590 outcomes/139 admissions:36.75–38.40s before,
+29.84–30.26s after; peak405.6–405.7→382.7–383.0MiB. These local observations do
+not predict other workloads. Evidence: `/tmp/rstyle-452-perf-summary.json`.
+
+Next complete family: callable reader → original `read_version` and
+`read_endianness_check`. Shared prerequisites are tagged-output/read/panic summary
+composition; tuple→scalar same-error propagation; scalar tuple declaration with
+saved component positions; source-backed escaping static literal roots; ordered
+two-scalar mismatch constructors; and original assertion effects. Preserve the
+short-input error before either mismatch, expected/found order and consumed4.
+Broader widths, unsafe/stateful deserializers and allocation/drop remain deferred.
+
+Frozen reproduction `target/hir-coverage/run-mhlxtnst` preserves all60 identities,
+outcomes/reasons/blockers/denominators and118 Data documents:24 admitted/29 excluded/
+7 inactive. R0 and expanded profiles are also unchanged. Comparison:
+`/tmp/rstyle-452-frozen-comparison.json`. Strict original/serialized replay covers
+all338 admitted originals across the two natural contexts:676 imports,338 accepted
+self-comparisons and29,292 complete cross-pairs, with all28,956 old pairs unchanged.

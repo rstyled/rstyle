@@ -13,7 +13,7 @@ pub(super) fn install(
     pair: &mut Pair,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
-    if install_guarded_origins(pair, facts)? {
+    if install_reader_origins(pair, facts)? || install_guarded_origins(pair, facts)? {
         return Ok(());
     }
     install_standard_origins(pair, facts)
@@ -30,6 +30,14 @@ fn install_guarded_origins(
         return Ok(true);
     }
     install_product_origins(pair, facts)
+}
+
+fn install_reader_origins(
+    pair: &mut Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    Ok(super::slice_lengths::install(pair, facts)?
+        || super::fallible_readers::install(pair, facts)?)
 }
 
 fn install_product_origins(
@@ -125,6 +133,13 @@ fn verify_guarded_origins(
     pair: crate::producer::PairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<bool, String> {
+    super::slice_lengths::verify(pair, facts)?;
+    super::fallible_readers::verify(pair, facts)?;
+    if crate::helper_calls::slice_lengths::candidate(facts)
+        || super::fallible_readers::verify_source(facts)?
+    {
+        return Ok(true);
+    }
     if super::named_error_payloads::verify_source(facts)? {
         super::named_error_payloads::verify(pair, facts)?;
         return Ok(true);
@@ -884,6 +899,9 @@ fn propagation_return(
     match node.attributes.construct.as_deref() {
         Some("try.product-result-error") => {
             crate::product_result_propagation::verify(source_node(node, facts)?, facts)?;
+        }
+        Some("try.reader-result-error") => {
+            crate::named_error_result_propagation::verify(source_node(node, facts)?, facts)?;
         }
         Some("try.scalar-result-error") => {
             crate::scalar_result_propagation::verify(source_node(node, facts)?, facts)?;

@@ -1711,3 +1711,54 @@ strict original admission/matching are required before claiming support. This
 foundational checkpoint follows the88-admission milestone; another observation-
 only increment would require replanning. Broad goal active.
 [Source contract](../eval/coverage-development/wire-fallible-readers/README.md).
+
+
+Data3.121/149 capabilities connects original `check_slice_len::<u8>` →
+`try_read_u32`: independent original-owner instance/source proof, complete call
+receipts, guarded no-drop error output and unit→tuple same-error `?`. The native
+reader's real reads/panic evidence remains. Generic originals and unsupported
+opaque-loop callers remain excluded; inventory completeness grants no call-site
+linking authority. The reader is a terminal admitted root, not yet callable.
+
+Fresh default198→199/2,582 and no-default138→139/590: sole gain
+`util::wire::try_read_u32`, zero losses, previous admitted records unchanged.
+Strict676 original/replay imports,338 self-comparisons and29,292 cross-pairs
+complete; all28,956 prior pair records and336 verification records persist.
+Independent unchanged-source oracle285,339 cases/context × default/no-default ×
+debug-on/off passes. Full2,222 tests/5 existing skips plus doctests; fmt/Clippy
+pass, style0/7,510, patterns0/15 unchanged ignores. Focused Cargo composition2.33s.
+Foreign native CI remains unrun; no detector-quality/equivalence/rewrite claim.
+
+Targeted activation recaptures the O(V+E) reverse caller closure only when affected
+functions have no prior roots/helpers and the owner has no private projections;
+otherwise complete recapture remains. All original facts and prior PDG/CFG bytes
+are tested unchanged. No new runtime hashes or serialized lookup keys. Controlled
+same-work no-default samples (warmups, alternating two repeats/revision) preserve
+all590 outcomes/139 admissions:36.75–38.40→29.84–30.26s,405.6–405.7→382.7–383.0MiB
+peak. This is a local workload result. Natural default capture229.85s/1,745,924KiB
+and strict replay201.42s/6,041,888KiB are single observations with more supported
+work than the baseline; whole-unit replay memory remains a limitation. No-default
+strict replay36.48s/1,302,868KiB. Replay reuses one policy-local analysis per owner,
+while verifying each original and serialized pair independently.
+Evidence: `/tmp/rstyle-452-{default,no-default}-comparison.json`,
+`/tmp/rstyle-452-strict-comparison.json`, `/tmp/rstyle-452-perf-summary.json`,
+`/tmp/rstyle-452-oracle.json`, `/tmp/rstyle-452-{nextest,clippy,fmt,style,patterns}-final.*`.
+
+Next ready target: original callable reader → `read_version` and
+`read_endianness_check`, delivered as connected callers. Required shared seams:
+compose guarded tagged outputs with verified read/panic outcomes; support exact
+tuple→scalar same-error propagation; retain ordinary scalar tuple let components
+from one saved initializer; represent source-backed static literal roots; support
+ordered two-scalar mismatch constructors; retain saved assertion operands/effects.
+The driver currently emits childless unsupported tuple patterns, and existing
+static origins only represent formals; neither can be bypassed. Keep historical
+memory-free summary validators unchanged. Tests must reject swapped tuple slots/
+expected-found operands, changed messages/residuals, omitted reads/guards, hidden
+Drop and foreign owner evidence. Short-input BufferTooSmall precedes decoding or
+mismatch; success consumes4. Wider readers alone do not complete these callers.
+Broad goal active. [Contract](../eval/coverage-development/wire-fallible-readers/README.md).
+
+Frozen reproduction `target/hir-coverage/run-mhlxtnst` preserves all60 identities,
+outcomes/reasons/blockers/denominators and118 Data documents:24 admitted/29 excluded/
+7 inactive. R0 and expanded profiles are also unchanged. Comparison:
+`/tmp/rstyle-452-frozen-comparison.json`.

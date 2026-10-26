@@ -15,6 +15,12 @@ pub(super) fn return_error(tree: &TypeTree) -> Option<&TypeTree> {
         {
             Some(err)
         }
+        TypeTree::Result { ok, err }
+            if crate::concrete_types::payload_errors::GRAMMAR
+                .permits(&TypeToken::from_tree(ok), &TypeToken::from_tree(err)) =>
+        {
+            Some(err)
+        }
         TypeTree::Result { ok, err } if matches!(ok.as_ref(), TypeTree::Scalar(unit) if unit == "unit") => {
             Some(err)
         }
@@ -39,6 +45,14 @@ pub(super) fn return_error(tree: &TypeTree) -> Option<&TypeTree> {
 
 pub(super) fn checked_error(tree: &TypeTree, facts: &dyn EvidenceFacts) -> Result<(), String> {
     let token = TypeToken::from_tree(tree);
+    if crate::extraction_profile::facts_support(
+        facts,
+        crate::named_error_result_propagation::CAPABILITY,
+    ) && crate::named_error_payloads::error_tree(facts)?
+        .is_some_and(|error| TypeToken::from_tree(&error) == token)
+    {
+        return Ok(());
+    }
     if copy_errors::error(&token).is_some() {
         return copy_errors::checked_error(&token, facts);
     }
@@ -81,12 +95,7 @@ pub(crate) fn payload(
     let TypeToken::Result { ok, err } = crate::data_aggregates::parsed_type(node)? else {
         return Err("Result construction requires its concrete two-child type".into());
     };
-    if let Some(error) = crate::named_error_payloads::error_tree(facts)? {
-        if ok.as_ref() != &TypeToken::Scalar("usize".into())
-            || err.as_ref() != &TypeToken::from_tree(&error)
-        {
-            return Err("Named error Result differs from its exact checked return boundary".into());
-        }
+    if named_error_payload(&ok, &err, facts)? {
         return Ok((*ok, *err));
     }
     if crate::copy_tagged_values::candidate(facts) {
@@ -124,6 +133,26 @@ pub(crate) fn payload(
     verify_unit_payload(&ok, &err, facts)?;
 
     Ok((*ok, *err))
+}
+
+fn named_error_payload(
+    ok: &TypeToken,
+    err: &TypeToken,
+    facts: &dyn EvidenceFacts,
+) -> Result<bool, String> {
+    if let Some(error) = crate::named_error_payloads::error_tree(facts)? {
+        if !(ok == &TypeToken::Scalar("usize".into())
+            || crate::extraction_profile::facts_support(
+                facts,
+                crate::named_error_result_propagation::CAPABILITY,
+            ) && crate::named_error_result_propagation::success(ok))
+            || err != &TypeToken::from_tree(&error)
+        {
+            return Err("Named error Result differs from its exact checked return boundary".into());
+        }
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 fn verify_unit_payload(

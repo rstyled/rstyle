@@ -1,6 +1,6 @@
 //! Checked Into delegation selects an exact original local From dependency.
 use crate::{HirNode, product_instances::SpanArgument, unit_store::EvidenceFacts};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 fn selected<'a>(
     node: &HirNode,
@@ -15,11 +15,7 @@ fn selected<'a>(
 
 pub(super) fn resolution(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Value> {
     let callee = selected(node, facts)?.local_from()?;
-    Some(json!({
-        "local": true,
-        "path": callee.name,
-        "definition_identity": super::identity(callee)?,
-    }))
+    super::local_resolution(callee)
 }
 
 pub(super) fn verify(

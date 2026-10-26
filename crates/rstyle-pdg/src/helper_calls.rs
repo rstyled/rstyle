@@ -11,6 +11,7 @@ pub(crate) mod instances;
 pub(crate) mod named_errors;
 mod product_conversions;
 mod reference_forwarders;
+pub(crate) mod slice_lengths;
 pub(crate) mod tagged_conversions;
 pub(crate) mod tagged_resolution;
 pub(crate) mod transport;
@@ -93,6 +94,7 @@ fn summary(
     boundary: Boundary,
 ) -> Result<Summary, String> {
     match boundary.tagged_output {
+        Some(output) if slice_lengths::candidate(facts) => slice_lengths::summary(facts, output),
         Some(output) if named_errors::candidate(facts) => named_errors::summary(facts, output),
         Some(output) => tagged_conversions::summary(facts, output),
         None => legacy_summary(facts, pair, boundary.reference_outputs),
@@ -214,6 +216,28 @@ fn identity(facts: &HirFnFacts) -> Option<&str> {
         .as_str()
 }
 
+/// Preserve the original local definition identity after contextual selection.
+fn local_resolution(callee: &HirFnFacts) -> Option<Value> {
+    Some(serde_json::json!({
+        "local": true,
+        "path": callee.name,
+        "definition_identity": identity(callee)?,
+    }))
+}
+
+/// Guarded named-error results require their complete family-specific source proof.
+pub(crate) fn guarded_error_supported(facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    if slice_lengths::candidate(facts) {
+        slice_lengths::source_contract(facts)?;
+        return Ok(true);
+    }
+    if named_errors::candidate(facts) {
+        crate::named_error_payloads::verify_function(facts)?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 /// Native-width semantics propagate through verified dependencies, even when
 /// a caller's own interface and operations have only fixed-width scalar types.
 pub fn native_width(facts: &dyn EvidenceFacts) -> Result<bool, String> {
@@ -263,6 +287,10 @@ fn node_native_width(
     }
     if crate::product_result_propagation::candidate(node, facts) {
         let checked = crate::product_result_propagation::verify(node, facts)?;
+        return node_native_width(checked.operand, data, facts);
+    }
+    if crate::named_error_result_propagation::candidate(node, facts) {
+        let checked = crate::named_error_result_propagation::verify(node, facts)?;
         return node_native_width(checked.operand, data, facts);
     }
     if crate::scalar_result_propagation::candidate(node, facts) {
@@ -329,6 +357,7 @@ pub fn selected_resolution(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<
         .or_else(|| direct_resolution(node))
         .or_else(|| reference_forwarders::resolution(node, facts))
         .or_else(|| product_conversions::resolution(node, facts))
+        .or_else(|| slice_lengths::resolution(node, facts))
 }
 
 pub(crate) fn callee(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<String> {
@@ -336,6 +365,7 @@ pub(crate) fn callee(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<String
         .as_ref()
         .map(|dispatch| dispatch.op.clone())
         .or_else(|| reference_forwarders::callee(node, facts))
+        .or_else(|| slice_lengths::callee(node, facts))
 }
 
 pub(crate) fn call_nodes(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
@@ -396,6 +426,11 @@ fn collect_source_kind<'a>(
 fn propagation_operand<'a>(node: &'a HirNode, facts: &dyn EvidenceFacts) -> Option<&'a HirNode> {
     if crate::product_result_propagation::candidate(node, facts) {
         return crate::product_result_propagation::verify(node, facts)
+            .ok()
+            .map(|checked| checked.operand);
+    }
+    if crate::named_error_result_propagation::candidate(node, facts) {
+        return crate::named_error_result_propagation::verify(node, facts)
             .ok()
             .map(|checked| checked.operand);
     }
@@ -481,7 +516,8 @@ fn verify_shared(
     helper: &crate::unit_store::HelperView<'_>,
 ) -> Result<(), String> {
     let callee = helper.frontend();
-    let selected = named_errors::verify_dependency(node, caller, &callee, helper.summary())?
+    let selected = slice_lengths::verify_dependency(node, caller, &callee, helper.summary())?
+        || named_errors::verify_dependency(node, caller, &callee, helper.summary())?
         || tagged_conversions::verify_dependency(node, caller, &callee, helper.summary())?
         || reference_forwarders::verify(node, caller, &callee)?
         || product_conversions::verify(node, caller, &callee)?;
@@ -529,6 +565,14 @@ fn check_boundary(
     pair: &producer::Pair,
     facts: &dyn EvidenceFacts,
 ) -> Result<Boundary, Vec<String>> {
+    if let Some(output) =
+        slice_lengths::derive(facts, pair.as_view()).map_err(|error| vec![error])?
+    {
+        return Ok(Boundary {
+            reference_outputs: None,
+            tagged_output: Some(output),
+        });
+    }
     if let Some(output) =
         named_errors::derive(facts, pair.as_view()).map_err(|error| vec![error])?
     {
@@ -622,6 +666,11 @@ fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, 
     let resolution = direct_resolution(node).ok_or("Unresolved direct helper call")?;
     let dependency: Dependency = transport::decode(&resolution[KEY])
         .map_err(|_| "Missing or invalid verified callee dependency")?;
+    if dependency.summary.identity == slice_lengths::SUMMARY {
+        return Err(
+            "Checked slice-length summary requires its retained original-owner instance".into(),
+        );
+    }
     check_depth(&dependency.frontend.body, 1)?;
     if !named_errors::verify_dependency(node, caller, &dependency.frontend, &dependency.summary)?
         && !tagged_conversions::verify_dependency(

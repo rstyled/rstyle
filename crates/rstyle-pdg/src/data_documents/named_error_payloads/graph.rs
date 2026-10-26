@@ -153,12 +153,6 @@ fn edge(pair: PairView<'_>, earlier: &PdgNode, later: &PdgNode) -> Result<(), St
     before(pair, earlier, later)
 }
 
-fn before(pair: PairView<'_>, earlier: &PdgNode, later: &PdgNode) -> Result<(), String> {
-    super::super::callbacks::order::before(
-        pair,
-        &super::super::callbacks::order::completion(pair, earlier)?,
-        later,
-    )
-}
-
 use super::super::value_consumers::verify as consumers;
+
+use super::super::callbacks::order::completed_before as before;

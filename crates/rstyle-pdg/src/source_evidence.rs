@@ -49,6 +49,40 @@ pub(crate) fn resolved_local_leaf(node: &HirNode) -> Option<&HirRef> {
         .and_then(|resolution| resolution.target.as_ref())
 }
 
+/// Check an ordinary original read of one exact binding, including its type.
+pub(crate) fn verify_binding_read(
+    node: &HirNode,
+    binding: &HirNode,
+    diagnostic: &str,
+) -> Result<(), String> {
+    if resolved_local_leaf(node) != Some(&binding.hir)
+        || node.dispatch.is_some()
+        || node.is_unsafe_block
+        || crate::data_aggregates::parsed_type(node)?
+            != crate::data_aggregates::parsed_type(binding)?
+    {
+        return Err(diagnostic.into());
+    }
+    Ok(())
+}
+
+/// Project only a successfully checked whole source; never a wire claim.
+pub(crate) fn source_contract<'a, T, R>(
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+    verify: impl FnOnce(&'a dyn crate::unit_store::EvidenceFacts) -> Result<T, String>,
+    project: impl FnOnce(&T) -> Result<R, String>,
+) -> Result<R, String> {
+    project(&verify(facts)?)
+}
+
+/// Distinguish an inapplicable source family from a failed complete proof.
+pub(crate) fn source_present<'a, T>(
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+    verify: impl FnOnce(&'a dyn crate::unit_store::EvidenceFacts) -> Result<Option<T>, String>,
+) -> Result<bool, String> {
+    verify(facts).map(|checked| checked.is_some())
+}
+
 /// Relative identifier paths only; this proves syntax, never name resolution.
 pub(crate) fn plain_relative_path(path: &syn::Path) -> Option<Vec<String>> {
     if path.leading_colon.is_some() || path.segments.iter().any(|part| !part.arguments.is_none()) {

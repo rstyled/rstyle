@@ -19,7 +19,13 @@ pub(in crate::nominal_boundary::resolution) fn selection(
         return Ok(None);
     };
     let error = match ty {
-        TypeTree::Result { ok, err } if matches!(ok.as_ref(), TypeTree::Scalar(value) if value == "usize") => {
+        TypeTree::Result { ok, err }
+            if matches!(ok.as_ref(), TypeTree::Scalar(value) if value == "usize")
+                || supports(facts, crate::named_error_result_propagation::CAPABILITY)?
+                    && crate::named_error_result_propagation::success(
+                        &crate::data_types::TypeToken::from_tree(ok),
+                    ) =>
+        {
             err.as_ref()
         }
         TypeTree::Struct { fields, .. } if matches!(fields.as_slice(), [field] if matches!(field.ty, TypeTree::MixedEnum { .. })) => {

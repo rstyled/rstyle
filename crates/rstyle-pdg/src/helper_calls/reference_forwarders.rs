@@ -1,6 +1,6 @@
 //! One private original From proof selects its checked constructor dependency.
 use crate::{HirNode, unit_store::EvidenceFacts};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 #[cfg(test)]
 mod tests;
@@ -17,11 +17,7 @@ fn selected<'a>(
 
 pub(super) fn resolution(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Value> {
     let checked = selected(node, facts)?;
-    Some(json!({
-        "local": true,
-        "path": checked.constructor().facts().name,
-        "definition_identity": super::identity(checked.constructor().facts())?,
-    }))
+    super::local_resolution(checked.constructor().facts())
 }
 
 pub(super) fn callee(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<String> {

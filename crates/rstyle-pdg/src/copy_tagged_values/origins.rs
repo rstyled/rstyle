@@ -93,6 +93,11 @@ pub(crate) struct Guard {
 )]
 pub(crate) enum Condition {
     Always,
+    /// Exact callee-scoped boolean source condition; no nominal pattern authority.
+    Boolean {
+        condition: HirRef,
+        outcome: bool,
+    },
     Selected(Guard),
     Complement(Guard),
 }

@@ -1,7 +1,11 @@
 //! Whole original arithmetic roots; summaries do not substitute for source proof.
 use super::*;
+use crate::source_evidence::verify_binding_read as formal_read;
+
 use crate::data_types::TypeToken;
 use syn::spanned::Spanned;
+
+const BINDING_READ: &str = "Fresh arithmetic changes an exact original binding read";
 
 pub(super) enum Checked<'a> {
     Constructor(Box<crate::named_error_payloads::Function<'a>>),
@@ -67,8 +71,8 @@ pub(super) fn verify(facts: &dyn EvidenceFacts) -> Result<Option<Checked<'_>>, S
     let [left, right] = scrutinee.children.as_slice() else {
         return Err("Fresh arithmetic must evaluate exactly two original scalar formals".into());
     };
-    formal_read(left, &facts.signature.params[0].pat)?;
-    formal_read(right, &facts.signature.params[1].pat)?;
+    formal_read(left, &facts.signature.params[0].pat, BINDING_READ)?;
+    formal_read(right, &facts.signature.params[1].pat, BINDING_READ)?;
 
     root(facts, expression, option, kind)
         .map(Checked::Root)
@@ -98,7 +102,7 @@ fn root<'a>(
         );
     }
 
-    formal_read(success.payload, option.binding)?;
+    formal_read(success.payload, option.binding, BINDING_READ)?;
     let call = failure.payload;
     let [actual] = call.children.as_slice() else {
         return Err("Fresh arithmetic error helper requires exactly one static argument".into());
@@ -108,7 +112,7 @@ fn root<'a>(
     }
 
     let formal = crate::named_error_payloads::static_formal(facts, 2)?;
-    formal_read(actual, formal.pattern)?;
+    formal_read(actual, formal.pattern, BINDING_READ)?;
     let helper = crate::helper_calls::verify_use(call, facts)?;
     let contract = crate::helper_calls::named_errors::validate_shape(helper.summary())?.clone();
 
@@ -134,24 +138,6 @@ fn arm(expression: &HirNode, index: usize) -> Result<&HirNode, String> {
         return Err("Fresh arithmetic arm contains omitted guard or operations".into());
     };
     Ok(body)
-}
-
-fn formal_read(node: &HirNode, binding: &HirNode) -> Result<(), String> {
-    if node.kind != "expr_path"
-        || !node.children.is_empty()
-        || node.expansion.is_some()
-        || node.dispatch.is_some()
-        || node.is_unsafe_block
-        || !node
-            .res
-            .as_ref()
-            .is_some_and(|res| res.kind == "local" && res.target.as_ref() == Some(&binding.hir))
-        || crate::data_aggregates::parsed_type(node)?
-            != crate::data_aggregates::parsed_type(binding)?
-    {
-        return Err("Fresh arithmetic changes an exact original binding read".into());
-    }
-    Ok(())
 }
 
 fn interface(facts: &dyn EvidenceFacts, expression: &HirNode) -> Result<(), String> {

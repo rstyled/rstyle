@@ -12,11 +12,13 @@ use rustc_hir::{
 };
 use rustc_middle::ty::{self, Ty};
 mod borrowed;
+mod named_error;
 
 pub(super) enum Protocol {
     Result,
     BorrowedResult,
     ScalarResult,
+    NamedErrorResult,
     ProductResult,
     Option,
 }
@@ -26,6 +28,7 @@ pub(super) enum Protocol {
 enum CapturedShape {
     Result(Shape),
     ScalarResult(rstyle_pdg::scalar_result_propagation::capture::Shape),
+    NamedErrorResult(rstyle_pdg::named_error_result_propagation::capture::Shape),
     BorrowedResult(rstyle_pdg::borrowed_result_propagation::capture::Shape),
     ProductResult(rstyle_pdg::product_result_propagation::capture::Shape),
     Option(rstyle_pdg::option_propagation::capture::Shape),
@@ -59,6 +62,11 @@ impl Protocol {
                 rstyle_pdg::borrowed_result_propagation::capture::RESOLUTION,
                 rstyle_pdg::borrowed_result_propagation::capture::IDENTITY,
             ),
+            Self::NamedErrorResult => (
+                rstyle_pdg::named_error_result_propagation::CAPABILITY,
+                rstyle_pdg::named_error_result_propagation::capture::RESOLUTION,
+                rstyle_pdg::named_error_result_propagation::capture::IDENTITY,
+            ),
             Self::ScalarResult => (
                 "rust.scalar-success-result-propagation",
                 rstyle_pdg::scalar_result_propagation::capture::RESOLUTION,
@@ -83,6 +91,7 @@ impl<'tcx> Context<'tcx> {
         self.propagation_capture(root, Protocol::Result)
             .or_else(|| self.propagation_capture(root, Protocol::BorrowedResult))
             .or_else(|| self.propagation_capture(root, Protocol::ScalarResult))
+            .or_else(|| self.propagation_capture(root, Protocol::NamedErrorResult))
             .or_else(|| self.propagation_capture(root, Protocol::ProductResult))
     }
 
@@ -167,6 +176,10 @@ impl<'tcx> Context<'tcx> {
             ),
             Protocol::BorrowedResult => (
                 CapturedShape::BorrowedResult(self.borrowed_result_shape(operand, branch)?),
+                Some(self.propagation_conversion(root, operand)?),
+            ),
+            Protocol::NamedErrorResult => (
+                CapturedShape::NamedErrorResult(self.named_error_result_shape(operand, branch)?),
                 Some(self.propagation_conversion(root, operand)?),
             ),
             Protocol::ScalarResult => (

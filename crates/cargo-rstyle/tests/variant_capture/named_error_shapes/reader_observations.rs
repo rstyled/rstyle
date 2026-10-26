@@ -50,7 +50,37 @@ fn fallible_reader_interface_capture_does_not_certify_an_unproved_instance() {
 
     check_captured_interfaces(&report);
     check_projection(function(&report, "check_slice_len"));
+    check_verified_instance(function(&report, "check_slice_len"));
     check_rejected_interfaces(&report);
+}
+
+fn check_verified_instance(entry: &Value) {
+    let (original, index) = shared_evidence::load(entry);
+    let original = std::sync::Arc::new(original);
+    let instance = rstyle_pdg::unit_store::UnitStore::capture_slice_length_instance(
+        std::sync::Arc::clone(&original),
+        index,
+    )
+    .unwrap();
+    assert_eq!(instance.helper_count(), 1);
+    let pair = instance.pair(0).unwrap();
+    let analysis = instance.analysis();
+    let facts = analysis.function(0).unwrap();
+    rstyle_pdg::producer::verify(pair, &facts).unwrap();
+    assert!(
+        instance.functions()[0].signature.params[0]
+            .ty
+            .normalized
+            .as_deref()
+            .unwrap()
+            .contains("u8")
+    );
+    assert!(
+        original.functions()[index].signature.params[0]
+            .ty
+            .normalized
+            .is_none()
+    );
 }
 
 fn check_captured_interfaces(report: &Value) {

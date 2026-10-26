@@ -1,0 +1,721 @@
+{
+  "name": "util::wire::check_slice_len",
+  "fn_span": {
+    "start": 30713,
+    "end": 30965
+  },
+  "signature": {
+    "sig_span": {
+      "start": 0,
+      "end": 133
+    },
+    "params": [
+      {
+        "symbol": "s:661:2",
+        "position": 0,
+        "name_span": {
+          "start": 38,
+          "end": 43
+        },
+        "ty_span": {
+          "start": 45,
+          "end": 49
+        },
+        "ty": {
+          "normalized": null,
+          "observed": "&[T]",
+          "spelling": "&[T]"
+        },
+        "pat": {
+          "hir": {
+            "krate": 0,
+            "owner": 661,
+            "local": 2
+          },
+          "kind": "pat_binding",
+          "span": {
+            "start": 38,
+            "end": 43
+          },
+          "snippet": "slice",
+          "ty": {
+            "normalized": null,
+            "observed": "&[T]",
+            "spelling": ""
+          },
+          "res": null,
+          "dispatch": null,
+          "expansion": null,
+          "binding": "s:661:2",
+          "binding_mut": false,
+          "lit": null,
+          "param_index": 0,
+          "is_unsafe_block": false,
+          "children": []
+        }
+      },
+      {
+        "symbol": "s:661:4",
+        "position": 1,
+        "name_span": {
+          "start": 55,
+          "end": 67
+        },
+        "ty_span": {
+          "start": 69,
+          "end": 74
+        },
+        "ty": {
+          "normalized": null,
+          "observed": "usize",
+          "spelling": "usize"
+        },
+        "pat": {
+          "hir": {
+            "krate": 0,
+            "owner": 661,
+            "local": 4
+          },
+          "kind": "pat_binding",
+          "span": {
+            "start": 55,
+            "end": 67
+          },
+          "snippet": "at_least_len",
+          "ty": {
+            "normalized": null,
+            "observed": "usize",
+            "spelling": "usize"
+          },
+          "res": null,
+          "dispatch": null,
+          "expansion": null,
+          "binding": "s:661:4",
+          "binding_mut": false,
+          "lit": null,
+          "param_index": 1,
+          "is_unsafe_block": false,
+          "children": []
+        }
+      },
+      {
+        "symbol": "s:661:6",
+        "position": 2,
+        "name_span": {
+          "start": 80,
+          "end": 84
+        },
+        "ty_span": {
+          "start": 86,
+          "end": 98
+        },
+        "ty": {
+          "normalized": null,
+          "observed": "&str",
+          "spelling": "&'static str"
+        },
+        "pat": {
+          "hir": {
+            "krate": 0,
+            "owner": 661,
+            "local": 6
+          },
+          "kind": "pat_binding",
+          "span": {
+            "start": 80,
+            "end": 84
+          },
+          "snippet": "what",
+          "ty": {
+            "normalized": null,
+            "observed": "&str",
+            "spelling": "&'static str"
+          },
+          "res": null,
+          "dispatch": null,
+          "expansion": null,
+          "binding": "s:661:6",
+          "binding_mut": false,
+          "lit": null,
+          "param_index": 2,
+          "is_unsafe_block": false,
+          "children": []
+        }
+      }
+    ],
+    "receiver": null,
+    "return_ty": {
+      "normalized": null,
+      "observed": "core::result::Result<(), util::wire::DeserializeError>",
+      "spelling": "Result<(), DeserializeError>"
+    },
+    "return_ty_span": {
+      "start": 105,
+      "end": 133
+    },
+    "has_self": false,
+    "abi": {
+      "status": "known",
+      "value": "Rust"
+    },
+    "generics": [
+      {
+        "name": "T",
+        "span": {
+          "start": 30,
+          "end": 31
+        }
+      },
+      {
+        "name": "'_",
+        "span": {
+          "start": 45,
+          "end": 46
+        }
+      }
+    ],
+    "is_variadic": false,
+    "is_async": false,
+    "is_unsafe": false,
+    "is_const": false
+  },
+  "bindings": [
+    {
+      "symbol": "s:661:2",
+      "name": "slice",
+      "decl_span": {
+        "start": 38,
+        "end": 43
+      },
+      "scope": "scope:source:fn:0:252",
+      "hir": {
+        "krate": 0,
+        "owner": 661,
+        "local": 2
+      },
+      "is_param": true,
+      "is_mut": false,
+      "ty": {
+        "normalized": null,
+        "observed": "&[T]",
+        "spelling": ""
+      }
+    },
+    {
+      "symbol": "s:661:4",
+      "name": "at_least_len",
+      "decl_span": {
+        "start": 55,
+        "end": 67
+      },
+      "scope": "scope:source:fn:0:252",
+      "hir": {
+        "krate": 0,
+        "owner": 661,
+        "local": 4
+      },
+      "is_param": true,
+      "is_mut": false,
+      "ty": {
+        "normalized": null,
+        "observed": "usize",
+        "spelling": ""
+      }
+    },
+    {
+      "symbol": "s:661:6",
+      "name": "what",
+      "decl_span": {
+        "start": 80,
+        "end": 84
+      },
+      "scope": "scope:source:fn:0:252",
+      "hir": {
+        "krate": 0,
+        "owner": 661,
+        "local": 6
+      },
+      "is_param": true,
+      "is_mut": false,
+      "ty": {
+        "normalized": null,
+        "observed": "&str",
+        "spelling": ""
+      }
+    }
+  ],
+  "body": {
+    "hir": {
+      "krate": 0,
+      "owner": 661,
+      "local": 35
+    },
+    "kind": "expr_block",
+    "span": {
+      "start": 134,
+      "end": 252
+    },
+    "snippet": "{\n    if slice.len() < at_least_len {\n        return Err(DeserializeError::buffer_too_small(what));\n    }\n    Ok(())\n}",
+    "ty": {
+      "normalized": null,
+      "observed": "core::result::Result<(), util::wire::DeserializeError>",
+      "spelling": ""
+    },
+    "res": null,
+    "dispatch": null,
+    "expansion": null,
+    "binding": null,
+    "binding_mut": null,
+    "lit": null,
+    "param_index": null,
+    "is_unsafe_block": false,
+    "children": [
+      {
+        "hir": {
+          "krate": 0,
+          "owner": 661,
+          "local": 30
+        },
+        "kind": "stmt_expr",
+        "span": {
+          "start": 140,
+          "end": 239
+        },
+        "snippet": "if slice.len() < at_least_len {\n        return Err(DeserializeError::buffer_too_small(what));\n    }",
+        "ty": null,
+        "res": null,
+        "dispatch": null,
+        "expansion": null,
+        "binding": null,
+        "binding_mut": null,
+        "lit": null,
+        "param_index": null,
+        "is_unsafe_block": false,
+        "children": [
+          {
+            "hir": {
+              "krate": 0,
+              "owner": 661,
+              "local": 8
+            },
+            "kind": "expr_if",
+            "span": {
+              "start": 140,
+              "end": 239
+            },
+            "snippet": "if slice.len() < at_least_len {\n        return Err(DeserializeError::buffer_too_small(what));\n    }",
+            "ty": {
+              "normalized": null,
+              "observed": "()",
+              "spelling": ""
+            },
+            "res": null,
+            "dispatch": null,
+            "expansion": null,
+            "binding": null,
+            "binding_mut": null,
+            "lit": null,
+            "param_index": null,
+            "is_unsafe_block": false,
+            "children": [
+              {
+                "hir": {
+                  "krate": 0,
+                  "owner": 661,
+                  "local": 9
+                },
+                "kind": "expr_binary",
+                "span": {
+                  "start": 143,
+                  "end": 169
+                },
+                "snippet": "slice.len() < at_least_len",
+                "ty": {
+                  "normalized": null,
+                  "observed": "bool",
+                  "spelling": ""
+                },
+                "res": null,
+                "dispatch": {
+                  "kind": "builtin",
+                  "op": "<",
+                  "operand_tys": [
+                    "usize",
+                    "usize"
+                  ],
+                  "result_ty": "bool"
+                },
+                "expansion": null,
+                "binding": null,
+                "binding_mut": null,
+                "lit": null,
+                "param_index": null,
+                "is_unsafe_block": false,
+                "children": [
+                  {
+                    "hir": {
+                      "krate": 0,
+                      "owner": 661,
+                      "local": 10
+                    },
+                    "kind": "expr_method_call",
+                    "span": {
+                      "start": 143,
+                      "end": 154
+                    },
+                    "snippet": "slice.len()",
+                    "ty": {
+                      "normalized": null,
+                      "observed": "usize",
+                      "spelling": ""
+                    },
+                    "res": {
+                      "kind": "resolved_callee",
+                      "target": null,
+                      "description": "{\"crate\":\"core\",\"crate_hash\":\"bdb4eda0487b663ec13960d84fc76cc8\",\"definition_hash\":\"DefPathHash(Fingerprint(5614226571623188065, 14534832972469071209))\",\"path\":\"core::slice::<impl [T]>::len\"}"
+                    },
+                    "dispatch": {
+                      "kind": "resolved_method",
+                      "op": "core::slice::<impl [T]>::len",
+                      "operand_tys": [
+                        "&[T]"
+                      ],
+                      "result_ty": "usize"
+                    },
+                    "expansion": null,
+                    "binding": null,
+                    "binding_mut": null,
+                    "lit": null,
+                    "param_index": null,
+                    "is_unsafe_block": false,
+                    "children": [
+                      {
+                        "hir": {
+                          "krate": 0,
+                          "owner": 661,
+                          "local": 12
+                        },
+                        "kind": "expr_path",
+                        "span": {
+                          "start": 143,
+                          "end": 148
+                        },
+                        "snippet": "slice",
+                        "ty": {
+                          "normalized": null,
+                          "observed": "&[T]",
+                          "spelling": ""
+                        },
+                        "res": {
+                          "kind": "local",
+                          "target": {
+                            "krate": 0,
+                            "owner": 661,
+                            "local": 2
+                          },
+                          "description": "Local(HirId(DefId(0:661 ~ regex_automata[2b29]::util::wire::check_slice_len).2))"
+                        },
+                        "dispatch": null,
+                        "expansion": null,
+                        "binding": null,
+                        "binding_mut": null,
+                        "lit": null,
+                        "param_index": null,
+                        "is_unsafe_block": false,
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "hir": {
+                      "krate": 0,
+                      "owner": 661,
+                      "local": 14
+                    },
+                    "kind": "expr_path",
+                    "span": {
+                      "start": 157,
+                      "end": 169
+                    },
+                    "snippet": "at_least_len",
+                    "ty": {
+                      "normalized": null,
+                      "observed": "usize",
+                      "spelling": ""
+                    },
+                    "res": {
+                      "kind": "local",
+                      "target": {
+                        "krate": 0,
+                        "owner": 661,
+                        "local": 4
+                      },
+                      "description": "Local(HirId(DefId(0:661 ~ regex_automata[2b29]::util::wire::check_slice_len).4))"
+                    },
+                    "dispatch": null,
+                    "expansion": null,
+                    "binding": null,
+                    "binding_mut": null,
+                    "lit": null,
+                    "param_index": null,
+                    "is_unsafe_block": false,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "hir": {
+                  "krate": 0,
+                  "owner": 661,
+                  "local": 29
+                },
+                "kind": "expr_block",
+                "span": {
+                  "start": 170,
+                  "end": 239
+                },
+                "snippet": "{\n        return Err(DeserializeError::buffer_too_small(what));\n    }",
+                "ty": {
+                  "normalized": null,
+                  "observed": "!",
+                  "spelling": ""
+                },
+                "res": null,
+                "dispatch": null,
+                "expansion": null,
+                "binding": null,
+                "binding_mut": null,
+                "lit": null,
+                "param_index": null,
+                "is_unsafe_block": false,
+                "children": [
+                  {
+                    "hir": {
+                      "krate": 0,
+                      "owner": 661,
+                      "local": 28
+                    },
+                    "kind": "stmt_semi",
+                    "span": {
+                      "start": 180,
+                      "end": 233
+                    },
+                    "snippet": "return Err(DeserializeError::buffer_too_small(what));",
+                    "ty": null,
+                    "res": null,
+                    "dispatch": null,
+                    "expansion": null,
+                    "binding": null,
+                    "binding_mut": null,
+                    "lit": null,
+                    "param_index": null,
+                    "is_unsafe_block": false,
+                    "children": [
+                      {
+                        "hir": {
+                          "krate": 0,
+                          "owner": 661,
+                          "local": 17
+                        },
+                        "kind": "expr_ret",
+                        "span": {
+                          "start": 180,
+                          "end": 232
+                        },
+                        "snippet": "return Err(DeserializeError::buffer_too_small(what))",
+                        "ty": {
+                          "normalized": null,
+                          "observed": "core::result::Result<(), util::wire::DeserializeError>",
+                          "spelling": ""
+                        },
+                        "res": null,
+                        "dispatch": null,
+                        "expansion": null,
+                        "binding": null,
+                        "binding_mut": null,
+                        "lit": null,
+                        "param_index": null,
+                        "is_unsafe_block": false,
+                        "children": [
+                          {
+                            "hir": {
+                              "krate": 0,
+                              "owner": 661,
+                              "local": 18
+                            },
+                            "kind": "expr_call",
+                            "span": {
+                              "start": 187,
+                              "end": 232
+                            },
+                            "snippet": "Err(DeserializeError::buffer_too_small(what))",
+                            "ty": {
+                              "normalized": null,
+                              "observed": "core::result::Result<(), util::wire::DeserializeError>",
+                              "spelling": ""
+                            },
+                            "res": {
+                              "kind": "resolved_result_variant",
+                              "target": null,
+                              "description": "{\"path\":\"core::prelude::v1::Err\",\"crate\":\"core\",\"crate_hash\":\"bdb4eda0487b663ec13960d84fc76cc8\",\"definition_hash\":\"DefPathHash(Fingerprint(5614226571623188065, 10285609500971227091))\"}"
+                            },
+                            "dispatch": null,
+                            "expansion": null,
+                            "binding": null,
+                            "binding_mut": null,
+                            "lit": null,
+                            "param_index": null,
+                            "is_unsafe_block": false,
+                            "children": [
+                              {
+                                "hir": {
+                                  "krate": 0,
+                                  "owner": 661,
+                                  "local": 21
+                                },
+                                "kind": "expr_call",
+                                "span": {
+                                  "start": 191,
+                                  "end": 231
+                                },
+                                "snippet": "DeserializeError::buffer_too_small(what)",
+                                "ty": {
+                                  "normalized": null,
+                                  "observed": "util::wire::DeserializeError",
+                                  "spelling": ""
+                                },
+                                "res": {
+                                  "kind": "resolved_direct_callee",
+                                  "target": null,
+                                  "description": "{\"path\":\"util::wire::DeserializeError::buffer_too_small\",\"crate\":\"regex_automata\",\"local\":true,\"definition_identity\":\"DefPathHash(Fingerprint(3110190647891633628, 14213985830305114503))\",\"inherent\":{\"identity\":\"rstyle.helper.inherent-resolution/1\",\"implementation_identity\":\"DefPathHash(Fingerprint(3110190647891633628, 17821499076686539864))\"}}"
+                                },
+                                "dispatch": {
+                                  "kind": "resolved_direct",
+                                  "op": "util::wire::DeserializeError::buffer_too_small",
+                                  "operand_tys": [
+                                    "{\"kind\":\"shared\",\"value\":{\"kind\":\"str\"}}"
+                                  ],
+                                  "result_ty": "unused in body correspondence test"
+                                },
+                                "expansion": null,
+                                "binding": null,
+                                "binding_mut": null,
+                                "lit": null,
+                                "param_index": null,
+                                "is_unsafe_block": false,
+                                "children": [
+                                  {
+                                    "hir": {
+                                      "krate": 0,
+                                      "owner": 661,
+                                      "local": 26
+                                    },
+                                    "kind": "expr_path",
+                                    "span": {
+                                      "start": 226,
+                                      "end": 230
+                                    },
+                                    "snippet": "what",
+                                    "ty": {
+                                      "normalized": null,
+                                      "observed": "&str",
+                                      "spelling": ""
+                                    },
+                                    "res": {
+                                      "kind": "local",
+                                      "target": {
+                                        "krate": 0,
+                                        "owner": 661,
+                                        "local": 6
+                                      },
+                                      "description": "Local(HirId(DefId(0:661 ~ regex_automata[2b29]::util::wire::check_slice_len).6))"
+                                    },
+                                    "dispatch": null,
+                                    "expansion": null,
+                                    "binding": null,
+                                    "binding_mut": null,
+                                    "lit": null,
+                                    "param_index": null,
+                                    "is_unsafe_block": false,
+                                    "children": []
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "hir": {
+          "krate": 0,
+          "owner": 661,
+          "local": 31
+        },
+        "kind": "expr_call",
+        "span": {
+          "start": 244,
+          "end": 250
+        },
+        "snippet": "Ok(())",
+        "ty": {
+          "normalized": null,
+          "observed": "core::result::Result<(), util::wire::DeserializeError>",
+          "spelling": ""
+        },
+        "res": {
+          "kind": "resolved_result_variant",
+          "target": null,
+          "description": "{\"path\":\"core::prelude::v1::Ok\",\"crate\":\"core\",\"crate_hash\":\"bdb4eda0487b663ec13960d84fc76cc8\",\"definition_hash\":\"DefPathHash(Fingerprint(5614226571623188065, 16300166489178515888))\"}"
+        },
+        "dispatch": null,
+        "expansion": null,
+        "binding": null,
+        "binding_mut": null,
+        "lit": null,
+        "param_index": null,
+        "is_unsafe_block": false,
+        "children": [
+          {
+            "hir": {
+              "krate": 0,
+              "owner": 661,
+              "local": 34
+            },
+            "kind": "expr_tup",
+            "span": {
+              "start": 247,
+              "end": 249
+            },
+            "snippet": "()",
+            "ty": {
+              "normalized": null,
+              "observed": "()",
+              "spelling": ""
+            },
+            "res": null,
+            "dispatch": null,
+            "expansion": null,
+            "binding": null,
+            "binding_mut": null,
+            "lit": null,
+            "param_index": null,
+            "is_unsafe_block": false,
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "source": {
+    "bytes": "pub(crate) fn check_slice_len<T>(\n    slice: &[T],\n    at_least_len: usize,\n    what: &'static str,\n) -> Result<(), DeserializeError> {\n    if slice.len() < at_least_len {\n        return Err(DeserializeError::buffer_too_small(what));\n    }\n    Ok(())\n}",
+    "digest": "xxh3-64:4cb2ff1d52fac81e"
+  }
+}

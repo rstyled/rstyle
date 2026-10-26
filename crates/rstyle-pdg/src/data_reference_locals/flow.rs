@@ -335,6 +335,10 @@ fn result_operand<'a>(
         return crate::product_result_propagation::verify(node, facts)
             .map(|checked| Some(checked.operand));
     }
+    if crate::named_error_result_propagation::candidate(node, facts) {
+        return crate::named_error_result_propagation::verify(node, facts)
+            .map(|checked| Some(checked.operand));
+    }
     if crate::scalar_result_propagation::candidate(node, facts) {
         return crate::scalar_result_propagation::verify(node, facts)
             .map(|checked| Some(checked.operand));

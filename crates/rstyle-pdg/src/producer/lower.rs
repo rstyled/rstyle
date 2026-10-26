@@ -13,6 +13,7 @@ mod loops;
 mod mutable_scalars;
 mod named_callbacks;
 mod named_error_payloads;
+mod named_error_result_propagation;
 mod nonzero_digits;
 mod option_if_let;
 mod option_propagation;
@@ -1583,6 +1584,12 @@ fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flo
         .is_some_and(|res| res.kind == crate::borrowed_result_propagation::capture::RESOLUTION)
     {
         Builder::borrowed_result_propagation
+    } else if node
+        .res
+        .as_ref()
+        .is_some_and(|res| res.kind == crate::named_error_result_propagation::capture::RESOLUTION)
+    {
+        Builder::named_error_result_propagation
     } else if node
         .res
         .as_ref()

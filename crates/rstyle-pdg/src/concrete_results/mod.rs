@@ -135,6 +135,10 @@ fn fresh(
         let checked = crate::product_result_propagation::verify(node, facts)?;
         return fresh(checked.operand, true, error, facts);
     }
+    if crate::named_error_result_propagation::candidate(node, facts) {
+        let checked = crate::named_error_result_propagation::verify(node, facts)?;
+        return fresh(checked.operand, true, error, facts);
+    }
     if crate::scalar_result_propagation::candidate(node, facts) {
         let checked = crate::scalar_result_propagation::verify(node, facts)?;
         return fresh(checked.operand, true, error, facts);
@@ -148,8 +152,13 @@ fn fresh(
     // Historical Result families keep their original boundary.
     let returning = returning
         || node.kind == "expr_ret"
-            && scalar_errors::error(error).is_some()
-            && crate::extraction_profile::facts_support(facts, scalar_errors::CAPABILITY);
+            && (scalar_errors::error(error).is_some()
+                && crate::extraction_profile::facts_support(facts, scalar_errors::CAPABILITY)
+                || crate::extraction_profile::facts_support(
+                    facts,
+                    crate::named_error_result_propagation::CAPABILITY,
+                ) && crate::named_error_payloads::error_tree(facts)?
+                    .is_some_and(|tree| TypeToken::from_tree(&tree) == *error));
     verify_fresh_use(node, returning, error, facts)?;
 
     let constructor = constructor_candidate(node, facts);

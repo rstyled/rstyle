@@ -280,7 +280,8 @@ pub(super) fn receivers<'a>(
 
 impl FunctionView<'_> {
     pub(super) fn source_inputs(&self) -> Result<(), String> {
-        if self.reference_instance().is_some()
+        if self.slice_length_instance().is_some()
+            || self.reference_instance().is_some()
             || self.reference_forwarder().is_some()
             || self.product_instance().is_some()
         {

@@ -1,6 +1,7 @@
 //! Diagnostic observations and concrete-looking raw facts cannot select a helper.
 use super::*;
 use crate::{HirFnFacts, data_origins::Origin, field_locations::Projection};
+use serde_json::json;
 
 fn fixtures() -> Vec<Value> {
     serde_json::from_str(include_str!(

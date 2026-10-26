@@ -259,20 +259,8 @@ fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
     if let Some(outcome) = check_transport_source(facts) {
         return outcome;
     }
-    match crate::product_instances::activation::source_findings(facts) {
-        Ok(true) => return Outcome::ok(),
-        Ok(false) => {}
-        Err(reason) => return evidence_gap(&facts.body, &reason),
-    }
-    match crate::reference_instances::activation::source_findings(facts) {
-        Ok(true) => return Outcome::ok(),
-        Ok(false) => {}
-        Err(reason) => return evidence_gap(&facts.body, &reason),
-    }
-    match crate::reference_instances::forwarder_activation::verify(facts) {
-        Ok(true) => return Outcome::ok(),
-        Ok(false) => {}
-        Err(reason) => return evidence_gap(&facts.body, &reason),
+    if let Some(outcome) = check_instance_source(facts) {
+        return outcome;
     }
     let diagnostics = match crate::scalar_product_instances::activation::source_findings(facts) {
         Ok(Some(diagnostics)) => diagnostics,
@@ -301,6 +289,31 @@ fn check_source_scan(facts: &dyn crate::unit_store::EvidenceFacts) -> Outcome {
             "complete pre-expansion source and conditional-source resolution",
         ))
     }
+}
+
+fn check_instance_source(facts: &dyn crate::unit_store::EvidenceFacts) -> Option<Outcome> {
+    match crate::slice_length_instances::activation::verify(facts) {
+        Ok(true) => return Some(Outcome::ok()),
+        Ok(false) => {}
+        Err(reason) => return Some(evidence_gap(&facts.body, &reason)),
+    }
+    match crate::product_instances::activation::source_findings(facts) {
+        Ok(true) => return Some(Outcome::ok()),
+        Ok(false) => {}
+        Err(reason) => return Some(evidence_gap(&facts.body, &reason)),
+    }
+    match crate::reference_instances::activation::source_findings(facts) {
+        Ok(true) => return Some(Outcome::ok()),
+        Ok(false) => {}
+        Err(reason) => return Some(evidence_gap(&facts.body, &reason)),
+    }
+    match crate::reference_instances::forwarder_activation::verify(facts) {
+        Ok(true) => return Some(Outcome::ok()),
+        Ok(false) => {}
+        Err(reason) => return Some(evidence_gap(&facts.body, &reason)),
+    }
+
+    None
 }
 
 fn check_nonzero_source(facts: &dyn crate::unit_store::EvidenceFacts) -> Option<Outcome> {

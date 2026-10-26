@@ -80,6 +80,7 @@ pub mod model;
 pub(crate) mod mutable_scalars;
 pub(crate) mod named_callbacks;
 mod named_error_payloads;
+pub mod named_error_result_propagation;
 pub mod nominal_binding;
 pub mod nominal_boundary;
 pub mod nominal_constants;

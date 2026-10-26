@@ -1,6 +1,6 @@
 {
   "identity": "rstyle.development.wire-fallible-readers/1",
-  "status": "Source-selected before admission assessment; native oracle passed all four contexts; connected extraction pending",
+  "status": "Source-selected before admission assessment; native oracle passed all four contexts; Data3.121 connects tier1 try_read_u32 in default/no-default; deferred tiers remain unavailable",
   "package": {
     "name": "regex-automata",
     "version": "0.4.18",

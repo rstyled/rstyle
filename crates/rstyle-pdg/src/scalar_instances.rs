@@ -5,6 +5,11 @@
 pub(crate) mod activation;
 mod comparisons;
 mod owner;
+
+/// Reuse exact original lexical ownership without scalar substitution authority.
+pub(crate) fn verify_lexical_owner(original: &crate::HirFnFacts) -> Result<(), String> {
+    owner::lexical(original)
+}
 mod provenance;
 mod source;
 

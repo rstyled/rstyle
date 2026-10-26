@@ -34,33 +34,8 @@ impl SummaryCapture<'_> {
                 crate::nonzero_digit_calls::verify(self.facts)?.ok_or("Missing nonzero receipt")?;
             return self.visit(checked.parser());
         }
-        if crate::result_maps::candidate(node, self.facts) {
-            let checked = crate::result_maps::verify(node, self.facts)?;
-            return self.visit(checked.receiver);
-        }
-        if crate::iterator_position::candidate(node, self.facts) {
-            let checked = crate::iterator_position::verify(node, self.facts)?;
-            return self.visit(checked.receiver);
-        }
-        if crate::option_propagation::candidate(node, self.facts) {
-            let checked = crate::option_propagation::verify(node, self.facts)?;
-            return self.visit(checked.operand);
-        }
-        if crate::product_result_propagation::candidate(node, self.facts) {
-            let checked = crate::product_result_propagation::verify(node, self.facts)?;
-            return self.visit(checked.operand);
-        }
-        if crate::scalar_result_propagation::candidate(node, self.facts) {
-            let checked = crate::scalar_result_propagation::verify(node, self.facts)?;
-            return self.visit(checked.operand);
-        }
-        if crate::borrowed_result_propagation::candidate(node, self.facts) {
-            let checked = crate::borrowed_result_propagation::verify(node, self.facts)?;
-            return self.visit(checked.operand);
-        }
-        if crate::result_propagation::candidate(node, self.facts) {
-            let checked = crate::result_propagation::verify(node, self.facts)?;
-            return self.visit(checked.operand);
+        if let Some(operand) = self.source_operand(node)? {
+            return self.visit(operand);
         }
         let mut records = node
             .children
@@ -78,6 +53,43 @@ impl SummaryCapture<'_> {
         }
 
         Ok(records)
+    }
+
+    fn source_operand<'a>(&'a self, node: &'a HirNode) -> Result<Option<&'a HirNode>, String> {
+        if crate::result_maps::candidate(node, self.facts) {
+            let checked = crate::result_maps::verify(node, self.facts)?;
+            return Ok(Some(checked.receiver));
+        }
+        if crate::iterator_position::candidate(node, self.facts) {
+            let checked = crate::iterator_position::verify(node, self.facts)?;
+            return Ok(Some(checked.receiver));
+        }
+        if crate::option_propagation::candidate(node, self.facts) {
+            let checked = crate::option_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::product_result_propagation::candidate(node, self.facts) {
+            let checked = crate::product_result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::named_error_result_propagation::candidate(node, self.facts) {
+            let checked = crate::named_error_result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::scalar_result_propagation::candidate(node, self.facts) {
+            let checked = crate::scalar_result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::borrowed_result_propagation::candidate(node, self.facts) {
+            let checked = crate::borrowed_result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::result_propagation::candidate(node, self.facts) {
+            let checked = crate::result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+
+        Ok(None)
     }
 
     fn helper_call(&self, node: &HirNode) -> bool {

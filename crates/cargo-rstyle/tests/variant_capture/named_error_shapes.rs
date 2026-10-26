@@ -2,6 +2,7 @@
 use super::{float_kernels::function, *};
 mod attacks;
 mod library_macros;
+mod reader_composition;
 mod reader_observations;
 use rstyle_pdg::concrete_types::{InterfaceObservations, Observation, TypeTree, VariantShape};
 

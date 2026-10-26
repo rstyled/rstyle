@@ -24,7 +24,7 @@ impl<'tcx> Context<'tcx> {
             return None;
         }
         let control_flow = self.typeck.expr_ty(branch);
-        let residual = self.borrowed_result_residual(control_flow, payload, error)?;
+        let residual = self.checked_result_residual(control_flow, payload, error)?;
 
         Some(Shape {
             input: input.to_string(),
@@ -52,7 +52,7 @@ impl<'tcx> Context<'tcx> {
             return None;
         }
         let control_flow = self.typeck.expr_ty(branch);
-        let residual = self.borrowed_result_residual(control_flow, payload, error)?;
+        let residual = self.checked_result_residual(control_flow, payload, error)?;
 
         Some(rstyle_pdg::scalar_result_propagation::capture::Shape {
             input: input.to_string(),
@@ -88,7 +88,7 @@ impl<'tcx> Context<'tcx> {
         }
 
         let control_flow = self.typeck.expr_ty(branch);
-        let residual = self.borrowed_result_residual(control_flow, payload, error)?;
+        let residual = self.checked_result_residual(control_flow, payload, error)?;
 
         Some(rstyle_pdg::product_result_propagation::capture::Shape {
             input: input.to_string(),
@@ -106,7 +106,7 @@ impl<'tcx> Context<'tcx> {
             if matches!(inner.kind(), ty::Slice(element) if *element == self.tcx.types.u8))
     }
 
-    fn borrowed_result_residual(
+    pub(super) fn checked_result_residual(
         &self,
         control_flow: Ty<'tcx>,
         payload: Ty<'tcx>,

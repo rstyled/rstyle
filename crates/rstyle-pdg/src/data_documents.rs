@@ -20,8 +20,10 @@ mod checked_suffix_views;
 mod conditional_payloads;
 pub(crate) mod copy_tagged_values;
 mod digit_calls;
+pub(crate) mod fallible_readers;
 mod fieldless_enums;
 mod float_scalars;
+mod guarded_sources;
 mod helper_option_callbacks;
 mod index_reads;
 mod indirect_reads;
@@ -32,6 +34,7 @@ mod memory_flow;
 mod mutable_scalars;
 pub(crate) mod named_callbacks;
 pub(crate) mod named_error_payloads;
+pub(crate) mod named_error_result_propagation;
 mod nonzero_digits;
 mod option_if_let;
 pub(crate) mod option_propagation;
@@ -49,6 +52,7 @@ mod scalar_enums;
 mod scalar_from;
 pub(crate) mod scalar_result_propagation;
 mod size_calls;
+pub(crate) mod slice_lengths;
 mod subslice_views;
 mod summary_records;
 mod tagged_calls;
@@ -130,9 +134,10 @@ fn install_result_contracts(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     type Installer = fn(&mut Pair, &dyn crate::unit_store::EvidenceFacts) -> Result<(), String>;
-    let installers: [Installer; 5] = [
+    let installers: [Installer; 6] = [
         borrowed_result_propagation::install,
         scalar_result_propagation::install,
+        named_error_result_propagation::install,
         product_result_propagation::install,
         result_maps::install,
         borrowed_result_errors::install,
@@ -443,6 +448,7 @@ fn verify_call_operations(
     checked_slice_views::verify(pair, facts)?;
     checked_suffix_views::verify(pair, facts)?;
     scalar_result_propagation::verify(pair, facts)?;
+    named_error_result_propagation::verify(pair, facts)?;
     product_result_propagation::verify(pair, facts)?;
     result_maps::verify(pair, facts)?;
     owned_product_values::verify(pair, facts)?;

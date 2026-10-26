@@ -22,6 +22,12 @@ pub(super) fn verify(original: &HirFnFacts, checked: &CheckedProjection) -> Resu
         return Err("Scalar owner witness differs from original source/build".into());
     }
 
+    lexical(original)
+}
+
+/// Original lexical ownership only. Callers separately prove every operation,
+/// type, obligation and dependency; neighboring items grant no such authority.
+pub(super) fn lexical(original: &HirFnFacts) -> Result<()> {
     let options = &original.build.frontend_options;
     let census = options.data::<std::sync::Arc<census::Census>>()?;
     let context: UnitContext = serde_json::from_value(

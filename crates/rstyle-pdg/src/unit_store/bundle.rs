@@ -285,6 +285,7 @@ impl Decoded {
             namespace_associations: Vec::new(),
             external_links: vec![BTreeMap::new(); function_count],
             instance: None,
+            slice_instance: None,
             reference_instance: None,
             reference_forwarder: None,
             product_instance: None,
