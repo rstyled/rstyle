@@ -2024,3 +2024,15 @@ rejects owned construction; callers have further independently audited blockers.
 Whole-Result forwarding alone has no measured natural unlock in the current
 selection. Native macOS/x86 CI remains pending. Broad goal stays active; general
 moves/drop, detector quality and rewrite safety remain outside this delivery.
+
+Frontier462 freezes the complete original three-function
+[Accel parser contract/oracle](../eval/coverage-development/accel-parser/README.md)
+before production changes. Native aarch64 Linux default/dfa-search-only × debug
+assertions on/off passes657,408 cases/zero mismatches. Current Data3.129 default
+capture excludes all three targets; no-default is source-inactive, and separate
+dfa-search-only extraction is unmeasured. First delivery: fresh source-proved
+non-Copy/no-drop `Accel { bytes: [u8;8] }` and exact constants through its original
+unchecked constructor; retain full owner/derive/neighbor proof. Then connect the
+array validator and complete slice-array/error/forwarding chain. Oracle success
+is no admission gain. Evidence: `/tmp/rstyle-462-accel-oracle.json`; existing
+Data3.129 integrated gates remain unchanged.
