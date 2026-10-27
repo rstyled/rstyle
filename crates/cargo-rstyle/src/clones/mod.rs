@@ -283,7 +283,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         matching: &matching,
         partitions: evaluation.partitions,
         complete,
-    });
+    })?;
     let output = report.publish(cli.format, accepted)?;
     let code = if !complete {
         2

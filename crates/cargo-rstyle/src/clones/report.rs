@@ -1,6 +1,7 @@
 //! Reproducible evidence with independent completeness indicators.
 
 mod functions;
+mod locations;
 mod matching;
 
 use super::{Args, Handoff, capture};
@@ -70,6 +71,7 @@ pub struct Report<'a> {
     pair_evaluation_complete: bool,
     pair_enumeration_complete: bool,
     matching: matching::Matching<'a>,
+    accepted_pairs: Vec<locations::AcceptedPair<'a>>,
     claim: &'static str,
 }
 
@@ -105,10 +107,10 @@ fn ctx_profile_is_data(args: &Args) -> bool {
     args.extraction_profile.is_data()
 }
 
-pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
+pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
     let scope = selected_scope(&ctx);
 
-    Report {
+    Ok(Report {
         report_detail: ctx.args.report_detail,
         verification_policy: if ctx.args.replay_run.is_some() {
             "strict-replay"
@@ -149,8 +151,9 @@ pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
         pair_evaluation_complete: ctx.complete,
         pair_enumeration_complete: enumeration_complete(&ctx),
         matching: matching::Matching::new(ctx.matching, ctx.args.trace, ctx.partitions),
+        accepted_pairs: locations::accepted(ctx.handoff, ctx.matching)?,
         claim: "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
-    }
+    })
 }
 
 fn selected_scope<'a>(ctx: &Context<'a>) -> Scope<'a> {
@@ -172,7 +175,7 @@ fn enumeration_complete(ctx: &Context<'_>) -> bool {
 }
 
 fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String {
-    format!(
+    let summary = format!(
         "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
         report.observed_units.len(),
         coverage_summary(report),
@@ -182,7 +185,21 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.pair_enumeration_complete,
         report.pair_evaluation_complete,
         directory.join("report.json").display()
-    )
+    );
+    let pairs = report
+        .accepted_pairs
+        .iter()
+        .map(|pair| {
+            format!(
+                "\nAccepted pair: {} <> {} (score {}).",
+                pair.first,
+                pair.second,
+                pair.displayed_score.unwrap_or("unavailable")
+            )
+        })
+        .collect::<String>();
+
+    format!("{summary}{pairs}")
 }
 
 fn coverage_summary(report: &Report<'_>) -> String {

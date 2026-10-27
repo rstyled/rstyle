@@ -18,6 +18,7 @@ mod fresh_scalar_owners;
 mod inherent_expansions;
 mod loop_merge_target;
 mod lossless_values;
+mod migration_output;
 mod mutable_scalar_formals;
 mod native_prefix_readers;
 mod nominal_copy;
