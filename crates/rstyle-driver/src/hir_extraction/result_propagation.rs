@@ -90,6 +90,7 @@ impl<'tcx> Context<'tcx> {
             Protocol::BorrowedResult,
             Protocol::ScalarResult,
             Protocol::NamedErrorResult(Mode::UnitToReader),
+            Protocol::NamedErrorResult(Mode::UnitToU16Reader),
             Protocol::NamedErrorResult(Mode::ReaderToScalar),
             Protocol::NamedErrorResult(Mode::ReaderToCopyProduct),
             Protocol::NamedErrorResult(Mode::IdToReader),

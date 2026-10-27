@@ -36,8 +36,8 @@ environment is created even on a short reader error; its body runs only on Ok.
 Both inner environments exist only inside that success branch. A proved total
 conversion does not authorize omitting its error callback source or cleanup proof.
 
-The u16 follow-on has separate prerequisites: its checked reader still has narrow
-u32/four-byte restrictions, and its conversion selects blanket TryFrom→Into→From
+The u16 follow-on has separate prerequisites: Data3.127 still restricted its
+checked reader to u32/four-byte proof, and its conversion selects blanket TryFrom→Into→From
 with an uninhabited error (`Infallible` aliases `!` on this compiler). The u32 path
 selects a concrete implementation with TryFromIntError. Do not conflate these
 error vocabularies or infer blanket obligations from a matching type spelling.
@@ -81,3 +81,17 @@ records. All211/149 selections pass two strict imports and score1 self replay;
 complete22,155/11,026 cross pairs preserve every prior pair result. Frozen60 and
 historical profiles are unchanged. Native aarch64 Linux oracle984,536 cases,
 zero mismatches; macOS/x86 definition capture is not native CI execution.
+
+Data3.128 connects the original checked `try_read_u16` dependency, with a closed
+width descriptor binding the result, both sizes, prefix, copy/unwrap and native
+decoder. Its separate propagation identity/capability preserves the u32 contract.
+The independent graph verifier now also rejects entry bypass, repeated reads and
+changed exit kinds for both widths. Wrong bounds/count/helper/endianness remain
+excluded. Capturing a u16 tuple interface alone grants no reader-body authority.
+The widening wrapper remains excluded pending actual blanket selection closure,
+never-error carriers and complete connected callback proof.
+
+Acceptance460: default211→212/2,582 and no-default149→150/590, exactly
+`try_read_u16`, zero losses. All212/150 strict selections and33,541 cross pairs
+pass with earlier pair results preserved; frozen60/historical profiles unchanged.
+The original-source oracle repeats984,536 cases with zero mismatches.

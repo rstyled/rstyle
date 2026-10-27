@@ -7,6 +7,9 @@ use crate::{HirNode, named_error_result_propagation as propagation, unit_store::
 const KEY: &str = "rstyle.data:named-error-reader-propagation";
 const WITNESS: &str = "rstyle.data:named-error-reader-propagation-types";
 const CONSTRUCTS: [&str; 3] = propagation::Mode::UnitToReader.constructs();
+const U16_KEY: &str = "rstyle.data:named-error-u16-reader-propagation";
+const U16_WITNESS: &str = "rstyle.data:named-error-u16-reader-propagation-types";
+const U16_CONSTRUCTS: [&str; 3] = propagation::Mode::UnitToU16Reader.constructs();
 const VALIDATOR_KEY: &str = "rstyle.data:named-error-validator-propagation";
 const VALIDATOR_WITNESS: &str = "rstyle.data:named-error-validator-propagation-types";
 const VALIDATOR_CONSTRUCTS: [&str; 3] = propagation::Mode::ReaderToScalar.constructs();
@@ -28,6 +31,18 @@ const CONTRACT: super::propagation::Contract<3> = super::propagation::Contract {
         propagation::mode_candidate(node, facts, propagation::Mode::UnitToReader)
     },
     semantics,
+    invocation,
+};
+
+const U16_CONTRACT: super::propagation::Contract<3> = super::propagation::Contract {
+    key: U16_KEY,
+    constructs: U16_CONSTRUCTS,
+    capability: crate::native_reader_width::CAPABILITY,
+    policy_error: "Native u16 reader requires its registered document policy",
+    candidate: |node, facts| {
+        propagation::mode_candidate(node, facts, propagation::Mode::UnitToU16Reader)
+    },
+    semantics: u16_semantics,
     invocation,
 };
 
@@ -70,6 +85,7 @@ const ID_READER_CONTRACT: super::propagation::Contract<3> = super::propagation::
 fn contract(mode: propagation::Mode) -> &'static super::propagation::Contract<3> {
     match mode {
         propagation::Mode::UnitToReader => &CONTRACT,
+        propagation::Mode::UnitToU16Reader => &U16_CONTRACT,
         propagation::Mode::ReaderToScalar => &VALIDATOR_CONTRACT,
         propagation::Mode::ReaderToCopyProduct => &PRODUCT_CONTRACT,
         propagation::Mode::IdToReader => &ID_READER_CONTRACT,
@@ -79,6 +95,7 @@ fn contract(mode: propagation::Mode) -> &'static super::propagation::Contract<3>
 fn witness_key(mode: propagation::Mode) -> &'static str {
     match mode {
         propagation::Mode::UnitToReader => WITNESS,
+        propagation::Mode::UnitToU16Reader => U16_WITNESS,
         propagation::Mode::ReaderToScalar => VALIDATOR_WITNESS,
         propagation::Mode::ReaderToCopyProduct => PRODUCT_WITNESS,
         propagation::Mode::IdToReader => ID_READER_WITNESS,
@@ -89,10 +106,16 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
-    CONTRACT.verify_document_policy(profile, facts)?;
-    VALIDATOR_CONTRACT.verify_document_policy(profile, facts)?;
-    PRODUCT_CONTRACT.verify_document_policy(profile, facts)?;
-    ID_READER_CONTRACT.verify_document_policy(profile, facts)
+    for contract in [
+        &CONTRACT,
+        &U16_CONTRACT,
+        &VALIDATOR_CONTRACT,
+        &PRODUCT_CONTRACT,
+        &ID_READER_CONTRACT,
+    ] {
+        contract.verify_document_policy(profile, facts)?;
+    }
+    Ok(())
 }
 
 fn sources(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
@@ -106,6 +129,7 @@ fn sources(facts: &dyn EvidenceFacts) -> Vec<&HirNode> {
 pub(super) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<(), String> {
     for contract in [
         &CONTRACT,
+        &U16_CONTRACT,
         &VALIDATOR_CONTRACT,
         &PRODUCT_CONTRACT,
         &ID_READER_CONTRACT,
@@ -154,6 +178,7 @@ fn metadata(source: &HirNode, checked: &propagation::Checked<'_>) -> serde_json:
     serde_json::to_value(Metadata {
         identity: match checked.mode {
             propagation::Mode::UnitToReader => "rstyle.rust.named-error-reader-flow-types/1",
+            propagation::Mode::UnitToU16Reader => "rstyle.rust.named-error-u16-reader-flow-types/1",
             propagation::Mode::ReaderToScalar => "rstyle.rust.named-error-validator-flow-types/1",
             propagation::Mode::IdToReader => "rstyle.rust.named-error-id-reader-flow-types/1",
             propagation::Mode::ReaderToCopyProduct => {
@@ -174,6 +199,11 @@ fn metadata(source: &HirNode, checked: &propagation::Checked<'_>) -> serde_json:
 fn semantics(construct: &str) -> serde_json::Value {
     static RULES: std::sync::OnceLock<[serde_json::Value; 3]> = std::sync::OnceLock::new();
     super::propagation::semantic_rule(construct, &CONSTRUCTS, &RULES, semantic_rules)
+}
+
+fn u16_semantics(construct: &str) -> serde_json::Value {
+    static RULES: std::sync::OnceLock<[serde_json::Value; 3]> = std::sync::OnceLock::new();
+    super::propagation::semantic_rule(construct, &U16_CONSTRUCTS, &RULES, semantic_rules)
 }
 
 fn semantic_rules() -> [serde_json::Value; 3] {
@@ -226,6 +256,7 @@ fn id_reader_rules() -> [serde_json::Value; 3] {
 pub(super) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<(), String> {
     for mode in [
         propagation::Mode::UnitToReader,
+        propagation::Mode::UnitToU16Reader,
         propagation::Mode::ReaderToScalar,
         propagation::Mode::ReaderToCopyProduct,
         propagation::Mode::IdToReader,
@@ -304,6 +335,8 @@ fn operation_effects(
         propagation::Mode::IdToReader
     } else if PRODUCT_CONSTRUCTS.contains(&construct) {
         propagation::Mode::ReaderToCopyProduct
+    } else if U16_CONSTRUCTS.contains(&construct) {
+        propagation::Mode::UnitToU16Reader
     } else if VALIDATOR_CONSTRUCTS.contains(&construct) {
         propagation::Mode::ReaderToScalar
     } else {

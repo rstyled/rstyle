@@ -53,6 +53,33 @@ fn independent_unit_to_reader_signatures_reject_forwarding_and_error_conversion(
 }
 
 #[test]
+fn u16_reader_receipt_requires_a_distinct_protocol_and_consistent_substitutions() {
+    let mut value: Value =
+        serde_json::from_str(&witness().to_string().replace("u32", "u16")).unwrap();
+    value["identity"] = json!(capture::U16_IDENTITY);
+    let parsed: Witness = serde_json::from_value(value.clone()).unwrap();
+    authority::signatures(&parsed).unwrap();
+    assert!(authority::concrete_shape(&parsed.shape).is_err());
+
+    for (pointer, replacement) in [
+        ("/identity", json!(capture::IDENTITY)),
+        ("/shape/output_payload", json!("(u32, usize)")),
+        ("/shape/payload", json!("(u16, usize)")),
+        (
+            "/residual/implementation_arguments/0",
+            json!("(u32, usize)"),
+        ),
+        ("/residual/implementation_arguments/2", json!("OtherError")),
+        ("/branch/implementation_arguments/0", json!("u16")),
+    ] {
+        let mut changed = value.clone();
+        *changed.pointer_mut(pointer).unwrap() = replacement;
+        let parsed = serde_json::from_value(changed).unwrap();
+        assert!(authority::signatures(&parsed).is_err(), "{pointer}");
+    }
+}
+
+#[test]
 fn complete_shapes_keep_unit_continuation_and_exact_tuple_output() {
     let original = witness();
     let parsed: Witness = serde_json::from_value(original.clone()).unwrap();

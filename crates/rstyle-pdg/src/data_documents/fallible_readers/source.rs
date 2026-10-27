@@ -1,10 +1,13 @@
 //! Complete ordinary reader source, original binding reads and selected dependencies.
 use super::*;
 pub(in crate::data_documents) use crate::source_evidence::implicit_input_lifetime as implicit_slice_lifetime;
-use crate::{copy_tagged_values::origins::WireContract, data_types::TypeToken};
+use crate::{
+    copy_tagged_values::origins::WireContract, data_types::TypeToken, native_reader_width::Width,
+};
 use syn::spanned::Spanned;
 
 pub(super) struct Checked<'a> {
+    pub width: Width,
     pub question: &'a HirNode,
     pub propagation: propagation::Checked<'a>,
     pub length_arguments: [&'a HirNode; 3],
@@ -28,6 +31,7 @@ pub(super) fn verify(facts: &dyn EvidenceFacts) -> Result<Option<Checked<'_>>, S
     facts.verify_source_inputs()?;
     crate::source_evidence::verify(facts)?;
     interface(facts)?;
+    let width = Width::for_result(facts)?;
 
     let [statement, success] = facts.body.children.as_slice() else {
         return Err("Reader requires one complete precheck statement and one success tail".into());
@@ -48,15 +52,16 @@ pub(super) fn verify(facts: &dyn EvidenceFacts) -> Result<Option<Checked<'_>>, S
 
     formal(slice, 0, facts)?;
     formal(message, 1, facts)?;
-    size(minimum, facts)?;
+    size(minimum, width, facts)?;
 
     let helper = crate::helper_calls::verify_use(propagation.operand, facts)?;
     let length_contract =
         crate::helper_calls::slice_lengths::validate_shape(helper.summary())?.clone();
     let length_dependency = helper.wire()?;
-    let success_roles = success_roles(success, facts)?;
+    let success_roles = success_roles(success, width, facts)?;
 
     Ok(Some(Checked {
+        width,
         question,
         propagation,
         length_arguments: [slice, minimum, message],
@@ -79,6 +84,7 @@ struct Success<'a> {
 
 fn success_roles<'a>(
     success: &'a HirNode,
+    width: Width,
     facts: &dyn EvidenceFacts,
 ) -> Result<Success<'a>, String> {
     let constructed = crate::concrete_results::verify_constructor(success, facts)?;
@@ -98,8 +104,8 @@ fn success_roles<'a>(
         return Err("Reader native helper requires exactly one saved slice".into());
     };
     formal(reader_argument, 0, facts)?;
-    size(consumed, facts)?;
-    native::verify(reader, facts)?;
+    size(consumed, width, facts)?;
+    native::verify(reader, width, facts)?;
     Ok(Success {
         tuple,
         reader,
@@ -157,13 +163,13 @@ pub(in crate::data_documents) fn formal(
     )
 }
 
-pub(super) fn size(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
+pub(super) fn size(node: &HirNode, width: Width, facts: &dyn EvidenceFacts) -> Result<(), String> {
     if crate::size_calls::semantics(node, facts)?
         != serde_json::json!({
-            "rule":"scalar-size-in-bytes", "argument":"u32", "value":4,
+            "rule":"scalar-size-in-bytes", "argument":width.scalar(), "value":width.bytes(),
         })
     {
-        return Err("Reader requires independently resolved size_of::<u32>()".into());
+        return Err("Reader requires the independently resolved size of its exact scalar".into());
     }
     Ok(())
 }

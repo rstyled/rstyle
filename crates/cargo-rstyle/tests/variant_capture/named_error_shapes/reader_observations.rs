@@ -87,6 +87,13 @@ fn check_captured_interfaces(report: &Value) {
     for (name, success) in [
         ("check_slice_len", TypeTree::Scalar("unit".into())),
         (
+            "wrong_width",
+            TypeTree::Tuple(vec![
+                TypeTree::Scalar("u16".into()),
+                TypeTree::Scalar("usize".into()),
+            ]),
+        ),
+        (
             "reader",
             TypeTree::Tuple(vec![
                 TypeTree::Scalar("u32".into()),
@@ -113,14 +120,13 @@ fn check_captured_interfaces(report: &Value) {
 }
 
 fn check_rejected_interfaces(report: &Value) {
-    for name in ["wrong_width", "reversed"] {
-        let entry = function(report, name);
-        assert_eq!(entry["outcome"], "excluded");
-        assert!(matches!(
-            interface(entry).result,
-            Observation::Unsupported { .. }
-        ));
-    }
+    let entry = function(report, "reversed");
+    assert_eq!(entry["outcome"], "excluded");
+    assert!(matches!(
+        interface(entry).result,
+        Observation::Unsupported { .. }
+    ));
+
     let entry = function(report, "changed_comparison");
     let (store, index) = shared_evidence::load(entry);
     let record = store.functions()[index]

@@ -1,11 +1,16 @@
 //! Verify the selected existing reader body, never a helper name or pure signature.
 use super::*;
+use crate::native_reader_width::Width;
 
-pub(super) fn verify(call: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), String> {
+pub(super) fn verify(
+    call: &HirNode,
+    width: Width,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
     let dependency = crate::helper_calls::verify_use(call, facts)?;
     let summary = dependency.summary();
     if summary.argument_types != [crate::data_aggregates::token(&call.children[0])?]
-        || summary.result_type != "u32"
+        || summary.result_type != width.scalar()
         || summary.mutates_arguments
         || summary.reference_outputs.is_some()
         || summary.component_outputs.is_some()
@@ -20,13 +25,15 @@ pub(super) fn verify(call: &HirNode, facts: &dyn EvidenceFacts) -> Result<(), St
     // The verified dependency preserves its real panic behavior. This source
     // contract does not infer a panic-free callee from the caller's precheck.
     match &dependency {
-        crate::helper_calls::VerifiedDependency::Shared(view) => body(&view.frontend()),
-        crate::helper_calls::VerifiedDependency::Legacy(dependency) => body(&dependency.frontend),
+        crate::helper_calls::VerifiedDependency::Shared(view) => body(&view.frontend(), width),
+        crate::helper_calls::VerifiedDependency::Legacy(dependency) => {
+            body(&dependency.frontend, width)
+        }
     }
 }
 
-fn body(facts: &dyn EvidenceFacts) -> Result<(), String> {
-    interface(facts)?;
+fn body(facts: &dyn EvidenceFacts, width: Width) -> Result<(), String> {
+    interface(facts, width)?;
 
     let [statement, native] = facts.body.children.as_slice() else {
         return Err("Native dependency requires the complete array-copy and decode body".into());
@@ -39,17 +46,20 @@ fn body(facts: &dyn EvidenceFacts) -> Result<(), String> {
         || binding.binding_mut != Some(false)
         || !binding.children.is_empty()
         || annotation.kind != "ty_annotation"
-        || crate::data_bytes::verify(unwrap, facts)? != crate::data_bytes::Kind::Unwrap(4)
-        || crate::data_bytes::verify(native, facts)? != crate::data_bytes::Kind::Native
+        || crate::data_bytes::verify(unwrap, facts)?
+            != crate::data_bytes::Kind::Unwrap(width.bytes() as u64)
+        || crate::data_bytes::verify(native, facts)? != width.native()
     {
-        return Err("Native dependency requires exact copy unwrap and native u32 decode".into());
+        return Err("Native dependency requires exact copy unwrap and native scalar decode".into());
     }
 
     let [copied] = unwrap.children.as_slice() else {
         return Err("Native dependency loses its exact saved copied Result".into());
     };
-    if crate::data_bytes::verify(copied, facts)? != crate::data_bytes::Kind::Copy(4) {
-        return Err("Native dependency changes its four-byte copy".into());
+    if crate::data_bytes::verify(copied, facts)?
+        != crate::data_bytes::Kind::Copy(width.bytes() as u64)
+    {
+        return Err("Native dependency changes its exact-width byte copy".into());
     }
 
     let [window] = copied.children.as_slice() else {
@@ -60,8 +70,16 @@ fn body(facts: &dyn EvidenceFacts) -> Result<(), String> {
         return Err("Native dependency must read the original slice prefix".into());
     }
     source::formal(view.base, 0, facts)?;
-    source::size(view.end.ok_or("Missing native byte prefix length")?, facts)?;
+    source::size(
+        view.end.ok_or("Missing native byte prefix length")?,
+        width,
+        facts,
+    )?;
 
+    saved_array(native, binding)
+}
+
+fn saved_array(native: &HirNode, binding: &HirNode) -> Result<(), String> {
     let [value] = native.children.as_slice() else {
         return Err("Native dependency decode changes its sole saved array".into());
     };
@@ -78,7 +96,7 @@ fn body(facts: &dyn EvidenceFacts) -> Result<(), String> {
     Ok(())
 }
 
-fn interface(facts: &dyn EvidenceFacts) -> Result<(), String> {
+fn interface(facts: &dyn EvidenceFacts, width: Width) -> Result<(), String> {
     if facts.signature.params.len() != 1
         || !source::implicit_slice_lifetime(facts)
         || facts.signature.has_self
@@ -86,7 +104,7 @@ fn interface(facts: &dyn EvidenceFacts) -> Result<(), String> {
         || facts.signature.is_unsafe
         || facts.signature.is_const
         || facts.signature.is_variadic
-        || facts.signature.return_ty.normalized.as_deref() != Some("u32")
+        || facts.signature.return_ty.normalized.as_deref() != Some(width.scalar())
     {
         return Err("Native dependency changes the bounded reader interface".into());
     }

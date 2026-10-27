@@ -14,3 +14,7 @@ pub const PRODUCT_RESOLUTION: &str = "resolved_named_error_product_reader_propag
 /// A concrete nominal ID continued into an independently proved ID/count reader.
 pub const ID_READER_IDENTITY: &str = "rstyle.rust.named-error-id-reader-propagation/1";
 pub const ID_READER_RESOLUTION: &str = "resolved_named_error_id_reader_propagation";
+
+/// Separate width-bound reader observation; no wider propagation permission.
+pub const U16_IDENTITY: &str = "rstyle.rust.named-error-u16-reader-propagation/1";
+pub const U16_RESOLUTION: &str = "resolved_named_error_u16_reader_propagation";

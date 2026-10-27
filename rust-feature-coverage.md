@@ -5628,3 +5628,13 @@ u16 chain separately needs checked-reader width and blanket/Infallible proof.
 General callbacks, moves/drop and generic dispatch remain open.
 [Contract](eval/coverage-development/wire-usize-readers/README.md) and
 [validation/frontier](docs/rust-support-execution.md).
+
+Data3.128 connects original `try_read_u16` through exact two-byte checked-reader
+proof and separate same-error propagation authority. Default211→212/2,582 and
+no-default149→150/590: exactly that dependency, zero losses or changed prior
+admitted records. Both reader widths now enforce complete entry/branch/return
+transfers; wrong width/count/decoder/byte order remain excluded. The original
+u16 widening wrapper still needs blanket TryFrom→Into→From selections and distinct
+never-error/callback proof; general generic dispatch and moves/drop remain open.
+[Contract](eval/coverage-development/wire-usize-readers/README.md) and
+[validation/frontier](docs/rust-support-execution.md).

@@ -142,6 +142,7 @@ fn named_error_payload(
 ) -> Result<bool, String> {
     if let Some(error) = crate::named_error_payloads::error_tree(facts)? {
         if !(ok == &TypeToken::Scalar("usize".into())
+            || crate::native_reader_width::u16_success(ok, facts)
             || crate::extraction_profile::facts_support(
                 facts,
                 crate::named_error_result_propagation::CAPABILITY,

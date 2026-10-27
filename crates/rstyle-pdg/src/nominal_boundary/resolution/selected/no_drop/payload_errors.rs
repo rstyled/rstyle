@@ -22,17 +22,7 @@ pub(in crate::nominal_boundary::resolution) fn selection(
     let id_product = id_reader_product(facts, ty)?;
     let error = match ty {
         TypeTree::Result { ok, err }
-            if product.is_some()
-                || id_product.is_some()
-                || supports(facts, crate::widening_readers::CAPABILITY)?
-                    && crate::widening_readers::success_shape(
-                        &crate::data_types::TypeToken::from_tree(ok),
-                    )
-                || matches!(ok.as_ref(), TypeTree::Scalar(value) if value == "usize")
-                || supports(facts, crate::named_error_result_propagation::CAPABILITY)?
-                    && crate::named_error_result_propagation::success(
-                        &crate::data_types::TypeToken::from_tree(ok),
-                    ) =>
+            if product.is_some() || id_product.is_some() || scalar_success(facts, ok)? =>
         {
             err.as_ref()
         }
@@ -53,6 +43,21 @@ pub(in crate::nominal_boundary::resolution) fn selection(
     Ok(Some(select_dependencies(
         facts, resolution, product, id_product,
     )?))
+}
+
+fn scalar_success(facts: &HirFnFacts, ok: &TypeTree) -> Result<bool, String> {
+    Ok(
+        crate::native_reader_width::u16_success(
+            &crate::data_types::TypeToken::from_tree(ok),
+            facts,
+        ) || supports(facts, crate::widening_readers::CAPABILITY)?
+            && crate::widening_readers::success_shape(&crate::data_types::TypeToken::from_tree(ok))
+            || matches!(ok, TypeTree::Scalar(value) if value == "usize")
+            || supports(facts, crate::named_error_result_propagation::CAPABILITY)?
+                && crate::named_error_result_propagation::success(
+                    &crate::data_types::TypeToken::from_tree(ok),
+                ),
+    )
 }
 
 fn select_dependencies(

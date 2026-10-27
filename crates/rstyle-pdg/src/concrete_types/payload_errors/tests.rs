@@ -76,6 +76,7 @@ fn bounded_success_observations_and_tokens_agree() {
     for success in [
         scalar("unit"),
         scalar("usize"),
+        TypeTree::Tuple(vec![scalar("u16"), scalar("usize")]),
         TypeTree::Tuple(vec![scalar("u32"), scalar("usize")]),
         TypeTree::Tuple(vec![scalar("usize"), scalar("usize")]),
         reader_success(),
@@ -92,7 +93,7 @@ fn widened_scalar_count_grammar_does_not_admit_adjacent_shapes() {
         TypeTree::Tuple(vec![scalar("usize")]),
         TypeTree::Tuple(vec![scalar("usize"); 3]),
         TypeTree::Tuple(vec![scalar("usize"), scalar("u32")]),
-        TypeTree::Tuple(vec![scalar("u16"), scalar("usize")]),
+        TypeTree::Tuple(vec![scalar("u8"), scalar("usize")]),
         scalar("(usize, usize)"),
         TypeTree::Tuple(vec![
             TypeTree::Tuple(vec![scalar("usize")]),
@@ -183,7 +184,7 @@ fn adjacent_tuple_width_order_arity_and_reference_shapes_stay_closed() {
         TypeTree::Tuple(vec![]),
         TypeTree::Tuple(vec![scalar("u32")]),
         TypeTree::Tuple(vec![scalar("usize"), scalar("u32")]),
-        TypeTree::Tuple(vec![scalar("u16"), scalar("usize")]),
+        TypeTree::Tuple(vec![scalar("u8"), scalar("usize")]),
         TypeTree::Tuple(vec![scalar("u64"), scalar("usize")]),
         TypeTree::Tuple(vec![scalar("u32"), scalar("u64")]),
         TypeTree::Tuple(vec![scalar("u32"), scalar("usize"), scalar("usize")]),

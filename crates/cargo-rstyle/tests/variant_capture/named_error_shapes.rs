@@ -6,6 +6,7 @@ mod owned_composition;
 mod product_composition;
 mod reader_composition;
 mod reader_observations;
+mod u16_readers;
 mod validator_composition;
 mod widening_readers;
 use rstyle_pdg::concrete_types::{InterfaceObservations, Observation, TypeTree, VariantShape};

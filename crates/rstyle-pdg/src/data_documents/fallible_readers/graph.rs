@@ -1,6 +1,7 @@
 //! Exact whole reader operations; ordinary memory/location verification stays active.
 use super::*;
 use crate::CfgEdgeKind;
+mod flow;
 
 pub(super) struct Operations<'a> {
     pub inputs: [&'a PdgNode; 2],
@@ -23,6 +24,14 @@ pub(super) fn verify(
     facts: &dyn EvidenceFacts,
     source: &source::Checked<'_>,
 ) -> Result<BTreeMap<String, serde_json::Value>, String> {
+    if source.width == crate::native_reader_width::Width::U16 {
+        crate::extraction_profile::require_document(
+            &pair.pdg.profile,
+            crate::native_reader_width::CAPABILITY,
+            || true,
+            "Native u16 reader requires its registered complete document policy",
+        )?;
+    }
     let operations = operations(pair, facts, source)?;
     for node in &pair.pdg.nodes {
         if !node.attributes.writes.is_empty()
@@ -45,6 +54,7 @@ pub(super) fn verify(
     super::super::named_error_result_propagation::verify(pair, facts)?;
     crate::helper_calls::verify_documents(pair, facts)?;
     operands(pair, &operations)?;
+    flow::verify(pair, &operations)?;
     guarded(pair, &operations)?;
 
     let expected = origins::derive(facts, source, &operations)?;
@@ -68,6 +78,7 @@ fn operations<'a>(
     source: &source::Checked<'_>,
 ) -> Result<Operations<'a>, String> {
     let propagation = &source.propagation;
+    let constructs = propagation.mode.constructs();
     Ok(Operations {
         inputs: [input(pair, facts, 0)?, input(pair, facts, 1)?],
         arguments: [
@@ -76,17 +87,17 @@ fn operations<'a>(
             value_operation(pair, source.length_arguments[2])?,
         ],
         length: value_operation(pair, propagation.operand)?,
-        selector: typed_operation(pair, source.question, "try.reader-result-is-err", "bool")?,
+        selector: typed_operation(pair, source.question, constructs[0], "bool")?,
         error: typed_operation(
             pair,
             source.question,
-            "try.reader-result-error",
+            constructs[1],
             &propagation.output_token,
         )?,
         error_return: serialized_operation(pair, &propagation.early_return.span, |node| {
             node.category == NodeCategory::Return
         })?,
-        unit: typed_operation(pair, source.question, "try.reader-result-ok-unit", "unit")?,
+        unit: typed_operation(pair, source.question, constructs[2], "unit")?,
         reader_argument: value_operation(pair, source.reader_argument)?,
         reader: value_operation(pair, source.reader)?,
         consumed: value_operation(pair, source.consumed)?,

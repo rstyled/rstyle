@@ -76,6 +76,9 @@ pub(crate) fn permits_type(text: &str, facts: &dyn EvidenceFacts) -> Result<bool
 
 /// Historical scalar permission remains independent of the reader extension.
 fn success(token: &TypeToken, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    if crate::native_reader_width::u16_success(token, facts) {
+        return Ok(true);
+    }
     if crate::extraction_profile::facts_support(facts, crate::widening_readers::CAPABILITY)
         && crate::widening_readers::success_shape(token)
     {

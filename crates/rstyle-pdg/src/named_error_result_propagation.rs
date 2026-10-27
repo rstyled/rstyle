@@ -16,6 +16,7 @@ pub const VALIDATOR_CAPABILITY: &str = "rust.named-error-validator-flow";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
     UnitToReader,
+    UnitToU16Reader,
     ReaderToScalar,
     ReaderToCopyProduct,
     IdToReader,
@@ -25,6 +26,7 @@ impl Mode {
     pub const fn capability(self) -> &'static str {
         match self {
             Self::UnitToReader => CAPABILITY,
+            Self::UnitToU16Reader => crate::native_reader_width::CAPABILITY,
             Self::ReaderToScalar => VALIDATOR_CAPABILITY,
             Self::ReaderToCopyProduct => PRODUCT_CAPABILITY,
             Self::IdToReader => crate::id_reader_types::CAPABILITY,
@@ -34,6 +36,7 @@ impl Mode {
     pub const fn identity(self) -> &'static str {
         match self {
             Self::UnitToReader => capture::IDENTITY,
+            Self::UnitToU16Reader => capture::U16_IDENTITY,
             Self::ReaderToScalar => capture::VALIDATOR_IDENTITY,
             Self::ReaderToCopyProduct => capture::PRODUCT_IDENTITY,
             Self::IdToReader => capture::ID_READER_IDENTITY,
@@ -43,6 +46,7 @@ impl Mode {
     pub const fn resolution(self) -> &'static str {
         match self {
             Self::UnitToReader => capture::RESOLUTION,
+            Self::UnitToU16Reader => capture::U16_RESOLUTION,
             Self::ReaderToScalar => capture::VALIDATOR_RESOLUTION,
             Self::ReaderToCopyProduct => capture::PRODUCT_RESOLUTION,
             Self::IdToReader => capture::ID_READER_RESOLUTION,
@@ -51,6 +55,11 @@ impl Mode {
 
     pub const fn constructs(self) -> [&'static str; 3] {
         match self {
+            Self::UnitToU16Reader => [
+                "try.u16-reader-result-is-err",
+                "try.u16-reader-result-error",
+                "try.u16-reader-result-ok-unit",
+            ],
             Self::UnitToReader => [
                 "try.reader-result-is-err",
                 "try.reader-result-error",
@@ -77,6 +86,7 @@ impl Mode {
     pub(super) fn from_identity(identity: &str) -> Result<Self, String> {
         match identity {
             capture::IDENTITY => Ok(Self::UnitToReader),
+            capture::U16_IDENTITY => Ok(Self::UnitToU16Reader),
             capture::VALIDATOR_IDENTITY => Ok(Self::ReaderToScalar),
             capture::PRODUCT_IDENTITY => Ok(Self::ReaderToCopyProduct),
             capture::ID_READER_IDENTITY => Ok(Self::IdToReader),
@@ -110,6 +120,7 @@ fn mode(node: &HirNode, facts: &dyn EvidenceFacts) -> Option<Mode> {
     }
     [
         Mode::UnitToReader,
+        Mode::UnitToU16Reader,
         Mode::ReaderToScalar,
         Mode::ReaderToCopyProduct,
         Mode::IdToReader,
@@ -274,6 +285,11 @@ fn copy_product_boundary(
 
 fn payloads_match(mode: Mode, input: &TypeToken, output: &TypeToken) -> bool {
     match mode {
+        Mode::UnitToU16Reader => {
+            *input == TypeToken::Scalar("unit".into())
+                && crate::native_reader_width::Width::for_success(output)
+                    == Some(crate::native_reader_width::Width::U16)
+        }
         Mode::UnitToReader => *input == TypeToken::Scalar("unit".into()) && reader_tuple(output),
         Mode::ReaderToScalar => reader_tuple(input) && *output == TypeToken::Scalar("usize".into()),
         Mode::ReaderToCopyProduct => reader_tuple(input) && crate::reader_products::shape(output),

@@ -929,7 +929,7 @@ fn propagation_return(
         Some("try.product-result-error") => {
             crate::product_result_propagation::verify(source_node(node, facts)?, facts)?;
         }
-        Some("try.reader-result-error") => {
+        Some("try.reader-result-error" | "try.u16-reader-result-error") => {
             crate::named_error_result_propagation::verify(source_node(node, facts)?, facts)?;
         }
         Some("try.scalar-result-error") => {

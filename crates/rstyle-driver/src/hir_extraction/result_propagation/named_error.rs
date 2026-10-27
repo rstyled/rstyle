@@ -71,6 +71,11 @@ impl<'tcx> Context<'tcx> {
         };
         match mode {
             Mode::UnitToReader => input.is_unit() && tuple(output),
+            Mode::UnitToU16Reader => {
+                input.is_unit()
+                    && matches!(output.kind(), ty::Tuple(values)
+                if values.as_slice() == [self.tcx.types.u16, self.tcx.types.usize])
+            }
             Mode::ReaderToScalar => tuple(input) && output == self.tcx.types.usize,
             Mode::ReaderToCopyProduct => tuple(input) && self.reader_copy_product(output),
             Mode::IdToReader => {

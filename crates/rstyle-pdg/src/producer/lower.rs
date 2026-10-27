@@ -1628,6 +1628,7 @@ fn propagation_lowerer<'a>(node: &HirNode) -> fn(&mut Builder<'a>, &HirNode, Flo
         matches!(
             res.kind.as_str(),
             crate::named_error_result_propagation::capture::RESOLUTION
+                | crate::named_error_result_propagation::capture::U16_RESOLUTION
                 | crate::named_error_result_propagation::capture::VALIDATOR_RESOLUTION
                 | crate::named_error_result_propagation::capture::PRODUCT_RESOLUTION
                 | crate::named_error_result_propagation::capture::ID_READER_RESOLUTION

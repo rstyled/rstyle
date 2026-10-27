@@ -98,6 +98,7 @@ pub(super) fn concrete_shape_for(shape: &Shape, mode: Mode) -> Result<(), String
 
     let payloads = match mode {
         Mode::UnitToReader => ("()", "(u32, usize)"),
+        Mode::UnitToU16Reader => ("()", "(u16, usize)"),
         Mode::ReaderToScalar => ("(u32, usize)", "usize"),
         Mode::IdToReader => {
             product_payload(&shape.output_payload)?;
@@ -123,7 +124,7 @@ pub(super) fn concrete_shape_for(shape: &Shape, mode: Mode) -> Result<(), String
             .any(|path| shape.residual == format!("{path}<!, {}>", shape.error))
         || !control.iter().any(|path| {
             shape.control_flow == format!("{path}<{}, {}>", shape.residual, shape.payload)
-                || mode == Mode::UnitToReader
+                || matches!(mode, Mode::UnitToReader | Mode::UnitToU16Reader)
                     && shape.control_flow == format!("{path}<{}>", shape.residual)
         })
     {

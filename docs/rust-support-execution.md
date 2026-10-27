@@ -1967,3 +1967,31 @@ excluded. Source-audit complete natural consumers before choosing a propagation
 activation; many existing consumers also require unsafe/aggregate parser work.
 Native macOS/x86 CI remains pending. Broad goal stays active; no general
 move/drop, detector-quality or rewrite-safety claim.
+
+Integration460, Data3.128/156: original checked `try_read_u16` now composes its
+precheck, native decoder, consumed count and owned named error. Closed width
+proof binds every size/copy/decoder operation; separate u16 propagation identity
+keeps the u32 contract intact. Both widths independently enforce exact entry,
+branch and return transfers. Default211→212/2,582 and no-default149→150/590:
+exactly `try_read_u16`, zero losses or changed prior admitted records. Strict
+selections212/150 pass two imports and score1 replay; complete22,366/11,175 cross
+pairs preserve all33,181 earlier results. Frozen run-duz5eakn preserves all60
+identities/outcomes/blockers/denominators (24/29/7) and earlier profiles.
+All2,307 tests/5 existing skips plus doctests pass; fmt/Clippy clean;
+rstyle0/8,109; patterns0/15 unchanged ignores. Native original-source oracle
+984,536 cases/zero mismatches. Focused reader test3.49s in the full suite; no new
+runtime SHA256/cache serialization. Capture default246.99s/1,872,028KiB and
+no-default34.94s/428,460KiB; strict262.73s/6,512,420KiB and
+50.97s/1,463,376KiB are single observations, not equal-work performance claims.
+Evidence: `/tmp/rstyle-460-{natural,strict,frozen}-comparison.json`,
+`/tmp/rstyle-460-oracle.json`, `/tmp/rstyle-460-final-*.log`.
+
+Next connected target remains original `try_read_u16_as_usize`: independently
+select blanket TryFrom→Into→From, verify reviewed core forwarding/source and exact
+substitutions, then connect distinct never-error carriers and complete callback
+flow. Into pins already exist; blanket TryFrom method/impl and concrete From impl
+need fresh observed pins. A new driver leaf is drafted but unregistered/untested;
+it grants no support. Tagged whole-result caller mapping and the previously
+recorded memory/storage blockers remain open. Native macOS/x86 CI remains pending;
+broad goal stays active, with no generic-dispatch, general cleanup, detector-quality
+or rewrite-safety claim.
