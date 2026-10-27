@@ -5609,3 +5609,11 @@ component/capture flow and complete summaries. The u16 conversion selects blanke
 TryFrom/Into/From with an uninhabited error; u32 uses the existing concrete
 TryFromIntError contract. No admission gain follows from the independent oracle.
 [Selection and bounded expectations](eval/coverage-development/wire-usize-readers/README.md).
+
+Data3.126 retains the widening reader's three nested callback environments and
+scoped conversion receipt, with bounded proof checks and an opaque tuple Result
+observation. This grants no value, cleanup or callable permission. Admissions
+remain default210/2,582 and no-default148/590, zero gains/losses; frozen60 and
+earlier profiles are unchanged. Next deliver the complete u32 wrapper's guarded
+flow, component origins, error-discard proof and callable summary.
+[Contract](eval/coverage-development/wire-usize-readers/README.md).

@@ -77,10 +77,33 @@ fn bounded_success_observations_and_tokens_agree() {
         scalar("unit"),
         scalar("usize"),
         TypeTree::Tuple(vec![scalar("u32"), scalar("usize")]),
+        TypeTree::Tuple(vec![scalar("usize"), scalar("usize")]),
         reader_success(),
     ] {
         assert!(observed(&success, &error));
         assert!(GRAMMAR.permits(&TypeToken::from_tree(&success), &token));
+    }
+}
+
+#[test]
+fn widened_scalar_count_grammar_does_not_admit_adjacent_shapes() {
+    let error = error_tree();
+    for success in [
+        TypeTree::Tuple(vec![scalar("usize")]),
+        TypeTree::Tuple(vec![scalar("usize"); 3]),
+        TypeTree::Tuple(vec![scalar("usize"), scalar("u32")]),
+        TypeTree::Tuple(vec![scalar("u16"), scalar("usize")]),
+        scalar("(usize, usize)"),
+        TypeTree::Tuple(vec![
+            TypeTree::Tuple(vec![scalar("usize")]),
+            scalar("usize"),
+        ]),
+    ] {
+        assert!(!observed(&success, &error));
+        assert!(!GRAMMAR.permits(
+            &TypeToken::from_tree(&success),
+            &TypeToken::from_tree(&error)
+        ));
     }
 }
 

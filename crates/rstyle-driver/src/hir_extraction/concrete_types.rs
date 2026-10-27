@@ -133,7 +133,9 @@ impl<'tcx> Capture<'_, 'tcx> {
             self.callback_environments(&mut facts.body)?;
         }
         let ctx = self.ctx;
-        ctx.capture_id_error_maps(&mut facts.body, &mut |ty| self.observe(ty))
+        ctx.capture_id_error_maps(&mut facts.body, &mut |ty| self.observe(ty))?;
+
+        ctx.capture_usize_reader_callbacks(&mut facts.body, &mut |ty| self.observe(ty))
     }
 
     fn install_tokens(
@@ -377,19 +379,29 @@ impl<'tcx> Capture<'_, 'tcx> {
         {
             return self.option_type(payload, depth);
         }
-        if let Some(result) = self.int_conversion_result(ty) {
+        if let Some(result) = self.observed_result(ty, depth)? {
             return Ok(result);
         }
+        self.storage_container(ty, depth)
+    }
+
+    fn observed_result(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<Option<TypeTree>, Failure> {
+        if let Some(result) = self
+            .mapped_int_conversion_result(ty, depth)?
+            .or_else(|| self.int_conversion_result(ty))
+        {
+            return Ok(Some(result));
+        }
         if let Some(result) = self.slice_array_result(ty) {
-            return Ok(result);
+            return Ok(Some(result));
         }
         if self.ctx.profile.supports("rust.fresh-concrete-results")
             && self.visiting.is_empty()
             && let Some((ok, err)) = super::results::payloads(self.ctx.tcx, ty)
         {
-            return self.result_type(ok, err, depth);
+            return self.result_type(ok, err, depth).map(Some);
         }
-        self.storage_container(ty, depth)
+        Ok(None)
     }
 
     fn nonnested_option_payload(&self, ty: Ty<'tcx>) -> Option<Ty<'tcx>> {
@@ -501,18 +513,55 @@ impl<'tcx> Capture<'_, 'tcx> {
         {
             return None;
         }
-        let ty::Adt(error, _) = arguments.type_at(1).kind() else {
-            return None;
+        self.int_conversion_error(arguments.type_at(1))
+            .then(|| TypeTree::IntConversionResult(arguments.type_at(0).to_string()))
+    }
+
+    fn mapped_int_conversion_result(
+        &mut self,
+        value: Ty<'tcx>,
+        depth: usize,
+    ) -> Result<Option<TypeTree>, Failure> {
+        if !self
+            .ctx
+            .profile
+            .supports("rust.usize-reader-callback-observations")
+        {
+            return Ok(None);
+        }
+        let Some((ok, err)) = super::results::payloads(self.ctx.tcx, value) else {
+            return Ok(None);
         };
-        let path = tcx.def_path_str(error.did());
-        (tcx.crate_name(error.did().krate).as_str() == "core"
+        let ty::Tuple(fields) = ok.kind() else {
+            return Ok(None);
+        };
+        if fields.len() != 2
+            || fields.iter().any(|field| field != self.ctx.tcx.types.usize)
+            || !self.int_conversion_error(err)
+        {
+            return Ok(None);
+        }
+
+        let result = TypeTree::MappedIntConversionResult {
+            ok: Box::new(self.tree(ok, depth + 1)?),
+        };
+        rstyle_pdg::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
+        Ok(Some(result))
+    }
+
+    fn int_conversion_error(&self, value: Ty<'tcx>) -> bool {
+        let ty::Adt(error, arguments) = value.kind() else {
+            return false;
+        };
+        let tcx = self.ctx.tcx;
+        arguments.is_empty()
+            && tcx.crate_name(error.did().krate).as_str() == "core"
             && matches!(
-                path.as_str(),
+                tcx.def_path_str(error.did()).as_str(),
                 "core::num::error::TryFromIntError"
                     | "core::num::TryFromIntError"
                     | "std::num::TryFromIntError"
-            ))
-        .then(|| TypeTree::IntConversionResult(arguments.type_at(0).to_string()))
+            )
     }
 
     fn slice_array_result(&self, value: Ty<'tcx>) -> Option<TypeTree> {

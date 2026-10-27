@@ -3,6 +3,10 @@ use super::*;
 use crate::data_library::Registry;
 use serde_json::Value;
 
+// Pending complete reader source/HIR activation; scoped receipts grant no production authority.
+#[cfg(test)]
+mod scoped;
+
 pub(super) fn verify(
     node: &HirNode,
     kind: Kind,

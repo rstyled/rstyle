@@ -45,6 +45,7 @@ pub(super) fn capture(
         calls: Vec::new(),
         callbacks: Vec::new(),
         observe_callbacks: true,
+        callback_owner: None,
     };
     scan.visit_expr(body.value);
 
@@ -119,6 +120,7 @@ struct Scan<'a, 'tcx> {
     calls: Vec<Observation>,
     callbacks: Vec<callbacks::Observation>,
     observe_callbacks: bool,
+    callback_owner: Option<rstyle_pdg::HirRef>,
 }
 
 impl<'tcx> Visitor<'tcx> for Scan<'_, 'tcx> {
@@ -126,7 +128,8 @@ impl<'tcx> Visitor<'tcx> for Scan<'_, 'tcx> {
         // These bodies have their own typeck owner and must never inherit this one.
         if matches!(expression.kind, ExprKind::Closure(_)) {
             if self.observe_callbacks
-                && let Some(observation) = callbacks::observe(self.context, expression)
+                && let Some(observation) =
+                    callbacks::observe(self.context, expression, self.callback_owner.as_ref())
             {
                 self.callbacks.push(observation);
             }

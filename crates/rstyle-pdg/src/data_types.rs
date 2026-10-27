@@ -5,11 +5,14 @@ use serde::{Deserialize, Serialize};
 mod converted;
 mod result_grammar;
 pub(crate) use result_grammar::ResultGrammar;
+mod mapped_conversions;
 mod mixed_owners;
 mod parsed;
 mod scalar_product_instances;
 mod scalar_slices;
 pub(crate) use scalar_slices::shared_byte_slice;
+#[cfg(test)]
+mod mapped_int_results;
 #[cfg(test)]
 mod range_values;
 use crate::concrete_types::VariantShape;
@@ -39,6 +42,9 @@ pub enum TypeToken {
         err: Box<TypeToken>,
     },
     IntConversionResult(String),
+    MappedIntConversionResult {
+        ok: Box<TypeToken>,
+    },
     RangeUsize,
     RangeToUsize,
     RangeFromUsize,
@@ -84,6 +90,9 @@ impl TypeToken {
             TypeTree::Slice(value) => Self::Slice(Box::new(Self::from_tree(value))),
             TypeTree::Str => Self::Str,
             TypeTree::IntConversionResult(value) => Self::IntConversionResult(value.clone()),
+            TypeTree::MappedIntConversionResult { ok } => Self::MappedIntConversionResult {
+                ok: Box::new(Self::from_tree(ok)),
+            },
             TypeTree::RangeUsize { .. } => Self::RangeUsize,
             TypeTree::RangeToUsize { .. } => Self::RangeToUsize,
             TypeTree::RangeFromUsize { .. } => Self::RangeFromUsize,
@@ -177,7 +186,8 @@ impl TypeToken {
             Self::Array { element, .. }
             | Self::Shared(element)
             | Self::Slice(element)
-            | Self::Option(element) => element.native_width(),
+            | Self::Option(element)
+            | Self::MappedIntConversionResult { ok: element } => element.native_width(),
             Self::Struct { fields, .. } | Self::ScalarProductInstance { fields, .. } => {
                 fields.iter().any(|(_, field)| field.native_width())
             }
@@ -344,6 +354,11 @@ fn parse_context(
 }
 
 fn check_guarded_value_evidence(ty: &TypeToken) -> Result<(), String> {
+    if mapped_conversions::contains(ty) {
+        return Err(
+            "Mapped integer Results require unavailable complete callback value evidence".into(),
+        );
+    }
     if mixed_owners::requires_payload_evidence(ty) {
         return Err(
             "Named enum payloads require unavailable complete ownership and guarded value evidence"
@@ -498,12 +513,7 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         {
             Ok(())
         }
-        TypeToken::Tuple(values) => {
-            for value in values {
-                check(value, depth + 1, entries)?;
-            }
-            Ok(())
-        }
+        TypeToken::Tuple(values) => check_tuple(values, depth, entries),
         TypeToken::Result { ok, err } => check_result(ok, err, depth, entries),
         TypeToken::Str => Ok(()),
         TypeToken::RangeUsize | TypeToken::RangeToUsize | TypeToken::RangeFromUsize
@@ -538,6 +548,20 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         // Admission additionally requires independently verified nominal source/effects.
         _ => Err("Data type token lacks a registered concrete proof".into()),
     }
+}
+
+/// Observational payload only; the opaque conversion error has no inferred layout.
+pub(crate) fn mapped_int_conversion_payload(token: &TypeToken) -> bool {
+    matches!(token, TypeToken::Tuple(values)
+        if matches!(values.as_slice(), [TypeToken::Scalar(value), TypeToken::Scalar(count)]
+            if value == "usize" && count == "usize"))
+}
+
+fn check_tuple(values: &[TypeToken], depth: usize, entries: &mut usize) -> Result<(), String> {
+    for value in values {
+        check(value, depth + 1, entries)?;
+    }
+    Ok(())
 }
 
 fn check_result(
@@ -596,6 +620,9 @@ fn check_fieldless_variants(variants: &[(String, i64)]) -> Result<(), String> {
 
 fn recursive_element(token: &TypeToken) -> Option<&TypeToken> {
     match token {
+        TypeToken::MappedIntConversionResult { ok } if mapped_int_conversion_payload(ok) => {
+            Some(ok)
+        }
         TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::NonZero(_)) => {
             Some(payload)
         }

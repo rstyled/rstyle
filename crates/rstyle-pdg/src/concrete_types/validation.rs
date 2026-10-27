@@ -85,7 +85,8 @@ impl<'a> Validation<'a> {
             TypeTree::Array { element, .. }
             | TypeTree::Shared(element)
             | TypeTree::Slice(element)
-            | TypeTree::Option(element) => self.check(element, depth),
+            | TypeTree::Option(element)
+            | TypeTree::MappedIntConversionResult { ok: element } => self.check(element, depth),
             _ => Ok(()),
         }
     }
@@ -218,5 +219,22 @@ mod tests {
         let mut validation = Validation::default();
         validation.check(&character, 0).unwrap();
         assert!(validation.check(&character, 1).is_err());
+    }
+
+    #[test]
+    fn mapped_conversion_counts_and_bounds_every_real_payload_component() {
+        let mapped = TypeTree::MappedIntConversionResult {
+            ok: Box::new(TypeTree::Tuple(vec![TypeTree::Scalar("usize".into()); 2])),
+        };
+        let mut validation = Validation::default();
+        validation.check(&mapped, 0).unwrap();
+        assert_eq!(validation.entries, 4);
+
+        assert!(
+            Validation::default()
+                .check(&mapped, MAX_DEPTH - 1)
+                .unwrap_err()
+                .contains("budget")
+        );
     }
 }

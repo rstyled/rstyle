@@ -9,6 +9,22 @@ impl<'tcx> Context<'tcx> {
         expression: &Expr<'tcx>,
         observe: &mut impl FnMut(Ty<'tcx>) -> Result<Observation, String>,
     ) -> Result<PathRes, String> {
+        let environment =
+            self.callback_environment_record(expression, observe, records::IDENTITY)?;
+
+        Ok(PathRes {
+            kind: records::KIND.into(),
+            target: None,
+            description: serde_json::to_string(&environment).map_err(|error| error.to_string())?,
+        })
+    }
+
+    pub(in crate::hir_extraction) fn callback_environment_record(
+        &self,
+        expression: &Expr<'tcx>,
+        observe: &mut impl FnMut(Ty<'tcx>) -> Result<Observation, String>,
+        identity: &str,
+    ) -> Result<records::Environment, String> {
         let ExprKind::Closure(closure) = expression.kind else {
             return Err("ID callback environment is not a compiler closure".into());
         };
@@ -38,8 +54,8 @@ impl<'tcx> Context<'tcx> {
         let stored_type = observe(arguments.tupled_upvars_ty())?;
         let (signature_inputs, signature_output) = signature_types(signature, observe)?;
 
-        let environment = records::Environment {
-            identity: records::IDENTITY.into(),
+        Ok(records::Environment {
+            identity: identity.into(),
             closure: reference(expression.hir_id),
             body: reference(self.tcx.hir_body(closure.body).value.hir_id),
             definition_identity: format!("{:?}", self.tcx.def_path_hash(*definition)),
@@ -48,12 +64,6 @@ impl<'tcx> Context<'tcx> {
             signature_abi: format!("{:?}", signature.abi()),
             signature_inputs,
             signature_output,
-        };
-
-        Ok(PathRes {
-            kind: records::KIND.into(),
-            target: None,
-            description: serde_json::to_string(&environment).map_err(|error| error.to_string())?,
         })
     }
 }

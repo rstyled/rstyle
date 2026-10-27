@@ -76,12 +76,12 @@ fn inherent_registration_keeps_earlier_data_contracts_distinct() {
     use rstyle_pdg::extraction_profile::ExtractionProfile;
     let profile = ExtractionProfile::select("hir-data-v3").unwrap();
     assert_eq!(profile, ExtractionProfile::DataV3);
-    assert_eq!(profile.policy().version, "3.125.0");
+    assert_eq!(profile.policy().version, "3.126.0");
     assert_eq!(
         profile.data_matching(),
         Some("rstyle.ccgraph.data-calls/1.0.0")
     );
-    assert_eq!(profile.capabilities().len(), 153);
+    assert_eq!(profile.capabilities().len(), 154);
     assert!(profile.supports("rust.pinned-cleanup-macro-imports"));
     assert!(profile.supports("rust.named-error-reader-flow"));
     let mut before_readers = profile.policy();
@@ -161,6 +161,19 @@ fn token_serialization_cannot_turn_a_resource_failure_into_observational_success
     rstyle_pdg::concrete_types::validate(&tree).unwrap();
     let error = data_types::token(&tree).unwrap_err();
     assert!(error.contains("byte budget"), "{error}");
+}
+
+#[test]
+fn callback_observations_do_not_extend_the_previous_document_policy() {
+    use rstyle_pdg::extraction_profile::{ExtractionProfile, policy_supports};
+    let profile = ExtractionProfile::DataV3;
+    let capability = "rust.usize-reader-callback-observations";
+    assert!(profile.supports(capability));
+    assert!(policy_supports(&profile.policy(), capability));
+    let mut previous = profile.policy();
+    previous.version = "3.125.0".into();
+
+    assert!(!policy_supports(&previous, capability));
 }
 
 #[test]

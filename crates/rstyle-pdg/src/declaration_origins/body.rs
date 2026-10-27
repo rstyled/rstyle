@@ -181,6 +181,9 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
         }
         TypeToken::Str => TypeTree::Str,
         TypeToken::IntConversionResult(value) => TypeTree::IntConversionResult(value.clone()),
+        TypeToken::MappedIntConversionResult { ok } => TypeTree::MappedIntConversionResult {
+            ok: Box::new(tree(ok, origins)?),
+        },
         TypeToken::RangeUsize | TypeToken::RangeToUsize | TypeToken::RangeFromUsize => {
             return Err("Range authority cannot be inferred from a body token".into());
         }
@@ -206,15 +209,25 @@ fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
                 .collect::<Result<_, _>>()?,
         ),
         TypeToken::Struct { nominal, fields } => struct_tree(nominal, fields, origins)?,
-        TypeToken::FieldlessEnum { nominal, variants } => TypeTree::FieldlessEnum {
-            nominal: nominal.clone(),
-            source: origin_source(nominal, origins)?.into(),
-            variants: variants.clone(),
-        },
+        TypeToken::FieldlessEnum { nominal, variants } => {
+            fieldless_tree(nominal, variants, origins)?
+        }
         TypeToken::MixedEnum { nominal, variants } => mixed::tree(nominal, variants, origins)?,
         TypeToken::Enum { nominal, variants } => {
             nominal_tree(nominal, variants, origins, NominalKind::Enumeration)?
         }
+    })
+}
+
+fn fieldless_tree(
+    nominal: &Nominal,
+    variants: &[(String, i64)],
+    origins: &Origins,
+) -> Result<TypeTree, String> {
+    Ok(TypeTree::FieldlessEnum {
+        nominal: nominal.clone(),
+        source: origin_source(nominal, origins)?.into(),
+        variants: variants.to_vec(),
     })
 }
 

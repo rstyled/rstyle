@@ -36,7 +36,7 @@ fn success(token: &TypeToken) -> bool {
                 || id_reader(token)
                 || matches!(values.as_slice(),
             [TypeToken::Scalar(first), TypeToken::Scalar(second)]
-            if first == "u32" && second == "usize")
+            if matches!(first.as_str(), "u32" | "usize") && second == "usize")
         }
         TypeToken::Struct { .. } => id_value(token),
         _ => false,

@@ -9,6 +9,10 @@ use rustc_middle::ty;
 
 impl<'tcx> Context<'tcx> {
     pub(super) fn callback_children(&self, expr: &Expr<'tcx>) -> Option<Vec<HirNode>> {
+        if self.usize_reader_callback(expr) {
+            return self.usize_reader_children(expr);
+        }
+
         if self.profile.supports(rstyle_pdg::id_error_maps::CAPABILITY)
             && self.immediate_error_map(expr)
         {

@@ -1917,3 +1917,22 @@ local aggregate borrowing, derived comparisons, err macro ownership, validation
 helpers and assertion composition. Those are connected prerequisites, not an
 available supported remainder. Scoped capture and source/selection leaves are
 being integrated separately, with shared registration owned by the coordinator.
+
+Integration458, Data3.126: nested reader callback capture, opaque tuple conversion
+observations and bounded source/scoped-selection prerequisites are integrated.
+No family activation: default210/2,582 and no-default148/590 remain unchanged,
+including every prior admitted record; both selected wrappers still exclude.
+Frozen run-qf7xudc1 preserves all60 identities/outcomes/blockers/denominators and
+earlier profiles (24 admitted/29 excluded/7 inactive). All2,300 tests/5 existing
+skips plus doctests pass; fmt/Clippy clean; rstyle0/7,903; patterns0/15 unchanged
+ignores. Std/no_std callback fixture0.24s. No new runtime SHA256/cache serialization.
+Capture observations: no-default33.58s/422,072KiB; default235.50s/1,851,728KiB;
+these are single observations, not equal-work performance claims. Evidence:
+`/tmp/rstyle-458-{natural-comparison,retained-evidence,frozen-comparison}.json`
+and `/tmp/rstyle-458-{nextest,clippy,style,patterns}.log`. Native macOS/x86 CI and
+strict admission/matching of the still-unsupported wrappers remain pending.
+Next boundary is complete original u32 wrapper activation, not another capture
+milestone: whole source/HIR and expected call roster → selected conversion and
+error-discard authority → guarded graph/component origins → callable summary →
+strict replay/matching. The u16 blanket/uninhabited-error chain remains separate.
+Broad goal remains active.

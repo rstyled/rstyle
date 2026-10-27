@@ -125,6 +125,8 @@ pub mod validate;
 pub mod value_sites;
 pub mod verification_policy;
 mod verification_session;
+#[cfg(test)]
+mod widening_readers;
 pub use value_sites::validate_value_sites;
 
 pub use eligibility::{classify, span};

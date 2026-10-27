@@ -45,6 +45,7 @@ pub mod source;
 mod sources;
 mod trait_members;
 mod tuple_assignment;
+mod usize_readers;
 mod variant_patterns;
 
 use rstyle_pdg::extraction_profile::ExtractionProfile;

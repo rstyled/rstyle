@@ -49,3 +49,11 @@ scoped calls and CFG bypasses. Runtime agreement supplies no extraction authorit
 Strict admission and complete selected matching remain activation requirements;
 general stored/mutable closures and generic trait resolution remain outside this
 bounded family.
+
+Data3.126 prerequisite: real Cargo capture retains all three original u32 callback
+environments and separates their call inventories. The mapped conversion Result
+has a genuine usize/count tuple and opaque error; all standalone/nested value
+uses remain closed. Source grammar and scoped-selector adversaries are tested,
+but these leaves grant no admission authority. Exact expected call-roster proof,
+guarded graph/component flow, error-discard proof and callable summaries remain
+the next connected delivery. Both wrappers still exclude in both contexts.

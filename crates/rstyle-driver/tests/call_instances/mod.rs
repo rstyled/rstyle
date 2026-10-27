@@ -2,6 +2,8 @@
 use super::*;
 use serde_json::Value;
 
+mod usize_readers;
+
 const KEY: &str = "rstyle.rust.call-instances";
 const SOURCE: &str = r#"
 pub fn identity<T>(value: T) -> T { value }

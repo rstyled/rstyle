@@ -643,11 +643,12 @@ impl<'tcx> Context<'tcx> {
         }
     }
 
-    fn local_pattern(&self, pattern: &hir::Pat<'tcx>) -> HirNode {
+    pub(super) fn local_pattern(&self, pattern: &hir::Pat<'tcx>) -> HirNode {
         let PatKind::Tuple(children, rest) = pattern.kind else {
             return self.pattern(pattern);
         };
-        let permitted = self.profile.supports("rust.named-error-validator-flow")
+        let permitted = (self.profile.supports("rust.named-error-validator-flow")
+            || self.profile.supports(super::usize_readers::CAPABILITY))
             && rest.as_opt_usize().is_none()
             && !children.is_empty()
             && children.len() <= rstyle_pdg::concrete_types::MAX_FIELDS
