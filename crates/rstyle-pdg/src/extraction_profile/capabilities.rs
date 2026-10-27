@@ -55,6 +55,7 @@ const fn name_before(left: &str, right: &str) -> bool {
         }
         index += 1;
     }
+
     left.len() < right.len()
 }
 
