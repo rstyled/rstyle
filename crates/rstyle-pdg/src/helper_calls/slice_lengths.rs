@@ -20,10 +20,9 @@ pub(crate) fn derive(
     facts: &dyn EvidenceFacts,
     pair: PairView<'_>,
 ) -> Result<Option<WireContract>, String> {
-    if !candidate(facts) {
-        return Ok(None);
-    }
-    crate::data_documents::slice_lengths::verified_contract(pair, facts).map(Some)
+    crate::source_evidence::when_candidate(facts, candidate(facts), |facts| {
+        crate::data_documents::slice_lengths::verified_contract(pair, facts)
+    })
 }
 
 pub(crate) fn source_contract(facts: &dyn EvidenceFacts) -> Result<WireContract, String> {

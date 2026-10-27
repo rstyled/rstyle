@@ -15,6 +15,7 @@ mod character_ascii;
 mod checked_instances;
 mod checked_lengths;
 mod checked_options;
+pub(crate) mod checked_roles;
 mod checked_slice_views;
 mod checked_suffix_views;
 mod conditional_payloads;
@@ -63,6 +64,7 @@ mod summary_records;
 mod tagged_calls;
 mod value_consumers;
 mod value_fields;
+pub(crate) mod widening_readers;
 pub(crate) mod wire_validators;
 pub(crate) use locations::{LocationContext, correspondence as location_correspondence};
 
@@ -982,6 +984,18 @@ pub(crate) fn value_operation<'a>(
 }
 
 fn method_value(pair: PairView<'_>, source: &crate::HirNode, node: &PdgNode) -> bool {
+    if source.kind == "expr_method_call"
+        && crate::extraction_profile::policy_supports(
+            &pair.pdg.profile,
+            crate::widening_readers::CAPABILITY,
+        )
+        && pair.pdg.nodes.iter().any(|operation| {
+            operation.attributes.construct.as_deref() == Some(crate::widening_readers::RESULT)
+        })
+    {
+        return node.category == NodeCategory::Merge
+            && node.attributes.construct.as_deref() == Some(crate::widening_readers::RESULT);
+    }
     if source.kind == "expr_method_call"
         && source
             .children

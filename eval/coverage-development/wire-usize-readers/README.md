@@ -3,7 +3,7 @@
 Source-first development selection, separate from the frozen sixty:
 regex-automata0.4.18 `wire::{try_read_u32_as_usize,try_read_u16_as_usize}` in
 unchanged default/no-default library contexts. Data3.125 excludes both wrappers.
-No admission gain is claimed by this contract or oracle.
+The independent oracle grants no extraction authority; measured activation follows below.
 
 On selected64-bit hosts, fewer than four/two bytes returns BufferTooSmall with
 the original static message pointer/length. Otherwise the first four/two bytes,
@@ -28,9 +28,9 @@ First connected activation target: the u32 wrapper. Its complete chain is
 `try_read_u32` → outer Result `and_then` tuple binding → selected lossless
 u32→usize conversion → `map` capturing saved count → `map_err` capturing the
 original static message → `DeserializeError::invalid_usize`. The checked reader,
-decoder and constructors already admit. Missing pieces are nested callback HIR,
+decoder and constructors already admit. The connected proof requires nested callback HIR,
 scoped selected-call receipts, exact environment/signature and intermediate-result
-evidence, complete guarded source/graph/component origins and callable summaries.
+evidence, and complete guarded source/graph/component origins.
 Capturing closures must not be flattened into the root call roster. The outer
 environment is created even on a short reader error; its body runs only on Ok.
 Both inner environments exist only inside that success branch. A proved total
@@ -57,3 +57,27 @@ uses remain closed. Source grammar and scoped-selector adversaries are tested,
 but these leaves grant no admission authority. Exact expected call-roster proof,
 guarded graph/component flow, error-discard proof and callable summaries remain
 the next connected delivery. Both wrappers still exclude in both contexts.
+
+Data3.127 activates the complete original u32 wrapper. It proves all three
+immutable environments and scoped core selections, saved decoded/count/message
+components, read bounds and ordering, distinct reader/conversion errors, and the
+original no-drop error owner. The pinned u32→usize conversion is total on the
+selected64-bit targets; its unreachable error branch remains represented and
+verified, including Copy/no-drop wildcard discard. No opaque error is treated
+as unit or as an unguarded shared reference. Strict serialized replay and
+independent document verification reject source, capture, selection, guard,
+order, origin and historical-policy mutations; the unchanged duplicate must
+match completely at score1.
+
+The verified read/panic/tagged summary is published, but a whole-result forwarding
+caller remains excluded: ordinary reference-output summaries cannot contain a
+guarded error message. A safe follow-on must retain that tagged boundary and
+callee scope while substituting arguments and effects. General callbacks,
+blanket conversions, moves/drop and the u16 chain remain outside this contract.
+
+Acceptance459: unchanged default210→211/2,582 and no-default148→149/590,
+exactly the original u32 wrapper, zero lost admissions or changed prior admitted
+records. All211/149 selections pass two strict imports and score1 self replay;
+complete22,155/11,026 cross pairs preserve every prior pair result. Frozen60 and
+historical profiles are unchanged. Native aarch64 Linux oracle984,536 cases,
+zero mismatches; macOS/x86 definition capture is not native CI execution.

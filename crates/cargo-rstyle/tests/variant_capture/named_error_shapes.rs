@@ -7,6 +7,7 @@ mod product_composition;
 mod reader_composition;
 mod reader_observations;
 mod validator_composition;
+mod widening_readers;
 use rstyle_pdg::concrete_types::{InterfaceObservations, Observation, TypeTree, VariantShape};
 
 const SOURCE: &str = r#"

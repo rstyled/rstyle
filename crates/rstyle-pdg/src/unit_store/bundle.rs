@@ -210,7 +210,9 @@ impl UnitStore {
     }
     /// Newly callable families do not retroactively require historical helper records.
     fn requires_new_helper(&self, index: usize, view: &dyn EvidenceFacts) -> bool {
-        let capability = if crate::helper_calls::id_readers::candidate(view) {
+        let capability = if crate::helper_calls::widening_readers::candidate(view) {
+            crate::helper_calls::widening_readers::CAPABILITY
+        } else if crate::helper_calls::id_readers::candidate(view) {
             crate::helper_calls::id_readers::CAPABILITY
         } else if crate::helper_calls::named_errors::candidate(view) {
             crate::helper_calls::named_errors::CAPABILITY

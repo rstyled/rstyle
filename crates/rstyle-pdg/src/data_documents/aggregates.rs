@@ -156,6 +156,18 @@ fn structural_operands<'a>(
         // their ordered operands; retain ordinary checks on every operand.
         return Ok(Some(operands));
     }
+    if crate::widening_readers::node_candidate(node, facts) {
+        let checked = crate::widening_readers::verify(facts)?;
+        // Complete callback tuple semantics are independently replayed by the family.
+        let reader = node
+            .children
+            .first()
+            .ok_or("Missing checked widening reader receiver")?;
+        if reader.hir != checked.roles.reader.hir {
+            return Err("Widening aggregate source changes its selected reader".into());
+        }
+        return Ok(Some(vec![reader]));
+    }
     if crate::id_error_maps::candidate(node, facts) {
         crate::id_error_maps::verify(node, facts)?;
         return Ok(Some(vec![&node.children[0]]));
@@ -283,6 +295,7 @@ pub(super) fn method_result(node: &PdgNode) -> bool {
                     | crate::helper_option_callbacks::RESULT
                     | crate::result_maps::RESULT
                     | crate::id_error_maps::RESULT
+                    | crate::widening_readers::RESULT
             )
         )
 }

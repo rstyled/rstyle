@@ -8,46 +8,11 @@ pub(super) fn contract(
     facts: &dyn EvidenceFacts,
     checked: &source::Checked<'_>,
 ) -> Result<crate::copy_tagged_values::origins::WireContract, String> {
-    use crate::copy_tagged_values::origins::{Alternative, Case, Condition, Leaf, WireContract};
-    let route = error_route(checked)?;
-
-    let error = Leaf {
-        root: root(facts, 1),
-        input: vec![Component::SharedReferent],
-        output: route.clone(),
-        guard: None,
-    };
-
-    let alternatives = [(true, CaseKind::ResultOk), (false, CaseKind::ResultErr)]
-        .into_iter()
-        .map(|(is_ok, output)| Alternative {
-            input: CaseKind::Whole,
-            output,
-            condition: Condition::ResultTag {
-                scrutinee: checked.propagation.operand.hir.clone(),
-                is_ok,
-            },
-            leaves: if is_ok { vec![] } else { vec![error.clone()] },
-        })
-        .collect();
-
-    Ok(WireContract {
-        input_cases: vec![Case {
-            kind: CaseKind::Whole,
-            components: vec![vec![Component::SharedReferent]],
-        }],
-        output_cases: vec![
-            Case {
-                kind: CaseKind::ResultOk,
-                components: vec![],
-            },
-            Case {
-                kind: CaseKind::ResultErr,
-                components: vec![route],
-            },
-        ],
-        alternatives,
-    })
+    Ok(super::super::checked_roles::static_error_contract(
+        &checked.propagation.operand.hir,
+        root(facts, 1),
+        error_route(checked)?,
+    ))
 }
 
 #[derive(serde::Serialize)]

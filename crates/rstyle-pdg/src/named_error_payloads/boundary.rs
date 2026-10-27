@@ -76,15 +76,24 @@ pub(crate) fn permits_type(text: &str, facts: &dyn EvidenceFacts) -> Result<bool
 
 /// Historical scalar permission remains independent of the reader extension.
 fn success(token: &TypeToken, facts: &dyn EvidenceFacts) -> Result<bool, String> {
+    if crate::extraction_profile::facts_support(facts, crate::widening_readers::CAPABILITY)
+        && crate::widening_readers::success_shape(token)
+    {
+        return Ok(true);
+    }
+
     if crate::id_reader_types::value(token, facts)? {
         return Ok(true);
     }
+
     if crate::id_reader_types::shape(token) {
         return crate::id_reader_types::success(token, facts);
     }
+
     if crate::reader_products::shape(token) {
         return crate::reader_products::success(token, facts);
     }
+
     Ok(
         matches!(token, TypeToken::Scalar(value) if value == "usize")
             || crate::extraction_profile::facts_support(

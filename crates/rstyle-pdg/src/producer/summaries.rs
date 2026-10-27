@@ -99,6 +99,7 @@ impl SummaryCapture<'_> {
             && !crate::data_enums::constructor_candidate(node, self.facts)
             && !crate::copy_tagged_values::body_operation(node, self.facts)
             && !crate::option_callbacks::candidate(node, self.facts)
+            && !crate::widening_readers::merge_candidate(node, self.facts)
             && !crate::id_error_maps::candidate(node, self.facts)
     }
 

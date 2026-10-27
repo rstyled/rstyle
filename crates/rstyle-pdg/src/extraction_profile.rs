@@ -167,6 +167,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.named-error-owned-transfer",
     "rust.named-error-id-reader-flow",
     "rust.usize-reader-callback-observations",
+    "rust.named-error-usize-reader-flow",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -214,6 +215,7 @@ const DATA_CALL_SUMMARIES: &[&str] = &[
     "rstyle.helper.checked-slice-length/1",
     "rstyle.helper.guarded-read-only-body/1",
     "rstyle.helper.id-reader-read-only-body/1",
+    "rstyle.helper.usize-reader-read-only-body/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -329,7 +331,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.126.0", 154)),
+            Self::DataV3 => Some(("3.127.0", 155)),
         }
     }
 

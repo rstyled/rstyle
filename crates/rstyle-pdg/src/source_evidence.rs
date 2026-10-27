@@ -5,6 +5,7 @@ mod candidates;
 pub(crate) mod trait_members;
 pub(crate) mod type_scopes;
 pub(crate) use candidates::Candidates;
+pub(crate) mod call_inventory;
 pub(crate) mod checked_activation;
 mod positions;
 pub(crate) use attributes::{has_body_attributes, literal_metadata, single_identifier_attribute};
@@ -81,13 +82,26 @@ pub(crate) fn plain_immutable_binding(node: &HirNode, reason: &str) -> Result<()
     Ok(())
 }
 
+/// Candidate detection never issues a proof; selected sources still run full verification.
+pub(crate) fn when_candidate<'a, T>(
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+    candidate: bool,
+    verify: impl FnOnce(&'a dyn crate::unit_store::EvidenceFacts) -> Result<T, String>,
+) -> Result<Option<T>, String> {
+    if !candidate {
+        return Ok(None);
+    }
+    verify(facts).map(Some)
+}
+
 /// Project only a successfully checked whole source; never a wire claim.
 pub(crate) fn source_contract<'a, T, R>(
     facts: &'a dyn crate::unit_store::EvidenceFacts,
     verify: impl FnOnce(&'a dyn crate::unit_store::EvidenceFacts) -> Result<T, String>,
     project: impl FnOnce(&T) -> Result<R, String>,
 ) -> Result<R, String> {
-    project(&verify(facts)?)
+    let checked = verify(facts)?;
+    project(&checked)
 }
 
 /// Distinguish an inapplicable source family from a failed complete proof.
@@ -1050,4 +1064,12 @@ pub(crate) fn require_exact_coverage<T, U>(
         return Err(diagnostic.into());
     }
     Ok(())
+}
+
+/// A single elided input lifetime must belong to the first reference formal.
+pub(crate) fn implicit_input_lifetime(facts: &dyn crate::unit_store::EvidenceFacts) -> bool {
+    matches!(facts.signature.generics.as_slice(), [lifetime]
+        if lifetime.name == "'_" && facts.signature.params.first().is_some_and(|parameter|
+            lifetime.span.start == parameter.ty_span.start
+            && lifetime.span.end.checked_sub(lifetime.span.start) == Some(1)))
 }

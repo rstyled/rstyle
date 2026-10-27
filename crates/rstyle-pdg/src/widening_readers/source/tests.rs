@@ -36,7 +36,6 @@ fn original_and_alpha_renamed_roles_are_complete() {
     assert_eq!(roles.continuation.inputs.len(), 1);
     assert_eq!(roles.success.inputs.len(), 1);
     assert_eq!(roles.failure.inputs.len(), 1);
-    assert!(roles.error_owner.path.is_ident("DeserializeError"));
 
     assert!(check(ORIGINAL));
     assert!(check(

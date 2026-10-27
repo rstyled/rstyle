@@ -140,7 +140,8 @@
     "std::num::TryFromIntError": "DefPathHash(Fingerprint(9963928104983068931, 3546623178798440016))",
     "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<usize> for u64>::try_from": "DefPathHash(Fingerprint(9963928104983068931, 2650062131781884674))",
     "std::convert::num::<impl std::convert::From<u16> for u64>::from": "DefPathHash(Fingerprint(9963928104983068931, 6396989100579795775))",
-    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u64> for usize>::try_from": "DefPathHash(Fingerprint(9963928104983068931, 12755631642637046129))"
+    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u64> for usize>::try_from": "DefPathHash(Fingerprint(9963928104983068931, 12755631642637046129))",
+    "std::result::Result::<T, E>::and_then": "DefPathHash(Fingerprint(9963928104983068931, 18280710277302444732))"
   },
   "alloc_macro_exports": {
     "library": {

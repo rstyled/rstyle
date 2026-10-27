@@ -112,6 +112,8 @@ fn check_method_inventory(
     for method in calls.iter().filter(|node| node.kind == "expr_method_call") {
         if crate::nonzero_digit_calls::covers_method(method, facts)? {
             // The complete consuming callback is checked as guarded value flow.
+        } else if crate::widening_readers::merge_candidate(method, facts) {
+            crate::widening_readers::verify(facts)?;
         } else if crate::id_error_maps::candidate(method, facts) {
             crate::id_error_maps::verify(method, facts)?;
         } else if crate::result_maps::candidate(method, facts) {

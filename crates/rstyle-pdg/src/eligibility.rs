@@ -175,6 +175,9 @@ pub fn classify(facts: &dyn crate::unit_store::EvidenceFacts) -> HirEligibility 
             };
         }
     };
+    if let Some(eligibility) = widening_reader(facts) {
+        return eligibility;
+    }
     let ctx = context(facts, profile);
 
     let outcome = Outcome::combine(vec![
@@ -2353,4 +2356,25 @@ fn check_enum_match(node: &HirNode, ctx: &Ctx<'_>) -> Outcome {
         }
         Err(reason) => error(crate::data_enums::CAPABILITY, "enum_match", node, &reason),
     }
+}
+
+fn widening_reader(facts: &dyn crate::unit_store::EvidenceFacts) -> Option<HirEligibility> {
+    if !crate::widening_readers::candidate(facts) {
+        return None;
+    }
+    Some(match crate::widening_readers::verify(facts) {
+        Ok(_) => HirEligibility {
+            status: EligibilityVerdict::Eligible,
+            diagnostics: Vec::new(),
+        },
+        Err(reason) => HirEligibility {
+            status: EligibilityVerdict::Ineligible,
+            diagnostics: vec![diagnostic(
+                crate::widening_readers::CAPABILITY,
+                "widening_reader",
+                &site_of(&facts.body),
+                &reason,
+            )],
+        },
+    })
 }

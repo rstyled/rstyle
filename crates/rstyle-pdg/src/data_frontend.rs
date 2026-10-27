@@ -19,6 +19,9 @@ pub fn verify(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String
 pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
     let observation =
         crate::diagnostics::Stage::new("source.data_frontend", &facts.name, None).enter();
+    if crate::widening_readers::verify_source(facts)? {
+        return observation.finish(Ok(()));
+    }
     if crate::slice_length_instances::activation::verify(facts)? {
         // The private proof covers every source/HIR/type role. Its bounded
         // dependency contract supplies conditional error components; ordinary

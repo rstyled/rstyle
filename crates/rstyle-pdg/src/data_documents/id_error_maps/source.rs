@@ -34,30 +34,28 @@ pub(crate) fn source_node<'a>(
     })())
 }
 
+const TYPES: super::super::checked_roles::TypeReplay = super::super::checked_roles::TypeReplay {
+    source: source_node,
+    expected: expected_type,
+};
+
 pub(crate) fn verify_type(node: &PdgNode, facts: &dyn EvidenceFacts) -> Option<Result<(), String>> {
-    let source = source_node(node, facts)?;
+    TYPES.verify(node, facts)
+}
 
-    Some((|| {
-        let source = source?;
-
-        let construct = node
-            .attributes
-            .construct
-            .as_deref()
-            .ok_or("Missing ID map construct")?;
-
-        for call in contract::sources(facts) {
-            let checked = contract::verify(call, facts)?;
-            let (expected, ty) = role(construct, &checked)?;
-            if expected.hir == source.hir {
-                if super::super::wire_type(node)? != ty {
-                    return Err("ID map operation changes exact complete value type".into());
-                }
-                return Ok(());
-            }
+fn expected_type(
+    facts: &dyn EvidenceFacts,
+    source: &crate::HirNode,
+    construct: &str,
+) -> Result<String, String> {
+    for call in contract::sources(facts) {
+        let checked = contract::verify(call, facts)?;
+        let (expected, ty) = role(construct, &checked)?;
+        if expected.hir == source.hir {
+            return Ok(ty);
         }
-        Err("ID map value type has no checked source role".into())
-    })())
+    }
+    Err("ID map value type has no checked source role".into())
 }
 
 fn role<'a>(

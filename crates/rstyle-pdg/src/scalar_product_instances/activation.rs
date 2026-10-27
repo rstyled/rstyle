@@ -106,8 +106,7 @@ pub(crate) fn when_checked<T>(
     facts: &dyn EvidenceFacts,
     action: impl FnOnce(Checked<'_>) -> Result<T, String>,
 ) -> Result<Option<T>, String> {
-    if !candidate(facts) {
-        return Ok(None);
-    }
-    action(verify(facts)?).map(Some)
+    crate::source_evidence::when_candidate(facts, candidate(facts), verify)?
+        .map(action)
+        .transpose()
 }

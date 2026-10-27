@@ -50,7 +50,9 @@ impl CheckedMap<'_> {
 }
 
 pub fn candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
-    if crate::id_error_maps::candidate(node, facts) {
+    if crate::widening_readers::merge_candidate(node, facts)
+        || crate::id_error_maps::candidate(node, facts)
+    {
         return false;
     }
     crate::extraction_profile::gated_node(node, facts, CAPABILITY, |node| {

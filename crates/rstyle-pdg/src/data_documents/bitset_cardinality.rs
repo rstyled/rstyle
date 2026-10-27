@@ -80,7 +80,7 @@ fn verify_call(
         if !crate::extraction_profile::policy_supports(&pair.pdg.profile, kind.capability()) {
             return Err("Lossless conversion requires its registered document policy".into());
         }
-        let summary = crate::lossless_integer_calls::resolve(source, facts)?
+        let summary = crate::call_summaries::resolve_for(source, facts)?
             .ok_or("Unverified lossless conversion")?;
         let node = super::serialized_operation(pair, &source.span, |node| {
             node.category == crate::NodeCategory::Call

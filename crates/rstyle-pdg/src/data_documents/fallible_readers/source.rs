@@ -1,5 +1,6 @@
 //! Complete ordinary reader source, original binding reads and selected dependencies.
 use super::*;
+pub(in crate::data_documents) use crate::source_evidence::implicit_input_lifetime as implicit_slice_lifetime;
 use crate::{copy_tagged_values::origins::WireContract, data_types::TypeToken};
 use syn::spanned::Spanned;
 
@@ -118,7 +119,7 @@ fn interface(facts: &dyn EvidenceFacts) -> Result<(), String> {
         || signature.is_const
         || signature.is_variadic
         || signature.abi.value.as_deref() != Some("Rust")
-        || !implicit_slice_lifetime(facts)
+        || !crate::source_evidence::implicit_input_lifetime(facts)
         || facts.body.expansion.is_some()
         || facts.body.is_unsafe_block
         || facts
@@ -137,14 +138,6 @@ fn interface(facts: &dyn EvidenceFacts) -> Result<(), String> {
     }
     crate::named_error_payloads::static_formal(facts, 1)?;
     Ok(())
-}
-
-pub(in crate::data_documents) fn implicit_slice_lifetime(facts: &dyn EvidenceFacts) -> bool {
-    matches!(facts.signature.generics.as_slice(), [lifetime]
-        if lifetime.name == "'_"
-            && facts.signature.params.first().is_some_and(|parameter|
-                lifetime.span.start == parameter.ty_span.start
-                    && lifetime.span.end.checked_sub(lifetime.span.start) == Some(1)))
 }
 
 pub(in crate::data_documents) fn formal(

@@ -94,6 +94,9 @@ pub fn resolve_for(
     if crate::size_calls::candidate(node, facts) {
         return crate::size_calls::resolve(node, facts);
     }
+    if let Some(summary) = crate::widening_readers::conversion_summary(node, facts)? {
+        return Ok(Some(summary));
+    }
     if crate::lossless_integer_calls::kind(node, facts).is_some() {
         return crate::lossless_integer_calls::resolve(node, facts);
     }
@@ -104,6 +107,13 @@ pub fn resolve_for(
         return crate::scalar_from::resolve(node, facts);
     }
 
+    resolve_data_operation(node, facts)
+}
+
+fn resolve_data_operation(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<Summary>, String> {
     if let Some(summary) = resolve(node) {
         return Ok(Some(summary.clone()));
     }
@@ -113,6 +123,7 @@ pub fn resolve_for(
     if crate::checked_slice_views::suffix::candidate(node, facts) {
         return crate::checked_slice_views::suffix::resolve(node, facts).map(Some);
     }
+
     if crate::checked_slice_views::candidate(node, facts) {
         return crate::checked_slice_views::resolve(node, facts).map(Some);
     }

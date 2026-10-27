@@ -24,6 +24,10 @@ pub(in crate::nominal_boundary::resolution) fn selection(
         TypeTree::Result { ok, err }
             if product.is_some()
                 || id_product.is_some()
+                || supports(facts, crate::widening_readers::CAPABILITY)?
+                    && crate::widening_readers::success_shape(
+                        &crate::data_types::TypeToken::from_tree(ok),
+                    )
                 || matches!(ok.as_ref(), TypeTree::Scalar(value) if value == "usize")
                 || supports(facts, crate::named_error_result_propagation::CAPABILITY)?
                     && crate::named_error_result_propagation::success(

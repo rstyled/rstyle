@@ -34,42 +34,11 @@ pub(super) fn verify(
         alternative(pair, alternatives, (outcome, value), replay)?;
     }
 
-    edges(pair, merge, [success, replay.none])
-}
-
-fn edges(pair: PairView<'_>, merge: &PdgNode, values: [&PdgNode; 2]) -> Result<(), String> {
-    let [success, none] = values;
-    let incoming: Vec<_> = pair
-        .pdg
-        .edges
-        .iter()
-        .filter(|edge| edge.target == merge.id && edge.kind == crate::EdgeFamily::Data)
-        .collect();
-    if incoming.len() != 2
-        || incoming.iter().any(|edge| {
-            edge.subkind != "value_alternative"
-                || (edge.source != success.id && edge.source != none.id)
-        })
-    {
-        return Err("Prefix merge changes its exact success/None data alternatives".into());
-    }
-    for (position, value) in values.into_iter().enumerate() {
-        if incoming
-            .iter()
-            .filter(|edge| {
-                edge.source == value.id
-                    && edge.operand_position == Some(position as u64)
-                    && edge.outcome.as_deref()
-                        == Some(if position == 0 { "arm:0" } else { "arm:1" })
-            })
-            .count()
-            != 1
-        {
-            return Err("Prefix data alternative changes its exact branch outcome".into());
-        }
-    }
-
-    Ok(())
+    crate::data_documents::checked_roles::alternative_edges(
+        pair,
+        merge,
+        [(success, "arm:0"), (replay.none, "arm:1")],
+    )
 }
 
 fn alternative(

@@ -282,7 +282,7 @@ fn check_verified_pair(function: &Value) {
     let facts = analysis.function(index).unwrap();
     let pair = shared_evidence::pair(&store, function);
     assert_eq!(facts.build.overflow_checks.value, Some(true));
-    assert_eq!(pair.pdg.profile.version, "3.126.0");
+    assert_eq!(pair.pdg.profile.version, "3.127.0");
     rstyle_pdg::verification_policy::strict(|| {
         rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts)
     })

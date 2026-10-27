@@ -22,9 +22,24 @@ pub(crate) fn deferred_call(facts: &HirFnFacts, call: &HirNode) -> Result<(), St
 /// Exact deferred finding coverage, independent of the producer's source-scan
 /// completeness flag. Callers separately prove their complete bounded source.
 pub(crate) fn exact_deferred_call(facts: &HirFnFacts, call: &HirNode) -> Result<(), String> {
-    let [finding] = facts.source_diagnostics.as_slice() else {
+    exact_deferred_calls(facts, &[call])
+}
+
+/// Whole families enumerate every deferred source call; none may be omitted.
+pub(crate) fn exact_deferred_calls(facts: &HirFnFacts, calls: &[&HirNode]) -> Result<(), String> {
+    if facts.source_diagnostics.len() != calls.len() {
         return Err("Checked instance requires its exact deferred call finding roster".into());
-    };
+    }
+    for (finding, call) in facts.source_diagnostics.iter().zip(calls) {
+        deferred_finding(finding, call)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn deferred_finding(
+    finding: &crate::HirDiagnostic,
+    call: &HirNode,
+) -> Result<(), String> {
     if finding.capability != "rust.call-summaries"
         || finding.construct != "expr_method_call"
         || finding.span != call.span

@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.125.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.127.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -5617,3 +5617,14 @@ remain default210/2,582 and no-default148/590, zero gains/losses; frozen60 and
 earlier profiles are unchanged. Next deliver the complete u32 wrapper's guarded
 flow, component origins, error-discard proof and callable summary.
 [Contract](eval/coverage-development/wire-usize-readers/README.md).
+
+Data3.127 connects the complete original `try_read_u32_as_usize` through scoped
+`and_then`→conversion→`map`→`map_err`, saved component/capture origins, bounds,
+error ownership and guarded completion. Default210→211/2,582 and
+no-default148→149/590: exactly that wrapper, zero losses. Strict retained replay
+and all33,181 selected cross pairs pass; earlier pair results and frozen60 remain
+unchanged. Whole-result callers still need tagged error-output containment; the
+u16 chain separately needs checked-reader width and blanket/Infallible proof.
+General callbacks, moves/drop and generic dispatch remain open.
+[Contract](eval/coverage-development/wire-usize-readers/README.md) and
+[validation/frontier](docs/rust-support-execution.md).

@@ -58,7 +58,13 @@ pub(crate) fn site<'a>(
     if occurrences(inventory, node, &mut budget)? != 1 {
         return Err("Scoped lossless call collides with another root or callback record".into());
     }
-    let outer = unique(children(inventory)?, chain[0])?;
+    let outer = unique(
+        crate::source_evidence::call_inventory::callbacks(
+            inventory,
+            "Invalid scoped callback roster",
+        )?,
+        chain[0],
+    )?;
     let mut walk = Walk {
         budget,
         retained: BTreeMap::new(),
@@ -72,21 +78,38 @@ pub(crate) fn site<'a>(
         None,
     )?;
 
-    let mut callbacks = children(inventory)?;
-    let mut selected = None;
-    for closure in chain {
-        if walk.retained.get(&hir_key(&closure.hir)).copied() != Some(*closure) {
-            return Err("Explicit callback chain differs from the retained owned HIR".into());
-        }
-        let record = unique(callbacks, closure)?;
-        selected = Some(record);
-        callbacks = children(record)?;
-    }
-
-    let scope = selected.ok_or("Missing lossless callback scope")?;
+    let scope = walk.selected_scope(inventory, chain)?;
     let call = unique(calls(scope)?, node)?;
     selected_call(call, node)?;
     Ok(call)
+}
+
+impl Walk<'_> {
+    fn selected_scope<'record>(
+        &self,
+        inventory: &'record Value,
+        chain: &[&HirNode],
+    ) -> Result<&'record Value, String> {
+        let mut callbacks = crate::source_evidence::call_inventory::callbacks(
+            inventory,
+            "Invalid scoped callback roster",
+        )?;
+        let mut selected = None;
+
+        for closure in chain {
+            if self.retained.get(&hir_key(&closure.hir)).copied() != Some(*closure) {
+                return Err("Explicit callback chain differs from the retained owned HIR".into());
+            }
+            let record = unique(callbacks, closure)?;
+            selected = Some(record);
+            callbacks = crate::source_evidence::call_inventory::callbacks(
+                record,
+                "Invalid scoped callback roster",
+            )?;
+        }
+
+        selected.ok_or_else(|| "Missing lossless callback scope".into())
+    }
 }
 
 impl<'a> Walk<'a> {
@@ -106,7 +129,8 @@ impl<'a> Walk<'a> {
             || closure.expansion.is_some()
             || record["scope"] != SCOPE
             || record["complete"] != true
-            || reference(&record["body"])? != body.hir
+            || crate::source_evidence::call_inventory::decode::<HirRef>(&record["body"])?
+                != body.hir
             || environment.body != body.hir
             || environment.definition_identity.is_empty()
             || definition.definition_identity != environment.definition_identity
@@ -149,6 +173,7 @@ fn environment(closure: &HirNode) -> Result<Environment, String> {
     }
     let environment: Environment =
         serde_json::from_str(&resolution.description).map_err(|error| error.to_string())?;
+
     if environment.identity != IDENTITY
         || environment.closure != closure.hir
         || environment.signature_abi != "RustCall"
@@ -162,7 +187,8 @@ fn parent_join(record: &Value, closure: &HirNode, parent: Option<&HirNode>) -> R
     match parent {
         Some(parent) => {
             let parent_environment = environment(parent)?;
-            if reference(&record["parent_callback"])? != parent.hir
+            if crate::source_evidence::call_inventory::decode::<HirRef>(&record["parent_callback"])?
+                != parent.hir
                 || closure.hir.owner != parent_environment.body.owner
                 || !contains(parent.span, closure.span)
             {
@@ -230,8 +256,9 @@ fn scope_calls(record: &Value, body: &HirNode, nodes: &[&HirNode]) -> Result<(),
     let index = OwnedCalls::new(nodes);
     let mut seen_hir = BTreeSet::new();
     let mut seen_span = BTreeSet::new();
+
     for call in calls(record)? {
-        let hir = reference(&call["hir"])?;
+        let hir = crate::source_evidence::call_inventory::decode(&call["hir"])?;
         let span: ByteSpan =
             serde_json::from_value(call["span"].clone()).map_err(|error| error.to_string())?;
         if !index.exact(&hir, span)
@@ -265,10 +292,14 @@ impl<'a> Walk<'a> {
             .copied()
             .filter(|node| node.kind == "expr_closure")
             .collect();
-        let records = children(record)?;
+        let records = crate::source_evidence::call_inventory::callbacks(
+            record,
+            "Invalid scoped callback roster",
+        )?;
         if records.len() != nested.len() {
             return Err("Callback child roster omits or invents an owned nested closure".into());
         }
+
         for child in nested {
             let selected = unique(records, child)?;
             if selected["definition"]["crate"] != record["definition"]["crate"]
@@ -321,12 +352,14 @@ fn owned_nodes<'a>(body: &'a HirNode, budget: &mut Budget) -> Result<Vec<&'a Hir
 }
 
 fn unique<'a>(records: &'a [Value], node: &HirNode) -> Result<&'a Value, String> {
-    let mut matching = records.iter().filter(|record| collision(record, node));
+    let mut matching = records
+        .iter()
+        .filter(|record| crate::source_evidence::call_inventory::Site::read(record).collides(node));
     let selected = matching
         .next()
         .ok_or("Missing exact scoped lossless source site")?;
     if matching.next().is_some()
-        || reference(&selected["hir"])? != node.hir
+        || crate::source_evidence::call_inventory::decode::<HirRef>(&selected["hir"])? != node.hir
         || serde_json::from_value::<ByteSpan>(selected["span"].clone())
             .map_err(|error| error.to_string())?
             != node.span
@@ -355,7 +388,10 @@ fn occurrences(inventory: &Value, node: &HirNode, budget: &mut Budget) -> Result
     while let Some((record, depth)) = pending.pop() {
         budget.visit(depth, crate::concrete_types::MAX_DEPTH + 1)?;
         let calls = calls(record)?;
-        let children = children(record)?;
+        let children = crate::source_evidence::call_inventory::callbacks(
+            record,
+            "Invalid scoped callback roster",
+        )?;
         if calls
             .len()
             .saturating_add(children.len())
@@ -364,21 +400,25 @@ fn occurrences(inventory: &Value, node: &HirNode, budget: &mut Budget) -> Result
         {
             return Err("Scoped lossless inventory roster exceeds its node budget".into());
         }
-        for call in calls {
-            budget.visit(depth, crate::concrete_types::MAX_DEPTH + 1)?;
-            count += usize::from(collision(call, node));
-        }
+        count += call_occurrences(calls, node, budget, depth)?;
         pending.extend(children.iter().map(|child| (child, depth + 1)));
     }
     Ok(count)
 }
 
-fn collision(record: &Value, node: &HirNode) -> bool {
-    serde_json::from_value::<HirRef>(record["hir"].clone())
-        .ok()
-        .as_ref()
-        == Some(&node.hir)
-        || serde_json::from_value::<ByteSpan>(record["span"].clone()).ok() == Some(node.span)
+fn call_occurrences(
+    calls: &[Value],
+    node: &HirNode,
+    budget: &mut Budget,
+    depth: usize,
+) -> Result<usize, String> {
+    let mut count = 0;
+    for call in calls {
+        budget.visit(depth, crate::concrete_types::MAX_DEPTH + 1)?;
+        count +=
+            usize::from(crate::source_evidence::call_inventory::Site::read(call).collides(node));
+    }
+    Ok(count)
 }
 
 fn calls(record: &Value) -> Result<&[Value], String> {
@@ -386,20 +426,6 @@ fn calls(record: &Value) -> Result<&[Value], String> {
         .as_array()
         .map(Vec::as_slice)
         .ok_or_else(|| "Missing scoped call roster".into())
-}
-
-fn children(record: &Value) -> Result<&[Value], String> {
-    match record.get("callbacks") {
-        None => Ok(&[]),
-        Some(value) => value
-            .as_array()
-            .map(Vec::as_slice)
-            .ok_or_else(|| "Invalid scoped callback roster".into()),
-    }
-}
-
-fn reference(value: &Value) -> Result<HirRef, String> {
-    serde_json::from_value(value.clone()).map_err(|error| error.to_string())
 }
 
 fn contains(outer: ByteSpan, inner: ByteSpan) -> bool {

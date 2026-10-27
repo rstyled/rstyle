@@ -2,7 +2,9 @@
 //! This contract gives no permission to construct, discard or unwrap other errors.
 mod authority;
 pub(crate) mod message;
+mod scoped_u32;
 mod selection;
+pub(crate) use scoped_u32::verify as verify_scoped_u32_conversion;
 mod source;
 mod types;
 

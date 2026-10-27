@@ -112,7 +112,8 @@ pub(super) fn verify(
 
     let arguments = substitutions(outer)?;
 
-    let product: Definition = decode(&arguments[0]["identity"]["definition"])?;
+    let product: Definition =
+        crate::source_evidence::call_inventory::decode(&arguments[0]["identity"]["definition"])?;
 
     if !product.local
         || product.path != input.nominal.definition_path
@@ -184,7 +185,8 @@ fn member(
 ) -> Result<parsed_item_callbacks::Checked, String> {
     let nonzero = &calls.nested["selected_arguments"][2]["identity"];
 
-    let member: Definition = decode(&calls.nested["selected"])?;
+    let member: Definition =
+        crate::source_evidence::call_inventory::decode(&calls.nested["selected"])?;
 
     if member.path != format!("{}::<'a, T>::flat_map", product.path) {
         return Err("Callback selects another original product member".into());
@@ -195,19 +197,17 @@ fn member(
     let context = parsed_item_callbacks::Context {
         member: &member,
         product,
-        option: &decode(&constructor["signature"]["output"]["definition"])?,
-        nonzero: &decode(&nonzero["definition"])?,
-        constructor: &decode(&constructor["definition"])?,
+        option: &crate::source_evidence::call_inventory::decode(
+            &constructor["signature"]["output"]["definition"],
+        )?,
+        nonzero: &crate::source_evidence::call_inventory::decode(&nonzero["definition"])?,
+        constructor: &crate::source_evidence::call_inventory::decode(&constructor["definition"])?,
     };
 
     let receipt = parsed_item_callbacks::verify_in(facts, calls.nested, &context)?;
     member_origin(facts, &member, output)?;
 
     Ok(receipt)
-}
-
-fn decode<T: serde::de::DeserializeOwned>(value: &Value) -> Result<T, String> {
-    serde_json::from_value(value.clone()).map_err(|error| error.to_string())
 }
 
 fn unique<'a>(calls: &'a Value, node: &HirNode) -> Result<&'a Value, String> {
@@ -366,9 +366,10 @@ fn closure(
 ) -> Result<(), String> {
     let input = &endpoints.input;
 
-    let definition: Definition = decode(&scoped["definition"])?;
+    let definition: Definition =
+        crate::source_evidence::call_inventory::decode(&scoped["definition"])?;
 
-    let product: Definition = decode(&input["definition"])?;
+    let product: Definition = crate::source_evidence::call_inventory::decode(&input["definition"])?;
 
     if !definition.local
         || definition.crate_name != product.crate_name

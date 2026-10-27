@@ -160,11 +160,15 @@ fn validate_scalar_shape(summary: &super::Summary) -> Result<&WireContract, Stri
 pub(crate) fn owned_transfer(
     facts: &dyn EvidenceFacts,
 ) -> Result<Option<crate::named_error_payloads::owned::Transfer>, String> {
-    if !crate::named_error_payloads::owned::candidate(facts) {
-        return Ok(None);
-    }
-    crate::named_error_payloads::verify_function(facts)?;
-    crate::named_error_payloads::owned::checked(facts)
+    crate::source_evidence::when_candidate(
+        facts,
+        crate::named_error_payloads::owned::candidate(facts),
+        |facts| {
+            crate::named_error_payloads::verify_function(facts)?;
+            crate::named_error_payloads::owned::checked(facts)
+        },
+    )
+    .map(Option::flatten)
 }
 
 fn validate_owned_shape(summary: &super::Summary) -> Result<&WireContract, String> {

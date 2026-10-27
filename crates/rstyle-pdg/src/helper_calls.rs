@@ -19,6 +19,7 @@ pub(crate) mod tagged_conversions;
 pub(crate) mod tagged_resolution;
 pub(crate) mod transport;
 mod transport_lexical;
+pub(crate) mod widening_readers;
 
 pub const KEY: &str = "verified_helper";
 pub(crate) const MAX_DEPTH: usize = 8;
@@ -97,6 +98,9 @@ fn summary(
     boundary: Boundary,
 ) -> Result<Summary, String> {
     match boundary.tagged_output {
+        Some(output) if widening_readers::candidate(facts) => {
+            widening_readers::summary(facts, pair, output)
+        }
         Some(output) if id_readers::candidate(facts) => id_readers::summary(facts, pair, output),
         Some(output) if guarded_effects::candidate(facts) => {
             guarded_effects::summary(facts, pair, output)
@@ -234,7 +238,10 @@ fn local_resolution(callee: &HirFnFacts) -> Option<Value> {
 
 /// Guarded named-error results require their complete family-specific source proof.
 pub(crate) fn guarded_error_supported(facts: &dyn EvidenceFacts) -> Result<bool, String> {
-    if id_readers::supported(facts)? || guarded_effects::supported(facts)? {
+    if widening_readers::supported(facts)?
+        || id_readers::supported(facts)?
+        || guarded_effects::supported(facts)?
+    {
         return Ok(true);
     }
     if slice_lengths::candidate(facts) {
@@ -526,7 +533,8 @@ fn verify_shared(
     helper: &crate::unit_store::HelperView<'_>,
 ) -> Result<(), String> {
     let callee = helper.frontend();
-    let selected = id_readers::verify_dependency(node, caller, &callee, helper.summary())?
+    let selected = widening_readers::verify_dependency(node, caller, &callee, helper.summary())?
+        || id_readers::verify_dependency(node, caller, &callee, helper.summary())?
         || guarded_effects::verify_dependency(node, caller, &callee, helper.summary())?
         || slice_lengths::verify_dependency(node, caller, &callee, helper.summary())?
         || named_errors::verify_dependency(node, caller, &callee, helper.summary())?
@@ -577,7 +585,9 @@ fn check_boundary(
     pair: &producer::Pair,
     facts: &dyn EvidenceFacts,
 ) -> Result<Boundary, Vec<String>> {
-    if let Some(output) = if id_readers::candidate(facts) {
+    if let Some(output) = if widening_readers::candidate(facts) {
+        widening_readers::derive(facts, pair.as_view())
+    } else if id_readers::candidate(facts) {
         id_readers::derive(facts, pair.as_view())
     } else {
         guarded_effects::derive(facts, pair.as_view())
@@ -703,7 +713,10 @@ fn verify_dependency(node: &HirNode, caller: &HirFnFacts) -> Result<Dependency, 
         .map_err(|_| "Missing or invalid verified callee dependency")?;
     if matches!(
         dependency.summary.identity.as_str(),
-        slice_lengths::SUMMARY | guarded_effects::SUMMARY | id_readers::SUMMARY
+        slice_lengths::SUMMARY
+            | guarded_effects::SUMMARY
+            | id_readers::SUMMARY
+            | widening_readers::SUMMARY
     ) {
         return Err(
             "Checked slice-length summary requires its retained original-owner instance".into(),

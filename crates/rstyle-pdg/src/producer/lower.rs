@@ -27,6 +27,7 @@ mod result_propagation;
 mod scalar_result_propagation;
 mod scalar_tuple_bindings;
 mod slice_prefix_patterns;
+mod widening_readers;
 
 use super::graph::*;
 use crate::{NodeCategory, frontend::*};
@@ -775,7 +776,9 @@ impl Builder<'_> {
 
     fn invocation(&mut self, node: &HirNode, flow: Flow) -> Flow {
         let lower: fn(&mut Self, &HirNode, Flow) -> Flow =
-            if crate::id_error_maps::candidate(node, self.facts) {
+            if crate::widening_readers::node_candidate(node, self.facts) {
+                Self::widening_reader
+            } else if crate::id_error_maps::candidate(node, self.facts) {
                 Self::id_error_map
             } else if crate::result_maps::candidate(node, self.facts) {
                 Self::result_map
@@ -1196,7 +1199,9 @@ impl Builder<'_> {
     }
 
     fn merge_construct(&self, node: &HirNode) -> Option<String> {
-        if crate::id_error_maps::candidate(node, self.facts) {
+        if crate::widening_readers::merge_candidate(node, self.facts) {
+            Some(crate::widening_readers::RESULT.into())
+        } else if crate::id_error_maps::candidate(node, self.facts) {
             Some(crate::id_error_maps::RESULT.into())
         } else if crate::result_maps::candidate(node, self.facts) {
             Some(crate::result_maps::RESULT.into())
@@ -1226,7 +1231,8 @@ impl Builder<'_> {
             construct: self.merge_construct(node),
             ..template(node, NodeCategory::Merge)
         };
-        if !crate::id_error_maps::candidate(node, self.facts)
+        if !crate::widening_readers::merge_candidate(node, self.facts)
+            && !crate::id_error_maps::candidate(node, self.facts)
             && crate::result_maps::candidate(node, self.facts)
         {
             merge.role = crate::result_maps::verify(node, self.facts)

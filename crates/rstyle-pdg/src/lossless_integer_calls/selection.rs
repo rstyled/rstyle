@@ -3,9 +3,9 @@ use super::*;
 use crate::data_library::Registry;
 use serde_json::Value;
 
-// Pending complete reader source/HIR activation; scoped receipts grant no production authority.
-#[cfg(test)]
+// Callback authority is consumed only by the complete widening-reader proof.
 mod scoped;
+pub(super) use scoped::site as scoped_site;
 
 pub(super) fn verify(
     node: &HirNode,

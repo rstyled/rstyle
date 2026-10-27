@@ -1936,3 +1936,34 @@ milestone: whole source/HIR and expected call roster → selected conversion and
 error-discard authority → guarded graph/component origins → callable summary →
 strict replay/matching. The u16 blanket/uninhabited-error chain remains separate.
 Broad goal remains active.
+
+Integration459, Data3.127/155: complete original u32 widening-reader activation
+lands whole source/HIR and scoped callback selections, guarded saved components,
+Copy/no-drop conversion-error discard, independent graph entry/return anchors,
+read/panic effects and tagged callable summary. Default211/2,582 and
+no-default149/590: one gain each, zero losses; prior admitted records unchanged.
+Strict selections211/149 each pass two imports and score1 replay; complete
+22,155/11,026 cross pairs preserve all prior results. Frozen run preserves all60
+identities/outcomes/blockers/denominators (24/29/7) and earlier profiles.
+All2,305 tests/5 existing skips plus doctests pass; fmt/Clippy clean;
+rstyle0/8,098; patterns0/15 unchanged ignores; no new runtime SHA256/cache keys.
+Independent native oracle984,536 cases/zero mismatches. Expanded focused tests
+execute in about13s after batching raw adversaries and reusing projected evidence;
+this is not an equal-work speedup claim. Capture default250.33s/1,856,148KiB,
+no-default34.80s/425,072KiB; strict256.10s/6,467,336KiB and
+49.57s/1,449,040KiB are single observations. Evidence:
+`/tmp/rstyle-459-{natural,strict,frozen}-comparison.json`,
+`/tmp/rstyle-459-oracle.json`, `/tmp/rstyle-459-final-*.log`.
+
+Next connected frontier: (error lane) u16 checked-reader width plus exact blanket
+TryFrom→Into→From and uninhabited-error authority; (callable lane) retain guarded
+error components and callee scope across multiargument Result boundaries before
+claiming forwarding or `?` callers; (resolution lane) prove those concrete blanket
+selections without a general fallback; (memory lane) the previously audited
+Special::from_bytes cursor/count storage, FnMut updates and validation chain
+remains unready. The u32 summary is published, but ordinary reference-output
+mapping cannot represent its tagged error payload: the forwarding control stays
+excluded. Source-audit complete natural consumers before choosing a propagation
+activation; many existing consumers also require unsafe/aggregate parser work.
+Native macOS/x86 CI remains pending. Broad goal stays active; no general
+move/drop, detector-quality or rewrite-safety claim.
