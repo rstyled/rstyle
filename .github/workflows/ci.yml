@@ -68,6 +68,8 @@ jobs:
           if-no-files-found: ignore
 
       # Dog-food: rstyle on its own workspace. Exit 1 = violations, 2 = tool error.
+      # Keep this full-workspace check here; CLI tests use small fixtures to avoid
+      # repeating workspace extraction and competing for Cargo's build lock.
       - name: rstyle self-check
         run: |
           ./scripts/style.sh --format json > rstyle-report.json || status=$?

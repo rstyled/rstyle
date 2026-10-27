@@ -304,18 +304,6 @@ fn bad_config_exits_two() {
 }
 
 #[test]
-fn this_workspace_passes_its_own_rules() {
-    let output = rstyle(&workspace_root(), &[]);
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "{}{}",
-        stdout(&output),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-#[test]
 fn unknown_package_exits_two() {
     let dir = fixture("clean");
     let output = rstyle(dir.path(), &["-p", "nope"]);
