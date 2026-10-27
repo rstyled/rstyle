@@ -35,6 +35,7 @@ fn share_entry(
                 value,
                 nulls: record.nulls,
                 json: record.json,
+                encoded_len: record.encoded_len,
             }))
         }
         (entry, _) => Ok(entry),

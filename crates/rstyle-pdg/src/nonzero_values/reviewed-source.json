@@ -1,0 +1,6 @@
+[
+  "pub impl(self) unsafe trait ZeroablePrimitive: Sized + Copy {\n    /// A type like `Self` but with a niche that includes zero.\n    type NonZeroInner: Sized + Copy;\n}\n",
+  "pub struct NonZero<T: ZeroablePrimitive>(T::NonZeroInner);",
+  "impl<T> Copy for NonZero<T> where T: ZeroablePrimitive {}",
+  "    pub const fn new(n: T) -> Option<Self> {\n        // SAFETY: Memory layout optimization guarantees that `Option<NonZero<T>>` has\n        //         the same layout and size as `T`, with `0` representing `None`.\n        unsafe { intrinsics::transmute_unchecked(n) }\n    }\n"
+]

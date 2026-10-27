@@ -1,0 +1,934 @@
+{
+  "argument": "Span",
+  "status": "observed",
+  "arguments": [
+    {
+      "kind": "type",
+      "value": "util::search::Span",
+      "display_only": true,
+      "identity_status": "known",
+      "identity": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Span",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      }
+    }
+  ],
+  "owners": [
+    {
+      "definition": {
+        "path": "util::search::Match",
+        "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 1676694589607309877))",
+        "crate": "regex_automata",
+        "stable_crate_id": "StableCrateId(3110190647891633628)",
+        "local": true
+      },
+      "parent": null,
+      "declaration": {
+        "source_file": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18/src/util/search.rs",
+        "span": {
+          "start": 36347,
+          "end": 36357
+        }
+      },
+      "parameters": [],
+      "source_predicates": [],
+      "clauses": []
+    },
+    {
+      "definition": {
+        "path": "util::search::Match::new",
+        "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 5758518013418410014))",
+        "crate": "regex_automata",
+        "stable_crate_id": "StableCrateId(3110190647891633628)",
+        "local": true
+      },
+      "parent": {
+        "path": "util::search::Match",
+        "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 1676694589607309877))",
+        "crate": "regex_automata",
+        "stable_crate_id": "StableCrateId(3110190647891633628)",
+        "local": true
+      },
+      "declaration": {
+        "source_file": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18/src/util/search.rs",
+        "span": {
+          "start": 37092,
+          "end": 37155
+        }
+      },
+      "parameters": [
+        {
+          "definition": {
+            "path": "util::search::Match::new::S",
+            "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 10624351409738262903))",
+            "crate": "regex_automata",
+            "stable_crate_id": "StableCrateId(3110190647891633628)",
+            "local": true
+          },
+          "index": 0,
+          "name": "S",
+          "declaration": {
+            "source_file": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18/src/util/search.rs",
+            "span": {
+              "start": 37103,
+              "end": 37104
+            }
+          },
+          "name_anchor": {
+            "source_file": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18/src/util/search.rs",
+            "span": {
+              "start": 37103,
+              "end": 37104
+            }
+          }
+        }
+      ],
+      "source_predicates": [
+        {
+          "source_file": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18/src/util/search.rs",
+          "span": {
+            "start": 37104,
+            "end": 37116
+          }
+        }
+      ],
+      "clauses": [
+        {
+          "anchor": {
+            "source_file": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18/src/util/search.rs",
+            "span": {
+              "start": 37103,
+              "end": 37104
+            }
+          },
+          "trait_definition": {
+            "path": "core::marker::Sized",
+            "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 8711262497952198464))",
+            "crate": "core",
+            "stable_crate_id": "StableCrateId(5614226571623188065)",
+            "local": false,
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+          },
+          "positive": true,
+          "original_arguments": [
+            {
+              "kind": "parameter",
+              "index": 0,
+              "name": "S"
+            }
+          ],
+          "substituted_arguments": [
+            {
+              "kind": "type",
+              "value": "util::search::Span",
+              "display_only": true,
+              "identity_status": "known",
+              "identity": {
+                "kind": "adt",
+                "definition": {
+                  "path": "util::search::Span",
+                  "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+                  "crate": "regex_automata",
+                  "stable_crate_id": "StableCrateId(3110190647891633628)",
+                  "local": true
+                },
+                "arguments": []
+              }
+            }
+          ]
+        },
+        {
+          "anchor": {
+            "source_file": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18/src/util/search.rs",
+            "span": {
+              "start": 37106,
+              "end": 37116
+            }
+          },
+          "trait_definition": {
+            "path": "core::convert::Into",
+            "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 8456630946339444921))",
+            "crate": "core",
+            "stable_crate_id": "StableCrateId(5614226571623188065)",
+            "local": false,
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8"
+          },
+          "positive": true,
+          "original_arguments": [
+            {
+              "kind": "parameter",
+              "index": 0,
+              "name": "S"
+            },
+            {
+              "kind": "adt",
+              "definition": {
+                "path": "util::search::Span",
+                "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+                "crate": "regex_automata",
+                "stable_crate_id": "StableCrateId(3110190647891633628)",
+                "local": true
+              },
+              "arguments": []
+            }
+          ],
+          "substituted_arguments": [
+            {
+              "kind": "type",
+              "value": "util::search::Span",
+              "display_only": true,
+              "identity_status": "known",
+              "identity": {
+                "kind": "adt",
+                "definition": {
+                  "path": "util::search::Span",
+                  "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+                  "crate": "regex_automata",
+                  "stable_crate_id": "StableCrateId(3110190647891633628)",
+                  "local": true
+                },
+                "arguments": []
+              }
+            },
+            {
+              "kind": "type",
+              "value": "util::search::Span",
+              "display_only": true,
+              "identity_status": "known",
+              "identity": {
+                "kind": "adt",
+                "definition": {
+                  "path": "util::search::Span",
+                  "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+                  "crate": "regex_automata",
+                  "stable_crate_id": "StableCrateId(3110190647891633628)",
+                  "local": true
+                },
+                "arguments": []
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "original_signature": {
+    "inputs": [
+      {
+        "kind": "adt",
+        "definition": {
+          "path": "util::primitives::PatternID",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 12589477433152555618))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      {
+        "kind": "parameter",
+        "index": 0,
+        "name": "S"
+      }
+    ],
+    "output": {
+      "kind": "adt",
+      "definition": {
+        "path": "util::search::Match",
+        "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 7654566656323584444))",
+        "crate": "regex_automata",
+        "stable_crate_id": "StableCrateId(3110190647891633628)",
+        "local": true
+      },
+      "arguments": []
+    }
+  },
+  "projected_inputs": [
+    [
+      {
+        "kind": "type",
+        "value": "util::primitives::PatternID",
+        "display_only": true,
+        "identity_status": "known",
+        "identity": {
+          "kind": "adt",
+          "definition": {
+            "path": "util::primitives::PatternID",
+            "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 12589477433152555618))",
+            "crate": "regex_automata",
+            "stable_crate_id": "StableCrateId(3110190647891633628)",
+            "local": true
+          },
+          "arguments": []
+        }
+      }
+    ],
+    [
+      {
+        "kind": "type",
+        "value": "util::search::Span",
+        "display_only": true,
+        "identity_status": "known",
+        "identity": {
+          "kind": "adt",
+          "definition": {
+            "path": "util::search::Span",
+            "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+            "crate": "regex_automata",
+            "stable_crate_id": "StableCrateId(3110190647891633628)",
+            "local": true
+          },
+          "arguments": []
+        }
+      }
+    ]
+  ],
+  "projected_result": [
+    {
+      "kind": "type",
+      "value": "util::search::Match",
+      "display_only": true,
+      "identity_status": "known",
+      "identity": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Match",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 7654566656323584444))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 2
+      },
+      "span": {
+        "start": 26,
+        "end": 33
+      },
+      "original_kind": "pat_binding",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::primitives::PatternID",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 12589477433152555618))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::primitives::PatternID",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::primitives::PatternID",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 12589477433152555618))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 4
+      },
+      "span": {
+        "start": 46,
+        "end": 50
+      },
+      "original_kind": "pat_binding",
+      "kind": "value",
+      "original": {
+        "kind": "parameter",
+        "index": 0,
+        "name": "S"
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 49
+      },
+      "span": {
+        "start": 64,
+        "end": 204
+      },
+      "original_kind": "expr_block",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Match",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 7654566656323584444))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Match",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Match",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 7654566656323584444))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 14
+      },
+      "span": {
+        "start": 78,
+        "end": 82
+      },
+      "original_kind": "pat_binding",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Span",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 7
+      },
+      "span": {
+        "start": 84,
+        "end": 88
+      },
+      "original_kind": "ty_annotation",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Span",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 9
+      },
+      "span": {
+        "start": 91,
+        "end": 102
+      },
+      "original_kind": "expr_method_call",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Span",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 11
+      },
+      "span": {
+        "start": 91,
+        "end": 95
+      },
+      "original_kind": "expr_path",
+      "kind": "value",
+      "original": {
+        "kind": "parameter",
+        "index": 0,
+        "name": "S"
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 15
+      },
+      "span": {
+        "start": 112,
+        "end": 165
+      },
+      "original_kind": "expr_assert",
+      "kind": "value",
+      "original": {
+        "kind": "tuple",
+        "elements": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "()",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "tuple",
+            "elements": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 17
+      },
+      "span": {
+        "start": 120,
+        "end": 142
+      },
+      "original_kind": "expr_binary",
+      "kind": "value",
+      "original": {
+        "kind": "builtin",
+        "name": "bool"
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "bool",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "builtin",
+            "name": "bool"
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 18
+      },
+      "span": {
+        "start": 120,
+        "end": 130
+      },
+      "original_kind": "expr_field",
+      "kind": "value",
+      "original": {
+        "kind": "builtin",
+        "name": "usize"
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "usize",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "builtin",
+            "name": "usize"
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 19
+      },
+      "span": {
+        "start": 120,
+        "end": 124
+      },
+      "original_kind": "expr_path",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Span",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 21
+      },
+      "span": {
+        "start": 134,
+        "end": 142
+      },
+      "original_kind": "expr_field",
+      "kind": "value",
+      "original": {
+        "kind": "builtin",
+        "name": "usize"
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "usize",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "builtin",
+            "name": "usize"
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 22
+      },
+      "span": {
+        "start": 134,
+        "end": 138
+      },
+      "original_kind": "expr_path",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Span",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 41
+      },
+      "span": {
+        "start": 175,
+        "end": 198
+      },
+      "original_kind": "expr_struct",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Match",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 7654566656323584444))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Match",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Match",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 7654566656323584444))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 44
+      },
+      "span": {
+        "start": 183,
+        "end": 190
+      },
+      "original_kind": "expr_path",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::primitives::PatternID",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 12589477433152555618))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::primitives::PatternID",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::primitives::PatternID",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 12589477433152555618))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "hir": {
+        "krate": 0,
+        "owner": 843,
+        "local": 47
+      },
+      "span": {
+        "start": 192,
+        "end": 196
+      },
+      "original_kind": "expr_path",
+      "kind": "value",
+      "original": {
+        "kind": "adt",
+        "definition": {
+          "path": "util::search::Span",
+          "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+          "crate": "regex_automata",
+          "stable_crate_id": "StableCrateId(3110190647891633628)",
+          "local": true
+        },
+        "arguments": []
+      },
+      "projected": [
+        {
+          "kind": "type",
+          "value": "util::search::Span",
+          "display_only": true,
+          "identity_status": "known",
+          "identity": {
+            "kind": "adt",
+            "definition": {
+              "path": "util::search::Span",
+              "definition_identity": "DefPathHash(Fingerprint(3110190647891633628, 9254614064682588887))",
+              "crate": "regex_automata",
+              "stable_crate_id": "StableCrateId(3110190647891633628)",
+              "local": true
+            },
+            "arguments": []
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 //! Typed ownership for repeated data evidence, retaining the open JSON boundary.
 pub(crate) mod bundle;
+mod inherent_units;
 mod source_ranges;
 use crate::{concrete_types::InterfaceObservations, field_locations::FieldObservations};
 use serde::{Deserialize, Serialize};
@@ -23,8 +24,12 @@ enum Entry {
     Invalid { value: Value, error: String },
     Interface(Record<InterfaceObservations>),
     Fields(Record<FieldObservations>),
+    Receivers(Record<crate::data_receivers::Capture>),
     Origins(Record<crate::declaration_origins::Origins>),
+    InherentUnits(inherent_units::Inventory),
     Census(Record<Arc<crate::nominal_boundary::census::Census>>),
+    GeneratedSources(Record<Arc<crate::generated_sources::capture::UnitCapture>>),
+    DependencyNamespaces(Record<Arc<crate::dependency_namespaces::capture::UnitCapture>>),
 }
 
 #[derive(Clone, Debug)]
@@ -33,6 +38,7 @@ struct Record<T> {
     // Optional null nominal identities must retain their original wire presence.
     nulls: Vec<String>,
     json: OnceLock<Value>,
+    encoded_len: OnceLock<usize>,
 }
 
 impl<T: Serialize> Record<T> {
@@ -41,7 +47,17 @@ impl<T: Serialize> Record<T> {
             value,
             nulls,
             json: OnceLock::new(),
+            encoded_len: OnceLock::new(),
         }
+    }
+
+    fn encoded_len(&self) -> Result<usize, String> {
+        if let Some(bytes) = self.encoded_len.get() {
+            return Ok(*bytes);
+        }
+        let bytes = crate::evidence_budget::serialized_len(&self.value)
+            .map_err(|error| error.to_string())?;
+        Ok(*self.encoded_len.get_or_init(|| bytes))
     }
 
     fn render(&self) -> Value {
@@ -68,10 +84,18 @@ impl<T: Serialize> Record<T> {
 impl Entry {
     fn new(key: &str, json: Value) -> Self {
         match key {
+            crate::generated_sources::capture::KEY => Self::decode(json, Self::GeneratedSources),
+            crate::dependency_namespaces::capture::KEY => {
+                Self::decode(json, Self::DependencyNamespaces)
+            }
             crate::concrete_types::KEY => Self::decode(json, Self::Interface),
             crate::field_locations::KEY => Self::decode(json, Self::Fields),
+            crate::data_receivers::KEY => Self::decode(json, Self::Receivers),
             crate::nominal_boundary::census::KEY => Self::decode(json, Self::Census),
             crate::declaration_origins::KEY => Self::decode(json, Self::Origins),
+            crate::inherent_calls::UNIT_KEY => Self::decode(json, |record| {
+                Self::InherentUnits(inherent_units::Inventory::new(record))
+            }),
             _ => Self::Json(json),
         }
     }
@@ -95,8 +119,12 @@ impl Entry {
             Self::Json(value) | Self::Invalid { value, .. } => value,
             Self::Interface(record) => record.json(),
             Self::Fields(record) => record.json(),
+            Self::Receivers(record) => record.json(),
             Self::Census(record) => record.json(),
+            Self::GeneratedSources(record) => record.json(),
+            Self::DependencyNamespaces(record) => record.json(),
             Self::Origins(record) => record.json(),
+            Self::InherentUnits(record) => record.record.json(),
         }
     }
 
@@ -108,8 +136,24 @@ impl Entry {
             (Self::Interface(left), Self::Interface(right)) => {
                 left.value == right.value && left.nulls == right.nulls
             }
+            (Self::Receivers(left), Self::Receivers(right)) => {
+                left.value == right.value && left.nulls == right.nulls
+            }
             (Self::Origins(left), Self::Origins(right)) => {
                 left.value == right.value && left.nulls == right.nulls
+            }
+            (Self::InherentUnits(left), Self::InherentUnits(right)) => {
+                (Arc::ptr_eq(&left.record.value, &right.record.value)
+                    || left.record.value == right.record.value)
+                    && left.record.nulls == right.record.nulls
+            }
+            (Self::GeneratedSources(left), Self::GeneratedSources(right)) => {
+                (Arc::ptr_eq(&left.value, &right.value) || left.value == right.value)
+                    && left.nulls == right.nulls
+            }
+            (Self::DependencyNamespaces(left), Self::DependencyNamespaces(right)) => {
+                (Arc::ptr_eq(&left.value, &right.value) || left.value == right.value)
+                    && left.nulls == right.nulls
             }
             (Self::Census(left), Self::Census(right)) => {
                 left.value == right.value && left.nulls == right.nulls
@@ -123,8 +167,12 @@ impl Entry {
             Self::Json(value) | Self::Invalid { value, .. } => value,
             Self::Interface(record) => record.into_json(),
             Self::Fields(record) => record.into_json(),
+            Self::Receivers(record) => record.into_json(),
             Self::Census(record) => record.into_json(),
+            Self::GeneratedSources(record) => record.into_json(),
+            Self::DependencyNamespaces(record) => record.into_json(),
             Self::Origins(record) => record.into_json(),
+            Self::InherentUnits(record) => record.record.into_json(),
         }
     }
 }
@@ -135,8 +183,12 @@ impl Serialize for Entry {
             Self::Json(value) | Self::Invalid { value, .. } => value.serialize(serializer),
             Self::Interface(record) => record.render().serialize(serializer),
             Self::Fields(record) => record.render().serialize(serializer),
+            Self::Receivers(record) => record.render().serialize(serializer),
             Self::Census(record) => record.render().serialize(serializer),
+            Self::GeneratedSources(record) => record.render().serialize(serializer),
+            Self::DependencyNamespaces(record) => record.render().serialize(serializer),
             Self::Origins(record) => record.render().serialize(serializer),
+            Self::InherentUnits(record) => record.record.render().serialize(serializer),
         }
     }
 }
@@ -177,6 +229,19 @@ impl FrontendOptions {
         }
     }
 
+    /// Size belongs to this exact immutable typed record, never an equal-looking input.
+    pub(crate) fn origin_bytes(
+        &self,
+        origins: &crate::declaration_origins::Origins,
+    ) -> Result<usize, String> {
+        if let Some(Entry::Origins(record)) = self.0.get(crate::declaration_origins::KEY)
+            && std::ptr::eq(&record.value, origins)
+        {
+            return record.encoded_len();
+        }
+        crate::evidence_budget::serialized_len(origins).map_err(|error| error.to_string())
+    }
+
     fn decode<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<T, String> {
         if let Some(Entry::Invalid { error, .. }) = self.0.get(key) {
             return Err(error.clone());
@@ -191,10 +256,14 @@ impl FrontendOptions {
     /// freezing a unit. Invalid entries remain available with their exact error.
     pub(crate) fn normalize_data(&mut self) {
         for key in [
+            crate::generated_sources::capture::KEY,
+            crate::dependency_namespaces::capture::KEY,
             crate::concrete_types::KEY,
             crate::field_locations::KEY,
+            crate::data_receivers::KEY,
             crate::nominal_boundary::census::KEY,
             crate::declaration_origins::KEY,
+            crate::inherent_calls::UNIT_KEY,
         ] {
             if matches!(self.0.get(key), Some(Entry::Json(_))) {
                 let entry = self.0.remove(key).expect("existing data evidence");
@@ -299,6 +368,7 @@ fn same_inventory(
     let b = files(second);
 
     Ok(first.identity == second.identity
+        && first.expansions == second.expansions
         && a.len() == first.files.len()
         && b.len() == second.files.len()
         && a == b)
@@ -379,13 +449,25 @@ fn collect_nulls(value: &Value, path: &str, found: &mut Vec<String>) {
 }
 
 #[cfg(test)]
+mod dependency_namespaces_tests;
+#[cfg(test)]
+mod generated_sources_tests;
+#[cfg(test)]
+mod origin_budgets_tests;
+#[cfg(test)]
+mod receivers_tests;
+#[cfg(test)]
 mod tests;
 
 mod sealed {
     pub trait Sealed {}
+    impl Sealed for std::sync::Arc<crate::generated_sources::capture::UnitCapture> {}
+    impl Sealed for std::sync::Arc<crate::dependency_namespaces::capture::UnitCapture> {}
     impl Sealed for super::InterfaceObservations {}
     impl Sealed for super::FieldObservations {}
+    impl Sealed for crate::data_receivers::Capture {}
     impl Sealed for crate::declaration_origins::Origins {}
+    impl Sealed for std::sync::Arc<crate::inherent_calls::UnitDefinitions> {}
     impl Sealed for std::sync::Arc<crate::nominal_boundary::census::Census> {}
 }
 
@@ -457,6 +539,54 @@ impl DataEvidence for crate::declaration_origins::Origins {
         options.0.insert(
             Self::KEY.into(),
             Entry::Origins(Record::new(self, Vec::new())),
+        );
+    }
+}
+
+impl DataEvidence for crate::data_receivers::Capture {
+    const KEY: &'static str = crate::data_receivers::KEY;
+    fn borrow(options: &FrontendOptions) -> Option<&Self> {
+        match options.0.get(Self::KEY) {
+            Some(Entry::Receivers(record)) => Some(&record.value),
+            _ => None,
+        }
+    }
+    fn install(self, options: &mut FrontendOptions) {
+        options.0.insert(
+            Self::KEY.into(),
+            Entry::Receivers(Record::new(self, Vec::new())),
+        );
+    }
+}
+
+impl DataEvidence for Arc<crate::generated_sources::capture::UnitCapture> {
+    const KEY: &'static str = crate::generated_sources::capture::KEY;
+    fn borrow(options: &FrontendOptions) -> Option<&Self> {
+        match options.0.get(Self::KEY) {
+            Some(Entry::GeneratedSources(record)) => Some(&record.value),
+            _ => None,
+        }
+    }
+    fn install(self, options: &mut FrontendOptions) {
+        options.0.insert(
+            Self::KEY.into(),
+            Entry::GeneratedSources(Record::new(self, Vec::new())),
+        );
+    }
+}
+
+impl DataEvidence for Arc<crate::dependency_namespaces::capture::UnitCapture> {
+    const KEY: &'static str = crate::dependency_namespaces::capture::KEY;
+    fn borrow(options: &FrontendOptions) -> Option<&Self> {
+        match options.0.get(Self::KEY) {
+            Some(Entry::DependencyNamespaces(record)) => Some(&record.value),
+            _ => None,
+        }
+    }
+    fn install(self, options: &mut FrontendOptions) {
+        options.0.insert(
+            Self::KEY.into(),
+            Entry::DependencyNamespaces(Record::new(self, Vec::new())),
         );
     }
 }

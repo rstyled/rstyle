@@ -7,7 +7,7 @@ use crate::{
     extraction_profile::ExtractionProfile,
 };
 
-pub fn verify_evidence(facts: &HirFnFacts) -> Result<Libraries, String> {
+pub fn verify_evidence(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Libraries, String> {
     if !ExtractionProfile::from_facts(facts)?.is_data() {
         return if facts.build.frontend_options.contains_key(KEY) {
             Err("Library resolution evidence is restricted to Data".into())
@@ -24,7 +24,7 @@ pub fn verify_evidence(facts: &HirFnFacts) -> Result<Libraries, String> {
 
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
-    let capture = crate::data_receivers::verify(facts)?;
+    let capture = crate::data_receivers::verify_capture(facts)?;
     for node in methods.into_iter().filter(|node| operation(node).is_some()) {
         let callee = callee(node)?;
         if callee.crate_name != "core" || callee.path != operation(node).expect("filtered").path {

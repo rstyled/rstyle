@@ -2,23 +2,40 @@
 
 use rstyle_pdg::frontend::*;
 use rustc_middle::ty::TyCtxt;
-use sha2::{Digest, Sha256};
+
+pub(super) fn compiled_crate(
+    tcx: TyCtxt<'_>,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+    build: &mut BuildFacts,
+) {
+    if super::crate_association::enabled(profile) {
+        build.frontend_options.insert(
+            "rstyle.rust.compiled-crate".into(),
+            serde_json::to_value(super::crate_association::local(tcx))
+                .expect("serialize compiled crate observation"),
+        );
+    }
+}
+
+pub(super) fn source_identity(
+    source: &rstyle_pdg::SourceText,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> String {
+    if profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3 {
+        source.checksum().to_owned()
+    } else {
+        // Historical function-source conformance, including pinned r0, remains SHA.
+        source.identity().to_owned()
+    }
+}
 
 pub fn digest(bytes: &[u8]) -> String {
-    format!("sha256:{:x}", Sha256::digest(bytes))
+    rstyle_pdg::source_identity::checksum(bytes)
 }
 
 pub fn build(tcx: TyCtxt<'_>, invocation: &[String]) -> BuildFacts {
     let session = tcx.sess;
-    let cfgs: Vec<String> = session
-        .config
-        .iter()
-        .map(|(name, value)| {
-            value.map_or_else(|| name.to_string(), |value| format!("{name}=\"{value}\""))
-        })
-        .collect();
-    let mut cfgs = cfgs;
-    cfgs.sort();
+    let cfgs = cfgs(tcx);
     let features = cfgs
         .iter()
         .filter_map(|cfg| {
@@ -55,4 +72,18 @@ pub fn build(tcx: TyCtxt<'_>, invocation: &[String]) -> BuildFacts {
         panic_strategy: known_str(session.panic_strategy().desc()),
         opt_level: known_str(&format!("{:?}", session.opts.optimize)),
     }
+}
+
+pub fn cfgs(tcx: TyCtxt<'_>) -> Vec<String> {
+    let cfgs: Vec<String> = tcx
+        .sess
+        .config
+        .iter()
+        .map(|(name, value)| {
+            value.map_or_else(|| name.to_string(), |value| format!("{name}=\"{value}\""))
+        })
+        .collect();
+    let mut cfgs = cfgs;
+    cfgs.sort();
+    cfgs
 }

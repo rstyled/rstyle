@@ -79,10 +79,126 @@ pub fn resolve_for(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Option<Summary>, String> {
+    if let Some(summary) = crate::product_instances::activation::summary(node, facts)? {
+        return Ok(Some(summary));
+    }
+    if let Some(summary) = reference_constructor(node, facts)? {
+        return Ok(Some(summary));
+    }
+    if crate::checked_lengths::kind(node, facts).is_some() {
+        return crate::checked_lengths::resolve(node, facts);
+    }
+    if crate::character_ascii::candidate(node, facts) {
+        return crate::character_ascii::resolve(node, facts);
+    }
+    if crate::size_calls::candidate(node, facts) {
+        return crate::size_calls::resolve(node, facts);
+    }
+    if let Some(summary) = crate::widening_readers::conversion_summary(node, facts)? {
+        return Ok(Some(summary));
+    }
+    if crate::lossless_integer_calls::kind(node, facts).is_some() {
+        return crate::lossless_integer_calls::resolve(node, facts);
+    }
+    if crate::bitset_cardinality::kind(node, facts).is_some() {
+        return crate::bitset_cardinality::resolve(node, facts);
+    }
+    if crate::scalar_from::candidate(node, facts) {
+        return crate::scalar_from::resolve(node, facts);
+    }
+
+    resolve_data_operation(node, facts)
+}
+
+fn resolve_data_operation(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<Summary>, String> {
     if let Some(summary) = resolve(node) {
         return Ok(Some(summary.clone()));
     }
+    if crate::data_bytes::kind(node).is_some() && crate::data_bytes::enabled(facts) {
+        return crate::data_bytes::resolve(node, facts);
+    }
+    if crate::checked_slice_views::suffix::candidate(node, facts) {
+        return crate::checked_slice_views::suffix::resolve(node, facts).map(Some);
+    }
+
+    if crate::checked_slice_views::candidate(node, facts) {
+        return crate::checked_slice_views::resolve(node, facts).map(Some);
+    }
+    if crate::borrowed_result_errors::candidate(node, facts) {
+        return crate::borrowed_result_errors::resolve(node, facts).map(Some);
+    }
+    if crate::checked_options::get_candidate(node, facts) {
+        return crate::checked_options::resolve(node, facts).map(Some);
+    }
     crate::data_library::resolve(node, facts)
+}
+
+/// The generic callee is preserved; authority comes from its checked owning site.
+pub(crate) fn reference_constructor(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Option<Summary>, String> {
+    let Some(operation) = crate::reference_instances::activation::operation(node, facts)? else {
+        return Ok(None);
+    };
+    let input = crate::data_aggregates::token(operation.receiver)?;
+    let output = crate::data_aggregates::token(node)?;
+    operation.verify_types(input, output)?;
+
+    Ok(Some(Summary {
+        id: operation.summary_id().into(),
+        version: "1.0.0".into(),
+        callee_path: "core::convert::AsRef::as_ref".into(),
+        callee_crate: "core".into(),
+        argument_types: vec![input.into()],
+        result_type: output.into(),
+        memory_effects: false,
+        mutates_arguments: false,
+        may_panic: false,
+        always_returns: true,
+        overflow_behavior: "not-applicable".into(),
+    }))
+}
+
+pub(crate) fn verify_build(
+    record: &serde_json::Value,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<(), String> {
+    for (key, expected) in [
+        (
+            "overflow_checks",
+            serde_json::to_value(&facts.build.overflow_checks),
+        ),
+        (
+            "debug_assertions",
+            serde_json::to_value(&facts.build.debug_assertions),
+        ),
+        (
+            "panic_strategy",
+            serde_json::to_value(&facts.build.panic_strategy),
+        ),
+    ] {
+        if record[key] != expected.map_err(|error| error.to_string())? {
+            return Err("Serialized library call build settings disagree".into());
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate) fn static_intrinsic(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> bool {
+    crate::lossless_integer_calls::kind(node, facts).is_some()
+        || crate::widening_readers::scoped_conversion_candidate(node, facts)
+        || crate::bitset_cardinality::kind(node, facts).is_some()
+        || crate::size_calls::candidate(node, facts)
+        || crate::scalar_from::candidate(node, facts)
+        || crate::data_bytes::enabled(facts) && crate::data_bytes::kind(node).is_some()
 }
 
 #[cfg(test)]

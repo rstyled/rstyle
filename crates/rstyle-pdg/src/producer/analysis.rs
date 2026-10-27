@@ -38,6 +38,11 @@ pub fn analyze_cyclic(graph: &Graph) -> Result<Analysis, String> {
 }
 
 fn analyze_policy(graph: &Graph, cyclic: bool) -> Result<Analysis, String> {
+    let cyclic = cyclic
+        || graph
+            .transfers
+            .iter()
+            .any(|transfer| transfer.kind == "exception");
     let reachable = reachability(graph);
     if !cyclic {
         check_acyclic_exit(graph, &reachable)?;
@@ -362,6 +367,21 @@ fn read_edges(
     node: &Operation,
     incoming: &DefinitionSet,
 ) -> Result<Vec<Dependence>, String> {
+    if matches!(
+        node.construct.as_deref(),
+        Some(
+            "data.indirect-field"
+                | "data.indirect-deref"
+                | "data.index"
+                | "data.option-payload"
+                | "iterator.byte-position-prefix"
+                | "slice.prefix-byte"
+                | "data.mutable-scalar-load"
+        )
+    ) && node.symbol.is_none()
+    {
+        return Ok(Vec::new());
+    }
     let symbol = node
         .symbol
         .as_ref()
@@ -395,22 +415,22 @@ fn read_edges(
 }
 
 fn execution_edges(graph: &Graph, reached: &BTreeSet<String>, dom: &Sets) -> Vec<Dependence> {
-    graph
-        .nodes
-        .iter()
-        .filter(|n| reached.contains(&n.id))
-        .filter_map(|n| {
-            let source = immediate(&n.id, dom)?;
-            (source != "E").then(|| {
-                edge(
-                    &source,
-                    &n.id,
-                    EdgeFamily::Execution,
-                    "nearest_dominating_operation",
-                )
-            })
-        })
-        .collect()
+    let mut dependencies = Vec::new();
+    for node in &graph.nodes {
+        if !reached.contains(&node.id) {
+            continue;
+        }
+        let Some(source) = immediate(&node.id, dom).filter(|source| source != "E") else {
+            continue;
+        };
+        dependencies.push(edge(
+            &source,
+            &node.id,
+            EdgeFamily::Execution,
+            "nearest_dominating_operation",
+        ));
+    }
+    dependencies
 }
 
 fn control_edges(
@@ -702,13 +722,21 @@ fn divergence_postdominators(vertices: &BTreeSet<String>, successors: &Sets) -> 
 }
 
 fn cyclic_control_edges(graph: &Graph, reached: &BTreeSet<String>, post: &Sets) -> Vec<Dependence> {
+    let exceptional: BTreeSet<_> = graph
+        .transfers
+        .iter()
+        .filter(|transfer| transfer.kind == "exception")
+        .map(|transfer| transfer.source.as_str())
+        .collect();
     graph
         .transfers
         .iter()
         .filter(|transfer| {
             reached.contains(&transfer.source)
                 && reached.contains(&transfer.target)
-                && matches!(transfer.kind.as_str(), "true" | "false")
+                && (matches!(transfer.kind.as_str(), "true" | "false")
+                    || matches!(transfer.kind.as_str(), "normal" | "exception")
+                        && exceptional.contains(transfer.source.as_str()))
         })
         .flat_map(|transfer| {
             post[&transfer.target]
@@ -716,6 +744,7 @@ fn cyclic_control_edges(graph: &Graph, reached: &BTreeSet<String>, post: &Sets) 
                 .filter(move |id| {
                     (id.as_str() == transfer.source || !post[&transfer.source].contains(*id))
                         && !matches!(id.as_str(), "E" | "X")
+                        && !id.starts_with("P:")
                 })
                 .map(move |id| Dependence {
                     outcome: Some(transfer.kind.clone()),

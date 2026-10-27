@@ -53,9 +53,17 @@ pub fn verify_documents<'a>(
     pair: impl Into<PairView<'a>>,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
-    let pair = pair.into();
     let mut methods = Vec::new();
     crate::frontend::collect_kind(&facts.body, "expr_method_call", &mut methods);
+
+    verify_calls(pair.into(), facts, &methods)
+}
+
+pub(crate) fn verify_calls(
+    pair: PairView<'_>,
+    facts: &dyn EvidenceFacts,
+    calls: &[&HirNode],
+) -> Result<(), String> {
     let records = pair
         .pdg
         .extensions
@@ -67,7 +75,7 @@ pub fn verify_documents<'a>(
     {
         return Err("Paired library call inventories disagree".into());
     }
-    check_method_inventory(pair, methods.len())?;
+    check_method_inventory(pair, facts, calls)?;
 
     let context = Documents {
         pair,
@@ -75,7 +83,11 @@ pub fn verify_documents<'a>(
         records,
     };
     let mut verified = 0;
-    for method in methods.into_iter().filter(|node| operation(node).is_some()) {
+    for method in calls
+        .iter()
+        .copied()
+        .filter(|node| operation(node).is_some())
+    {
         let summary = resolve(method, facts)?.ok_or("Unverified serialized library CALL")?;
         context.verify_call(method, &summary)?;
         verified += 1;
@@ -91,7 +103,39 @@ pub fn verify_documents<'a>(
     Ok(())
 }
 
-fn check_method_inventory(pair: PairView<'_>, expected: usize) -> Result<(), String> {
+fn check_method_inventory(
+    pair: PairView<'_>,
+    facts: &dyn EvidenceFacts,
+    calls: &[&HirNode],
+) -> Result<(), String> {
+    let mut expected = 0;
+    for method in calls.iter().filter(|node| node.kind == "expr_method_call") {
+        if crate::nonzero_digit_calls::covers_method(method, facts)? {
+            // The complete consuming callback is checked as guarded value flow.
+        } else if crate::widening_readers::merge_candidate(method, facts) {
+            crate::widening_readers::verify(facts)?;
+        } else if crate::id_error_maps::candidate(method, facts) {
+            crate::id_error_maps::verify(method, facts)?;
+        } else if crate::result_maps::candidate(method, facts) {
+            // The complete chain proves constructor-only branch operations;
+            // each map is independently replayed by data_documents::result_maps.
+            crate::result_maps::verify(method, facts)?;
+        } else if crate::option_callbacks::candidate(method, facts) {
+            if crate::helper_option_callbacks::candidate(method, facts) {
+                crate::helper_option_callbacks::verify(method, facts)?;
+            } else if crate::named_callbacks::candidate(method, facts) {
+                crate::named_callbacks::verify(method, facts)?;
+            } else {
+                crate::option_callbacks::verify_map_or(method, facts)?;
+            }
+        } else if crate::iterator_position::source_resolved(method, &method.hir, facts) {
+            // The complete fresh-iterator contract verifies these two calls
+            // as semantic operations, including the selected implementation.
+        } else {
+            expected += 1;
+        }
+    }
+
     if pair
         .pdg
         .nodes
@@ -126,6 +170,14 @@ impl Documents<'_> {
             facts,
             records,
         } = self;
+        if summary.id == "rstyle.data.option.is-some"
+            && !crate::extraction_profile::policy_supports(
+                &pair.pdg.profile,
+                "rust.tagged-unit-classifiers",
+            )
+        {
+            return Err("Option tag test requires its registered document policy".into());
+        }
         let nodes: Vec<_> = pair
             .pdg
             .nodes
@@ -151,14 +203,8 @@ impl Documents<'_> {
         };
 
         verify_metadata(node, call, record, summary)?;
-        if record["library"] != evidence(call, facts)?
-            || record["overflow_checks"]
-                != serde_json::to_value(&facts.build.overflow_checks).map_err(|e| e.to_string())?
-            || record["debug_assertions"]
-                != serde_json::to_value(&facts.build.debug_assertions).map_err(|e| e.to_string())?
-            || record["panic_strategy"]
-                != serde_json::to_value(&facts.build.panic_strategy).map_err(|e| e.to_string())?
-        {
+        crate::call_summaries::verify_build(record, facts)?;
+        if record["library"] != evidence(call, facts)? {
             return Err("Serialized library/core/receiver/build evidence disagrees".into());
         }
         crate::helper_calls::verify_call_operands(*pair, node, call, record)

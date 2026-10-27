@@ -1,0 +1,233 @@
+{
+  "identity": "rstyle.development.wire-arithmetic-errors/1",
+  "status": "Data3.120: complete native default/no-default capture, strict replay and matching; foreign native CI unrun",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18"
+  },
+  "build_selection": {
+    "target": "Original regex-automata library; test=false",
+    "edition": "2021",
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "pointer_width": 64,
+    "debug_assertions": true,
+    "overflow_checks": true,
+    "panic_strategy": "unwind",
+    "optimization": "No",
+    "contexts": [
+      {
+        "name": "default",
+        "default_features": true,
+        "features": [],
+        "expected_feature_closure": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ]
+      },
+      {
+        "name": "no-default",
+        "default_features": false,
+        "features": [],
+        "expected_feature_closure": []
+      }
+    ],
+    "additional_oracle_control": "debug_assertions=false at opt-level0 selects release U32/U64 cast bodies; separate runtime control, no broader release admission claim"
+  },
+  "functions": [
+    {
+      "name": "util::wire::DeserializeError::arithmetic_overflow",
+      "path": "src/util/wire.rs",
+      "start": 7972,
+      "end": 8118,
+      "checksum": "xxh3-64:25d4310eb9fd0fa8",
+      "source": "fn arithmetic_overflow(what: &'static str) -> DeserializeError {\n        DeserializeError(DeserializeErrorKind::ArithmeticOverflow { what })\n    }"
+    },
+    {
+      "name": "util::wire::mul",
+      "path": "src/util/wire.rs",
+      "start": 31145,
+      "end": 31383,
+      "checksum": "xxh3-64:25403edbfcb5b92a",
+      "source": "pub(crate) fn mul(\n    a: usize,\n    b: usize,\n    what: &'static str,\n) -> Result<usize, DeserializeError> {\n    match a.checked_mul(b) {\n        Some(c) => Ok(c),\n        None => Err(DeserializeError::arithmetic_overflow(what)),\n    }\n}"
+    },
+    {
+      "name": "util::wire::add",
+      "path": "src/util/wire.rs",
+      "start": 31558,
+      "end": 31796,
+      "checksum": "xxh3-64:1102c74d2b2d55cb",
+      "source": "pub(crate) fn add(\n    a: usize,\n    b: usize,\n    what: &'static str,\n) -> Result<usize, DeserializeError> {\n    match a.checked_add(b) {\n        Some(c) => Ok(c),\n        None => Err(DeserializeError::arithmetic_overflow(what)),\n    }\n}"
+    }
+  ],
+  "generated_members": [],
+  "source_obligations": [
+    {
+      "name": "complete DeserializeError declaration",
+      "path": "src/util/wire.rs",
+      "start": 6147,
+      "end": 6197,
+      "checksum": "xxh3-64:88c8fd11ac2684a1",
+      "source": "pub struct DeserializeError(DeserializeErrorKind);"
+    },
+    {
+      "name": "complete DeserializeErrorKind declaration",
+      "path": "src/util/wire.rs",
+      "start": 6216,
+      "end": 6732,
+      "checksum": "xxh3-64:c71b9be2de705ed2",
+      "source": "enum DeserializeErrorKind {\n    Generic { msg: &'static str },\n    BufferTooSmall { what: &'static str },\n    InvalidUsize { what: &'static str },\n    VersionMismatch { expected: u32, found: u32 },\n    EndianMismatch { expected: u32, found: u32 },\n    AlignmentMismatch { alignment: usize, address: usize },\n    LabelMismatch { expected: &'static str },\n    ArithmeticOverflow { what: &'static str },\n    PatternID { err: PatternIDError, what: &'static str },\n    StateID { err: StateIDError, what: &'static str },\n}"
+    },
+    {
+      "name": "complete index_type_impls macro",
+      "path": "src/util/primitives.rs",
+      "start": 15039,
+      "end": 25196,
+      "checksum": "xxh3-64:ac894356aadf7352",
+      "source": "macro_rules! index_type_impls {\n    ($name:ident, $err:ident, $iter:ident, $withiter:ident) => {\n        impl $name {\n            /// The maximum value.\n            pub const MAX: $name = $name(SmallIndex::MAX);\n\n            /// The total number of values that can be represented.\n            pub const LIMIT: usize = SmallIndex::LIMIT;\n\n            /// The zero value.\n            pub const ZERO: $name = $name(SmallIndex::ZERO);\n\n            /// The number of bytes that a single value uses in memory.\n            pub const SIZE: usize = SmallIndex::SIZE;\n\n            /// Create a new value that is represented by a \"small index.\"\n            ///\n            /// If the given index exceeds the maximum allowed value, then this\n            /// returns an error.\n            #[inline]\n            pub fn new(value: usize) -> Result<$name, $err> {\n                SmallIndex::new(value).map($name).map_err($err)\n            }\n\n            /// Create a new value without checking whether the given argument\n            /// exceeds the maximum.\n            ///\n            /// Using this routine with an invalid value will result in\n            /// unspecified behavior, but *not* undefined behavior. In\n            /// particular, an invalid ID value is likely to cause panics or\n            /// possibly even silent logical errors.\n            ///\n            /// Callers must never rely on this type to be within a certain\n            /// range for memory safety.\n            #[inline]\n            pub const fn new_unchecked(value: usize) -> $name {\n                $name(SmallIndex::new_unchecked(value))\n            }\n\n            /// Like `new`, but panics if the given value is not valid.\n            #[inline]\n            pub fn must(value: usize) -> $name {\n                $name::new(value).expect(concat!(\n                    \"invalid \",\n                    stringify!($name),\n                    \" value\"\n                ))\n            }\n\n            /// Return the internal value as a `usize`. This is guaranteed to\n            /// never overflow `usize`.\n            #[inline]\n            pub const fn as_usize(&self) -> usize {\n                self.0.as_usize()\n            }\n\n            /// Return the internal value as a `u64`. This is guaranteed to\n            /// never overflow.\n            #[inline]\n            pub const fn as_u64(&self) -> u64 {\n                self.0.as_u64()\n            }\n\n            /// Return the internal value as a `u32`. This is guaranteed to\n            /// never overflow `u32`.\n            #[inline]\n            pub const fn as_u32(&self) -> u32 {\n                self.0.as_u32()\n            }\n\n            /// Return the internal value as a i32`. This is guaranteed to\n            /// never overflow an `i32`.\n            #[inline]\n            pub const fn as_i32(&self) -> i32 {\n                self.0.as_i32()\n            }\n\n            /// Returns one more than this value as a usize.\n            ///\n            /// Since values represented by a \"small index\" have constraints\n            /// on their maximum value, adding `1` to it will always fit in a\n            /// `usize`, `u32` and a `i32`.\n            #[inline]\n            pub fn one_more(&self) -> usize {\n                self.0.one_more()\n            }\n\n            /// Decode this value from the bytes given using the native endian\n            /// byte order for the current target.\n            ///\n            /// If the decoded integer is not representable as a small index\n            /// for the current target, then this returns an error.\n            #[inline]\n            pub fn from_ne_bytes(bytes: [u8; 4]) -> Result<$name, $err> {\n                SmallIndex::from_ne_bytes(bytes).map($name).map_err($err)\n            }\n\n            /// Decode this value from the bytes given using the native endian\n            /// byte order for the current target.\n            ///\n            /// This is analogous to `new_unchecked` in that is does not check\n            /// whether the decoded integer is representable as a small index.\n            #[inline]\n            pub fn from_ne_bytes_unchecked(bytes: [u8; 4]) -> $name {\n                $name(SmallIndex::from_ne_bytes_unchecked(bytes))\n            }\n\n            /// Return the underlying integer as raw bytes in native endian\n            /// format.\n            #[inline]\n            pub fn to_ne_bytes(&self) -> [u8; 4] {\n                self.0.to_ne_bytes()\n            }\n\n            /// Returns an iterator over all values from 0 up to and not\n            /// including the given length.\n            ///\n            /// If the given length exceeds this type's limit, then this\n            /// panics.\n            pub(crate) fn iter(len: usize) -> $iter {\n                $iter::new(len)\n            }\n        }\n\n        // We write our own Debug impl so that we get things like PatternID(5)\n        // instead of PatternID(SmallIndex(5)).\n        impl core::fmt::Debug for $name {\n            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {\n                f.debug_tuple(stringify!($name)).field(&self.as_u32()).finish()\n            }\n        }\n\n        impl<T> core::ops::Index<$name> for [T] {\n            type Output = T;\n\n            #[inline]\n            fn index(&self, index: $name) -> &T {\n                &self[index.as_usize()]\n            }\n        }\n\n        impl<T> core::ops::IndexMut<$name> for [T] {\n            #[inline]\n            fn index_mut(&mut self, index: $name) -> &mut T {\n                &mut self[index.as_usize()]\n            }\n        }\n\n        #[cfg(feature = \"alloc\")]\n        impl<T> core::ops::Index<$name> for Vec<T> {\n            type Output = T;\n\n            #[inline]\n            fn index(&self, index: $name) -> &T {\n                &self[index.as_usize()]\n            }\n        }\n\n        #[cfg(feature = \"alloc\")]\n        impl<T> core::ops::IndexMut<$name> for Vec<T> {\n            #[inline]\n            fn index_mut(&mut self, index: $name) -> &mut T {\n                &mut self[index.as_usize()]\n            }\n        }\n\n        impl From<u8> for $name {\n            fn from(value: u8) -> $name {\n                $name(SmallIndex::from(value))\n            }\n        }\n\n        impl TryFrom<u16> for $name {\n            type Error = $err;\n\n            fn try_from(value: u16) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        impl TryFrom<u32> for $name {\n            type Error = $err;\n\n            fn try_from(value: u32) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        impl TryFrom<u64> for $name {\n            type Error = $err;\n\n            fn try_from(value: u64) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        impl TryFrom<usize> for $name {\n            type Error = $err;\n\n            fn try_from(value: usize) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        #[cfg(test)]\n        impl quickcheck::Arbitrary for $name {\n            fn arbitrary(gen: &mut quickcheck::Gen) -> $name {\n                $name(SmallIndex::arbitrary(gen))\n            }\n        }\n\n        /// This error occurs when a value could not be constructed.\n        ///\n        /// This occurs when given an integer exceeding the maximum allowed\n        /// value.\n        ///\n        /// When the `std` feature is enabled, this implements the `Error`\n        /// trait.\n        #[derive(Clone, Debug, Eq, PartialEq)]\n        pub struct $err(SmallIndexError);\n\n        impl $err {\n            /// Returns the value that could not be converted to an ID.\n            pub fn attempted(&self) -> u64 {\n                self.0.attempted()\n            }\n        }\n\n        #[cfg(feature = \"std\")]\n        impl std::error::Error for $err {}\n\n        impl core::fmt::Display for $err {\n            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {\n                write!(\n                    f,\n                    \"failed to create {} from {:?}, which exceeds {:?}\",\n                    stringify!($name),\n                    self.attempted(),\n                    $name::MAX,\n                )\n            }\n        }\n\n        #[derive(Clone, Debug)]\n        pub(crate) struct $iter(SmallIndexIter);\n\n        impl $iter {\n            fn new(len: usize) -> $iter {\n                assert!(\n                    len <= $name::LIMIT,\n                    \"cannot create iterator for {} when number of \\\n                     elements exceed {:?}\",\n                    stringify!($name),\n                    $name::LIMIT,\n                );\n                $iter(SmallIndexIter { rng: 0..len })\n            }\n        }\n\n        impl Iterator for $iter {\n            type Item = $name;\n\n            fn next(&mut self) -> Option<$name> {\n                self.0.next().map($name)\n            }\n        }\n\n        /// An iterator adapter that is like std::iter::Enumerate, but attaches\n        /// small index values instead. It requires `ExactSizeIterator`. At\n        /// construction, it ensures that the index of each element in the\n        /// iterator is representable in the corresponding small index type.\n        #[derive(Clone, Debug)]\n        pub(crate) struct $withiter<I> {\n            it: I,\n            ids: $iter,\n        }\n\n        impl<I: Iterator + ExactSizeIterator> $withiter<I> {\n            fn new(it: I) -> $withiter<I> {\n                let ids = $name::iter(it.len());\n                $withiter { it, ids }\n            }\n        }\n\n        impl<I: Iterator + ExactSizeIterator> Iterator for $withiter<I> {\n            type Item = ($name, I::Item);\n\n            fn next(&mut self) -> Option<($name, I::Item)> {\n                let item = self.it.next()?;\n                // Number of elements in this iterator must match, according\n                // to contract of ExactSizeIterator.\n                let id = self.ids.next().unwrap();\n                Some((id, item))\n            }\n        }\n    };\n}"
+    },
+    {
+      "name": "index_type_impls!(PatternID",
+      "path": "src/util/primitives.rs",
+      "start": 26841,
+      "end": 26920,
+      "checksum": "xxh3-64:828a446321bbe8da",
+      "source": "index_type_impls!(PatternID, PatternIDError, PatternIDIter, WithPatternIDIter);"
+    },
+    {
+      "name": "index_type_impls!(StateID",
+      "path": "src/util/primitives.rs",
+      "start": 26921,
+      "end": 26992,
+      "checksum": "xxh3-64:dcaca45351e7018c",
+      "source": "index_type_impls!(StateID, StateIDError, StateIDIter, WithStateIDIter);"
+    },
+    {
+      "name": "complete SmallIndexError declaration",
+      "path": "src/util/primitives.rs",
+      "start": 13864,
+      "end": 13914,
+      "checksum": "xxh3-64:3721cde05fbbc8b6",
+      "source": "pub struct SmallIndexError {\n    attempted: u64,\n}"
+    }
+  ],
+  "context_files": [
+    {
+      "path": "Cargo.toml",
+      "byte_length": 4300,
+      "checksum": "xxh3-64:3cf618cce43eae27",
+      "role": "Complete original context; no source omissions"
+    },
+    {
+      "path": "Cargo.toml.orig",
+      "byte_length": 5217,
+      "checksum": "xxh3-64:ff53dafd3b863ce0",
+      "role": "Complete original context; no source omissions"
+    },
+    {
+      "path": "Cargo.lock",
+      "byte_length": 9484,
+      "checksum": "xxh3-64:840c9267c20d9ff3",
+      "role": "Complete original context; no source omissions"
+    },
+    {
+      "path": "src/lib.rs",
+      "byte_length": 30727,
+      "checksum": "xxh3-64:ab006308993a85c1",
+      "role": "Complete original context; no source omissions"
+    },
+    {
+      "path": "src/util/mod.rs",
+      "byte_length": 1963,
+      "checksum": "xxh3-64:a9e9874bc032778e",
+      "role": "Complete original context; no source omissions"
+    },
+    {
+      "path": "src/util/wire.rs",
+      "byte_length": 35568,
+      "checksum": "xxh3-64:d64b2a8446ef639b",
+      "role": "Complete original context; no source omissions"
+    },
+    {
+      "path": "src/util/primitives.rs",
+      "byte_length": 27691,
+      "checksum": "xxh3-64:9f3383a64b18378f",
+      "role": "Complete original context; no source omissions"
+    },
+    {
+      "path": "src/util/int.rs",
+      "byte_length": 6514,
+      "checksum": "xxh3-64:ab93af24618069e1",
+      "role": "Complete original context; no source omissions"
+    }
+  ],
+  "error_variant_roster": [
+    "Generic",
+    "BufferTooSmall",
+    "InvalidUsize",
+    "VersionMismatch",
+    "EndianMismatch",
+    "AlignmentMismatch",
+    "LabelMismatch",
+    "ArithmeticOverflow",
+    "PatternID",
+    "StateID"
+  ],
+  "expected_checks_per_context": 443721,
+  "source_expectations": {
+    "in_scope_originals": [
+      "util::wire::DeserializeError::arithmetic_overflow",
+      "util::wire::add",
+      "util::wire::mul"
+    ],
+    "expected_arithmetic": "Exact u128 mathematical operation fits usize iff Ok; otherwise ArithmeticOverflow with identical static what pointer and length",
+    "error_ownership": "Non-Copy; must independently prove no drop for all10 variants and nested generated children",
+    "negative_expectations": [
+      "incomplete variant inventory rejected",
+      "custom Drop rejected",
+      "wrong static-string origin rejected",
+      "changed generated error child identity rejected",
+      "wrong checked operation or saved operand rejected",
+      "missing Some payload guard rejected",
+      "changed helper/build identity rejected"
+    ],
+    "outside_first_activation": [
+      "shl",
+      "generic enums",
+      "formatting",
+      "unwind cleanup"
+    ]
+  }
+}

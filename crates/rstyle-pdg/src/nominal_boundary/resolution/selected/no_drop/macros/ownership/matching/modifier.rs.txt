@@ -1,0 +1,123 @@
+// Original time 0.3.47 format_description/modifier.rs macro and complete invocation.
+macro_rules! impl_const_default {
+    ($($(#[$doc:meta])* $(@$pub:ident)? $type:ty => $default:expr;)*) => {$(
+        impl $type {
+            if_pub! {
+                $($pub)?
+                $(#[$doc])*;
+                #[inline]
+                pub const fn default() -> Self {
+                    $default
+                }
+            }
+        }
+
+        $(#[$doc])*
+        impl Default for $type {
+            #[inline]
+            fn default() -> Self {
+                $default
+            }
+        }
+    )*};
+}
+
+// Keep this first so that it's shown at the top of documentation.
+impl_const_default! {
+    /// Creates a modifier that indicates the value is [padded with zeroes](Padding::Zero).
+    @pub Day => Self { padding: Padding::Zero };
+    /// Creates a modifier that indicates the value uses the
+    /// [`Numerical`](Self::Numerical) representation.
+    MonthRepr => Self::Numerical;
+    /// Creates an instance of this type that indicates the value uses the
+    /// [`Numerical`](MonthRepr::Numerical) representation, is [padded with zeroes](Padding::Zero),
+    /// and is case-sensitive when parsing.
+    @pub Month => Self {
+        padding: Padding::Zero,
+        repr: MonthRepr::Numerical,
+        case_sensitive: true,
+    };
+    /// Creates a modifier that indicates the value is [padded with zeroes](Padding::Zero).
+    @pub Ordinal => Self { padding: Padding::Zero };
+    /// Creates a modifier that indicates the value uses the [`Long`](Self::Long) representation.
+    WeekdayRepr => Self::Long;
+    /// Creates a modifier that indicates the value uses the [`Long`](WeekdayRepr::Long)
+    /// representation and is case-sensitive when parsing. If the representation is changed to a
+    /// numerical one, the instance defaults to one-based indexing.
+    @pub Weekday => Self {
+        repr: WeekdayRepr::Long,
+        one_indexed: true,
+        case_sensitive: true,
+    };
+    /// Creates a modifier that indicates that the value uses the [`Iso`](Self::Iso) representation.
+    WeekNumberRepr => Self::Iso;
+    /// Creates a modifier that indicates that the value is [padded with zeroes](Padding::Zero)
+            /// and uses the [`Iso`](WeekNumberRepr::Iso) representation.
+    @pub WeekNumber => Self {
+        padding: Padding::Zero,
+        repr: WeekNumberRepr::Iso,
+    };
+    /// Creates a modifier that indicates the value uses the [`Full`](Self::Full) representation.
+    YearRepr => Self::Full;
+    /// Creates a modifier that indicates the value uses the [`Extended`](Self::Extended) range.
+    YearRange => Self::Extended;
+    /// Creates a modifier that indicates the value uses the [`Full`](YearRepr::Full)
+    /// representation, is [padded with zeroes](Padding::Zero), uses the Gregorian calendar as its
+    /// base, and only includes the year's sign if necessary.
+    @pub Year => Self {
+        padding: Padding::Zero,
+        repr: YearRepr::Full,
+        range: YearRange::Extended,
+        iso_week_based: false,
+        sign_is_mandatory: false,
+    };
+    /// Creates a modifier that indicates the value is [padded with zeroes](Padding::Zero) and
+    /// has the 24-hour representation.
+    @pub Hour => Self {
+        padding: Padding::Zero,
+        is_12_hour_clock: false,
+    };
+    /// Creates a modifier that indicates the value is [padded with zeroes](Padding::Zero).
+    @pub Minute => Self { padding: Padding::Zero };
+    /// Creates a modifier that indicates the value uses the upper-case representation and is
+    /// case-sensitive when parsing.
+    @pub Period => Self {
+        is_uppercase: true,
+        case_sensitive: true,
+    };
+    /// Creates a modifier that indicates the value is [padded with zeroes](Padding::Zero).
+    @pub Second => Self { padding: Padding::Zero };
+    /// Creates a modifier that indicates the stringified value contains [one or more
+    /// digits](Self::OneOrMore).
+    SubsecondDigits => Self::OneOrMore;
+    /// Creates a modifier that indicates the stringified value contains [one or more
+    /// digits](SubsecondDigits::OneOrMore).
+    @pub Subsecond => Self { digits: SubsecondDigits::OneOrMore };
+    /// Creates a modifier that indicates the value only uses a sign for negative values and is
+    /// [padded with zeroes](Padding::Zero).
+    @pub OffsetHour => Self {
+        sign_is_mandatory: false,
+        padding: Padding::Zero,
+    };
+    /// Creates a modifier that indicates the value is [padded with zeroes](Padding::Zero).
+    @pub OffsetMinute => Self { padding: Padding::Zero };
+    /// Creates a modifier that indicates the value is [padded with zeroes](Padding::Zero).
+    @pub OffsetSecond => Self { padding: Padding::Zero };
+    /// Creates a modifier that indicates the value is [padded with zeroes](Self::Zero).
+    Padding => Self::Zero;
+    /// Creates a modifier that indicates the value represents the [number of seconds](Self::Second)
+    /// since the Unix epoch.
+    UnixTimestampPrecision => Self::Second;
+    /// Creates a modifier that indicates the value represents the [number of
+    /// seconds](UnixTimestampPrecision::Second) since the Unix epoch. The sign is not mandatory.
+    @pub UnixTimestamp => Self {
+        precision: UnixTimestampPrecision::Second,
+        sign_is_mandatory: false,
+    };
+    /// Indicate that any trailing characters after the end of input are prohibited and will cause
+    /// an error when used with `parse`.
+    TrailingInput => Self::Prohibit;
+    /// Creates a modifier used to represent the end of input, not allowing any trailing input (i.e.
+    /// the input must be fully consumed).
+    @pub End => Self { trailing_input: TrailingInput::Prohibit };
+}

@@ -1,0 +1,434 @@
+{
+  "identity": "rstyle.development.prefilter-prefix-readiness/1",
+  "status": "delivered Data3.80; original source selection preserved",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18",
+    "file_sha256": {
+      "Cargo.toml": "25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+      "src/lib.rs": "47d562a98f5f50f7cbbffb1f103e277871c7419da05dbb2b0db78dee6e7b4c2e",
+      "src/macros.rs": "3e4b39252bfa471fad384160a43f113ebfec7bec46a85d16f006622881dd2081",
+      "src/util/mod.rs": "6c828a493f0f88c8b515aee4f8faf91ba653eb07e8fc3c23c0524553410803f9",
+      "src/util/prefilter/memchr.rs": "145e443a5ee305c736da4bb36c8b0b37877903fd5f1ee3b9014bba0dba9ffa2c",
+      "src/util/prefilter/mod.rs": "bcdbca12a3f2879605cf1d3216338994040fa812a00c9ad140a1bc522c60fb20",
+      "src/util/search.rs": "74157bd77eb6f80e8ab5952ef21e8fb2d3452c1817ec671a7a3574fbddae1ae7"
+    }
+  },
+  "build": {
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "edition": "2021",
+    "profile": "debug, overflow_checks=true, debug_assertions=true, panic=unwind, opt_level=No, pointer_width64",
+    "contexts": [
+      {
+        "name": "default",
+        "cargo_arguments": [],
+        "features": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ],
+        "public_dispatch": "Memchr, Memchr2, Memchr3 selected before fallback for exactly1/2/3 one-byte needles"
+      },
+      {
+        "name": "no-default",
+        "cargo_arguments": [
+          "--no-default-features"
+        ],
+        "features": [],
+        "public_dispatch": "No alloc/perf-literal-substring: public constructors return None; selected prefix bodies remain active but public oracle cannot reach them"
+      }
+    ],
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "context_product": "default/no-default \u00d7 three targets, six requested build contexts",
+    "actual_cargo_evidence": "/tmp/rstyle-prefix-current-results.json: six retained complete Cargo captures with actual cfg/features/dependencies/compiler/target identities"
+  },
+  "functions": [
+    {
+      "name": "<Memchr as PrefilterI>::prefix",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 1191,
+        "end": 1439
+      },
+      "line": 51,
+      "sha256": "14f27710bc5dfad3593e1b2f8b2fed041e0de189b539b6a14e3c637272b032f1",
+      "source": "fn prefix(&self, haystack: &[u8], span: Span) -> Option<Span> {\n        let b = *haystack.get(span.start)?;\n        if self.0 == b {\n            Some(Span { start: span.start, end: span.start + 1 })\n        } else {\n            None\n        }\n    }",
+      "role": "target"
+    },
+    {
+      "name": "<Memchr2 as PrefilterI>::prefix",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 2769,
+        "end": 3032
+      },
+      "line": 116,
+      "sha256": "70979606c40251da6de3376d2ee7114e8c87bb7a29546e7f00350a9396bf4ca0",
+      "source": "fn prefix(&self, haystack: &[u8], span: Span) -> Option<Span> {\n        let b = *haystack.get(span.start)?;\n        if self.0 == b || self.1 == b {\n            Some(Span { start: span.start, end: span.start + 1 })\n        } else {\n            None\n        }\n    }",
+      "role": "target"
+    },
+    {
+      "name": "<Memchr3 as PrefilterI>::prefix",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 4423,
+        "end": 4701
+      },
+      "line": 182,
+      "sha256": "7a4b0fd725c843aa5cc3836909e5307235e012929a2b0cb269008d9159e21b85",
+      "source": "fn prefix(&self, haystack: &[u8], span: Span) -> Option<Span> {\n        let b = *haystack.get(span.start)?;\n        if self.0 == b || self.1 == b || self.2 == b {\n            Some(Span { start: span.start, end: span.start + 1 })\n        } else {\n            None\n        }\n    }",
+      "role": "target"
+    }
+  ],
+  "owners": [
+    {
+      "name": "Memchr",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 81,
+        "end": 134
+      },
+      "line": 6,
+      "sha256": "4461d0b35c322df3d942cb6eba04d935d93f3e605b41569d02ec8666f0c7ff2b",
+      "source": "#[derive(Clone, Debug)]\npub(crate) struct Memchr(u8);",
+      "role": "complete owner declaration, no Copy derive"
+    },
+    {
+      "name": "Memchr2",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 1550,
+        "end": 1608
+      },
+      "line": 69,
+      "sha256": "a6c3bca804c02816f5fd294cbe25f9662598302a8f7d8db5f67968d038e54798",
+      "source": "#[derive(Clone, Debug)]\npub(crate) struct Memchr2(u8, u8);",
+      "role": "complete owner declaration, no Copy derive"
+    },
+    {
+      "name": "Memchr3",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 3143,
+        "end": 3205
+      },
+      "line": 134,
+      "sha256": "4390c84d2086e01010862c022bcc133ba27d08e4658d986c823ead82a1a1e363",
+      "source": "#[derive(Clone, Debug)]\npub(crate) struct Memchr3(u8, u8, u8);",
+      "role": "complete owner declaration, no Copy derive"
+    },
+    {
+      "name": "Span",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 30714,
+        "end": 30915
+      },
+      "line": 806,
+      "sha256": "efcb3ffd2e27b0ccf4a753a0632a3fd60f1cd51df6f7b067f4d9d1e8977c9f27",
+      "source": "#[derive(Clone, Copy, Eq, Hash, PartialEq)]\npub struct Span {\n    /// The start offset of the span, inclusive.\n    pub start: usize,\n    /// The end offset of the span, exclusive.\n    pub end: usize,\n}",
+      "role": "complete Copy output/input declaration"
+    }
+  ],
+  "trait": {
+    "name": "PrefilterI",
+    "file": "src/util/prefilter/mod.rs",
+    "span": {
+      "start": 16927,
+      "end": 18091
+    },
+    "line": 474,
+    "sha256": "4456cf0a7adf79b7c6b9d4f612e7ba489904f676c1fc4e1f153eb22445ea38c1",
+    "source": "pub(crate) trait PrefilterI:\n    Debug + Send + Sync + RefUnwindSafe + UnwindSafe + 'static\n{\n    /// Return the name of this prefilter.\n    fn name(&self) -> &'static str;\n\n    /// Run this prefilter on `haystack[span.start..end]` and return a matching\n    /// span if one exists.\n    ///\n    /// The span returned is guaranteed to have a start position greater than\n    /// or equal to the one given, and an end position less than or equal to\n    /// the one given.\n    fn find(&self, haystack: &[u8], span: Span) -> Option<Span>;\n\n    /// Returns the span of a prefix of `haystack[span.start..span.end]` if\n    /// the prefilter matches.\n    ///\n    /// The span returned is guaranteed to have a start position equivalent to\n    /// the one given, and an end position less than or equal to the one given.\n    fn prefix(&self, haystack: &[u8], span: Span) -> Option<Span>;\n\n    /// Returns the heap memory, in bytes, used by the underlying prefilter.\n    fn memory_usage(&self) -> usize;\n\n    /// Implementations might return true here if they believe themselves to\n    /// be \"fast.\" See [`Prefilter::is_fast`] for more details.\n    fn is_fast(&self) -> bool;\n}",
+    "role": "complete local trait declaration and supertraits"
+  },
+  "complete_impls": [
+    {
+      "name": "Memchr",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 136,
+        "end": 654
+      },
+      "line": 9,
+      "sha256": "4b2f851800dedc778dafdafe77f09171e71e649d77c06899976bd790e7722839",
+      "source": "impl Memchr {\n    pub(crate) fn new<B: AsRef<[u8]>>(\n        _kind: MatchKind,\n        needles: &[B],\n    ) -> Option<Memchr> {\n        #[cfg(not(feature = \"perf-literal-substring\"))]\n        {\n            None\n        }\n        #[cfg(feature = \"perf-literal-substring\")]\n        {\n            if needles.len() != 1 {\n                return None;\n            }\n            if needles[0].as_ref().len() != 1 {\n                return None;\n            }\n            Some(Memchr(needles[0].as_ref()[0]))\n        }\n    }\n}",
+      "role": "complete inherent implementation"
+    },
+    {
+      "name": "Memchr",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 656,
+        "end": 1548
+      },
+      "line": 31,
+      "sha256": "d54e716f65057a89c3bf4d510a4e6762ce3206e28f52ae65440647607e4265f2",
+      "source": "impl PrefilterI for Memchr {\n    fn name(&self) -> &'static str {\n        \"memchr\"\n    }\n\n    fn find(&self, haystack: &[u8], span: Span) -> Option<Span> {\n        #[cfg(not(feature = \"perf-literal-substring\"))]\n        {\n            unreachable!()\n        }\n        #[cfg(feature = \"perf-literal-substring\")]\n        {\n            memchr::memchr(self.0, &haystack[span]).map(|i| {\n                let start = span.start + i;\n                let end = start + 1;\n                Span { start, end }\n            })\n        }\n    }\n\n    fn prefix(&self, haystack: &[u8], span: Span) -> Option<Span> {\n        let b = *haystack.get(span.start)?;\n        if self.0 == b {\n            Some(Span { start: span.start, end: span.start + 1 })\n        } else {\n            None\n        }\n    }\n\n    fn memory_usage(&self) -> usize {\n        0\n    }\n\n    fn is_fast(&self) -> bool {\n        true\n    }\n}",
+      "role": "complete selected trait implementation"
+    },
+    {
+      "name": "Memchr2",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 1610,
+        "end": 2221
+      },
+      "line": 72,
+      "sha256": "b0c6943d011642286b3571073a0e4636f21471fc7359f8f64617eb938f8c3c56",
+      "source": "impl Memchr2 {\n    pub(crate) fn new<B: AsRef<[u8]>>(\n        _kind: MatchKind,\n        needles: &[B],\n    ) -> Option<Memchr2> {\n        #[cfg(not(feature = \"perf-literal-substring\"))]\n        {\n            None\n        }\n        #[cfg(feature = \"perf-literal-substring\")]\n        {\n            if needles.len() != 2 {\n                return None;\n            }\n            if !needles.iter().all(|n| n.as_ref().len() == 1) {\n                return None;\n            }\n            let b1 = needles[0].as_ref()[0];\n            let b2 = needles[1].as_ref()[0];\n            Some(Memchr2(b1, b2))\n        }\n    }\n}",
+      "role": "complete inherent implementation"
+    },
+    {
+      "name": "Memchr2",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 2223,
+        "end": 3141
+      },
+      "line": 96,
+      "sha256": "6a5928f360f80be989ae90ea09cac9391d5d54d0b6c079b65c9d35deefeacbc9",
+      "source": "impl PrefilterI for Memchr2 {\n    fn name(&self) -> &'static str {\n        \"memchr2\"\n    }\n\n    fn find(&self, haystack: &[u8], span: Span) -> Option<Span> {\n        #[cfg(not(feature = \"perf-literal-substring\"))]\n        {\n            unreachable!()\n        }\n        #[cfg(feature = \"perf-literal-substring\")]\n        {\n            memchr::memchr2(self.0, self.1, &haystack[span]).map(|i| {\n                let start = span.start + i;\n                let end = start + 1;\n                Span { start, end }\n            })\n        }\n    }\n\n    fn prefix(&self, haystack: &[u8], span: Span) -> Option<Span> {\n        let b = *haystack.get(span.start)?;\n        if self.0 == b || self.1 == b {\n            Some(Span { start: span.start, end: span.start + 1 })\n        } else {\n            None\n        }\n    }\n\n    fn memory_usage(&self) -> usize {\n        0\n    }\n\n    fn is_fast(&self) -> bool {\n        true\n    }\n}",
+      "role": "complete selected trait implementation"
+    },
+    {
+      "name": "Memchr3",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 3207,
+        "end": 3867
+      },
+      "line": 137,
+      "sha256": "47845f34add4de996af88f8dcc0379f7204b7449e20e75f1cdac562379aba9e6",
+      "source": "impl Memchr3 {\n    pub(crate) fn new<B: AsRef<[u8]>>(\n        _kind: MatchKind,\n        needles: &[B],\n    ) -> Option<Memchr3> {\n        #[cfg(not(feature = \"perf-literal-substring\"))]\n        {\n            None\n        }\n        #[cfg(feature = \"perf-literal-substring\")]\n        {\n            if needles.len() != 3 {\n                return None;\n            }\n            if !needles.iter().all(|n| n.as_ref().len() == 1) {\n                return None;\n            }\n            let b1 = needles[0].as_ref()[0];\n            let b2 = needles[1].as_ref()[0];\n            let b3 = needles[2].as_ref()[0];\n            Some(Memchr3(b1, b2, b3))\n        }\n    }\n}",
+      "role": "complete inherent implementation"
+    },
+    {
+      "name": "Memchr3",
+      "file": "src/util/prefilter/memchr.rs",
+      "span": {
+        "start": 3869,
+        "end": 4810
+      },
+      "line": 162,
+      "sha256": "ee69ecbfe84e64e772a0f42fbcd9b5a92560facdf5d7cceadeb38bcb6c5bc78f",
+      "source": "impl PrefilterI for Memchr3 {\n    fn name(&self) -> &'static str {\n        \"memchr3\"\n    }\n\n    fn find(&self, haystack: &[u8], span: Span) -> Option<Span> {\n        #[cfg(not(feature = \"perf-literal-substring\"))]\n        {\n            unreachable!()\n        }\n        #[cfg(feature = \"perf-literal-substring\")]\n        {\n            memchr::memchr3(self.0, self.1, self.2, &haystack[span]).map(|i| {\n                let start = span.start + i;\n                let end = start + 1;\n                Span { start, end }\n            })\n        }\n    }\n\n    fn prefix(&self, haystack: &[u8], span: Span) -> Option<Span> {\n        let b = *haystack.get(span.start)?;\n        if self.0 == b || self.1 == b || self.2 == b {\n            Some(Span { start: span.start, end: span.start + 1 })\n        } else {\n            None\n        }\n    }\n\n    fn memory_usage(&self) -> usize {\n        0\n    }\n\n    fn is_fast(&self) -> bool {\n        true\n    }\n}",
+      "role": "complete selected trait implementation"
+    }
+  ],
+  "source_cfg_audit": [
+    "src/lib.rs pub mod util unconditional; util/mod.rs pub mod prefilter unconditional; prefilter/mod.rs mod memchr unconditional.",
+    "All three selected owner declarations, complete impls and prefix methods have no cfg attributes. Source classification active in all six requested contexts.",
+    "Generic constructors have feature-dependent perf-literal-substring bodies; uncalled find methods retain feature-dependent unreachable!/external memchr calls. No active neighbor omission or purity assumption.",
+    "Public Prefilter owns cfg(alloc) Arc<dyn PrefilterI>; from_choice returns None without alloc. Public prefix is unreachable! without alloc but no public instance can be obtained from new in that context. Do not invoke absent values or treat no-default constructor None as prefix coverage.",
+    "Feature closures computed from frozen manifest local feature edges, not rustc --print cfg or captured Cargo invocations. Optional dependency closures and actual effective cfg remain capture obligations."
+  ],
+  "contract": {
+    "positive": [
+      "Only complete three concrete prefix methods; shared scalar-owner reads, one checked byte, Option propagation and Copy Span construction.",
+      "No input precondition that span.end is valid: source ignores end; retain all usize start/end values."
+    ],
+    "negative": [
+      "No generic constructors, sibling find execution, external memchr implementation, Arc allocation/dynamic call, owned nonCopy state, iterator, loop or unsafe activation.",
+      "No supported prefix, erased neighbor, fabricated drop/Copy/alias proof, missing evidence default, or weakened thresholds."
+    ]
+  },
+  "independent_expectations": {
+    "semantics": "Some(Span{start:s,end:s+1}) iff haystack.get(s) exists and equals any receiver byte; otherwise None. span.end has no effect, including end<s/end0/endMAX. No panic for any valid slice and usize bounds: successful get proves s+1<=slice.len().",
+    "positive": [
+      "Every needle/observed byte0..255, distinct and duplicated needles, both actual MatchKind variants All/LeftmostFirst, match/nonmatch and nonzero starts.",
+      "start==len,start>len,usizeMAX, empty input all return None; arbitrary end cannot truncate or change a successful byte check."
+    ],
+    "negative": [
+      "Changed field/needle, forged get index or referent origin, missing None exit, swapped Option arms, duplicated payload load/evaluation, wrong Span end or invented end validation.",
+      "Forged Option impl identity/trait ownership/cfg, hidden mutable receiver/drop, omitted generic or external-call neighbors, historical policy downgrade."
+    ],
+    "oracle": "Unchanged full public dependency. Require derived Debug exact pre: Memchr/Memchr2/Memchr3 selection evidence before prefix checks; constructor None for empty needles/empty needle and no-default context preserved. Constructor/dynamic execution is oracle-only, not extraction support.",
+    "matching": "Complete same-context strict original self comparisons after activation; no cross-target/default compatibility inferred."
+  },
+  "validation": {
+    "source_cfg_and_identities": "Frozen original bytes/spans and actual six Cargo contexts verified; no selection/denominator changes",
+    "builds": "fmt, workspace all-target Clippy -D warnings, 1153 nextest tests passed/5 existing skips, doctests passed",
+    "style": "0 violations/3792 functions; 0 unignored pattern candidates; existing15 ignores unchanged",
+    "captures": "default/no-default x aarch64 Linux, x86 Linux, aarch64 macOS; all18 selected instances admitted",
+    "admission": {
+      "strict_replayed": 780,
+      "selected_mirror_comparisons": 18,
+      "selected_pairs_accepted": 18,
+      "gains": 54,
+      "losses": 0,
+      "selected_gains": 18,
+      "incidental_source_audited_gains": 36,
+      "default_per_target": "149 -> 158 /2582",
+      "no_default_per_target": "93 -> 102 /590"
+    },
+    "native": "Native ARM Linux original library: 7,966,720 prefix cases,2564 constructors/context;5120 incidental default queries. No-default constructors only. No native x86/macOS claim.",
+    "frozen_inventory": "run-etikyyi5 vs run-yaapzru3: identical60 identities/contexts;23 admitted/30 excluded/7 inactive; package rosters8/150,39/956,11/226 unchanged;58 strict admissions",
+    "evidence": [
+      "/tmp/rstyle-prefix-evidence.log",
+      "/tmp/rstyle-prefix-current-deltas.json",
+      "/tmp/rstyle-prefix-matching.json",
+      "/tmp/rstyle-prefix-native-results.json",
+      "/tmp/rstyle-prefix-final-tests.stderr.log",
+      "/tmp/rstyle-prefix-frozen-delta.json"
+    ]
+  },
+  "source_selection_record": "Frozen from source before inspecting this family admission outcomes; original readiness artifact /tmp/rstyle-prefilter-prefix-readiness/selection.json. No held-out quality claim.",
+  "native_validation": {
+    "identity": "rstyle.original-prefilter-prefix-native-oracle/1",
+    "scope": "unchanged public full-library native API; no-default has constructor checks only",
+    "source_identities_checked": true,
+    "contexts": [
+      {
+        "prefix_cases": 7966720,
+        "constructor_cases": 2564,
+        "incidental_queries": 5120,
+        "context": "default",
+        "concrete_prefix_execution": true
+      },
+      {
+        "prefix_cases": 0,
+        "constructor_cases": 2564,
+        "incidental_queries": 0,
+        "context": "no-default",
+        "concrete_prefix_execution": false
+      }
+    ]
+  },
+  "baseline_revision": "4b95853 (Data3.79); source-equivalent production state captured before commit",
+  "baseline_evidence": {
+    "rosters": "/tmp/rstyle-propagation-current-{target}-{context}-roster.json",
+    "contexts": "default/no-default from the nine current3.79 library captures",
+    "selected_outcomes": "All3 selected prefix methods excluded in each default/no-default context; no activation/admission gain yet.",
+    "known_blocker_combinations": [
+      "Parent core::fmt::Debug import fails protected-import proof; both trait and builtin derive reexport identities require pinned source/root/namespace evidence.",
+      "Exact local trait-member ownership is not an inherent-member witness; retain full trait/impl source and all neighbors.",
+      "Option<Copy Span> normalization, construction and whole-result transport remain unsupported.",
+      "Original Option<&u8> ? needs exact Option<!> residual/selected core authority, once-evaluated input, fresh output-typed None exit, guarded saved reference extraction and actual byte-read evidence.",
+      "Some(Span) must resolve as an exact core constructor rather than a missing helper; binding-read evidence must compose through the successful payload.",
+      "Review Result-owned occurrences under borrowed-owner proof so the new Result token cannot conceal ownership."
+    ]
+  },
+  "implementation_ownership": {
+    "lead": "policy, registrations, shared driver/frontend/eligibility/origins/helper integration, contracts/pins and complete Cargo/strict tests; serial heavy validation",
+    "source_ownership_d": "exact source-owned trait member, protected pinned import/root/derive witness, borrowed ownership traversal",
+    "saved_checked_b": "Option propagation driver and witness/authority/source/lower/document leaves",
+    "borrowed_result_c": "reference-free Copy-product Option representation, exact constructors and whole transport; retain scalar get/unwrap boundaries"
+  },
+  "incidental_admissions_audit": {
+    "scope": "Post-measurement source audit; original three-function selection and all denominators unchanged. Exact bytes were already retained in complete_impls before admission.",
+    "functions": [
+      {
+        "name": "<util::prefilter::memchr::Memchr as util::prefilter::PrefilterI>::memory_usage",
+        "file": "src/util/prefilter/memchr.rs",
+        "span": {
+          "start": 1445,
+          "end": 1494
+        },
+        "source": "fn memory_usage(&self) -> usize {\n        0\n    }",
+        "independent_expectation": "0"
+      },
+      {
+        "name": "<util::prefilter::memchr::Memchr as util::prefilter::PrefilterI>::is_fast",
+        "file": "src/util/prefilter/memchr.rs",
+        "span": {
+          "start": 1500,
+          "end": 1546
+        },
+        "source": "fn is_fast(&self) -> bool {\n        true\n    }",
+        "independent_expectation": "true"
+      },
+      {
+        "name": "<util::prefilter::memchr::Memchr2 as util::prefilter::PrefilterI>::memory_usage",
+        "file": "src/util/prefilter/memchr.rs",
+        "span": {
+          "start": 3038,
+          "end": 3087
+        },
+        "source": "fn memory_usage(&self) -> usize {\n        0\n    }",
+        "independent_expectation": "0"
+      },
+      {
+        "name": "<util::prefilter::memchr::Memchr2 as util::prefilter::PrefilterI>::is_fast",
+        "file": "src/util/prefilter/memchr.rs",
+        "span": {
+          "start": 3093,
+          "end": 3139
+        },
+        "source": "fn is_fast(&self) -> bool {\n        true\n    }",
+        "independent_expectation": "true"
+      },
+      {
+        "name": "<util::prefilter::memchr::Memchr3 as util::prefilter::PrefilterI>::memory_usage",
+        "file": "src/util/prefilter/memchr.rs",
+        "span": {
+          "start": 4707,
+          "end": 4756
+        },
+        "source": "fn memory_usage(&self) -> usize {\n        0\n    }",
+        "independent_expectation": "0"
+      },
+      {
+        "name": "<util::prefilter::memchr::Memchr3 as util::prefilter::PrefilterI>::is_fast",
+        "file": "src/util/prefilter/memchr.rs",
+        "span": {
+          "start": 4762,
+          "end": 4808
+        },
+        "source": "fn is_fast(&self) -> bool {\n        true\n    }",
+        "independent_expectation": "true"
+      }
+    ],
+    "native_expectations": "For default public constructors verified to select Memchr/Memchr2/Memchr3: memory_usage==0 and is_fast==true. No-default public construction unavailable; no native private-query execution claim."
+  },
+  "readiness_known_blockers": [
+    "Exact nongeneric local trait-method definition ownership: current source path supports inherent members and rejects trait impls. Prove original trait/implementation/self identity and complete neighboring items; no dynamic dispatch or generic trait permission inferred.",
+    "Read-only shared borrow/field loads on non-Copy tuple scalar owners, retaining Clone/Debug derives and independent hidden-effect/interior-mutability/drop boundary. No owner move/Copy proof is supplied.",
+    "Exact Option<&u8> Try::branch and Option FromResidual to Option<Span>, generated binding/source correspondence, once-evaluated checked access, None early return and Some payload origin/dereference.",
+    "Option of complete source-proved Copy Span aggregate input/result/constructor transport and helper boundaries, preserving actual start/end fields.",
+    "Existing source/module/import scope checks must retain the local PrefilterI trait with supertraits, generic new and sibling find external calls/macros; independently prove uncalled dependencies rather than deleting them."
+  ],
+  "readiness_unknowns": [
+    "No fresh rejection or admission diagnostics collected; every downstream blocker remains to be confirmed against original HIR.",
+    "Exact selected Option residual shape/implementation target hashes, source correspondence, local trait method representation and current nonCopy borrowed-owner capture restrictions.",
+    "Actual cfg/dependency closures, capture source census and strict matching cost in all six contexts.",
+    "Public native oracle reaches selected trait implementations under default only; no-default requires separately labeled exact-private-source witness if execution is wanted."
+  ],
+  "remaining_boundaries": [
+    "General Option payload binding and other input/output shapes require separate proof.",
+    "Trait-member source ownership does not authorize trait-call dispatch, dynamic calls or generic constructors.",
+    "No-default native public constructors cannot reach private prefix bodies; capture and strict replay cover their active original definitions.",
+    "General nonCopy moves, cleanup, cross-package helper linking and full-library matching remain separate."
+  ]
+}

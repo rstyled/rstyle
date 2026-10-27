@@ -29,6 +29,14 @@ struct SummaryCapture<'a> {
 
 impl SummaryCapture<'_> {
     fn visit(&self, node: &HirNode) -> Result<Vec<Value>, String> {
+        if node == &self.facts.body && crate::nonzero_digit_calls::candidate(self.facts) {
+            let checked =
+                crate::nonzero_digit_calls::verify(self.facts)?.ok_or("Missing nonzero receipt")?;
+            return self.visit(checked.parser());
+        }
+        if let Some(operand) = self.source_operand(node)? {
+            return self.visit(operand);
+        }
         let mut records = node
             .children
             .iter()
@@ -37,11 +45,62 @@ impl SummaryCapture<'_> {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        if matches!(node.kind.as_str(), "expr_call" | "expr_method_call") {
+        if crate::named_callbacks::function_item(node) {
+            records.push(self.record(node)?);
+        }
+        if self.helper_call(node) {
             records.push(self.record(node)?);
         }
 
         Ok(records)
+    }
+
+    fn source_operand<'a>(&'a self, node: &'a HirNode) -> Result<Option<&'a HirNode>, String> {
+        if crate::result_maps::candidate(node, self.facts) {
+            let checked = crate::result_maps::verify(node, self.facts)?;
+            return Ok(Some(checked.receiver));
+        }
+        if crate::iterator_position::candidate(node, self.facts) {
+            let checked = crate::iterator_position::verify(node, self.facts)?;
+            return Ok(Some(checked.receiver));
+        }
+        if crate::option_propagation::candidate(node, self.facts) {
+            let checked = crate::option_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::product_result_propagation::candidate(node, self.facts) {
+            let checked = crate::product_result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::named_error_result_propagation::candidate(node, self.facts) {
+            let checked = crate::named_error_result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::scalar_result_propagation::candidate(node, self.facts) {
+            let checked = crate::scalar_result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::borrowed_result_propagation::candidate(node, self.facts) {
+            let checked = crate::borrowed_result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+        if crate::result_propagation::candidate(node, self.facts) {
+            let checked = crate::result_propagation::verify(node, self.facts)?;
+            return Ok(Some(checked.operand));
+        }
+
+        Ok(None)
+    }
+
+    fn helper_call(&self, node: &HirNode) -> bool {
+        matches!(node.kind.as_str(), "expr_call" | "expr_method_call")
+            && !crate::checked_options::constructor_candidate(node, self.facts)
+            && !crate::concrete_results::constructor_candidate(node, self.facts)
+            && !crate::data_enums::constructor_candidate(node, self.facts)
+            && !crate::copy_tagged_values::body_operation(node, self.facts)
+            && !crate::option_callbacks::candidate(node, self.facts)
+            && !crate::widening_readers::merge_candidate(node, self.facts)
+            && !crate::id_error_maps::candidate(node, self.facts)
     }
 
     fn record(&self, node: &HirNode) -> Result<Value, String> {
@@ -56,7 +115,9 @@ impl SummaryCapture<'_> {
         let [operation] = operations.as_slice() else {
             return Err("Ambiguous or missing call source/HIR correspondence".into());
         };
-        if node.kind == "expr_call" || crate::helper_calls::direct_resolution(node).is_some() {
+        if (node.kind == "expr_call" && !call_summaries::static_intrinsic(node, self.facts))
+            || crate::helper_calls::selected_resolution(node, self.facts).is_some()
+        {
             return serde_json::to_value(HelperRecord {
                 pdg_node_id: &operation.id,
                 source_span: node.span,

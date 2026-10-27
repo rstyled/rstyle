@@ -9,7 +9,7 @@ pub(crate) struct Sources {
 struct CheckedFile {
     bytes: crate::SourceSnapshot,
     digest: String,
-    structs: Vec<ByteSpan>,
+    declarations: Vec<(ByteSpan, Vec<syn::Attribute>)>,
 }
 
 impl Sources {
@@ -18,9 +18,35 @@ impl Sources {
         interface: &InterfaceObservations,
         origins: &Origins,
     ) -> Result<(), String> {
-        verify_inventory(interface, origins, |origin, declaration| {
-            self.check(origin, declaration)
-        })
+        verify_inventory(
+            interface,
+            origins,
+            || crate::evidence_budget::serialized_len(origins).map_err(|error| error.to_string()),
+            |origin, declaration| self.check(origin, declaration),
+        )
+    }
+
+    pub(crate) fn verify_copy(
+        &self,
+        facts: &crate::HirFnFacts,
+        origins: &Origins,
+    ) -> Result<(), String> {
+        for origin in &origins.declarations {
+            let Some(observed) = &origin.builtin_copy else {
+                continue;
+            };
+            let file = self
+                .files
+                .get(&origin.source_file)
+                .ok_or("Copy observation lacks checked declaration source")?;
+            let (_, attributes) = file
+                .declarations
+                .iter()
+                .find(|(span, _)| *span == origin.declaration_span)
+                .ok_or("Copy observation lacks exact struct ownership")?;
+            super::copy::verify(facts, origin, observed, attributes)?;
+        }
+        Ok(())
     }
 
     fn check(&mut self, origin: &Origin, declaration: &str) -> Result<(), String> {
@@ -37,7 +63,8 @@ impl Sources {
 
 impl CheckedFile {
     fn new(origin: &Origin) -> Result<Self, String> {
-        if origin.source_file.is_empty() || origin.file_digest != origin.file_bytes.identity() {
+        if origin.source_file.is_empty() || !origin.file_bytes.matches_identity(&origin.file_digest)
+        {
             return Err("Declaration origin file identity or original byte range disagrees".into());
         }
         let source = origin
@@ -46,7 +73,7 @@ impl CheckedFile {
             .unwrap_or(&origin.file_bytes);
         let prefix = origin.file_bytes.len() - source.len();
         let file = syn::parse_file(source).map_err(|error| error.to_string())?;
-        let mut visitor = StructSpans {
+        let mut visitor = DeclarationSpans {
             source,
             prefix: prefix as u32,
             spans: Vec::new(),
@@ -56,7 +83,7 @@ impl CheckedFile {
         Ok(Self {
             bytes: origin.file_bytes.clone(),
             digest: origin.file_digest.clone(),
-            structs: visitor.spans,
+            declarations: visitor.spans,
         })
     }
 
@@ -69,9 +96,9 @@ impl CheckedFile {
             return Err("Declaration origin file identity or original byte range disagrees".into());
         }
         if self
-            .structs
+            .declarations
             .iter()
-            .filter(|candidate| **candidate == span)
+            .filter(|(candidate, _)| *candidate == span)
             .count()
             != 1
         {
@@ -81,21 +108,57 @@ impl CheckedFile {
     }
 }
 
-struct StructSpans<'a> {
+struct DeclarationSpans<'a> {
     source: &'a str,
     prefix: u32,
-    spans: Vec<ByteSpan>,
+    spans: Vec<(ByteSpan, Vec<syn::Attribute>)>,
 }
 
-impl<'ast> syn::visit::Visit<'ast> for StructSpans<'_> {
+impl<'ast> syn::visit::Visit<'ast> for DeclarationSpans<'_> {
     fn visit_item_struct(&mut self, item: &'ast syn::ItemStruct) {
         use syn::spanned::Spanned;
         let span = item.span();
-        self.spans.push(ByteSpan {
-            start: crate::source_evidence::byte_offset(self.source, span.start()) as u32
-                + self.prefix,
-            end: crate::source_evidence::byte_offset(self.source, span.end()) as u32 + self.prefix,
-        });
+        let start = match item.vis {
+            syn::Visibility::Inherited => item.struct_token.span,
+            _ => item.vis.span(),
+        };
+        self.record(span, start, &item.attrs);
+    }
+
+    fn visit_item_enum(&mut self, item: &'ast syn::ItemEnum) {
+        use syn::spanned::Spanned;
+        let start = match item.vis {
+            syn::Visibility::Inherited => item.enum_token.span,
+            _ => item.vis.span(),
+        };
+        self.record(item.span(), start, &item.attrs);
+    }
+}
+
+impl DeclarationSpans<'_> {
+    fn record(
+        &mut self,
+        span: proc_macro2::Span,
+        start: proc_macro2::Span,
+        attributes: &[syn::Attribute],
+    ) {
+        self.spans.push((
+            ByteSpan {
+                start: crate::source_evidence::byte_offset(self.source, start.start()) as u32
+                    + self.prefix,
+                end: crate::source_evidence::byte_offset(self.source, span.end()) as u32
+                    + self.prefix,
+            },
+            attributes
+                .iter()
+                .filter(|attribute| {
+                    ["derive", "cfg", "cfg_attr"]
+                        .iter()
+                        .any(|name| attribute.path().is_ident(name))
+                })
+                .cloned()
+                .collect(),
+        ));
     }
 }
 
@@ -105,11 +168,12 @@ mod tests {
 
     fn evidence() -> (InterfaceObservations, Origins) {
         let bytes: crate::SourceSnapshot =
-            "\u{feff}// π\r\npub struct A;\r\npub struct B;\r\n/* pub struct C; */\r\n".into();
+            "\u{feff}// π\r\n/// document A\r\n#[derive(Debug)]\r\npub struct A;\r\npub struct B;\r\n/* pub struct C; */\r\n".into();
         let declarations = ["A", "B"].map(|name| {
             let source = format!("pub struct {name};");
             let start = bytes.find(&source).unwrap() as u32;
             Origin {
+                builtin_copy: None,
                 nominal: Nominal {
                     source_identity: None,
                     package_name: "sample".into(),
@@ -146,6 +210,7 @@ mod tests {
                 result: observations[1].clone(),
             },
             Origins {
+                generated: Vec::new(),
                 identity: IDENTITY.into(),
                 declarations: declarations.into(),
             },
@@ -159,14 +224,17 @@ mod tests {
         sources.verify(&interface, &origins).unwrap();
         assert_eq!(sources.files.len(), 1);
         let checked = &sources.files["/sample/src/lib.rs"];
-        let spans = checked.structs.as_ptr();
+        let spans = checked.declarations.as_ptr();
         assert!(crate::SourceSnapshot::ptr_eq(
             &checked.bytes,
             &origins.declarations[0].file_bytes
         ));
         for _ in 0..20 {
             sources.verify(&interface, &origins).unwrap();
-            assert_eq!(sources.files["/sample/src/lib.rs"].structs.as_ptr(), spans);
+            assert_eq!(
+                sources.files["/sample/src/lib.rs"].declarations.as_ptr(),
+                spans
+            );
         }
         let mut changed = origins.clone();
         for origin in &mut changed.declarations {
@@ -178,7 +246,10 @@ mod tests {
         let mut contradictory = origins.clone();
         contradictory.declarations[1] = changed.declarations[1].clone();
         assert!(verify(&interface, &contradictory).is_err());
-        assert_eq!(sources.files["/sample/src/lib.rs"].structs.as_ptr(), spans);
+        assert_eq!(
+            sources.files["/sample/src/lib.rs"].declarations.as_ptr(),
+            spans
+        );
     }
 
     #[test]

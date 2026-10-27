@@ -1,0 +1,73 @@
+{
+  "identity": "rstyle.rust.method-receiver-capture/1",
+  "methods": [
+    {
+      "adjusted_type": {
+        "reason": "Outside the concrete drop-free/shared type observation grammar",
+        "status": "Unsupported"
+      },
+      "adjustments": [],
+      "call": {
+        "krate": 0,
+        "local": 9,
+        "owner": 843
+      },
+      "receiver": {
+        "krate": 0,
+        "local": 11,
+        "owner": 843
+      },
+      "receiver_type": {
+        "reason": "Outside the concrete drop-free/shared type observation grammar",
+        "status": "Unsupported"
+      },
+      "signature_inputs": [
+        {
+          "reason": "Outside the concrete drop-free/shared type observation grammar",
+          "status": "Unsupported"
+        }
+      ],
+      "signature_result": {
+        "status": "Captured",
+        "ty": {
+          "evidence": {
+            "fields": [
+              {
+                "declaration": "usize",
+                "name": "start",
+                "position": 0,
+                "ty": {
+                  "evidence": "usize",
+                  "kind": "Scalar"
+                }
+              },
+              {
+                "declaration": "usize",
+                "name": "end",
+                "position": 1,
+                "ty": {
+                  "evidence": "usize",
+                  "kind": "Scalar"
+                }
+              }
+            ],
+            "nominal": {
+              "declaration_digest": "sha256:37c0a07833a7c01d7b49eae18e1a4000aa3769b34bca09eeccb6ac903354a235",
+              "definition_path": "util::search::Span",
+              "manifest_digest": "sha256:25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+              "package_name": "regex-automata",
+              "package_version": "0.4.18",
+              "source_identity": "path+file:///home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18#regex-automata@0.4.18"
+            },
+            "source": "pub struct Span {\n    /// The start offset of the span, inclusive.\n    pub start: usize,\n    /// The end offset of the span, exclusive.\n    pub end: usize,\n}"
+          },
+          "kind": "Struct"
+        }
+      },
+      "source_span": {
+        "end": 102,
+        "start": 91
+      }
+    }
+  ]
+}

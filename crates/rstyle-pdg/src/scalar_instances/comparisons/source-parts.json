@@ -1,0 +1,22 @@
+[
+  {
+    "name": "impl_partial_eq_for_primitive",
+    "bytes": "    macro_rules! impl_partial_eq_for_primitive {\n        ($($t:ty)*) => ($(\n            #[stable(feature = \"rust1\", since = \"1.0.0\")]\n            #[rustc_const_unstable(feature = \"const_cmp\", issue = \"143800\")]\n            const impl PartialEq for $t {\n                #[inline]\n                fn eq(&self, other: &Self) -> bool { *self == *other }\n                // Override the default to use the primitive implementation for `!=`.\n                #[inline]\n                fn ne(&self, other: &Self) -> bool { *self != *other }\n            }\n        )*)\n    }"
+  },
+  {
+    "name": "partial_ord_methods_primitive_impl",
+    "bytes": "    macro_rules! partial_ord_methods_primitive_impl {\n        () => {\n            #[inline(always)]\n            fn lt(&self, other: &Self) -> bool { *self <  *other }\n            #[inline(always)]\n            fn le(&self, other: &Self) -> bool { *self <= *other }\n            #[inline(always)]\n            fn gt(&self, other: &Self) -> bool { *self >  *other }\n            #[inline(always)]\n            fn ge(&self, other: &Self) -> bool { *self >= *other }\n\n            // These implementations are the same for `Ord` or `PartialOrd` types\n            // because if either is NAN the `==` test will fail so we end up in\n            // the `Break` case and the comparison will correctly return `false`.\n\n            #[inline]\n            fn __chaining_lt(&self, other: &Self) -> ControlFlow<bool> {\n                let (lhs, rhs) = (*self, *other);\n                if lhs == rhs { Continue(()) } else { Break(lhs < rhs) }\n            }\n            #[inline]\n            fn __chaining_le(&self, other: &Self) -> ControlFlow<bool> {\n                let (lhs, rhs) = (*self, *other);\n                if lhs == rhs { Continue(()) } else { Break(lhs <= rhs) }\n            }\n            #[inline]\n            fn __chaining_gt(&self, other: &Self) -> ControlFlow<bool> {\n                let (lhs, rhs) = (*self, *other);\n                if lhs == rhs { Continue(()) } else { Break(lhs > rhs) }\n            }\n            #[inline]\n            fn __chaining_ge(&self, other: &Self) -> ControlFlow<bool> {\n                let (lhs, rhs) = (*self, *other);\n                if lhs == rhs { Continue(()) } else { Break(lhs >= rhs) }\n            }\n        };\n    }"
+  },
+  {
+    "name": "ord_impl",
+    "bytes": "    macro_rules! ord_impl {\n        ($($t:ident)*) => ($(\n            #[stable(feature = \"rust1\", since = \"1.0.0\")]\n            #[rustc_const_unstable(feature = \"const_cmp\", issue = \"143800\")]\n            const impl PartialOrd for $t {\n                #[inline]\n                fn partial_cmp(&self, other: &Self) -> Option<Ordering> {\n                    Some(crate::intrinsics::three_way_compare(*self, *other))\n                }\n\n                partial_ord_methods_primitive_impl!();\n            }\n\n            #[stable(feature = \"rust1\", since = \"1.0.0\")]\n            #[rustc_const_unstable(feature = \"const_cmp\", issue = \"143800\")]\n            const impl Ord for $t {\n                #[inline]\n                fn cmp(&self, other: &Self) -> Ordering {\n                    crate::intrinsics::three_way_compare(*self, *other)\n                }\n\n                #[inline]\n                #[track_caller]\n                fn clamp(self, min: Self, max: Self) -> Self\n                {\n                    const_assert!(\n                        min <= max,\n                        \"min > max\",\n                        \"min > max. min = {min:?}, max = {max:?}\",\n                        min: $t,\n                        max: $t,\n                    );\n                    if self < min {\n                        min\n                    } else if self > max {\n                        max\n                    } else {\n                        self\n                    }\n                }\n\n                min_max_impl!($t);\n            }\n        )*)\n    }"
+  },
+  {
+    "name": "impl_partial_eq_for_primitive invocation",
+    "bytes": "    impl_partial_eq_for_primitive! {\n        bool char usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f16 f32 f64 f128\n    }"
+  },
+  {
+    "name": "ord_impl invocation",
+    "bytes": "    ord_impl! { char usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }"
+  }
+]

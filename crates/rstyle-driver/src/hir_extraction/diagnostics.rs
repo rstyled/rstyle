@@ -6,6 +6,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+type Writer = io::BufWriter<std::fs::File>;
+
 #[derive(Serialize)]
 struct Snapshot<'a> {
     version: u32,
@@ -42,22 +44,47 @@ fn write_snapshot(directory: PathBuf, phase: &str, facts: &[HirFnFacts]) -> Resu
 fn persist(directory: &Path, snapshot: &Snapshot<'_>) -> io::Result<()> {
     std::fs::create_dir_all(directory)?;
     let path = directory.join(format!("{}-{}.json", std::process::id(), snapshot.phase));
-    persist_file(&path, snapshot)
+
+    persist_snapshot(&path, snapshot)?;
+    announce(&path, snapshot.phase);
+    Ok(())
 }
 
-fn persist_file(path: &Path, snapshot: &Snapshot<'_>) -> io::Result<()> {
+fn persist_snapshot(path: &Path, snapshot: &Snapshot<'_>) -> io::Result<()> {
+    persist_with(path, |writer| snapshot.write(writer))
+}
+
+impl Snapshot<'_> {
+    fn write(&self, writer: impl Write) -> io::Result<()> {
+        if rstyle_pdg::diagnostics::switch("RSTYLE_DIAGNOSTIC_SHARED_SOURCES") {
+            rstyle_pdg::unit_store::write_diagnostic_snapshot(writer, self.phase, self.facts)
+                .map_err(io::Error::other)
+        } else {
+            serde_json::to_writer(writer, self).map_err(io::Error::other)
+        }
+    }
+}
+
+pub(super) fn persist_file(path: &Path, snapshot: &impl Serialize) -> io::Result<()> {
+    persist_with(path, |writer| {
+        serde_json::to_writer(writer, snapshot).map_err(io::Error::other)
+    })
+}
+
+fn persist_with(path: &Path, write: impl FnOnce(&mut Writer) -> io::Result<()>) -> io::Result<()> {
     let file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(path)?;
-    write_json(file, snapshot)?;
-    announce(path, snapshot.phase);
-    Ok(())
+    write_file(file, write)
 }
 
-fn write_json(file: std::fs::File, snapshot: &Snapshot<'_>) -> io::Result<()> {
+fn write_file(
+    file: std::fs::File,
+    write: impl FnOnce(&mut Writer) -> io::Result<()>,
+) -> io::Result<()> {
     let mut writer = io::BufWriter::new(file);
-    serde_json::to_writer(&mut writer, snapshot)?;
+    write(&mut writer)?;
     writer.flush()?;
     writer.get_ref().sync_all()
 }

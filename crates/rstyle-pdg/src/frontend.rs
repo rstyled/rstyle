@@ -9,6 +9,7 @@
 //! reason and never becomes a fabricated default.
 
 mod options;
+pub(crate) mod unit_records;
 pub(crate) use options::bundle as option_bundle;
 mod source_snapshot;
 pub use source_snapshot::SourceSnapshot;
@@ -64,6 +65,17 @@ pub struct PathRes {
     pub target: Option<HirRef>,
     /// Resolution description for forensics (never a matching label).
     pub description: String,
+}
+
+impl PathRes {
+    /// Serialize a typed compiler observation without granting semantic authority.
+    pub fn observation(kind: &str, value: &impl Serialize) -> Result<Self, serde_json::Error> {
+        Ok(Self {
+            kind: kind.into(),
+            target: None,
+            description: serde_json::to_string(value)?,
+        })
+    }
 }
 
 /// Operator dispatch evidence: built-in facts, never spelling inference.
@@ -124,6 +136,18 @@ pub struct HirNode {
     pub is_unsafe_block: bool,
     /// Nested constructs in source order.
     pub children: Vec<HirNode>,
+}
+
+impl HirNode {
+    /// Observed resolution tag only; this accessor grants no semantic permission.
+    pub(crate) fn resolution_kind(&self) -> Option<&str> {
+        self.res.as_ref().map(|resolution| resolution.kind.as_str())
+    }
+
+    /// Search the complete recorded subtree, including its root, in source order.
+    pub(crate) fn any(&self, predicate: &impl Fn(&Self) -> bool) -> bool {
+        predicate(self) || self.children.iter().any(|child| child.any(predicate))
+    }
 }
 
 /// One lexical binding: identity is the declaring-token span plus scope.
@@ -222,7 +246,7 @@ pub struct SignatureFacts {
 pub struct SourceFacts {
     /// Exact UTF-8 bytes of the assessed function (no added newline).
     pub bytes: SourceText,
-    /// `sha256:<lowercase hex>` of those bytes.
+    /// Explicitly tagged byte checksum: XXH3 for new Data-v3 captures; SHA for historical claims.
     pub digest: String,
 }
 
@@ -261,6 +285,26 @@ pub struct BuildFacts<Options = FrontendOptions> {
 }
 
 impl<Options> BuildFacts<Options> {
+    /// Preserve every captured build setting without cloning frontend observations.
+    pub(crate) fn settings(&self) -> BuildFacts<()> {
+        BuildFacts {
+            frontend_options: (),
+            producer_revision: self.producer_revision.clone(),
+            rustc_version: self.rustc_version.clone(),
+            rustc_commit: self.rustc_commit.clone(),
+            edition: self.edition.clone(),
+            target_triple: self.target_triple.clone(),
+            pointer_width: self.pointer_width.clone(),
+            data_layout: self.data_layout.clone(),
+            cfgs: self.cfgs.clone(),
+            features: self.features.clone(),
+            overflow_checks: self.overflow_checks.clone(),
+            debug_assertions: self.debug_assertions.clone(),
+            panic_strategy: self.panic_strategy.clone(),
+            opt_level: self.opt_level.clone(),
+        }
+    }
+
     pub(crate) fn try_map_options<T>(
         self,
         map: impl FnOnce(Options) -> Result<T, String>,
@@ -397,11 +441,15 @@ pub fn unknown_count(reason: &str) -> CountFact {
 }
 
 /// Shared exact-kind traversal for independent frontend inventory verifiers.
-pub(crate) fn collect_kind<'a>(node: &'a HirNode, kind: &str, result: &mut Vec<&'a HirNode>) {
+pub fn collect_kind<'a>(node: &'a HirNode, kind: &str, result: &mut Vec<&'a HirNode>) {
     if node.kind == kind {
         result.push(node);
     }
     for child in &node.children {
         collect_kind(child, kind, result);
     }
+}
+
+pub(crate) fn normalized(node: &HirNode) -> Option<&str> {
+    node.ty.as_ref()?.normalized.as_deref()
 }

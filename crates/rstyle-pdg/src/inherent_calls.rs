@@ -1,4 +1,9 @@
 //! Resolved concrete inherent ownership and shared receiver correspondence.
+mod digit_forwarders;
+mod id_reader_decoders;
+pub(crate) mod lifetimes;
+mod result_maps;
+pub(crate) use result_maps::{call_owner as generated_call_owner, leaf as generated_leaf_source};
 
 use crate::{ByteSpan, HirFnFacts, HirNode, data_types::TypeToken};
 use serde::{Deserialize, Serialize};
@@ -15,7 +20,7 @@ pub struct Definition {
     pub definition_identity: String,
     pub implementation_identity: String,
     pub implementation_span: ByteSpan,
-    /// Exact nominal association; parameter zero carries the full concrete type.
+    /// Exact nominal association; shared methods also carry the type in parameter zero.
     pub owner_nominal: crate::concrete_types::Nominal,
     pub source_file: String,
     pub function_span: ByteSpan,
@@ -57,18 +62,43 @@ pub(crate) fn check_definition(
         return Err("Inherent definition identity contradicts captured callee ownership".into());
     }
 
+    if !facts.signature.has_self {
+        crate::nominal_boundary::resolution::static_owner(
+            facts,
+            &record.implementation_span,
+            &record.owner_nominal,
+        )?;
+        return Ok(Some(record));
+    }
+    check_receiver_owner(facts, &record)?;
+    Ok(Some(record))
+}
+
+fn check_receiver_owner(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    record: &Definition,
+) -> Result<(), String> {
     let owner =
         crate::nominal_boundary::resolution::inherent_owner(facts, &record.implementation_span)?;
+    let receiver = receiver_type(facts)?;
+    let owned = matches!(
+        &receiver,
+        TypeToken::Struct { .. } | TypeToken::FieldlessEnum { .. }
+    ) && crate::owned_receiver::value_self(facts, &owner)?;
     let owner = TypeToken::from_tree(&owner);
-    if !matches!(&owner, TypeToken::Struct { nominal, .. } if nominal == &record.owner_nominal)
+
+    if !matches!(&owner, TypeToken::Struct { nominal, .. } | TypeToken::FieldlessEnum { nominal, .. } if nominal == &record.owner_nominal)
         || !facts.signature.has_self
-        || receiver_type(facts)? != TypeToken::Shared(Box::new(owner))
+        || receiver
+            != if owned {
+                owner
+            } else {
+                TypeToken::Shared(Box::new(owner))
+            }
     {
-        return Err(
-            "Inherent owner disagrees with exact source implementation/shared receiver".into(),
-        );
+        return Err("Inherent owner disagrees with exact source implementation/receiver".into());
     }
-    Ok(Some(record))
+    Ok(())
 }
 
 fn verify_declared_name(source: &str, resolved: &str) -> Result<(), String> {
@@ -97,6 +127,10 @@ pub(crate) fn verify(
     callee: &dyn crate::unit_store::EvidenceFacts,
     resolution: &serde_json::Value,
 ) -> Result<(), String> {
+    crate::range_values::verify_selection(node, caller, callee, resolution)?;
+    if resolution.get("value_trait_requested").is_some() {
+        return crate::local_value_trait_calls::verify_selection(node, caller, callee, resolution);
+    }
     if resolution.get("inherent").is_none() {
         return if callee.signature.has_self {
             Err("Associated helper lacks resolved inherent ownership".into())
@@ -105,12 +139,16 @@ pub(crate) fn verify(
         };
     }
 
+    if id_reader_decoders::verify(node, caller, callee, resolution)? {
+        return Ok(());
+    }
+
     let expected = definition(callee)?.ok_or("Missing captured inherent callee ownership")?;
     let observed: CallOwner =
         serde_json::from_value(resolution["inherent"].clone()).map_err(|e| e.to_string())?;
     if observed.identity != IDENTITY
         || observed.implementation_identity != expected.implementation_identity
-        || !source_resolved(node, caller)?
+        || !source_resolved_in(node, caller, Some(callee))?
         || !ufcs_owner_matches(node, caller, &expected.owner_nominal)?
     {
         return Err("Resolved inherent call/receiver disagrees with verified callee owner".into());
@@ -124,9 +162,14 @@ fn ufcs_owner_matches(
     caller: &dyn crate::unit_store::EvidenceFacts,
     nominal: &crate::concrete_types::Nominal,
 ) -> Result<bool, String> {
-    use crate::concrete_types::source_proof::PathResolution;
     if node.kind != "expr_call" {
         return Ok(true);
+    }
+    if let Some(matched) = digit_forwarders::verify(node, caller, None, Some(nominal))? {
+        return Ok(matched);
+    }
+    if let Some(matched) = result_maps::verify(node, caller, Some(nominal))? {
+        return Ok(matched);
     }
 
     let source = caller
@@ -152,22 +195,32 @@ fn ufcs_owner_matches(
     }
 
     let resolution = caller.nominal_resolution()?;
-    let owner = resolution.resolve(&syn::TypePath {
-        qself: None,
-        path: path.path,
-    })?;
-    Ok(
-        matches!(owner, crate::concrete_types::TypeTree::Struct { nominal: ref owner, .. }
-        if owner == nominal),
-    )
+    resolution.matches_nominal(
+        &syn::TypePath {
+            qself: None,
+            path: path.path,
+        },
+        nominal,
+    )?;
+    Ok(true)
 }
 
 /// Checks original invocation/receiver evidence before dependency linking;
 /// admission still requires independently verified captured callee documents.
-pub(crate) fn source_resolved(node: &HirNode, facts: &HirFnFacts) -> Result<bool, String> {
+pub(crate) fn source_resolved(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    source_resolved_in(node, facts, None)
+}
+
+fn source_resolved_in(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    callee: Option<&dyn crate::unit_store::EvidenceFacts>,
+) -> Result<bool, String> {
     if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
         .supports("rust.verified-inherent-helper-calls")
-        || node.expansion.is_some()
     {
         return Ok(false);
     }
@@ -177,7 +230,25 @@ pub(crate) fn source_resolved(node: &HirNode, facts: &HirFnFacts) -> Result<bool
     if resolution.get("inherent").is_none() {
         return Ok(false);
     }
+    if let Some(matched) = digit_forwarders::verify(node, facts, callee, None)? {
+        return Ok(matched);
+    }
+    if let Some(matched) = result_maps::verify(node, facts, None)? {
+        return Ok(matched);
+    }
+    if node.expansion.is_some() {
+        return Ok(false);
+    }
 
+    resolved_expression(node, facts, callee, &resolution)
+}
+
+fn resolved_expression(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    callee: Option<&dyn crate::unit_store::EvidenceFacts>,
+    resolution: &serde_json::Value,
+) -> Result<bool, String> {
     let source = facts
         .source
         .bytes
@@ -194,7 +265,7 @@ pub(crate) fn source_resolved(node: &HirNode, facts: &HirFnFacts) -> Result<bool
                 && resolution["path"]
                     .as_str()
                     .is_some_and(|path| path.ends_with(&format!("::{}", call.method)))
-                && shared_receiver(node, facts)?)
+                && shared_receiver(node, facts, callee)?)
         }
         syn::Expr::Call(call) if node.kind == "expr_call" => {
             Ok(matches!(call.func.as_ref(), syn::Expr::Path(path)
@@ -208,7 +279,11 @@ pub(crate) fn source_resolved(node: &HirNode, facts: &HirFnFacts) -> Result<bool
     }
 }
 
-fn shared_receiver(node: &HirNode, facts: &HirFnFacts) -> Result<bool, String> {
+fn shared_receiver(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    callee: Option<&dyn crate::unit_store::EvidenceFacts>,
+) -> Result<bool, String> {
     use crate::{concrete_types::Observation, data_receivers::Kind};
     let capture = crate::data_receivers::verify(facts)?;
     let record = capture
@@ -217,16 +292,26 @@ fn shared_receiver(node: &HirNode, facts: &HirFnFacts) -> Result<bool, String> {
         .find(|record| record.call == node.hir)
         .ok_or("Missing exact inherent receiver capture")?;
 
-    let kinds: Vec<_> = record.adjustments.iter().map(|step| &step.kind).collect();
-    let signature = record
-        .signature_inputs
-        .iter()
-        .map(|observation| match observation {
-            Observation::Captured { ty } => crate::data_types::token(ty),
-            _ => Err("Unsupported instantiated inherent signature".into()),
-        })
-        .collect::<Result<Vec<_>, String>>()?;
+    let mut signature = receiver_signature(record)?;
 
+    if callee.is_some_and(|callee| {
+        !signature.iter().map(|ty| Some(ty.as_str())).eq(callee
+            .signature
+            .params
+            .iter()
+            .map(|param| param.ty.normalized.as_deref()))
+    }) {
+        return Ok(false);
+    }
+
+    if crate::owned_receiver::call_signature(record, facts, &mut signature)? {
+        return Ok(node
+            .dispatch
+            .as_ref()
+            .is_some_and(|dispatch| dispatch.operand_tys == signature));
+    }
+
+    let kinds: Vec<_> = record.adjustments.iter().map(|step| &step.kind).collect();
     Ok(matches!(
         &record.receiver_type,
         Observation::Captured {
@@ -239,6 +324,18 @@ fn shared_receiver(node: &HirNode, facts: &HirFnFacts) -> Result<bool, String> {
             .dispatch
             .as_ref()
             .is_some_and(|dispatch| dispatch.operand_tys == signature))
+}
+
+fn receiver_signature(record: &crate::data_receivers::Method) -> Result<Vec<String>, String> {
+    use crate::concrete_types::Observation;
+    record
+        .signature_inputs
+        .iter()
+        .map(|observation| match observation {
+            Observation::Captured { ty } => crate::data_types::token(ty),
+            _ => Err("Unsupported instantiated inherent signature".into()),
+        })
+        .collect()
 }
 
 #[cfg(test)]

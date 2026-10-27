@@ -7,7 +7,7 @@ use rstyle_pdg::{
     inherent_calls::{CallOwner, Definition},
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{self, TyCtxt};
 
 pub fn implementation(
     tcx: TyCtxt<'_>,
@@ -17,12 +17,40 @@ pub fn implementation(
     if !profile.supports("rust.verified-inherent-helper-calls")
         || !id.is_local()
         || tcx.def_kind(id) != rustc_hir::def::DefKind::AssocFn
-        || tcx.generics_of(id).count() != 0
     {
         return None;
     }
     let owner = tcx.inherent_impl_of_assoc(id)?;
-    (tcx.generics_of(owner).count() == 0).then_some(owner)
+    let nongeneric = tcx.generics_of(id).count() == 0 && tcx.generics_of(owner).count() == 0;
+    (nongeneric
+        || profile.supports("rust.borrowed-mixed-owners")
+            && lifetime_owner(
+                tcx,
+                id,
+                owner,
+                profile.supports("rust.linear-product-result-flow"),
+            ))
+    .then_some(owner)
+}
+
+fn lifetime_owner(tcx: TyCtxt<'_>, id: DefId, owner: DefId, static_product: bool) -> bool {
+    let method = tcx.generics_of(id);
+    let implementation = tcx.generics_of(owner);
+    method.own_params.is_empty()
+        && method.parent == Some(owner)
+        && implementation.parent.is_none()
+        && !implementation.own_params.is_empty()
+        && implementation.own_params.len() <= rstyle_pdg::concrete_types::MAX_FIELDS
+        && implementation
+            .own_params
+            .iter()
+            .all(|parameter| matches!(parameter.kind, ty::GenericParamDefKind::Lifetime))
+        && if tcx.associated_item(id).is_method() {
+            matches!(tcx.fn_sig(id).instantiate_identity().skip_binder().inputs().first(),
+                Some(receiver) if matches!(receiver.kind(), ty::Ref(_, _, rustc_hir::Mutability::Not)))
+        } else {
+            static_product
+        }
 }
 
 pub fn call_owner(tcx: TyCtxt<'_>, owner: DefId) -> CallOwner {
@@ -37,10 +65,20 @@ pub fn capture(ctx: &Context<'_>, id: LocalDefId, facts: &mut HirFnFacts) -> Res
     let Some(implementation) = implementation(tcx, id.to_def_id(), ctx.profile) else {
         return Ok(());
     };
-    if !facts.signature.has_self {
+    // Expanded functions retain their facts and macro exclusion, but cannot
+    // claim a unique original-source inherent definition at a shared callsite.
+    if expanded_signature(tcx, id) {
         return Ok(());
     }
-    let Some(nominal) = owner_nominal(facts) else {
+    if !facts.signature.has_self && !ctx.profile.supports("rust.static-inherent-helper-calls") {
+        return Ok(());
+    }
+    let nominal = if facts.signature.has_self {
+        owner_nominal(facts, ctx.profile)
+    } else {
+        super::concrete_types::static_owner(ctx, implementation)?
+    };
+    let Some(nominal) = nominal else {
         return Ok(());
     };
 
@@ -74,14 +112,32 @@ pub fn capture(ctx: &Context<'_>, id: LocalDefId, facts: &mut HirFnFacts) -> Res
     Ok(())
 }
 
-fn owner_nominal(facts: &HirFnFacts) -> Option<rstyle_pdg::concrete_types::Nominal> {
+fn expanded_signature(tcx: TyCtxt<'_>, id: LocalDefId) -> bool {
+    tcx.hir_node_by_def_id(id)
+        .fn_sig()
+        .is_some_and(|signature| signature.span.from_expansion())
+}
+
+fn owner_nominal(
+    facts: &HirFnFacts,
+    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+) -> Option<rstyle_pdg::concrete_types::Nominal> {
     let token = facts.signature.params.first()?.ty.normalized.as_deref()?;
-    let TypeToken::Shared(owner) = rstyle_pdg::data_types::parse(token).ok()? else {
-        return None;
+    let owner = match rstyle_pdg::data_types::parse(token).ok()? {
+        TypeToken::Shared(owner) => *owner,
+        owner @ TypeToken::Struct { .. } if profile.supports("rust.owned-copy-self") => owner,
+        owner @ TypeToken::FieldlessEnum { .. }
+            if profile.supports("rust.fieldless-enum-values") =>
+        {
+            owner
+        }
+        _ => return None,
     };
 
-    match *owner {
-        TypeToken::Struct { nominal, .. } => Some(nominal),
+    match owner {
+        TypeToken::Struct { nominal, .. } | TypeToken::FieldlessEnum { nominal, .. } => {
+            Some(nominal)
+        }
         _ => None,
     }
 }
@@ -114,12 +170,20 @@ pub fn capture_unit(facts: &mut [HirFnFacts], options: &Options<'_>) -> Result<(
     };
     inventory.validate()?;
 
-    let value = serde_json::to_value(inventory).map_err(|error| error.to_string())?;
+    install_unit(facts, inventory)
+}
+
+fn install_unit(
+    facts: &mut [HirFnFacts],
+    inventory: rstyle_pdg::inherent_calls::UnitDefinitions,
+) -> Result<(), String> {
+    let mut shared = rstyle_pdg::FrontendOptions::default();
+    shared.insert_data(std::sync::Arc::new(inventory));
     for function in facts {
         function
             .build
             .frontend_options
-            .insert(rstyle_pdg::inherent_calls::UNIT_KEY.into(), value.clone());
+            .share_inherent_inventory(&shared)?;
     }
     Ok(())
 }

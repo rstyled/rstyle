@@ -1,0 +1,103 @@
+//! Exact concrete signatures; source names cannot stand in for instantiated types.
+
+use super::*;
+use crate::{
+    concrete_types::{Observation, TypeTree},
+    data_receivers::Kind,
+    data_types::TypeToken,
+};
+
+pub(super) fn payload(node: &HirNode) -> Result<String, String> {
+    let token = crate::data_aggregates::token(node)?;
+    let value: TypeToken = serde_json::from_str(token).map_err(|error| error.to_string())?;
+    let TypeToken::Option(payload) = &value else {
+        return Err("Expected a concrete core Option observation".into());
+    };
+    let scalar = if let TypeToken::Shared(scalar) = payload.as_ref() {
+        scalar.as_ref()
+    } else {
+        payload.as_ref()
+    };
+    let TypeToken::Scalar(scalar) = scalar else {
+        return Err("Checked Option requires a scalar referent".into());
+    };
+
+    if scalar == "unit"
+        || !crate::concrete_types::scalar(scalar)
+        || crate::data_types::parse(token)? != value
+    {
+        return Err("Checked Option type observation is not canonical".into());
+    }
+    Ok(scalar.clone())
+}
+
+pub(super) fn owned(node: &HirNode) -> bool {
+    matches!(crate::data_aggregates::parsed_type(node), Ok(TypeToken::Option(payload)) if matches!(payload.as_ref(), TypeToken::Scalar(_)))
+}
+
+fn result(scalar: &str) -> TypeTree {
+    TypeTree::Scalar(scalar.into())
+        .wrapped(TypeTree::Shared)
+        .wrapped(TypeTree::Option)
+}
+
+pub(super) fn get(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<String, String> {
+    if owned(node) {
+        return Err("Checked get requires a shared scalar payload".into());
+    }
+    let scalar = payload(node)?;
+    let receiver = TypeTree::Scalar(scalar.clone())
+        .wrapped(TypeTree::Slice)
+        .wrapped(TypeTree::Shared);
+    let expected = [crate::data_types::token(&receiver)?, "usize".into()];
+    let operands = node
+        .children
+        .iter()
+        .map(|child| crate::data_aggregates::token(child).map(str::to_owned))
+        .collect::<Result<Vec<_>, _>>()?;
+    let dispatch = node
+        .dispatch
+        .as_ref()
+        .ok_or("Missing checked-get dispatch")?;
+    if dispatch.kind != "resolved_method"
+        || dispatch.op != GET
+        || dispatch.operand_tys != expected
+        || operands != expected
+        || dispatch.result_ty != crate::data_types::token(&result(&scalar))?
+    {
+        return Err("Checked get requires exact shared-slice/usize/Option types".into());
+    }
+    receiver_signature(node, facts, receiver, &scalar)?;
+
+    Ok(scalar)
+}
+
+fn receiver_signature(
+    node: &HirNode,
+    facts: &dyn EvidenceFacts,
+    receiver: TypeTree,
+    scalar: &str,
+) -> Result<(), String> {
+    let capture = crate::data_receivers::verify(facts)?;
+    let record = capture
+        .methods
+        .iter()
+        .find(|record| record.call == node.hir)
+        .ok_or("Missing checked-get receiver observation")?;
+    let observed = |ty| Observation::Captured { ty };
+    let kinds: Vec<_> = record.adjustments.iter().map(|step| &step.kind).collect();
+
+    if record.receiver_type != observed(receiver.clone())
+        || record.adjusted_type != observed(receiver.clone())
+        || record.signature_inputs
+            != [
+                observed(receiver),
+                observed(TypeTree::Scalar("usize".into())),
+            ]
+        || record.signature_result != observed(result(scalar))
+        || !(kinds.is_empty() || kinds == [&Kind::BuiltinDereference, &Kind::SharedBorrow])
+    {
+        return Err("Checked get lacks its exact immutable instantiated signature".into());
+    }
+    Ok(())
+}

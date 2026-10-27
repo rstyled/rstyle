@@ -1,0 +1,27 @@
+{
+  "binding": {
+    "kind": "named",
+    "name": "padded_width_of"
+  },
+  "public": true,
+  "route": [
+    {
+      "declaration": {
+        "crate": "powerfmt",
+        "definition_identity": "DefPathHash(Fingerprint(1172018226235023984, 13289489720512349268))",
+        "local": false,
+        "path": "powerfmt::smart_display::{use#6}",
+        "stable_crate_id": "StableCrateId(1172018226235023984)"
+      },
+      "kind": "single"
+    }
+  ],
+  "target": {
+    "crate": "powerfmt",
+    "definition_identity": "DefPathHash(Fingerprint(1172018226235023984, 3620013221661547534))",
+    "local": false,
+    "path": "powerfmt::__not_public_at_root__padded_width_of",
+    "stable_crate_id": "StableCrateId(1172018226235023984)"
+  },
+  "target_kind": "Macro(MacroKinds(1))"
+}

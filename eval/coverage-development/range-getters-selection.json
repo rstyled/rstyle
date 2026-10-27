@@ -1,0 +1,311 @@
+{
+  "identity": "rstyle.development.range-getters/1",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18",
+    "upstream_revision": "e6ad938198e68339a593f85d228f2d44cb54718f",
+    "file_sha256": {
+      "Cargo.toml": "25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+      "src/lib.rs": "47d562a98f5f50f7cbbffb1f103e277871c7419da05dbb2b0db78dee6e7b4c2e",
+      "src/util/search.rs": "74157bd77eb6f80e8ab5952ef21e8fb2d3452c1817ec671a7a3574fbddae1ae7",
+      "src/util/primitives.rs": "8a9cc19ef2e1ab183943cdc2d2f095b02252476e32b7e9fff4a06a251749b068"
+    }
+  },
+  "build_selection": {
+    "target": "regex-automata library; test=false",
+    "edition": "2021",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "pointer_width": 64,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic_strategy": "unwind",
+    "opt_level": "No",
+    "contexts": [
+      {
+        "cargo_arguments": [],
+        "features": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ]
+      },
+      {
+        "cargo_arguments": [
+          "--no-default-features"
+        ],
+        "features": []
+      }
+    ]
+  },
+  "functions": [
+    {
+      "name": "Input::get_range",
+      "file": "src/util/search.rs",
+      "role": "target",
+      "span": {
+        "start": 26805,
+        "end": 26884
+      },
+      "sha256": "76e1deada1432ad56257c673c734f1c2cb633866ca401c6689029ca8a80ed65b"
+    },
+    {
+      "name": "Input::get_span",
+      "file": "src/util/search.rs",
+      "role": "existing anchor",
+      "span": {
+        "start": 26207,
+        "end": 26263
+      },
+      "sha256": "ae702ae9a8b28d3c1fde42ec962baa9eb65d733241da874c1f2c5dcbbbdd2b93"
+    },
+    {
+      "name": "Span::range",
+      "file": "src/util/search.rs",
+      "role": "target",
+      "span": {
+        "start": 30985,
+        "end": 31055
+      },
+      "sha256": "80657dddee81cd08a16f07a7e5a69f975e7c2c0771a6a0d1a5c6bf31795cbafa"
+    },
+    {
+      "name": "From<Span> for Range<usize>::from",
+      "file": "src/util/search.rs",
+      "role": "required trait implementation",
+      "span": {
+        "start": 32842,
+        "end": 32936
+      },
+      "sha256": "29e7959f7f37174435736fce1414a24eb3534050135bec8bf25d756db134f08b"
+    },
+    {
+      "name": "Match::range",
+      "file": "src/util/search.rs",
+      "role": "target",
+      "span": {
+        "start": 39265,
+        "end": 39347
+      },
+      "sha256": "bf68a9868de3f318e756ffa4fa18f87efc3161db90a0d948c973e05b6d0a9f39"
+    },
+    {
+      "name": "Match::span",
+      "file": "src/util/search.rs",
+      "role": "existing anchor",
+      "span": {
+        "start": 39408,
+        "end": 39460
+      },
+      "sha256": "3637425bc9d59c656cd10543df30e1c1a2f3d2acdd33689375e8b0ca037f4926"
+    },
+    {
+      "name": "From<Range<usize>> for Span::from",
+      "file": "src/util/search.rs",
+      "role": "separate move-input control",
+      "span": {
+        "start": 32689,
+        "end": 32785
+      },
+      "sha256": "c65b25b4dc029677dd5b5231745b03fee710d6653843a731db76adc92ea8aaa3"
+    }
+  ],
+  "source_first": "Identities and classifications fixed from original source before inspecting current extraction outcomes. This separate development selection does not change frozen60.",
+  "expected_classification": {
+    "targets": "Complete strict admission only after every dependency below is proved, including the local trait implementation itself.",
+    "anchors": "Retain existing complete support.",
+    "separate move-input control": "No implied admission from output-only Range support; prove its input move/field/drop chain independently.",
+    "inactive": "None of these methods or implementations is feature-guarded.",
+    "unknown": "Remains unavailable; no prefix certification."
+  },
+  "blocker_chain": [
+    "Exact selected local core::convert::From<Span> for core::ops::Range<usize> implementation, concrete substitutions, local definition identity and original trait impl owner/source linkage.",
+    "Pinned core Range lang-item identity, concrete usize fields, field source order and drop-free proof. Range is not Copy; never synthesize a nominal local source declaration or Copy certificate.",
+    "Whole non-Copy initialized result construction, move/return and transitive forwarding without duplication, loss or invented cleanup.",
+    "Original Span Copy/shared receiver dereference, complete local trait body, owned temporary receiver and both outer getter chains.",
+    "Retain full source census and nominal owner closure: Input lifetimes/Anchored, Match PatternID/SmallIndex and neighboring derives/macros remain checked."
+  ],
+  "unknowns": [
+    "Whether existing capture selects this concrete local From instance and records enough source-owner evidence.",
+    "Whether reusable helper/result machinery can preserve drop-free non-Copy Range values without a new general ownership contract.",
+    "Additional current source/admission blockers require a fresh unchanged original capture after freezing this selection."
+  ],
+  "contract": {
+    "positive": [
+      "All outputs preserve start and end exactly; inverted Span endpoints and usize extremes are valid.",
+      "No normalization, subtraction, bounds check or panic occurs in these conversion/getter bodies.",
+      "Read fields once in original source order; snapshot complete owned results before forwarding.",
+      "Range<usize> is a non-Copy, drop-free two-usize value only under exact pinned authority; general Range<T> is not authorized."
+    ],
+    "negative": [
+      "Swapped/clamped/normalized endpoints or iterator advancement.",
+      "Wrong trait/selected impl/substitutions, external or default body substituted for selected local implementation.",
+      "Forged Copy, hidden Drop/effects, omitted owner/dependency/source, changed target/compiler/core authority.",
+      "Duplicated moved value, unsupported partial move, arbitrary generic Range or Range method permission.",
+      "Historical policies acquiring new concrete trait/move capability."
+    ],
+    "deferred": [
+      "General trait solving/default dispatch/generics, mutable views, arbitrary Range inputs/iterators and unwind/drop-bearing values.",
+      "Reverse conversion is observed by oracle but output-only activation cannot claim its support."
+    ]
+  },
+  "semantic_expectations": {
+    "Span::range and From<Span>": "(start,end) unchanged for every usize pair.",
+    "Match::range": "(start,end) unchanged for ordered public constructor inputs, independent of valid PatternID. Match::new must panic on inverted endpoints; do not fabricate private invalid Match state.",
+    "Input::get_range": "Original default is (0,haystack.len()); set_span preserves every valid input span, including done state start=end+1. Getter adds no bounds or clamping.",
+    "oracle": "Unchanged complete public library execution only; no copied private-source witnesses. Python integers define expected endpoints independently. Native pointer width is checked; cross-target capture is not native execution."
+  },
+  "matching_expectations": {
+    "positive": [
+      {
+        "function": "Input::get_range",
+        "expected": "complete self-comparison within each declared target/feature context"
+      },
+      {
+        "function": "Span::range",
+        "expected": "complete self-comparison within each declared target/feature context"
+      },
+      {
+        "function": "From<Span> for Range<usize>::from",
+        "expected": "complete self-comparison within each declared target/feature context"
+      },
+      {
+        "function": "Match::range",
+        "expected": "complete self-comparison within each declared target/feature context"
+      }
+    ],
+    "negative": "Adversarial fixture mutations must fail independent semantic expectations and/or strict evidence checks; no arbitrary cross-function semantic equivalence is asserted.",
+    "separate_claim": "Admission/matching does not establish rewrite safety or held-out detector quality."
+  },
+  "sample": {
+    "32": {
+      "cases": 4704,
+      "request_sha256": "e9466c93fd71d2d502082f9bf4c92a7e2a945ceddc6bd508862cf55ceb425b2b"
+    },
+    "64": {
+      "cases": 4704,
+      "request_sha256": "d184491c9c02d5e55aecfad08e7e772968490640b39c7ddf10a0a6a7151cdb25"
+    }
+  },
+  "source_owners": [
+    {
+      "name": "forward trait owner",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 32789,
+        "end": 32938
+      },
+      "sha256": "f6fe3c4c0beb0dfc84447a3d26040159f3a630043c16ad2bf3c8561284234ebe"
+    },
+    {
+      "name": "reverse trait owner",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 32636,
+        "end": 32787
+      },
+      "sha256": "f8131ed25821ff4a837357a204185ed1fe2c48419dda753154519c73903c083d"
+    }
+  ],
+  "pinned_range_source_audit": {
+    "file": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/range.rs",
+    "file_sha256": "5d791bd2ee8997e93ac72c35db831815d9acbb7aed05cd1539799b7677a13d20",
+    "declaration_span": {
+      "start": 2417,
+      "end": 2854
+    },
+    "declaration_sha256": "86a01788392001def9a8b8156b2c1f375fac3dcc5bccdb92ada28e29b66ea0d4",
+    "observation": "Range<Idx> has start/end fields, derives Clone etc but explicitly not Copy. This audit is not itself compiler-produced layout/drop authority."
+  },
+  "native_validation": {
+    "status": "passed",
+    "host": "aarch64-unknown-linux-gnu",
+    "pointer_width": 64,
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "source": "Unchanged complete public package linked as a path dependency. No private copied-source witness. Oracle verifies all original source file, function and trait-owner hashes before execution.",
+    "manifest": "/tmp/rstyle-range-getters-native-_ootxch8/Cargo.toml",
+    "target_directory": "/tmp/rstyle-range-getters-native-_ootxch8/target",
+    "lock_sha256": "d87f144ee4960b256d472ecfed0f617bb19ee1fcfe82e73103a47dc84df6fed5",
+    "profile": "dev opt-level0, overflow-checks=true, debug-assertions=true, panic=unwind",
+    "contexts": [
+      {
+        "features": "default",
+        "library_features": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ],
+        "cases": 4704,
+        "result": "/tmp/rstyle-range-getters-native-default.json"
+      },
+      {
+        "features": "no-features",
+        "library_features": [],
+        "cases": 4704,
+        "result": "/tmp/rstyle-range-getters-native-no-features.json"
+      }
+    ],
+    "commands": [
+      "cargo +nightly-2026-09-30 build --offline --manifest-path <manifest> --target-dir <target_directory>",
+      "python3 eval/coverage-development/range-getters/oracle.py --native <target_directory>/debug/range-getters-native",
+      "cargo +nightly-2026-09-30 build --offline --locked --no-default-features --manifest-path <manifest> --target-dir <target_directory>",
+      "python3 eval/coverage-development/range-getters/oracle.py --native <target_directory>/debug/range-getters-native"
+    ],
+    "not_claimed": "32-bit native execution, x86/mac native execution, extraction/admission/matching or activation. Existing upstream deprecation warnings were observed without modifying the package."
+  }
+}

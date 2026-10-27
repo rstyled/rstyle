@@ -1,0 +1,245 @@
+{
+  "expanded": false,
+  "hir": {
+    "krate": 0,
+    "local": 19,
+    "owner": 899
+  },
+  "requested": {
+    "crate": "time",
+    "definition_identity": "DefPathHash(Fingerprint(3206467642969148141, 10625212281885108553))",
+    "local": true,
+    "path": "parsing::ParsedItem::<'a, T>::flat_map",
+    "stable_crate_id": "StableCrateId(3206467642969148141)"
+  },
+  "requested_arguments": [
+    {
+      "display_only": true,
+      "identity": {
+        "kind": "erased_region"
+      },
+      "identity_status": "known",
+      "kind": "lifetime",
+      "value": "erased"
+    },
+    {
+      "display_only": true,
+      "identity": {
+        "kind": "builtin",
+        "name": "u8"
+      },
+      "identity_status": "known",
+      "kind": "type",
+      "value": "u8"
+    },
+    {
+      "display_only": true,
+      "identity": {
+        "arguments": [
+          {
+            "kind": "builtin",
+            "name": "u8"
+          }
+        ],
+        "definition": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 17233351565658270785))",
+          "local": false,
+          "path": "core::num::NonZero",
+          "stable_crate_id": "StableCrateId(5614226571623188065)"
+        },
+        "kind": "adt"
+      },
+      "identity_status": "known",
+      "kind": "type",
+      "value": "core::num::NonZero<u8>"
+    },
+    {
+      "display_only": true,
+      "identity": {
+        "arguments": [
+          {
+            "kind": "builtin",
+            "name": "u8"
+          }
+        ],
+        "definition": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 15673364348431969571))",
+          "local": false,
+          "path": "core::num::NonZero::<T>::new",
+          "stable_crate_id": "StableCrateId(5614226571623188065)"
+        },
+        "kind": "function_item",
+        "signature": {
+          "abi": "\"Rust\"",
+          "bound_variables": 0,
+          "inputs": [
+            {
+              "kind": "builtin",
+              "name": "u8"
+            }
+          ],
+          "output": {
+            "arguments": [
+              {
+                "arguments": [
+                  {
+                    "kind": "builtin",
+                    "name": "u8"
+                  }
+                ],
+                "definition": {
+                  "crate": "core",
+                  "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 17233351565658270785))",
+                  "local": false,
+                  "path": "core::num::NonZero",
+                  "stable_crate_id": "StableCrateId(5614226571623188065)"
+                },
+                "kind": "adt"
+              }
+            ],
+            "definition": {
+              "crate": "core",
+              "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 5328416817104062757))",
+              "local": false,
+              "path": "core::option::Option",
+              "stable_crate_id": "StableCrateId(5614226571623188065)"
+            },
+            "kind": "adt"
+          },
+          "safety": "Safe",
+          "variadic": false
+        }
+      },
+      "identity_status": "known",
+      "kind": "type",
+      "value": "fn(u8) -> core::option::Option<core::num::NonZero<u8>> {core::num::NonZero::<u8>::new}"
+    }
+  ],
+  "selected": {
+    "crate": "time",
+    "definition_identity": "DefPathHash(Fingerprint(3206467642969148141, 10625212281885108553))",
+    "local": true,
+    "path": "parsing::ParsedItem::<'a, T>::flat_map",
+    "stable_crate_id": "StableCrateId(3206467642969148141)"
+  },
+  "selected_arguments": [
+    {
+      "display_only": true,
+      "identity": {
+        "kind": "erased_region"
+      },
+      "identity_status": "known",
+      "kind": "lifetime",
+      "value": "erased"
+    },
+    {
+      "display_only": true,
+      "identity": {
+        "kind": "builtin",
+        "name": "u8"
+      },
+      "identity_status": "known",
+      "kind": "type",
+      "value": "u8"
+    },
+    {
+      "display_only": true,
+      "identity": {
+        "arguments": [
+          {
+            "kind": "builtin",
+            "name": "u8"
+          }
+        ],
+        "definition": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 17233351565658270785))",
+          "local": false,
+          "path": "core::num::NonZero",
+          "stable_crate_id": "StableCrateId(5614226571623188065)"
+        },
+        "kind": "adt"
+      },
+      "identity_status": "known",
+      "kind": "type",
+      "value": "core::num::NonZero<u8>"
+    },
+    {
+      "display_only": true,
+      "identity": {
+        "arguments": [
+          {
+            "kind": "builtin",
+            "name": "u8"
+          }
+        ],
+        "definition": {
+          "crate": "core",
+          "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 15673364348431969571))",
+          "local": false,
+          "path": "core::num::NonZero::<T>::new",
+          "stable_crate_id": "StableCrateId(5614226571623188065)"
+        },
+        "kind": "function_item",
+        "signature": {
+          "abi": "\"Rust\"",
+          "bound_variables": 0,
+          "inputs": [
+            {
+              "kind": "builtin",
+              "name": "u8"
+            }
+          ],
+          "output": {
+            "arguments": [
+              {
+                "arguments": [
+                  {
+                    "kind": "builtin",
+                    "name": "u8"
+                  }
+                ],
+                "definition": {
+                  "crate": "core",
+                  "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 17233351565658270785))",
+                  "local": false,
+                  "path": "core::num::NonZero",
+                  "stable_crate_id": "StableCrateId(5614226571623188065)"
+                },
+                "kind": "adt"
+              }
+            ],
+            "definition": {
+              "crate": "core",
+              "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 5328416817104062757))",
+              "local": false,
+              "path": "core::option::Option",
+              "stable_crate_id": "StableCrateId(5614226571623188065)"
+            },
+            "kind": "adt"
+          },
+          "safety": "Safe",
+          "variadic": false
+        }
+      },
+      "identity_status": "known",
+      "kind": "type",
+      "value": "fn(u8) -> core::option::Option<core::num::NonZero<u8>> {core::num::NonZero::<u8>::new}"
+    }
+  ],
+  "signature": {
+    "display_only": true,
+    "inputs": [
+      "parsing::ParsedItem<'_, u8>",
+      "fn(u8) -> core::option::Option<core::num::NonZero<u8>> {core::num::NonZero::<u8>::new}"
+    ],
+    "output": "core::option::Option<parsing::ParsedItem<'_, core::num::NonZero<u8>>>"
+  },
+  "span": {
+    "end": 159,
+    "start": 130
+  },
+  "status": "resolved"
+}

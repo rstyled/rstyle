@@ -9,9 +9,37 @@ struct Inventory<'a> {
     fields: Vec<&'a syn::ExprField>,
     bindings: Vec<String>,
     has_macros: bool,
+    facts: Option<&'a dyn crate::unit_store::EvidenceFacts>,
+    configuration: Option<crate::conditional_source::Configuration<'a>>,
 }
 
 impl<'a> Visit<'a> for Inventory<'a> {
+    fn visit_expr(&mut self, expression: &'a syn::Expr) {
+        if !self.inactive(crate::conditional_source::expression_attributes(expression)) {
+            syn::visit::visit_expr(self, expression);
+        }
+    }
+
+    fn visit_local(&mut self, local: &'a syn::Local) {
+        if !self.inactive(&local.attrs) {
+            syn::visit::visit_local(self, local);
+        }
+    }
+
+    fn visit_stmt(&mut self, statement: &'a syn::Stmt) {
+        if let syn::Stmt::Macro(statement) = statement
+            && self.inactive(&statement.attrs)
+        {
+            return;
+        }
+        syn::visit::visit_stmt(self, statement);
+    }
+
+    fn visit_arm(&mut self, arm: &'a syn::Arm) {
+        if !self.inactive(&arm.attrs) {
+            syn::visit::visit_arm(self, arm);
+        }
+    }
     fn visit_expr_field(&mut self, field: &'a syn::ExprField) {
         syn::visit::visit_expr_field(self, field);
         self.fields.push(field);
@@ -53,12 +81,53 @@ impl<'a> Visit<'a> for Inventory<'a> {
         syn::visit::visit_expr_binary(self, binary);
     }
 
-    fn visit_macro(&mut self, _: &'a syn::Macro) {
-        self.has_macros = true;
+    fn visit_macro(&mut self, mac: &'a syn::Macro) {
+        if !self.simple_assertion(mac) {
+            self.has_macros = true;
+        }
     }
 
     fn visit_item(&mut self, _: &'a syn::Item) {
         // Nested items own their own field inventory.
+    }
+}
+
+impl Inventory<'_> {
+    fn simple_assertion(&self, mac: &syn::Macro) -> bool {
+        let Some(facts) = self.facts else {
+            return false;
+        };
+        if !crate::extraction_profile::facts_support(facts, "rust.accelerator-packing") {
+            return false;
+        }
+
+        let span = ByteSpan {
+            start: byte_offset(&facts.source.bytes, mac.span().start()) as u32,
+            end: byte_offset(&facts.source.bytes, mac.span().end()) as u32,
+        };
+        let sources = crate::field_locations::operations(&facts.body, &["expr_assert"]);
+        sources.into_iter().any(|node| {
+            node.span == span
+                && node
+                    .children
+                    .iter()
+                    .all(|child| matches!(child.kind.as_str(), "expr_path" | "expr_lit"))
+                && crate::assertions::verify(
+                    node,
+                    &node.snippet,
+                    facts.build.debug_assertions.value,
+                    crate::extraction_profile::ExtractionProfile::from_facts(facts).unwrap(),
+                )
+                .is_ok()
+        })
+    }
+
+    fn inactive(&self, attributes: &[syn::Attribute]) -> bool {
+        !attributes.is_empty()
+            && self
+                .configuration
+                .as_ref()
+                .is_some_and(|configuration| configuration.active(attributes) == Ok(false))
     }
 }
 
@@ -79,13 +148,18 @@ fn written_roots(expression: &syn::Expr) -> Vec<String> {
 }
 
 pub(super) fn verify(
-    facts: &HirFnFacts,
+    facts: &dyn crate::unit_store::EvidenceFacts,
     observations: &FieldObservations,
     interface: &InterfaceObservations,
 ) -> Result<(), String> {
-    let function: syn::ItemFn =
-        syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())?;
-    let mut inventory = Inventory::default();
+    let function = function(facts)?;
+    let mut inventory = Inventory {
+        facts: Some(facts),
+        configuration: crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+            .supports("rust.cfg-source-removal")
+            .then(|| crate::conditional_source::Configuration::new(&facts.build.cfgs)),
+        ..Inventory::default()
+    };
     inventory.visit_block(&function.block);
     if inventory.has_macros && !inventory.fields.is_empty() {
         return Err("Macro effects prevent the formal-only field origin proof".into());
@@ -113,8 +187,18 @@ pub(super) fn verify(
     Ok(())
 }
 
+/// Generated coordinates belong to the checked member AST; invocation bytes
+/// remain the source identity and cannot be parsed as an ordinary function.
+fn function(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<syn::ItemFn, String> {
+    if crate::result_maps::verify_chain(facts)?.is_some() {
+        let resolution = facts.nominal_resolution()?;
+        return crate::data_frontend::source_function(facts, Some(&resolution));
+    }
+    syn::parse_str(&facts.source.bytes).map_err(|error| error.to_string())
+}
+
 struct Verification<'a> {
-    facts: &'a HirFnFacts,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
     observations: &'a FieldObservations,
     interface: &'a InterfaceObservations,
     bindings: &'a [String],
@@ -123,12 +207,24 @@ struct Verification<'a> {
 impl Verification<'_> {
     fn field(&self, field: &syn::ExprField) -> Result<(), String> {
         let (operation, node) = self.correspondence(field)?;
-        let (name, members) = source_path(field)?;
-        if self.bindings.iter().any(|binding| binding == &name) {
-            return Err("Local shadowing, rebindings or mutable borrows prevent the formal-only field proof".into());
+        if crate::data_value_fields::candidate(node, self.facts) {
+            if !matches!(operation.location, Location::Unsupported { .. }) {
+                return Err("Aggregate value projection invents a formal memory location".into());
+            }
+            return crate::data_value_fields::index(node, self.facts).map(|_| ());
         }
-        let (parameter, ty) = formal(&name, self.facts, self.interface)?;
-        let (path, value) = source_projection(ty, &members)?;
+        if derived::candidate(node, self.facts) {
+            if !matches!(operation.location, Location::Unsupported { .. }) {
+                return Err("Indirect field invents one captured origin".into());
+            }
+            return derived::locations(node, self.facts).map(|_| ());
+        }
+        let source = source_path(field)?;
+        if self.bindings.iter().any(|binding| binding == &source.root) {
+            return self.alias(node, operation, &source);
+        }
+        let (parameter, ty) = formal(&source.root, self.facts, self.interface)?;
+        let (path, value) = source_projection(ty, &source.members)?;
         let expected = Location::Captured {
             parameter: parameter.position,
             path,
@@ -141,6 +237,72 @@ impl Verification<'_> {
         }
 
         check_resolution(node, parameter, &expected)
+    }
+
+    fn alias(
+        &self,
+        node: &HirNode,
+        operation: &FieldOperation,
+        source: &SourcePath,
+    ) -> Result<(), String> {
+        if !crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?
+            .supports("rust.shared-local-field-reads")
+        {
+            return Err("Local field roots require their registered capability".into());
+        }
+
+        let root = hir_root(node)?;
+        let origin = self.alias_origin(root, &source.root)?;
+        let Some(Observation::Captured { ty }) =
+            self.interface.parameters.get(origin.parameter as usize)
+        else {
+            return Err("Shared field alias lacks its concrete formal root".into());
+        };
+        let referent = origin_value(ty, &origin.path)?;
+        let expected = crate::data_types::TypeToken::Shared(Box::new(
+            crate::data_types::TypeToken::from_tree(&referent),
+        ));
+        if crate::data_types::parse(crate::data_aggregates::token(root)?)? != expected {
+            return Err("Shared field alias disagrees with its original referent type".into());
+        }
+
+        let (suffix, value) = source_projection(&referent, &source.members)?;
+        let expected = Location::Captured {
+            parameter: origin.parameter,
+            path: origin.path.iter().cloned().chain(suffix).collect(),
+            value,
+        };
+        if operation.location != expected {
+            return Err(
+                "Shared local field location contradicts its source origin and members".into(),
+            );
+        }
+        check_field_resolution(node, &expected)
+    }
+
+    fn alias_origin(
+        &self,
+        root: &HirNode,
+        name: &str,
+    ) -> Result<crate::data_origins::Origin, String> {
+        let target = root
+            .res
+            .as_ref()
+            .and_then(|resolution| resolution.target.as_ref());
+        if !self.facts.bindings.iter().any(|binding| {
+            Some(&binding.hir) == target
+                && !binding.is_param
+                && !binding.is_mut
+                && binding.name == name
+        }) {
+            return Err("Source field alias lacks its immutable local binding identity".into());
+        }
+
+        let origins = crate::data_origins::origins(root, self.facts)?;
+        let [origin] = origins.as_slice() else {
+            return Err("Shared field alias needs one exact formal origin".into());
+        };
+        Ok(origin.clone())
     }
 
     fn correspondence(
@@ -212,12 +374,17 @@ fn formal<'a>(
     Ok((parameter, ty))
 }
 
-fn source_path(field: &syn::ExprField) -> Result<(String, Vec<syn::Member>), String> {
+struct SourcePath {
+    root: String,
+    members: Vec<syn::Member>,
+}
+
+fn source_path(field: &syn::ExprField) -> Result<SourcePath, String> {
     let mut members = vec![field.member.clone()];
-    let mut base = field.base.as_ref();
+    let mut base = crate::data_aggregates::ungroup(&field.base);
     while let syn::Expr::Field(field) = base {
         members.push(field.member.clone());
-        base = field.base.as_ref();
+        base = crate::data_aggregates::ungroup(&field.base);
     }
     let syn::Expr::Path(root) = base else {
         return Err("Source field path is outside the formal projection grammar".into());
@@ -227,7 +394,10 @@ fn source_path(field: &syn::ExprField) -> Result<(String, Vec<syn::Member>), Str
     }
     members.reverse();
 
-    Ok((root.path.segments[0].ident.to_string(), members))
+    Ok(SourcePath {
+        root: root.path.segments[0].ident.to_string(),
+        members,
+    })
 }
 
 fn source_projection(
@@ -295,6 +465,11 @@ fn check_resolution(
     parameter: &crate::ParamFact,
     location: &Location,
 ) -> Result<(), String> {
+    check_root(node, parameter)?;
+    check_field_resolution(node, location)
+}
+
+fn check_field_resolution(node: &HirNode, location: &Location) -> Result<(), String> {
     let Location::Captured { path, value, .. } = location else {
         unreachable!()
     };
@@ -320,7 +495,6 @@ fn check_resolution(
     {
         return Err("Resolved HIR field position/owner contradicts source projection".into());
     }
-    check_root(node, parameter)?;
     if let TypeTree::Scalar(token) = value
         && node.ty.as_ref().and_then(|ty| ty.normalized.as_ref()) != Some(token)
     {
@@ -328,6 +502,94 @@ fn check_resolution(
     }
 
     Ok(())
+}
+
+pub(super) fn origin_value<'a>(
+    value: &'a TypeTree,
+    path: &[Projection],
+) -> Result<std::borrow::Cow<'a, TypeTree>, String> {
+    if let Some((Projection::Utf8Bytes, prefix)) = path.split_last() {
+        if base_value(value, prefix)? != &TypeTree::Str {
+            return Err("UTF-8 byte projection requires the exact string referent".into());
+        }
+        return Ok(std::borrow::Cow::Owned(TypeTree::Slice(Box::new(
+            TypeTree::Scalar("u8".into()),
+        ))));
+    }
+    if let Some((
+        Projection::ByteWindow {
+            operand_position: 0,
+            length,
+        },
+        prefix,
+    )) = path.split_last()
+        && matches!(length, 4 | 8)
+    {
+        let referent = base_value(value, prefix)?;
+        if *referent != TypeTree::Slice(Box::new(TypeTree::Scalar("u8".into()))) {
+            return Err("Borrowed byte window requires a shared byte-slice origin".into());
+        }
+        return Ok(std::borrow::Cow::Owned(TypeTree::Array {
+            element: Box::new(TypeTree::Scalar("u8".into())),
+            length: *length,
+        }));
+    }
+    base_value(value, path).map(std::borrow::Cow::Borrowed)
+}
+
+fn base_value<'a>(mut value: &'a TypeTree, path: &[Projection]) -> Result<&'a TypeTree, String> {
+    for step in path {
+        value = match (value, step) {
+            (TypeTree::Shared(referent), Projection::SharedReferent) => referent,
+            (TypeTree::Slice(element), Projection::PrefixElement { position })
+                if *position < 3 && **element == TypeTree::Scalar("u8".into()) =>
+            {
+                element
+            }
+            (TypeTree::Slice(element), Projection::PrefixSuffix { start })
+                if (1..=3).contains(start) && **element == TypeTree::Scalar("u8".into()) =>
+            {
+                value
+            }
+            (TypeTree::Slice(element), Projection::CheckedElement) => element,
+            (TypeTree::Tuple(elements), Projection::TupleField { position }) => elements
+                .get(*position)
+                .ok_or("Shared alias tuple origin is out of range")?,
+            (
+                TypeTree::Struct {
+                    nominal: owner,
+                    fields,
+                    ..
+                },
+                Projection::StructField {
+                    nominal,
+                    position,
+                    name,
+                },
+            ) if owner == nominal => {
+                let field = fields
+                    .get(*position)
+                    .filter(|field| field.position == *position && field.name == *name)
+                    .ok_or("Shared alias nominal origin contradicts its declaration")?;
+                &field.ty
+            }
+            _ => return Err("Shared alias origin contradicts its formal concrete type".into()),
+        };
+    }
+    Ok(value)
+}
+
+fn hir_root(mut node: &HirNode) -> Result<&HirNode, String> {
+    while node.kind == "expr_field" {
+        let [base] = node.children.as_slice() else {
+            return Err("Shared alias field lacks its exact base".into());
+        };
+        node = base;
+    }
+    if node.kind != "expr_path" {
+        return Err("Shared alias field root must be a local binding".into());
+    }
+    Ok(node)
 }
 
 fn check_root(node: &HirNode, parameter: &crate::ParamFact) -> Result<(), String> {
@@ -357,6 +619,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unproved_invocation_cannot_replace_the_owned_function_field_inventory() {
+        let mut facts: crate::HirFnFacts = serde_json::from_str(include_str!(
+            "../nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
+        ))
+        .unwrap();
+        facts.source.bytes = "fn ordinary() {}".into();
+        assert_eq!(function(&facts).unwrap().sig.ident, "ordinary");
+        facts.source.bytes = "index_type_impls!(Wrapper, Failure);".into();
+        assert!(function(&facts).is_err());
+        facts.source_scan_complete = true;
+        facts.source_diagnostics.clear();
+        assert!(function(&facts).is_err());
+    }
+
+    #[test]
     fn independent_shared_tuple_projection_retains_both_referents() {
         let root = TypeTree::Shared(Box::new(TypeTree::Tuple(vec![
             TypeTree::Scalar("u16".into()),
@@ -365,9 +642,9 @@ mod tests {
             )]))),
         ])));
         let expression: syn::ExprField = syn::parse_str("input.1.0").unwrap();
-        let (name, members) = source_path(&expression).unwrap();
-        assert_eq!(name, "input");
-        let (path, result) = source_projection(&root, &members).unwrap();
+        let source = source_path(&expression).unwrap();
+        assert_eq!(source.root, "input");
+        let (path, result) = source_projection(&root, &source.members).unwrap();
         assert_eq!(
             path,
             [
@@ -379,8 +656,8 @@ mod tests {
         );
         assert_eq!(result, TypeTree::Scalar("i32".into()));
         let expression: syn::ExprField = syn::parse_str("input.2").unwrap();
-        let (_, members) = source_path(&expression).unwrap();
-        assert!(source_projection(&root, &members).is_err());
+        let source = source_path(&expression).unwrap();
+        assert!(source_projection(&root, &source.members).is_err());
     }
 
     #[test]
@@ -419,8 +696,8 @@ mod tests {
         let mut inventory = Inventory::default();
         inventory.visit_block(&function.block);
         assert_eq!(inventory.fields.len(), 2);
-        assert_eq!(source_path(inventory.fields[0]).unwrap().0, "x");
-        assert_eq!(source_path(inventory.fields[1]).unwrap().0, "x");
+        assert_eq!(source_path(inventory.fields[0]).unwrap().root, "x");
+        assert_eq!(source_path(inventory.fields[1]).unwrap().root, "x");
     }
 
     #[test]

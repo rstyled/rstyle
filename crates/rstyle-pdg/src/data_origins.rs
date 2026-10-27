@@ -20,8 +20,21 @@ pub struct Origin {
 pub fn shared(token: &TypeToken) -> bool {
     match token {
         TypeToken::Shared(_) => true,
+        TypeToken::Option(value) => shared(value),
+        // Containment is independent of admission. An unsupported checked value
+        // must not become reference-free merely because its grammar is unknown.
+        TypeToken::Result { ok, err } => shared(ok) || shared(err),
+        TypeToken::SliceArrayResult { borrowed: true, .. } => true,
         TypeToken::Tuple(elements) => elements.iter().any(shared),
-        TypeToken::Struct { fields, .. } => fields.iter().any(|(_, field)| shared(field)),
+        TypeToken::Struct { fields, .. }
+        | TypeToken::ScalarProductInstance { fields, .. }
+        | TypeToken::Enum {
+            variants: fields, ..
+        } => fields.iter().any(|(_, field)| shared(field)),
+        TypeToken::MixedEnum { variants, .. } => variants
+            .iter()
+            .flat_map(|(_, shape)| shape.fields())
+            .any(shared),
         TypeToken::Array { element, .. } | TypeToken::Slice(element) => shared(element),
         _ => false,
     }
@@ -31,6 +44,9 @@ pub fn origins(
     node: &HirNode,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Vec<Origin>, String> {
+    if node.kind == "ty_annotation" {
+        return Ok(Vec::new());
+    }
     let Some(text) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) else {
         return Ok(Vec::new());
     };
@@ -39,11 +55,83 @@ pub fn origins(
     if !shared(&ty) {
         return Ok(Vec::new());
     }
+    // This exact nonescaping static literal has no formal referent dependency.
+    if crate::lossless_integer_calls::message::verify(node, facts)? {
+        return Ok(Vec::new());
+    }
 
-    let origins = match node.kind.as_str() {
-        "expr_path" => formal(node, facts, &ty)?,
-        "expr_field" => field(node, facts, &ty)?,
-        "expr_addr_of" => vec![crate::data_places::borrow_origin(node, facts)?],
+    if let Some(origins) = crate::scalar_product_instances::origins::source(node, &[], facts)? {
+        return Ok(origins);
+    }
+    if let Some(origins) = crate::owned_product_values::source(node, &[], facts)? {
+        return Ok(origins);
+    }
+    if crate::data_reference_locals::flow_enabled(facts) {
+        return crate::data_reference_locals::selected(node, &[], facts);
+    }
+
+    checked_value_origins(node, facts, text, &ty)
+}
+
+fn checked_value_origins(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    text: &str,
+    ty: &TypeToken,
+) -> Result<Vec<Origin>, String> {
+    if let Some(operation) = crate::reference_instances::activation::operation(node, facts)? {
+        let roots = origins(operation.receiver, facts)?;
+        return operation.project(roots);
+    }
+
+    if crate::option_propagation::candidate(node, facts) {
+        let checked = crate::option_propagation::verify(node, facts)?;
+        return propagation_origins(origins(checked.operand, facts)?);
+    }
+    if crate::checked_options::get_candidate(node, facts) {
+        let checked = crate::checked_options::verify_get(node, facts)?;
+        return Ok(crate::checked_options::project(origins(
+            checked.receiver,
+            facts,
+        )?));
+    }
+    if let Some(origins) =
+        crate::data_bytes::source_origins(node, facts, |operand| origins(operand, facts))
+    {
+        return origins;
+    }
+    let origins = source_operation(node, facts, text, ty)?;
+
+    Ok(origins
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect())
+}
+
+// The successful payload is the saved reference itself. Its origins already
+// contain the checked-element projection; propagation neither reads nor indexes.
+pub(crate) fn propagation_origins(roots: Vec<Origin>) -> Result<Vec<Origin>, String> {
+    if roots.is_empty() {
+        return Err("Option propagation payload lacks verified input origins".into());
+    }
+    Ok(roots)
+}
+
+fn source_operation(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    text: &str,
+    ty: &TypeToken,
+) -> Result<Vec<Origin>, String> {
+    Ok(match node.kind.as_str() {
+        "expr_path" => formal(node, facts, ty)?,
+        "expr_field" => field(node, facts, ty)?,
+        "expr_unary" if crate::data_dereferences::candidate(node, facts) => {
+            field_locations::derived::selected(node, &[], facts)?
+        }
+        "expr_tup" | "expr_struct" => constructed(node, facts)?,
+        "expr_addr_of" => borrowed(node, facts)?,
         "expr_block" | "expr_ret" => {
             let value = node
                 .children
@@ -59,12 +147,40 @@ pub fn origins(
         }
         "pat_binding" => Vec::new(),
         _ => return Err("Unsupported reference-valued source operation".into()),
-    };
-    Ok(origins
-        .into_iter()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect())
+    })
+}
+
+fn borrowed(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
+    if crate::data_subslices::borrowed(node, facts) {
+        let checked = crate::data_subslices::verify_borrow(node, facts)?;
+        return if checked.array_length.is_some() {
+            Ok(vec![crate::data_places::field_origin(checked.base, facts)?])
+        } else {
+            origins(checked.base, facts)
+        };
+    }
+    Ok(vec![crate::data_places::borrow_origin(node, facts)?])
+}
+
+fn constructed(
+    node: &HirNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<Vec<Origin>, String> {
+    if !crate::data_aggregates::reference_literal(node, facts) {
+        return Err("Reference-bearing literals require their registered capability".into());
+    }
+    if crate::data_aggregates::update(node) {
+        return crate::data_component_origins::updated(node, facts);
+    }
+
+    let mut roots = Vec::new();
+    for child in &node.children {
+        roots.extend(origins(child, facts)?);
+    }
+    Ok(roots)
 }
 
 fn same_type(expected: &str, node: &HirNode) -> Result<(), String> {
@@ -107,8 +223,12 @@ fn formal(
         .signature
         .params
         .iter()
-        .find(|parameter| parameter.pat.hir == *target)
-        .ok_or("Reference local origin proof is unavailable")?;
+        .find(|parameter| parameter.pat.hir == *target);
+    let Some(parameter) = parameter else {
+        let initializer = crate::data_reference_locals::initializer(node, facts, ty)?;
+        same_type(crate::data_aggregates::token(node)?, initializer)?;
+        return origins(initializer, facts);
+    };
     Ok(paths(ty, Vec::new())?
         .into_iter()
         .map(|path| Origin {
@@ -123,6 +243,16 @@ fn field(
     facts: &dyn crate::unit_store::EvidenceFacts,
     ty: &TypeToken,
 ) -> Result<Vec<Origin>, String> {
+    if crate::field_locations::derived::candidate(node, facts) {
+        return crate::field_locations::derived::selected(node, &[], facts);
+    }
+    if crate::data_value_fields::candidate(node, facts) {
+        return crate::data_component_origins::source(
+            &node.children[0],
+            &[crate::data_value_fields::index(node, facts)?],
+            facts,
+        );
+    }
     let fields = facts
         .build
         .frontend_options
@@ -158,6 +288,23 @@ pub(crate) fn paths(
     prefix: Vec<Projection>,
 ) -> Result<Vec<Vec<Projection>>, String> {
     Ok(match ty {
+        TypeToken::ScalarProductInstance { .. } => {
+            return Err(
+                "Scalar product instance origins require exact guarded component evidence".into(),
+            );
+        }
+        TypeToken::Result { .. } => {
+            return Err(
+                "Result formal/storage origins require unavailable guarded payload evidence".into(),
+            );
+        }
+        TypeToken::Option(_) | TypeToken::Enum { .. } | TypeToken::MixedEnum { .. }
+            if shared(ty) =>
+        {
+            return Err(
+                "Tagged formal/storage origins require unavailable guarded payload evidence".into(),
+            );
+        }
         TypeToken::Shared(_) => vec![
             prefix
                 .into_iter()
@@ -255,6 +402,107 @@ pub fn parameter(parameter: &crate::ParamFact) -> Result<Vec<Origin>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod tagged;
+
+    #[test]
+    fn propagation_preserves_only_saved_checked_reference_origins() {
+        let saved = vec![Origin {
+            parameter: 1,
+            path: vec![Projection::SharedReferent, Projection::CheckedElement],
+        }];
+        assert_eq!(propagation_origins(saved.clone()).unwrap(), saved);
+        assert!(propagation_origins(Vec::new()).is_err());
+    }
+
+    #[test]
+    fn result_references_are_visible_but_formal_and_storage_paths_stay_closed() {
+        let nominal = crate::concrete_types::Nominal {
+            source_identity: Some("selected".into()),
+            package_name: "sample".into(),
+            package_version: "1".into(),
+            manifest_digest: "sha256:unused-structural-test".into(),
+            definition_path: "sample::Error".into(),
+            declaration_digest: "sha256:unused-structural-test".into(),
+        };
+        let error = TypeToken::MixedEnum {
+            nominal,
+            variants: vec![
+                (
+                    "Payload".into(),
+                    crate::concrete_types::VariantShape::Named {
+                        fields: vec![("size".into(), TypeToken::Scalar("usize".into()))],
+                    },
+                ),
+                ("Empty".into(), crate::concrete_types::VariantShape::Unit {}),
+            ],
+        };
+        let slice = TypeToken::Shared(Box::new(TypeToken::Slice(Box::new(TypeToken::Scalar(
+            "u8".into(),
+        )))));
+        for ok in [
+            slice.clone(),
+            TypeToken::Tuple(vec![TypeToken::Scalar("usize".into()), slice]),
+        ] {
+            let result = TypeToken::Result {
+                ok: Box::new(ok),
+                err: Box::new(error.clone()),
+            };
+            assert!(shared(&result));
+            assert!(paths(&result, Vec::new()).is_err());
+            assert!(paths(&TypeToken::Tuple(vec![result]), Vec::new()).is_err());
+        }
+        let unsupported = TypeToken::Result {
+            ok: Box::new(TypeToken::Shared(Box::new(TypeToken::Scalar("u8".into())))),
+            err: Box::new(error),
+        };
+        assert!(shared(&unsupported));
+        assert!(paths(&unsupported, Vec::new()).is_err());
+    }
+
+    #[test]
+    fn fresh_product_results_expose_backing_without_formal_or_storage_permission() {
+        let nominal = crate::concrete_types::Nominal {
+            source_identity: Some("selected".into()),
+            package_name: "sample".into(),
+            package_version: "1".into(),
+            manifest_digest: "unused-structural-test".into(),
+            definition_path: "sample::Reader".into(),
+            declaration_digest: "unused-structural-test".into(),
+        };
+        let result = TypeToken::Result {
+            ok: Box::new(TypeToken::Struct {
+                nominal: nominal.clone(),
+                fields: vec![
+                    (
+                        "remaining".into(),
+                        TypeToken::Shared(Box::new(TypeToken::Slice(Box::new(TypeToken::Scalar(
+                            "u8".into(),
+                        ))))),
+                    ),
+                    (
+                        "line_width".into(),
+                        TypeToken::Option(Box::new(TypeToken::Scalar("usize".into()))),
+                    ),
+                ],
+            }),
+            err: Box::new(TypeToken::FieldlessEnum {
+                nominal,
+                variants: vec![("InvalidLength".into(), 0)],
+            }),
+        };
+        assert!(shared(&result));
+        assert!(paths(&result, Vec::new()).is_err());
+        assert!(paths(&TypeToken::Tuple(vec![result.clone()]), Vec::new()).is_err());
+        let TypeToken::Result { ok, .. } = result else {
+            unreachable!();
+        };
+        let scalar_error = TypeToken::Result {
+            ok,
+            err: Box::new(TypeToken::Scalar("usize".into())),
+        };
+        assert!(shared(&scalar_error));
+        assert!(paths(&scalar_error, Vec::new()).is_err());
+    }
 
     #[test]
     fn element_evidence_gaps_never_return_partial_origins() {

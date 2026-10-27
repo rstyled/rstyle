@@ -74,3 +74,10 @@ than treating function bodies as opaque. Named imports and aliases must resolve 
 one captured declaration; glob/external imports and unsupported alias chains remain
 unavailable. Nominal evidence is required only for functions whose interface
 contains a nominal tree; scalar-only data functions keep their existing boundary.
+
+
+Data-v3 3.11.0 supplements the item whitelist with
+[nominal constant contexts](nominal-constant-context-v1.md). Top-level and inherent
+constant declarations may coexist with nominal APIs; initializer traversal and
+all other closed-unit/drop checks remain. Earlier selections keep this document's
+original whitelist.

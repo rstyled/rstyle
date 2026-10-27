@@ -1,0 +1,457 @@
+{
+  "identity": "rstyle.development.transition-callback/1",
+  "baseline_revision": "982e1db",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18",
+    "file_sha256": {
+      "Cargo.toml": "25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+      "src/nfa/thompson/nfa.rs": "3ab46b912ece5218ba95e29e0c169b23a869796c7bcb138385c562a57c62a2a3",
+      "src/util/alphabet.rs": "4f94d317459b43c7748e7a963935d61632fb70bd7c09dd9e536e354586d21df6",
+      "src/util/primitives.rs": "8a9cc19ef2e1ab183943cdc2d2f095b02252476e32b7e9fff4a06a251749b068"
+    }
+  },
+  "functions": [
+    {
+      "name": "nfa::thompson::nfa::Transition::matches",
+      "file": "src/nfa/thompson/nfa.rs",
+      "span": {
+        "start": 80413,
+        "end": 80544
+      },
+      "sha256": "12c07336cd1f65d9fcbde258b6253da1bf92adbfcd19d5f9719f2802e19eee2c"
+    },
+    {
+      "name": "nfa::thompson::nfa::Transition::matches_unit",
+      "file": "src/nfa/thompson/nfa.rs",
+      "span": {
+        "start": 80735,
+        "end": 80866
+      },
+      "sha256": "701478faaddf82fab8b5a1e0f1c3db60d32fc3d1bef2688f2accb145ea51dcb1"
+    },
+    {
+      "name": "nfa::thompson::nfa::Transition::matches_byte",
+      "file": "src/nfa/thompson/nfa.rs",
+      "span": {
+        "start": 80962,
+        "end": 81061
+      },
+      "sha256": "abdfa508e87dd08680e3ae6b0d99c6436022bffebd6a8f5d24e77f6c4b38cd09"
+    },
+    {
+      "name": "util::alphabet::Unit::as_u8",
+      "file": "src/util/alphabet.rs",
+      "span": {
+        "start": 5977,
+        "end": 6128
+      },
+      "sha256": "a27ac16335fbe204e853b2665b5db25c033ade8be5978f7143c8d090995142f8"
+    }
+  ],
+  "build_selection": {
+    "edition": "2021",
+    "target": "library; test=false",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "contexts": [
+      {
+        "cargo_arguments": []
+      },
+      {
+        "cargo_arguments": [
+          "--no-default-features",
+          "--features",
+          "nfa-thompson"
+        ]
+      }
+    ]
+  },
+  "contract": {
+    "positive": [
+      "complete original matches -> get -> borrowed Option payload copy -> shared receiver closure -> matches_byte",
+      "complete original matches_unit -> Unit::as_u8 -> owned Option payload -> shared receiver closure -> matches_byte",
+      "retain complete Transition including unused next: StateID(SmallIndex(u32)) passive Copy evidence"
+    ],
+    "negative": [
+      "mutable/move/extra projected captures",
+      "effectful or unrelated callback helper",
+      "changed core get/map_or definition or signature",
+      "reference payload lost or rebound",
+      "Some-only call executed on None",
+      "missing owner field/declaration/derive/macro namespace evidence",
+      "historical policy certifying new operations"
+    ],
+    "unknowns": [
+      "exact typed closure capture and passive proof must be measured in fresh full original Cargo capture; retained3.70 complete context has134/2582 admissions, both selected consumers excluded"
+    ],
+    "source_boundary": "matches_byte already admitted at 3.68; no blanket namespace relaxation justified; StateID neighboring index_type_impls macros retained",
+    "bounded_support": [
+      "Immediate synchronous nonescaping map_or callback; one immutable shared formal &Struct capture with exact builtin SharedDeref and stored (&Struct,) environment.",
+      "Owned Option<u8> or borrowed Option<&u8> copied by an original |&byte| binding; callback body solely a verified returning read-only inherent helper (&Struct,u8)->bool.",
+      "Receiver, eager default and environment evaluation precede Some-only payload copy and helper execution; saved origins, alias uncertainty and all neighboring source/drop evidence remain mandatory."
+    ]
+  },
+  "semantic_expectations": {
+    "bytes": "membership in inclusive set range(start,end+1); reversed range is empty",
+    "out_of_range": "empty input, at==len, and usize::MAX return false without panic",
+    "unit": "EOI(0), EOI(256) false; byte unit follows inclusive membership",
+    "next": "changing only next between StateID::ZERO and MAX cannot alter predicate",
+    "scope": "all 256^3 start/end/byte triples, both next identities; unchanged full package",
+    "status": "specified before new activation; no extraction outcome selects cases",
+    "native_observed": {
+      "default": "passed",
+      "no_default_nfa_thompson": "passed",
+      "triples_per_context": 16777216,
+      "next_identities": 2,
+      "logs": [
+        "/tmp/rstyle-transition-native-default.log",
+        "/tmp/rstyle-transition-native-no-default.log"
+      ]
+    }
+  },
+  "baseline": {
+    "bundle": "/tmp/rstyle-checked-length-automata-recertified-0.json",
+    "roster": {
+      "functions": 2582,
+      "admitted": 134
+    },
+    "functions": [
+      {
+        "index": 1562,
+        "name": "nfa::thompson::nfa::Transition::matches",
+        "source_digest": "sha256:12c07336cd1f65d9fcbde258b6253da1bf92adbfcd19d5f9719f2802e19eee2c",
+        "fn_span": {
+          "start": 80413,
+          "end": 80544
+        },
+        "source_diagnostics": [
+          {
+            "capability": "rust.call-summaries",
+            "construct": "expr_method_call",
+            "span": {
+              "start": 68,
+              "end": 125
+            },
+            "snippet": "haystack.get(at).map_or(false, |&b| self.matches_byte(b))",
+            "severity": "error",
+            "reason": "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder."
+          }
+        ],
+        "outcome": "excluded"
+      },
+      {
+        "index": 1563,
+        "name": "nfa::thompson::nfa::Transition::matches_unit",
+        "source_digest": "sha256:701478faaddf82fab8b5a1e0f1c3db60d32fc3d1bef2688f2accb145ea51dcb1",
+        "fn_span": {
+          "start": 80735,
+          "end": 80866
+        },
+        "source_diagnostics": [
+          {
+            "capability": "rust.call-summaries",
+            "construct": "expr_method_call",
+            "span": {
+              "start": 67,
+              "end": 125
+            },
+            "snippet": "unit.as_u8().map_or(false, |byte| self.matches_byte(byte))",
+            "severity": "error",
+            "reason": "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder."
+          },
+          {
+            "capability": "rust.call-summaries",
+            "construct": "expr_method_call",
+            "span": {
+              "start": 67,
+              "end": 79
+            },
+            "snippet": "unit.as_u8()",
+            "severity": "error",
+            "reason": "Original owned source contains deferred rust.call-summaries; cfg removal cannot certify a supported remainder."
+          }
+        ],
+        "outcome": "excluded"
+      },
+      {
+        "index": 1564,
+        "name": "nfa::thompson::nfa::Transition::matches_byte",
+        "source_digest": "sha256:abdfa508e87dd08680e3ae6b0d99c6436022bffebd6a8f5d24e77f6c4b38cd09",
+        "fn_span": {
+          "start": 80962,
+          "end": 81061
+        },
+        "source_diagnostics": [],
+        "outcome": "admitted"
+      },
+      {
+        "index": 1700,
+        "name": "util::alphabet::Unit::as_u8",
+        "source_digest": "sha256:a27ac16335fbe204e853b2665b5db25c033ade8be5978f7143c8d090995142f8",
+        "fn_span": {
+          "start": 5977,
+          "end": 6128
+        },
+        "source_diagnostics": [],
+        "outcome": "admitted"
+      }
+    ],
+    "build_context": {
+      "rustc_commit": {
+        "status": "known",
+        "value": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d"
+      },
+      "edition": {
+        "status": "known",
+        "value": "2021"
+      },
+      "target_triple": {
+        "status": "known",
+        "value": "aarch64-unknown-linux-gnu"
+      },
+      "features": [
+        "alloc",
+        "default",
+        "dfa",
+        "dfa-build",
+        "dfa-onepass",
+        "dfa-search",
+        "hybrid",
+        "meta",
+        "nfa",
+        "nfa-backtrack",
+        "nfa-pikevm",
+        "nfa-thompson",
+        "perf",
+        "perf-inline",
+        "perf-literal",
+        "perf-literal-multisubstring",
+        "perf-literal-substring",
+        "std",
+        "syntax",
+        "unicode",
+        "unicode-age",
+        "unicode-bool",
+        "unicode-case",
+        "unicode-gencat",
+        "unicode-perl",
+        "unicode-script",
+        "unicode-segment",
+        "unicode-word-boundary"
+      ],
+      "overflow_checks": {
+        "status": "known",
+        "value": true
+      },
+      "debug_assertions": {
+        "status": "known",
+        "value": true
+      },
+      "panic_strategy": {
+        "status": "known",
+        "value": "unwind"
+      },
+      "opt_level": {
+        "status": "known",
+        "value": "No"
+      }
+    }
+  },
+  "matching_expectations": [
+    {
+      "first": "nfa::thompson::nfa::Transition::matches",
+      "second": "nfa::thompson::nfa::Transition::matches_unit",
+      "decision": "Rejected",
+      "reason": "different complete parameter or result interface"
+    },
+    {
+      "first": "nfa::thompson::nfa::Transition::matches",
+      "second": "nfa::thompson::nfa::Transition::matches_byte",
+      "decision": "Rejected",
+      "reason": "different complete parameter or result interface"
+    },
+    {
+      "first": "nfa::thompson::nfa::Transition::matches",
+      "second": "util::alphabet::Unit::as_u8",
+      "decision": "Rejected",
+      "reason": "different complete parameter or result interface"
+    },
+    {
+      "first": "nfa::thompson::nfa::Transition::matches_unit",
+      "second": "nfa::thompson::nfa::Transition::matches_byte",
+      "decision": "Rejected",
+      "reason": "different complete parameter or result interface"
+    },
+    {
+      "first": "nfa::thompson::nfa::Transition::matches_unit",
+      "second": "util::alphabet::Unit::as_u8",
+      "decision": "Rejected",
+      "reason": "different complete parameter or result interface"
+    },
+    {
+      "first": "nfa::thompson::nfa::Transition::matches_byte",
+      "second": "util::alphabet::Unit::as_u8",
+      "decision": "Rejected",
+      "reason": "different complete parameter or result interface"
+    }
+  ],
+  "observations": {
+    "policy": "rstyle.rust.hir-data/3.71.0",
+    "resolved_prior_unknowns": "Fresh full original Cargo captures verify exact shared closure projections, byte payload copy and complete passive StateID/SmallIndex dependencies; historical baseline unknowns above remain recorded.",
+    "native_default_delta": {
+      "identities": 2582,
+      "build_contexts": "unchanged",
+      "before": {
+        "excluded": 2448,
+        "admitted": 134
+      },
+      "after": {
+        "excluded": 2445,
+        "admitted": 137
+      },
+      "gains": [
+        [
+          "nfa::thompson::nfa::Transition::matches",
+          80413,
+          80544,
+          "sha256:12c07336cd1f65d9fcbde258b6253da1bf92adbfcd19d5f9719f2802e19eee2c"
+        ],
+        [
+          "nfa::thompson::nfa::Transition::matches_unit",
+          80735,
+          80866,
+          "sha256:701478faaddf82fab8b5a1e0f1c3db60d32fc3d1bef2688f2accb145ea51dcb1"
+        ],
+        [
+          "util::search::Match::is_empty",
+          39649,
+          39718,
+          "sha256:0f6d51e44ae5208da37ac61b93e110cb23139c237f30651a5b48efe8997277aa"
+        ]
+      ],
+      "losses": []
+    },
+    "contexts": [
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "features": "default",
+        "functions": 2582,
+        "admitted": 137
+      },
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "features": "no-default",
+        "functions": 893,
+        "admitted": 86
+      },
+      {
+        "target": "x86_64-unknown-linux-gnu",
+        "features": "default",
+        "functions": 2582,
+        "admitted": 137
+      },
+      {
+        "target": "x86_64-unknown-linux-gnu",
+        "features": "no-default",
+        "functions": 893,
+        "admitted": 86
+      },
+      {
+        "target": "aarch64-apple-darwin",
+        "features": "default",
+        "functions": 2582,
+        "admitted": 137
+      },
+      {
+        "target": "aarch64-apple-darwin",
+        "features": "no-default",
+        "functions": 893,
+        "admitted": 86
+      }
+    ],
+    "strict_admissions_across_contexts": 669,
+    "selected_function_admissions_across_contexts": 24,
+    "selected_pair_comparisons": 36,
+    "full_library_matching": "incomplete: max-pairs 0; selected comparisons independently completed",
+    "native_execution": "aarch64 Linux only; x86 Linux and ARM macOS are cross-target captures and strict replays",
+    "incidental_gain": "Match::is_empty uses its existing Match::span -> Span::is_empty chain. Fresh capture removes an older source diagnostic; unchanged receiver observations and independent original runtime oracle were checked. No new causal receiver-grammar or syntax claim.",
+    "evidence": [
+      "/tmp/rstyle-transition-native-default-strict.log",
+      "/tmp/rstyle-transition-additional-contexts.json",
+      "/tmp/rstyle-transition-native-default-matching.json"
+    ],
+    "original_source_files": {
+      "checked": 2582,
+      "changed": 0,
+      "evidence": "/tmp/rstyle-transition-source-files.json"
+    },
+    "frozen_inventory": {
+      "run": "target/hir-coverage/run-t14bfxdk",
+      "baseline": "target/hir-coverage/run-jis8b7db",
+      "frozen": {
+        "inactive": 7,
+        "admitted": 23,
+        "excluded": 30
+      },
+      "frozen_new": 0,
+      "frozen_lost": 0,
+      "packages": {
+        "lz4_flex-0.14.0": {
+          "identities": 150,
+          "before": {
+            "admitted": 8,
+            "excluded": 142
+          },
+          "after": {
+            "admitted": 8,
+            "excluded": 142
+          },
+          "new": 0,
+          "lost": 0
+        },
+        "regex-syntax-0.8.11": {
+          "identities": 956,
+          "before": {
+            "excluded": 917,
+            "admitted": 39
+          },
+          "after": {
+            "excluded": 917,
+            "admitted": 39
+          },
+          "new": 0,
+          "lost": 0
+        },
+        "time-core-0.1.9": {
+          "identities": 226,
+          "before": {
+            "admitted": 11,
+            "excluded": 215
+          },
+          "after": {
+            "admitted": 11,
+            "excluded": 215
+          },
+          "new": 0,
+          "lost": 0
+        }
+      }
+    },
+    "optimized_replay": {
+      "original_admissions": 137,
+      "selected_comparisons": 6,
+      "frozen_package_admissions": 58,
+      "frozen_selected_comparisons": 6,
+      "logs": [
+        "/tmp/rstyle-transition-optimized-strict.log",
+        "/tmp/rstyle-transition-frozen-strict.log"
+      ]
+    }
+  }
+}

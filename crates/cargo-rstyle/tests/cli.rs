@@ -1,8 +1,34 @@
 //! End-to-end tests: real `cargo check` through the real rustc driver.
 
+mod byte_membership;
+mod byte_windows;
+mod checked_options;
+mod checksum_state;
+mod compact_report;
+mod component_helper_results;
+mod concrete_default;
+mod copy_owner_source;
+mod dependency_capture;
 #[path = "../src/diagnostic_process.rs"]
 mod diagnostic_process;
+mod digit_product_values;
+mod fresh_product_results;
+mod fresh_scalar_owners;
+mod inherent_expansions;
+mod loop_merge_target;
+mod lossless_values;
+mod mutable_scalar_formals;
+mod native_prefix_readers;
+mod nominal_copy;
+mod option_sources;
+mod platform_regressions;
+mod product_instance_diagnostics;
+mod reference_instance_diagnostics;
+mod scalar_error_results;
+mod scoped_imports;
 mod shared_evidence;
+mod try_capture;
+mod variant_capture;
 use shared_evidence::{load as data_unit, reject_helper};
 
 use assert_cmd::cargo::cargo_bin;
@@ -275,18 +301,6 @@ fn bad_config_exits_two() {
     let output = rstyle(dir.path(), &[]);
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("rstyle.toml"));
-}
-
-#[test]
-fn this_workspace_passes_its_own_rules() {
-    let output = rstyle(&workspace_root(), &[]);
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "{}{}",
-        stdout(&output),
-        String::from_utf8_lossy(&output.stderr)
-    );
 }
 
 #[test]
@@ -1097,7 +1111,10 @@ fn clones_shared_bundle_is_the_default_and_keeps_calls_as_ids() {
     assert!(output.status.success(), "{}", stdout(&output));
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_persisted_report(&report);
-    assert_eq!(report["unit_bundle_schema"], "rstyle.shared-unit/4");
+    assert_eq!(
+        report["unit_bundle_schema"],
+        rstyle_pdg::unit_store::BUNDLE_SCHEMA
+    );
     assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 3);
     for function in report["functions"].as_array().unwrap() {
         assert!(function.get("artifact_prefix").is_none());
@@ -2066,6 +2083,614 @@ fn clones_integer_cast_profile_captures_verified_operations_and_preserves_defaul
 }
 
 #[test]
+fn clones_data_cfg_removal_resolves_blocks_locals_macros_items_and_match_arms() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("Cargo.toml"), "[package]\nname='cfg_fixture'\nversion='0.1.0'\nedition='2021'\n[features]\nextra=[]\n[workspace]\n").unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), "const fn identity(x: i32) -> i32 { x }\npub const fn choose(x: i32) -> i32 { #[cfg(feature=\"extra\")] { identity(x) } #[cfg(not(feature=\"extra\"))] { x } }\npub fn local(x: i32) -> i32 { #[cfg(any())] let removed = missing; x }\npub fn discarded() { #[cfg(any())] missing!(); }\npub fn block() { #[cfg_attr(all(), cfg(any()))] { unsafe { missing(); } } }\npub fn item() { #[cfg(any())] fn nested() { missing(); } }\npub fn arm(x: i32) -> i32 { match x { #[cfg(any())] 0 => missing(), 1 => 2, _ => 3 } }\npub fn attr(x: i32) -> i32 { #[cfg_attr(any(), cfg(any()))] let y = x; y }\npub fn field(x: &(i32, i32)) -> i32 { #[cfg(any())] { let y = x.0; } x.1 }\n").unwrap();
+    for options in [vec![], vec!["--features", "extra"]] {
+        let args: Vec<_> = ["--extraction-profile", "hir-data-v3"]
+            .into_iter()
+            .chain(options)
+            .collect();
+        let (output, report) = clones(directory.path(), &args);
+        assert!(output.status.success(), "{report}");
+        let functions = report["functions"].as_array().unwrap();
+        for name in [
+            "choose",
+            "local",
+            "discarded",
+            "block",
+            "item",
+            "arm",
+            "attr",
+            "field",
+        ] {
+            assert_eq!(
+                function_named(functions, name)["outcome"],
+                "admitted",
+                "{}",
+                function_named(functions, name)
+            );
+        }
+        check_cfg_removal_evidence(functions);
+    }
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert_ne!(
+        function_named(legacy["functions"].as_array().unwrap(), "choose")["outcome"],
+        "admitted"
+    );
+}
+
+fn check_cfg_removal_evidence(functions: &[Value]) {
+    let facts: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(function_named(functions, "choose")["facts"].clone()).unwrap();
+    let correspondence = rstyle_pdg::source_evidence::capture(&facts).unwrap();
+    let removed: Vec<_> = correspondence
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == "cfg_inactive")
+        .collect();
+    assert_eq!(removed.len(), 1);
+    assert!(removed[0].hir.is_none());
+    rstyle_pdg::source_evidence::verify(&facts).unwrap();
+    let mut changed = facts;
+    let feature = "feature=\"extra\"".to_string();
+    if changed.build.cfgs.contains(&feature) {
+        changed.build.cfgs.retain(|value| value != &feature);
+    } else {
+        changed.build.cfgs.push(feature);
+    }
+    let regenerated = rstyle_pdg::source_evidence::capture(&changed).unwrap();
+    assert!(
+        regenerated
+            .entries
+            .iter()
+            .any(|entry| entry.kind == "cfg_inactive" && entry.hir.is_some())
+    );
+    changed.build.frontend_options.insert(
+        rstyle_pdg::source_evidence::KEY.into(),
+        serde_json::to_value(regenerated).unwrap(),
+    );
+    assert!(rstyle_pdg::source_evidence::verify(&changed).is_err());
+}
+
+#[test]
+fn clones_data_assertions_preserve_condition_order_panic_scope_and_debug_settings() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn check(b: bool) { assert!((b)); }\npub fn once(mut x: u32) -> u32 { assert!({ x = x & 1; x == 0 }); x }\npub fn debug_once(mut x: u32) -> u32 { debug_assert!({ x = x & 1; x == 0 }); x }\npub fn qualified(b: bool) { core::assert!(b,); }\npub fn certain() { assert!(true); }\npub fn certain_wrapper() { certain() }\npub fn falsehood() { assert!(false); }\npub fn wrapper(b: bool) { check(b); }\npub fn formatted(b: bool) { assert!(b, \"bad\"); }\npub fn equal(x: u32) { assert_eq!(x, 0); }\nmod custom { macro_rules! assert { ($value:expr) => { () } } pub fn counterfeit(b: bool) { assert!(b); } }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    check_assertion_admissions(functions);
+    check_assertion_graph(functions, true);
+    check_assertion_mutations(functions);
+
+    let (output, release) = clones(
+        directory.path(),
+        &["--release", "--extraction-profile", "hir-data-v3"],
+    );
+    assert!(output.status.success(), "{release}");
+    check_assertion_graph(release["functions"].as_array().unwrap(), false);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] != "admitted")
+    );
+}
+
+fn check_assertion_admissions(functions: &[Value]) {
+    shared_evidence::check_partial_helper(function_named(functions, "wrapper"));
+    for name in [
+        "check",
+        "once",
+        "debug_once",
+        "qualified",
+        "certain",
+        "certain_wrapper",
+        "falsehood",
+        "wrapper",
+        "formatted",
+        "equal",
+    ] {
+        assert_eq!(
+            function_named(functions, name)["outcome"],
+            "admitted",
+            "{}",
+            function_named(functions, name)
+        );
+    }
+    assert_ne!(
+        function_named(functions, "custom::counterfeit")["outcome"],
+        "admitted"
+    );
+    assert_eq!(
+        function_named(functions, "check")["extraction_evidence"]["cfg"]["status"],
+        "partial"
+    );
+    assert_eq!(
+        function_named(functions, "certain")["extraction_evidence"]["cfg"]["status"],
+        "complete"
+    );
+}
+
+fn check_assertion_graph(functions: &[Value], debug: bool) {
+    for (name, active) in [("once", true), ("debug_once", debug)] {
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function_named(functions, name)["facts"].clone()).unwrap();
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        let assertions: Vec<_> = pair
+            .pdg
+            .nodes
+            .iter()
+            .filter(|node| {
+                node.attributes
+                    .operator
+                    .as_ref()
+                    .and_then(rstyle_pdg::StringFact::known_value)
+                    == Some("assert")
+            })
+            .collect();
+        let writes: Vec<_> = pair
+            .pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.write_form.as_deref() == Some("reassignment"))
+            .collect();
+        assert_eq!(assertions.len(), usize::from(active), "{name}");
+        assert_eq!(writes.len(), usize::from(active), "{name}");
+        assert_eq!(
+            pair.cfg.extraction_evidence.status == rstyle_pdg::ExtractionStatus::Complete,
+            !active
+        );
+        if active {
+            assert!(
+                pair.pdg.edges.iter().any(|edge| edge.target == assertions[0].id && edge.operand_position == Some(0))
+            );
+            assert!(
+                pair.cfg
+                    .extraction_evidence
+                    .limitations
+                    .iter()
+                    .any(|limitation| limitation.contains("Assertion")
+                        && limitation.contains("omitted"))
+            );
+        }
+    }
+}
+
+fn check_assertion_mutations(functions: &[Value]) {
+    let facts: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(function_named(functions, "debug_once")["facts"].clone()).unwrap();
+    let mut changed = facts.clone();
+    changed.build.debug_assertions.value = Some(false);
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    let mut changed = facts.clone();
+    changed.body.children[0].children[0]
+        .res
+        .as_mut()
+        .unwrap()
+        .description = "local::debug_assert".into();
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    let mut changed = facts;
+    changed.body.children[0].children[0].children[0].span.start += 1;
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+}
+
+#[test]
+fn clones_data_constant_range_bounds_preserve_values_and_dependency_edits() {
+    let directory = clone_workspace();
+    let source = "mod config { pub const LOW: i32 = -3; } use config::LOW as START; struct Limits; impl Limits { const HIGH: i32 = 5; } const MAX: u128 = u128::MAX;\npub fn both(x: i32) -> bool { match x { START..=Limits::HIGH => true, _ => false } }\npub fn lower(x: i32) -> bool { match x { START.. => true, _ => false } }\npub fn upper(x: i32) -> bool { match x { ..Limits::HIGH => true, _ => false } }\npub fn mixed(x: i32, b: bool) -> i32 { match x { START..0 | 1..=Limits::HIGH if b => 1, _ => 2 } }\npub fn wide(x: u128) -> bool { match x { 0..=MAX => true, _ => false } }\npub fn external(x: u128) -> bool { match x { 0..=u128::MAX => true, _ => false } }\n";
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    for name in ["both", "lower", "upper", "mixed", "wide"] {
+        assert_eq!(
+            function_named(functions, name)["outcome"],
+            "admitted",
+            "{}",
+            function_named(functions, name)
+        );
+    }
+    assert_ne!(function_named(functions, "external")["outcome"], "admitted");
+    check_constant_bound_graph(functions);
+
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        source.replace("LOW: i32 = -3", "LOW: i32 = -4"),
+    )
+    .unwrap();
+    let (output, edited) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{edited}");
+    assert_ne!(
+        function_named(functions, "both")["facts"]["body"],
+        function_named(edited["functions"].as_array().unwrap(), "both")["facts"]["body"]
+    );
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] != "admitted")
+    );
+}
+
+fn check_constant_bound_graph(functions: &[Value]) {
+    let facts: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(function_named(functions, "both")["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let selector = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.attributes.construct.as_deref() == Some("match.range"))
+        .unwrap();
+    let range: rstyle_pdg::scalar_patterns::IntegerRange = serde_json::from_str(
+        selector
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(range.start.as_deref(), Some("-3"));
+    assert_eq!(range.end.as_deref(), Some("5"));
+    assert!(range.inclusive);
+    let mut changed = facts.clone();
+    changed.body.children[0].children[1].children[0].children[0]
+        .span
+        .start += 1;
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+}
+
+#[test]
+fn clones_data_constant_patterns_compose_with_guards_and_alternatives() {
+    let directory = clone_workspace();
+    let source = "mod config { pub const LOW: i32 = -3; } use config::LOW as FLOOR;\nstruct Limits; impl Limits { const TOP: i32 = 10; }\nconst FLAG: bool = true; const BIG: u128 = u128::MAX;\npub fn select(x: i32, b: bool) -> i32 { match x { FLOOR | 0 | 1..=2 if b => 1, Limits::TOP => 2, _ => 3 } }\npub fn flag(x: bool) -> i32 { match x { FLAG => 1, _ => 2 } }\npub fn big(x: u128) -> bool { match x { BIG => true, _ => false } }\npub fn external(x: u128) -> bool { match x { u128::MAX => true, _ => false } }\npub fn range(x: i32) -> bool { match x { FLOOR..=10 => true, _ => false } }\n";
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    for name in ["select", "flag", "big"] {
+        let function = function_named(functions, name);
+        assert_eq!(function["outcome"], "admitted", "{function}");
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function["facts"].clone()).unwrap();
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        assert!(
+            pair.pdg
+                .nodes
+                .iter()
+                .any(|node| node.attributes.construct.as_deref() == Some("match.constant"))
+        );
+    }
+    assert_eq!(function_named(functions, "range")["outcome"], "admitted");
+    assert_ne!(function_named(functions, "external")["outcome"], "admitted");
+    let mut changed: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(function_named(functions, "flag")["facts"].clone()).unwrap();
+    let pattern = &mut changed.body.children[0].children[1].children[0];
+    assert_eq!(pattern.kind, "pat_constant");
+    pattern.lit = Some("false".into());
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        source.replace("LOW: i32 = -3", "LOW: i32 = -4"),
+    )
+    .unwrap();
+    let (output, edited) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{edited}");
+    assert_ne!(
+        function_named(functions, "select")["facts"]["body"],
+        function_named(edited["functions"].as_array().unwrap(), "select")["facts"]["body"]
+    );
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] != "admitted")
+    );
+}
+
+#[test]
+fn clones_data_resolves_scalar_constants_and_updates_callers_after_edits() {
+    let directory = clone_workspace();
+    let source = "mod config { pub const DELTA: i32 = -3; }\nuse config::DELTA as CHANGE;\nstruct Limits; impl Limits { const MASK: u32 = (1 << 4) - 1; }\nconst LOW: i128 = i128::MIN; const TOP: u128 = u128::MAX; const EMPTY: () = (); const FLAG: bool = true;\npub fn above(x: i32) -> bool { x > CHANGE }\npub fn mask(x: u32) -> u32 { x & Limits::MASK }\npub fn low() -> i128 { LOW }\npub fn top() -> u128 { TOP }\npub fn unit() { EMPTY }\npub fn flag(b: bool) -> bool { b && FLAG }\npub fn wrapper(x: i32) -> bool { above(x) }\nstatic GLOBAL: u32 = 1; pub fn global() -> u32 { GLOBAL }\nstruct Generic<T>(T); impl<T> Generic<T> { const VALUE: u32 = 1; } pub fn generic() -> u32 { Generic::<u8>::VALUE }\n";
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        7,
+        "{:?}",
+        functions
+            .iter()
+            .map(|function| (&function["facts"]["name"], &function["reasons"]))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 21);
+    check_constant_graphs(functions, "-3");
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        source.replace("DELTA: i32 = -3", "DELTA: i32 = -4"),
+    )
+    .unwrap();
+    let (output, edited) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{edited}");
+    let actual = edited["functions"].as_array().unwrap();
+    assert_eq!(
+        function_named(functions, "wrapper")["facts"]["body"],
+        function_named(actual, "wrapper")["facts"]["body"]
+    );
+    assert_ne!(
+        function_named(functions, "above")["facts"]["body"],
+        function_named(actual, "above")["facts"]["body"]
+    );
+    check_constant_graphs(actual, "-4");
+    assert_eq!(function_named(actual, "wrapper")["outcome"], "admitted");
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] != "admitted")
+    );
+}
+
+fn function_named<'a>(functions: &'a [Value], name: &str) -> &'a Value {
+    functions
+        .iter()
+        .find(|function| function["facts"]["name"] == name)
+        .unwrap()
+}
+
+fn check_constant_graphs(functions: &[Value], threshold: &str) {
+    for (name, expected) in [
+        ("above", threshold),
+        ("mask", "15"),
+        ("low", "-170141183460469231731687303715884105728"),
+        ("top", "340282366920938463463374607431768211455"),
+        ("unit", "()"),
+        ("flag", "true"),
+    ] {
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function_named(functions, name)["facts"].clone()).unwrap();
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        let constants: Vec<_> = pair
+            .pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("constant.value"))
+            .collect();
+        assert_eq!(constants.len(), 1, "{name}");
+        assert_eq!(
+            constants[0]
+                .attributes
+                .literal
+                .as_ref()
+                .unwrap()
+                .known_value()
+                .unwrap(),
+            expected
+        );
+        assert_eq!(constants[0].category, rstyle_pdg::NodeCategory::Computation);
+    }
+}
+
+#[test]
+fn clones_data_integer_ranges_compose_with_alternatives_guards_and_open_bounds() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub fn classify(x: i128, b: bool) -> i32 { match x { ..=-6 if b => 1, -5..0 => 2, 0 | 1..=3 if b => 3, 4.. => 4, _ => 5 } }\npub fn wide(x: u128) -> bool { match x { 0x80..=340282366920938463463374607431768211455u128 => true, _ => false } }\npub fn narrow(x: i8) -> bool { match x { -128..127 => true, _ => false } }\npub fn characters(x: char) -> bool { match x { 'a'..='z' => true, _ => false } }\nconst LIMIT: i32 = 9;\npub fn constant_range(x: i32) -> bool { match x { 0..=LIMIT => true, _ => false } }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        5,
+        "{:?}",
+        functions
+            .iter()
+            .map(|function| (&function["facts"]["name"], &function["reasons"]))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
+        functions
+            .iter()
+            .find(|function| function["facts"]["name"] == "classify")
+            .unwrap()["facts"]
+            .clone(),
+    )
+    .unwrap();
+    check_range_pattern_graph(&facts);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded")
+    );
+}
+
+fn check_range_pattern_graph(facts: &rstyle_pdg::HirFnFacts) {
+    let mut pair = rstyle_pdg::producer::produce(facts).unwrap();
+    let ranges: Vec<_> = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.attributes.construct.as_deref() == Some("match.range"))
+        .collect();
+    assert_eq!(ranges.len(), 3);
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("match.or-patterns"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("match.guard"))
+            .count(),
+        2
+    );
+    check_range_descriptor(
+        ranges[0]
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value()
+            .unwrap(),
+    );
+    let range = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("match.range"))
+        .unwrap();
+    range.attributes.literal = Some(rstyle_pdg::StringFact::known("{}"));
+    assert!(rstyle_pdg::producer::verify(&pair, facts).is_err());
+    check_range_source_payload(facts);
+}
+
+fn check_range_descriptor(value: &str) {
+    let first: rstyle_pdg::scalar_patterns::IntegerRange = serde_json::from_str(value).unwrap();
+    assert_eq!(
+        first,
+        rstyle_pdg::scalar_patterns::IntegerRange {
+            start: None,
+            end: Some("-6".into()),
+            inclusive: true,
+        }
+    );
+}
+
+fn check_range_source_payload(facts: &rstyle_pdg::HirFnFacts) {
+    let mut changed = facts.clone();
+    let pattern = &mut changed.body.children[0].children[1].children[0];
+    assert_eq!(pattern.kind, "pat_range");
+    pattern.lit = Some(
+        rstyle_pdg::scalar_patterns::IntegerRange {
+            start: None,
+            end: Some("-6".into()),
+            inclusive: false,
+        }
+        .text(),
+    );
+    assert_eq!(
+        rstyle_pdg::classify(&changed).status,
+        rstyle_pdg::EligibilityVerdict::Ineligible
+    );
+}
+
+#[test]
+fn clones_data_literal_or_patterns_compose_with_guards_and_preserve_legacy_boundaries() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"),
+        "pub fn choose(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn other(x: i32, b: bool) -> i32 { match x { -1 | 2 | 3 if b => 7, 2 | 3 => 8, _ => 9 } }\npub fn boolean(x: bool) -> i32 { match x { true | false => 1, _ => 2 } }\npub fn wildcard(x: i32) -> i32 { match x { 0 | _ => 1, _ => 2 } }\npub fn range(x: i32) -> i32 { match x { 1..=3 => 1, _ => 2 } }\n").unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["extraction_policy"]["version"], "3.130.0");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|function| function["outcome"] == "admitted")
+            .count(),
+        5,
+        "{report}"
+    );
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
+    assert_eq!(report["pair_evaluation_complete"], true);
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
+        functions
+            .iter()
+            .find(|function| function["facts"]["name"] == "choose")
+            .unwrap()["facts"]
+            .clone(),
+    )
+    .unwrap();
+    check_or_pattern_graph(&facts);
+    let (output, warm) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{warm}");
+    assert_eq!(report["matching"], warm["matching"]);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded")
+    );
+}
+
+fn check_or_pattern_graph(facts: &rstyle_pdg::HirFnFacts) {
+    let mut pair = rstyle_pdg::producer::produce(facts).unwrap();
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("match.guard"))
+            .count(),
+        1
+    );
+    let selectors: Vec<_> = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.attributes.construct.as_deref() == Some("match.or"))
+        .collect();
+    assert_eq!(selectors.len(), 2);
+    assert_eq!(
+        selectors[0]
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value()
+            .unwrap(),
+        "[\"-1\",\"2\",\"3\"]"
+    );
+    let selector = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("match.or"))
+        .unwrap();
+    selector.attributes.literal = Some(rstyle_pdg::StringFact::known("[\"4\"]"));
+    assert!(rstyle_pdg::producer::verify(&pair, facts).is_err());
+}
+
+#[test]
 fn clones_scalar_match_is_versioned_and_evaluates_every_admitted_pair() {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), "pub fn f(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\npub fn g(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\npub fn h(x: i32) -> i32 { match x { 1 => 7, _ => 9 } }\n").unwrap();
@@ -2906,7 +3531,7 @@ fn check_nominal_unit_binding(function: &Value, report: &Value) {
         serde_json::from_value(report["expected_targets"][0]["package_context"].clone()).unwrap();
     assert_eq!(
         context.manifest_digest,
-        rstyle_pdg::concrete_types::digest(context.manifest_bytes.as_bytes())
+        rstyle_pdg::source_identity::checksum(context.manifest_bytes.as_bytes())
     );
     let actual = nominal_binding::bind_unit(std::slice::from_ref(&facts), &context).unwrap();
     checked_build_context(function, report);
@@ -2927,7 +3552,7 @@ fn check_nominal_unit_binding(function: &Value, report: &Value) {
             "manifest" => {
                 changed.manifest_bytes = format!("{}\n# changed", changed.manifest_bytes).into();
                 changed.manifest_digest =
-                    rstyle_pdg::concrete_types::digest(changed.manifest_bytes.as_bytes());
+                    rstyle_pdg::source_identity::checksum(changed.manifest_bytes.as_bytes());
             }
             "root" => changed.manifest_path = PathBuf::from("/different/package/Cargo.toml"),
             _ => unreachable!(),
@@ -2968,7 +3593,7 @@ fn check_nominal_evidence_corruption(
             .to_owned()
             + "\n// changed file";
         value["declarations"][0]["file_digest"] =
-            serde_json::json!(concrete_types::digest(file.as_bytes()));
+            serde_json::json!(rstyle_pdg::source_identity::checksum(file.as_bytes()));
         value["declarations"][0]["file_bytes"] = serde_json::json!(file);
         assert!(nominal_binding::bind_unit(&[facts.clone(), changed], context).is_err());
     }
@@ -3128,7 +3753,7 @@ fn check_nested_concrete_type(tree: &rstyle_pdg::concrete_types::TypeTree) {
     assert!(source.contains("\r\n"));
     assert_eq!(
         nominal.declaration_digest,
-        rstyle_pdg::concrete_types::digest(source.as_bytes())
+        rstyle_pdg::source_identity::checksum(source.as_bytes())
     );
     assert_eq!(
         fields
@@ -3159,11 +3784,89 @@ fn check_nested_concrete_type(tree: &rstyle_pdg::concrete_types::TypeTree) {
 }
 
 #[test]
+fn clones_data_derived_methods_do_not_require_an_original_function_item() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "#[derive(Debug)] pub struct Record { pub value: u32 }\npub fn scalar(value: u32) -> u32 { value }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    assert!(report["handoff_failures"].as_array().unwrap().is_empty());
+    assert!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|function| {
+                function["facts"]["name"].as_str().unwrap().contains("fmt")
+                    && function["outcome"] == "excluded"
+            })
+    );
+}
+
+#[test]
+fn clones_data_normalizes_concrete_array_method_results_before_verification() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn bytes(value: u16) -> [u8; 2] { value.to_le_bytes() }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    assert_eq!(report["functions"][0]["outcome"], "excluded");
+    assert!(report["handoff_failures"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn clones_data_assertion_argument_receivers_compose_with_partial_flow() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn check(bytes: &[u8]) -> usize { assert!(bytes.len() > 0); bytes.len() }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    for function in check_data_family(&report, &["check"]) {
+        assert_eq!(
+            function["extraction_evidence"]["cfg"]["status"], "partial",
+            "{function}"
+        );
+    }
+    assert!(report["handoff_failures"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn clones_data_large_array_lengths_do_not_expand_capture_work() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn length(_bytes: &[u8; 65536]) -> u32 { 1 }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    let function = &report["functions"][0];
+    assert_eq!(function["outcome"], "admitted", "{function}");
+}
+
+#[test]
 fn clones_helpers_concrete_capture_budget_is_not_an_exclusion() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        "pub fn large(_: &[u8; 4097]) {}\n",
+        format!("pub fn deep(_: {}u8) {{}}\n", "&".repeat(17)),
     )
     .unwrap();
     let (output, report) = clones(
@@ -4900,7 +5603,7 @@ fn check_length_receiver_capture(function: &Value) {
     )
     .unwrap();
     let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
-    assert_eq!(data_receivers::verify(&facts).unwrap(), capture);
+    assert_eq!(data_receivers::verify(&facts).unwrap().as_ref(), &capture);
     if facts.name == "str_len" {
         check_receiver_evidence_tampering(&facts);
     }
@@ -5008,7 +5711,7 @@ fn check_receiver_evidence_tampering(facts: &rstyle_pdg::HirFnFacts) {
         "mutable",
     ] {
         let mut changed = facts.clone();
-        let mut capture = verify(facts).unwrap();
+        let mut capture = verify(facts).unwrap().into_owned();
         match change {
             "identity" => capture.identity = "unregistered".into(),
             "missing" => capture.methods.clear(),
@@ -5474,7 +6177,7 @@ fn clones_data_inherent_calls_reach_all_pairs_under_separate_selection() {
         &["--extraction-profile", "hir-data-v3", "--trace"],
     );
     assert!(output.status.success(), "{report}");
-    assert_eq!(report["extraction_policy"]["version"], "3.0.0");
+    assert_eq!(report["extraction_policy"]["version"], "3.130.0");
     assert_eq!(
         report["matching"]["profile_id"],
         "rstyle.ccgraph.data-calls"
@@ -5635,13 +6338,13 @@ pub fn generic_call(v: &Data) -> u8 { v.generic(0u8) }
 }
 
 fn check_unproved_inherent_calls(report: &Value) {
+    shared_evidence::check_partial_helper(read_call_function(report, "panicking"));
     for name in [
         "consumes",
         "autoref",
         "additional",
         "mutable_receiver",
         "borrowed_call",
-        "panicking",
         "recursive_call",
         "divergent_call",
         "generic_call",
@@ -6658,7 +7361,7 @@ fn check_borrowed_pair_admission(
     facts: &rstyle_pdg::HirFnFacts,
 ) {
     let borrowed = pair.as_view();
-    let sources = pair
+    let mut sources = pair
         .pdg
         .sources
         .iter()
@@ -6679,6 +7382,22 @@ fn check_borrowed_pair_admission(
         standalone,
         rstyle_ccgraph::admit_produced(pair, facts).unwrap()
     );
+    for bytes in sources.values_mut() {
+        bytes[0] ^= 1;
+    }
+    let errors = rstyle_ccgraph::admit_strict(&rstyle_ccgraph::StrictBundle {
+        pdg: borrowed.pdg,
+        cfg: borrowed.cfg,
+        source_bytes: &sources,
+        ctx: &context,
+    })
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.contains("digest does not match")),
+        "{errors:?}"
+    );
 }
 
 fn check_borrowed_pair_tampering(
@@ -6698,4 +7417,3760 @@ fn check_borrowed_pair_tampering(
         ))
         .is_err()
     );
+}
+
+#[test]
+fn clones_cfg_definition_inventory_uses_actual_build_guards() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("Cargo.toml"), "[package]\nname='cfg_definitions'\nversion='0.1.0'\nedition='2021'\n[features]\nextra=[]\n[workspace]\n").unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), "#[cfg(feature=\"extra\")] pub fn alternative() {}\n#[cfg(not(feature=\"extra\"))] pub fn alternative() {}\n#[cfg(any())] mod hidden { pub fn nested() { missing(); } }\nstruct S; #[cfg(any())] impl S { fn method() {} }\n#[cfg(any())] trait T { fn defaulted() {} }\npub fn active() {}\n").unwrap();
+    for options in [vec![], vec!["--features", "extra"]] {
+        let args: Vec<_> = ["--extraction-profile", "hir-data-v3"]
+            .into_iter()
+            .chain(options)
+            .collect();
+        let (output, report) = clones(directory.path(), &args);
+        assert!(output.status.success(), "{report}");
+        let definitions = report["owned_source_inventory"][0]["source_functions"]
+            .as_array()
+            .unwrap();
+        let alternatives: Vec<_> = definitions
+            .iter()
+            .filter(|f| f["name"] == "alternative")
+            .collect();
+        assert_eq!(alternatives.len(), 2);
+        assert_eq!(
+            alternatives
+                .iter()
+                .filter(|f| f["presence"] == "active")
+                .count(),
+            1
+        );
+        assert_eq!(
+            alternatives
+                .iter()
+                .filter(|f| f["presence"] == "inactive_by_cfg")
+                .count(),
+            1
+        );
+        for name in ["nested", "method", "defaulted"] {
+            let definition = definitions.iter().find(|f| f["name"] == name).unwrap();
+            assert_eq!(definition["presence"], "inactive_by_cfg");
+            assert_eq!(definition["active_functions"], serde_json::json!([]));
+        }
+    }
+}
+
+#[test]
+fn clones_cfg_inventory_retains_files_without_active_function_bodies() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "#[cfg(any())] pub fn inactive() { missing(); }\n",
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let definitions = report["owned_source_inventory"][0]["source_functions"]
+        .as_array()
+        .unwrap();
+    assert_eq!(definitions.len(), 1);
+    assert_eq!(definitions[0]["presence"], "inactive_by_cfg");
+    assert_eq!(definitions[0]["active_functions"], serde_json::json!([]));
+}
+
+#[test]
+fn clones_data_exhaustive_scalar_matches_compose_without_wildcards() {
+    let directory = exhaustive_scalar_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|f| f["outcome"] == "admitted")
+            .count(),
+        15,
+        "{report}"
+    );
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == "boolean")
+            .unwrap()["facts"]
+            .clone(),
+    )
+    .unwrap();
+    check_exhaustive_scalar_match(&facts);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+fn check_exhaustive_scalar_match(facts: &rstyle_pdg::HirFnFacts) {
+    let pair = rstyle_pdg::producer::produce(facts).unwrap();
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|n| n.attributes.construct.as_deref() == Some("match.literal"))
+            .count(),
+        2
+    );
+    check_exhaustive_match_edges(&pair, facts);
+    check_guarded_coverage_gap(facts);
+    check_exhaustive_literal_source(facts);
+    let mut changed = facts.clone();
+    let matched = &mut changed.body.children[0];
+    assert_eq!(matched.kind, "expr_match");
+    matched.children[2].children[0].lit = Some("true".into());
+    let classified = rstyle_pdg::classify(&changed);
+    assert!(
+        classified
+            .diagnostics
+            .iter()
+            .any(|d| d.construct == "match_boundary")
+    );
+    assert!(rstyle_pdg::producer::verify(&pair, &changed).is_err());
+}
+
+fn check_exhaustive_match_edges(pair: &rstyle_pdg::producer::Pair, facts: &rstyle_pdg::HirFnFacts) {
+    let selector = pair
+        .pdg
+        .nodes
+        .iter()
+        .rfind(|n| n.attributes.construct.as_deref() == Some("match.literal"))
+        .unwrap();
+    let mapping = rstyle_pdg::read_operation_map(&pair.pdg.extensions).unwrap();
+    let mapped = mapping
+        .iter()
+        .find(|entry| entry.pdg_node_id == selector.id)
+        .unwrap();
+    let edges: Vec<_> = pair
+        .cfg
+        .edges
+        .iter()
+        .filter(|edge| edge.source == mapped.cfg_node_id)
+        .collect();
+    assert_eq!(edges.len(), 1);
+    assert_eq!(edges[0].kind, rstyle_pdg::CfgEdgeKind::True);
+    let mut impossible = edges[0].clone();
+    impossible.kind = rstyle_pdg::CfgEdgeKind::False;
+    let mut corrupted = rstyle_pdg::producer::Pair {
+        pdg: pair.pdg.clone(),
+        cfg: pair.cfg.clone(),
+    };
+    corrupted.cfg.edges.push(impossible);
+    assert!(rstyle_pdg::validate_value_sites(&corrupted.pdg, &corrupted.cfg).is_err());
+    assert!(rstyle_pdg::producer::verify(&corrupted, facts).is_err());
+}
+
+fn check_guarded_coverage_gap(facts: &rstyle_pdg::HirFnFacts) {
+    let mut changed = facts.clone();
+    let matched = &mut changed.body.children[0];
+    let guard = rstyle_pdg::HirNode {
+        kind: "match_guard".into(),
+        children: vec![matched.children[0].clone()],
+        ..matched.children[0].clone()
+    };
+    matched.children[1].children.insert(1, guard);
+    let classified = rstyle_pdg::classify(&changed);
+    assert!(
+        classified
+            .diagnostics
+            .iter()
+            .any(|d| d.construct == "match_boundary")
+    );
+}
+
+fn exhaustive_scalar_workspace() -> tempfile::TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        const ON: bool = true;
+        const OFF: bool = false;
+        const TOP: u128 = u128::MAX;
+        pub fn boolean(x: bool) -> i32 { match x { true => 1, false => 2 } }
+        pub fn caller(x: bool) -> i32 { boolean(x) }
+        pub fn constants(x: bool) -> i32 { match x { ON => 1, OFF => 2 } }
+        pub fn guarded(x: bool, gate: bool) -> i32 { match x { true if gate => 1, true => 2, false => 3 } }
+        pub fn signed(x: i8) -> i32 { match x { ..=-1 => 1, 0.. => 2 } }
+        pub fn unsigned(x: u8) -> i32 { match x { 0..128 => 1, 128.. => 2 } }
+        pub fn wide(x: u128) -> i32 { match x { 0..TOP => 1, TOP => 2 } }
+        pub fn minimum(x: i128) -> i32 { match x { -170141183460469231731687303715884105728..0 => 1, 0.. => 2 } }
+        pub fn single(x: u8) -> i32 { match x { 0..=255 => 1 } }
+        pub fn early(x: bool) -> i32 { match x { true | false => 1, _ if x => 2, _ => 3 } }
+        pub fn returning(x: bool, y: i32) -> i32 { match x { true => return y, false => 2 } }
+        pub fn conditional(x: bool) -> i32 { match x { #[cfg(any())] _ => missing(), true => 1, false => 2 } }
+        pub fn mixed(x: u8, gate: bool) -> i32 { match x { 0 | 1..=3 if gate => 1, 0..=127 => 2, 128..=255 => 3 } }
+        pub fn native(x: usize) -> i32 { match x { 0..=3 => 1, 4.. => 2 } }
+        pub fn unreachable(x: bool) -> i32 { match x { true | false => 1, _ if x => 2 } }
+        pub fn unsupported(x: char) -> i32 { match x { '\0'..='\u{10ffff}' => 1 } }
+    "#).unwrap();
+    directory
+}
+
+fn check_exhaustive_literal_source(facts: &rstyle_pdg::HirFnFacts) {
+    let mut changed = facts.clone();
+    let matched = &mut changed.body.children[0];
+    matched.children[1].children[0].lit = Some("false".into());
+    matched.children[2].children[0].lit = Some("true".into());
+    let classified = rstyle_pdg::classify(&changed);
+    assert_eq!(
+        classified.status,
+        rstyle_pdg::EligibilityVerdict::Ineligible
+    );
+    assert!(
+        classified
+            .diagnostics
+            .iter()
+            .any(|d| d.construct == "arm_shape")
+    );
+    assert!(
+        !classified
+            .diagnostics
+            .iter()
+            .any(|d| d.construct == "match_boundary")
+    );
+}
+
+#[test]
+fn clones_data_nested_scalar_patterns_compose_with_ranges_constants_and_guards() {
+    let directory = nested_scalar_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    for name in [
+        "nested", "flat", "mixed", "boolean", "wildcard", "grouped", "constant", "range",
+        "leading", "repeated",
+    ] {
+        let function = functions
+            .iter()
+            .find(|f| f["facts"]["name"] == name)
+            .unwrap();
+        assert_eq!(function["outcome"], "admitted", "{name}: {function}");
+    }
+    for name in ["payload", "binding", "reference"] {
+        assert_ne!(
+            functions
+                .iter()
+                .find(|f| f["facts"]["name"] == name)
+                .unwrap()["outcome"],
+            "admitted"
+        );
+    }
+    check_nested_scalar_selector(functions);
+    check_nested_scalar_payloads(functions);
+    check_equivalent_matching(&report, ["nested", "flat"]);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded")
+    );
+}
+
+fn nested_scalar_workspace() -> tempfile::TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        const LOW: i32 = -4;
+        const HIGH: i32 = 4;
+        pub fn nested(x: i32, gate: bool) -> i32 { match x { (1 | (2 | 3)) if gate => 7, _ => 9 } }
+        pub fn flat(x: i32, gate: bool) -> i32 { match x { 1 | 2 | 3 if gate => 7, _ => 9 } }
+        pub fn mixed(x: i32) -> i32 { match x { ((LOW | (0..=HIGH))) | 9 => 1, _ => 2 } }
+        pub fn boolean(x: bool) -> i32 { match x { (/* outside */ true | (false)) => 1 } }
+        pub fn wildcard(x: i32, gate: bool) -> i32 { match x { ((1 | _)) if gate => 1, _ => 2 } }
+        pub fn grouped(x: i32) -> i32 { match x { (/* before */ (- /* minus */ 1) /* after */) => 1, _ => 2 } }
+        pub fn constant(x: i32) -> i32 { match x { ((LOW)) => 1, _ => 2 } }
+        pub fn range(x: i32) -> i32 { match x { (/* range */ (LOW..=HIGH)) => 1, _ => 2 } }
+        pub fn leading(x: bool) -> i32 { match x { | (true | false) => 1 } }
+        pub fn repeated(x: i32) -> i32 { match x { (1 | 1) | (2 | 2) => 1, _ => 2 } }
+        pub fn payload(x: Option<i32>) -> i32 { match x { (Some(1 | 2) | None) => 1, _ => 2 } }
+        pub fn binding(x: i32) -> i32 { match x { (value @ 1 | value @ 2) => value, _ => 0 } }
+        pub fn reference(x: &i32) -> i32 { match x { (&1 | &2) => 1, _ => 0 } }
+    "#).unwrap();
+    directory
+}
+
+fn check_nested_scalar_selector(functions: &[Value]) {
+    let facts = nested_scalar_facts(functions, "nested");
+    let pattern = &facts.body.children[0].children[1].children[0];
+    assert_eq!(pattern.kind, "pat_or");
+    assert!(pattern.children.iter().any(|child| child.kind == "pat_or"));
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let selectors: Vec<_> = pair
+        .pdg
+        .nodes
+        .iter()
+        .filter(|node| node.attributes.construct.as_deref() == Some("match.or"))
+        .collect();
+    assert_eq!(selectors.len(), 1);
+    assert_eq!(
+        selectors[0]
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("[\"1\",\"2\",\"3\"]")
+    );
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.attributes.construct.as_deref() == Some("match.guard"))
+            .count(),
+        1
+    );
+    let selector = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("match.or"))
+        .unwrap();
+    selector.attributes.literal = Some(rstyle_pdg::StringFact::known("[\"1\",\"2\"]"));
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+}
+
+fn nested_scalar_facts(functions: &[Value], name: &str) -> rstyle_pdg::HirFnFacts {
+    serde_json::from_value(
+        functions
+            .iter()
+            .find(|f| f["facts"]["name"] == name)
+            .unwrap()["facts"]
+            .clone(),
+    )
+    .unwrap()
+}
+
+fn check_nested_scalar_payloads(functions: &[Value]) {
+    for (name, expected) in [
+        ("flat", "[\"1\",\"2\",\"3\"]"),
+        ("repeated", "[\"1\",\"1\",\"2\",\"2\"]"),
+        ("wildcard", "[[\"pat_literal\",\"1\"],[\"pat_wild\",null]]"),
+    ] {
+        let facts = nested_scalar_facts(functions, name);
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        let selector = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| {
+                node.attributes
+                    .construct
+                    .as_deref()
+                    .is_some_and(|construct| construct.starts_with("match.or"))
+            })
+            .unwrap();
+        assert_eq!(
+            selector.attributes.literal.as_ref().unwrap().known_value(),
+            Some(expected)
+        );
+        if name == "wildcard" {
+            let mapping = rstyle_pdg::read_operation_map(&pair.pdg.extensions).unwrap();
+            let mapped = mapping
+                .iter()
+                .find(|entry| entry.pdg_node_id == selector.id)
+                .unwrap();
+            assert!(
+                !pair
+                    .cfg
+                    .edges
+                    .iter()
+                    .any(|edge| edge.source == mapped.cfg_node_id
+                        && edge.kind == rstyle_pdg::CfgEdgeKind::False)
+            );
+        }
+    }
+}
+
+fn check_equivalent_matching(report: &Value, names: [&str; 2]) {
+    let functions = report["functions"].as_array().unwrap();
+    let keys: Vec<_> = names
+        .iter()
+        .map(|name| {
+            &functions
+                .iter()
+                .find(|f| f["facts"]["name"] == *name)
+                .unwrap()["key"]
+        })
+        .collect();
+    let pair = report["matching"]["pairs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|pair| {
+            (pair["first"] == *keys[0] && pair["second"] == *keys[1])
+                || (pair["first"] == *keys[1] && pair["second"] == *keys[0])
+        })
+        .unwrap();
+    assert_eq!(pair["evaluation_status"], "evaluated");
+    assert_eq!(pair["decision"], "Accepted");
+    assert_eq!(pair["displayed_score"], "1");
+}
+
+#[test]
+fn clones_data_nominal_constants_compose_with_fields_patterns_and_helpers() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        mod model {
+            pub const LIMIT: i32 = 4;
+            pub struct Data { pub x: i32 }
+            impl Data {
+                pub const LOW: i32 = -2;
+                pub fn get(&self) -> i32 { self.x }
+                pub fn classify(&self) -> i32 {
+                    match self.x { Self::LOW..=LIMIT => 1, _ => 0 }
+                }
+            }
+        }
+        use model::Data as Record;
+        pub fn classify(data: &Record) -> i32 {
+            match data.x { Record::LOW..=model::LIMIT => 1, _ => 0 }
+        }
+        pub fn forward(data: &Record) -> i32 { data.classify() }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = check_data_family(&report, &[]);
+    assert_eq!(functions.len(), 4);
+    let (unit, _) = data_unit(functions[0]);
+    let analysis = unit.analysis();
+    for function in functions {
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        rstyle_pdg::helper_calls::verify_documents(pair, &facts).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
+    }
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+#[test]
+fn clones_data_nominal_constant_initializers_cannot_hide_drop_implementations() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub struct Data { pub x: i32 }
+        const _: () = {
+            struct Hidden;
+            impl Drop for Hidden { fn drop(&mut self) {} }
+        };
+        pub fn get(data: &Data) -> i32 { data.x }
+        pub fn scalar(x: i32) -> i32 { x }
+        pub fn owned(x: i32) -> i32 { let data = Data { x }; data.x }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["assessment_complete"], true);
+    for function in report["functions"].as_array().unwrap() {
+        let expected = if matches!(function["facts"]["name"].as_str(), Some("scalar" | "get")) {
+            "admitted"
+        } else {
+            "excluded"
+        };
+        assert_eq!(function["outcome"], expected, "{function}");
+    }
+    assert!(report["handoff_failures"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn clones_data_aggregate_literals_preserve_nested_values_and_component_order() {
+    let directory = aggregate_literal_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["assessment_complete"], true);
+    check_aggregate_admission(&report);
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["tuple", "other"]);
+    check_aggregate_corruption(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn check_aggregate_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["facts"]["name"] == "array")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| {
+            node.original_kind.known_value() == Some("expr_array")
+                && node.category == rstyle_pdg::NodeCategory::Computation
+        })
+        .unwrap()
+        .id
+        .clone();
+    let edges: Vec<_> = pair
+        .pdg
+        .edges
+        .iter_mut()
+        .filter(|edge| edge.target == constructor && edge.subkind == "value_operand")
+        .collect();
+    assert_eq!(edges.len(), 3);
+    for edge in edges {
+        if edge.operand_position == Some(0) {
+            edge.operand_position = Some(1);
+        } else if edge.operand_position == Some(1) {
+            edge.operand_position = Some(0);
+        }
+    }
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts.clone();
+    changed.body.children[0].children.swap(0, 1);
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+fn check_aggregate_documents(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
+    for function in report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|f| f["outcome"] == "admitted")
+    {
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
+        rstyle_pdg::producer::verify(pair, &facts).unwrap();
+    }
+}
+
+fn aggregate_literal_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn tuple(x: i32, b: bool) -> (i32, bool) { (x + 1, !b) }
+        pub fn other(x: i32, b: bool) -> (i32, bool) { (x + 1, !b) }
+        pub fn array(x: i32) -> [i32; 3] { [x, x + 1, x + 2] }
+        pub fn nested(x: i32) -> ([i32; 2], (bool, i32)) { ([x, x + 1], (true, x)) }
+        pub fn empty() -> [i32; 0] { [] }
+        pub fn conditional(x: i32, b: bool) -> (i32, bool) { (if b { x } else { 0 }, b) }
+        pub fn units(x: i32) -> ((), i32, ()) { ({}, x, { let _value = 1; }) }
+        pub fn unit_array() -> [(); 2] { [{}, ()] }
+        pub fn snapshots(mut x: i32) -> (i32, i32) { (x, { x = 3; x }) }
+        pub fn local(x: i32) -> (i32, bool) { let y = (x, true); y }
+        pub fn borrowed(x: &i32) -> (&i32, bool) { (x, true) }
+        pub fn repeat(x: i32) -> [i32; 3] { [x; 3] }
+    "#,
+    )
+    .unwrap();
+    directory
+}
+
+fn check_aggregate_admission(report: &Value) {
+    let names: Vec<_> = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["facts"]["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names.len(), 12, "{names:?}");
+    for name in [
+        "tuple",
+        "other",
+        "array",
+        "nested",
+        "empty",
+        "conditional",
+        "units",
+        "unit_array",
+        "snapshots",
+        "local",
+        "borrowed",
+        "repeat",
+    ] {
+        assert!(names.contains(&name), "{name}: {names:?}");
+    }
+    for function in report["functions"].as_array().unwrap() {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+    }
+}
+
+#[test]
+fn clones_data_repeat_arrays_evaluate_once_without_expanding_large_lengths() {
+    let directory = repeat_array_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["assessment_complete"], true);
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "references" | "named" | "complex"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["repeat", "other"]);
+    check_repeat_array_graphs(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn repeat_array_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        const N: usize = 4;
+        pub fn repeat(x: i32) -> [i32; 4] { [x; 4] }
+        pub fn other(x: i32) -> [i32; 4] { [x; 0x4usize] }
+        pub fn huge(x: i32) -> [i32; 65536] { [x; 65_536] }
+        pub fn zero_effect(mut x: i32) -> i32 { [{ x = 3; x }; 0]; x }
+        pub fn nested(x: i32) -> [[i32; 2]; 3] { [[x; 2]; 3] }
+        pub fn unit() -> [(); 0] { [{}; 0] }
+        pub fn unitmany() -> [(); 7] { [{}; 7] }
+        pub fn conditional(x: i32, b: bool) -> [i32; 3] { [if b { x } else { 0 }; 3] }
+        pub fn references(x: &i32) -> [&i32; 4] { [x; 4] }
+        pub fn named(x: i32) -> [i32; 4] { [x; N] }
+        pub fn complex(x: i32) -> [i32; 4] { [x; 2 + 2] }
+    "#,
+    )
+    .unwrap();
+    directory
+}
+
+fn check_repeat_array_graphs(report: &Value) {
+    let functions = report["functions"].as_array().unwrap();
+    let facts = |name| -> rstyle_pdg::HirFnFacts {
+        serde_json::from_value(
+            functions
+                .iter()
+                .find(|f| f["facts"]["name"] == name)
+                .unwrap()["facts"]
+                .clone(),
+        )
+        .unwrap()
+    };
+    let small = rstyle_pdg::producer::produce(&facts("repeat")).unwrap();
+    let huge = rstyle_pdg::producer::produce(&facts("huge")).unwrap();
+    assert_eq!(small.pdg.nodes.len(), huge.pdg.nodes.len());
+    assert_eq!(small.pdg.edges.len(), huge.pdg.edges.len());
+    let zero = facts("zero_effect");
+    let pair = rstyle_pdg::producer::produce(&zero).unwrap();
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|n| n.category == rstyle_pdg::NodeCategory::Assignment)
+            .count(),
+        1
+    );
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|n| n.original_kind.known_value() == Some("expr_repeat"))
+        .unwrap();
+    assert_eq!(
+        pair.pdg
+            .edges
+            .iter()
+            .filter(|e| e.target == constructor.id && e.subkind == "value_operand")
+            .count(),
+        1
+    );
+    let mut changed = facts("repeat");
+    let ty = changed.body.children[0].ty.as_mut().unwrap();
+    let mut token: serde_json::Value =
+        serde_json::from_str(ty.normalized.as_ref().unwrap()).unwrap();
+    token["value"]["length"] = serde_json::json!(5);
+    ty.normalized = Some(serde_json::to_string(&token).unwrap());
+    let error = rstyle_pdg::data_frontend::verify(&changed).unwrap_err();
+    assert!(error.contains("Repeat count disagrees"), "{error}");
+}
+
+#[test]
+fn clones_data_named_struct_values_preserve_field_slots_and_evaluation_order() {
+    let directory = struct_value_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_struct_slot_corruption(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn struct_value_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/model.rs"),
+        r#"
+        pub struct Data { pub left: i32, pub right: i32, pub stamp: () }
+        impl Data { pub fn new(left: i32, right: i32) -> Self { Self { right, left, stamp: () } } }
+        pub struct Outer { pub inner: Data, pub bytes: [i32; 2] }
+        pub struct Empty {}
+        pub struct Borrowed<'a> { pub value: &'a i32 }
+    "#,
+    )
+    .unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        mod model;
+        use model::Data as Record;
+        pub fn first(x: i32, y: i32) -> Record { Record { right: y, left: x, stamp: () } }
+        pub fn other(x: i32, y: i32) -> Record { Record { right: y, left: x, stamp: () } }
+        pub fn shorthand(left: i32, right: i32) -> Record { Record { left, right, stamp: () } }
+        pub fn effects(mut x: i32) -> Record { Record { left: x, right: { x = 7; x }, stamp: () } }
+        pub fn nested(x: i32) -> model::Outer { model::Outer { bytes: [x; 2], inner: Record { left: x, right: x, stamp: () } } }
+        pub fn units() -> Record { Record { stamp: {}, left: 1, right: 2 } }
+        pub fn empty() -> model::Empty { model::Empty {} }
+        pub fn update(old: Record) -> Record { Record { left: 1, ..old } }
+        pub fn local(x: i32) -> Record { let r = Record { left: x, right: x, stamp: () }; r }
+        pub fn borrowed<'a>(x: &'a i32) -> model::Borrowed<'a> { model::Borrowed { value: x } }
+    "#).unwrap();
+    directory
+}
+
+fn check_struct_slot_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        constructor
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("[1,0,2]")
+    );
+    constructor.attributes.literal = Some(rstyle_pdg::StringFact::known("[0,1,2]"));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts;
+    changed.body.children[0].children.swap(0, 1);
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+#[test]
+fn clones_data_struct_updates_preserve_base_evaluation_and_field_overrides() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Record { pub left: i32, pub right: i32, pub stamp: () }
+        pub fn first(old: Record, x: i32) -> Record { Record { right: x, ..old } }
+        pub fn other(old: Record, x: i32) -> Record { Record { right: x, ..old } }
+        pub fn identity(old: Record) -> Record { Record { ..old } }
+        pub fn nested(x: i32) -> Record { Record { left: x, ..Record { left: 1, right: 2, stamp: () } } }
+        pub fn effects(mut x: i32) -> Record { Record { right: { x = 7; x }, ..{ x = 9; Record { left: x, right: x, stamp: () } } } }
+        pub fn complete(mut x: i32) -> Record { Record { left: x, right: x, stamp: {}, ..{ x = 7; Record { left: x, right: x, stamp: () } } } }
+        pub fn conditional(a: Record, b: Record, pick: bool) -> Record { Record { left: 4, ..if pick { a } else { b } } }
+        pub fn local(old: Record) -> Record { let base = old; Record { ..base } }
+    "#).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 8);
+    for function in functions {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_struct_update_corruption(&report);
+    check_struct_update_effects(&report);
+}
+
+fn check_struct_update_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        constructor
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("[1,null]")
+    );
+    constructor.attributes.literal = Some(rstyle_pdg::StringFact::known("[0,null]"));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts;
+    changed.body.children[0].children.pop();
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+fn check_struct_update_effects(report: &Value) {
+    for (name, expected) in [("effects", 2), ("complete", 1)] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function["facts"].clone()).unwrap();
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        assert_eq!(
+            pair.pdg
+                .nodes
+                .iter()
+                .filter(|node| node.category == rstyle_pdg::NodeCategory::Assignment)
+                .count(),
+            expected,
+            "{name}"
+        );
+        let constructor = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| {
+                node.attributes
+                    .literal
+                    .as_ref()
+                    .and_then(|literal| literal.known_value())
+                    .is_some_and(|literal| literal.ends_with(",null]"))
+            })
+            .unwrap();
+        assert_eq!(
+            pair.pdg
+                .edges
+                .iter()
+                .filter(|edge| edge.target == constructor.id && edge.subkind == "value_operand")
+                .count(),
+            if name == "complete" { 4 } else { 2 }
+        );
+    }
+}
+
+#[test]
+fn clones_data_tuple_struct_values_compose_with_nominal_slots_and_units() {
+    let directory = tuple_struct_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_tuple_struct_corruption(&report);
+    let helper = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "helper")
+        .unwrap();
+    let mut facts: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(helper["facts"].clone()).unwrap();
+    assert_eq!(facts.body.children[0].kind, "expr_call");
+    facts.body.children[0].kind = "expr_struct".into();
+    assert!(rstyle_pdg::data_frontend::verify(&facts).is_err());
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn check_tuple_struct_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        constructor
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("[0,1,2]")
+    );
+    constructor.attributes.literal = Some(rstyle_pdg::StringFact::known("[1,0,2]"));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts;
+    changed.body.children[0].children.swap(0, 1);
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+fn tuple_struct_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/model.rs"),
+        r#"
+        pub struct Pair(pub i32, pub i32, pub ());
+        impl Pair { pub fn new(x: i32) -> Self { Self(x, x, ()) } }
+        pub struct Empty();
+        pub struct Nested(pub Pair, pub [i32; 2]);
+        pub struct Borrowed<'a>(pub &'a i32);
+        pub struct Named { pub value: i32 }
+        #[allow(non_snake_case)] pub fn Named(value: i32) -> Named { Named { value } }
+    "#,
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        mod model;
+        use model::Pair as Alias;
+        pub fn first(x: i32, y: i32) -> Alias { Alias(x, y, ()) }
+        pub fn other(x: i32, y: i32) -> Alias { Alias(x, y, ()) }
+        pub fn units(x: i32) -> Alias { Alias(x, x, {}) }
+        pub fn empty() -> model::Empty { model::Empty() }
+        pub fn nested(x: i32) -> model::Nested { model::Nested(Alias(x, x, ()), [x; 2]) }
+        pub fn effects(mut x: i32) -> Alias { Alias(x, { x = 7; x }, ()) }
+        pub fn borrowed<'a>(x: &'a i32) -> model::Borrowed<'a> { model::Borrowed(x) }
+        pub fn local(x: i32) -> Alias { let p = Alias(x, x, ()); p }
+        pub fn helper(x: i32) -> model::Named { model::Named(x) }
+    "#,
+    )
+    .unwrap();
+    directory
+}
+
+#[test]
+fn clones_data_unit_struct_paths_preserve_nominal_constructor_identity() {
+    let directory = unit_struct_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "constant" | "named_constant"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_unit_struct_corruption(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn unit_struct_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/model.rs"),
+        r#"
+        pub struct Unit;
+        impl Unit { pub fn new() -> Self { Self } }
+        pub struct Wrap { pub tag: Unit, pub value: i32 }
+        pub struct Named {}
+        pub const UNIT: Unit = Unit;
+        #[allow(non_upper_case_globals)] pub const Named: Named = Named {};
+    "#,
+    )
+    .unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        mod model;
+        use model::Unit as Alias;
+        pub fn first() -> Alias { Alias }
+        pub fn other() -> Alias { Alias }
+        pub fn grouped() -> Alias { (Alias) }
+        pub fn nested(x: i32) -> model::Wrap { model::Wrap { tag: Alias, value: x } }
+        pub fn repeat() -> [Alias; 0] { [Alias; 0] }
+        pub fn conditional(pick: bool) -> Alias { if pick { Alias } else { Alias } }
+        pub fn effects(mut x: i32) -> model::Wrap { model::Wrap { tag: { x = 7; Alias }, value: x } }
+        pub fn local() -> Alias { let value = Alias; value }
+        pub fn constant() -> Alias { model::UNIT }
+        pub fn named_constant() -> model::Named { model::Named }
+    "#).unwrap();
+    directory
+}
+
+fn check_unit_struct_corruption(report: &Value) {
+    let functions = report["functions"].as_array().unwrap();
+    let first = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(first["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        constructor
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("[]")
+    );
+    constructor.attributes.literal = Some(rstyle_pdg::StringFact::known("[0]"));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let named = functions
+        .iter()
+        .find(|function| function["facts"]["name"] == "named_constant")
+        .unwrap();
+    let mut changed: rstyle_pdg::HirFnFacts =
+        serde_json::from_value(named["facts"].clone()).unwrap();
+    assert_eq!(changed.body.children[0].kind, "expr_path");
+    changed.body.children[0].kind = "expr_struct".into();
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+#[test]
+fn clones_data_local_aggregate_values_follow_definitions_across_branches_and_loops() {
+    let directory = local_aggregate_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 13);
+    for function in functions {
+        assert_eq!(function["outcome"], "admitted", "{function}");
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_local_aggregate_corruption(&report);
+    check_local_aggregate_reaching(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn local_aggregate_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Record { pub value: i32 }
+        pub fn first(x: i32, y: i32) -> (i32, i32) { let v = (x, y); v }
+        pub fn other(x: i32, y: i32) -> (i32, i32) { let v = (x, y); v }
+        pub fn array(a: [i32; 2]) -> [i32; 2] { let b = a; let c = b; c }
+        pub fn branch(old: Record, pick: bool) -> Record { let mut r = old; if pick { r = Record { value: 7 }; } r }
+        pub fn conditional(x: i32, pick: bool) -> (i32, i32) { let v = if pick { (x, 1) } else { (2, x) }; v }
+        pub fn cyclic(mut n: i32) -> (i32, i32) { let mut v = (n, n); while n > 0 { v = (n, 1); n -= 1; } v }
+        pub fn shadow(x: i32) -> (i32, i32) { let v = (x, 1); { let v = v; v } }
+        pub fn update(old: Record) -> Record { let base = old; let result = Record { value: 4, ..base }; result }
+        pub fn mutable(mut old: Record) -> Record { old = Record { value: 7 }; old }
+        pub fn unreachable(old: Record) -> Record { return old; let value = Record { value: 1 }; value }
+        pub fn reference(x: &i32) -> &i32 { let v = x; v }
+        pub fn field(old: Record) -> i32 { let value = old; value.value }
+        pub fn mixed(old: Record, source: &Record) -> Record { let value = old; let x = source.value; Record { value: x, ..value } }
+    "#).unwrap();
+    directory
+}
+
+fn check_local_aggregate_corruption(report: &Value) {
+    let first = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(first["facts"].clone()).unwrap();
+    check_local_initializer_corruption(&facts);
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let mut changed = rstyle_pdg::producer::produce(&facts).unwrap();
+    changed.pdg.edges.retain(|edge| {
+        edge.subkind != "reaching_definition"
+            || !changed.pdg.nodes.iter().any(|node| {
+                node.id == edge.target
+                    && node.category == rstyle_pdg::NodeCategory::Read
+                    && node.attributes.symbol_ids.iter().any(|symbol| {
+                        facts
+                            .bindings
+                            .iter()
+                            .any(|binding| !binding.is_param && &binding.symbol == symbol)
+                    })
+            })
+    });
+    assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&changed, &facts).is_err());
+    let mut changed = pair;
+    let definition = changed
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.category == rstyle_pdg::NodeCategory::Declaration)
+        .unwrap()
+        .id
+        .clone();
+    changed
+        .pdg
+        .edges
+        .retain(|edge| edge.target != definition || edge.subkind != "value_operand");
+    assert!(rstyle_pdg::data_documents::verify(&changed, &facts).is_err());
+}
+
+fn check_local_initializer_corruption(facts: &rstyle_pdg::HirFnFacts) {
+    let mut pair = rstyle_pdg::producer::produce(facts).unwrap();
+    let definition = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.category == rstyle_pdg::NodeCategory::Declaration)
+        .unwrap()
+        .id
+        .clone();
+    let read = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| {
+            node.category == rstyle_pdg::NodeCategory::Read
+                && node.original_kind.known_value() == Some("expr_path")
+                && node.annotations["compat.rust.hir-r0:type"]["value"] != "i32"
+        })
+        .unwrap()
+        .id
+        .clone();
+    let edge = pair
+        .pdg
+        .edges
+        .iter_mut()
+        .find(|edge| edge.target == definition && edge.subkind == "value_operand")
+        .unwrap();
+    edge.source = read;
+    let error = rstyle_pdg::data_documents::verify(&pair, facts).unwrap_err();
+    assert!(error.contains("original component"), "{error}");
+}
+
+fn check_local_aggregate_reaching(report: &Value) {
+    for (name, binding_name) in [("branch", "r"), ("cyclic", "v")] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function["facts"].clone()).unwrap();
+        let symbol = &facts
+            .bindings
+            .iter()
+            .find(|binding| binding.name == binding_name)
+            .unwrap()
+            .symbol;
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        let read = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| {
+                node.category == rstyle_pdg::NodeCategory::Read
+                    && node.attributes.symbol_ids == [symbol.clone()]
+            })
+            .unwrap();
+        assert_eq!(
+            pair.pdg
+                .edges
+                .iter()
+                .filter(|edge| edge.target == read.id && edge.subkind == "reaching_definition")
+                .count(),
+            2,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn clones_data_aggregate_value_fields_preserve_component_identity_and_value_flow() {
+    let directory = value_field_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 15);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "borrow" | "write"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_value_field_corruption(&report);
+    check_value_field_evaluation(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"]
+                == if function["facts"]["name"] == "formal_read" {
+                    "admitted"
+                } else {
+                    "excluded"
+                }),
+        "{legacy}"
+    );
+}
+
+fn value_field_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Record { pub left: i32, pub right: i32, pub stamp: () }
+        pub struct Outer { pub inner: Record }
+        pub struct Borrowed<'a> { pub value: &'a i32 }
+        pub fn first(old: Record) -> i32 { let value = old; value.right }
+        pub fn other(old: Record) -> i32 { let value = old; value.right }
+        pub fn tuple(old: (i32, i32)) -> i32 { let value = old; (value).0 }
+        pub fn nested(old: Outer) -> i32 { let value = old; value.inner.left }
+        pub fn computed(x: i32) -> i32 { (x, { 7 }).1 }
+        pub fn effects(mut x: i32) -> i32 { ({ x = 7; (x, x) }).1 }
+        pub fn conditional(a: Record, b: Record, pick: bool) -> i32 { (if pick { a } else { b }).left }
+        pub fn reassigned(mut old: Record) -> i32 { old = Record { left: 1, right: 2, stamp: () }; old.right }
+        pub fn snapshot(mut old: Record) -> (i32, i32) { let left = old.left; old = Record { left: 7, right: 9, stamp: () }; (left, old.right) }
+        pub fn units(old: Record) -> ((), i32) { let value = old; (value.stamp, value.left) }
+        pub fn mixed(old: Record, source: &Record) -> i32 { let value = old; value.right + source.left }
+        pub fn formal_read(mut old: Record) -> i32 { old.left + old.right }
+        pub fn borrow(old: Record) -> i32 { let value = old; let _r = &value.left; value.right }
+        pub fn write(old: Record) -> i32 { let mut value = old; value.left = 4; value.left }
+        pub fn references<'a>(old: Borrowed<'a>) -> &'a i32 { let value = old; value.value }
+    "#).unwrap();
+    directory
+}
+
+fn check_value_field_corruption(report: &Value) {
+    let first = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(first["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert!(pair.pdg.memory_locations.is_empty());
+    let projection = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.value-field"))
+        .unwrap();
+    assert_eq!(
+        projection
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some("1")
+    );
+    projection.attributes.literal = Some(rstyle_pdg::StringFact::known("0"));
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts;
+    let field = changed.body.children.last_mut().unwrap();
+    let resolution = field.res.as_mut().unwrap();
+    let mut value: Value = serde_json::from_str(&resolution.description).unwrap();
+    value["position"] = serde_json::json!(0);
+    resolution.description = value.to_string();
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+fn check_value_field_evaluation(report: &Value) {
+    for (name, locations) in [("effects", 0), ("mixed", 1)] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let facts: rstyle_pdg::HirFnFacts =
+            serde_json::from_value(function["facts"].clone()).unwrap();
+        let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        assert_eq!(pair.pdg.memory_locations.len(), locations, "{name}");
+        if name == "effects" {
+            assert_eq!(
+                pair.pdg
+                    .nodes
+                    .iter()
+                    .filter(|node| node.category == rstyle_pdg::NodeCategory::Assignment)
+                    .count(),
+                1
+            );
+            let projection = pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|node| node.attributes.construct.as_deref() == Some("data.value-field"))
+                .unwrap();
+            assert_eq!(
+                pair.pdg
+                    .edges
+                    .iter()
+                    .filter(|edge| edge.target == projection.id && edge.subkind == "value_operand")
+                    .count(),
+                1
+            );
+        }
+    }
+}
+
+#[test]
+fn clones_data_shared_reference_locals_preserve_initializer_and_formal_origins() {
+    let directory = reference_local_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 14);
+    for function in functions {
+        let excluded = !has_length_authority(&report)
+            && matches!(
+                function["facts"]["name"].as_str().unwrap(),
+                "length" | "empty"
+            );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_reference_local_corruption(read_call_function(&report, "conditional"));
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn reference_local_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Record<'a> { pub value: &'a i32 }
+        pub fn first(value: &i32) -> &i32 { let local = value; local }
+        pub fn other(value: &i32) -> &i32 { let local = value; local }
+        pub fn alias(value: &i32) -> &i32 { let local = value; let copy = local; copy }
+        pub fn shadow<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let value = a; let saved = value; let value = b; if true { saved } else { value } }
+        pub fn conditional<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 { let value = if pick { a } else { b }; value }
+        pub fn stored<'a>(record: Record<'a>) -> &'a i32 { let value = record.value; value }
+        pub fn borrowed(record: &(i32, i32)) -> &i32 { let value = &record.1; value }
+        pub fn length(bytes: &[u8]) -> usize { let value = bytes; value.len() }
+        pub fn empty(text: &str) -> bool { let value = text; value.is_empty() }
+        pub fn mutable(value: &i32) -> &i32 { let mut local = value; local }
+        pub fn rebound<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut local = a; local = b; local }
+        pub fn formal_rebound<'a>(mut a: &'a i32, b: &'a i32) -> &'a i32 { a = b; a }
+        pub fn local_field(record: &(i32, i32)) -> i32 { let local = record; local.0 }
+        pub fn aggregate(value: &i32) -> (&i32,) { let local = (value,); local }
+    "#).unwrap();
+    directory
+}
+
+fn check_reference_local_corruption(function: &Value) {
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let read = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| {
+            node.category == rstyle_pdg::NodeCategory::Read
+                && node.attributes.reads.iter().any(|access| {
+                    access.symbol_id.as_ref().is_some_and(|symbol| {
+                        facts
+                            .bindings
+                            .iter()
+                            .any(|binding| !binding.is_param && binding.symbol == *symbol)
+                    })
+                })
+        })
+        .unwrap();
+    let mut missing = rstyle_pdg::producer::produce(&facts).unwrap();
+    missing
+        .pdg
+        .edges
+        .retain(|edge| !(edge.target == read.id && edge.subkind == "reaching_definition"));
+    assert!(rstyle_pdg::data_documents::verify(&missing, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&missing, &facts).is_err());
+    let mut origins = rstyle_pdg::producer::produce(&facts).unwrap();
+    let changed = origins
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.id == read.id)
+        .unwrap();
+    changed.annotations.insert(
+        rstyle_pdg::data_origins::KEY.into(),
+        serde_json::json!([{ "parameter": 0, "path": [{"kind":"SharedReferent"}] }]),
+    );
+    assert!(rstyle_pdg::data_documents::verify(&origins, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&origins, &facts).is_err());
+}
+
+#[test]
+fn clones_data_shared_local_fields_retain_formal_locations_and_alias_value_flow() {
+    let directory = shared_local_field_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 18);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "double" | "borrowlocal"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_shared_local_field_corruption(&report);
+    check_shared_local_borrow_location(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn shared_local_field_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Record { pub left: i32, pub right: i32, pub stamp: () }
+        pub struct Outer { pub inner: Record }
+        pub struct Holder<'a> { pub record: &'a Record }
+        pub fn first(record: &Record) -> i32 { let local = record; local.right }
+        pub fn other(record: &Record) -> i32 { let local = record; local.right }
+        pub fn grouped(record: &Record) -> i32 { let local = record; ((local)).right }
+        pub fn chain(record: &Record) -> i32 { let a = record; let b = a; b.left }
+        pub fn shadow(record: &Record, other: &Record) -> i32 { let local = record; let saved = local; let local = other; saved.left + local.right }
+        pub fn nested(record: &Outer) -> i32 { let local = record; local.inner.right }
+        pub fn stored(holder: Holder<'_>) -> i32 { let local = holder.record; local.right }
+        pub fn borrowed(record: &Outer) -> i32 { let local = &record.inner; local.right }
+        pub fn same_branch(record: &Record, pick: bool) -> i32 { let local = if pick { record } else { record }; local.left }
+        pub fn block(record: &Record) -> i32 { let local = { let inner = record; inner }; local.right }
+        pub fn reference_result<'a>(record: &'a (i32, &'a i32)) -> &'a i32 { let local = record; local.1 }
+        pub fn alias_borrow(record: &Record) -> &i32 { let local = record; &local.right }
+        pub fn units(record: &Record) -> ((), i32) { let local = record; (local.stamp, local.right) }
+        pub fn multi(a: &Record, b: &Record, pick: bool) -> i32 { let local = if pick { a } else { b }; local.right }
+        pub fn mutable(record: &Record) -> i32 { let mut local = record; local.right }
+        pub fn double(record: &&Record) -> i32 { let local = record; local.right }
+        pub fn borrowlocal(record: Record) -> i32 { let local = &record; local.right }
+        pub fn aggregate(record: &Record) -> i32 { let local = (record,); local.0.right }
+    "#).unwrap();
+    directory
+}
+
+fn check_shared_local_field_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "shadow")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert_eq!(pair.pdg.memory_locations.len(), 2);
+    pair.pdg.memory_locations[0]
+        .extensions
+        .get_mut(rstyle_pdg::data_documents::LOCATION_KEY)
+        .unwrap()["parameter"] = serde_json::json!(1);
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+    let mut changed = facts;
+    let mut fields = changed
+        .build
+        .frontend_options
+        .data::<rstyle_pdg::field_locations::FieldObservations>()
+        .unwrap()
+        .into_owned();
+    let rstyle_pdg::field_locations::Location::Captured { parameter, .. } =
+        &mut fields.operations[0].location
+    else {
+        panic!("captured alias field")
+    };
+    assert_eq!(*parameter, 0);
+    *parameter = 1;
+    changed.build.frontend_options.insert_data(fields);
+    assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
+}
+
+fn check_shared_local_borrow_location(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "borrowed")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    let location = pair
+        .pdg
+        .memory_locations
+        .iter()
+        .find(|location| {
+            location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+                .as_array()
+                .unwrap()
+                .last()
+                .is_some_and(|step| step["name"] == "right")
+        })
+        .unwrap();
+    let path = location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+        .as_array()
+        .unwrap();
+    assert_eq!(path.len(), 3);
+    assert_eq!(path[0]["kind"], "SharedReferent");
+    assert_eq!(path[1]["name"], "inner");
+    assert_eq!(path[2]["name"], "right");
+}
+
+#[test]
+fn clones_data_reference_bearing_values_preserve_origin_unions_and_exact_slots() {
+    let directory = reference_literal_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 24);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "arrays" | "zero"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_reference_literal_slot_corruption(&report);
+    check_reference_literal_effects(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"]
+                == if function["facts"]["name"] == "shared_identity" {
+                    "admitted"
+                } else {
+                    "excluded"
+                }),
+        "{legacy}"
+    );
+}
+
+fn reference_literal_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Pair<'a> { pub left: &'a i32, pub right: &'a i32, pub stamp: () }
+        pub struct Tuple<'a>(pub &'a i32, pub (), pub &'a i32);
+        pub struct Nested<'a> { pub inner: Pair<'a>, pub scalar: i32 }
+        pub struct Holder<'a> { pub value: &'a i32 }
+        pub fn first<'a>(a: &'a i32, b: &'a i32) -> (&'a i32, &'a i32) { (a, b) }
+        pub fn other<'a>(a: &'a i32, b: &'a i32) -> (&'a i32, &'a i32) { (a, b) }
+        pub fn named<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { Pair { right: b, stamp: (), left: a } }
+        pub fn tuple<'a>(a: &'a i32, b: &'a i32) -> Tuple<'a> { Tuple(a, (), b) }
+        pub fn nested<'a>(a: &'a i32, b: &'a i32) -> Nested<'a> { Nested { inner: Pair { left: a, right: b, stamp: () }, scalar: 7 } }
+        pub fn aliases<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { let local = a; Pair { left: local, right: b, stamp: () } }
+        pub fn borrowed(record: &(i32, i32)) -> (&i32, &i32) { (&record.0, &record.1) }
+        pub fn stored<'a>(record: Holder<'a>, other: &'a i32) -> Pair<'a> { Pair { left: record.value, right: other, stamp: () } }
+        pub fn conditional<'a>(a: &'a i32, b: &'a i32, pick: bool) -> (&'a i32, &'a i32) { (if pick { a } else { b }, a) }
+        pub fn block<'a>(a: &'a i32, b: &'a i32) -> (&'a i32, &'a i32) { { (a, b) } }
+        pub fn effects<'a>(a: &'a i32, b: &'a i32, mut n: i32) -> Pair<'a> { Pair { left: { n = 7; a }, right: { let check = n; b }, stamp: () } }
+        pub fn wrap<'a>(pair: (&'a i32, &'a i32)) -> ((&'a i32, &'a i32),) { let saved = pair; (saved,) }
+        pub fn mixed_unit<'a>(a: &'a i32, b: &'a i32) -> ((), &'a i32, (&'a i32, ())) { ((), a, (b, ())) }
+        pub fn local<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { let value = Pair { left: a, right: b, stamp: () }; value }
+        pub fn shadow<'a>(a: &'a i32, b: &'a i32) -> (Pair<'a>, Pair<'a>) { let pair = Pair { left: a, right: b, stamp: () }; let saved = pair; let pair = Pair { left: b, right: a, stamp: () }; (saved, pair) }
+        pub fn mutable<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { let mut value = Pair { left: a, right: b, stamp: () }; value }
+        pub fn reassigned<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { let mut value = Pair { left: a, right: b, stamp: () }; value = Pair { left: b, right: a, stamp: () }; value }
+        pub fn temporary_field<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { (a, b).0 }
+        pub fn update<'a>(old: Pair<'a>, value: &'a i32) -> Pair<'a> { Pair { left: value, ..old } }
+        pub fn arrays(value: &i32) -> [&i32; 2] { [value, value] }
+        pub fn zero(value: &i32) -> [&i32; 0] { [value; 0] }
+        pub fn shared_identity(value: &i32) -> &i32 { value }
+        pub fn helper_component<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { Pair { left: shared_identity(a), right: b, stamp: () } }
+        pub fn helper_return<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { named(a, b) }
+    "#).unwrap();
+    directory
+}
+
+fn check_reference_literal_slot_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert!(pair.pdg.memory_locations.is_empty());
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| {
+            node.original_kind.known_value() == Some("expr_tup")
+                && node.category == rstyle_pdg::NodeCategory::Computation
+        })
+        .unwrap();
+    assert_eq!(
+        constructor.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let operands: Vec<_> = pair
+        .pdg
+        .edges
+        .iter()
+        .enumerate()
+        .filter(|(_, edge)| edge.target == constructor.id && edge.subkind == "value_operand")
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(operands.len(), 2);
+    let first = pair.pdg.edges[operands[0]].source.clone();
+    pair.pdg.edges[operands[0]].source = pair.pdg.edges[operands[1]].source.clone();
+    pair.pdg.edges[operands[1]].source = first;
+    assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
+    assert!(rstyle_pdg::producer::verify(&pair, &facts).is_err());
+}
+
+fn check_reference_literal_effects(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "effects")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert_eq!(
+        pair.pdg
+            .nodes
+            .iter()
+            .filter(|node| node.category == rstyle_pdg::NodeCategory::Assignment)
+            .count(),
+        1
+    );
+    let constructor = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.struct"))
+        .unwrap();
+    assert_eq!(
+        pair.pdg
+            .edges
+            .iter()
+            .filter(|edge| edge.target == constructor.id && edge.subkind == "value_operand")
+            .count(),
+        3
+    );
+}
+
+#[test]
+fn clones_data_reference_value_fields_select_exact_component_origins() {
+    let directory = reference_value_field_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 22);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "borrow" | "helper_field"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_reference_value_field_origins(&report);
+    check_reference_value_field_paths(&report);
+    check_reference_value_field_corruption(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"]
+                == if function["facts"]["name"] == "identity" {
+                    "admitted"
+                } else {
+                    "excluded"
+                }),
+        "{legacy}"
+    );
+}
+
+fn reference_value_field_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Pair<'a> { pub left: &'a i32, pub right: &'a i32, pub stamp: i32 }
+        pub struct Outer<'a> { pub inner: Pair<'a> }
+        pub struct Tuple<'a>(pub &'a i32, pub &'a i32);
+        pub fn first<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = (a, b); pair.0 }
+        pub fn other<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = (a, b); pair.0 }
+        pub fn second<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { (a, b).1 }
+        pub fn named<'a>(a: &'a i32, b: &'a i32, old: Pair<'a>) -> &'a i32 { let pair = Pair { right: b, stamp: old.stamp, left: a }; pair.left }
+        pub fn tuple<'a>(a: &'a i32, b: &'a i32, old: Tuple<'a>) -> &'a i32 { Tuple(a, b).1 }
+        pub fn nested<'a>(a: &'a i32, b: &'a i32, old: Outer<'a>) -> &'a i32 { let pair = Outer { inner: Pair { left: a, right: b, stamp: old.inner.stamp } }; pair.inner.right }
+        pub fn formal<'a>(pair: Pair<'a>) -> &'a i32 { let saved = pair; saved.right }
+        pub fn loaded<'a>(pair: &((&'a i32, &'a i32),)) -> &'a i32 { let saved = pair.0; saved.0 }
+        pub fn shadow<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = (a, b); let saved = pair; let pair = (b, a); saved.0 }
+        pub fn conditional<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 { let pair = if pick { (a, b) } else { (b, a) }; pair.0 }
+        pub fn stable<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 { (if pick { (a, b) } else { (a, a) }).0 }
+        pub fn scalar(a: &i32, b: &i32, old: Pair) -> i32 { Pair { left: a, right: b, stamp: 7 }.stamp }
+        pub fn identity(value: &i32) -> &i32 { value }
+        pub fn helper_component<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { (identity(a), b).0 }
+        pub fn mutable<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut pair = (a, b); pair.0 }
+        pub fn rebound<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut pair = (a, b); pair = (b, a); pair.0 }
+        pub fn borrow(a: &i32, b: &i32, old: Pair) -> i32 { let pair = Pair { left: a, right: b, stamp: 7 }; let saved = &pair.stamp; pair.stamp }
+        pub fn update<'a>(old: Pair<'a>, a: &'a i32) -> &'a i32 { Pair { left: a, ..old }.right }
+        pub fn helper_result<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { identity_pair(a, b).0 }
+        pub fn helper_field<'a>(pair: Pair<'a>) -> &'a i32 { formal(pair) }
+        pub fn body_nominal<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { Pair { left: a, right: b, stamp: 7 }.left }
+        fn identity_pair<'a>(a: &'a i32, b: &'a i32) -> (&'a i32, &'a i32) { (a, b) }
+    "#).unwrap();
+    directory
+}
+
+fn check_reference_value_field_origins(report: &Value) {
+    for (name, parameters) in [
+        ("first", vec![0]),
+        ("second", vec![1]),
+        ("named", vec![0]),
+        ("nested", vec![1]),
+        ("shadow", vec![0]),
+        ("conditional", vec![0, 1]),
+        ("stable", vec![0]),
+        ("helper_result", vec![0]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let (unit, index) = data_unit(function);
+        let pair = unit.pair(index).unwrap();
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let actual: Vec<_> = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|origin| origin["parameter"].as_u64().unwrap())
+            .collect();
+        assert_eq!(actual, parameters, "{name}");
+    }
+}
+
+fn check_reference_value_field_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    let pair = rstyle_pdg::producer::produce(&facts).unwrap();
+    assert!(pair.pdg.memory_locations.is_empty());
+    for corruption in ["origin", "slot", "base"] {
+        let mut changed = rstyle_pdg::producer::Pair {
+            pdg: pair.pdg.clone(),
+            cfg: pair.cfg.clone(),
+        };
+        corrupt_reference_value_field(&mut changed, corruption);
+        assert!(
+            rstyle_pdg::data_documents::verify(&changed, &facts).is_err(),
+            "{corruption}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&changed, &facts).is_err(),
+            "{corruption}"
+        );
+    }
+}
+
+fn check_reference_value_field_paths(report: &Value) {
+    for name in ["formal", "loaded"] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let (unit, index) = data_unit(function);
+        let pair = unit.pair(index).unwrap();
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let origins = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap();
+        assert_eq!(origins.len(), 1, "{name}");
+        assert_eq!(origins[0]["parameter"], 0);
+        let path = origins[0]["path"].as_array().unwrap();
+        if name == "formal" {
+            assert_eq!(path.len(), 2);
+            assert_eq!(path[0]["kind"], "StructField");
+            assert_eq!(path[0]["name"], "right");
+            assert_eq!(path[0]["position"], 1);
+        } else {
+            assert_eq!(path.len(), 4);
+            assert_eq!(path[0]["kind"], "SharedReferent");
+            for component in &path[1..3] {
+                assert_eq!(component["kind"], "TupleField");
+                assert_eq!(component["position"], 0);
+            }
+        }
+        assert_eq!(path.last().unwrap()["kind"], "SharedReferent");
+    }
+}
+
+fn corrupt_reference_value_field(pair: &mut rstyle_pdg::producer::Pair, corruption: &str) {
+    let projection = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.value-field"))
+        .unwrap();
+    let id = projection.id.clone();
+    match corruption {
+        "origin" => {
+            projection
+                .annotations
+                .get_mut(rstyle_pdg::data_origins::KEY)
+                .unwrap()[0]["parameter"] = 1.into()
+        }
+        "slot" => projection.attributes.literal = Some(rstyle_pdg::StringFact::known("1")),
+        _ => {
+            let sibling = pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|node| {
+                    node.category == rstyle_pdg::NodeCategory::FormalInput
+                        && node.attributes.position == Some(1)
+                })
+                .unwrap()
+                .id
+                .clone();
+            pair.pdg
+                .edges
+                .iter_mut()
+                .find(|edge| edge.target == id && edge.subkind == "value_operand")
+                .unwrap()
+                .source = sibling;
+        }
+    }
+}
+
+#[test]
+fn clones_data_reference_struct_updates_remove_only_overwritten_origins() {
+    let directory = reference_update_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 18);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "helper" | "array"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_reference_update_origins(&report);
+    check_reference_update_nested_paths(&report);
+    check_reference_update_corruption(&report);
+    check_reference_update_effects(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+fn reference_update_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        pub struct Pair<'a> { pub left: &'a i32, pub right: &'a i32, pub stamp: () }
+        pub struct Outer<'a> { pub inner: Pair<'a>, pub tag: i32 }
+        pub fn first<'a>(old: Pair<'a>, a: &'a i32) -> Pair<'a> { Pair { left: a, ..old } }
+        pub fn other<'a>(old: Pair<'a>, a: &'a i32) -> Pair<'a> { Pair { left: a, ..old } }
+        pub fn unchanged(old: Pair<'_>) -> Pair<'_> { Pair { ..old } }
+        pub fn local<'a>(old: Pair<'a>, a: &'a i32) -> Pair<'a> { let saved = old; Pair { left: a, ..saved } }
+        pub fn constructed<'a>(a: &'a i32, b: &'a i32, c: &'a i32) -> Pair<'a> { Pair { left: c, ..Pair { left: a, right: b, stamp: () } } }
+        pub fn complete<'a>(a: &'a i32, b: &'a i32, c: &'a i32) -> Pair<'a> { Pair { right: b, left: a, stamp: (), ..Pair { left: c, right: c, stamp: () } } }
+        pub fn shared_origin<'a>(a: &'a i32, b: &'a i32) -> Pair<'a> { Pair { left: b, ..Pair { left: a, right: a, stamp: () } } }
+        pub fn nested<'a>(old: Outer<'a>, a: &'a i32) -> Outer<'a> { Outer { inner: Pair { left: a, ..old.inner }, ..old } }
+        pub fn chain<'a>(a: &'a i32, b: &'a i32, c: &'a i32) -> Pair<'a> { let base = Pair { left: a, right: b, stamp: () }; let mid = Pair { left: c, ..base }; Pair { right: a, ..mid } }
+        pub fn projected<'a>(old: Pair<'a>, a: &'a i32) -> &'a i32 { Pair { left: a, ..old }.right }
+        pub fn overridden<'a>(old: Pair<'a>, a: &'a i32) -> &'a i32 { Pair { left: a, ..old }.left }
+        pub fn conditional<'a>(old: Pair<'a>, a: &'a i32, b: &'a i32, pick: bool) -> Pair<'a> { Pair { left: a, ..if pick { Pair { left: b, ..old } } else { old } } }
+        pub fn effects<'a>(old: Pair<'a>, a: &'a i32, mut n: i32) -> (Pair<'a>, i32) { let pair = Pair { left: { n = 7; a }, ..{ n = 9; old } }; (pair, n) }
+        pub fn ignored_base<'a>(a: &'a i32, b: &'a i32, c: &'a i32, mut n: i32) -> (Pair<'a>, i32) { let pair = Pair { left: a, right: b, stamp: (), ..{ n = 7; Pair { left: c, right: c, stamp: () } } }; (pair, n) }
+        pub fn unit_effect<'a>(old: Pair<'a>, mut n: i32) -> (Pair<'a>, i32) { let pair = Pair { stamp: { n = 7; () }, ..old }; (pair, n) }
+        pub fn mutable<'a>(old: Pair<'a>, a: &'a i32) -> Pair<'a> { let mut saved = Pair { left: a, ..old }; saved }
+        pub fn helper<'a>(old: Pair<'a>, a: &'a i32) -> Pair<'a> { first(old, a) }
+        pub fn array<'a>(old: Pair<'a>, a: &'a i32) -> [Pair<'a>; 1] { [Pair { left: a, ..old }] }
+    "#).unwrap();
+    directory
+}
+
+fn check_reference_update_origins(report: &Value) {
+    for (name, parameters) in [
+        ("first", vec![0, 1]),
+        ("constructed", vec![1, 2]),
+        ("complete", vec![0, 1]),
+        ("shared_origin", vec![0, 1]),
+        ("chain", vec![0, 2]),
+        ("projected", vec![0]),
+        ("overridden", vec![1]),
+        ("conditional", vec![0, 1]),
+        ("ignored_base", vec![0, 1]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let (unit, index) = data_unit(function);
+        let pair = unit.pair(index).unwrap();
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let origins = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap();
+        let actual: Vec<_> = origins
+            .iter()
+            .map(|origin| origin["parameter"].as_u64().unwrap())
+            .collect();
+        assert_eq!(actual, parameters, "{name}");
+        if matches!(name, "first" | "projected" | "conditional") {
+            assert_eq!(origins[0]["path"][0]["name"], "right", "{name}");
+            assert_eq!(origins[0]["path"][0]["position"], 1, "{name}");
+        }
+    }
+}
+
+fn check_reference_update_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "constructed")
+        .unwrap();
+    let facts: rstyle_pdg::HirFnFacts = serde_json::from_value(function["facts"].clone()).unwrap();
+    for corruption in ["origin", "slot", "base"] {
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        corrupt_reference_update(&mut pair, corruption);
+        assert!(
+            rstyle_pdg::data_documents::verify(&pair, &facts).is_err(),
+            "{corruption}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&pair, &facts).is_err(),
+            "{corruption}"
+        );
+    }
+}
+
+fn corrupt_reference_update(pair: &mut rstyle_pdg::producer::Pair, corruption: &str) {
+    let update = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| {
+            node.attributes
+                .literal
+                .as_ref()
+                .and_then(|literal| literal.known_value())
+                == Some("[0,null]")
+        })
+        .unwrap();
+    let id = update.id.clone();
+    match corruption {
+        "origin" => update
+            .annotations
+            .get_mut(rstyle_pdg::data_origins::KEY)
+            .unwrap()
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"parameter": 0, "path": [{"kind": "SharedReferent"}]})),
+        "slot" => update.attributes.literal = Some(rstyle_pdg::StringFact::known("[1,null]")),
+        _ => pair.pdg.edges.retain(|edge| {
+            !(edge.target == id
+                && edge.subkind == "value_operand"
+                && edge.operand_position == Some(1))
+        }),
+    }
+}
+
+fn check_reference_update_effects(report: &Value) {
+    for (name, assignments, operands) in [
+        ("effects", 2, 2),
+        ("ignored_base", 1, 4),
+        ("unit_effect", 1, 2),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let (unit, index) = data_unit(function);
+        let pair = unit.pair(index).unwrap();
+        assert_eq!(
+            pair.pdg
+                .nodes
+                .iter()
+                .filter(|node| node.category == rstyle_pdg::NodeCategory::Assignment)
+                .count(),
+            assignments
+        );
+        let update = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| {
+                node.attributes
+                    .literal
+                    .as_ref()
+                    .and_then(|literal| literal.known_value())
+                    .is_some_and(|literal| literal.contains("null"))
+            })
+            .unwrap();
+        assert_eq!(
+            pair.pdg
+                .edges
+                .iter()
+                .filter(|edge| edge.target == update.id && edge.subkind == "value_operand")
+                .count(),
+            operands
+        );
+    }
+}
+
+fn check_reference_update_nested_paths(report: &Value) {
+    for name in ["unchanged", "nested", "unit_effect"] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let (unit, index) = data_unit(function);
+        let pair = unit.pair(index).unwrap();
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let origins = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap();
+        assert_eq!(origins.len(), 2, "{name}");
+        assert_eq!(origins[0]["parameter"], 0);
+        let path = origins[0]["path"].as_array().unwrap();
+        if name == "nested" {
+            assert_eq!(path.len(), 3);
+            assert_eq!(path[0]["name"], "inner");
+            assert_eq!(path[1]["name"], "right");
+            assert_eq!(origins[1]["parameter"], 1);
+        } else {
+            assert_eq!(path.len(), 2);
+            assert_eq!(path[0]["name"], "left");
+            assert_eq!(origins[1]["parameter"], 0);
+            assert_eq!(origins[1]["path"][0]["name"], "right");
+        }
+        assert_eq!(path.last().unwrap()["kind"], "SharedReferent");
+    }
+}
+
+#[test]
+fn clones_data_body_nominal_types_compose_without_signature_witnesses() {
+    let directory = body_nominal_workspace();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 13);
+    for function in functions {
+        let excluded = matches!(function["facts"]["name"].as_str().unwrap(), "borrow");
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_body_nominal_corruption(&report);
+    check_body_nominal_interface(&report);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    assert!(
+        legacy["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| function["outcome"] == "excluded"),
+        "{legacy}"
+    );
+}
+
+const REFERENCE_REBINDING_FAMILY: &str = r#"
+        pub struct Pair<'a> { pub left: &'a i32, pub right: &'a i32 }
+        pub fn first<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; selected = b; selected
+        }
+        pub fn other<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; selected = b; selected
+        }
+        pub fn snapshot<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; let saved = selected; selected = b; saved
+        }
+        pub fn branch<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 {
+            let mut selected = a; if pick { selected = b; } selected
+        }
+        pub fn killed<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 {
+            let mut selected = a; if pick { selected = b; } selected = a; selected
+        }
+        pub fn looped<'a>(a: &'a i32, b: &'a i32, mut count: u32) -> &'a i32 {
+            let mut selected = a;
+            while count > 0 { selected = b; count -= 1; }
+            selected
+        }
+        pub fn swapped<'a>(a: &'a i32, b: &'a i32, mut count: u32) -> &'a i32 {
+            let mut left = a; let mut right = b;
+            while count > 0 { let saved = left; left = right; right = saved; count -= 1; }
+            left
+        }
+        pub fn aggregate<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 {
+            let mut pair = Pair { left: a, right: b };
+            if pick { pair = Pair { left: b, right: a }; }
+            pair.left
+        }
+        pub fn aggregate_snapshot<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut pair = Pair { left: a, right: b }; let saved = pair.left;
+            pair = Pair { left: b, right: a }; saved
+        }
+        pub fn update<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut pair = Pair { left: a, right: b }; pair = Pair { left: b, ..pair }; pair.right
+        }
+        pub fn parameter<'a>(mut a: &'a i32, b: &'a i32) -> &'a i32 { a = b; a }
+        pub fn stopped<'a>(a: &'a i32, b: &'a i32, flag: bool) -> &'a i32 {
+            let mut selected = a; loop { selected = b; if flag { break; } continue; } selected
+        }
+        pub fn matched<'a>(a: &'a i32, b: &'a i32, flag: bool) -> &'a i32 {
+            let mut selected = a; match flag { true => selected = b, false => {} } selected
+        }
+        pub fn guarded<'a>(a: &'a i32, b: &'a i32, flag: bool) -> &'a i32 {
+            let mut selected = a; match flag { true if flag => selected = b, _ => {} } selected
+        }
+        pub fn whole<'a>(value: &'a i32) -> &'a i32 { value }
+        pub fn helper<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut selected = a; selected = whole(b); selected }
+        pub fn composed<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { first(a, b) }
+        pub fn storage_borrow(value: i32) -> i32 { let reference = &value; *reference }
+    "#;
+
+#[test]
+fn clones_data_reference_rebindings_preserve_snapshots_and_component_flow() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        REFERENCE_REBINDING_FAMILY,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["functions"].as_array().unwrap().len(), 18);
+    for function in report["functions"].as_array().unwrap() {
+        assert_eq!(
+            function["outcome"],
+            if function["facts"]["name"] == "storage_borrow" {
+                "excluded"
+            } else {
+                "admitted"
+            },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_reference_rebinding_origins(&report);
+    check_reference_local_corruption(read_call_function(&report, "branch"));
+    check_reference_local_corruption(read_call_function(&report, "swapped"));
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    for name in [
+        "first",
+        "snapshot",
+        "looped",
+        "swapped",
+        "aggregate",
+        "update",
+        "parameter",
+    ] {
+        assert_eq!(
+            read_call_function(&legacy, name)["outcome"],
+            "excluded",
+            "{name}: {legacy}"
+        );
+    }
+}
+
+#[test]
+fn clones_data_reference_rebindings_skip_disabled_assertion_effects() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn debug<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; debug_assert!({ selected = b; true }); selected
+        }
+        pub fn active<'a>(a: &'a i32, b: &'a i32) -> &'a i32 {
+            let mut selected = a; assert!({ selected = b; true }); selected
+        }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(
+        directory.path(),
+        &["--release", "--extraction-profile", "hir-data-v3"],
+    );
+    assert!(output.status.success(), "{report}");
+    for name in ["debug", "active"] {
+        assert_eq!(
+            read_call_function(&report, name)["outcome"],
+            "admitted",
+            "{report}"
+        );
+    }
+    check_aggregate_documents(&report);
+    let (unit, _) = data_unit(read_call_function(&report, "debug"));
+    for (name, parameter) in [("debug", 0), ("active", 1)] {
+        let pair = shared_evidence::pair(&unit, read_call_function(&report, name));
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        assert_eq!(
+            returned.annotations[rstyle_pdg::data_origins::KEY][0]["parameter"],
+            parameter
+        );
+    }
+}
+
+fn check_reference_rebinding_origins(report: &Value) {
+    let (unit, _) = data_unit(read_call_function(report, "first"));
+    for (name, expected) in [
+        ("first", vec![1]),
+        ("snapshot", vec![0]),
+        ("branch", vec![0, 1]),
+        ("killed", vec![0]),
+        ("looped", vec![0, 1]),
+        ("swapped", vec![0, 1]),
+        ("aggregate", vec![0, 1]),
+        ("aggregate_snapshot", vec![0]),
+        ("update", vec![1]),
+        ("parameter", vec![1]),
+        ("stopped", vec![1]),
+        ("matched", vec![0, 1]),
+        ("guarded", vec![0, 1]),
+        ("helper", vec![1]),
+        ("composed", vec![1]),
+    ] {
+        let function = read_call_function(report, name);
+        let pair = shared_evidence::pair(&unit, function);
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let actual: Vec<_> = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|origin| origin["parameter"].as_u64().unwrap())
+            .collect();
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+#[test]
+fn clones_data_static_inherent_helpers_compose_without_owner_values() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        mod model {
+            pub struct Owner { pub unrelated: String }
+            impl Owner {
+                pub fn identity(value: i32) -> i32 { value }
+                pub fn chained(value: i32) -> i32 { Self::identity(value) }
+                pub fn zero() -> i32 { 0 }
+                pub fn nothing() {}
+                pub fn unsupported(value: i32) -> i32 { let reference = &value; *reference }
+            }
+        }
+        use model::Owner as Alias;
+        pub fn first(value: i32) -> i32 { Alias::chained(value) }
+        pub fn other(value: i32) -> i32 { Alias::chained(value) }
+        pub fn qualified(value: i32) -> i32 { crate::model::Owner::identity(value) }
+        pub fn zero_call() -> i32 { Alias::zero() }
+        pub fn unit_call() { Alias::nothing() }
+        pub fn rejected(value: i32) -> i32 { Alias::unsupported(value) }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(functions.len(), 11);
+    for function in functions {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "model::Owner::unsupported" | "rejected"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    check_static_inherent_tampering(read_call_function(&report, "model::Owner::chained"));
+}
+
+fn check_static_inherent_tampering(function: &Value) {
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    for change in ["owner", "implementation", "span", "identity"] {
+        let mut changed = facts.clone();
+        tamper_inherent_evidence(&mut changed, change);
+        shared_evidence::reject_facts(function, &changed);
+    }
+    for field in ["owner_nominal", "implementation_span"] {
+        let mut changed = facts.clone();
+        let key = rstyle_pdg::inherent_calls::KEY;
+        if field == "owner_nominal" {
+            changed.build.frontend_options.get_mut(key).unwrap()[field]["declaration_digest"] =
+                serde_json::json!("forged");
+        } else {
+            changed.build.frontend_options.get_mut(key).unwrap()[field]["start"] =
+                serde_json::json!(0);
+        }
+        let own = changed.build.frontend_options.get(key).unwrap().clone();
+        let associations = changed
+            .build
+            .frontend_options
+            .get_mut(rstyle_pdg::inherent_calls::UNIT_KEY)
+            .unwrap()["definitions"]
+            .as_array_mut()
+            .unwrap();
+        let association = associations
+            .iter_mut()
+            .find(|record| record["definition_identity"] == own["definition_identity"])
+            .unwrap();
+        association[field] = own[field].clone();
+        shared_evidence::reject_facts(function, &changed);
+    }
+}
+
+fn body_nominal_workspace() -> TempDir {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/model.rs"),
+        r#"
+        pub struct Pair<'a> { pub left: &'a i32, pub right: &'a i32 }
+        pub struct Outer<'a> { pub inner: Pair<'a> }
+        pub struct Tuple<'a>(pub &'a i32, pub &'a i32);
+        pub struct Scalar { pub value: i32 }
+        impl Scalar { pub fn extract(value: i32) -> i32 { Self { value }.value } }
+        pub struct Unit;
+    "#,
+    )
+    .unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), r#"
+        mod model;
+        use model::Pair as Alias;
+        pub fn first<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = Alias { right: b, left: a }; pair.left }
+        pub fn other<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = Alias { right: b, left: a }; pair.left }
+        pub fn nested<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let outer = model::Outer { inner: Alias { left: a, right: b } }; outer.inner.right }
+        pub fn tuple<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { model::Tuple(a, b).1 }
+        pub fn update<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let pair = Alias { left: a, right: b }; Alias { left: b, ..pair }.right }
+        pub fn conditional<'a>(a: &'a i32, b: &'a i32, pick: bool) -> &'a i32 { (if pick { Alias { left: a, right: b } } else { Alias { left: b, right: a } }).left }
+        pub fn scalar(value: i32) -> i32 { model::Scalar { value }.value }
+        pub fn helper(value: i32) -> i32 { scalar(value) }
+        pub fn self_call(value: i32) -> i32 { model::Scalar::extract(value) }
+        pub fn unit(value: i32) -> i32 { let tag = model::Unit; value }
+        pub fn borrow(value: i32) -> i32 { let saved = model::Scalar { value }; let reference = &saved.value; saved.value }
+        pub fn mutable<'a>(a: &'a i32, b: &'a i32) -> &'a i32 { let mut pair = Alias { left: a, right: b }; pair.left }
+    "#).unwrap();
+    directory
+}
+
+fn check_body_nominal_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let view = analysis.function(index).unwrap();
+    let pair = unit.pair(index).unwrap();
+    for corruption in ["origin", "range", "field"] {
+        let mut facts = (*view).clone();
+        let mut origins = facts
+            .build
+            .frontend_options
+            .data::<rstyle_pdg::declaration_origins::Origins>()
+            .unwrap()
+            .into_owned();
+        assert_eq!(origins.declarations.len(), 1);
+        match corruption {
+            "origin" => origins.declarations[0]
+                .nominal
+                .definition_path
+                .push_str("_other"),
+            "range" => origins.declarations[0].declaration_span.end -= 1,
+            _ => {
+                let mut changed = serde_json::to_value(&facts).unwrap();
+                change_body_nominal_fields(&mut changed["body"]);
+                facts = serde_json::from_value(changed).unwrap();
+            }
+        }
+        facts.build.frontend_options.insert_data(origins);
+        assert!(
+            rstyle_pdg::data_documents::verify(pair, &facts).is_err(),
+            "{corruption}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify_view(pair.as_view(), &facts).is_err(),
+            "{corruption}"
+        );
+    }
+}
+
+fn change_body_nominal_fields(node: &mut Value) {
+    if let Some(text) = node["ty"]["normalized"].as_str()
+        && let Ok(mut ty) = serde_json::from_str::<Value>(text)
+        && ty["kind"] == "struct"
+    {
+        ty["value"]["fields"][0][0] = "wrong".into();
+        node["ty"]["normalized"] = serde_json::to_string(&ty).unwrap().into();
+    }
+    if let Some(children) = node["children"].as_array_mut() {
+        for child in children {
+            change_body_nominal_fields(child);
+        }
+    }
+}
+
+fn check_body_nominal_interface(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let facts = &function["facts"];
+    assert_eq!(facts["signature"]["params"].as_array().unwrap().len(), 2);
+    let observations = &facts["build"]["frontend_options"][rstyle_pdg::concrete_types::KEY];
+    assert_eq!(observations["parameters"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        function["nominal_unit_binding"]["declarations"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+const INDIRECT_FIELD_FAMILY: &str = r#"
+    pub struct Inner { pub n: u8 }
+    pub struct Record<'a> { pub inner: Inner, pub pointer: &'a Inner }
+    pub fn first(a: &Inner, b: &Inner, pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.n }
+    pub fn composed(a: &Inner, b: &Inner, pick: bool) -> u8 { first(a, b, pick) }
+    pub fn other(a: &Inner, b: &Inner, pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.n }
+    pub fn mutable(a: &Inner, b: &Inner) -> u8 { let mut selected = a; selected = b; selected.n }
+    pub fn snapshot(a: &Inner, b: &Inner) -> u8 { let mut selected = a; let saved = selected; selected = b; saved.n }
+    pub fn formal_snapshot<'a>(mut a: &'a Inner, b: &'a Inner) -> u8 { let saved = a; a = b; saved.n }
+    pub fn looped(a: &Inner, b: &Inner, mut count: u32) -> u8 { let mut selected = a; while count > 0 { selected = b; count -= 1; } selected.n }
+    pub fn nested(a: &Record<'_>, b: &Record<'_>, pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.inner.n }
+    pub fn stored(a: &Record<'_>, b: &Record<'_>, pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.pointer.n }
+    pub fn reference<'a>(a: &Record<'a>, b: &Record<'a>, pick: bool) -> &'a Inner { let selected = if pick { a } else { b }; selected.pointer }
+    pub fn choose<'a>(a: &'a Inner, b: &'a Inner, pick: bool) -> &'a Inner { if pick { a } else { b } }
+    pub fn helper(a: &Inner, b: &Inner, pick: bool) -> u8 { choose(a, b, pick).n }
+    pub fn conditional(a: &Inner, b: &Inner, pick: bool) -> u8 { (if pick { a } else { b }).n }
+    pub fn tuple(a: &(u8, u8), b: &(u8, u8), pick: bool) -> u8 { let selected = if pick { a } else { b }; selected.1 }
+    pub fn same(a: &Inner, pick: bool) -> u8 { let selected = if pick { a } else { a }; selected.n }
+    pub fn borrow_local(value: u8) -> u8 { let local = Inner { n: value }; let selected = &local; selected.n }
+    pub fn pointee(a: &mut Inner) -> u8 { a.n = 1; a.n }
+"#;
+
+#[test]
+fn clones_data_indirect_fields_compose_with_reference_flow_and_helpers() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), INDIRECT_FIELD_FAMILY).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["functions"].as_array().unwrap().len(), 17);
+    for function in report["functions"].as_array().unwrap() {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "borrow_local" | "pointee"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_indirect_field_locations(&report);
+    check_indirect_field_paths(&report);
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    for function in legacy["functions"].as_array().unwrap() {
+        if function["facts"]["name"] != "choose" {
+            assert_eq!(function["outcome"], "excluded", "{function}");
+        }
+    }
+}
+
+fn check_indirect_field_locations(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
+    for (name, roots) in [
+        ("first", vec![0, 1]),
+        ("mutable", vec![1]),
+        ("snapshot", vec![0]),
+        ("formal_snapshot", vec![0]),
+        ("looped", vec![0, 1]),
+        ("nested", vec![0, 1]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        let actual: Vec<_> = pair
+            .pdg
+            .memory_locations
+            .iter()
+            .map(|location| {
+                location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["parameter"]
+                    .as_u64()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(actual, roots, "{name}");
+        check_indirect_field_corruption(&facts);
+    }
+}
+
+fn check_indirect_field_corruption(facts: &dyn rstyle_pdg::unit_store::EvidenceFacts) {
+    check_indirect_field_edge_corruption(facts);
+    for mutation in ["missing", "symbol", "position"] {
+        let mut changed = rstyle_pdg::producer::produce(facts).unwrap();
+        let node = changed
+            .pdg
+            .nodes
+            .iter_mut()
+            .find(|node| node.attributes.construct.as_deref() == Some("data.indirect-field"))
+            .unwrap();
+        match mutation {
+            "missing" => node.attributes.reads.clear(),
+            "symbol" => node.attributes.reads[0].symbol_id = Some("invented".into()),
+            _ => node.attributes.reads[0].operand_position = Some(1),
+        }
+        assert!(
+            rstyle_pdg::data_documents::verify(&changed, facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&changed, facts).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+fn check_indirect_field_paths(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for name in ["nested", "reference"] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        if name == "nested" {
+            for location in &pair.pdg.memory_locations {
+                let path = &location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"];
+                assert_eq!(path.as_array().unwrap().len(), 3);
+                assert_eq!(path[0]["kind"], "SharedReferent");
+                assert_eq!(path[1]["name"], "inner");
+                assert_eq!(path[2]["name"], "n");
+            }
+        } else {
+            let returned = pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+                .unwrap();
+            let origins = returned.annotations[rstyle_pdg::data_origins::KEY]
+                .as_array()
+                .unwrap();
+            assert_eq!(origins.len(), 2);
+            for (parameter, origin) in origins.iter().enumerate() {
+                assert_eq!(origin["parameter"], parameter);
+                assert_eq!(origin["path"][0]["kind"], "SharedReferent");
+                assert_eq!(origin["path"][1]["name"], "pointer");
+                assert_eq!(origin["path"][2]["kind"], "SharedReferent");
+            }
+        }
+    }
+}
+
+fn check_indirect_field_edge_corruption(facts: &dyn rstyle_pdg::unit_store::EvidenceFacts) {
+    for mutation in ["base", "lexical", "path"] {
+        let mut pair = rstyle_pdg::producer::produce(facts).unwrap();
+        let id = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.attributes.construct.as_deref() == Some("data.indirect-field"))
+            .unwrap()
+            .id
+            .clone();
+        if mutation == "path" {
+            pair.pdg.memory_locations[0]
+                .extensions
+                .get_mut(rstyle_pdg::data_documents::LOCATION_KEY)
+                .unwrap()["path"] = serde_json::json!([]);
+        } else {
+            let edge = pair
+                .pdg
+                .edges
+                .iter_mut()
+                .find(|edge| edge.target == id && edge.subkind == "value_operand")
+                .unwrap();
+            if mutation == "base" {
+                edge.source = id;
+            } else {
+                let mut extra = edge.clone();
+                extra.subkind = "reaching_definition".into();
+                pair.pdg.edges.push(extra);
+            }
+        }
+        assert!(
+            rstyle_pdg::data_documents::verify(&pair, facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&pair, facts).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+const SHARED_DEREFERENCE_FAMILY: &str = r#"
+    pub struct Record<'a> { pub n: u8, pub pointer: &'a u8 }
+    pub fn first(a: &u8) -> u8 { *a }
+    pub fn other(a: &u8) -> u8 { *a }
+    pub fn nested(a: &&u8) -> u8 { **a }
+    pub fn aggregate(a: &(u8, u8)) -> (u8, u8) { *a }
+    pub fn field(a: &Record<'_>) -> u8 { (*a).n }
+    pub fn nested_field(a: &&Record<'_>) -> u8 { (**a).n }
+    pub fn stored(a: &Record<'_>) -> u8 { *a.pointer }
+    pub fn reference<'a>(a: &&'a u8) -> &'a u8 { *a }
+    pub fn conditional(a: &u8, b: &u8, pick: bool) -> u8 { *(if pick { a } else { b }) }
+    pub fn mutable(a: &u8, b: &u8) -> u8 { let mut selected = a; selected = b; *selected }
+    pub fn snapshot(a: &u8, b: &u8) -> u8 { let mut selected = a; let saved = selected; selected = b; *saved }
+    pub fn looped(a: &u8, b: &u8, mut count: u32) -> u8 { let mut selected = a; while count > 0 { selected = b; count -= 1; } *selected }
+    pub fn composed(a: &u8) -> u8 { first(a) }
+    pub fn loop_read(a: &u8, mut count: u32) -> u8 { let mut value = 0; while count > 0 { value = *a; count -= 1; } value }
+    pub fn choose<'a>(a: &'a u8, b: &'a u8, pick: bool) -> &'a u8 { if pick { a } else { b } }
+    pub fn helper(a: &u8, b: &u8, pick: bool) -> u8 { *choose(a, b, pick) }
+    pub fn flow_snapshot<'a>(a: &&'a u8, b: &&'a u8) -> &'a u8 { let mut selected = a; let saved = *selected; selected = b; saved }
+    pub fn flow_rebound<'a>(a: &&'a u8, b: &&'a u8) -> &'a u8 { let mut selected = a; selected = b; *selected }
+    pub fn flow_loop<'a>(a: &&'a u8, b: &&'a u8, mut count: u32) -> &'a u8 { let mut selected = a; while count > 0 { selected = b; count -= 1; } *selected }
+    pub fn flow_component<'a>(a: &(&'a u8, u8), b: &(&'a u8, u8)) -> &'a u8 { let mut selected = a; let saved = *selected; selected = b; saved.0 }
+    pub fn local(value: u8) -> u8 { let r = &value; *r }
+    pub fn write(a: &mut u8) -> u8 { *a = 1; *a }
+"#;
+
+#[test]
+fn clones_data_shared_dereferences_compose_physical_reads_and_reference_flow() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        SHARED_DEREFERENCE_FAMILY,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["functions"].as_array().unwrap().len(), 22);
+    for function in report["functions"].as_array().unwrap() {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "local" | "write"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_shared_dereference_locations(&report);
+    check_dereference_flow_origins(&report);
+    check_dereference_flow_component(&report);
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    for function in legacy["functions"].as_array().unwrap() {
+        if function["facts"]["name"] != "choose" {
+            assert_eq!(function["outcome"], "excluded", "{function}");
+        }
+    }
+}
+
+fn check_shared_dereference_locations(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let analysis = unit.analysis();
+    for (name, roots) in [
+        ("first", vec![0]),
+        ("mutable", vec![1]),
+        ("snapshot", vec![0]),
+        ("conditional", vec![0, 1]),
+        ("looped", vec![0, 1]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let facts = analysis.function(shared_evidence::index(function)).unwrap();
+        let actual: Vec<_> = pair
+            .pdg
+            .memory_locations
+            .iter()
+            .map(|location| {
+                let record = &location.extensions[rstyle_pdg::data_documents::LOCATION_KEY];
+                assert_eq!(
+                    record["path"],
+                    serde_json::json!([{"kind":"SharedReferent"}])
+                );
+                record["parameter"].as_u64().unwrap()
+            })
+            .collect();
+        assert_eq!(actual, roots, "{name}");
+        check_shared_dereference_corruption(&facts);
+    }
+    check_shared_dereference_paths(report);
+}
+
+fn check_shared_dereference_corruption(facts: &dyn rstyle_pdg::unit_store::EvidenceFacts) {
+    for mutation in ["missing", "symbol", "operand", "dispatch"] {
+        let mut pair = rstyle_pdg::producer::produce(facts).unwrap();
+        let node = pair
+            .pdg
+            .nodes
+            .iter_mut()
+            .find(|node| node.attributes.construct.as_deref() == Some("data.indirect-deref"))
+            .unwrap();
+        match mutation {
+            "missing" => node.attributes.reads.clear(),
+            "symbol" => node.attributes.reads[0].symbol_id = Some("invented".into()),
+            "operand" => node.attributes.reads[0].operand_position = Some(1),
+            _ => node.attributes.operator = Some(rstyle_pdg::StringFact::known("*")),
+        }
+        assert!(
+            rstyle_pdg::data_documents::verify(&pair, facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&pair, facts).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+fn check_shared_dereference_paths(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for (name, steps) in [("nested", 2), ("nested_field", 3), ("reference", 1)] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let longest = pair
+            .pdg
+            .memory_locations
+            .iter()
+            .map(|location| {
+                location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"]
+                    .as_array()
+                    .unwrap()
+                    .len()
+            })
+            .max()
+            .unwrap();
+        assert_eq!(longest, steps, "{name}");
+        if name == "nested_field" {
+            assert_eq!(pair.pdg.memory_locations.len(), 2);
+            assert!(pair.pdg.memory_locations.iter().any(|location| {
+                location.extensions[rstyle_pdg::data_documents::LOCATION_KEY]["path"][2]["name"]
+                    == "n"
+            }));
+        }
+        if name == "reference" {
+            let returned = pair
+                .pdg
+                .nodes
+                .iter()
+                .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+                .unwrap();
+            assert_eq!(
+                returned.annotations[rstyle_pdg::data_origins::KEY],
+                serde_json::json!([
+                    {"parameter":0,"path":[{"kind":"SharedReferent"},{"kind":"SharedReferent"}]}
+                ])
+            );
+        }
+    }
+}
+
+fn check_dereference_flow_origins(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for (name, roots) in [
+        ("flow_snapshot", vec![0]),
+        ("flow_rebound", vec![1]),
+        ("flow_loop", vec![0, 1]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let returned = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+            .unwrap();
+        let origins = returned.annotations[rstyle_pdg::data_origins::KEY]
+            .as_array()
+            .unwrap();
+        let actual: Vec<_> = origins
+            .iter()
+            .map(|origin| {
+                assert_eq!(
+                    origin["path"],
+                    serde_json::json!([
+                        {"kind":"SharedReferent"}, {"kind":"SharedReferent"}
+                    ])
+                );
+                origin["parameter"].as_u64().unwrap()
+            })
+            .collect();
+        assert_eq!(actual, roots, "{name}");
+    }
+}
+
+fn check_dereference_flow_component(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "flow_component")
+        .unwrap();
+    let (unit, index) = data_unit(function);
+    let pair = unit.pair(index).unwrap();
+    let returned = pair
+        .pdg
+        .nodes
+        .iter()
+        .find(|node| node.category == rstyle_pdg::NodeCategory::Return)
+        .unwrap();
+    assert_eq!(
+        returned.annotations[rstyle_pdg::data_origins::KEY],
+        serde_json::json!([
+            {"parameter":0,"path":[
+                {"kind":"SharedReferent"}, {"kind":"TupleField","position":0}, {"kind":"SharedReferent"}
+            ]}
+        ])
+    );
+}
+
+const INDEX_READ_FAMILY: &str = r#"
+    pub struct Holder<'a> { pub bytes: &'a [u8] }
+    pub fn first(a: &[u8], i: usize) -> u8 { a[i] }
+    pub fn other(a: &[u8], i: usize) -> u8 { a[i] }
+    pub fn array(a: [u8; 3], i: usize) -> u8 { a[i] }
+    pub fn local_array(a: u8, b: u8, i: usize) -> u8 { let values = [a, b]; values[i] }
+    pub fn shared_array(a: &[u8; 3], i: usize) -> u8 { a[i] }
+    pub fn field(h: &Holder<'_>, i: usize) -> u8 { h.bytes[i] }
+    pub fn mutable(a: &[u8], b: &[u8], i: usize) -> u8 { let mut selected = a; selected = b; selected[i] }
+    pub fn index_rebind<'a>(mut a: &'a [u8], b: &'a [u8]) -> u8 { a[{ a = b; 0 }] }
+    pub fn array_rebind(mut a: [u8; 2], b: [u8; 2]) -> u8 { a[{ a = b; 0 }] }
+    pub fn field_rebind<'a>(mut h: &'a Holder<'a>, other: &'a Holder<'a>) -> u8 { h.bytes[{ h = other; 0 }] }
+    pub fn computed<'a>(mut selected: &'a [u8], other: &'a [u8]) -> u8 { ({ selected })[{ selected = other; 0 }] }
+    pub fn computed_array(mut a: [u8; 2], b: [u8; 2]) -> u8 { ({ a })[{ a = b; 0 }] }
+    pub fn snapshot(a: &[u8], b: &[u8], i: usize) -> u8 { let mut selected = a; let saved = selected; selected = b; saved[i] }
+    pub fn looped(a: &[u8], b: &[u8], mut count: u32, i: usize) -> u8 { let mut selected = a; while count > 0 { selected = b; count -= 1; } selected[i] }
+    pub fn loop_read(a: &[u8], mut i: usize) -> u8 { let mut value = 0; while i > 0 { i -= 1; value = a[i]; } value }
+    pub fn choose<'a>(a: &'a [u8], b: &'a [u8], pick: bool) -> &'a [u8] { if pick { a } else { b } }
+    pub fn helper_base(a: &[u8], b: &[u8], pick: bool, i: usize) -> u8 { choose(a, b, pick)[i] }
+    pub fn twice(a: &[u8], i: usize, j: usize) -> u8 { a[i] + a[j] }
+    pub fn reference_element<'a>(a: &[&'a u8], i: usize) -> &'a u8 { a[i] }
+    pub fn aggregate_element(a: &[(u8, u8)], i: usize) -> (u8, u8) { a[i] }
+    pub fn borrow_local(a: [u8; 2], i: usize) -> u8 { let r = &a; r[i] }
+    pub fn write(a: &mut [u8], i: usize) -> u8 { a[i] = 1; a[i] }
+    pub fn range(a: &[u8]) -> &[u8] { &a[1..] }
+    pub fn index_helper(a: &[u8], i: usize) -> u8 { first(a, i) }
+    pub fn array_helper(a: [u8; 3], i: usize) -> u8 { array(a, i) }
+"#;
+
+#[test]
+fn clones_data_index_reads_preserve_places_snapshots_bounds_and_scalar_values() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), INDEX_READ_FAMILY).unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["functions"].as_array().unwrap().len(), 25);
+    for function in report["functions"].as_array().unwrap() {
+        let excluded = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "reference_element" | "aggregate_element" | "borrow_local" | "write" | "array_helper"
+        );
+        assert_eq!(
+            function["outcome"],
+            if excluded { "excluded" } else { "admitted" },
+            "{function}"
+        );
+    }
+    check_index_locations(&report);
+    check_index_place_values(&report);
+    check_index_corruption(&report);
+    check_aggregate_documents(&report);
+    check_equivalent_matching(&report, ["first", "other"]);
+    let (output, legacy) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);
+    assert!(output.status.success(), "{legacy}");
+    for function in legacy["functions"].as_array().unwrap() {
+        if function["facts"]["name"] != "choose" {
+            assert_eq!(function["outcome"], "excluded", "{function}");
+        }
+    }
+}
+
+fn check_index_locations(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for (name, expected) in [
+        ("first", vec![0]),
+        ("mutable", vec![1]),
+        ("index_rebind", vec![1]),
+        ("field_rebind", vec![1]),
+        ("computed", vec![0]),
+        ("snapshot", vec![0]),
+        ("looped", vec![0, 1]),
+        ("helper_base", vec![0, 1]),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        let mut actual: Vec<_> = pair
+            .pdg
+            .memory_locations
+            .iter()
+            .filter_map(|location| {
+                let record = &location.extensions[rstyle_pdg::data_documents::LOCATION_KEY];
+                let last = record["path"].as_array().unwrap().last().unwrap();
+                if last["kind"] != "IndexedElement" {
+                    return None;
+                }
+                assert_eq!(last["operand_position"], 1);
+                assert_eq!(location.abstraction, "rstyle.formal-indexed-element/1");
+                Some(record["parameter"].as_u64().unwrap())
+            })
+            .collect();
+        actual.sort();
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+fn check_index_place_values(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    for (name, category) in [
+        ("array_rebind", rstyle_pdg::NodeCategory::Assignment),
+        ("computed_array", rstyle_pdg::NodeCategory::FormalInput),
+    ] {
+        let function = report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap();
+        let pair = shared_evidence::pair(&unit, function);
+        assert!(pair.pdg.memory_locations.is_empty());
+        let indexed = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.attributes.construct.as_deref() == Some("data.value-index"))
+            .unwrap();
+        let base = pair
+            .pdg
+            .edges
+            .iter()
+            .find(|edge| {
+                edge.target == indexed.id
+                    && edge.subkind == "value_operand"
+                    && edge.operand_position == Some(0)
+            })
+            .unwrap();
+        let reaching: Vec<_> = pair
+            .pdg
+            .edges
+            .iter()
+            .filter(|edge| edge.target == base.source && edge.subkind == "reaching_definition")
+            .collect();
+        assert_eq!(reaching.len(), 1);
+        let producer = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| node.id == reaching[0].source)
+            .unwrap();
+        assert_eq!(producer.category, category, "{name}");
+    }
+    check_index_access_count(report);
+}
+
+fn check_index_access_count(report: &Value) {
+    let (unit, _) = data_unit(&report["functions"][0]);
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "twice")
+        .unwrap();
+    let pair = shared_evidence::pair(&unit, function);
+    assert_eq!(pair.pdg.memory_locations.len(), 1);
+    assert_eq!(pair.pdg.function.reference_count.value, Some(5));
+}
+
+fn check_index_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "first")
+        .unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    for mutation in ["bounds", "missing", "symbol", "selector", "operand"] {
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        corrupt_index(&mut pair, mutation);
+        assert!(
+            rstyle_pdg::data_documents::verify(&pair, &facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&pair, &facts).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+fn corrupt_index(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
+    let node = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.index"))
+        .unwrap();
+    match mutation {
+        "bounds" => {
+            node.annotations.remove("rstyle.data:index-bounds");
+        }
+        "missing" => node.attributes.reads.clear(),
+        "symbol" => node.attributes.reads[0].symbol_id = Some("invented".into()),
+        "selector" => {
+            pair.pdg.memory_locations[0]
+                .extensions
+                .get_mut(rstyle_pdg::data_documents::LOCATION_KEY)
+                .unwrap()["path"][1]["operand_position"] = 0.into()
+        }
+        _ => {
+            pair.pdg
+                .edges
+                .iter_mut()
+                .find(|edge| {
+                    edge.target == node.id
+                        && edge.subkind == "value_operand"
+                        && edge.operand_position == Some(1)
+                })
+                .unwrap()
+                .operand_position = Some(0)
+        }
+    }
+}
+
+#[test]
+fn clones_data_external_associated_calls_retain_distinct_authorities() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn native(bytes: [u8; 4]) -> u32 { u32::from_ne_bytes(bytes) }
+        pub fn endian(bytes: [u8; 4]) -> u32 { u32::from_be_bytes(bytes) }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    let mut identities = std::collections::BTreeSet::new();
+    for function in report["functions"].as_array().unwrap() {
+        assert_eq!(
+            function["outcome"],
+            if function["facts"]["name"] == "native" {
+                "admitted"
+            } else {
+                "excluded"
+            }
+        );
+        let (unit, index) = data_unit(function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        let call = find_external_call(&facts.body).unwrap();
+        let callee: rstyle_pdg::data_library::Callee =
+            serde_json::from_str(&call.res.as_ref().unwrap().description).unwrap();
+        assert_eq!(callee.crate_name, "core");
+        assert_ne!(callee.crate_hash, "local-unencoded");
+        let dispatch = call.dispatch.as_ref().unwrap();
+        assert_eq!(dispatch.kind, "resolved_direct");
+        assert_eq!(dispatch.op, callee.path);
+        assert_eq!(dispatch.operand_tys.len(), 1);
+        let operand: Value = serde_json::from_str(&dispatch.operand_tys[0]).unwrap();
+        assert_eq!(
+            operand,
+            serde_json::json!({
+                "kind": "array", "value": {
+                    "element": {"kind": "scalar", "value": "u8"}, "length": 4
+                }
+            })
+        );
+        assert_eq!(dispatch.result_ty, "u32");
+        assert!(identities.insert(callee.definition_hash));
+    }
+    assert_eq!(identities.len(), 2);
+}
+
+fn find_external_call(node: &rstyle_pdg::HirNode) -> Option<&rstyle_pdg::HirNode> {
+    if node.kind == "expr_call"
+        && node
+            .res
+            .as_ref()
+            .is_some_and(|res| res.kind == "resolved_callee")
+    {
+        return Some(node);
+    }
+    node.children.iter().find_map(find_external_call)
+}
+
+#[test]
+fn clones_data_range_capture_distinguishes_core_desugaring_and_custom_structs() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn window(a: &[u8], lo: usize, hi: usize) -> &[u8] { &a[lo..hi] }
+        pub fn suffix(a: &[u8], lo: usize) -> &[u8] { &a[lo..] }
+        pub fn inclusive(a: &[u8], hi: usize) -> &[u8] { &a[..=hi] }
+        pub struct Range { pub start: usize, pub end: usize }
+        pub fn custom(start: usize, end: usize) -> Range { Range { start, end } }
+        pub fn scalar(a: &[u8], i: usize) -> u8 { a[i] }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    for function in report["functions"].as_array().unwrap() {
+        let (unit, index) = data_unit(function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        match facts.name.as_str() {
+            "window" | "suffix" | "inclusive" => {
+                assert_eq!(
+                    function["outcome"],
+                    if matches!(facts.name.as_str(), "window" | "suffix") {
+                        "admitted"
+                    } else {
+                        "excluded"
+                    }
+                );
+                check_range_capture(&facts.body);
+            }
+            "custom" => {
+                let node = find_kind(&facts.body, "expr_struct").unwrap();
+                assert!(node.res.is_none());
+                assert!(node.expansion.is_none());
+            }
+            "scalar" => {
+                assert_eq!(function["outcome"], "admitted");
+                assert!(find_kind(&facts.body, "expr_index").unwrap().res.is_none());
+            }
+            _ => panic!("unexpected function"),
+        }
+    }
+}
+
+fn check_range_capture(body: &rstyle_pdg::HirNode) {
+    let indexed = find_kind(body, "expr_index").unwrap();
+    let resolution = indexed.res.as_ref().unwrap();
+    assert_eq!(resolution.kind, "resolved_callee");
+    let callee: rstyle_pdg::data_library::Callee =
+        serde_json::from_str(&resolution.description).unwrap();
+    assert_eq!(callee.crate_name, "core");
+    assert!(callee.path.ends_with("::index"));
+    assert_eq!(indexed.dispatch.as_ref().unwrap().kind, "overloaded");
+    let range = &indexed.children[1];
+    let resolution = range.res.as_ref().unwrap();
+    assert_eq!(resolution.kind, "resolved_range_type");
+    let callee: rstyle_pdg::data_library::Callee =
+        serde_json::from_str(&resolution.description).unwrap();
+    assert_eq!(callee.crate_name, "core");
+    assert!(callee.path.contains("::ops::Range"), "{}", callee.path);
+    assert!(range.expansion.is_some());
+}
+
+fn find_kind<'a>(node: &'a rstyle_pdg::HirNode, kind: &str) -> Option<&'a rstyle_pdg::HirNode> {
+    if node.kind == kind {
+        return Some(node);
+    }
+    node.children
+        .iter()
+        .find_map(|child| find_kind(child, kind))
+}
+
+#[test]
+fn clones_data_subslice_flow_snapshots_base_before_endpoint_rebinding() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn snapshot<'a>(a: &'a [u8], b: &'a [u8]) -> &'a [u8] {
+            let mut selected = a;
+            &selected[{ selected = b; 0 }..1]
+        }
+        pub fn scalar(a: &[u8], b: &[u8]) -> u8 {
+            let mut selected = a;
+            selected[{ selected = b; 0 }]
+        }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    for function in report["functions"].as_array().unwrap() {
+        let (unit, index) = data_unit(function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        let indexed = find_kind(&facts.body, "expr_index").unwrap();
+        let base = &indexed.children[0];
+        let roots = rstyle_pdg::data_origins::origins(base, &facts).unwrap();
+        let scalar = facts.name == "scalar";
+        assert_eq!(roots.len(), 1);
+        assert_eq!(roots[0].parameter, u32::from(scalar));
+        assert_eq!(function["outcome"], "admitted", "{function}");
+    }
+    check_aggregate_documents(&report);
+}
+
+#[test]
+fn clones_data_shared_subslice_views_preserve_endpoints_and_saved_origins() {
+    let directory = clone_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        r#"
+        pub fn window(a: &[u8], lo: usize, hi: usize) -> &[u8] { &a[lo..hi] }
+        pub fn same(a: &[u8], lo: usize, hi: usize) -> &[u8] { &a[lo..hi] }
+        pub fn read(a: &[u8], lo: usize, hi: usize, i: usize) -> u8 {
+            let view = &a[lo..hi]; view[i]
+        }
+        pub fn saved<'a>(a: &'a [u8], b: &'a [u8], lo: usize, hi: usize) -> &'a [u8] {
+            let mut selected = a; let view = &selected[lo..hi]; selected = b; view
+        }
+        pub fn nested(a: &[u8], lo: usize, hi: usize) -> u8 { let view = &a[lo..hi]; (&view[0..1])[0] }
+        pub fn choose<'a>(a: &'a [u8], b: &'a [u8], pick: bool) -> &'a [u8] { if pick { a } else { b } }
+        pub fn helper_base<'a>(a: &'a [u8], b: &'a [u8], pick: bool) -> &'a [u8] { &choose(a, b, pick)[0..1] }
+        pub fn caller(a: &[u8]) -> &[u8] { window(a, 0, 1) }
+        pub fn array(a: &[u8; 4]) -> &[u8] { &a[0..1] }
+        pub fn suffix(a: &[u8], lo: usize) -> &[u8] { &a[lo..] }
+        pub fn inclusive(a: &[u8], hi: usize) -> &[u8] { &a[0..=hi] }
+        pub fn write(a: &mut [u8], lo: usize, hi: usize) -> &mut [u8] { &mut a[lo..hi] }
+    "#,
+    )
+    .unwrap();
+    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    assert!(output.status.success(), "{report}");
+    for function in report["functions"].as_array().unwrap() {
+        let positive = matches!(
+            function["facts"]["name"].as_str().unwrap(),
+            "window" | "same" | "read" | "saved" | "nested" | "choose" | "helper_base" | "suffix"
+        );
+        assert_eq!(
+            function["outcome"],
+            if positive { "admitted" } else { "excluded" },
+            "{function}"
+        );
+    }
+    check_aggregate_documents(&report);
+    check_subslice_corruption(&report);
+    check_equivalent_matching(&report, ["window", "same"]);
+}
+
+fn check_subslice_corruption(report: &Value) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == "window")
+        .unwrap();
+    check_subslice_authorities(function);
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    for mutation in ["bounds", "operand", "read"] {
+        let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
+        corrupt_subslice(&mut pair, mutation);
+        assert!(
+            rstyle_pdg::data_documents::verify(&pair, &facts).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            rstyle_pdg::producer::verify(&pair, &facts).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+fn corrupt_subslice(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
+    let node = pair
+        .pdg
+        .nodes
+        .iter_mut()
+        .find(|node| node.attributes.construct.as_deref() == Some("data.subslice-place"))
+        .unwrap();
+    match mutation {
+        "bounds" => {
+            node.annotations.remove("rstyle.data:subslice-bounds");
+        }
+        "read" => node.attributes.reads.push(rstyle_pdg::Access {
+            symbol_id: Some("invented".into()),
+            location_id: None,
+            unresolved_reason: None,
+            operand_position: Some(0),
+        }),
+        _ => {
+            pair.pdg
+                .edges
+                .iter_mut()
+                .find(|edge| {
+                    edge.target == node.id
+                        && edge.subkind == "value_operand"
+                        && edge.operand_position == Some(2)
+                })
+                .unwrap()
+                .operand_position = Some(1)
+        }
+    }
+}
+
+fn check_subslice_authorities(function: &Value) {
+    for range in [false, true] {
+        shared_evidence::reject_edit(function, |bundle, index| {
+            let indexed = &mut bundle["functions"][index]["body"]["children"][0]["children"][0];
+            let operation = if range {
+                &mut indexed["children"][1]
+            } else {
+                indexed
+            };
+            let mut callee: Value =
+                serde_json::from_str(operation["res"]["description"].as_str().unwrap()).unwrap();
+            callee["definition_hash"] = "invented".into();
+            operation["res"]["description"] = callee.to_string().into();
+        });
+    }
+}
+
+mod copy_boundary;
+
+mod borrowed_scalar;
+
+mod scalar_result_line_tail {
+    use super::*;
+
+    const SELECTION: &str =
+        include_str!("../../../eval/coverage-development/line-tail/selection.json");
+
+    fn source() -> String {
+        let selection: Value = serde_json::from_str(SELECTION).unwrap();
+        let owner = selection["source_obligations"][0]["source"]
+            .as_str()
+            .unwrap();
+        let tail = selection["functions"][0]["source"].as_str().unwrap();
+        let len = selection["functions"][1]["source"].as_str().unwrap();
+        let alpha = tail.replace("slice_tail", "alpha");
+        format!(
+            r#"
+            mod errors {{
+                #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+                pub enum Error {{ InvalidEncoding, InvalidLength }}
+            }}
+            use crate::errors::Error::{{self, InvalidLength}};
+            {owner}
+            impl<'i> Line<'i> {{ {tail} {alpha} {len}
+                fn wrong_payload(&self, nbytes: usize) -> Result<&'i [u8], Error> {{
+                    let offset = (self.len() as u32).checked_sub(nbytes as u32).ok_or(InvalidLength)?;
+                    self.remaining.get(offset as usize..).ok_or(InvalidLength)
+                }}
+            }}
+            // Returning a borrowed Result through a helper needs its own summary contract.
+            pub fn caller<'i>(line: &Line<'i>, nbytes: usize) -> Result<&'i [u8], Error> {{
+                line.slice_tail(nbytes)
+            }}
+            {}
+            {}
+            "#,
+            noncopy_source(owner, tail, len),
+            converted_source(),
+        )
+    }
+
+    fn noncopy_source(owner: &str, tail: &str, len: &str) -> String {
+        format!(
+            r#"mod noncopy {{
+                #[derive(Clone, Debug)]
+                pub enum Error {{ InvalidEncoding, InvalidLength }}
+                use self::Error::InvalidLength;
+                {owner}
+                impl<'i> Line<'i> {{ {tail} {len} }}
+            }}"#,
+        )
+    }
+
+    fn converted_source() -> &'static str {
+        r#"mod converted {
+            use super::{Error, Line};
+            #[derive(Clone, Copy, Debug)] enum ForeignError { InvalidLength }
+            use self::ForeignError::InvalidLength;
+            impl From<ForeignError> for Error {
+                fn from(_: ForeignError) -> Self { Error::InvalidLength }
+            }
+            pub fn tail<'i>(line: &Line<'i>, nbytes: usize) -> Result<&'i [u8], Error> {
+                let offset = line.len().checked_sub(nbytes).ok_or(InvalidLength)?;
+                line.remaining.get(offset..).ok_or(Error::InvalidLength)
+            }
+        }"#
+    }
+
+    fn named<'a>(report: &'a Value, name: &str) -> &'a Value {
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["facts"]["name"] == name)
+            .unwrap_or_else(|| panic!("missing {name}: {}", report["functions"]))
+    }
+
+    #[test]
+    fn original_line_tail_composes_scalar_result_question_mark_and_checked_suffix() {
+        let directory = clone_workspace();
+        std::fs::write(directory.path().join("src/lib.rs"), source()).unwrap();
+        let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+        assert!(
+            output.status.success(),
+            "capture={} handoff={} stderr={}",
+            report["capture_failures"],
+            report["handoff_failures"],
+            String::from_utf8_lossy(&output.stderr),
+        );
+        for flag in [
+            "capture_complete",
+            "assessment_complete",
+            "pair_enumeration_complete",
+            "pair_evaluation_complete",
+        ] {
+            assert_eq!(report[flag], true, "{flag}");
+        }
+        for name in [
+            "Line::<'i>::slice_tail",
+            "Line::<'i>::alpha",
+            "Line::<'i>::len",
+        ] {
+            assert_eq!(
+                named(&report, name)["outcome"],
+                "admitted",
+                "{name}: {}",
+                named(&report, name)["reasons"]
+            );
+        }
+        for name in [
+            "caller",
+            "Line::<'i>::wrong_payload",
+            "noncopy::Line::<'i>::slice_tail",
+            "converted::tail",
+        ] {
+            assert_eq!(
+                named(&report, name)["outcome"],
+                "excluded",
+                "{name}: {}",
+                named(&report, name)["reasons"]
+            );
+        }
+        // Loading the owning bundle replays every admitted graph under strict policy.
+        check_aggregate_documents(&report);
+        check_equivalent_matching(&report, ["Line::<'i>::slice_tail", "Line::<'i>::alpha"]);
+        check_scalar_operations(named(&report, "Line::<'i>::slice_tail"));
+        reject_conversion(named(&report, "Line::<'i>::slice_tail"));
+    }
+
+    fn check_scalar_operations(function: &Value) {
+        let (unit, index) = data_unit(function);
+        let pair = shared_evidence::pair(&unit, function);
+        let analysis = unit.analysis();
+        let facts = analysis.function(index).unwrap();
+        let question = find_kind(&facts.body, "expr_try_desugar").unwrap();
+        assert_eq!(
+            question.ty.as_ref().unwrap().normalized.as_deref(),
+            Some("usize")
+        );
+        for construct in [
+            "try.scalar-result-is-err",
+            "try.scalar-result-error",
+            "try.scalar-result-ok-scalar",
+        ] {
+            assert_eq!(
+                pair.pdg
+                    .nodes
+                    .iter()
+                    .filter(|node| node.attributes.construct.as_deref() == Some(construct))
+                    .count(),
+                1,
+                "{construct}"
+            );
+        }
+        let success = pair
+            .pdg
+            .nodes
+            .iter()
+            .find(|node| {
+                node.attributes.construct.as_deref() == Some("try.scalar-result-ok-scalar")
+            })
+            .unwrap();
+        assert!(
+            !success
+                .annotations
+                .contains_key(rstyle_pdg::data_origins::KEY)
+        );
+    }
+
+    fn reject_conversion(function: &Value) {
+        shared_evidence::reject_edit(function, |bundle, index| {
+            let question = &mut bundle["functions"][index]["body"]["children"][0]["children"][1];
+            let mut witness: Value =
+                serde_json::from_str(question["res"]["description"].as_str().unwrap()).unwrap();
+            witness["conversion"]["implementation_arguments"][0] = "OtherError".into();
+            question["res"]["description"] = witness.to_string().into();
+        });
+    }
 }

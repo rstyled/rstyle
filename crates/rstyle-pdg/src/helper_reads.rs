@@ -1,6 +1,8 @@
 //! Exact read occurrences derived from independently verified callee documents.
 
 mod calls;
+mod copy_receivers;
+mod indexed;
 pub(crate) use calls::{
     check_budgets, install, merge_locations, verify_arguments, verify_effects, verify_locations,
 };
@@ -42,14 +44,57 @@ pub(crate) fn supported(
             .normalized
             .as_deref()
             .and_then(|ty| crate::data_types::parse(ty).ok())
-            .is_some_and(|ty| matches!(ty, TypeToken::Scalar(_)))
+            .is_some_and(|ty| {
+                matches!(ty, TypeToken::Scalar(_))
+                    || crate::helper_normal_flow::copy_result(facts)
+                    || crate::range_values::read_result(facts, pair)
+                    || crate::concrete_results::fresh_result(facts, pair)
+                    || crate::helper_calls::guarded_effects::supported(facts).unwrap_or(false)
+                    || crate::helper_calls::id_readers::supported(facts).unwrap_or(false)
+                    || crate::helper_calls::widening_readers::supported(facts).unwrap_or(false)
+                    || (crate::extraction_profile::facts_support(facts, crate::data_subslices::ARRAY_CAPABILITY)
+                        || crate::extraction_profile::facts_support(facts, crate::helper_stored_slices::CAPABILITY))
+                        && matches!(&ty, TypeToken::Shared(referent) if matches!(referent.as_ref(), TypeToken::Slice(element) if matches!(element.as_ref(), TypeToken::Scalar(_))))
+                    || crate::extraction_profile::facts_support(facts, "rust.scalar-enum-values")
+                        && matches!(ty, TypeToken::Option(payload) if matches!(*payload, TypeToken::Scalar(_)))
+            })
         && pair.pdg.memory_locations.iter().all(|location| {
             captured(location).is_ok_and(|location| {
-                formal_type(facts, location.parameter)
+                (!indexed::contains(&location.path)
+                    || crate::extraction_profile::facts_support(facts, indexed::CAPABILITY))
+                && (formal_type(facts, location.parameter)
                     .is_ok_and(|ty| matches!(ty, TypeToken::Shared(_)))
                     && location.path.first() == Some(&Projection::SharedReferent)
+                    || copied_formal(facts, location.parameter).unwrap_or(false)
+                        && !location.path.is_empty()
+                        && location
+                            .path
+                            .iter()
+                            .all(|part| matches!(part, Projection::StructField { .. })))
             })
         })
+}
+
+fn copied_formal(
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    parameter: u32,
+) -> Result<bool, String> {
+    if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.copy-value-helper-reads")
+    {
+        return Ok(false);
+    }
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<crate::concrete_types::InterfaceObservations>()?;
+    let Some(crate::concrete_types::Observation::Captured {
+        ty: tree @ crate::concrete_types::TypeTree::Struct { .. },
+    }) = interface.parameters.get(parameter as usize)
+    else {
+        return Ok(false);
+    };
+    Ok(facts.nominal_resolution()?.checked_owned_copy(tree))
 }
 
 pub(crate) fn derive(
@@ -61,7 +106,8 @@ pub(crate) fn derive(
     }
     if !supported(facts, pair) {
         return Err(
-            "Read-only helper requires shared formal locations and scalar/unit results".into(),
+            "Read-only helper requires shared or checked Copy formal fields and a supported result"
+                .into(),
         );
     }
 
@@ -81,7 +127,7 @@ pub(crate) fn derive(
                 .find(|location| &location.id == id)
                 .ok_or("Helper read has no declared location")?;
             let location = captured(location)?;
-            verify_location(facts, &location, target)?;
+            verify_location(facts, &location, target, node)?;
             if reads.len() == crate::concrete_types::MAX_ENTRIES {
                 return Err(BUDGET_ERROR.into());
             }
@@ -98,7 +144,15 @@ pub(crate) fn derive(
 }
 
 fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String> {
-    if location.abstraction != "rstyle.formal-field/2" {
+    if !matches!(
+        location.abstraction.as_str(),
+        "rstyle.formal-field/2"
+            | "rstyle.formal-checked-element/1"
+            | "rstyle.formal-byte-window/1"
+            | "rstyle.formal-iterator-prefix/1"
+            | "rstyle.formal-indexed-element/1"
+            | indexed::ABSTRACTION
+    ) {
         return Err("Helper read lacks registered formal location interpretation".into());
     }
     serde_json::from_value(
@@ -111,10 +165,27 @@ fn captured(location: &crate::MemoryLocation) -> Result<CapturedLocation, String
     .map_err(|error| error.to_string())
 }
 
+fn indirect_read(
+    node: &crate::PdgNode,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+) -> Result<bool, String> {
+    let capability = match node.attributes.construct.as_deref() {
+        Some("data.indirect-field") => "rust.indirect-field-reads",
+        Some("data.indirect-deref") => "rust.shared-dereference-reads",
+        Some("data.bytes.copy-result") => "rust.accelerator-packing",
+        Some(crate::iterator_position::PREFIX) => crate::iterator_position::CAPABILITY,
+        Some("data.index") => indexed::CAPABILITY,
+        Some("data.option-payload") => "rust.checked-slice-option",
+        _ => return Ok(false),
+    };
+    Ok(crate::extraction_profile::ExtractionProfile::from_facts(facts)?.supports(capability))
+}
+
 fn verify_location(
     facts: &dyn crate::unit_store::EvidenceFacts,
     location: &CapturedLocation,
     access: &crate::Access,
+    node: &crate::PdgNode,
 ) -> Result<(), String> {
     let formal = facts
         .signature
@@ -122,7 +193,8 @@ fn verify_location(
         .get(location.parameter as usize)
         .ok_or("Unknown helper read formal")?;
     if location.root_symbol != formal.symbol
-        || access.symbol_id.as_ref() != Some(&formal.symbol)
+        || (access.symbol_id.as_ref() != Some(&formal.symbol)
+            && !(access.symbol_id.is_none() && indirect_read(node, facts)?))
         || access.unresolved_reason.is_some()
         || type_at(facts, location.parameter, &location.path)? != location.value
     {
@@ -159,7 +231,23 @@ pub(crate) fn type_at(
 
 fn project(value: TypeToken, projection: &Projection) -> Result<TypeToken, String> {
     match (value, projection) {
+        (
+            value,
+            selector @ (Projection::HelperIndex { .. }
+            | Projection::IndexedElement { .. }
+            | Projection::PrefixElement { .. }
+            | Projection::IteratorPrefix { .. }
+            | Projection::ByteWindow { .. }),
+        ) => indexed::project(value, selector),
         (TypeToken::Shared(value), Projection::SharedReferent) => Ok(*value),
+        (TypeToken::Str, Projection::Utf8Bytes) => {
+            Ok(TypeToken::Slice(Box::new(TypeToken::Scalar("u8".into()))))
+        }
+        (TypeToken::Slice(value), Projection::CheckedElement)
+            if matches!(value.as_ref(), TypeToken::Scalar(_)) =>
+        {
+            Ok(*value)
+        }
         (TypeToken::Tuple(fields), Projection::TupleField { position }) => fields
             .get(*position)
             .cloned()

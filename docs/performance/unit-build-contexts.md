@@ -98,3 +98,17 @@ settings owns one context, as checked by the CLI family. Counts are per-operatio
 code facts, not measured global allocation totals; harness fingerprint counters
 refer to the already-retired library artifact work and are zero in both versions.
 The full optimization goal remains active.
+
+
+## Routine source consistency (subsequent Data3.92 increment)
+
+New Data-v3 function-source claims and fresh manifest/file/declaration claims use
+existing `xxh3-64` checksums. Each immutable source owner memoizes actual bytes,
+with lazy legacy SHA computation only when a historical claim requests it.
+Strict verification checks both supported schemes, malformed/unknown schemes,
+missing bytes, exact original ranges and literal cross-record consistency.
+Module expansion proofs retain their already verified census claim rather than
+recomputing another identity. These checksums grant no source or call authority.
+Historical function-source profiles, including r0, retain SHA conformance;
+reviewed standard-library SHA pins and frozen selection identities stay unchanged.
+No semantic capability, admission threshold or matching score changes.

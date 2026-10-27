@@ -1,0 +1,234 @@
+//! Source-derived cleanup proof, distinct from Copy and borrowed ownership.
+use super::*;
+mod closure;
+pub(in crate::nominal_boundary::resolution) mod copy_components;
+pub(in crate::nominal_boundary::resolution) mod copy_constructor_sites;
+pub(in crate::nominal_boundary::resolution) mod copy_conversion_sites;
+pub(in crate::nominal_boundary::resolution) mod copy_owners;
+pub(in crate::nominal_boundary::resolution) mod copy_products;
+pub(super) mod enum_errors;
+mod enum_globs;
+pub(in crate::nominal_boundary::resolution) mod external_expression_macros;
+pub(in crate::nominal_boundary::resolution) mod fresh_scalar_products;
+mod function_imports;
+pub(in crate::nominal_boundary::resolution) mod generated_tuple_errors;
+mod headers;
+mod library_macros;
+mod macros;
+pub(crate) use macros::{
+    expand as expand_local_ident_macro, expand_source as expand_local_ident_source,
+};
+pub(super) mod module_globs;
+mod prelude_traits;
+pub(super) mod scalar_errors;
+
+pub(in crate::nominal_boundary::resolution) fn default_prelude(facts: &HirFnFacts) -> bool {
+    crate::data_library::registry_for(facts).is_some_and(prelude_traits::pinned)
+}
+#[path = "../../../scalar_product_instances/nonzero_source.rs"]
+pub(in crate::nominal_boundary::resolution) mod nonzero_products;
+pub(in crate::nominal_boundary::resolution) mod payload_errors;
+mod product_fields;
+pub(in crate::nominal_boundary::resolution) mod reference_products;
+#[path = "../../../scalar_product_instances/proof.rs"]
+pub(in crate::nominal_boundary::resolution) mod scalar_product_instances;
+pub(in crate::nominal_boundary::resolution) mod scalar_result_owners;
+mod source_imports;
+#[cfg(test)]
+mod source_imports_tests;
+mod source_macros;
+#[cfg(test)]
+mod tests;
+
+/// Source ownership only; selected outputs still require the exhaustive visitor.
+pub(crate) const OWNERSHIP_MACROS_CAPABILITY: &str = "rust.checked-local-macro-ownership";
+
+/// Select the separately bounded source/cleanup grammar; grants no value authority.
+pub(in crate::nominal_boundary::resolution) enum ProductProof {
+    Reference,
+    Copy,
+}
+
+pub(in crate::nominal_boundary::resolution) fn probe_product(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    proof: ProductProof,
+) -> Result<(), String> {
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+    let Observation::Captured { ty } = &interface.result else {
+        return Err(match proof {
+            ProductProof::Reference => "Product cleanup probe requires a captured complete result",
+            ProductProof::Copy => "Copy product probe requires a captured complete result",
+        }
+        .into());
+    };
+    let origins = facts.build.frontend_options.data::<Origins>()?;
+    match proof {
+        ProductProof::Reference => reference_products::verify(facts, ty, resolution, &origins),
+        ProductProof::Copy => copy_products::verify(facts, ty, resolution, &origins),
+    }
+    .map(|_| ())
+}
+
+/// Only this module constructs the witness; serialized negative flags cannot.
+#[derive(Clone, Debug)]
+pub(in crate::nominal_boundary::resolution) struct CheckedNoDrop {
+    nominal: concrete_types::Nominal,
+}
+
+impl CheckedNoDrop {
+    pub(in crate::nominal_boundary::resolution) fn nominal(&self) -> &concrete_types::Nominal {
+        &self.nominal
+    }
+}
+
+pub(in crate::nominal_boundary::resolution) fn verify(
+    facts: &HirFnFacts,
+    tree: &TypeTree,
+    environment: &Environment,
+) -> Result<CheckedNoDrop, String> {
+    concrete_types::validate(tree)?;
+    crate::data_library::verify_sysroot_roots(facts, &["alloc", "core", "std"], "Cleanup source")?;
+    let (nominal, _) = tree
+        .nominal_parts()
+        .ok_or("Cleanup proof requires an original nominal type")?;
+    let scalar_error =
+        supports(facts, scalar_errors::CAPABILITY)? && scalar_errors::supported(tree);
+    match tree {
+        _ if scalar_error => {}
+        TypeTree::Struct { fields, .. }
+            if fields.len() == 1 && fields[0].ty == TypeTree::Scalar("unit".into()) => {}
+        TypeTree::MixedEnum { .. }
+            if supports(facts, enum_errors::CAPABILITY)? && enum_errors::supported(tree) => {}
+        _ => {
+            return Err(
+                "Owned cleanup proof requires its complete registered source family".into(),
+            );
+        }
+    }
+
+    let registry = crate::data_library::registry_for(facts)
+        .ok_or("Cleanup source requires its pinned compiler/target")?;
+    if !library_macros::pinned_native(registry) {
+        return Err("Cleanup source macro pin is incomplete".into());
+    }
+    let key = original_declaration(nominal, tree, environment)?;
+    verify_source(facts, environment, &key, scalar_error)?;
+    Ok(CheckedNoDrop {
+        nominal: nominal.clone(),
+    })
+}
+
+fn verify_source(
+    facts: &HirFnFacts,
+    environment: &Environment,
+    key: &Namespace,
+    scalar_error: bool,
+) -> Result<(), String> {
+    let profile = crate::extraction_profile::ExtractionProfile::from_facts(facts)?.token();
+    let mode = if scalar_error {
+        environment::CleanupMode::ScalarError(profile)
+    } else {
+        environment::CleanupMode::Ordinary(profile)
+    };
+    if !environment.checked_cleanup_source(&facts.build.cfgs, key, mode) {
+        if scalar_error {
+            closure::verify_scalar_error(environment, facts, key)?;
+        } else {
+            closure::verify(environment, facts, key)?;
+        }
+        environment.cache_cleanup_source(&facts.build.cfgs, key, mode);
+    }
+    Ok(())
+}
+
+fn original_declaration(
+    nominal: &concrete_types::Nominal,
+    tree: &TypeTree,
+    environment: &Environment,
+) -> Result<Namespace, String> {
+    let key: Namespace = nominal
+        .definition_path
+        .split("::")
+        .map(str::to_owned)
+        .collect();
+    let declaration = environment
+        .index
+        .declarations
+        .get(&key)
+        .ok_or("Missing exact cleanup declaration ownership")?;
+
+    let item = &environment.modules[declaration.module_index].items[declaration.item_index];
+    match (item, tree) {
+        (syn::Item::Struct(item), _) if scalar_errors::supported(tree) => {
+            scalar_errors::declaration(item, tree)?
+        }
+        (syn::Item::Struct(item), TypeTree::Struct { .. }) => unit_declaration(item)?,
+        (syn::Item::Enum(item), TypeTree::MixedEnum { .. }) => {
+            enum_errors::declaration(item, tree)?
+        }
+        _ => return Err("Cleanup declaration has an unsupported nominal kind".into()),
+    }
+    if !environment.declaration_matches(declaration, &nominal.declaration_digest)? {
+        return Err("Cleanup declaration source identity disagrees".into());
+    }
+    Ok(key)
+}
+
+fn unit_declaration(item: &syn::ItemStruct) -> Result<(), String> {
+    if !item.generics.params.is_empty()
+        || item.generics.where_clause.is_some()
+        || !matches!(&item.fields, syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 && matches!(&fields.unnamed[0].ty, syn::Type::Tuple(unit) if unit.elems.is_empty()))
+    {
+        return Err("Cleanup declaration requires an original nongeneric unit tuple".into());
+    }
+    Ok(())
+}
+
+/// Independently prove every requested success declaration before selection.
+pub(in crate::nominal_boundary::resolution) fn transport_copy_sources(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    origins: &Origins,
+    request: &crate::result_maps::TransportRequest,
+) -> Result<Vec<(TypeTree, CheckedNoDrop)>, String> {
+    let checker = product_fields::Proof::copy_owner(facts, resolution, origins);
+    let [payload, wrapper] = request.copy_requests();
+    let receipts = checker.copy_receipts(wrapper)?;
+    if !receipts.iter().any(|receipt| receipt.tree() == payload) {
+        return Err(
+            "Transport Copy wrapper lacks its independently checked payload receipt".into(),
+        );
+    }
+
+    Ok(receipts
+        .iter()
+        .map(|receipt| (receipt.tree().clone(), receipt.certificate().clone()))
+        .collect())
+}
+
+pub(super) fn verify_ancestor_attributes(
+    facts: &HirFnFacts,
+    resolution: &Resolution,
+    namespace: &[String],
+) -> Result<(), String> {
+    for module in &resolution.environment.modules {
+        if !namespace.starts_with(&module.namespace) {
+            continue;
+        }
+        let Some(next) = namespace.get(module.namespace.len()) else {
+            continue;
+        };
+        for item in &module.items {
+            if let syn::Item::Mod(item) = item
+                && item.ident == next
+            {
+                super::function_attributes(facts, &item.attrs)?;
+            }
+        }
+    }
+    Ok(())
+}

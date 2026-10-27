@@ -20,7 +20,7 @@ pub fn resolve(
 
     crate::data_frontend::verify(facts)?;
     let receiver = node.children.first().ok_or("Missing library receiver")?;
-    if crate::data_origins::origins(receiver, facts)?.is_empty() {
+    if op.referent != "scalar-option" && crate::data_origins::origins(receiver, facts)?.is_empty() {
         return Ok(None);
     }
     Ok(Some(metadata_summary(op, token)))
@@ -43,6 +43,11 @@ fn source_token(
     op: &Operation,
 ) -> Result<Option<String>, String> {
     if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?.is_data() {
+        return Ok(None);
+    }
+    if op.referent == "scalar-option"
+        && !crate::extraction_profile::facts_support(facts, "rust.tagged-unit-classifiers")
+    {
         return Ok(None);
     }
     let libraries = super::verify_evidence(facts)?;
@@ -93,6 +98,9 @@ fn metadata_summary(op: &Operation, token: String) -> Summary {
 }
 
 fn supported_receiver(record: &crate::data_receivers::Method, op: &Operation) -> bool {
+    if op.referent == "scalar-option" {
+        return scalar_option_receiver(record);
+    }
     let Observation::Captured {
         ty: TypeTree::Shared(referent),
     } = &record.receiver_type
@@ -111,6 +119,29 @@ fn supported_receiver(record: &crate::data_receivers::Method, op: &Operation) ->
     let adjustments_ok =
         kinds.is_empty() || kinds == [&Kind::BuiltinDereference, &Kind::SharedBorrow];
     type_ok && adjustments_ok && record.adjusted_type == record.receiver_type
+}
+
+fn scalar_option_receiver(record: &crate::data_receivers::Method) -> bool {
+    let Observation::Captured {
+        ty: TypeTree::Option(payload),
+    } = &record.receiver_type
+    else {
+        return false;
+    };
+    let TypeTree::Scalar(scalar) = &**payload else {
+        return false;
+    };
+    if crate::data_types::parse(scalar).is_err() {
+        return false;
+    }
+
+    let adjusted = Observation::Captured {
+        ty: TypeTree::Shared(Box::new(TypeTree::Option(payload.clone()))),
+    };
+    record.adjusted_type == adjusted
+        && record.adjustments.len() == 1
+        && record.adjustments[0].kind == Kind::SharedBorrow
+        && record.adjustments[0].target == adjusted
 }
 
 fn original_invocation(
@@ -142,4 +173,32 @@ fn unwrap_parentheses(mut expression: &syn::Expr) -> &syn::Expr {
         expression = &inner.expr;
     }
     expression
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn option_tag_contract_binds_reviewed_core_source_and_all_u16_payloads() {
+        let output = std::process::Command::new("rustc")
+            .args(["--print", "sysroot"])
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let sysroot = String::from_utf8(output.stdout).unwrap();
+        let source = std::fs::read(
+            std::path::Path::new(sysroot.trim())
+                .join("lib/rustlib/src/rust/library/core/src/option.rs"),
+        )
+        .unwrap();
+        assert_eq!(
+            crate::concrete_types::digest(&source),
+            "sha256:693df7245cf3e669b2c442b62c96c76c43ad1f9cfe79f6bf4306e71c32fa9f5d"
+        );
+
+        assert!(!Option::<u16>::None.is_some());
+        for payload in 0..=u16::MAX {
+            assert!(Some(payload).is_some());
+            assert_eq!(usize::from(payload), payload as usize);
+        }
+    }
 }

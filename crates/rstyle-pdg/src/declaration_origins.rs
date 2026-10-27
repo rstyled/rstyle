@@ -1,7 +1,11 @@
 //! Original compiler-file origins for observational nominal types.
 //! These checks bind bytes and locations, not effects or package authority.
 
+mod body;
+pub(crate) mod copy;
 mod files;
+pub(crate) mod generated;
+pub use body::context;
 pub(crate) use files::Sources;
 
 #[cfg(test)]
@@ -17,6 +21,11 @@ pub const KEY: &str = "concrete_declaration_origins";
 pub const IDENTITY: &str = "rstyle.rust.declaration-origin/1";
 pub const MAX_BYTES: usize = 8 * 1024 * 1024;
 
+/// Observational lexical check only; supplies no type or generated-source permission.
+pub fn generated_field_type(source: &str) -> Result<(), String> {
+    generated::field_type(source)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Origin {
@@ -25,6 +34,19 @@ pub struct Origin {
     pub file_bytes: crate::SourceSnapshot,
     pub file_digest: String,
     pub declaration_span: ByteSpan,
+    /// Positive resolved observation only; absence does not prove any effect.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub builtin_copy: Option<BuiltinCopy>,
+}
+
+/// Existing declaration ownership binds this observation to its exact struct.
+/// It is not an admission capability or a general derive/Drop inventory.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BuiltinCopy {
+    pub trait_definition: crate::data_library::Callee,
+    pub derive_definition: crate::data_library::Callee,
+    pub derive_span: ByteSpan,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,9 +54,35 @@ pub struct Origin {
 pub struct Origins {
     pub identity: String,
     pub declarations: Vec<Origin>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub generated: Vec<GeneratedOrigin>,
+}
+
+/// Raw original-template coordinates for a compiler-emitted declaration.
+/// These observations supply no source, Copy or cleanup permission.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratedOrigin {
+    pub nominal: Nominal,
+    pub definition: crate::generated_sources::capture::Definition,
+    pub origin: crate::generated_sources::capture::Origin,
+    pub defining_expansion: String,
+    pub file_bytes: crate::SourceSnapshot,
 }
 
 impl Origins {
+    /// Discard incidental type observations outside the complete contextual inventory.
+    pub fn retain_context(&mut self, interface: &InterfaceObservations) -> Result<(), String> {
+        let ordinary = declarations(interface)?;
+        let generated = generated::declarations(interface)?;
+
+        self.declarations
+            .retain(|origin| ordinary.contains_key(&origin.nominal.definition_path));
+        self.generated
+            .retain(|origin| generated.contains_key(origin.nominal.definition_path.as_str()));
+        Ok(())
+    }
+
     pub(crate) fn share_sources(
         &mut self,
         census: &crate::nominal_boundary::census::Census,
@@ -51,6 +99,7 @@ impl Origins {
                 .ok_or("Declaration origin disagrees with owned source snapshot")?;
             origin.file_bytes = file.bytes.clone();
         }
+        generated::share_sources(&mut self.generated, census)?;
         Ok(())
     }
 }
@@ -65,23 +114,27 @@ pub(crate) fn verify_in(
     interface: &InterfaceObservations,
     origins: &Origins,
     environment: &crate::nominal_boundary::resolution::Environment,
+    options: &crate::FrontendOptions,
 ) -> Result<(), String> {
-    verify_inventory(interface, origins, |origin, declaration| {
-        environment.check_origin(origin, declaration)
-    })
+    verify_inventory(
+        interface,
+        origins,
+        || options.origin_bytes(origins),
+        |origin, declaration| environment.check_origin(origin, declaration),
+    )
 }
 
 fn verify_inventory(
     interface: &InterfaceObservations,
     origins: &Origins,
+    bytes: impl FnOnce() -> Result<usize, String>,
     mut check: impl FnMut(&Origin, &str) -> Result<(), String>,
 ) -> Result<(), String> {
     interface.validate()?;
-    if origins.identity != IDENTITY
-        || crate::evidence_budget::serialized_len(origins).map_err(|e| e.to_string())? > MAX_BYTES
-    {
+    if origins.identity != IDENTITY || bytes()? > MAX_BYTES {
         return Err("Unregistered or over-budget declaration origins".into());
     }
+    generated::verify(interface, &origins.generated)?;
     let expected = declarations(interface)?;
     if expected.len() != origins.declarations.len() {
         return Err("Concrete declaration origin inventory disagrees".into());
@@ -102,6 +155,13 @@ fn verify_inventory(
 pub fn declarations(
     interface: &InterfaceObservations,
 ) -> Result<BTreeMap<String, (&Nominal, &str)>, String> {
+    collect_declarations(interface, collect)
+}
+
+fn collect_declarations<'a, K: Ord, V>(
+    interface: &'a InterfaceObservations,
+    mut collect: impl FnMut(&'a TypeTree, &mut BTreeMap<K, V>) -> Result<(), String>,
+) -> Result<BTreeMap<K, V>, String> {
     let mut entries = BTreeMap::new();
     for observation in interface.parameters.iter().chain([&interface.result]) {
         if let Observation::Captured { ty } = observation {
@@ -117,41 +177,48 @@ fn collect<'a>(
     entries: &mut BTreeMap<String, (&'a Nominal, &'a str)>,
 ) -> Result<(), String> {
     match tree {
-        TypeTree::Struct {
-            nominal,
-            source,
-            fields,
-        } => {
-            collect_struct(nominal, source, fields, entries)?;
+        TypeTree::Struct { .. }
+        | TypeTree::Enum { .. }
+        | TypeTree::FieldlessEnum { .. }
+        | TypeTree::MixedEnum { .. }
+        | TypeTree::ScalarProductInstance(_) => collect_nominal(tree, entries)?,
+        TypeTree::GeneratedStruct { .. } | TypeTree::Tuple(_) | TypeTree::Result { .. } => {
+            collect_children(tree, entries)?;
         }
-        TypeTree::Tuple(elements) => {
-            for element in elements {
-                collect(element, entries)?;
-            }
-        }
-        TypeTree::Shared(element) | TypeTree::Slice(element) | TypeTree::Array { element, .. } => {
-            collect(element, entries)?
-        }
+        TypeTree::Option(element)
+        | TypeTree::Shared(element)
+        | TypeTree::Slice(element)
+        | TypeTree::Array { element, .. } => collect(element, entries)?,
         _ => {}
     }
 
     Ok(())
 }
 
-fn collect_struct<'a>(
-    nominal: &'a Nominal,
-    source: &'a str,
-    fields: &'a [crate::concrete_types::Field],
+fn collect_nominal<'a>(
+    tree: &'a TypeTree,
     entries: &mut BTreeMap<String, (&'a Nominal, &'a str)>,
 ) -> Result<(), String> {
+    let (nominal, source) = tree.nominal_parts().ok_or("Expected nominal declaration")?;
     if entries
         .insert(nominal.definition_path.clone(), (nominal, source))
         .is_some_and(|previous| previous != (nominal, source))
     {
         return Err("Conflicting observations for one nominal declaration".into());
     }
-    for field in fields {
-        collect(&field.ty, entries)?;
+    collect_children(tree, entries)
+}
+
+fn collect_children<'a>(
+    tree: &'a TypeTree,
+    entries: &mut BTreeMap<String, (&'a Nominal, &'a str)>,
+) -> Result<(), String> {
+    for child in tree
+        .nominal_fields()
+        .map(|field| &field.ty)
+        .chain(tree.components())
+    {
+        collect(child, entries)?;
     }
 
     Ok(())

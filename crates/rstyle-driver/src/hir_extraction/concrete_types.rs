@@ -1,6 +1,16 @@
 //! Observational type capture for the unavailable data tier. No eligibility flag.
 
+mod callbacks;
+mod copy;
+mod fieldless_enums;
+mod generated_declarations;
+mod mixed_enums;
+mod nonzero_values;
+mod range_values;
 mod receivers;
+mod reuse;
+mod scalar_enums;
+mod scalar_product_instances;
 
 use super::hir::Context;
 use rstyle_pdg::{HirFnFacts, concrete_types::*};
@@ -27,6 +37,10 @@ struct Capture<'a, 'tcx> {
     entries: usize,
     visiting: Vec<DefId>,
     origins: std::collections::BTreeMap<String, rstyle_pdg::declaration_origins::Origin>,
+    generated_origins:
+        std::collections::BTreeMap<String, rstyle_pdg::declaration_origins::GeneratedOrigin>,
+    product_selections: Vec<rstyle_pdg::product_constant_values::SelectedUse>,
+    reuse: reuse::Completed<'tcx>,
 }
 
 pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
@@ -38,6 +52,9 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         entries: 0,
         visiting: Vec::new(),
         origins: std::collections::BTreeMap::new(),
+        generated_origins: std::collections::BTreeMap::new(),
+        product_selections: Vec::new(),
+        reuse: reuse::Completed::default(),
     };
     let parameters = facts
         .signature
@@ -67,8 +84,7 @@ pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> 
         result: capture.observe(ctx.result)?,
     };
     observations.validate()?;
-    capture.install_data(facts, &observations)?;
-    capture.install_origins(&observations, facts)?;
+    capture.install_interface(facts, &observations)?;
     facts.build.frontend_options.insert_data(observations);
 
     Ok(())
@@ -89,6 +105,16 @@ fn has_data_interface(
 }
 
 impl<'tcx> Capture<'_, 'tcx> {
+    fn install_interface(
+        mut self,
+        facts: &mut HirFnFacts,
+        interface: &InterfaceObservations,
+    ) -> Result<(), String> {
+        self.install_data(facts, interface)?;
+        self.install_product_selections(facts)?;
+        self.install_origins(interface, facts)
+    }
+
     fn install_data(
         &mut self,
         facts: &mut HirFnFacts,
@@ -97,8 +123,19 @@ impl<'tcx> Capture<'_, 'tcx> {
         if self.ctx.profile.supports("rust.concrete-read-only-data") {
             self.install_tokens(facts, interface)?;
             self.install_receivers(facts)?;
+            self.install_callback_environments(facts)?;
         }
         Ok(())
+    }
+
+    fn install_callback_environments(&mut self, facts: &mut HirFnFacts) -> Result<(), String> {
+        if self.ctx.profile.supports("rust.immediate-option-callbacks") {
+            self.callback_environments(&mut facts.body)?;
+        }
+        let ctx = self.ctx;
+        ctx.capture_id_error_maps(&mut facts.body, &mut |ty| self.observe(ty))?;
+
+        ctx.capture_usize_reader_callbacks(&mut facts.body, &mut |ty| self.observe(ty))
     }
 
     fn install_tokens(
@@ -107,7 +144,7 @@ impl<'tcx> Capture<'_, 'tcx> {
         interface: &InterfaceObservations,
     ) -> Result<(), String> {
         interface_tokens(&mut facts.signature, interface)?;
-        self.node_tokens(&mut facts.body)?;
+        self.node_tokens(&mut facts.body, false)?;
         self.binding_tokens(&mut facts.bindings)
     }
 
@@ -139,65 +176,163 @@ impl<'tcx> Capture<'_, 'tcx> {
             self.ctx.typeck.node_type_opt(id)
         };
         let Some(ty) = ty else { return Ok(None) };
-        match self.observe(ty)? {
-            Observation::Captured { ty } => rstyle_pdg::data_types::token(&ty).map(Some),
-            Observation::Unsupported { .. } => Ok(None),
-        }
+        self.type_token(ty)
     }
 
-    fn node_tokens(&mut self, node: &mut rstyle_pdg::HirNode) -> Result<(), String> {
-        if node.ty.as_ref().is_some_and(|ty| ty.normalized.is_none()) {
-            let token = self.hir_token(&node.hir, node.kind == "expr_ret")?;
-            node.ty.as_mut().expect("present type").normalized = token;
-        }
-        self.child_tokens(&mut node.children)?;
-        if matches!(node.kind.as_str(), "expr_method_call" | "expr_call") {
+    fn node_tokens(
+        &mut self,
+        node: &mut rstyle_pdg::HirNode,
+        index_bound: bool,
+    ) -> Result<(), String> {
+        self.value_token(node, index_bound)?;
+
+        self.child_tokens(&mut node.children, node.kind == "expr_index")?;
+        if matches!(node.kind.as_str(), "expr_method_call" | "expr_call")
+            || node.kind == "expr_cast" && self.ctx.profile.supports("rust.fieldless-enum-values")
+        {
             install_call_tokens(node);
         }
         Ok(())
     }
 
-    fn child_tokens(&mut self, nodes: &mut [rstyle_pdg::HirNode]) -> Result<(), String> {
+    fn value_token(
+        &mut self,
+        node: &mut rstyle_pdg::HirNode,
+        index_bound: bool,
+    ) -> Result<(), String> {
+        self.product_constant(node)?;
+        // Only index bounds retain the dedicated subslice proof grammar.
+        // Standalone range receivers still need consistent concrete observations.
+        let range_syntax = index_bound
+            && node.kind == "expr_struct"
+            && node
+                .res
+                .as_ref()
+                .is_some_and(|resolution| resolution.kind == "resolved_range_type");
+        if !range_syntax && node.ty.as_ref().is_some_and(|ty| ty.normalized.is_none()) {
+            let token = self.hir_token(&node.hir, node.kind == "expr_ret")?;
+            node.ty.as_mut().expect("present type").normalized = token;
+        }
+
+        Ok(())
+    }
+
+    fn product_constant(&mut self, node: &mut rstyle_pdg::HirNode) -> Result<(), String> {
+        if !self.ctx.profile.supports("rust.nominal-product-constants") {
+            return Ok(());
+        }
+        let Some(definition) = super::nominal_constants::selected(self.ctx, node) else {
+            return Ok(());
+        };
+        let ty = self
+            .ctx
+            .tcx
+            .type_of(definition)
+            .instantiate_identity()
+            .skip_norm_wip();
+        let observation = self.observe(ty)?;
+        node.res = Some(match observation {
+            Observation::Captured { ty } => {
+                if let Some(observed) = node.ty.as_mut() {
+                    observed.normalized = Some(rstyle_pdg::data_types::token(&ty)?);
+                }
+                let (resolution, selection) =
+                    super::nominal_constants::resolution(self.ctx, definition, ty, node)?;
+                if let Some(selection) = selection {
+                    if self.product_selections.len()
+                        >= rstyle_pdg::product_constant_values::MAX_USES
+                    {
+                        return Err("Product constant selections exceed use budget".into());
+                    }
+                    self.product_selections.push(selection);
+                }
+                resolution
+            }
+            Observation::Unsupported { reason } => {
+                super::nominal_constants::unsupported_resolution(reason)
+            }
+        });
+
+        Ok(())
+    }
+
+    fn install_product_selections(&mut self, facts: &mut HirFnFacts) -> Result<(), String> {
+        if self.product_selections.is_empty() {
+            return Ok(());
+        }
+        let observations = rstyle_pdg::product_constant_values::Selections {
+            identity: rstyle_pdg::product_constant_values::IDENTITY.into(),
+            uses: std::mem::take(&mut self.product_selections),
+        };
+        observations.validate()?;
+
+        facts.build.frontend_options.insert(
+            rstyle_pdg::product_constant_values::KEY.into(),
+            serde_json::to_value(observations).map_err(|error| error.to_string())?,
+        );
+        Ok(())
+    }
+
+    fn child_tokens(
+        &mut self,
+        nodes: &mut [rstyle_pdg::HirNode],
+        indexing: bool,
+    ) -> Result<(), String> {
+        let bound = nodes
+            .get(1)
+            .filter(|_| indexing)
+            .map(|node| node.hir.clone());
         for node in nodes {
-            self.node_tokens(node)?;
+            self.node_tokens(node, bound.as_ref() == Some(&node.hir))?;
         }
         Ok(())
     }
 
     fn install_origins(
-        mut self,
+        self,
         observations: &InterfaceObservations,
         facts: &mut HirFnFacts,
     ) -> Result<(), String> {
-        let expected = rstyle_pdg::declaration_origins::declarations(observations)?;
-        self.origins.retain(|key, _| expected.contains_key(key));
-        let origins = rstyle_pdg::declaration_origins::Origins {
+        let mut origins = rstyle_pdg::declaration_origins::Origins {
             identity: rstyle_pdg::declaration_origins::IDENTITY.into(),
             declarations: self.origins.into_values().collect(),
+            generated: self.generated_origins.into_values().collect(),
         };
-        rstyle_pdg::declaration_origins::verify(observations, &origins)?;
+        let context = rstyle_pdg::declaration_origins::context(facts, observations, &origins)?;
+        origins.retain_context(&context)?;
+        rstyle_pdg::declaration_origins::verify(&context, &origins)?;
         facts.build.frontend_options.insert_data(origins);
 
         Ok(())
     }
 
-    fn observe(&mut self, ty: Ty<'tcx>) -> Result<Observation, String> {
-        match self.tree(ty, 0) {
-            Ok(ty) => Ok(Observation::Captured { ty }),
-            Err(Failure::Unsupported(reason)) => Ok(Observation::Unsupported { reason }),
-            Err(Failure::Budget(reason)) => Err(reason),
-        }
-    }
-
     fn tree(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
         self.entries += 1;
         if depth > MAX_DEPTH || self.entries > MAX_ENTRIES {
-            return Err(Failure::Budget(
-                "Concrete type observation exceeds depth/entry budget".into(),
-            ));
+            return Err(Failure::Budget(format!(
+                "Concrete type observation exceeds depth/entry budget (depth {depth}/{MAX_DEPTH}, entries {}/{MAX_ENTRIES})",
+                self.entries
+            )));
         }
         match ty.kind() {
+            ty::Never
+                if self
+                    .ctx
+                    .profile
+                    .supports("rust.u16-usize-reader-observations")
+                    && self.ctx.usize_reader_result() =>
+            {
+                Ok(TypeTree::NeverError)
+            }
             ty::Int(_) | ty::Uint(_) | ty::Bool => Ok(TypeTree::Scalar(ty.to_string())),
+            ty::Char if depth == 0 && self.ctx.profile.supports("rust.character-scalars") => {
+                Ok(TypeTree::Scalar("char".into()))
+            }
+            ty::Float(ty::FloatTy::F32 | ty::FloatTy::F64)
+                if depth == 0 && self.ctx.profile.supports("rust.float-kernel-scalars") =>
+            {
+                Ok(TypeTree::Scalar(ty.to_string()))
+            }
             ty::Tuple(elements) if elements.is_empty() => Ok(TypeTree::Scalar("unit".into())),
             ty::Str => Ok(TypeTree::Str),
             _ => self.composite(ty, depth),
@@ -206,6 +341,13 @@ impl<'tcx> Capture<'_, 'tcx> {
 
     fn composite(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
         match ty.kind() {
+            ty::Ref(_, referent, Mutability::Mut)
+                if depth == 0
+                    && matches!(referent.kind(), ty::Uint(ty::UintTy::Usize))
+                    && self.ctx.profile.supports("rust.mutable-scalar-formals") =>
+            {
+                Ok(TypeTree::MutableScalar("usize".into()))
+            }
             ty::Tuple(elements) => self.tuple(elements, depth),
             ty::Ref(_, referent, Mutability::Not) | ty::Slice(referent) => {
                 self.referent(*referent, depth, matches!(ty.kind(), ty::Slice(_)))
@@ -233,13 +375,276 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 
     fn storage(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
+        if let Some(nonzero) = self.nonzero_value(ty)? {
+            return Ok(nonzero);
+        }
+        if let Some(range) = self.range_value(ty, depth)? {
+            return Ok(range);
+        }
+
+        if self.ctx.profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3
+            && let Some(payload) = super::options::payload(self.ctx.tcx, ty)
+                .or_else(|| self.nonnested_option_payload(ty))
+        {
+            return self.option_type(payload, depth);
+        }
+        if let Some(result) = self.observed_result(ty, depth)? {
+            return Ok(result);
+        }
+        self.storage_container(ty, depth)
+    }
+
+    fn observed_result(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<Option<TypeTree>, Failure> {
+        if let Some(result) = self.never_conversion_result(ty, depth)? {
+            return Ok(Some(result));
+        }
+
+        if let Some(result) = self
+            .mapped_int_conversion_result(ty, depth)?
+            .or_else(|| self.int_conversion_result(ty))
+        {
+            return Ok(Some(result));
+        }
+
+        if let Some(result) = self.slice_array_result(ty) {
+            return Ok(Some(result));
+        }
+        if self.ctx.profile.supports("rust.fresh-concrete-results")
+            && self.visiting.is_empty()
+            && let Some((ok, err)) = super::results::payloads(self.ctx.tcx, ty)
+        {
+            return self.result_type(ok, err, depth).map(Some);
+        }
+        Ok(None)
+    }
+
+    fn nonnested_option_payload(&self, ty: Ty<'tcx>) -> Option<Ty<'tcx>> {
+        self.visiting.is_empty().then(|| {
+            super::options::product_payload(self.ctx, ty)
+                .or_else(|| super::options::borrowed_slice_payload(self.ctx, ty))
+        })?
+    }
+
+    fn option_type(&mut self, payload: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
+        let option = TypeTree::Option(Box::new(self.tree(payload, depth + 1)?));
+        rstyle_pdg::concrete_types::validate(&option).map_err(Failure::Unsupported)?;
+        Ok(option)
+    }
+
+    fn result_type(
+        &mut self,
+        ok: Ty<'tcx>,
+        err: Ty<'tcx>,
+        depth: usize,
+    ) -> Result<TypeTree, Failure> {
+        let ok = self.tree(ok, depth + 1)?;
+        // Resolve only the associated error of this observational product shape.
+        // Source/member authority and guarded value admission remain separate.
+        let err = if matches!(err.kind(), ty::Alias(..))
+            && observed_static_string_result_success(&ok)
+        {
+            let environment =
+                ty::TypingEnv::post_analysis(self.ctx.tcx, self.ctx.typeck.hir_owner.def_id);
+            self.ctx
+                .tcx
+                .try_normalize_erasing_regions(environment, ty::Unnormalized::new_wip(err))
+                .map_err(|_| unsupported("Static product associated error cannot be resolved"))?
+        } else {
+            err
+        };
+        let result = TypeTree::Result {
+            ok: Box::new(ok),
+            err: Box::new(self.tree(err, depth + 1)?),
+        };
+        rstyle_pdg::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
+
+        Ok(result)
+    }
+
+    fn storage_container(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<TypeTree, Failure> {
         match ty.kind() {
             ty::Array(element, length) => self.array(*element, *length, depth),
-            ty::Adt(definition, arguments) => self.structure(*definition, arguments, depth),
+            ty::Adt(definition, arguments) => self.nominal_type(*definition, arguments, depth),
             _ => Err(unsupported(
                 "Outside the concrete drop-free/shared type observation grammar",
             )),
         }
+    }
+
+    fn nominal_type(
+        &mut self,
+        definition: ty::AdtDef<'tcx>,
+        arguments: ty::GenericArgsRef<'tcx>,
+        depth: usize,
+    ) -> Result<TypeTree, Failure> {
+        if definition.is_enum() && self.ctx.profile.supports("rust.scalar-enum-values") {
+            self.enumeration(definition, arguments, depth)
+        } else {
+            self.structure(definition, arguments, depth)
+        }
+    }
+
+    fn enumeration(
+        &mut self,
+        definition: ty::AdtDef<'tcx>,
+        arguments: ty::GenericArgsRef<'tcx>,
+        depth: usize,
+    ) -> Result<TypeTree, Failure> {
+        if self.ctx.profile.supports("rust.fieldless-enum-values")
+            && definition
+                .variants()
+                .iter()
+                .all(|variant| variant.fields.is_empty())
+        {
+            self.fieldless_enum(definition, arguments)
+        } else if self.ctx.profile.supports("rust.borrowed-mixed-owners")
+            && definition
+                .variants()
+                .iter()
+                .any(|variant| variant.fields.is_empty() || variant.ctor_kind().is_none())
+        {
+            self.mixed_enum(definition, arguments, depth)
+        } else {
+            self.scalar_enum(definition, arguments, depth)
+        }
+    }
+
+    fn never_conversion_result(
+        &mut self,
+        value: Ty<'tcx>,
+        depth: usize,
+    ) -> Result<Option<TypeTree>, Failure> {
+        if !self
+            .ctx
+            .profile
+            .supports("rust.u16-usize-reader-observations")
+        {
+            return Ok(None);
+        }
+
+        let Some((ok, err)) = super::results::payloads(self.ctx.tcx, value) else {
+            return Ok(None);
+        };
+        if !matches!(err.kind(), ty::Never)
+            || !(ok == self.ctx.tcx.types.usize
+                || matches!(ok.kind(), ty::Tuple(fields)
+                    if fields.as_slice() == [self.ctx.tcx.types.usize, self.ctx.tcx.types.usize]))
+        {
+            return Ok(None);
+        }
+
+        let result = TypeTree::NeverConversionResult {
+            ok: Box::new(self.tree(ok, depth + 1)?),
+        };
+        rstyle_pdg::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
+        Ok(Some(result))
+    }
+
+    fn int_conversion_result(&self, value: Ty<'tcx>) -> Option<TypeTree> {
+        if !self.ctx.profile.supports("rust.bitset-cardinality") {
+            return None;
+        }
+        let ty::Adt(definition, arguments) = value.kind() else {
+            return None;
+        };
+        let tcx = self.ctx.tcx;
+
+        if !tcx.is_diagnostic_item(rustc_span::sym::Result, definition.did())
+            || !(arguments.type_at(0) == tcx.types.usize
+                || self.ctx.profile.supports("rust.end-of-input")
+                    && arguments.type_at(0) == tcx.types.u16
+                || self.ctx.profile.supports("rust.lossless-usize-u64-calls")
+                    && arguments.type_at(0) == tcx.types.u64)
+        {
+            return None;
+        }
+        self.int_conversion_error(arguments.type_at(1))
+            .then(|| TypeTree::IntConversionResult(arguments.type_at(0).to_string()))
+    }
+
+    fn mapped_int_conversion_result(
+        &mut self,
+        value: Ty<'tcx>,
+        depth: usize,
+    ) -> Result<Option<TypeTree>, Failure> {
+        if !self
+            .ctx
+            .profile
+            .supports("rust.usize-reader-callback-observations")
+        {
+            return Ok(None);
+        }
+
+        let Some((ok, err)) = super::results::payloads(self.ctx.tcx, value) else {
+            return Ok(None);
+        };
+        let ty::Tuple(fields) = ok.kind() else {
+            return Ok(None);
+        };
+        if fields.len() != 2
+            || fields.iter().any(|field| field != self.ctx.tcx.types.usize)
+            || !self.int_conversion_error(err)
+        {
+            return Ok(None);
+        }
+
+        let result = TypeTree::MappedIntConversionResult {
+            ok: Box::new(self.tree(ok, depth + 1)?),
+        };
+        rstyle_pdg::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
+        Ok(Some(result))
+    }
+
+    fn int_conversion_error(&self, value: Ty<'tcx>) -> bool {
+        let ty::Adt(error, arguments) = value.kind() else {
+            return false;
+        };
+        let tcx = self.ctx.tcx;
+        arguments.is_empty()
+            && tcx.crate_name(error.did().krate).as_str() == "core"
+            && matches!(
+                tcx.def_path_str(error.did()).as_str(),
+                "core::num::error::TryFromIntError"
+                    | "core::num::TryFromIntError"
+                    | "std::num::TryFromIntError"
+            )
+    }
+
+    fn slice_array_result(&self, value: Ty<'tcx>) -> Option<TypeTree> {
+        if !self.ctx.profile.supports("rust.slice-array-byte-calls") {
+            return None;
+        }
+        let ty::Adt(definition, arguments) = value.kind() else {
+            return None;
+        };
+        let tcx = self.ctx.tcx;
+
+        if !tcx.is_diagnostic_item(rustc_span::sym::Result, definition.did()) {
+            return None;
+        }
+        let ty::Adt(error, _) = arguments.type_at(1).kind() else {
+            return None;
+        };
+        if tcx.crate_name(error.did().krate).as_str() != "core"
+            || !tcx
+                .def_path_str(error.did())
+                .ends_with("::array::TryFromSliceError")
+        {
+            return None;
+        }
+        let (array, borrowed) = match arguments.type_at(0).kind() {
+            ty::Ref(_, array, Mutability::Not) => (*array, true),
+            _ => (arguments.type_at(0), false),
+        };
+        let ty::Array(element, length) = array.kind() else {
+            return None;
+        };
+        if !matches!(element.kind(), ty::Uint(ty::UintTy::U8)) {
+            return None;
+        }
+        let length = length.try_to_target_usize(tcx)?;
+
+        (length <= MAX_FIELDS as u64).then_some(TypeTree::SliceArrayResult { length, borrowed })
     }
 
     fn array(
@@ -251,11 +656,6 @@ impl<'tcx> Capture<'_, 'tcx> {
         let length = length
             .try_to_target_usize(self.ctx.tcx)
             .ok_or_else(|| unsupported("Array length is not a resolved concrete value"))?;
-        if length > MAX_ARRAY {
-            return Err(Failure::Budget(
-                "Concrete array exceeds length budget".into(),
-            ));
-        }
 
         Ok(TypeTree::Array {
             element: Box::new(self.tree(element, depth + 1)?),
@@ -273,7 +673,23 @@ impl<'tcx> Capture<'_, 'tcx> {
             definition,
             arguments,
         };
+        if let Some(captured) = self.scalar_product_instance(instance, depth)? {
+            return Ok(captured);
+        }
         self.check_structure(instance)?;
+        if let Some(generated) = generated_declarations::capture(self, instance, depth)? {
+            return Ok(generated);
+        }
+
+        self.ordinary_structure(instance, depth)
+    }
+
+    fn ordinary_structure(
+        &mut self,
+        instance: Instance<'tcx>,
+        depth: usize,
+    ) -> Result<TypeTree, Failure> {
+        let definition = instance.definition;
         let source = self.concrete_declaration(instance)?;
         let fields = &definition.non_enum_variant().fields;
         let declarations = field_declarations(&source).map_err(Failure::Unsupported)?;
@@ -412,9 +828,10 @@ impl<'tcx> Capture<'_, 'tcx> {
                 }
                 .to_string_lossy()
                 .into_owned(),
-                file_digest: snapshot.identity().to_owned(),
+                file_digest: snapshot.checksum().to_owned(),
                 file_bytes: snapshot.bytes.clone(),
                 declaration_span,
+                builtin_copy: copy::observe(self.ctx, id),
             },
         );
 
@@ -500,7 +917,7 @@ fn nominal(
             manifest_digest: context.package.manifest_digest.clone(),
             source_identity: Some(context.package.package_id.clone()),
             definition_path,
-            declaration_digest: source.identity().to_owned(),
+            declaration_digest: source.checksum().to_owned(),
         });
     }
     let package_name = std::env::var("CARGO_PKG_NAME")
@@ -518,10 +935,46 @@ fn nominal(
         package_name,
         source_identity: None,
         package_version,
-        manifest_digest: manifest.identity().to_owned(),
+        manifest_digest: manifest.checksum().to_owned(),
         definition_path,
-        declaration_digest: source.identity().to_owned(),
+        declaration_digest: source.checksum().to_owned(),
     })
+}
+
+pub(super) fn static_owner(
+    ctx: &Context<'_>,
+    implementation: DefId,
+) -> Result<Option<Nominal>, String> {
+    let ty = ctx
+        .tcx
+        .type_of(implementation)
+        .instantiate_identity()
+        .skip_norm_wip();
+
+    let ty::Adt(definition, _) = ty.kind() else {
+        return Ok(None);
+    };
+    if !definition.is_struct() || !definition.did().is_local() {
+        return Ok(None);
+    }
+    let Node::Item(item) = ctx.tcx.hir_node_by_def_id(definition.did().expect_local()) else {
+        return Ok(None);
+    };
+    if item.span.from_expansion() {
+        return Ok(None);
+    }
+
+    let Some((source, _)) = ctx.sources.range(ctx.tcx, item.span) else {
+        return Ok(None);
+    };
+    if source.len() > MAX_SOURCE_BYTES {
+        return Err("Static owner declaration exceeds source budget".into());
+    }
+    match nominal(ctx, ctx.tcx.def_path_str(definition.did()), &source) {
+        Ok(owner) => Ok(Some(owner)),
+        Err(Failure::Unsupported(_)) => Ok(None),
+        Err(Failure::Budget(reason)) => Err(reason),
+    }
 }
 
 fn interface_tokens(
@@ -554,3 +1007,5 @@ fn install_call_tokens(node: &mut rstyle_pdg::HirNode) {
         dispatch.result_ty = result;
     }
 }
+
+pub(super) use scalar_product_instances::scalar_argument;

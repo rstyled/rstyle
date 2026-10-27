@@ -1,0 +1,6 @@
+{
+  "slice/mod.rs": "sha256:062320a86dc6a3d20718bc8fca824bd1f3df0bb8bb0c3d72e101be989cf576bf",
+  "slice/iter.rs": "sha256:6cb6156e617daf67ec15c5510ac58ee85b12cd0edbe4bceb9a4ad9d10f1e4021",
+  "slice/iter/macros.rs": "sha256:8db181ab6087b436dcc4c350efc7283ecc4912e34ca20d8bf7460fca5084c26c",
+  "iter/traits/iterator.rs": "sha256:6a6468cade532beaba7c8b3f0db2b3fa768a069c56b636c68fbf1b27bc7d81a0"
+}

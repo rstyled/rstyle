@@ -1,0 +1,261 @@
+{
+  "identity": "rstyle.development.match-construction/1",
+  "status": "source-selected before concrete instance admission evaluation; no admission/execution results recorded",
+  "inventory_policy": "Separate development family; existing frozen identities, definitions and denominators unchanged. Missing concrete instances remain missing, not excluded.",
+  "selection_basis": "Complete original Match::new spans both direct Copy Span and non-Copy Range conversion, once-only concrete Into authority, original assertion and complete returned fields.",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18",
+    "upstream_revision": "e6ad938198e68339a593f85d228f2d44cb54718f",
+    "historical_source_identity": {
+      "selection": "../span-length-selection.json",
+      "files": {
+        "Cargo.toml": "25d528e0bd6dd67c78462d3c7a426698b5d6e702052b25daf7599c0a211315b6",
+        "src/lib.rs": "47d562a98f5f50f7cbbffb1f103e277871c7419da05dbb2b0db78dee6e7b4c2e",
+        "src/util/search.rs": "74157bd77eb6f80e8ab5952ef21e8fb2d3452c1817ec671a7a3574fbddae1ae7",
+        "src/util/primitives.rs": "8a9cc19ef2e1ab183943cdc2d2f095b02252476e32b7e9fff4a06a251749b068"
+      },
+      "verification": "Reuse historical identities; compare selected original ranges exactly. No new hashing or whole-package recertification."
+    }
+  },
+  "build_selection": {
+    "target": "regex-automata library; test=false",
+    "edition": "2021",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "pointer_width": 64,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic_strategy": "unwind",
+    "opt_level": "No",
+    "contexts": [
+      {
+        "name": "default",
+        "default_features": true,
+        "features": [],
+        "expected_feature_closure": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ]
+      },
+      {
+        "name": "no-default",
+        "default_features": false,
+        "features": [],
+        "expected_feature_closure": []
+      }
+    ],
+    "toolchain": "nightly-2026-09-30"
+  },
+  "functions": [
+    {
+      "name": "util::search::Match::new",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 37092,
+        "end": 37296
+      },
+      "source": "pub fn new<S: Into<Span>>(pattern: PatternID, span: S) -> Match {\n        let span: Span = span.into();\n        assert!(span.start <= span.end, \"invalid match span\");\n        Match { pattern, span }\n    }",
+      "role": "target generic definition; select exactly S=Span and S=Range<usize>"
+    }
+  ],
+  "owners": [
+    {
+      "name": "Span",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 30714,
+        "end": 30915
+      },
+      "source": "#[derive(Clone, Copy, Eq, Hash, PartialEq)]\npub struct Span {\n    /// The start offset of the span, inclusive.\n    pub start: usize,\n    /// The end offset of the span, exclusive.\n    pub end: usize,\n}",
+      "role": "complete Copy scalar owner"
+    },
+    {
+      "name": "Match",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 36175,
+        "end": 36345
+      },
+      "source": "#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]\npub struct Match {\n    /// The pattern ID.\n    pattern: PatternID,\n    /// The underlying match span.\n    span: Span,\n}",
+      "role": "complete nested Copy scalar owner"
+    },
+    {
+      "name": "PatternID",
+      "file": "src/util/primitives.rs",
+      "span": {
+        "start": 26004,
+        "end": 26128
+      },
+      "source": "#[derive(Clone, Copy, Default, Eq, Hash, PartialEq, PartialOrd, Ord)]\n#[repr(transparent)]\npub struct PatternID(SmallIndex);",
+      "role": "complete tuple owner with builtin Copy derive; macro-generated impls retained"
+    }
+  ],
+  "source_obligations": [
+    {
+      "name": "complete Span inherent impl",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 30917,
+        "end": 32000
+      },
+      "source": "impl Span {\n    /// Returns this span as a range.\n    #[inline]\n    pub fn range(&self) -> Range<usize> {\n        Range::from(*self)\n    }\n\n    /// Returns true when this span is empty. That is, when `start >= end`.\n    #[inline]\n    pub fn is_empty(&self) -> bool {\n        self.start >= self.end\n    }\n\n    /// Returns the length of this span.\n    ///\n    /// This returns `0` in precisely the cases that `is_empty` returns `true`.\n    #[inline]\n    pub fn len(&self) -> usize {\n        self.end.saturating_sub(self.start)\n    }\n\n    /// Returns true when the given offset is contained within this span.\n    ///\n    /// Note that an empty span contains no offsets and will always return\n    /// false.\n    #[inline]\n    pub fn contains(&self, offset: usize) -> bool {\n        !self.is_empty() && self.start <= offset && offset <= self.end\n    }\n\n    /// Returns a new span with `offset` added to this span's `start` and `end`\n    /// values.\n    #[inline]\n    pub fn offset(&self, offset: usize) -> Span {\n        Span { start: self.start + offset, end: self.end + offset }\n    }\n}",
+      "role": "retain all neighboring methods"
+    },
+    {
+      "name": "complete Match inherent impl",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 36347,
+        "end": 39930
+      },
+      "source": "impl Match {\n    /// Create a new match from a pattern ID and a span.\n    ///\n    /// This constructor is generic over how a span is provided. While\n    /// a [`Span`] may be given directly, one may also provide a\n    /// `std::ops::Range<usize>`.\n    ///\n    /// # Panics\n    ///\n    /// This panics if `end < start`.\n    ///\n    /// # Example\n    ///\n    /// This shows how to create a match for the first pattern in a regex\n    /// object using convenient range syntax.\n    ///\n    /// ```\n    /// use regex_automata::{Match, PatternID};\n    ///\n    /// let m = Match::new(PatternID::ZERO, 5..10);\n    /// assert_eq!(0, m.pattern().as_usize());\n    /// assert_eq!(5, m.start());\n    /// assert_eq!(10, m.end());\n    /// ```\n    #[inline]\n    pub fn new<S: Into<Span>>(pattern: PatternID, span: S) -> Match {\n        let span: Span = span.into();\n        assert!(span.start <= span.end, \"invalid match span\");\n        Match { pattern, span }\n    }\n\n    /// Create a new match from a pattern ID and a byte offset span.\n    ///\n    /// This constructor is generic over how a span is provided. While\n    /// a [`Span`] may be given directly, one may also provide a\n    /// `std::ops::Range<usize>`.\n    ///\n    /// This is like [`Match::new`], but accepts a `usize` instead of a\n    /// [`PatternID`]. This panics if the given `usize` is not representable\n    /// as a `PatternID`.\n    ///\n    /// # Panics\n    ///\n    /// This panics if `end < start` or if `pattern > PatternID::MAX`.\n    ///\n    /// # Example\n    ///\n    /// This shows how to create a match for the third pattern in a regex\n    /// object using convenient range syntax.\n    ///\n    /// ```\n    /// use regex_automata::Match;\n    ///\n    /// let m = Match::must(3, 5..10);\n    /// assert_eq!(3, m.pattern().as_usize());\n    /// assert_eq!(5, m.start());\n    /// assert_eq!(10, m.end());\n    /// ```\n    #[inline]\n    pub fn must<S: Into<Span>>(pattern: usize, span: S) -> Match {\n        Match::new(PatternID::must(pattern), span)\n    }\n\n    /// Returns the ID of the pattern that matched.\n    ///\n    /// The ID of a pattern is derived from the position in which it was\n    /// originally inserted into the corresponding regex engine. The first\n    /// pattern has identifier `0`, and each subsequent pattern is `1`, `2` and\n    /// so on.\n    #[inline]\n    pub fn pattern(&self) -> PatternID {\n        self.pattern\n    }\n\n    /// The starting position of the match.\n    ///\n    /// This is a convenience routine for `Match::span().start`.\n    #[inline]\n    pub fn start(&self) -> usize {\n        self.span().start\n    }\n\n    /// The ending position of the match.\n    ///\n    /// This is a convenience routine for `Match::span().end`.\n    #[inline]\n    pub fn end(&self) -> usize {\n        self.span().end\n    }\n\n    /// Returns the match span as a range.\n    ///\n    /// This is a convenience routine for `Match::span().range()`.\n    #[inline]\n    pub fn range(&self) -> core::ops::Range<usize> {\n        self.span().range()\n    }\n\n    /// Returns the span for this match.\n    #[inline]\n    pub fn span(&self) -> Span {\n        self.span\n    }\n\n    /// Returns true when the span in this match is empty.\n    ///\n    /// An empty match can only be returned when the regex itself can match\n    /// the empty string.\n    #[inline]\n    pub fn is_empty(&self) -> bool {\n        self.span().is_empty()\n    }\n\n    /// Returns the length of this match.\n    ///\n    /// This returns `0` in precisely the cases that `is_empty` returns `true`.\n    #[inline]\n    pub fn len(&self) -> usize {\n        self.span().len()\n    }\n}",
+      "role": "retain all neighboring methods including must and generic source"
+    },
+    {
+      "name": "From<Range<usize>> for Span",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 32636,
+        "end": 32787
+      },
+      "source": "impl From<Range<usize>> for Span {\n    #[inline]\n    fn from(range: Range<usize>) -> Span {\n        Span { start: range.start, end: range.end }\n    }\n}",
+      "role": "exact conversion consumes non-Copy Range once"
+    },
+    {
+      "name": "From<Span> for Range<usize>",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 32789,
+        "end": 32938
+      },
+      "source": "impl From<Span> for Range<usize> {\n    #[inline]\n    fn from(span: Span) -> Range<usize> {\n        Range { start: span.start, end: span.end }\n    }\n}",
+      "role": "neighbor retained, not automatically in scope"
+    },
+    {
+      "name": "SmallIndex declaration",
+      "file": "src/util/primitives.rs",
+      "span": {
+        "start": 6401,
+        "end": 6533
+      },
+      "source": "#[derive(\n    Clone, Copy, Debug, Default, Eq, Hash, PartialEq, PartialOrd, Ord,\n)]\n#[repr(transparent)]\npub struct SmallIndex(u32);",
+      "role": "complete actual PatternID dependency"
+    },
+    {
+      "name": "complete SmallIndex inherent impl",
+      "file": "src/util/primitives.rs",
+      "span": {
+        "start": 6535,
+        "end": 11018
+      },
+      "source": "impl SmallIndex {\n    /// The maximum index value.\n    #[cfg(any(target_pointer_width = \"32\", target_pointer_width = \"64\"))]\n    pub const MAX: SmallIndex =\n        // FIXME: Use as_usize() once const functions in traits are stable.\n        SmallIndex::new_unchecked(core::i32::MAX as usize - 1);\n\n    /// The maximum index value.\n    #[cfg(target_pointer_width = \"16\")]\n    pub const MAX: SmallIndex =\n        SmallIndex::new_unchecked(core::isize::MAX - 1);\n\n    /// The total number of values that can be represented as a small index.\n    pub const LIMIT: usize = SmallIndex::MAX.as_usize() + 1;\n\n    /// The zero index value.\n    pub const ZERO: SmallIndex = SmallIndex::new_unchecked(0);\n\n    /// The number of bytes that a single small index uses in memory.\n    pub const SIZE: usize = core::mem::size_of::<SmallIndex>();\n\n    /// Create a new small index.\n    ///\n    /// If the given index exceeds [`SmallIndex::MAX`], then this returns\n    /// an error.\n    #[inline]\n    pub fn new(index: usize) -> Result<SmallIndex, SmallIndexError> {\n        SmallIndex::try_from(index)\n    }\n\n    /// Create a new small index without checking whether the given value\n    /// exceeds [`SmallIndex::MAX`].\n    ///\n    /// Using this routine with an invalid index value will result in\n    /// unspecified behavior, but *not* undefined behavior. In particular, an\n    /// invalid index value is likely to cause panics or possibly even silent\n    /// logical errors.\n    ///\n    /// Callers must never rely on a `SmallIndex` to be within a certain range\n    /// for memory safety.\n    #[inline]\n    pub const fn new_unchecked(index: usize) -> SmallIndex {\n        // FIXME: Use as_u32() once const functions in traits are stable.\n        SmallIndex(index as u32)\n    }\n\n    /// Like [`SmallIndex::new`], but panics if the given index is not valid.\n    #[inline]\n    pub fn must(index: usize) -> SmallIndex {\n        SmallIndex::new(index).expect(\"invalid small index\")\n    }\n\n    /// Return this small index as a `usize`. This is guaranteed to never\n    /// overflow `usize`.\n    #[inline]\n    pub const fn as_usize(&self) -> usize {\n        // FIXME: Use as_usize() once const functions in traits are stable.\n        self.0 as usize\n    }\n\n    /// Return this small index as a `u64`. This is guaranteed to never\n    /// overflow.\n    #[inline]\n    pub const fn as_u64(&self) -> u64 {\n        // FIXME: Use u64::from() once const functions in traits are stable.\n        self.0 as u64\n    }\n\n    /// Return the internal `u32` of this small index. This is guaranteed to\n    /// never overflow `u32`.\n    #[inline]\n    pub const fn as_u32(&self) -> u32 {\n        self.0\n    }\n\n    /// Return the internal `u32` of this small index represented as an `i32`.\n    /// This is guaranteed to never overflow an `i32`.\n    #[inline]\n    pub const fn as_i32(&self) -> i32 {\n        // This is OK because we guarantee that our max value is <= i32::MAX.\n        self.0 as i32\n    }\n\n    /// Returns one more than this small index as a usize.\n    ///\n    /// Since a small index has constraints on its maximum value, adding `1` to\n    /// it will always fit in a `usize`, `u32` and a `i32`.\n    #[inline]\n    pub fn one_more(&self) -> usize {\n        self.as_usize() + 1\n    }\n\n    /// Decode this small index from the bytes given using the native endian\n    /// byte order for the current target.\n    ///\n    /// If the decoded integer is not representable as a small index for the\n    /// current target, then this returns an error.\n    #[inline]\n    pub fn from_ne_bytes(\n        bytes: [u8; 4],\n    ) -> Result<SmallIndex, SmallIndexError> {\n        let id = u32::from_ne_bytes(bytes);\n        if id > SmallIndex::MAX.as_u32() {\n            return Err(SmallIndexError { attempted: u64::from(id) });\n        }\n        Ok(SmallIndex::new_unchecked(id.as_usize()))\n    }\n\n    /// Decode this small index from the bytes given using the native endian\n    /// byte order for the current target.\n    ///\n    /// This is analogous to [`SmallIndex::new_unchecked`] in that is does not\n    /// check whether the decoded integer is representable as a small index.\n    #[inline]\n    pub fn from_ne_bytes_unchecked(bytes: [u8; 4]) -> SmallIndex {\n        SmallIndex::new_unchecked(u32::from_ne_bytes(bytes).as_usize())\n    }\n\n    /// Return the underlying small index integer as raw bytes in native endian\n    /// format.\n    #[inline]\n    pub fn to_ne_bytes(&self) -> [u8; 4] {\n        self.0.to_ne_bytes()\n    }\n}",
+      "role": "retain constants and methods; does not assert all supported"
+    },
+    {
+      "name": "complete index_type_impls macro definition",
+      "file": "src/util/primitives.rs",
+      "span": {
+        "start": 15039,
+        "end": 25196
+      },
+      "source": "macro_rules! index_type_impls {\n    ($name:ident, $err:ident, $iter:ident, $withiter:ident) => {\n        impl $name {\n            /// The maximum value.\n            pub const MAX: $name = $name(SmallIndex::MAX);\n\n            /// The total number of values that can be represented.\n            pub const LIMIT: usize = SmallIndex::LIMIT;\n\n            /// The zero value.\n            pub const ZERO: $name = $name(SmallIndex::ZERO);\n\n            /// The number of bytes that a single value uses in memory.\n            pub const SIZE: usize = SmallIndex::SIZE;\n\n            /// Create a new value that is represented by a \"small index.\"\n            ///\n            /// If the given index exceeds the maximum allowed value, then this\n            /// returns an error.\n            #[inline]\n            pub fn new(value: usize) -> Result<$name, $err> {\n                SmallIndex::new(value).map($name).map_err($err)\n            }\n\n            /// Create a new value without checking whether the given argument\n            /// exceeds the maximum.\n            ///\n            /// Using this routine with an invalid value will result in\n            /// unspecified behavior, but *not* undefined behavior. In\n            /// particular, an invalid ID value is likely to cause panics or\n            /// possibly even silent logical errors.\n            ///\n            /// Callers must never rely on this type to be within a certain\n            /// range for memory safety.\n            #[inline]\n            pub const fn new_unchecked(value: usize) -> $name {\n                $name(SmallIndex::new_unchecked(value))\n            }\n\n            /// Like `new`, but panics if the given value is not valid.\n            #[inline]\n            pub fn must(value: usize) -> $name {\n                $name::new(value).expect(concat!(\n                    \"invalid \",\n                    stringify!($name),\n                    \" value\"\n                ))\n            }\n\n            /// Return the internal value as a `usize`. This is guaranteed to\n            /// never overflow `usize`.\n            #[inline]\n            pub const fn as_usize(&self) -> usize {\n                self.0.as_usize()\n            }\n\n            /// Return the internal value as a `u64`. This is guaranteed to\n            /// never overflow.\n            #[inline]\n            pub const fn as_u64(&self) -> u64 {\n                self.0.as_u64()\n            }\n\n            /// Return the internal value as a `u32`. This is guaranteed to\n            /// never overflow `u32`.\n            #[inline]\n            pub const fn as_u32(&self) -> u32 {\n                self.0.as_u32()\n            }\n\n            /// Return the internal value as a i32`. This is guaranteed to\n            /// never overflow an `i32`.\n            #[inline]\n            pub const fn as_i32(&self) -> i32 {\n                self.0.as_i32()\n            }\n\n            /// Returns one more than this value as a usize.\n            ///\n            /// Since values represented by a \"small index\" have constraints\n            /// on their maximum value, adding `1` to it will always fit in a\n            /// `usize`, `u32` and a `i32`.\n            #[inline]\n            pub fn one_more(&self) -> usize {\n                self.0.one_more()\n            }\n\n            /// Decode this value from the bytes given using the native endian\n            /// byte order for the current target.\n            ///\n            /// If the decoded integer is not representable as a small index\n            /// for the current target, then this returns an error.\n            #[inline]\n            pub fn from_ne_bytes(bytes: [u8; 4]) -> Result<$name, $err> {\n                SmallIndex::from_ne_bytes(bytes).map($name).map_err($err)\n            }\n\n            /// Decode this value from the bytes given using the native endian\n            /// byte order for the current target.\n            ///\n            /// This is analogous to `new_unchecked` in that is does not check\n            /// whether the decoded integer is representable as a small index.\n            #[inline]\n            pub fn from_ne_bytes_unchecked(bytes: [u8; 4]) -> $name {\n                $name(SmallIndex::from_ne_bytes_unchecked(bytes))\n            }\n\n            /// Return the underlying integer as raw bytes in native endian\n            /// format.\n            #[inline]\n            pub fn to_ne_bytes(&self) -> [u8; 4] {\n                self.0.to_ne_bytes()\n            }\n\n            /// Returns an iterator over all values from 0 up to and not\n            /// including the given length.\n            ///\n            /// If the given length exceeds this type's limit, then this\n            /// panics.\n            pub(crate) fn iter(len: usize) -> $iter {\n                $iter::new(len)\n            }\n        }\n\n        // We write our own Debug impl so that we get things like PatternID(5)\n        // instead of PatternID(SmallIndex(5)).\n        impl core::fmt::Debug for $name {\n            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {\n                f.debug_tuple(stringify!($name)).field(&self.as_u32()).finish()\n            }\n        }\n\n        impl<T> core::ops::Index<$name> for [T] {\n            type Output = T;\n\n            #[inline]\n            fn index(&self, index: $name) -> &T {\n                &self[index.as_usize()]\n            }\n        }\n\n        impl<T> core::ops::IndexMut<$name> for [T] {\n            #[inline]\n            fn index_mut(&mut self, index: $name) -> &mut T {\n                &mut self[index.as_usize()]\n            }\n        }\n\n        #[cfg(feature = \"alloc\")]\n        impl<T> core::ops::Index<$name> for Vec<T> {\n            type Output = T;\n\n            #[inline]\n            fn index(&self, index: $name) -> &T {\n                &self[index.as_usize()]\n            }\n        }\n\n        #[cfg(feature = \"alloc\")]\n        impl<T> core::ops::IndexMut<$name> for Vec<T> {\n            #[inline]\n            fn index_mut(&mut self, index: $name) -> &mut T {\n                &mut self[index.as_usize()]\n            }\n        }\n\n        impl From<u8> for $name {\n            fn from(value: u8) -> $name {\n                $name(SmallIndex::from(value))\n            }\n        }\n\n        impl TryFrom<u16> for $name {\n            type Error = $err;\n\n            fn try_from(value: u16) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        impl TryFrom<u32> for $name {\n            type Error = $err;\n\n            fn try_from(value: u32) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        impl TryFrom<u64> for $name {\n            type Error = $err;\n\n            fn try_from(value: u64) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        impl TryFrom<usize> for $name {\n            type Error = $err;\n\n            fn try_from(value: usize) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }\n\n        #[cfg(test)]\n        impl quickcheck::Arbitrary for $name {\n            fn arbitrary(gen: &mut quickcheck::Gen) -> $name {\n                $name(SmallIndex::arbitrary(gen))\n            }\n        }\n\n        /// This error occurs when a value could not be constructed.\n        ///\n        /// This occurs when given an integer exceeding the maximum allowed\n        /// value.\n        ///\n        /// When the `std` feature is enabled, this implements the `Error`\n        /// trait.\n        #[derive(Clone, Debug, Eq, PartialEq)]\n        pub struct $err(SmallIndexError);\n\n        impl $err {\n            /// Returns the value that could not be converted to an ID.\n            pub fn attempted(&self) -> u64 {\n                self.0.attempted()\n            }\n        }\n\n        #[cfg(feature = \"std\")]\n        impl std::error::Error for $err {}\n\n        impl core::fmt::Display for $err {\n            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {\n                write!(\n                    f,\n                    \"failed to create {} from {:?}, which exceeds {:?}\",\n                    stringify!($name),\n                    self.attempted(),\n                    $name::MAX,\n                )\n            }\n        }\n\n        #[derive(Clone, Debug)]\n        pub(crate) struct $iter(SmallIndexIter);\n\n        impl $iter {\n            fn new(len: usize) -> $iter {\n                assert!(\n                    len <= $name::LIMIT,\n                    \"cannot create iterator for {} when number of \\\n                     elements exceed {:?}\",\n                    stringify!($name),\n                    $name::LIMIT,\n                );\n                $iter(SmallIndexIter { rng: 0..len })\n            }\n        }\n\n        impl Iterator for $iter {\n            type Item = $name;\n\n            fn next(&mut self) -> Option<$name> {\n                self.0.next().map($name)\n            }\n        }\n\n        /// An iterator adapter that is like std::iter::Enumerate, but attaches\n        /// small index values instead. It requires `ExactSizeIterator`. At\n        /// construction, it ensures that the index of each element in the\n        /// iterator is representable in the corresponding small index type.\n        #[derive(Clone, Debug)]\n        pub(crate) struct $withiter<I> {\n            it: I,\n            ids: $iter,\n        }\n\n        impl<I: Iterator + ExactSizeIterator> $withiter<I> {\n            fn new(it: I) -> $withiter<I> {\n                let ids = $name::iter(it.len());\n                $withiter { it, ids }\n            }\n        }\n\n        impl<I: Iterator + ExactSizeIterator> Iterator for $withiter<I> {\n            type Item = ($name, I::Item);\n\n            fn next(&mut self) -> Option<($name, I::Item)> {\n                let item = self.it.next()?;\n                // Number of elements in this iterator must match, according\n                // to contract of ExactSizeIterator.\n                let id = self.ids.next().unwrap();\n                Some((id, item))\n            }\n        }\n    };\n}",
+      "role": "retain actual PatternID generated ownership/source context; no general macro permission"
+    },
+    {
+      "name": "search module imports",
+      "file": "src/util/search.rs",
+      "span": {
+        "start": 0,
+        "end": 356
+      },
+      "source": "/*!\nTypes and routines that support the search APIs of most regex engines.\n\nThis sub-module isn't exposed directly, but rather, its contents are exported\nat the crate root due to the universality of most of the types and routines in\nthis module.\n*/\n\nuse core::ops::{Range, RangeBounds};\n\nuse crate::util::{escape::DebugByte, primitives::PatternID, utf8};\n\n",
+      "role": "complete original source reference"
+    },
+    {
+      "name": "PatternID macro invocation",
+      "file": "src/util/primitives.rs",
+      "span": {
+        "start": 26841,
+        "end": 26920
+      },
+      "source": "index_type_impls!(PatternID, PatternIDError, PatternIDIter, WithPatternIDIter);",
+      "role": "complete original source reference"
+    }
+  ],
+  "instances": [
+    {
+      "function": "util::search::Match::new",
+      "type_argument": "Span",
+      "expected": "in scope only after complete selected conversion/body/Copy-or-linear-Range/assertion/output proof"
+    },
+    {
+      "function": "util::search::Match::new",
+      "type_argument": "core::ops::Range<usize>",
+      "expected": "in scope only after complete selected conversion/body/Copy-or-linear-Range/assertion/output proof"
+    }
+  ],
+  "bounded_contract": [
+    "Convert span exactly once before testing converted start <= end; preserve PatternID and both converted endpoints.",
+    "For selected Span and Range<usize> conversions, output is (pattern,start,end) iff start<=end; start>end panics with original invalid match span assertion. Equal endpoints and usize::MAX are valid.",
+    "Range<usize> is non-Copy; consume its owner once and justify scalar endpoint reads/no-drop separately. Do not invent Range Copy.",
+    "No memory/content reads, writes or allocation in selected conversions/body; assertion panic remains an explicit outcome.",
+    "Custom Into implementations and unresolved/general S remain unsupported without their own complete authority/effect/ownership proof."
+  ],
+  "independent_expectations": {
+    "domain": "PatternIDs [0,1,2,2147483646]; endpoints Cartesian 0..32 plus +/-1 around 64,128,256,65536,2^31,2^32 and usize::MAX; both selected input types.",
+    "positive": [
+      "Every valid case retains all three returned fields, including PatternID high boundary and empty/max endpoints.",
+      "Native original public API only; independent oracle uses unbounded host integer endpoint comparison, not Span helper results."
+    ],
+    "negative": [
+      "Every inverted converted span panics; assertions cannot be omitted or replaced with saturating behavior.",
+      "Stateful custom Into called exactly once; conversion/drop side effects occur before assertion; converter panic preserved; conversion can repair an invalid source representation.",
+      "Custom Into counter/fixup/drop/panic fixtures are extraction-negative even though runtime oracle exercises unchanged generic function.",
+      "Wrong conversion impl/instance/type substitution, field swaps, missing/wrong Copy/no-drop proof, duplicate Range use, assertion removed or reordered and missing whole source context must fail strict verification."
+    ]
+  },
+  "remaining_blockers": [
+    "Concrete S roster plus selected Into<Span> implementation and exact pinned reflexive/blanket Into/From authority.",
+    "Specialized original generic body/source replay preserving once-only local and assertion evaluation.",
+    "Non-Copy Range input ownership and exact source endpoint field reads; no general non-Copy or trait permission.",
+    "Complete PatternID/SmallIndex/Span/Match ownership/derive/source closure with macros and neighboring methods preserved.",
+    "Full strict Cargo capture/verification/admission/matching across six contexts, and an independently scheduled original native oracle."
+  ],
+  "validation": {
+    "source_freeze": "Exact ranges and reused historical references; oracle default is read-only source verification.",
+    "native": "Not run; coordinator must schedule --run-native.",
+    "admission": "Not evaluated; no baseline outcome consulted."
+  }
+}

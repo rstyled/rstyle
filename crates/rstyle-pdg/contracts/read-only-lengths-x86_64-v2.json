@@ -5,8 +5,14 @@
   "pointer_width": 64,
   "core_hash": "f961ecb4c84cffc7c73b0d153b2677a7",
   "source_digests": {
+    "num/shells/legacy_int_modules.rs": "sha256:6321882b5e4b268313f5d29890c6ccbb61095bf946777e30249396bd7273a3d4",
+    "ops/range.rs": "sha256:5d791bd2ee8997e93ac72c35db831815d9acbb7aed05cd1539799b7677a13d20",
     "slice": "sha256:062320a86dc6a3d20718bc8fca824bd1f3df0bb8bb0c3d72e101be989cf576bf",
-    "str": "sha256:bb2e4e174e8db5c79f6c602565c1f97f049f10ca600540bfb1d3c7f382de9bc5"
+    "str": "sha256:bb2e4e174e8db5c79f6c602565c1f97f049f10ca600540bfb1d3c7f382de9bc5",
+    "num/uint_macros.rs": "sha256:5525546f81f07f28c0d3bc475edf2f86770fe659b35dd4bae55c0a3b890ab12b",
+    "result.rs": "sha256:777e0f516deba3899c8f16c5511da3ebe7debe23f4bcf6a6353c98a927c0f7d1",
+    "convert/num.rs": "sha256:8dbf6c64681e2dee556e0844eef3e53d62a40df0280d25f469352870a401e034",
+    "num/error.rs": "sha256:7447f99e89ce2f0163c83cbe177008c3b789b8129602099dfe9dc3f02909baff"
   },
   "operations": [
     {
@@ -36,6 +42,160 @@
       "definition_hash": "DefPathHash(Fingerprint(2625310331494506890, 939469410544972960))",
       "referent": "str",
       "result": "bool"
+    },
+    {
+      "id": "rstyle.data.option.is-some",
+      "path": "core::option::Option::<T>::is_some",
+      "definition_hash": "DefPathHash(Fingerprint(2625310331494506890, 13173781806891146062))",
+      "referent": "scalar-option",
+      "result": "bool"
+    },
+    {
+      "id": "rstyle.data.option.is-some",
+      "path": "std::option::Option::<T>::is_some",
+      "definition_hash": "DefPathHash(Fingerprint(2625310331494506890, 13173781806891146062))",
+      "referent": "scalar-option",
+      "result": "bool"
     }
-  ]
+  ],
+  "definitions": {
+    "std::convert::num::<impl std::convert::From<u32> for u64>::from": "DefPathHash(Fingerprint(2625310331494506890, 7749823960859124443))",
+    "std::result::Result::<T, E>::map_err": "DefPathHash(Fingerprint(2625310331494506890, 15566543004137697186))",
+    "rust.result-constructor-maps.core-crate": "StableCrateId(2625310331494506890)",
+    "std::result::Result::<T, E>::map": "DefPathHash(Fingerprint(2625310331494506890, 16905958006503700092))",
+    "std::ops::Index::index": "DefPathHash(Fingerprint(2625310331494506890, 11406531062238600601))",
+    "std::ops::Range": "DefPathHash(Fingerprint(2625310331494506890, 3179935214432316233))",
+    "std::convert::TryInto::try_into": "DefPathHash(Fingerprint(2625310331494506890, 5264225179881869576))",
+    "<T as std::convert::TryInto<U>>::try_into": "DefPathHash(Fingerprint(2625310331494506890, 1212306585016126168))",
+    "std::result::Result::<T, E>::unwrap": "DefPathHash(Fingerprint(2625310331494506890, 1010359204628238798))",
+    "core::num::<impl u32>::from_ne_bytes": "DefPathHash(Fingerprint(2625310331494506890, 11041351313244537044))",
+    "core::num::<impl usize>::from_ne_bytes": "DefPathHash(Fingerprint(2625310331494506890, 10991894210353714315))",
+    "std::mem::size_of": "DefPathHash(Fingerprint(2625310331494506890, 17918239707128286424))",
+    "core::slice::<impl [T]>::get": "DefPathHash(Fingerprint(2625310331494506890, 3357333013439626706))",
+    "std::prelude::v1::None": "DefPathHash(Fingerprint(2625310331494506890, 7501731091549932355))",
+    "std::prelude::v1::Some": "DefPathHash(Fingerprint(2625310331494506890, 3384282420474325723))",
+    "core::marker::Copy#trait": "DefPathHash(Fingerprint(2625310331494506890, 9099137491564934671))",
+    "core::marker::Copy#derive": "DefPathHash(Fingerprint(2625310331494506890, 15017133802997863739))",
+    "std::convert::From::from": "DefPathHash(Fingerprint(2625310331494506890, 16914879867844736298))",
+    "std::convert::num::<impl std::convert::From<u16> for u32>::from": "DefPathHash(Fingerprint(2625310331494506890, 351647675689356726))",
+    "std::ops::RangeTo": "DefPathHash(Fingerprint(2625310331494506890, 10574698826824487928))",
+    "core::num::<impl u16>::from_ne_bytes": "DefPathHash(Fingerprint(2625310331494506890, 1495807120370836321))",
+    "core::num::<impl u128>::from_ne_bytes": "DefPathHash(Fingerprint(2625310331494506890, 4939256177320394264))",
+    "std::convert::num::<impl std::convert::From<u8> for usize>::from": "DefPathHash(Fingerprint(2625310331494506890, 17687831091226128459))",
+    "std::convert::num::<impl std::convert::From<u16> for usize>::from": "DefPathHash(Fingerprint(2625310331494506890, 837809176292993132))",
+    "std::option::Option::<T>::map_or": "DefPathHash(Fingerprint(2625310331494506890, 4355175605984383273))",
+    "std::convert::TryFrom::try_from": "DefPathHash(Fingerprint(2625310331494506890, 9922540286851272703))",
+    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u32> for usize>::try_from": "DefPathHash(Fingerprint(2625310331494506890, 17783872311156688186))",
+    "core::num::<impl u32>::count_ones": "DefPathHash(Fingerprint(2625310331494506890, 836537697596233883))",
+    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<usize> for u16>::try_from": "DefPathHash(Fingerprint(2625310331494506890, 5319500886365086804))",
+    "std::option::Option::<T>::unwrap": "DefPathHash(Fingerprint(2625310331494506890, 1480910681964472354))",
+    "core::num::<impl usize>::checked_sub": "DefPathHash(Fingerprint(2625310331494506890, 9934033798021829159))",
+    "core::iter::Iterator::position": "DefPathHash(Fingerprint(2625310331494506890, 2237989957492606980))",
+    "core::slice::Iter::position": "DefPathHash(Fingerprint(2625310331494506890, 2176535122761103783))",
+    "core::slice::<impl [T]>::iter": "DefPathHash(Fingerprint(2625310331494506890, 17476794486011104584))",
+    "std::char::methods::<impl char>::is_ascii": "DefPathHash(Fingerprint(2625310331494506890, 16256494501121032715))",
+    "core::num::<impl usize>::checked_add": "DefPathHash(Fingerprint(2625310331494506890, 17584838823673411799))",
+    "core::num::<impl usize>::checked_mul": "DefPathHash(Fingerprint(2625310331494506890, 7728428590953190211))",
+    "core::num::<impl usize>::saturating_sub": "DefPathHash(Fingerprint(2625310331494506890, 1019439101396897879))",
+    "core::include_str#macro": "DefPathHash(Fingerprint(2625310331494506890, 8958481524699003480))",
+    "core::num::u32::MAX": "DefPathHash(Fingerprint(2625310331494506890, 15291854468438188004))",
+    "std::result::Result": "DefPathHash(Fingerprint(2625310331494506890, 1722231926660205897))",
+    "std::prelude::v1::Ok": "DefPathHash(Fingerprint(2625310331494506890, 17622901985528516695))",
+    "std::prelude::v1::Err": "DefPathHash(Fingerprint(2625310331494506890, 17978907391855630035))",
+    "rstyle.result-propagation.try-branch.method": "DefPathHash(Fingerprint(2625310331494506890, 2866223965751521132))",
+    "rstyle.result-propagation.try-branch.implementation": "DefPathHash(Fingerprint(2625310331494506890, 6115890068488309360))",
+    "rstyle.result-propagation.from-residual.method": "DefPathHash(Fingerprint(2625310331494506890, 7730537862534086553))",
+    "rstyle.result-propagation.from-residual.implementation": "DefPathHash(Fingerprint(2625310331494506890, 8855358288464250326))",
+    "rstyle.result-propagation.identity-from.method": "DefPathHash(Fingerprint(2625310331494506890, 16914879867844736298))",
+    "rstyle.result-propagation.identity-from.implementation": "DefPathHash(Fingerprint(2625310331494506890, 4873794763952034942))",
+    "rust.product-conversion.sized-trait": "DefPathHash(Fingerprint(2625310331494506890, 10089672756420721710))",
+    "rust.product-conversion.into-method": "DefPathHash(Fingerprint(2625310331494506890, 13609161288572444496))",
+    "rust.product-conversion.into-trait": "DefPathHash(Fingerprint(2625310331494506890, 8345742672530703744))",
+    "rust.product-conversion.into-blanket-method": "DefPathHash(Fingerprint(2625310331494506890, 3045005145548016635))",
+    "rust.product-conversion.into-blanket-impl": "DefPathHash(Fingerprint(2625310331494506890, 8917740137402109031))",
+    "rust.product-conversion.from-trait": "DefPathHash(Fingerprint(2625310331494506890, 4537933583889048232))",
+    "rust.product-conversion.identity-from-impl": "DefPathHash(Fingerprint(2625310331494506890, 7180445563563511719))",
+    "rstyle.result-propagation.ControlFlow::Break": "DefPathHash(Fingerprint(2625310331494506890, 2043666725371493337))",
+    "rstyle.result-propagation.ControlFlow::Continue": "DefPathHash(Fingerprint(2625310331494506890, 17314499526044600583))",
+    "rstyle.option-propagation.try-branch.method": "DefPathHash(Fingerprint(2625310331494506890, 2866223965751521132))",
+    "rstyle.option-propagation.try-branch.implementation": "DefPathHash(Fingerprint(2625310331494506890, 2802589268660690949))",
+    "rstyle.option-propagation.from-residual.method": "DefPathHash(Fingerprint(2625310331494506890, 7730537862534086553))",
+    "rstyle.option-propagation.from-residual.implementation": "DefPathHash(Fingerprint(2625310331494506890, 12425409595238603386))",
+    "rstyle.option-propagation.ControlFlow::Break": "DefPathHash(Fingerprint(2625310331494506890, 2043666725371493337))",
+    "rstyle.option-propagation.ControlFlow::Continue": "DefPathHash(Fingerprint(2625310331494506890, 17314499526044600583))",
+    "core::num::<impl u32>::from_le_bytes": "DefPathHash(Fingerprint(2625310331494506890, 6094031604273263866))",
+    "std::option::Option::<T>::ok_or": "DefPathHash(Fingerprint(2625310331494506890, 13232629946989216018))",
+    "std::ops::RangeFrom": "DefPathHash(Fingerprint(2625310331494506890, 4973073987313605604))",
+    "rust.concrete-default.trait": "DefPathHash(Fingerprint(2625310331494506890, 13568978161044189960))",
+    "rust.concrete-default.method": "DefPathHash(Fingerprint(2625310331494506890, 3061552371712259765))",
+    "rust.concrete-default.core-crate": "StableCrateId(2625310331494506890)",
+    "rust.concrete-tryfrom.trait": "DefPathHash(Fingerprint(2625310331494506890, 12096266900589858346))",
+    "rust.concrete-tryfrom.method": "DefPathHash(Fingerprint(2625310331494506890, 9922540286851272703))",
+    "rust.concrete-tryfrom.error": "DefPathHash(Fingerprint(2625310331494506890, 574491104488706056))",
+    "rust.concrete-tryfrom.result": "DefPathHash(Fingerprint(2625310331494506890, 1722231926660205897))",
+    "rust.concrete-tryfrom.core-crate": "StableCrateId(2625310331494506890)",
+    "core::i32::MAX": "DefPathHash(Fingerprint(2625310331494506890, 3395782761908124588))",
+    "std::result::Result::<T, E>::expect": "DefPathHash(Fingerprint(2625310331494506890, 5188931152859883101))",
+    "rstyle.lossless-integer.core-stable-crate-id": "StableCrateId(2625310331494506890)",
+    "std::num::TryFromIntError": "DefPathHash(Fingerprint(2625310331494506890, 13012524897237559042))",
+    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<usize> for u64>::try_from": "DefPathHash(Fingerprint(2625310331494506890, 7258545129528161828))",
+    "std::convert::num::<impl std::convert::From<u16> for u64>::from": "DefPathHash(Fingerprint(2625310331494506890, 3869593704916397337))",
+    "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u64> for usize>::try_from": "DefPathHash(Fingerprint(2625310331494506890, 17876112623146492282))",
+    "std::result::Result::<T, E>::and_then": "DefPathHash(Fingerprint(2625310331494506890, 12814975945190598485))",
+    "rust.u16-usize.tryfrom-method": "DefPathHash(Fingerprint(2625310331494506890, 10869844015782465206))",
+    "rust.u16-usize.tryfrom-impl": "DefPathHash(Fingerprint(2625310331494506890, 5147802752492642705))",
+    "rust.u16-usize.from-impl": "DefPathHash(Fingerprint(2625310331494506890, 16069725939652599830))"
+  },
+  "alloc_macro_exports": {
+    "library": {
+      "path": "alloc",
+      "crate": "alloc",
+      "crate_hash": "ff64c73e704917d2221c65219e8023de",
+      "definition_hash": "DefPathHash(Fingerprint(998851496068166567, 998851496068166567))"
+    },
+    "macros": [
+      {
+        "name": "format",
+        "kind": "bang",
+        "public": true,
+        "definition": {
+          "path": "alloc::format",
+          "crate": "alloc",
+          "crate_hash": "ff64c73e704917d2221c65219e8023de",
+          "definition_hash": "DefPathHash(Fingerprint(998851496068166567, 5608121214651359077))"
+        }
+      },
+      {
+        "name": "vec",
+        "kind": "bang",
+        "public": true,
+        "definition": {
+          "path": "alloc::vec",
+          "crate": "alloc",
+          "crate_hash": "ff64c73e704917d2221c65219e8023de",
+          "definition_hash": "DefPathHash(Fingerprint(998851496068166567, 863880933080931103))"
+        }
+      }
+    ]
+  },
+  "cleanup_macro_source_digests": {
+    "core/src/fmt/mod.rs": "sha256:ab918e40543739be20757973f0d4abefcd9624d3759a64fc4147f1d8fc4bc035",
+    "std/src/thread/local.rs": "sha256:e3ab1f6bc155548843ec942bc409aecf2d812e6a4088680a4647df1848b5b1f1",
+    "std/src/sys/thread_local/mod.rs": "sha256:b8e407313093a89008fd0fbdd4805f2da8c7bb7711f0d36c03d858d6f0de5e4a",
+    "std/src/sys/thread_local/native/mod.rs": "sha256:258d21c8714e9e51ab4bba15b086dd5a83acad4573ac597887e5196c30adbeec",
+    "std/src/lib.rs": "sha256:5b6f8c7f657686c59e87c670d6b0df328e1aab622b56172821e486cc932175d5",
+    "alloc/src/lib.rs": "sha256:3b17b423a626ffa5ff114a1f1ebab97df8998b3189753f1a187846c35c0d25c8",
+    "alloc/src/fmt.rs": "sha256:cd07ff6ed15cf6b8b31b7d601b638cf4c6ca9f0d3e8963b33d170160f4b0cf06",
+    "core/src/prelude/mod.rs": "sha256:3db82d282c4ac980659183842d446e13d28b0bab609f3dc37e2036d9fefceb4c",
+    "core/src/prelude/v1.rs": "sha256:b57d120c6762622bd33114f46267dab8ba6c88be38f1433adb62d4ba36cd3a68",
+    "core/src/convert/mod.rs": "sha256:ec1dfed5b8eef22496fc85eeb0b26a5600944fb8d2f6d6e9aaf81fb45af06de5",
+    "std/src/prelude/mod.rs": "sha256:04e3eabaab3ff44016155b2949e7b6751547f9c480be51fb8a448ac8c9b2e105",
+    "std/src/prelude/v1.rs": "sha256:393900118db4000a0bd90f7c8f50fcb55475939586f24285ecca70925d6a6a2c"
+  },
+  "result_propagation_source_digests": {
+    "ops/try_trait.rs": "sha256:5ccb79ee2c633935620932253924f4b8b09d71905db4f5c117a4a25cf3b7cd00",
+    "ops/control_flow.rs": "sha256:503a4cbd71a8825e62538a976dc8d81ad1c86c8d5203b42be3749dd6d29c9be2",
+    "convert/mod.rs": "sha256:ec1dfed5b8eef22496fc85eeb0b26a5600944fb8d2f6d6e9aaf81fb45af06de5",
+    "option.rs": "sha256:693df7245cf3e669b2c442b62c96c76c43ad1f9cfe79f6bf4306e71c32fa9f5d"
+  }
 }

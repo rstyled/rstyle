@@ -23,9 +23,14 @@ impl<'a> Export<'a> {
     pub fn new(
         facts: &'a BuildFacts,
         sources: &mut source_table::Owners<'a>,
+        inventories: &mut option_bundle::Inventories<'a>,
     ) -> Result<Self, String> {
         Ok(Self {
-            frontend_options: option_bundle::Export::new(&facts.frontend_options, sources)?,
+            frontend_options: option_bundle::Export::new(
+                &facts.frontend_options,
+                sources,
+                inventories,
+            )?,
             producer_revision: &facts.producer_revision,
             rustc_version: &facts.rustc_version,
             rustc_commit: &facts.rustc_commit,

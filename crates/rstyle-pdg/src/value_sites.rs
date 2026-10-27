@@ -1,6 +1,10 @@
 //! Independent path checks for nonexecuting expression values and guards.
 //! This validator reads serialized CFG/PDG evidence, not producer assertions.
 
+mod cyclic;
+
+pub(crate) use cyclic::validate as validate_cyclic_sites;
+
 use crate::producer::{Atom, Guard};
 use crate::*;
 use serde::Deserialize;
@@ -51,10 +55,12 @@ struct Context<'a> {
     cfg: &'a CfgDocument,
     sites: Vec<Site>,
     paths: Vec<Path>,
+    operations: BTreeMap<String, String>,
 }
 
 struct Availability<'a> {
-    path: &'a Path,
+    at: Option<&'a str>,
+    outcomes: &'a BTreeMap<String, String>,
     before: &'a BTreeSet<&'a String>,
     visiting: BTreeSet<String>,
 }
@@ -130,6 +136,7 @@ fn context<'a>(pdg: &'a PdgDocument, cfg: &'a CfgDocument) -> Result<Context<'a>
         cfg,
         sites,
         paths,
+        operations: mapping,
     })
 }
 
@@ -326,21 +333,9 @@ impl Context<'_> {
     }
 
     fn check_alternative(&self, site: &Site, alternative: &Alternative) -> Result<(), String> {
-        self.check_guard(&alternative.annotations.guards)?;
-        let frontier: BTreeSet<_> = alternative.completion_cfg_node_ids.iter().collect();
-        if frontier.is_empty() || frontier.len() != alternative.completion_cfg_node_ids.len() {
-            return Err("Completion frontier must be a nonempty set".to_string());
-        }
-        if frontier.iter().any(|id| {
-            self.cfg
-                .nodes
-                .iter()
-                .find(|n| &n.id == *id)
-                .is_none_or(|n| n.operations.len() != 1)
-        }) {
-            return Err("Frontier members must be real operations".to_string());
-        }
+        self.check_alternative_shape(alternative)?;
         self.check_alternative_edge(site, alternative)?;
+        let frontier: BTreeSet<_> = alternative.completion_cfg_node_ids.iter().collect();
         let paths: Vec<_> = self
             .paths
             .iter()
@@ -357,6 +352,25 @@ impl Context<'_> {
             return Err("Alternative completion frontier is not exact".to_string());
         }
 
+        Ok(())
+    }
+
+    fn check_alternative_shape(&self, alternative: &Alternative) -> Result<(), String> {
+        self.check_guard(&alternative.annotations.guards)?;
+        let frontier: BTreeSet<_> = alternative.completion_cfg_node_ids.iter().collect();
+        if frontier.is_empty() || frontier.len() != alternative.completion_cfg_node_ids.len() {
+            return Err("Completion frontier must be a nonempty set".to_string());
+        }
+
+        if frontier.iter().any(|id| {
+            self.cfg
+                .nodes
+                .iter()
+                .find(|n| &n.id == *id)
+                .is_none_or(|n| n.operations.len() != 1)
+        }) {
+            return Err("Frontier members must be real operations".to_string());
+        }
         Ok(())
     }
 
@@ -416,12 +430,25 @@ impl Context<'_> {
             .expect("site on path");
         let before = path.vertices[..successor].iter().collect();
         let availability = Availability {
-            path,
+            at: None,
+            outcomes: &path.outcomes,
             before: &before,
             visiting: BTreeSet::new(),
         };
-        let available = self.satisfies_before(&site.annotations.guards, &availability);
-        if available != path.outcomes.contains_key(&site.controller_pdg_node_id) {
+        self.check_site_availability(site, &availability)
+    }
+
+    fn check_site_availability(
+        &self,
+        site: &Site,
+        availability: &Availability<'_>,
+    ) -> Result<(), String> {
+        let available = self.satisfies_before(&site.annotations.guards, availability);
+        if available
+            != availability
+                .outcomes
+                .contains_key(&site.controller_pdg_node_id)
+        {
             return Err(
                 "Merge availability does not match normally completed controller paths".to_string(),
             );
@@ -429,18 +456,19 @@ impl Context<'_> {
         let selected: Vec<_> = site
             .alternatives
             .iter()
-            .filter(|a| self.satisfies_before(&a.annotations.guards, &availability))
+            .filter(|a| self.satisfies_before(&a.annotations.guards, availability))
             .collect();
         if selected.len() != usize::from(available) {
             return Err("Merge alternative guards must partition available paths".to_string());
         }
         for alternative in selected {
             if site.selection_kind.is_none()
-                && path.outcomes.get(&site.controller_pdg_node_id) != Some(&alternative.outcome)
+                && availability.outcomes.get(&site.controller_pdg_node_id)
+                    != Some(&alternative.outcome)
             {
                 return Err("Alternative guard does not imply the controller outcome".to_string());
             }
-            if !self.available(&alternative.value_pdg_node_id, &availability)? {
+            if !self.available(&alternative.value_pdg_node_id, availability)? {
                 return Err(
                     "Alternative snapshot was not evaluated or available on its path".to_string(),
                 );
@@ -469,6 +497,9 @@ impl Context<'_> {
             .iter()
             .find(|s| s.pdg_node_id == id)
             .ok_or("Missing nested merge site")?;
+        if !successor_completed(site, availability) {
+            return Ok(false);
+        }
         if !self.satisfies_before(&site.annotations.guards, availability) {
             return Ok(false);
         }
@@ -498,7 +529,7 @@ impl Context<'_> {
     fn satisfies_before(&self, guard: &Guard, availability: &Availability<'_>) -> bool {
         guard.iter().any(|term| {
             term.iter().all(|atom| {
-                availability.path.outcomes.get(&atom.controller_pdg_node_id) == Some(&atom.outcome)
+                availability.outcomes.get(&atom.controller_pdg_node_id) == Some(&atom.outcome)
                     && availability.before.iter().any(|cfg_id| {
                         self.operation_at(cfg_id) == Some(&atom.controller_pdg_node_id)
                     })
@@ -507,11 +538,7 @@ impl Context<'_> {
     }
 
     fn operation_at(&self, cfg_id: &str) -> Option<&str> {
-        let map = self.pdg.extensions.get(OPERATION_MAP_KEY)?.as_array()?;
-        map.iter()
-            .find(|m| m.get("cfg_node_id").and_then(serde_json::Value::as_str) == Some(cfg_id))?
-            .get("pdg_node_id")?
-            .as_str()
+        self.operations.get(cfg_id).map(String::as_str)
     }
 
     fn check_value_operands(&self) -> Vec<String> {
@@ -525,7 +552,9 @@ impl Context<'_> {
 
     fn value_operand(&self, edge: &PdgEdge) -> Result<(), String> {
         let producer = self.node(&edge.source)?;
-        if producer.annotations.get(TYPE).and_then(known_type) == Some("unit") {
+        if producer.annotations.get(TYPE).and_then(known_type) == Some("unit")
+            && !crate::data_aggregates::unit_slot(self.pdg, edge)
+        {
             return Err("Unit value edges are forbidden".to_string());
         }
         if edge.subkind != "value_operand" {
@@ -543,7 +572,8 @@ impl Context<'_> {
                 .expect("mapped target");
             let before = path.vertices[..target_cfg].iter().collect();
             let availability = Availability {
-                path,
+                at: None,
+                outcomes: &path.outcomes,
                 before: &before,
                 visiting: BTreeSet::new(),
             };
@@ -572,4 +602,14 @@ fn satisfies(guard: &Guard, path: &Path) -> bool {
 fn predecessor<'a>(path: &'a Path, successor: &str) -> Option<&'a String> {
     let index = path.vertices.iter().position(|v| v == successor)?;
     index.checked_sub(1).map(|index| &path.vertices[index])
+}
+
+fn successor_completed(site: &Site, availability: &Availability<'_>) -> bool {
+    availability.at.is_none_or(|at| {
+        at == site.cfg_successor_node_id
+            || availability
+                .before
+                .iter()
+                .any(|vertex| vertex.as_str() == site.cfg_successor_node_id.as_str())
+    })
 }

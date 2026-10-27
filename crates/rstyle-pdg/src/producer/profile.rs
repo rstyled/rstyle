@@ -14,12 +14,20 @@ use serde_json::Value;
 #[cfg(test)]
 use serde_json::json;
 
-pub fn apply(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, String> {
+pub fn apply(
+    pair: Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    graph: &super::Graph,
+) -> Result<Pair, String> {
     crate::diagnostics::Stage::new("producer.profile", &facts.name, None)
-        .observe(|| apply_profile(pair, facts))
+        .observe(|| apply_profile(pair, facts, graph))
 }
 
-fn apply_profile(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, String> {
+fn apply_profile(
+    pair: Pair,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    graph: &super::Graph,
+) -> Result<Pair, String> {
     let profile = ExtractionProfile::from_facts(facts)?;
     if profile == ExtractionProfile::R0 {
         return Ok(pair);
@@ -29,7 +37,7 @@ fn apply_profile(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Re
     configure_cfg(&mut cfg, &policy, profile);
     let evidence = selection_evidence(facts, profile)?;
     if profile.supports("rust.scalar-loops") {
-        let cyclic = cyclic_policy()?;
+        let cyclic = cyclic_policy(profile)?;
         pdg.extensions.insert(
             "rstyle.hir-coverage:cyclic-flow-policy".into(),
             cyclic.clone(),
@@ -42,23 +50,46 @@ fn apply_profile(pair: Pair, facts: &dyn crate::unit_store::EvidenceFacts) -> Re
 
     let pair = Pair { pdg, cfg };
     if profile.supports("rust.concrete-read-only-data") {
-        crate::data_documents::apply(pair, facts)
+        crate::data_documents::apply(pair, facts, graph)
     } else {
         Ok(pair)
     }
 }
 
 fn configure_cfg(cfg: &mut crate::CfgDocument, policy: &ProfileId, profile: ExtractionProfile) {
-    cfg.profile.name = policy.id.clone();
-    cfg.profile.version = policy.version.clone();
-    if profile.supports("rust.scalar-loops") {
-        cfg.profile.exit_policy =
-            "one normal exit; actual returns/fallthrough only; divergence remains cyclic".into();
+    cfg.profile = configured_cfg_profile(cfg, policy, profile);
+}
+
+fn configured_cfg_profile(
+    cfg: &crate::CfgDocument,
+    policy: &ProfileId,
+    profile: ExtractionProfile,
+) -> crate::cfg::CfgProfile {
+    let exit_policy = if cfg.exit_node_ids.iter().any(|exit| exit.starts_with("P:")) {
+        "normal completion and explicit checked-failure exits; divergence remains cyclic".into()
+    } else if profile.supports("rust.scalar-loops") {
+        "one normal exit; actual returns/fallthrough only; divergence remains cyclic".into()
+    } else {
+        cfg.profile.exit_policy.clone()
+    };
+
+    crate::cfg::CfgProfile {
+        name: policy.id.clone(),
+        version: policy.version.clone(),
+        exit_policy,
+        ..cfg.profile.clone()
     }
 }
 
-fn cyclic_policy() -> Result<Value, String> {
-    serde_json::from_str(r#"{"reaching_definitions":"finite-monotone-kill-gen/1","postdominance":"all-maximal-paths-least-fixed-point/1","execution":"nearest-strict-entry-dominator/1","value_availability":"strict-dominance-without-conditional-value-merges/1","virtual_executable_exits":false}"#).map_err(|e| e.to_string())
+fn cyclic_policy(profile: ExtractionProfile) -> Result<Value, String> {
+    let mut policy: Value = serde_json::from_str(r#"{"reaching_definitions":"finite-monotone-kill-gen/1","postdominance":"all-maximal-paths-least-fixed-point/1","execution":"nearest-strict-entry-dominator/1","value_availability":"strict-dominance-without-conditional-value-merges/1","virtual_executable_exits":false}"#).map_err(|e| e.to_string())?;
+    if profile.supports("rust.outside-loop-value-merges") {
+        policy["value_availability"] = "outside-cycle-guard-states-and-must-evaluation/1".into();
+    }
+    if profile.supports("rust.cyclic-value-merges") {
+        policy["value_availability"] = "natural-loop-kill-gen-and-guard-states/1".into();
+    }
+    Ok(policy)
 }
 
 fn selection_evidence(
@@ -73,7 +104,11 @@ fn selection_evidence(
         signature: &facts.signature,
         frontend: frontend_ref.is_none().then_some(facts),
         frontend_ref,
-        semantics: "local expansion conformance; bounded normal flow; exceptional flow omitted",
+        semantics: if crate::mutable_scalars::enabled(facts) {
+            "local expansion conformance; bounded scalar referent memory flow and explicit checked failures; no owned cleanup"
+        } else {
+            "local expansion conformance; bounded normal flow; exceptional flow omitted"
+        },
     };
 
     serde_json::to_value(selection).map_err(|e| e.to_string())

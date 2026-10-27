@@ -1,0 +1,253 @@
+{
+  "identity": "rstyle.development.unsigned-index-conversions/1",
+  "status": "source-first selection; Data3.117 native no-default family capture and strict selected replay validated",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18"
+  },
+  "build_selection": {
+    "target": "Original regex-automata library; test=false",
+    "edition": "2021",
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "pointer_width": 64,
+    "debug_assertions": true,
+    "overflow_checks": true,
+    "panic_strategy": "unwind",
+    "optimization": "No",
+    "contexts": [
+      {
+        "name": "default",
+        "default_features": true,
+        "features": [],
+        "expected_feature_closure": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ]
+      },
+      {
+        "name": "no-default",
+        "default_features": false,
+        "features": [],
+        "expected_feature_closure": []
+      }
+    ],
+    "additional_oracle_control": "debug_assertions=false at opt-level0 selects release U32/U64 cast bodies; separate runtime control, no broader release admission claim"
+  },
+  "functions": [
+    {
+      "name": "<util::primitives::SmallIndex as core::convert::TryFrom<u16>>::try_from",
+      "path": "src/util/primitives.rs",
+      "start": 11963,
+      "end": 12229,
+      "checksum": "xxh3-64:e8966048cbb8149a",
+      "source": "fn try_from(index: u16) -> Result<SmallIndex, SmallIndexError> {\n        if u32::from(index) > SmallIndex::MAX.as_u32() {\n            return Err(SmallIndexError { attempted: u64::from(index) });\n        }\n        Ok(SmallIndex::new_unchecked(index.as_usize()))\n    }",
+      "expected_source_classification": "in-scope under exact unsigned trait/source/cleanup and existing helper evidence"
+    },
+    {
+      "name": "<util::primitives::SmallIndex as core::convert::TryFrom<u32>>::try_from",
+      "path": "src/util/primitives.rs",
+      "start": 12307,
+      "end": 12562,
+      "checksum": "xxh3-64:6e4ce7acee6d9359",
+      "source": "fn try_from(index: u32) -> Result<SmallIndex, SmallIndexError> {\n        if index > SmallIndex::MAX.as_u32() {\n            return Err(SmallIndexError { attempted: u64::from(index) });\n        }\n        Ok(SmallIndex::new_unchecked(index.as_usize()))\n    }",
+      "expected_source_classification": "in-scope under exact unsigned trait/source/cleanup and existing helper evidence"
+    },
+    {
+      "name": "<util::primitives::SmallIndex as core::convert::TryFrom<u64>>::try_from",
+      "path": "src/util/primitives.rs",
+      "start": 12640,
+      "end": 12884,
+      "checksum": "xxh3-64:aa3f5aa0f8785944",
+      "source": "fn try_from(index: u64) -> Result<SmallIndex, SmallIndexError> {\n        if index > SmallIndex::MAX.as_u64() {\n            return Err(SmallIndexError { attempted: index });\n        }\n        Ok(SmallIndex::new_unchecked(index.as_usize()))\n    }",
+      "expected_source_classification": "in-scope under exact unsigned trait/source/cleanup and existing helper evidence"
+    },
+    {
+      "name": "<util::primitives::SmallIndex as core::convert::TryFrom<usize>>::try_from",
+      "path": "src/util/primitives.rs",
+      "start": 12964,
+      "end": 13210,
+      "checksum": "xxh3-64:55ee915a478f6fcf",
+      "source": "fn try_from(index: usize) -> Result<SmallIndex, SmallIndexError> {\n        if index > SmallIndex::MAX.as_usize() {\n            return Err(SmallIndexError { attempted: index.as_u64() });\n        }\n        Ok(SmallIndex::new_unchecked(index))\n    }",
+      "expected_source_classification": "in-scope under exact unsigned trait/source/cleanup and existing helper evidence"
+    }
+  ],
+  "generated_members": [
+    {
+      "name": "PatternID/StateID TryFrom<u16> template",
+      "path": "src/util/primitives.rs",
+      "start": 21259,
+      "end": 21474,
+      "checksum": "xxh3-64:95ac6f2423436f1c",
+      "source": "impl TryFrom<u16> for $name {\n            type Error = $err;\n\n            fn try_from(value: u16) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
+      "expected_source_classification": "deferred: generated trait owner/substitution + original mapping callbacks need independent proof"
+    },
+    {
+      "name": "PatternID/StateID TryFrom<u32> template",
+      "path": "src/util/primitives.rs",
+      "start": 21484,
+      "end": 21699,
+      "checksum": "xxh3-64:c13385dcda3f0b27",
+      "source": "impl TryFrom<u32> for $name {\n            type Error = $err;\n\n            fn try_from(value: u32) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
+      "expected_source_classification": "deferred: generated trait owner/substitution + original mapping callbacks need independent proof"
+    },
+    {
+      "name": "PatternID/StateID TryFrom<u64> template",
+      "path": "src/util/primitives.rs",
+      "start": 21709,
+      "end": 21924,
+      "checksum": "xxh3-64:b69ae735393564eb",
+      "source": "impl TryFrom<u64> for $name {\n            type Error = $err;\n\n            fn try_from(value: u64) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
+      "expected_source_classification": "deferred: generated trait owner/substitution + original mapping callbacks need independent proof"
+    },
+    {
+      "name": "PatternID/StateID TryFrom<usize> template",
+      "path": "src/util/primitives.rs",
+      "start": 21934,
+      "end": 22153,
+      "checksum": "xxh3-64:d2b69908d4346350",
+      "source": "impl TryFrom<usize> for $name {\n            type Error = $err;\n\n            fn try_from(value: usize) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
+      "expected_source_classification": "deferred: generated trait owner/substitution + original mapping callbacks need independent proof"
+    }
+  ],
+  "source_obligations": [
+    {
+      "name": "complete original TryFrom<u16> for SmallIndex impl",
+      "path": "src/util/primitives.rs",
+      "start": 11889,
+      "end": 12231,
+      "checksum": "xxh3-64:0ac731852af25bc9",
+      "source": "impl TryFrom<u16> for SmallIndex {\n    type Error = SmallIndexError;\n\n    fn try_from(index: u16) -> Result<SmallIndex, SmallIndexError> {\n        if u32::from(index) > SmallIndex::MAX.as_u32() {\n            return Err(SmallIndexError { attempted: u64::from(index) });\n        }\n        Ok(SmallIndex::new_unchecked(index.as_usize()))\n    }\n}",
+      "expected_source_classification": "complete owner required"
+    },
+    {
+      "name": "complete original TryFrom<u32> for SmallIndex impl",
+      "path": "src/util/primitives.rs",
+      "start": 12233,
+      "end": 12564,
+      "checksum": "xxh3-64:24e96794a94caf26",
+      "source": "impl TryFrom<u32> for SmallIndex {\n    type Error = SmallIndexError;\n\n    fn try_from(index: u32) -> Result<SmallIndex, SmallIndexError> {\n        if index > SmallIndex::MAX.as_u32() {\n            return Err(SmallIndexError { attempted: u64::from(index) });\n        }\n        Ok(SmallIndex::new_unchecked(index.as_usize()))\n    }\n}",
+      "expected_source_classification": "complete owner required"
+    },
+    {
+      "name": "complete original TryFrom<u64> for SmallIndex impl",
+      "path": "src/util/primitives.rs",
+      "start": 12566,
+      "end": 12886,
+      "checksum": "xxh3-64:5bbad842e5f65dbf",
+      "source": "impl TryFrom<u64> for SmallIndex {\n    type Error = SmallIndexError;\n\n    fn try_from(index: u64) -> Result<SmallIndex, SmallIndexError> {\n        if index > SmallIndex::MAX.as_u64() {\n            return Err(SmallIndexError { attempted: index });\n        }\n        Ok(SmallIndex::new_unchecked(index.as_usize()))\n    }\n}",
+      "expected_source_classification": "complete owner required"
+    },
+    {
+      "name": "complete original TryFrom<usize> for SmallIndex impl",
+      "path": "src/util/primitives.rs",
+      "start": 12888,
+      "end": 13212,
+      "checksum": "xxh3-64:c114d65f929d4e84",
+      "source": "impl TryFrom<usize> for SmallIndex {\n    type Error = SmallIndexError;\n\n    fn try_from(index: usize) -> Result<SmallIndex, SmallIndexError> {\n        if index > SmallIndex::MAX.as_usize() {\n            return Err(SmallIndexError { attempted: index.as_u64() });\n        }\n        Ok(SmallIndex::new_unchecked(index))\n    }\n}",
+      "expected_source_classification": "complete owner required"
+    }
+  ],
+  "context_files": [
+    {
+      "path": "Cargo.toml",
+      "byte_length": 4300,
+      "checksum": "xxh3-64:3cf618cce43eae27",
+      "role": "Complete original file consistency; full capture source census still required"
+    },
+    {
+      "path": "src/lib.rs",
+      "byte_length": 30727,
+      "checksum": "xxh3-64:ab006308993a85c1",
+      "role": "Complete original file consistency; full capture source census still required"
+    },
+    {
+      "path": "src/util/mod.rs",
+      "byte_length": 1963,
+      "checksum": "xxh3-64:a9e9874bc032778e",
+      "role": "Complete original file consistency; full capture source census still required"
+    },
+    {
+      "path": "src/util/primitives.rs",
+      "byte_length": 27691,
+      "checksum": "xxh3-64:9f3383a64b18378f",
+      "role": "Complete original file consistency; full capture source census still required"
+    },
+    {
+      "path": "src/util/int.rs",
+      "byte_length": 6514,
+      "checksum": "xxh3-64:ab93af24618069e1",
+      "role": "Complete original file consistency; full capture source census still required"
+    }
+  ],
+  "contract": {
+    "inputs": [
+      "u16",
+      "u32",
+      "u64",
+      "usize"
+    ],
+    "success": "input <= 2147483646 returns the same numeric index",
+    "error": "input > 2147483646 returns exact attempted=u64(input); no truncation or panic",
+    "bounds": "pinned reviewed 64-bit targets, default/no-default, debug assertions true/false; only actual selected core TryFrom implementation with exact associated Error; original neighbors retained",
+    "not_supported": "signed/bool/float inputs, generic or dynamic impls, competing inherent dispatch, arbitrary macro-generated trait bodies, owning/drop-bearing errors,16/32-bit U64->usize totality"
+  },
+  "blockers": [
+    "Current source, structural signature, call and lexical checks hard-code usize; replace with one exact policy-gated input evidence shared across every layer, not acceptance by display name.",
+    "U16::as_usize needs selected local primitive impl, complete trait roster and existing lossless u16->usize From.",
+    "U64::as_usize needs selected local impl + complete trait roster; debug branch requires independently pinned lossless 64-bit u64->usize TryFrom and its exact expect, release branch exact cast.",
+    "u16 error construction requires pinned lossless u16->u64 From; u16->u32 and u32->u64 existing contracts remain controls.",
+    "MAX values/getters, guard-before-narrowing, no-drop nominal errors, all selected callee graphs and source scopes remain mandatory.",
+    "Generated PatternID/StateID conversions additionally need trait-impl expansion/associated-type source and wrapper Result map/map_err ownership; do not infer those from inherent constructor support."
+  ],
+  "unknowns": [
+    "Potential additional blockers after exact source/trait association becomes available; source audit does not certify whole pipelines.",
+    "Foreign native execution and16/32-bit contexts unverified; keep outcomes distinct."
+  ],
+  "expectations": {
+    "positive": [
+      "Every u16 input succeeds unchanged.",
+      "u32/u64/usize boundaries MAX-1,MAX succeed;MAX+1 and each input maximum fail with exact attempted.",
+      "High64-bit values never wrap into a valid index.",
+      "Exact selected core trait/local body/associated Error and one evaluated input must agree across source, owning observation and call instance."
+    ],
+    "negative": [
+      "Wrong structural input, swapped requested/selected signatures, wrong associated error or builtin shadow, stale/historical policy.",
+      "Changed local trait roster/body, expect producer/guard/message, wrong compiler/target authority.",
+      "Generated trait conversions remain excluded pending their complete separate source/Result mapping proof."
+    ],
+    "matching": "Deterministic repeated captures must preserve complete pair decisions; similarities are structural, not behavioral equivalence. Cross-width scores do not establish equal semantics."
+  }
+}

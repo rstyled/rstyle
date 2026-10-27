@@ -1,0 +1,266 @@
+{
+  "identity": "rstyle.development.calendar-helper-readiness/1",
+  "status": "source-first selection; native oracle passed; six-context capture-only baseline: five selected core helpers admitted, three selected time callers excluded",
+  "inventory_policy": "Separate development selection. Frozen inventories, identities, contexts, denominators and historical results remain unchanged.",
+  "packages": [
+    {
+      "name": "time",
+      "version": "0.3.47",
+      "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47",
+      "source_tree_sha256": "07b723930c7bcf265b683d09396ca9a74ca49224c70713b0fa98ff0b37de1f3b",
+      "source_tree_contract": "SHA256 of compact JSON sorted [(relative_path,SHA256(bytes))] for Cargo.toml,Cargo.toml.orig and every src/**/*.rs file; no source omitted.",
+      "file_sha256": {
+        "Cargo.toml": "414b315922eeaa474993676bfdf4434de91e47cd7d055feff5fc413cb3f06912",
+        "src/lib.rs": "862ce2dd3a93182098983c8862531993b09259cb8003290e3c802d9f6ac3236f",
+        "src/month.rs": "9857453f3418273cf2ad90ddc3601e685808f1f887fc6ff41d55abb45f0f574a",
+        "src/util.rs": "c1e09bd0aedc6f6829a2d9931d885939ce1a5944e3003210a09be34b7fcd3d91"
+      }
+    },
+    {
+      "name": "time-core",
+      "version": "0.1.8",
+      "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.8",
+      "source_tree_sha256": "12c0d9b2eb5eb653dcc086fcf99e117305973cd3b48736d4d2b4b0ceaef8b58e",
+      "source_tree_contract": "SHA256 of compact JSON sorted [(relative_path,SHA256(bytes))] for Cargo.toml,Cargo.toml.orig and every src/**/*.rs file; no source omitted.",
+      "file_sha256": {
+        "Cargo.toml": "d3aa5f1f016bda5ae46593324dfd730ed0fdf1f0ed137b4be38f55d98530389e",
+        "src/lib.rs": "3c727b5ea68b6992751cad27282921055cec1dfa700bb0f885d25a25c118247e",
+        "src/util.rs": "d8aea82023758a2d81c01ed28c08274cc56b3444ff95510af5d67b0cba54c171",
+        "src/hint.rs": "3ab785980313b8c7593a6f06f0a09e0c32863e602b56faeba35b198042f21619"
+      }
+    }
+  ],
+  "build": {
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "edition": "2024",
+    "cargo_target": "original registry time/time-core library dependency units under separate exact-version Cargo consumer; non-test",
+    "profile": "debug; debug_assertions=true; overflow_checks=true; panic=unwind; opt_level=No; pointer_width64",
+    "contexts": [
+      {
+        "name": "default",
+        "default_features": true,
+        "features": [],
+        "effective_time_features": [
+          "alloc",
+          "default",
+          "std"
+        ],
+        "effective_time_core_features": []
+      },
+      {
+        "name": "no-default",
+        "default_features": false,
+        "features": [],
+        "effective_time_features": [],
+        "effective_time_core_features": []
+      }
+    ],
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "dependency": "time0.3.47 pins time-core =0.1.8; capture actual Cargo unit and --extern relationship, not name/version inference",
+    "runtime_scope": "Native host execution only; cross-target capture/replay is separate.",
+    "consumer_dependencies": {
+      "time": "=0.3.47",
+      "time-core": "=0.1.8"
+    },
+    "source_identity": "registry+https://github.com/rust-lang/crates.io-index; original registry roots frozen above, no path substitution or source edits",
+    "effective_feature_correction": "First exact-consumer Cargo unit graph includes the default feature marker alongside alloc/std. Corrected expected metadata only; declared default-features=true, source identities, selected functions and context membership unchanged."
+  },
+  "functions": [
+    {
+      "name": "month::Month::length",
+      "role": "selected-caller",
+      "file": "src/month.rs",
+      "span": {
+        "start": 1722,
+        "end": 1812
+      },
+      "sha256": "67b692a42651badcd465d788df99b07c20aaec51b779102ea2abf0d1b6d72044",
+      "source": "pub const fn length(self, year: i32) -> u8 {\n        util::days_in_month(self, year)\n    }",
+      "package": "time"
+    },
+    {
+      "name": "util::days_in_month",
+      "role": "selected-caller",
+      "file": "src/util.rs",
+      "span": {
+        "start": 693,
+        "end": 808
+      },
+      "sha256": "57de680e72bd62c50fa9c37635fb5504c2a127e4697519c962007db5700ec666",
+      "source": "pub const fn days_in_month(month: Month, year: i32) -> u8 {\n    time_core::util::days_in_month(month as u8, year)\n}",
+      "package": "time"
+    },
+    {
+      "name": "util::days_in_year_month",
+      "role": "selected-caller",
+      "file": "src/util.rs",
+      "span": {
+        "start": 1129,
+        "end": 1226
+      },
+      "sha256": "155a83d880d588427560c7f3d867ee7ba3710814971c7d66cb16827bc9605e25",
+      "source": "pub const fn days_in_year_month(year: i32, month: Month) -> u8 {\n    days_in_month(month, year)\n}",
+      "package": "time"
+    },
+    {
+      "name": "util::days_in_month",
+      "role": "required-dependency",
+      "file": "src/util.rs",
+      "span": {
+        "start": 5072,
+        "end": 5180
+      },
+      "sha256": "6577e15fcbf972f3f2a236d01c51f793c401ff25a9f74039ca53522e3ccced1e",
+      "source": "pub const fn days_in_month(month: u8, year: i32) -> u8 {\n    days_in_month_leap(month, is_leap_year(year))\n}",
+      "package": "time-core"
+    },
+    {
+      "name": "util::is_leap_year",
+      "role": "required-dependency",
+      "file": "src/util.rs",
+      "span": {
+        "start": 2776,
+        "end": 2968
+      },
+      "sha256": "1ce6e6176f0a849e6d8dddfc9a0732cb2f856e3aadd9884448c8f09fd6d4aa99",
+      "source": "pub const fn is_leap_year(year: i32) -> bool {\n    (year as i64)\n        .unsigned_abs()\n        .wrapping_mul(0x4000_0000_28F5_C28F)\n        & 0xC000_000F_8000_000F\n        <= 0xF_8000_0000\n}",
+      "package": "time-core"
+    },
+    {
+      "name": "util::days_in_month_leap",
+      "role": "required-dependency",
+      "file": "src/util.rs",
+      "span": {
+        "start": 5427,
+        "end": 5695
+      },
+      "sha256": "f0d088e30b3f88a5299d62f9f108fccfbf3a43504520d1fcdad32898b92b39ff",
+      "source": "pub const fn days_in_month_leap(month: u8, is_leap_year: bool) -> u8 {\n    debug_assert!(month >= 1);\n    debug_assert!(month <= 12);\n\n    if hint::unlikely(month == 2) {\n        if is_leap_year { 29 } else { 28 }\n    } else {\n        30 | month ^ (month >> 3)\n    }\n}",
+      "package": "time-core"
+    },
+    {
+      "name": "hint::unlikely",
+      "role": "required-dependency",
+      "file": "src/hint.rs",
+      "span": {
+        "start": 571,
+        "end": 664
+      },
+      "sha256": "a09b492b02f4a3a6c2097e48f92afe00db6bc697e0b72854eca7046e56678dee",
+      "source": "pub(crate) const fn unlikely(b: bool) -> bool {\n    if b {\n        cold_path();\n    }\n    b\n}",
+      "package": "time-core"
+    },
+    {
+      "name": "hint::cold_path",
+      "role": "required-dependency",
+      "file": "src/hint.rs",
+      "span": {
+        "start": 288,
+        "end": 322
+      },
+      "sha256": "ee5e21e9be90ec75063fe20dee8b04c8dabb2407078b9c8281053edf5c3d35f4",
+      "source": "pub(crate) const fn cold_path() {}",
+      "package": "time-core"
+    }
+  ],
+  "owners": [
+    {
+      "name": "month::Month",
+      "role": "complete-owner",
+      "file": "src/month.rs",
+      "span": {
+        "start": 259,
+        "end": 890
+      },
+      "sha256": "b0c4a7a29dc41afceb93723ff784f059b6f34e84431f8ece0bf60056280edb60",
+      "source": "#[repr(u8)]\n#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum Month {\n    #[expect(missing_docs)]\n    January = 1,\n    #[expect(missing_docs)]\n    February = 2,\n    #[expect(missing_docs)]\n    March = 3,\n    #[expect(missing_docs)]\n    April = 4,\n    #[expect(missing_docs)]\n    May = 5,\n    #[expect(missing_docs)]\n    June = 6,\n    #[expect(missing_docs)]\n    July = 7,\n    #[expect(missing_docs)]\n    August = 8,\n    #[expect(missing_docs)]\n    September = 9,\n    #[expect(missing_docs)]\n    October = 10,\n    #[expect(missing_docs)]\n    November = 11,\n    #[expect(missing_docs)]\n    December = 12,\n}",
+      "package": "time"
+    }
+  ],
+  "dependency_dag": {
+    "time::month::Month::length": [
+      "time::util::days_in_month"
+    ],
+    "time::util::days_in_year_month": [
+      "time::util::days_in_month"
+    ],
+    "time::util::days_in_month": [
+      "time_core::util::days_in_month"
+    ],
+    "time_core::util::days_in_month": [
+      "time_core::util::is_leap_year",
+      "time_core::util::days_in_month_leap"
+    ],
+    "time_core::util::days_in_month_leap": [
+      "time_core::hint::unlikely"
+    ],
+    "time_core::hint::unlikely": [
+      "time_core::hint::cold_path"
+    ],
+    "time_core::hint::cold_path": [],
+    "time_core::util::is_leap_year": []
+  },
+  "positive_expectations": [
+    "Gregorian leap iff year%4==0 and (year%100!=0 or year%400==0), including negative years and year0.",
+    "For every month1..12 and year-9999..9999, ordinary month table plus February leap day agrees across all three original time callers and time-core leaves.",
+    "Additional i32MIN/i32MAX, +/-10000 and century boundaries exercise full-domain non-range-validated helpers.",
+    "Invalid numeric months0,13,255 panic in debug time-core helpers; Month APIs receive only valid enum values."
+  ],
+  "negative_expectations": [
+    "Missing dependency unit, absent source/capture or incomplete transitive closure is not supported.",
+    "Wrong package/version/source hash/crate identity/definition hash, stale --extern mapping or unrelated same-name callee rejects.",
+    "Different target, pointer width, compiler/profile or effective dependency feature context cannot substitute for exact resolved Cargo dependency unit.",
+    "Changed transitive callee or same-name replacement rejects after resealing transport.",
+    "Month declaration, repr(u8), exact discriminants1..12, Copy/drop/derive and enum cast require independent complete proof; no arbitrary nominal values.",
+    "No ignored neighboring imports/items, missing-data-as-zero or invented purity."
+  ],
+  "known_blockers": [
+    "Registry dependency capture currently uses workspace wrapper only.",
+    "Helper identity/build proof currently requires local resolution and identical compiler invocation/selected unit.",
+    "Month repr(u8) is outside current default-repr fieldless enum contract; enum cast/source/derive proof must close together.",
+    "Exact module/import boundaries include core fmt/num/str, powerfmt imports and sibling errors; unrelated-item handling must preserve proof.",
+    "Selected function attributes currently reject track_caller (time-core month helpers), cold (hint::cold_path) and deprecated (days_in_year_month); hint module expect also needs exact presence semantics.",
+    "Month variant expect(missing_docs) attributes are outside the current fieldless declaration grammar, independently of repr(u8).",
+    "Public is_leap_year calls i64::unsigned_abs and u64::wrapping_mul; neither currently has an explicit operation implementation in rstyle-pdg/src. Exact resolved core identities and independent arithmetic/effect contracts need captured confirmation."
+  ],
+  "unknowns": [
+    "Resolved dependency crate hashes, DefPathHash identities, selected substitutions and actual --extern artifact closure await capture.",
+    "Current admission outcomes and all additional source-boundary restrictions await unchanged full Cargo capture.",
+    "Whether source restrictions on complete Month module need more than bounded repr/cast work awaits source audit.",
+    "Direct original manifest offline resolution needs missing dev dependencies; measure only original dependency units under exact-version registry Cargo consumer flags, consistent with native oracle."
+  ],
+  "bounded_contract": "Nongeneric direct free scalar dependency functions with empty type/const substitutions; exact captured Cargo dependency edge and full transitive source/build/definition closure. Month remains local and must independently satisfy complete repr(u8)/Copy/drop/cast proof. No generic traits, cross-unit nominal transport, references, ownership, recursion or arbitrary effects.",
+  "large_dates": "Deferred separate context: selected public helpers are not cfg-dependent, but enabling large-dates changes dependency feature identity and must never reuse default-unit evidence.",
+  "acceptance": "Original callers and full dependency DAG through real Cargo capture, independent verification, strict admission and selected matching in six fixed contexts; source-first native expectations and resealed adversarial negatives remain separate evidence.",
+  "native_validation": {
+    "identity": "rstyle.original-calendar-helpers-native-oracle/1",
+    "source_identities_checked": true,
+    "contexts": [
+      {
+        "month_year_cases": 240216,
+        "debug_panic_cases": 9,
+        "mismatches": 0,
+        "scope": "unchanged libraries native execution",
+        "context": "default"
+      },
+      {
+        "month_year_cases": 240216,
+        "debug_panic_cases": 9,
+        "mismatches": 0,
+        "scope": "unchanged libraries native execution",
+        "context": "no-default"
+      }
+    ],
+    "limitation": "Native runtime only; capture, strict admission and matching are separate."
+  },
+  "baseline": {
+    "status": "not measured",
+    "missing_selected_unit": "unknown/incomplete capture; never excluded or zero admissions",
+    "sequence": "Establish dependency capture-only checkpoint, classify all selected original units, then measure admission changes separately from capture gains."
+  }
+}

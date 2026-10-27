@@ -1,0 +1,157 @@
+{
+  "identity": "rstyle.development.time-digit-prefixes/1",
+  "status": "source-selected original family; admission independent and unmeasured",
+  "package": {
+    "name": "time",
+    "version": "0.3.47",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-0.3.47",
+    "manifest_identity": "xxh3-64:2a338875bc81fee0",
+    "file_identities": {
+      "Cargo.toml": "xxh3-64:2a338875bc81fee0",
+      "src/lib.rs": "xxh3-64:4b73910b394bbb70",
+      "src/parsing/mod.rs": "xxh3-64:a8674d6cecab7fe6",
+      "src/parsing/combinator/mod.rs": "xxh3-64:ca1f2ad22a69682b"
+    }
+  },
+  "build": {
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "target": "aarch64-unknown-linux-gnu",
+    "pointer_width": 64,
+    "edition": "2024",
+    "opt_level": 0,
+    "overflow_checks": true,
+    "debug_assertions": true,
+    "panic": "unwind",
+    "capture_target": "original time library test=false",
+    "oracle_target": "original time library path dependency test=false in a temporary byte-preserving crate copy; append-only combinator oracle child and root trampoline; separate runner binary",
+    "contexts": [
+      {
+        "name": "default-parsing",
+        "default_features": true,
+        "features": [
+          "parsing"
+        ],
+        "feature_closure": [
+          "alloc",
+          "default",
+          "parsing",
+          "std"
+        ]
+      },
+      {
+        "name": "no-default-parsing",
+        "default_features": false,
+        "features": [
+          "parsing"
+        ],
+        "feature_closure": [
+          "parsing"
+        ]
+      }
+    ]
+  },
+  "functions": [
+    {
+      "name": "parsing::combinator::ExactlyNDigits::<1>::parse",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 3355,
+      "end": 3576,
+      "identity": "xxh3-64:e9cd83c4e5990d95",
+      "compiler_definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 2858378771551965954))",
+      "original_function_index": 863,
+      "expected_source_classification": "in-scope",
+      "source": "pub(crate) const fn parse(input: &[u8]) -> Option<ParsedItem<'_, u8>> {\n        match input {\n            [a @ b'0'..=b'9', remaining @ ..] => Some(ParsedItem(remaining, *a - b'0')),\n            _ => None,\n        }\n    }"
+    },
+    {
+      "name": "parsing::combinator::ExactlyNDigits::<2>::parse",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 3659,
+      "end": 3999,
+      "identity": "xxh3-64:71ecaec99a1b69e1",
+      "compiler_definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 11671035611995079826))",
+      "original_function_index": 864,
+      "expected_source_classification": "in-scope",
+      "source": "pub(crate) const fn parse(input: &[u8]) -> Option<ParsedItem<'_, u8>> {\n        match input {\n            [a @ b'0'..=b'9', b @ b'0'..=b'9', remaining @ ..] => {\n                let a = *a - b'0';\n                let b = *b - b'0';\n                Some(ParsedItem(remaining, a * 10 + b))\n            }\n            _ => None,\n        }\n    }"
+    },
+    {
+      "name": "parsing::combinator::ExactlyNDigits::<3>::parse",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 4084,
+      "end": 4593,
+      "identity": "xxh3-64:ee0c24eb313827e9",
+      "compiler_definition_identity": "DefPathHash(Fingerprint(5756332677883213349, 14188121876640702095))",
+      "original_function_index": 865,
+      "expected_source_classification": "in-scope",
+      "source": "pub(crate) const fn parse(input: &[u8]) -> Option<ParsedItem<'_, u16>> {\n        match input {\n            [\n                a @ b'0'..=b'9',\n                b @ b'0'..=b'9',\n                c @ b'0'..=b'9',\n                remaining @ ..,\n            ] => {\n                let a = (*a - b'0') as u16;\n                let b = (*b - b'0') as u16;\n                let c = (*c - b'0') as u16;\n                Some(ParsedItem(remaining, a * 100 + b * 10 + c))\n            }\n            _ => None,\n        }\n    }"
+    }
+  ],
+  "declarations": [
+    {
+      "name": "ExactlyNDigits",
+      "file": "src/parsing/combinator/mod.rs",
+      "start": 3212,
+      "end": 3275,
+      "source": "#[derive(Debug)]\npub(crate) struct ExactlyNDigits<const N: u8>;"
+    },
+    {
+      "name": "ParsedItem",
+      "file": "src/parsing/mod.rs",
+      "start": 300,
+      "end": 388,
+      "source": "#[derive(Debug)]\npub(crate) struct ParsedItem<'a, T>(pub(crate) &'a [u8], pub(crate) T);"
+    }
+  ],
+  "contract": {
+    "success": "length >= N and each of the first N bytes is in the explicit ASCII decimal digit table",
+    "value": "mathematical positional decimal value of exactly N bytes; leading zeroes accepted",
+    "remainder": "saved input backing at byte offset N, length input.len()-N, exact suffix contents; one-past empty suffix for exact-length inputs",
+    "failure": "None; short and non-digit inputs perform no success arithmetic",
+    "effects": "input unchanged; no allocation or writes by the selected original methods; runner allocations are observation infrastructure",
+    "outside_scope": [
+      "methods4..9",
+      "parse_subsecond",
+      "generic ParsedItem methods",
+      "helper transport",
+      "capture/admission/matching predictions"
+    ]
+  },
+  "oracle_cases": {
+    "one_byte_inputs": 256,
+    "two_byte_inputs": 65536,
+    "valid_three_digit_prefixes": 1000,
+    "all_widths_for_exhaustive_inputs": true,
+    "valid_suffix_variants": 7,
+    "all256_suffix_bytes_for_each_width": true,
+    "all246_invalid_bytes_at_each_prefix_position": true,
+    "invalid_baselines": [
+      "0",
+      "5",
+      "9"
+    ],
+    "short_lengths": "every0..N-1 with every repeated byte0..255; exhaustive2byte cases additionally cover all mixed short inputs for N3",
+    "pointer_cases": [
+      "distinct simultaneous live equal-content allocations",
+      "nonzero-offset borrowed input windows",
+      "exact-length one-past empty suffix",
+      "saved remainder retained while caller input binding changes"
+    ],
+    "expected_checks_per_context": 229554
+  },
+  "baseline": {
+    "report": "/tmp/rstyle-423-natural-complete.json",
+    "bundle": "/home/dev/src/rstyle-main/rstyle/target/time-error-conversions-416/native-default-namespace/target/rstyle/clones/run-YKdNUy/invocation-yLMsxY/unit.evidence.json",
+    "function_indices": [
+      863,
+      864,
+      865
+    ],
+    "outcomes": [
+      "excluded",
+      "excluded",
+      "excluded"
+    ],
+    "no_default_context": "declared source selection; original admission not measured in audit"
+  },
+  "identity_provenance": "Retained XXH3 identities and exact source ranges from /tmp/rstyle-424-digits-source-audit.md; no new digest scheme."
+}

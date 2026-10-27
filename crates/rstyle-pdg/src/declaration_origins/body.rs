@@ -1,0 +1,382 @@
+//! Rebuild body-only nominal trees from existing tokens and declaration ranges.
+
+use super::*;
+use crate::{HirFnFacts, HirNode, data_types::TypeToken};
+use std::borrow::Cow;
+mod mixed;
+
+/// A temporary declaration inventory; added observations are never callable parameters.
+/// Existing interface capture and serialized records remain unchanged.
+pub fn context<'a>(
+    facts: &HirFnFacts,
+    interface: &'a InterfaceObservations,
+    origins: &Origins,
+) -> Result<Cow<'a, InterfaceObservations>, String> {
+    if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.body-nominal-types")
+        || origins.declarations.is_empty() && origins.generated.is_empty()
+    {
+        return Ok(Cow::Borrowed(interface));
+    }
+    let expected = declarations(interface)?;
+    let generated = super::generated::declarations(interface)?;
+    if origins
+        .declarations
+        .iter()
+        .all(|origin| expected.contains_key(&origin.nominal.definition_path))
+        && origins
+            .generated
+            .iter()
+            .all(|origin| generated.contains_key(origin.nominal.definition_path.as_str()))
+    {
+        return Ok(Cow::Borrowed(interface));
+    }
+
+    let mut tokens = BTreeMap::new();
+    nodes(&facts.body, &mut tokens)?;
+    let mut context = interface.clone();
+    for (name, token) in tokens {
+        if !expected.contains_key(&name) && !generated.contains_key(name.as_str()) {
+            context.parameters.push(Observation::Captured {
+                ty: observed_tree(facts, &token, origins)?,
+            });
+        }
+    }
+    context.validate()?;
+    Ok(Cow::Owned(context))
+}
+
+fn nodes(node: &HirNode, tokens: &mut BTreeMap<String, TypeToken>) -> Result<(), String> {
+    if let Some(text) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref())
+        && (text.contains("\"kind\":\"struct\"")
+            || text.contains("\"kind\":\"enum\"")
+            || text.contains("\"kind\":\"fieldless_enum\"")
+            || text.contains("\"kind\":\"mixed_enum\""))
+    {
+        collect_tokens(&crate::data_types::parse(text)?, tokens)?;
+    }
+    for child in &node.children {
+        nodes(child, tokens)?;
+    }
+    Ok(())
+}
+
+fn collect_tokens(
+    token: &TypeToken,
+    tokens: &mut BTreeMap<String, TypeToken>,
+) -> Result<(), String> {
+    if matches!(
+        token,
+        TypeToken::Struct { .. }
+            | TypeToken::Enum { .. }
+            | TypeToken::FieldlessEnum { .. }
+            | TypeToken::MixedEnum { .. }
+    ) {
+        return nominal_tokens(token, tokens);
+    }
+    collect_container_tokens(token, tokens)
+}
+
+fn collect_container_tokens(
+    token: &TypeToken,
+    tokens: &mut BTreeMap<String, TypeToken>,
+) -> Result<(), String> {
+    match token {
+        TypeToken::Result { ok, err } => collect_result_tokens(ok, err, tokens)?,
+        TypeToken::Tuple(elements) => {
+            for element in elements {
+                collect_tokens(element, tokens)?;
+            }
+        }
+        TypeToken::Option(element)
+        | TypeToken::Shared(element)
+        | TypeToken::Slice(element)
+        | TypeToken::Array { element, .. } => collect_tokens(element, tokens)?,
+        _ => {}
+    }
+    Ok(())
+}
+
+fn collect_result_tokens(
+    ok: &TypeToken,
+    err: &TypeToken,
+    tokens: &mut BTreeMap<String, TypeToken>,
+) -> Result<(), String> {
+    collect_tokens(ok, tokens)?;
+    collect_tokens(err, tokens)
+}
+
+fn nominal_tokens(
+    token: &TypeToken,
+    tokens: &mut BTreeMap<String, TypeToken>,
+) -> Result<(), String> {
+    if let TypeToken::MixedEnum { nominal, variants } = token {
+        return mixed::collect(nominal, variants, token, tokens);
+    }
+    let (nominal, fields) = match token {
+        TypeToken::Struct { nominal, fields }
+        | TypeToken::Enum {
+            nominal,
+            variants: fields,
+        } => (nominal, fields),
+        TypeToken::FieldlessEnum { nominal, .. } => (nominal, &Vec::new()),
+        _ => return Err("Expected a nominal body type".into()),
+    };
+    if let Some(previous) = tokens.get(&nominal.definition_path) {
+        return if previous == token {
+            Ok(())
+        } else {
+            Err("Conflicting body nominal type observations".into())
+        };
+    }
+
+    tokens.insert(nominal.definition_path.clone(), token.clone());
+    for (_, field) in fields {
+        collect_tokens(field, tokens)?;
+    }
+    Ok(())
+}
+
+fn observed_tree(
+    facts: &HirFnFacts,
+    token: &TypeToken,
+    origins: &Origins,
+) -> Result<TypeTree, String> {
+    let tree = tree(token, origins)?;
+    if !crate::extraction_profile::ExtractionProfile::from_facts(facts)?
+        .supports("rust.concrete-option-propagation")
+        && contains_option(&tree)
+    {
+        return Err("Concrete Option source proof is not registered".into());
+    }
+    Ok(tree)
+}
+
+fn contains_option(tree: &TypeTree) -> bool {
+    match tree {
+        TypeTree::Option(_) => true,
+        TypeTree::Shared(element) | TypeTree::Slice(element) | TypeTree::Array { element, .. } => {
+            contains_option(element)
+        }
+        _ => {
+            tree.components().any(contains_option)
+                || tree
+                    .nominal_fields()
+                    .any(|field| contains_option(&field.ty))
+        }
+    }
+}
+
+fn tree(token: &TypeToken, origins: &Origins) -> Result<TypeTree, String> {
+    Ok(match token {
+        // Reconstruct raw shape only. This declaration inventory supplies neither
+        // the core build authority nor source, cleanup or value permission.
+        TypeToken::NonZero(observation) => TypeTree::NonZero(observation.clone()),
+        TypeToken::ScalarProductInstance { .. } => {
+            return Err("Scalar product body authority requires exact instance evidence".into());
+        }
+        TypeToken::Scalar(value) => TypeTree::Scalar(value.clone()),
+        TypeToken::MutableScalar(_) => {
+            return Err("Mutable scalar descriptors cannot supply body nominal authority".into());
+        }
+        TypeToken::Str => TypeTree::Str,
+        TypeToken::IntConversionResult(value) => TypeTree::IntConversionResult(value.clone()),
+        TypeToken::MappedIntConversionResult { ok } => TypeTree::MappedIntConversionResult {
+            ok: Box::new(tree(ok, origins)?),
+        },
+        TypeToken::NeverError | TypeToken::NeverConversionResult { .. } => {
+            return Err(
+                "Never-error conversion authority cannot be inferred from a body token".into(),
+            );
+        }
+        TypeToken::RangeUsize | TypeToken::RangeToUsize | TypeToken::RangeFromUsize => {
+            return Err("Range authority cannot be inferred from a body token".into());
+        }
+        TypeToken::Option(element) => TypeTree::Option(Box::new(tree(element, origins)?)),
+        TypeToken::Result { ok, err } => TypeTree::Result {
+            ok: Box::new(tree(ok, origins)?),
+            err: Box::new(tree(err, origins)?),
+        },
+        TypeToken::SliceArrayResult { length, borrowed } => TypeTree::SliceArrayResult {
+            length: *length,
+            borrowed: *borrowed,
+        },
+        TypeToken::Shared(element) => TypeTree::Shared(Box::new(tree(element, origins)?)),
+        TypeToken::Slice(element) => TypeTree::Slice(Box::new(tree(element, origins)?)),
+        TypeToken::Array { element, length } => TypeTree::Array {
+            element: Box::new(tree(element, origins)?),
+            length: *length,
+        },
+        TypeToken::Tuple(elements) => tuple_tree(elements, origins)?,
+        TypeToken::Struct { nominal, fields } => struct_tree(nominal, fields, origins)?,
+        TypeToken::FieldlessEnum { nominal, variants } => {
+            fieldless_tree(nominal, variants, origins)?
+        }
+        TypeToken::MixedEnum { nominal, variants } => mixed::tree(nominal, variants, origins)?,
+        TypeToken::Enum { nominal, variants } => {
+            nominal_tree(nominal, variants, origins, NominalKind::Enumeration)?
+        }
+    })
+}
+
+fn tuple_tree(elements: &[TypeToken], origins: &Origins) -> Result<TypeTree, String> {
+    Ok(TypeTree::Tuple(
+        elements
+            .iter()
+            .map(|element| tree(element, origins))
+            .collect::<Result<_, _>>()?,
+    ))
+}
+
+fn fieldless_tree(
+    nominal: &Nominal,
+    variants: &[(String, i64)],
+    origins: &Origins,
+) -> Result<TypeTree, String> {
+    Ok(TypeTree::FieldlessEnum {
+        nominal: nominal.clone(),
+        source: origin_source(nominal, origins)?.into(),
+        variants: variants.to_vec(),
+    })
+}
+
+fn struct_tree(
+    nominal: &Nominal,
+    fields: &[(String, TypeToken)],
+    origins: &Origins,
+) -> Result<TypeTree, String> {
+    if let Some(origin) = origins
+        .generated
+        .iter()
+        .find(|origin| &origin.nominal == nominal)
+    {
+        generated_tree(origin, fields, origins)
+    } else {
+        nominal_tree(nominal, fields, origins, NominalKind::Structure)
+    }
+}
+
+fn generated_tree(
+    origin: &GeneratedOrigin,
+    fields: &[(String, TypeToken)],
+    origins: &Origins,
+) -> Result<TypeTree, String> {
+    let [(name, payload)] = fields else {
+        return Err("Generated body type requires exactly one tuple field".into());
+    };
+    if name != "0" {
+        return Err("Generated body type has an invalid tuple field name".into());
+    }
+
+    let template =
+        crate::SourceText::from_snapshot(origin.file_bytes.clone(), origin.origin.raw.span)?;
+    let declaration = super::generated::template_field(&template)?;
+    let tree = TypeTree::GeneratedStruct {
+        nominal: origin.nominal.clone(),
+        definition: Box::new(origin.definition.clone()),
+        template,
+        fields: vec![crate::concrete_types::Field {
+            position: 0,
+            name: name.clone(),
+            declaration,
+            ty: tree(payload, origins)?,
+        }],
+    };
+    super::generated::shape(&tree)?;
+    Ok(tree)
+}
+
+fn nominal_tree(
+    nominal: &Nominal,
+    fields: &[(String, TypeToken)],
+    origins: &Origins,
+    kind: NominalKind,
+) -> Result<TypeTree, String> {
+    let source = origin_source(nominal, origins)?;
+    let declarations = match kind {
+        NominalKind::Structure => crate::concrete_types::field_declarations(source)?,
+        NominalKind::Enumeration => crate::concrete_types::variant_declarations(source)?,
+    };
+    if declarations.len() != fields.len() {
+        return Err("Body nominal field count disagrees with declaration".into());
+    }
+
+    let fields = declarations
+        .into_iter()
+        .zip(fields)
+        .enumerate()
+        .map(|(position, ((name, declaration), (observed, ty)))| {
+            if name != *observed {
+                return Err("Body nominal field name/order disagrees with declaration".into());
+            }
+            Ok(crate::concrete_types::Field {
+                position,
+                name,
+                declaration: declaration.into(),
+                ty: tree(ty, origins)?,
+            })
+        })
+        .collect::<Result<_, String>>()?;
+    Ok(kind.wrap(nominal.clone(), source.into(), fields))
+}
+
+fn origin_source<'a>(nominal: &Nominal, origins: &'a Origins) -> Result<&'a str, String> {
+    let origin = origins
+        .declarations
+        .iter()
+        .find(|origin| origin.nominal == *nominal)
+        .ok_or("Body nominal type lacks its original declaration")?;
+    let source = origin
+        .file_bytes
+        .get(origin.declaration_span.start as usize..origin.declaration_span.end as usize)
+        .ok_or("Body nominal declaration range is invalid")?;
+    Ok(source)
+}
+
+#[derive(Clone, Copy)]
+enum NominalKind {
+    Structure,
+    Enumeration,
+}
+
+impl NominalKind {
+    fn wrap(
+        self,
+        nominal: Nominal,
+        source: crate::SourceText,
+        fields: Vec<crate::concrete_types::Field>,
+    ) -> TypeTree {
+        match self {
+            Self::Structure => TypeTree::Struct {
+                nominal,
+                source,
+                fields,
+            },
+            Self::Enumeration => TypeTree::Enum {
+                nominal,
+                source,
+                variants: fields
+                    .into_iter()
+                    .map(|field| {
+                        let crate::concrete_types::Field {
+                            position,
+                            name,
+                            declaration,
+                            ty,
+                        } = field;
+                        crate::concrete_types::Variant {
+                            position,
+                            name,
+                            payload: crate::concrete_types::Field {
+                                position: 0,
+                                name: "0".into(),
+                                declaration,
+                                ty,
+                            },
+                        }
+                    })
+                    .collect(),
+            },
+        }
+    }
+}

@@ -12,19 +12,58 @@ pub const DATA_MATCHING_ID: &str = "rstyle.ccgraph.data/1.0.0";
 pub const DATA_CALLS_MATCHING_ID: &str = "rstyle.ccgraph.data-calls/1.0.0";
 pub const LOCAL_ID: &str = "rstyle.rust.hir-coverage";
 
-const EXPANDED_CAPABILITIES: &[&str] = &[
-    "rust.const-function-bodies",
-    "rust.integer-casts",
-    "rust.scalar-match",
-    "rust.scalar-match-guards",
-    "rust.conditional-source-correspondence",
-    "rust.scalar-loops",
-    "rust.divergence",
-    "rust.verified-primitive-summaries",
-    "rust.verified-helper-calls",
-    "rust.concrete-read-only-data",
-    "rust.verified-read-only-helper-calls",
-    "rust.verified-inherent-helper-calls",
+mod capabilities;
+use capabilities::{CapabilityId, EXPANDED_CAPABILITIES};
+
+#[cfg(test)]
+mod tests;
+
+const DATA_CALL_SUMMARIES: &[&str] = &[
+    "rstyle.primitive.unsigned-abs/1",
+    "rstyle.primitive.wrapping-mul/1",
+    "rstyle.helper.source-body/1",
+    "rstyle.helper.shared-return/1",
+    "rstyle.helper.read-only-body/1",
+    "rstyle.data.slice.len/1",
+    "rstyle.data.slice.is-empty/1",
+    "rstyle.data.str.len/1",
+    "rstyle.data.str.is-empty/1",
+    "rstyle.data.bytes.copy-result/1",
+    "rstyle.data.bytes.unwrap/1",
+    "rstyle.data.bytes.native-u32/1",
+    "rstyle.data.bytes.borrow-result/1",
+    "rstyle.data.bytes.unwrap-borrow/1",
+    "rstyle.data.bytes.native-usize/1",
+    "rstyle.data.slice.get-scalar/1",
+    "rstyle.data.bytes.native-u16/1",
+    "rstyle.data.bytes.native-u128/1",
+    "rstyle.data.scalar-size/1",
+    "rstyle.data.option.is-some/1",
+    "rstyle.helper.borrowed-array-view/1",
+    "rstyle.data.bitset.count-u32/1",
+    "rstyle.data.integer.try-u32-usize/1",
+    "rstyle.data.integer.unwrap-ok-usize/1",
+    "rstyle.data.integer.try-usize-u16/1",
+    "rstyle.data.integer.unwrap-u16/1",
+    "rstyle.data.integer.checked-sub-usize/1",
+    "rstyle.data.integer.unwrap-option-usize/1",
+    "rstyle.helper.checked-normal-body/1",
+    "rstyle.data.char.is-ascii/1",
+    "rstyle.helper.stored-slice-result/1",
+    "rstyle.data.length.checked-add-usize/1",
+    "rstyle.data.length.checked-mul-usize/1",
+    "rstyle.helper.bounded-factor-loop/1",
+    "rstyle.data.slice.get-prefix/1",
+    "rstyle.data.option.ok-or-fresh-error/1",
+    "rstyle.data.bytes.little-u32/1",
+    "rstyle.helper.component-return/1",
+    "rstyle.reference-instance.byte-as-ref/1",
+    "rstyle.reference-instance.str-as-bytes/1",
+    "rstyle.product-instance.span-identity/1",
+    "rstyle.helper.checked-slice-length/1",
+    "rstyle.helper.guarded-read-only-body/1",
+    "rstyle.helper.id-reader-read-only-body/1",
+    "rstyle.helper.usize-reader-read-only-body/1",
 ];
 
 /// Registered evidence identities, including historical staged contracts.
@@ -103,6 +142,13 @@ impl ExtractionProfile {
         }
     }
 
+    /// Require one exact extraction mode while preserving malformed-evidence errors.
+    pub(crate) fn require(self, facts: &HirFnFacts, mismatch: &str) -> Result<(), String> {
+        (Self::from_facts(facts)? == self)
+            .then_some(())
+            .ok_or_else(|| mismatch.into())
+    }
+
     pub fn token(self) -> &'static str {
         match self {
             Self::R0 => "r0",
@@ -133,7 +179,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.0.0", 12)),
+            Self::DataV3 => Some(("3.130.0", 159)),
         }
     }
 
@@ -155,7 +201,11 @@ impl ExtractionProfile {
     }
 
     pub fn supports(self, capability: &str) -> bool {
-        self.capabilities().contains(&capability)
+        let Some(id) = CapabilityId::parse(capability) else {
+            return false;
+        };
+
+        id.enabled(self.local_contract().map_or(0, |(_, count)| count))
     }
 
     pub fn is_data(self) -> bool {
@@ -172,17 +222,11 @@ impl ExtractionProfile {
 
     pub fn summaries(self) -> &'static [&'static str] {
         if matches!(self, Self::DataV2 | Self::DataV3) {
-            return &[
-                "rstyle.primitive.unsigned-abs/1",
-                "rstyle.primitive.wrapping-mul/1",
-                "rstyle.helper.source-body/1",
-                "rstyle.helper.shared-return/1",
-                "rstyle.helper.read-only-body/1",
-                "rstyle.data.slice.len/1",
-                "rstyle.data.slice.is-empty/1",
-                "rstyle.data.str.len/1",
-                "rstyle.data.str.is-empty/1",
-            ];
+            return &DATA_CALL_SUMMARIES[..if self == Self::DataV3 {
+                DATA_CALL_SUMMARIES.len()
+            } else {
+                9
+            }];
         }
         if self == Self::DataV1 {
             return &[
@@ -220,26 +264,27 @@ impl ExtractionProfile {
 }
 
 pub fn registered(policy: &ProfileId) -> bool {
-    registered_profiles()
-        .iter()
-        .any(|profile| profile.policy() == *policy)
+    from_policy(policy).is_some()
 }
 
-fn registered_profiles() -> [ExtractionProfile; 12] {
-    [
-        ExtractionProfile::R0,
-        ExtractionProfile::ConstV1,
-        ExtractionProfile::CastsV1,
-        ExtractionProfile::MatchV1,
-        ExtractionProfile::GuardsV1,
-        ExtractionProfile::ConditionalV1,
-        ExtractionProfile::LoopsV1,
-        ExtractionProfile::CallsV1,
-        ExtractionProfile::HelpersV1,
-        ExtractionProfile::DataV1,
-        ExtractionProfile::DataV2,
-        ExtractionProfile::DataV3,
-    ]
+/// Resolve borrowed wire identity without allocating a policy for every profile.
+fn from_policy(policy: &ProfileId) -> Option<ExtractionProfile> {
+    use ExtractionProfile::*;
+    match (policy.id.as_str(), policy.version.as_str()) {
+        (crate::R0_POLICY_ID, crate::R0_POLICY_VERSION) => Some(R0),
+        (LOCAL_ID, "0.1.0") => Some(ConstV1),
+        (LOCAL_ID, "0.2.0") => Some(CastsV1),
+        (LOCAL_ID, "0.3.0") => Some(MatchV1),
+        (LOCAL_ID, "0.4.0") => Some(GuardsV1),
+        (LOCAL_ID, "0.5.0") => Some(ConditionalV1),
+        (LOCAL_ID, "0.6.0") => Some(LoopsV1),
+        (LOCAL_ID, "0.7.0") => Some(CallsV1),
+        ("rstyle.rust.hir-helpers", "0.1.0") => Some(HelpersV1),
+        (DATA_ID, "1.0.0") => Some(DataV1),
+        (DATA_ID, "2.0.0") => Some(DataV2),
+        (DATA_ID, "3.130.0") => Some(DataV3),
+        _ => None,
+    }
 }
 
 pub fn local_policy(policy: &ProfileId) -> bool {
@@ -247,9 +292,20 @@ pub fn local_policy(policy: &ProfileId) -> bool {
 }
 
 pub fn policy_supports(policy: &ProfileId, capability: &str) -> bool {
-    registered_profiles()
-        .iter()
-        .any(|profile| profile.policy() == *policy && profile.supports(capability))
+    from_policy(policy).is_some_and(|profile| profile.supports(capability))
+}
+
+pub(crate) fn require_document(
+    policy: &ProfileId,
+    capability: &str,
+    required: impl FnOnce() -> bool,
+    message: &str,
+) -> Result<(), String> {
+    require_capability(
+        policy_supports(policy, capability),
+        || Ok(required()),
+        message,
+    )
 }
 
 impl std::str::FromStr for ExtractionProfile {
@@ -258,4 +314,31 @@ impl std::str::FromStr for ExtractionProfile {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         Self::parse(value)
     }
+}
+
+/// A missing or unrecognized extraction profile never grants a capability.
+pub(crate) fn facts_support(facts: &crate::HirFnFacts, capability: &str) -> bool {
+    ExtractionProfile::from_facts(facts).is_ok_and(|profile| profile.supports(capability))
+}
+
+/// Apply a syntax predicate only under its registered extraction capability.
+pub(crate) fn gated_node(
+    node: &crate::HirNode,
+    facts: &crate::HirFnFacts,
+    capability: &str,
+    predicate: impl FnOnce(&crate::HirNode) -> bool,
+) -> bool {
+    facts_support(facts, capability) && predicate(node)
+}
+
+/// Check a capability without evaluating a potentially fallible usage scan when supported.
+pub(crate) fn require_capability(
+    supported: bool,
+    required: impl FnOnce() -> Result<bool, String>,
+    message: &str,
+) -> Result<(), String> {
+    if !supported && required()? {
+        return Err(message.into());
+    }
+    Ok(())
 }

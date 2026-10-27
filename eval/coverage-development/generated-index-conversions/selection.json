@@ -1,0 +1,203 @@
+{
+  "identity": "rstyle.development.generated-index-conversions/1",
+  "status": "source-selected; connected under Data3.118 in the measured native no-default context",
+  "package": {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "source_root": "/home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/regex-automata-0.4.18"
+  },
+  "build_selection": {
+    "target": "Original regex-automata library; test=false",
+    "edition": "2021",
+    "toolchain": "nightly-2026-09-30",
+    "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+    "targets": [
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin"
+    ],
+    "pointer_width": 64,
+    "debug_assertions": true,
+    "overflow_checks": true,
+    "panic_strategy": "unwind",
+    "optimization": "No",
+    "contexts": [
+      {
+        "name": "default",
+        "default_features": true,
+        "features": [],
+        "expected_feature_closure": [
+          "alloc",
+          "default",
+          "dfa",
+          "dfa-build",
+          "dfa-onepass",
+          "dfa-search",
+          "hybrid",
+          "meta",
+          "nfa",
+          "nfa-backtrack",
+          "nfa-pikevm",
+          "nfa-thompson",
+          "perf",
+          "perf-inline",
+          "perf-literal",
+          "perf-literal-multisubstring",
+          "perf-literal-substring",
+          "std",
+          "syntax",
+          "unicode",
+          "unicode-age",
+          "unicode-bool",
+          "unicode-case",
+          "unicode-gencat",
+          "unicode-perl",
+          "unicode-script",
+          "unicode-segment",
+          "unicode-word-boundary"
+        ]
+      },
+      {
+        "name": "no-default",
+        "default_features": false,
+        "features": [],
+        "expected_feature_closure": []
+      }
+    ],
+    "additional_oracle_control": "debug_assertions=false at opt-level0 selects release U32/U64 cast bodies; separate runtime control, no broader release admission claim"
+  },
+  "functions": [
+    {
+      "name": "<util::primitives::PatternID as core::convert::TryFrom<u16>>::try_from",
+      "source": "index_type_impls!(PatternID, PatternIDError, PatternIDIter, WithPatternIDIter)",
+      "path": "src/util/primitives.rs",
+      "start": 26841,
+      "end": 26919,
+      "checksum": "xxh3-64:df5e769e704470fe",
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
+    },
+    {
+      "name": "<util::primitives::PatternID as core::convert::TryFrom<u32>>::try_from",
+      "source": "index_type_impls!(PatternID, PatternIDError, PatternIDIter, WithPatternIDIter)",
+      "path": "src/util/primitives.rs",
+      "start": 26841,
+      "end": 26919,
+      "checksum": "xxh3-64:df5e769e704470fe",
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
+    },
+    {
+      "name": "<util::primitives::PatternID as core::convert::TryFrom<u64>>::try_from",
+      "source": "index_type_impls!(PatternID, PatternIDError, PatternIDIter, WithPatternIDIter)",
+      "path": "src/util/primitives.rs",
+      "start": 26841,
+      "end": 26919,
+      "checksum": "xxh3-64:df5e769e704470fe",
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
+    },
+    {
+      "name": "<util::primitives::PatternID as core::convert::TryFrom<usize>>::try_from",
+      "source": "index_type_impls!(PatternID, PatternIDError, PatternIDIter, WithPatternIDIter)",
+      "path": "src/util/primitives.rs",
+      "start": 26841,
+      "end": 26919,
+      "checksum": "xxh3-64:df5e769e704470fe",
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
+    },
+    {
+      "name": "<util::primitives::StateID as core::convert::TryFrom<u16>>::try_from",
+      "source": "index_type_impls!(StateID, StateIDError, StateIDIter, WithStateIDIter)",
+      "path": "src/util/primitives.rs",
+      "start": 26921,
+      "end": 26991,
+      "checksum": "xxh3-64:bd1b7923afe4fc85",
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
+    },
+    {
+      "name": "<util::primitives::StateID as core::convert::TryFrom<u32>>::try_from",
+      "source": "index_type_impls!(StateID, StateIDError, StateIDIter, WithStateIDIter)",
+      "path": "src/util/primitives.rs",
+      "start": 26921,
+      "end": 26991,
+      "checksum": "xxh3-64:bd1b7923afe4fc85",
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
+    },
+    {
+      "name": "<util::primitives::StateID as core::convert::TryFrom<u64>>::try_from",
+      "source": "index_type_impls!(StateID, StateIDError, StateIDIter, WithStateIDIter)",
+      "path": "src/util/primitives.rs",
+      "start": 26921,
+      "end": 26991,
+      "checksum": "xxh3-64:bd1b7923afe4fc85",
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
+    },
+    {
+      "name": "<util::primitives::StateID as core::convert::TryFrom<usize>>::try_from",
+      "source": "index_type_impls!(StateID, StateIDError, StateIDIter, WithStateIDIter)",
+      "path": "src/util/primitives.rs",
+      "start": 26921,
+      "end": 26991,
+      "checksum": "xxh3-64:bd1b7923afe4fc85",
+      "expected_source_classification": "in-scope for exact generated unsigned TryFrom owner; expected complete admission with independently checked lexical/cleanup and selected leaf-call transport proof"
+    }
+  ],
+  "generated_members": [
+    {
+      "name": "PatternID/StateID TryFrom<u16> template",
+      "path": "src/util/primitives.rs",
+      "start": 21259,
+      "end": 21474,
+      "checksum": "xxh3-64:95ac6f2423436f1c",
+      "source": "impl TryFrom<u16> for $name {\n            type Error = $err;\n\n            fn try_from(value: u16) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
+      "expected_source_classification": "in-scope for exact source association and complete selected-call transport; no general macro or trait permission"
+    },
+    {
+      "name": "PatternID/StateID TryFrom<u32> template",
+      "path": "src/util/primitives.rs",
+      "start": 21484,
+      "end": 21699,
+      "checksum": "xxh3-64:c13385dcda3f0b27",
+      "source": "impl TryFrom<u32> for $name {\n            type Error = $err;\n\n            fn try_from(value: u32) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
+      "expected_source_classification": "in-scope for exact source association and complete selected-call transport; no general macro or trait permission"
+    },
+    {
+      "name": "PatternID/StateID TryFrom<u64> template",
+      "path": "src/util/primitives.rs",
+      "start": 21709,
+      "end": 21924,
+      "checksum": "xxh3-64:b69ae735393564eb",
+      "source": "impl TryFrom<u64> for $name {\n            type Error = $err;\n\n            fn try_from(value: u64) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
+      "expected_source_classification": "in-scope for exact source association and complete selected-call transport; no general macro or trait permission"
+    },
+    {
+      "name": "PatternID/StateID TryFrom<usize> template",
+      "path": "src/util/primitives.rs",
+      "start": 21934,
+      "end": 22153,
+      "checksum": "xxh3-64:d2b69908d4346350",
+      "source": "impl TryFrom<usize> for $name {\n            type Error = $err;\n\n            fn try_from(value: usize) -> Result<$name, $err> {\n                SmallIndex::try_from(value).map($name).map_err($err)\n            }\n        }",
+      "expected_source_classification": "in-scope for exact source association and complete selected-call transport; no general macro or trait permission"
+    }
+  ],
+  "expectations": {
+    "domain": "input<=2147483646 gives same numeric wrapper; larger values preserve exact u64 attempted error",
+    "runtime_oracle": "../unsigned-index-conversions/oracle.py; original public PatternID/StateID checks already included",
+    "source_roles": 8,
+    "full_function_required": true,
+    "negative_controls": [
+      "lookalike local traits",
+      "unresolved generic substitutions",
+      "wrong associated Error projection",
+      "source/header/HIR/hygiene mismatches",
+      "changed compiled crate or core target authority",
+      "surplus or omitted members",
+      "historical-policy acquisition"
+    ]
+  },
+  "blocker_chain": [
+    "exact generated trait/member/associated Error source and structural identity proof",
+    "complete original lexical/nominal and no-drop ownership",
+    "exact third trait-selected leaf call through existing Result constructor maps",
+    "complete real Cargo, strict replay, matching and unchanged-selection measurement"
+  ],
+  "blocker_chain_status": "connected for the eight declared originals in the measured native no-default context; broader callers require separate complete evidence"
+}

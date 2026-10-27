@@ -1,0 +1,159 @@
+{
+  "identity": "rstyle.lossless-u32-usize.original-calls/1",
+  "package": "regex-automata@0.4.18",
+  "function": "<u32 as util::int::U32>::as_usize",
+  "rustc_commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+  "target": "aarch64-unknown-linux-gnu",
+  "calls": [
+    {
+      "expanded": false,
+      "hir": {
+        "krate": 0,
+        "local": 6,
+        "owner": 715
+      },
+      "requested": {
+        "crate": "core",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 13696516745186059528))",
+        "local": false,
+        "path": "core::result::Result::<T, E>::expect",
+        "stable_crate_id": "StableCrateId(5614226571623188065)"
+      },
+      "requested_arguments": [
+        {
+          "display_only": true,
+          "identity": {
+            "kind": "builtin",
+            "name": "usize"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "usize"
+        },
+        {
+          "display_only": true,
+          "identity": {
+            "arguments": [],
+            "definition": {
+              "crate": "core",
+              "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 11361430071574088585))",
+              "local": false,
+              "path": "core::num::TryFromIntError",
+              "stable_crate_id": "StableCrateId(5614226571623188065)"
+            },
+            "kind": "adt"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "core::num::TryFromIntError"
+        }
+      ],
+      "selected": {
+        "crate": "core",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 13696516745186059528))",
+        "local": false,
+        "path": "core::result::Result::<T, E>::expect",
+        "stable_crate_id": "StableCrateId(5614226571623188065)"
+      },
+      "selected_arguments": [
+        {
+          "display_only": true,
+          "identity": {
+            "kind": "builtin",
+            "name": "usize"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "usize"
+        },
+        {
+          "display_only": true,
+          "identity": {
+            "arguments": [],
+            "definition": {
+              "crate": "core",
+              "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 11361430071574088585))",
+              "local": false,
+              "path": "core::num::TryFromIntError",
+              "stable_crate_id": "StableCrateId(5614226571623188065)"
+            },
+            "kind": "adt"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "core::num::TryFromIntError"
+        }
+      ],
+      "signature": {
+        "display_only": true,
+        "inputs": [
+          "core::result::Result<usize, core::num::TryFromIntError>",
+          "&str"
+        ],
+        "output": "usize"
+      },
+      "span": {
+        "end": 136,
+        "start": 84
+      },
+      "status": "resolved"
+    },
+    {
+      "expanded": false,
+      "hir": {
+        "krate": 0,
+        "local": 8,
+        "owner": 715
+      },
+      "requested": {
+        "crate": "core",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 9706828146766316131))",
+        "local": false,
+        "path": "core::convert::TryFrom::try_from",
+        "stable_crate_id": "StableCrateId(5614226571623188065)"
+      },
+      "requested_arguments": [
+        {
+          "display_only": true,
+          "identity": {
+            "kind": "builtin",
+            "name": "usize"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "usize"
+        },
+        {
+          "display_only": true,
+          "identity": {
+            "kind": "builtin",
+            "name": "u32"
+          },
+          "identity_status": "known",
+          "kind": "type",
+          "value": "u32"
+        }
+      ],
+      "selected": {
+        "crate": "core",
+        "definition_identity": "DefPathHash(Fingerprint(5614226571623188065, 4896361325527872486))",
+        "local": false,
+        "path": "core::convert::num::ptr_try_from_impls::<impl core::convert::TryFrom<u32> for usize>::try_from",
+        "stable_crate_id": "StableCrateId(5614226571623188065)"
+      },
+      "selected_arguments": [],
+      "signature": {
+        "display_only": true,
+        "inputs": [
+          "u32"
+        ],
+        "output": "core::result::Result<usize, core::num::TryFromIntError>"
+      },
+      "span": {
+        "end": 105,
+        "start": 84
+      },
+      "status": "resolved"
+    }
+  ]
+}
