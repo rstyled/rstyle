@@ -1900,3 +1900,20 @@ Keep shared types/origins/summary registration coordinator-owned; independent
 expectations and tamper cases belong with each bounded delivery. No new production
 assignment is ready merely from an exclusion message. Broad goal stays active;
 this milestone grants no general move/drop, detector-quality or rewrite claim.
+
+Next-family source/oracle checkpoint457, Data3.125 unchanged: froze both original
+usize reader wrappers, seven dependencies and complete source/build contexts in
+`wire-usize-readers/selection.json`, before activation. Whole-original native
+oracle246,134 cases/context ×four aarch64 Linux contexts passes with zero
+mismatches (`/tmp/rstyle-457-oracle.json`); includes every u16 input and distinct
+static message storage. Baseline admissions remain the measured456 results;
+this oracle grants no extraction authority. u32 is the first connected target;
+u16 requires its checked-reader width proof and separate blanket/uninhabited-error
+resolution. The callable lane found that summarizing try_read_state_id alone
+unlocks no whole original caller; defer that isolated activation. Memory audit
+confirms Special::from_bytes additionally requires distinct initialized local
+cursor/count storage, ordered FnMut captures/updates, nested tagged summaries,
+local aggregate borrowing, derived comparisons, err macro ownership, validation
+helpers and assertion composition. Those are connected prerequisites, not an
+available supported remainder. Scoped capture and source/selection leaves are
+being integrated separately, with shared registration owned by the coordinator.

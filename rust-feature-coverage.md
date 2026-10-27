@@ -5601,3 +5601,11 @@ precheck/Result conditions can be summarized. Stored mutable callbacks, cursor
 state and validation still block `Special::from_bytes`; general moves/drop remain
 open. [Contract/oracle](eval/coverage-development/wire-id-readers/README.md) and
 [validation/frontier](docs/rust-support-execution.md).
+
+Next source-frozen error/callable family: original
+`try_read_u32_as_usize`, then its separately proved u16 counterpart. The full
+and_then→conversion→map→map_err chain needs scoped nested callback evidence,
+component/capture flow and complete summaries. The u16 conversion selects blanket
+TryFrom/Into/From with an uninhabited error; u32 uses the existing concrete
+TryFromIntError contract. No admission gain follows from the independent oracle.
+[Selection and bounded expectations](eval/coverage-development/wire-usize-readers/README.md).
