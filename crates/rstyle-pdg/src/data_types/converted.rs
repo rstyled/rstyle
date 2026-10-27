@@ -52,24 +52,20 @@ pub(super) fn get(
 
 impl Tokens {
     fn remember(&mut self, tree: &TypeTree, text: &str) {
-        // Include full concrete source evidence in the retention budget. The
-        // exact typed value, rather than its wire size or digest, is the key.
-        let Ok(size) = crate::evidence_budget::serialized_len(tree) else {
+        // Include full concrete evidence while bounding the one encoding pass.
+        let Some(limit) = MAX_BYTES.checked_sub(text.len()) else {
             return;
         };
-        let bytes = size.saturating_add(text.len());
-        if bytes > MAX_BYTES {
+        let Ok(encoded) = crate::evidence_budget::encode_with_limit(tree, limit) else {
             return;
-        }
+        };
+        let bytes = encoded.len() + text.len();
         if self.bytes + bytes > MAX_BYTES || self.values.len() == MAX_ENTRIES {
             *self = Self::default();
         }
 
         // Detach source ranges so a small declaration cannot keep an entire
         // crate source snapshot alive in this process-local cache.
-        let Ok(encoded) = serde_json::to_vec(tree) else {
-            return;
-        };
         let Ok(key) = serde_json::from_slice(&encoded) else {
             return;
         };
