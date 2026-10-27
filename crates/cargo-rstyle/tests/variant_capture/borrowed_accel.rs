@@ -45,6 +45,7 @@ fn check_family(report: &Value) {
         let expected = if matches!(
             function["facts"]["name"].as_str().unwrap(),
             "Accel::len"
+                | "Accel::from_bytes_unchecked"
                 | "Accel::is_empty"
                 | "Accel::needles"
                 | "getter_len"
@@ -61,6 +62,10 @@ fn check_family(report: &Value) {
             "excluded"
         };
         assert_eq!(function["outcome"], expected, "{function}");
+        if function["facts"]["name"] == "Accel::from_bytes_unchecked" {
+            // Fresh array-backed returns do not authorize owned callers.
+            crate::fresh_scalar_owners::verify_boundary(function);
+        }
     }
 
     check_aggregate_documents(report);

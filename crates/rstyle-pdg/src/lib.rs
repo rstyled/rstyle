@@ -62,6 +62,7 @@ pub mod extraction_profile;
 pub mod field_locations;
 mod fieldless_enums;
 pub mod float_scalars;
+mod fresh_scalar_owners;
 pub mod frontend;
 pub mod generated_sources;
 pub mod helper_calls;

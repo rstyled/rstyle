@@ -585,6 +585,7 @@ fn check_boundary(
     pair: &producer::Pair,
     facts: &dyn EvidenceFacts,
 ) -> Result<Boundary, Vec<String>> {
+    crate::fresh_scalar_owners::verify_callable(facts).map_err(|error| vec![error])?;
     if let Some(output) = if widening_readers::candidate(facts) {
         widening_readers::derive(facts, pair.as_view())
     } else if id_readers::candidate(facts) {

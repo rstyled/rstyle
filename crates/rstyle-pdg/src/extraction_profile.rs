@@ -171,6 +171,7 @@ const EXPANDED_CAPABILITIES: &[&str] = &[
     "rust.named-error-u16-reader-flow",
     "rust.u16-usize-reader-observations",
     "rust.named-error-u16-usize-reader-flow",
+    "rust.fresh-scalar-owners",
 ];
 
 const DATA_CALL_SUMMARIES: &[&str] = &[
@@ -334,7 +335,7 @@ impl ExtractionProfile {
             Self::HelpersV1 => Some(("0.1.0", 9)),
             Self::DataV1 => Some(("1.0.0", 10)),
             Self::DataV2 => Some(("2.0.0", 11)),
-            Self::DataV3 => Some(("3.129.0", 158)),
+            Self::DataV3 => Some(("3.130.0", 159)),
         }
     }
 

@@ -70,7 +70,7 @@ fn fresh_scalar_error_results_compose_without_copy_or_storage_permission() {
             .iter()
             .find(|f| f["facts"]["name"] == name)
             .unwrap();
-        let positive = matches!(name, "checked" | "forwarded" | "same");
+        let positive = matches!(name, "checked" | "forwarded" | "same" | "untyped_error");
         assert_eq!(
             function["outcome"],
             if positive { "admitted" } else { "excluded" },
@@ -80,9 +80,13 @@ fn fresh_scalar_error_results_compose_without_copy_or_storage_permission() {
         if positive {
             let mut imported = verify_strict_and_historical(function);
             imported.key = name.into();
-            if name != "checked" {
+            if matches!(name, "forwarded" | "same") {
                 wrappers.push(imported);
             }
+        }
+        if name == "untyped_error" {
+            // This direct scalar constructor has its own fresh no-drop proof.
+            crate::fresh_scalar_owners::verify_boundary(function);
         }
     }
     check_aggregate_documents(&report);

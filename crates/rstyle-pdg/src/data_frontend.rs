@@ -56,6 +56,7 @@ pub(crate) fn check(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), 
 }
 
 fn check_ordinary_function(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<(), String> {
+    crate::fresh_scalar_owners::verify_function(facts)?;
     crate::character_scalars::verify_function(facts)?;
     crate::float_scalars::verify_function(facts)?;
     crate::range_values::verify_function(facts)?;
@@ -111,6 +112,7 @@ pub(crate) fn verify_document_policy(
     profile: &crate::ProfileId,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
+    crate::fresh_scalar_owners::verify_document_policy(profile, facts)?;
     crate::nonzero_digit_calls::verify_document_policy(profile, facts)?;
     crate::extraction_profile::require_document(
         profile,

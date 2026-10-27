@@ -10,7 +10,7 @@ pub(super) struct Proof<'a> {
 }
 
 enum SourceClosure {
-    ReferenceProduct,
+    Product,
     CopyProduct,
     CopyOwner,
 }
@@ -25,8 +25,18 @@ impl<'a> Proof<'a> {
             facts,
             resolution,
             origins,
-            source: SourceClosure::ReferenceProduct,
+            source: SourceClosure::Product,
         }
+    }
+
+    pub(super) fn fresh_scalar_product(
+        facts: &'a HirFnFacts,
+        resolution: &'a Resolution,
+        origins: &'a Origins,
+    ) -> Self {
+        // Both families require the same exhaustive source closure; field and
+        // value permissions remain separate from this evidence-only mode.
+        Self::reference(facts, resolution, origins)
     }
 
     pub(super) fn copy_product(
@@ -156,7 +166,7 @@ impl<'a> Proof<'a> {
         let environment = &self.resolution.environment;
         // This evidence-only mode must not share ordinary admission caches.
         match self.source {
-            SourceClosure::ReferenceProduct => {
+            SourceClosure::Product => {
                 closure::verify_reference_product(environment, self.facts, key)
             }
             SourceClosure::CopyOwner => closure::verify_copy_owner(environment, self.facts, key),

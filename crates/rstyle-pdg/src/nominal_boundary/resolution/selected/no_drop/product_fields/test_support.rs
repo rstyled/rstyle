@@ -92,6 +92,7 @@ pub(in crate::nominal_boundary::resolution::selected::no_drop) fn resolution(
         environment,
         copy_trees: Default::default(),
         no_drop_trees: Default::default(),
+        fresh_owner_source: None,
         array_views: false,
         scalar_aliases: false,
         local_import_chains: false,

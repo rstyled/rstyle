@@ -99,26 +99,36 @@ fn selected_copy_boundary_keeps_missing_proofs_and_lexical_unknowns_closed() {
         std::fs::write(directory.path().join("src/data.rs"), source).unwrap();
         let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
         assert!(output.status.success(), "{change}: {report}");
-        for name in [
-            "data::Position::new",
-            "data::Span::new",
-            "data::Span::is_empty",
-            "data::Span::is_one_line",
-        ] {
-            let function = read_call_function(&report, name);
-            // Both source-owned macros select the same complete harmless body.
-            // Span::new still requires its separate nominal-argument proof.
-            let expected =
-                if matches!(change, "macro" | "multi_arm_macro") && name != "data::Span::new" {
-                    "admitted"
-                } else {
-                    "excluded"
-                };
-            assert_eq!(function["outcome"], expected, "{change}: {function}");
-        }
+        check_selected_source_boundary(&report, change);
         check_aggregate_documents(&report);
         if change == "multi_arm_macro" {
             check_ordered_macro_boundary(&report);
+        }
+    }
+}
+
+fn check_selected_source_boundary(report: &Value, change: &str) {
+    for name in [
+        "data::Position::new",
+        "data::Span::new",
+        "data::Span::is_empty",
+        "data::Span::is_one_line",
+    ] {
+        let function = read_call_function(report, name);
+        // Both source-owned macros select the same complete harmless body.
+        // Span::new still requires its separate nominal-argument proof.
+        // Removing the Copy derive changes original source. Position's
+        // scalar constructor independently proves fresh no-drop ownership.
+        let expected = if change == "copy" && name == "data::Position::new"
+            || matches!(change, "macro" | "multi_arm_macro") && name != "data::Span::new"
+        {
+            "admitted"
+        } else {
+            "excluded"
+        };
+        assert_eq!(function["outcome"], expected, "{change}: {function}");
+        if change == "copy" && name == "data::Position::new" {
+            crate::fresh_scalar_owners::verify_boundary(function);
         }
     }
 }

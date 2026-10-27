@@ -21,6 +21,7 @@ fn check_outcomes(report: &Value) {
         let positive = [
             "ScalarRange::is_valid",
             "ScalarRange::is_ascii",
+            "ScalarRange::owned",
             "borrowed",
             "same",
         ]
@@ -30,11 +31,15 @@ fn check_outcomes(report: &Value) {
             if positive { "admitted" } else { "excluded" },
             "{function}"
         );
+        if name == "ScalarRange::owned" {
+            // Fresh return permission does not grant owned parameters or locals.
+            crate::fresh_scalar_owners::verify_boundary(function);
+        }
     }
     check_aggregate_documents(report);
     check_repeated_reads(report);
     assert_eq!(report["pair_evaluation_complete"], true);
-    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 6);
+    assert_eq!(report["matching"]["pairs"].as_array().unwrap().len(), 10);
 }
 
 fn check_repeated_reads(report: &Value) {

@@ -9,6 +9,7 @@ pub(in crate::nominal_boundary::resolution) mod copy_products;
 pub(super) mod enum_errors;
 mod enum_globs;
 pub(in crate::nominal_boundary::resolution) mod external_expression_macros;
+pub(in crate::nominal_boundary::resolution) mod fresh_scalar_products;
 mod function_imports;
 pub(in crate::nominal_boundary::resolution) mod generated_tuple_errors;
 mod headers;

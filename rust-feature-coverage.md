@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.129.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.130.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -5650,3 +5650,15 @@ chain, beginning with fresh non-Copy/no-drop aggregate ownership rather than
 isolated whole-Result forwarding.
 [Contract](eval/coverage-development/wire-usize-readers/README.md) and
 [validation/frontier](docs/rust-support-execution.md).
+
+
+Data3.130 adds source-proved fresh non-Copy/no-drop scalar/array-backed struct
+returns. Default213→215/2,582: original `Accel::from_bytes_unchecked` and the
+scalar constructor `RetryFailError::from_offset`; no-default151/590 is unchanged.
+The complete source, fields, constants, derives and neighboring items remain
+checked. Owned parameters/locals, helper transport, updates and discards remain
+excluded. Next connect `Accel::from_bytes` through aggregate Result success and
+a separately proved constructor callable, then the slice/error chain.
+[Contract/oracle](eval/coverage-development/accel-parser/README.md) and
+[validation/frontier](docs/rust-support-execution.md). Work pauses after this
+increment and the CI platform/performance fixes at the user's request.

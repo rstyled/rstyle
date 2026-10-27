@@ -722,3 +722,32 @@ pub(crate) fn never_conversion_payload(token: &TypeToken) -> bool {
     matches!(token, TypeToken::Scalar(value) if value == "usize")
         || mapped_int_conversion_payload(token)
 }
+
+/// Shape-only named field roster; callers separately prove field semantics/source.
+fn bounded_struct_fields(token: &TypeToken) -> Option<&[(String, TypeToken)]> {
+    let TypeToken::Struct { nominal, fields } = token else {
+        return None;
+    };
+    let names: std::collections::BTreeSet<_> = fields.iter().map(|(name, _)| name).collect();
+    (nominal
+        .source_identity
+        .as_ref()
+        .is_some_and(|id| !id.is_empty())
+        && !fields.is_empty()
+        && fields.len() <= crate::concrete_types::MAX_FIELDS
+        && names.len() == fields.len()
+        && names.iter().all(|name| !name.is_empty()))
+    .then_some(fields)
+}
+
+/// Complete bounded struct shape with separate required/allowed field roles.
+pub(crate) fn bounded_struct(
+    token: &TypeToken,
+    allowed: fn(&TypeToken) -> bool,
+    required: Option<fn(&TypeToken) -> bool>,
+) -> bool {
+    bounded_struct_fields(token).is_some_and(|fields| {
+        fields.iter().all(|(_, field)| allowed(field))
+            && required.is_none_or(|predicate| fields.iter().any(|(_, field)| predicate(field)))
+    })
+}

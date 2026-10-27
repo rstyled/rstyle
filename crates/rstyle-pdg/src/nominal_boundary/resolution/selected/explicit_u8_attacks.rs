@@ -54,6 +54,7 @@ impl Case {
             environment: Rc::clone(&self.environment),
             copy_trees: Default::default(),
             no_drop_trees: Default::default(),
+            fresh_owner_source: None,
             array_views: false,
             scalar_aliases: false,
             local_import_chains: false,

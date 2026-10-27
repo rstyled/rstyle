@@ -65,6 +65,7 @@ pub struct Resolution {
     environment: Rc<Environment>,
     copy_trees: std::collections::BTreeSet<Namespace>,
     no_drop_trees: std::collections::BTreeSet<Namespace>,
+    fresh_owner_source: Option<(TypeTree, selected::no_drop::CheckedNoDrop)>,
     array_views: bool,
     scalar_aliases: bool,
     local_import_chains: bool,
@@ -327,6 +328,15 @@ impl Resolution {
         })
     }
 
+    pub(crate) fn checked_fresh_owner(&self, token: &crate::data_types::TypeToken) -> bool {
+        let Some((tree, certificate)) = &self.fresh_owner_source else {
+            return false;
+        };
+        self.checked_no_drop(certificate.nominal())
+            && !self.checked_copy_token(token)
+            && crate::data_types::TypeToken::from_tree(tree) == *token
+    }
+
     pub(crate) fn checked_copy_token(&self, token: &crate::data_types::TypeToken) -> bool {
         let nominal = match token {
             crate::data_types::TypeToken::Struct { nominal, .. }
@@ -552,7 +562,42 @@ fn has_transport_observation(
     })
 }
 
+fn capture_fresh_owner_source(
+    facts: &HirFnFacts,
+    resolution: &mut Resolution,
+) -> Result<(), String> {
+    if !supports(facts, crate::fresh_scalar_owners::CAPABILITY)? {
+        return Ok(());
+    }
+    let interface = facts
+        .build
+        .frontend_options
+        .data::<InterfaceObservations>()?;
+
+    let Observation::Captured { ty } = &interface.result else {
+        return Ok(());
+    };
+    if !selected::no_drop::fresh_scalar_products::supported(ty) {
+        return Ok(());
+    }
+
+    let origins = facts
+        .build
+        .frontend_options
+        .data::<declaration_origins::Origins>()?;
+    if origins.declarations.iter().any(|origin| {
+        Some(&origin.nominal) == ty.nominal_identity() && origin.builtin_copy.is_some()
+    }) {
+        return Ok(());
+    }
+    let certificate =
+        selected::no_drop::fresh_scalar_products::verify_source(facts, ty, resolution, &origins)?;
+    resolution.fresh_owner_source = Some((ty.clone(), certificate));
+    Ok(())
+}
+
 fn capture_owner_sources(facts: &HirFnFacts, resolution: &mut Resolution) -> Result<(), String> {
+    capture_fresh_owner_source(facts, resolution)?;
     if supports(facts, "rust.checked-copy-owner-source")? {
         resolution.copy_owner_source = selected::no_drop::copy_owners::capture(facts, resolution)?;
     }
@@ -698,6 +743,7 @@ fn declaration_resolution_with_generated(
         trees: BTreeMap::new(),
         copy_trees: Default::default(),
         no_drop_trees: Default::default(),
+        fresh_owner_source: None,
         source_requirements: Default::default(),
         copy_owner_source: None,
         scalar_result_source: None,

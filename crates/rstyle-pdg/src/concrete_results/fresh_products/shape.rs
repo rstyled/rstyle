@@ -7,22 +7,11 @@ pub(crate) const GRAMMAR: crate::data_types::ResultGrammar = crate::data_types::
 };
 
 pub(super) fn success(token: &TypeToken) -> bool {
-    let TypeToken::Struct { nominal, fields } = token else {
-        return false;
-    };
-    let names: std::collections::BTreeSet<_> = fields.iter().map(|(name, _)| name).collect();
-    nominal
-        .source_identity
-        .as_ref()
-        .is_some_and(|id| !id.is_empty())
-        && !fields.is_empty()
-        && fields.len() <= crate::concrete_types::MAX_FIELDS
-        && names.len() == fields.len()
-        && names.iter().all(|name| !name.is_empty())
-        && fields
-            .iter()
-            .any(|(_, field)| crate::data_types::shared_byte_slice(field))
-        && fields.iter().all(|(_, field)| field_shape(field))
+    crate::data_types::bounded_struct(
+        token,
+        field_shape,
+        Some(crate::data_types::shared_byte_slice),
+    )
 }
 
 fn field_shape(token: &TypeToken) -> bool {

@@ -292,9 +292,16 @@ impl DeclarationChecker<'_> {
 impl DeclarationChecker<'_> {
     fn retained_cleanup(&self, tree: &TypeTree) -> Option<&no_drop::CheckedNoDrop> {
         self.resolution
-            .copy_conversion_source
+            .fresh_owner_source
             .as_ref()
-            .and_then(|source| source.declaration(tree))
+            .filter(|(checked, _)| checked == tree)
+            .map(|(_, certificate)| certificate)
+            .or_else(|| {
+                self.resolution
+                    .copy_conversion_source
+                    .as_ref()
+                    .and_then(|source| source.declaration(tree))
+            })
             .or_else(|| {
                 self.resolution
                     .transport_sources
@@ -845,6 +852,15 @@ fn check_ordinary_function_namespace(
     resolution: &Resolution,
     namespace: &[String],
 ) -> Result<(), String> {
+    if let Some((_, certificate)) = &resolution.fresh_owner_source {
+        return check_namespace_with_closure(
+            input.facts(),
+            &resolution.environment,
+            namespace,
+            Some(certificate),
+        );
+    }
+
     if let Some(source) = &resolution.nonzero_product_source {
         if source.checked_namespace(input.facts(), &resolution.environment)? != namespace {
             return Err(
@@ -868,6 +884,14 @@ fn check_ordinary_function_namespace(
     if resolution.transport_sources.is_some() {
         return check_transport_namespace(input.facts(), resolution, namespace);
     }
+    check_owner_function_namespace(input, resolution, namespace)
+}
+
+fn check_owner_function_namespace(
+    input: &dyn crate::unit_store::EvidenceFacts,
+    resolution: &Resolution,
+    namespace: &[String],
+) -> Result<(), String> {
     if let Some(source) = &resolution.scalar_result_source {
         let certificate =
             source.function_namespace(input.facts(), &resolution.environment, namespace)?;
