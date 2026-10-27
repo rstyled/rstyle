@@ -50,6 +50,10 @@ impl EvidenceFacts for SourceAnalysis<'_> {
         crate::data_frontend::check(self)
     }
 
+    fn widening_reader_authority(&self) -> Result<Cow<'_, super::WideningReaderAuthority>, String> {
+        crate::widening_readers::check_authority(self).map(Cow::Owned)
+    }
+
     fn nominal_resolution(&self) -> Result<resolution::ResolutionView<'_>, String> {
         self.nominal
             .get(|| self.sources.resolve(self))

@@ -18,6 +18,9 @@ pub(super) struct Derived {
     // An error remains an error, never a Resolution or admission witness.
     nominal: Checked<Result<Resolution, String>>,
     data_frontend: Checked<()>,
+    // Only successful dependency checks survive append-only helper installation.
+    // Recapture starts fresh slots when source facts or helper links change.
+    widening_authority: Checked<Box<WideningReaderAuthority>>,
     receivers: [Checked<crate::data_receivers::Capture>; 2],
     inherent: Checked<Option<Definition>>,
     reference_origins: reference_origins::Queries,
@@ -308,6 +311,13 @@ impl FunctionView<'_> {
         self.derived()
             .reference_origins
             .select(node, selectors, self)
+    }
+
+    pub(super) fn widening_authority(&self) -> Result<Cow<'_, WideningReaderAuthority>, String> {
+        self.derived()
+            .widening_authority
+            .get(|| crate::widening_readers::check_authority(self).map(Box::new))
+            .map(|proof| Cow::Borrowed(proof.as_ref()))
     }
 
     pub(super) fn data_boundary(&self) -> Result<(), String> {

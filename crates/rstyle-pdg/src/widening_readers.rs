@@ -1,5 +1,6 @@
 //! Complete original checked u32 widening readers; no general callback permission.
 mod authority;
+pub use authority::Proof;
 mod environments;
 mod roles;
 mod source;
@@ -33,7 +34,7 @@ pub(crate) const U16_CAPABILITY: &str = "rust.named-error-u16-usize-reader-flow"
 pub(crate) const CAPABILITY: &str = "rust.named-error-usize-reader-flow";
 pub(crate) struct Checked<'a> {
     pub roles: roles::Roles<'a>,
-    pub proof: authority::Proof,
+    pub proof: std::borrow::Cow<'a, authority::Proof>,
 }
 
 pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
@@ -56,16 +57,18 @@ pub(crate) fn node_candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool 
 }
 
 pub(crate) fn verify(facts: &dyn EvidenceFacts) -> Result<Checked<'_>, String> {
+    let proof = facts.widening_reader_authority()?;
+    let roles = roles::verify(facts)?;
+    Ok(Checked { roles, proof })
+}
+
+pub(crate) fn check_authority(facts: &dyn EvidenceFacts) -> Result<authority::Proof, String> {
     if !candidate(facts) {
         return Err("Missing registered whole widening-reader source".into());
     }
-
     let roles = roles::verify(facts)?;
     findings(&roles, facts)?;
-
-    let proof = authority::verify(&roles, facts)?;
-
-    Ok(Checked { roles, proof })
+    authority::verify(&roles, facts)
 }
 
 pub(crate) fn verify_source(facts: &dyn EvidenceFacts) -> Result<bool, String> {

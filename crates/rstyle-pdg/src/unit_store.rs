@@ -25,6 +25,8 @@ pub use manifest::{BundleManifest, VerifiedBundle, transport_checksum};
 pub use namespace::UnitNamespace;
 pub use source_analysis::{SourceAnalyses, SourceAnalysis};
 
+pub use crate::widening_readers::Proof as WideningReaderAuthority;
+
 use crate::{HirFnFacts, HirNode, helper_calls::Summary, producer::Pair};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -132,6 +134,14 @@ pub trait EvidenceFacts: sealed::Sealed {
     /// Verify facts only; mutable graph documents never share this result.
     fn verify_data_frontend(&self) -> Result<(), String> {
         crate::data_frontend::check(self.facts())
+    }
+
+    /// Completed source authority is local to this function owner and policy.
+    /// Paired documents are independently checked on every verification.
+    fn widening_reader_authority(
+        &self,
+    ) -> Result<std::borrow::Cow<'_, WideningReaderAuthority>, String> {
+        crate::widening_readers::check_authority(self.facts()).map(std::borrow::Cow::Owned)
     }
 
     /// Origin results concern immutable source nodes, never graph documents.
@@ -256,6 +266,12 @@ impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
 
     fn verify_data_frontend(&self) -> Result<(), String> {
         T::verify_data_frontend(*self)
+    }
+
+    fn widening_reader_authority(
+        &self,
+    ) -> Result<std::borrow::Cow<'_, WideningReaderAuthority>, String> {
+        T::widening_reader_authority(*self)
     }
 
     fn reference_origins(
@@ -436,6 +452,12 @@ pub struct HelperView<'a> {
 }
 
 impl EvidenceFacts for FunctionView<'_> {
+    fn widening_reader_authority(
+        &self,
+    ) -> Result<std::borrow::Cow<'_, WideningReaderAuthority>, String> {
+        self.widening_authority()
+    }
+
     fn original_local_member(&self, definition: &str) -> Result<Option<&HirFnFacts>, String> {
         if definition.is_empty() {
             return Err("Original member lookup requires an exact definition identity".into());

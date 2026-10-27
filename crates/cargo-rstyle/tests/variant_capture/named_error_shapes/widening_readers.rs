@@ -1,6 +1,6 @@
 //! Complete original widening bodies compose before any admission expectation.
 use super::*;
-use rstyle_pdg::unit_store::UnitAnalysis;
+use rstyle_pdg::unit_store::{EvidenceFacts, UnitAnalysis};
 use serde_json::json;
 
 const NAME: &str = "try_read_u32_as_usize";
@@ -209,6 +209,7 @@ fn strict_replay(
             .map(|name| {
                 let index = shared_evidence::index(function(report, name));
                 let facts = analysis.function(index).unwrap();
+                assert_authority_reuse(store, &facts, index);
                 let pair = store.pair(index).unwrap();
                 rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts)
                     .unwrap();
@@ -227,6 +228,27 @@ fn strict_replay(
         );
         assert_eq!(matching.pairs[0].displayed_score.as_deref(), Some("1"));
     });
+}
+
+fn assert_authority_reuse(
+    store: &rstyle_pdg::unit_store::UnitStore,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    index: usize,
+) {
+    let first = facts.widening_reader_authority().unwrap();
+    let repeated = facts.widening_reader_authority().unwrap();
+    assert!(matches!(first, std::borrow::Cow::Borrowed(_)));
+    assert!(std::ptr::eq(first.as_ref(), repeated.as_ref()));
+    rstyle_pdg::verification_policy::generated(|| {
+        let generated = facts.widening_reader_authority().unwrap();
+        assert!(!std::ptr::eq(first.as_ref(), generated.as_ref()));
+    });
+    let repeated = facts.widening_reader_authority().unwrap();
+    assert!(std::ptr::eq(first.as_ref(), repeated.as_ref()));
+    let other = store.analysis();
+    let other_facts = other.function(index).unwrap();
+    let other_proof = other_facts.widening_reader_authority().unwrap();
+    assert!(!std::ptr::eq(first.as_ref(), other_proof.as_ref()));
 }
 
 fn diagnostic_mutants() -> rstyle_pdg::unit_store::UnitStore {

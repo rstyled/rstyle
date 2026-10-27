@@ -8,7 +8,9 @@ use crate::{
 };
 use serde_json::Value;
 
-pub(crate) struct Proof {
+/// Completed source and selected-dependency checks for one widening reader.
+#[derive(Clone)]
+pub struct Proof {
     pub(crate) input: TypeTree,
     pub(crate) output: TypeTree,
     pub(crate) intermediate: TypeTree,
