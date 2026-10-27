@@ -25,6 +25,7 @@ pub use manifest::{BundleManifest, VerifiedBundle, transport_checksum};
 pub use namespace::UnitNamespace;
 pub use source_analysis::{SourceAnalyses, SourceAnalysis};
 
+pub use crate::data_documents::fallible_readers::SourceProof as GuardedReaderSource;
 pub use crate::widening_readers::Proof as WideningReaderAuthority;
 
 use crate::{HirFnFacts, HirNode, helper_calls::Summary, producer::Pair};
@@ -142,6 +143,14 @@ pub trait EvidenceFacts: sealed::Sealed {
         &self,
     ) -> Result<std::borrow::Cow<'_, WideningReaderAuthority>, String> {
         crate::widening_readers::check_authority(self.facts()).map(std::borrow::Cow::Owned)
+    }
+
+    /// A completed reader source contract, isolated from mutable graph inputs.
+    fn guarded_reader_source(
+        &self,
+    ) -> Result<Option<std::borrow::Cow<'_, GuardedReaderSource>>, String> {
+        crate::data_documents::fallible_readers::check_source(self.facts())
+            .map(|proof| proof.map(std::borrow::Cow::Owned))
     }
 
     /// Origin results concern immutable source nodes, never graph documents.
@@ -272,6 +281,12 @@ impl<T: EvidenceFacts + ?Sized> EvidenceFacts for &T {
         &self,
     ) -> Result<std::borrow::Cow<'_, WideningReaderAuthority>, String> {
         T::widening_reader_authority(*self)
+    }
+
+    fn guarded_reader_source(
+        &self,
+    ) -> Result<Option<std::borrow::Cow<'_, GuardedReaderSource>>, String> {
+        T::guarded_reader_source(*self)
     }
 
     fn reference_origins(
@@ -456,6 +471,12 @@ impl EvidenceFacts for FunctionView<'_> {
         &self,
     ) -> Result<std::borrow::Cow<'_, WideningReaderAuthority>, String> {
         self.widening_authority()
+    }
+
+    fn guarded_reader_source(
+        &self,
+    ) -> Result<Option<std::borrow::Cow<'_, GuardedReaderSource>>, String> {
+        self.guarded_source()
     }
 
     fn original_local_member(&self, definition: &str) -> Result<Option<&HirFnFacts>, String> {

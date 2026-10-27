@@ -21,15 +21,32 @@ pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
     })
 }
 
+/// Completed whole-source check; consumers still verify every supplied graph.
+#[derive(Clone)]
+pub struct SourceProof {
+    contract: crate::copy_tagged_values::origins::WireContract,
+}
+
+pub(crate) fn check_source(facts: &dyn EvidenceFacts) -> Result<Option<SourceProof>, String> {
+    let Some(checked) = source::verify(facts)? else {
+        return Ok(None);
+    };
+    origins::contract(facts, &checked).map(|contract| Some(SourceProof { contract }))
+}
+
 pub(crate) fn verify_source(facts: &dyn EvidenceFacts) -> Result<bool, String> {
-    crate::source_evidence::source_present(facts, source::verify)
+    facts.guarded_reader_source().map(|proof| proof.is_some())
 }
 
 pub(crate) fn source_contract(
     facts: &dyn EvidenceFacts,
-) -> Result<crate::copy_tagged_values::origins::WireContract, String> {
-    let checked = source::verify(facts)?.ok_or("Missing whole guarded reader source")?;
-    origins::contract(facts, &checked)
+) -> Result<std::borrow::Cow<'_, crate::copy_tagged_values::origins::WireContract>, String> {
+    use std::borrow::Cow;
+    match facts.guarded_reader_source()? {
+        Some(Cow::Borrowed(proof)) => Ok(Cow::Borrowed(&proof.contract)),
+        Some(Cow::Owned(proof)) => Ok(Cow::Owned(proof.contract)),
+        None => Err("Missing whole guarded reader source".into()),
+    }
 }
 
 pub(crate) fn install(pair: &mut Pair, facts: &dyn EvidenceFacts) -> Result<bool, String> {

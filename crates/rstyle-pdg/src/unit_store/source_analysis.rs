@@ -54,6 +54,11 @@ impl EvidenceFacts for SourceAnalysis<'_> {
         crate::widening_readers::check_authority(self).map(Cow::Owned)
     }
 
+    fn guarded_reader_source(&self) -> Result<Option<Cow<'_, super::GuardedReaderSource>>, String> {
+        crate::data_documents::fallible_readers::check_source(self)
+            .map(|proof| proof.map(Cow::Owned))
+    }
+
     fn nominal_resolution(&self) -> Result<resolution::ResolutionView<'_>, String> {
         self.nominal
             .get(|| self.sources.resolve(self))

@@ -205,6 +205,10 @@ fn strict_replay(
     report: &Value,
 ) {
     rstyle_pdg::verification_policy::strict(|| {
+        for name in ["try_read_u16", "try_read_u32"] {
+            let index = shared_evidence::index(function(report, name));
+            assert_reader_source_reuse(store, analysis, index);
+        }
         let imports: Vec<_> = [NAME, "same_widening"]
             .map(|name| {
                 let index = shared_evidence::index(function(report, name));
@@ -248,6 +252,26 @@ fn assert_authority_reuse(
     let other = store.analysis();
     let other_facts = other.function(index).unwrap();
     let other_proof = other_facts.widening_reader_authority().unwrap();
+    assert!(!std::ptr::eq(first.as_ref(), other_proof.as_ref()));
+}
+
+fn assert_reader_source_reuse(
+    store: &rstyle_pdg::unit_store::UnitStore,
+    analysis: &UnitAnalysis<'_>,
+    index: usize,
+) {
+    let facts = analysis.function(index).unwrap();
+    let first = facts.guarded_reader_source().unwrap().unwrap();
+    let repeated = facts.guarded_reader_source().unwrap().unwrap();
+    assert!(matches!(first, std::borrow::Cow::Borrowed(_)));
+    assert!(std::ptr::eq(first.as_ref(), repeated.as_ref()));
+    rstyle_pdg::verification_policy::generated(|| {
+        let generated = facts.guarded_reader_source().unwrap().unwrap();
+        assert!(!std::ptr::eq(first.as_ref(), generated.as_ref()));
+    });
+    let other = store.analysis();
+    let other_facts = other.function(index).unwrap();
+    let other_proof = other_facts.guarded_reader_source().unwrap().unwrap();
     assert!(!std::ptr::eq(first.as_ref(), other_proof.as_ref()));
 }
 

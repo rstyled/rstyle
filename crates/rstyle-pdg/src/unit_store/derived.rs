@@ -21,6 +21,7 @@ pub(super) struct Derived {
     // Only successful dependency checks survive append-only helper installation.
     // Recapture starts fresh slots when source facts or helper links change.
     widening_authority: Checked<Box<WideningReaderAuthority>>,
+    guarded_source: Checked<Box<GuardedReaderSource>>,
     receivers: [Checked<crate::data_receivers::Capture>; 2],
     inherent: Checked<Option<Definition>>,
     reference_origins: reference_origins::Queries,
@@ -318,6 +319,20 @@ impl FunctionView<'_> {
             .widening_authority
             .get(|| crate::widening_readers::check_authority(self).map(Box::new))
             .map(|proof| Cow::Borrowed(proof.as_ref()))
+    }
+
+    pub(super) fn guarded_source(&self) -> Result<Option<Cow<'_, GuardedReaderSource>>, String> {
+        if !crate::data_documents::fallible_readers::candidate(self) {
+            return Ok(None);
+        }
+        self.derived()
+            .guarded_source
+            .get(|| {
+                crate::data_documents::fallible_readers::check_source(self)?
+                    .map(Box::new)
+                    .ok_or_else(|| "Missing candidate guarded reader source".into())
+            })
+            .map(|proof| Some(Cow::Borrowed(proof.as_ref())))
     }
 
     pub(super) fn data_boundary(&self) -> Result<(), String> {

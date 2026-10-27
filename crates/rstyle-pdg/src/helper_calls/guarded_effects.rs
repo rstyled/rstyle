@@ -44,10 +44,12 @@ pub(crate) fn derive(
         || true,
         "Guarded read-only helper requires its registered document policy",
     )?;
-    source_contract(facts).map(Some)
+    source_contract(facts).map(|contract| Some(contract.into_owned()))
 }
 
-fn source_contract(facts: &dyn EvidenceFacts) -> Result<WireContract, String> {
+fn source_contract(
+    facts: &dyn EvidenceFacts,
+) -> Result<std::borrow::Cow<'_, WireContract>, String> {
     crate::data_documents::fallible_readers::source_contract(facts)
 }
 
@@ -95,7 +97,7 @@ pub(super) fn verify_dependency(
         return Err("Guarded helper lacks its registered caller and checked no-drop callee".into());
     }
 
-    if validate_shape(summary)? != &source_contract(callee)?
+    if validate_shape(summary)? != source_contract(callee)?.as_ref()
         || summary.argument_types != super::argument_types(callee)?
         || summary.result_type != super::result_type(callee)?
     {
