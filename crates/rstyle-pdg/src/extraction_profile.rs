@@ -201,8 +201,11 @@ impl ExtractionProfile {
     }
 
     pub fn supports(self, capability: &str) -> bool {
-        CapabilityId::parse(capability)
-            .is_some_and(|id| id.enabled(self.local_contract().map_or(0, |(_, count)| count)))
+        let Some(id) = CapabilityId::parse(capability) else {
+            return false;
+        };
+
+        id.enabled(self.local_contract().map_or(0, |(_, count)| count))
     }
 
     pub fn is_data(self) -> bool {
