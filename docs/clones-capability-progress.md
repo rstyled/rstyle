@@ -26,8 +26,8 @@ Heavy captures and integrated gates run serially.
 
 | ID | Owner / write set | State | Commit | Capability / scope | Evidence and remaining work |
 | --- | --- | --- | --- | --- | --- |
-| C01 | Acceptance / corpus and matrix | delivered (acceptance specification) | initial migration commit | Independently labeled source/signature boundaries, excluded-body case, strict pair and negative abstraction; prepared guard/difference cases | JSON/count checks, fixture formatting and offline Cargo check; producer acceptance not yet claimed |
-| C02 | Evidence / `consumer_facts` and lead registration | implementing | pending | Source/interface availability independent of strict graph admission | Exact immutable source ownership and signature roster tests; no new extraction permission |
+| C01 | Acceptance / corpus and matrix | delivered (acceptance specification) | `112c085` | Independently labeled source/signature boundaries, excluded-body case, strict pair and negative abstraction; prepared guard/difference cases | JSON/count checks, fixture formatting and offline Cargo check; producer acceptance not yet claimed |
+| C02 | Evidence / `consumer_facts` and lead registration | delivered (focused) | source-facts commit | Source/interface availability independent of strict graph admission | Eight frozen focused source ownership/signature tests passed; no new extraction permission; integrated gates pending |
 | C03 | Lead / clones report and CLI acceptance | ready | pending | Source-located accepted strict pairs | Preserve strict decisions, context and all completion fields |
 | C04 | Local + lead / source rules and opt-in CLI | implementing | pending | Length/parameters with separate availability, execution, scope and outcomes | Existing pure code-line policy reused; receiver count normalized; no graph prerequisite |
 | C05 | Acceptance + lead / comparison | ready | pending | Compare same-scope legacy/new results against independent labels | Separate unavailable coverage, evaluated agreement, reviewed improvement and regression |
