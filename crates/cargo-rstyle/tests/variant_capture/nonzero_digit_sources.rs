@@ -47,9 +47,17 @@ pub fn dayo(input: &[u8]) -> Option<ParsedItem<'_, NonZero<u16>>> {
 "#;
 
 fn capture(source: &str) -> Value {
+    capture_target(source, None)
+}
+
+fn capture_target(source: &str, target: Option<&str>) -> Value {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
-    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
+    let mut args = vec!["--extraction-profile", "hir-data-v3"];
+    if let Some(target) = target {
+        args.extend(["--target", target]);
+    }
+    let (output, report) = clones(directory.path(), &args);
     assert!(
         output.status.success(),
         "{}; capture failures {}; handoff failures {}; diagnostics {}",
@@ -80,7 +88,7 @@ fn nonzero_caller_composition_preserves_complete_guarded_results() {
             .is_some_and(|target| target == "aarch64-unknown-linux-gnu");
         let resolution = view.nominal_resolution();
         if !native {
-            assert!(resolution.is_err());
+            verify_rejected_result(&view, scalar);
             continue;
         }
         verify_result_source(
@@ -159,15 +167,57 @@ fn nonzero_source_receipts_reject_alias_imports_and_uncertified_complete_bodies(
         let report = capture(&changed);
         let store = store(&report);
         let analysis = store.analysis();
-        for name in ["week", "dayo"] {
+        for (name, scalar) in [("week", "u8"), ("dayo", "u16")] {
             let index = store
                 .functions()
                 .iter()
                 .position(|facts| facts.name == name)
                 .unwrap();
             let view = analysis.function(index).unwrap();
-            assert!(view.nominal_resolution().is_err(), "{new}");
-            assert!(rstyle_pdg::producer::produce(&view).is_err(), "{new}");
+            verify_rejected_result(&view, scalar);
+        }
+    }
+}
+
+// An unreviewed target can have a valid, empty nominal context. That context
+// must neither resolve this result nor grant whole-function admission.
+fn verify_rejected_result(view: &dyn EvidenceFacts, scalar: &str) {
+    if let Ok(resolution) = view.nominal_resolution() {
+        let path = syn::parse_str(&format!("ParsedItem<'_, NonZero<{scalar}>>")).unwrap();
+        assert!(resolution.resolve(&path).is_err());
+    }
+    assert!(rstyle_pdg::producer::produce(view).is_err());
+}
+
+#[test]
+fn unreviewed_nonzero_targets_reject_direct_and_reexported_results() {
+    for target in ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"] {
+        let output = Command::new("rustc")
+            .args(["--print", "target-libdir", "--target", target])
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        if !Path::new(String::from_utf8(output.stdout).unwrap().trim()).is_dir() {
+            continue;
+        }
+        for source in [
+            SOURCE.into(),
+            SOURCE.replace(
+                "use core::num::NonZero;",
+                "mod aliases { pub use core::num::NonZero; } use aliases::NonZero;",
+            ),
+        ] {
+            let report = capture_target(&source, Some(target));
+            let store = store(&report);
+            let analysis = store.analysis();
+            for (name, scalar) in [("week", "u8"), ("dayo", "u16")] {
+                let index = store
+                    .functions()
+                    .iter()
+                    .position(|facts| facts.name == name)
+                    .unwrap();
+                verify_rejected_result(&analysis.function(index).unwrap(), scalar);
+            }
         }
     }
 }
