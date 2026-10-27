@@ -261,26 +261,27 @@ impl ExtractionProfile {
 }
 
 pub fn registered(policy: &ProfileId) -> bool {
-    registered_profiles()
-        .iter()
-        .any(|profile| profile.policy() == *policy)
+    from_policy(policy).is_some()
 }
 
-fn registered_profiles() -> [ExtractionProfile; 12] {
-    [
-        ExtractionProfile::R0,
-        ExtractionProfile::ConstV1,
-        ExtractionProfile::CastsV1,
-        ExtractionProfile::MatchV1,
-        ExtractionProfile::GuardsV1,
-        ExtractionProfile::ConditionalV1,
-        ExtractionProfile::LoopsV1,
-        ExtractionProfile::CallsV1,
-        ExtractionProfile::HelpersV1,
-        ExtractionProfile::DataV1,
-        ExtractionProfile::DataV2,
-        ExtractionProfile::DataV3,
-    ]
+/// Resolve borrowed wire identity without allocating a policy for every profile.
+fn from_policy(policy: &ProfileId) -> Option<ExtractionProfile> {
+    use ExtractionProfile::*;
+    match (policy.id.as_str(), policy.version.as_str()) {
+        (crate::R0_POLICY_ID, crate::R0_POLICY_VERSION) => Some(R0),
+        (LOCAL_ID, "0.1.0") => Some(ConstV1),
+        (LOCAL_ID, "0.2.0") => Some(CastsV1),
+        (LOCAL_ID, "0.3.0") => Some(MatchV1),
+        (LOCAL_ID, "0.4.0") => Some(GuardsV1),
+        (LOCAL_ID, "0.5.0") => Some(ConditionalV1),
+        (LOCAL_ID, "0.6.0") => Some(LoopsV1),
+        (LOCAL_ID, "0.7.0") => Some(CallsV1),
+        ("rstyle.rust.hir-helpers", "0.1.0") => Some(HelpersV1),
+        (DATA_ID, "1.0.0") => Some(DataV1),
+        (DATA_ID, "2.0.0") => Some(DataV2),
+        (DATA_ID, "3.130.0") => Some(DataV3),
+        _ => None,
+    }
 }
 
 pub fn local_policy(policy: &ProfileId) -> bool {
@@ -288,9 +289,7 @@ pub fn local_policy(policy: &ProfileId) -> bool {
 }
 
 pub fn policy_supports(policy: &ProfileId, capability: &str) -> bool {
-    registered_profiles()
-        .iter()
-        .any(|profile| profile.policy() == *policy && profile.supports(capability))
+    from_policy(policy).is_some_and(|profile| profile.supports(capability))
 }
 
 pub(crate) fn require_document(
