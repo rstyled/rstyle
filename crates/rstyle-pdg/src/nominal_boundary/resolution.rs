@@ -135,8 +135,14 @@ impl Resolution {
         &self,
         interface: &InterfaceObservations,
         origins: &declaration_origins::Origins,
+        facts: &HirFnFacts,
     ) -> Result<(), String> {
-        declaration_origins::verify_in(interface, origins, &self.environment)
+        declaration_origins::verify_in(
+            interface,
+            origins,
+            &self.environment,
+            &facts.build.frontend_options,
+        )
     }
 
     fn select_copies(
@@ -725,12 +731,10 @@ fn declaration_resolution_with_generated(
 ) -> Result<Resolution, String> {
     let facts = input.facts();
     environment.check_context(facts)?;
-    let origins = facts
-        .build
-        .frontend_options
-        .data::<declaration_origins::Origins>()?;
+    let options = &facts.build.frontend_options;
+    let origins = options.data::<declaration_origins::Origins>()?;
     let context = declaration_origins::context(facts, interface, &origins)?;
-    declaration_origins::verify_in(&context, &origins, &environment)?;
+    declaration_origins::verify_in(&context, &origins, &environment, options)?;
     let mut resolution = Resolution {
         namespace: Vec::new(),
         receiver: None,

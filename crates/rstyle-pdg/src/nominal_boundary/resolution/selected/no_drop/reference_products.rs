@@ -72,7 +72,12 @@ pub(in crate::nominal_boundary::resolution::selected) fn verify(
         .build
         .frontend_options
         .data::<InterfaceObservations>()?;
-    crate::declaration_origins::verify_in(&interface, origins, environment)?;
+    crate::declaration_origins::verify_in(
+        &interface,
+        origins,
+        environment,
+        &facts.build.frontend_options,
+    )?;
     verify_declarations(resolution, origins, facts)?;
     let checker = Proof::reference(facts, resolution, origins);
     let key = checker.declaration(tree)?;

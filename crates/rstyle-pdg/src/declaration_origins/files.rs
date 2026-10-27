@@ -18,9 +18,12 @@ impl Sources {
         interface: &InterfaceObservations,
         origins: &Origins,
     ) -> Result<(), String> {
-        verify_inventory(interface, origins, |origin, declaration| {
-            self.check(origin, declaration)
-        })
+        verify_inventory(
+            interface,
+            origins,
+            || crate::evidence_budget::serialized_len(origins).map_err(|error| error.to_string()),
+            |origin, declaration| self.check(origin, declaration),
+        )
     }
 
     pub(crate) fn verify_copy(

@@ -76,7 +76,7 @@ pub(in crate::nominal_boundary::resolution) fn capture<'a>(
         );
     }
 
-    resolution.verify_transport_origins(&interface, origins)?;
+    resolution.verify_transport_origins(&interface, origins, facts)?;
     let function = crate::data_frontend::source_function(facts, Some(resolution))?;
     shape::function(&function, facts, tree)?;
     let namespace = owner::verify(facts, resolution, tree)?;

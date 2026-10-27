@@ -114,21 +114,24 @@ pub(crate) fn verify_in(
     interface: &InterfaceObservations,
     origins: &Origins,
     environment: &crate::nominal_boundary::resolution::Environment,
+    options: &crate::FrontendOptions,
 ) -> Result<(), String> {
-    verify_inventory(interface, origins, |origin, declaration| {
-        environment.check_origin(origin, declaration)
-    })
+    verify_inventory(
+        interface,
+        origins,
+        || options.origin_bytes(origins),
+        |origin, declaration| environment.check_origin(origin, declaration),
+    )
 }
 
 fn verify_inventory(
     interface: &InterfaceObservations,
     origins: &Origins,
+    bytes: impl FnOnce() -> Result<usize, String>,
     mut check: impl FnMut(&Origin, &str) -> Result<(), String>,
 ) -> Result<(), String> {
     interface.validate()?;
-    if origins.identity != IDENTITY
-        || crate::evidence_budget::serialized_len(origins).map_err(|e| e.to_string())? > MAX_BYTES
-    {
+    if origins.identity != IDENTITY || bytes()? > MAX_BYTES {
         return Err("Unregistered or over-budget declaration origins".into());
     }
     generated::verify(interface, &origins.generated)?;

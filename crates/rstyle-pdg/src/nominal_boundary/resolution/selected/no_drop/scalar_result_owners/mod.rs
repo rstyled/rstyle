@@ -35,7 +35,7 @@ pub(in crate::nominal_boundary::resolution) fn capture(
         return Ok(None);
     };
     let origins = facts.build.frontend_options.data::<Origins>()?;
-    crate::declaration_origins::verify_in(&interface, &origins, &resolution.environment)?;
+    resolution.verify_transport_origins(&interface, &origins, facts)?;
     super::super::super::verify_declarations(resolution, &origins, facts)?;
     let copies = Proof::copy_owner(facts, resolution, &origins).copy_receipts(success)?;
     let cleanup = super::verify(facts, error, &resolution.environment)?;

@@ -38,6 +38,7 @@ struct Record<T> {
     // Optional null nominal identities must retain their original wire presence.
     nulls: Vec<String>,
     json: OnceLock<Value>,
+    encoded_len: OnceLock<usize>,
 }
 
 impl<T: Serialize> Record<T> {
@@ -46,7 +47,17 @@ impl<T: Serialize> Record<T> {
             value,
             nulls,
             json: OnceLock::new(),
+            encoded_len: OnceLock::new(),
         }
+    }
+
+    fn encoded_len(&self) -> Result<usize, String> {
+        if let Some(bytes) = self.encoded_len.get() {
+            return Ok(*bytes);
+        }
+        let bytes = crate::evidence_budget::serialized_len(&self.value)
+            .map_err(|error| error.to_string())?;
+        Ok(*self.encoded_len.get_or_init(|| bytes))
     }
 
     fn render(&self) -> Value {
@@ -216,6 +227,19 @@ impl FrontendOptions {
             Some(value) => Ok(Cow::Borrowed(value)),
             None => self.decode(T::KEY).map(Cow::Owned),
         }
+    }
+
+    /// Size belongs to this exact immutable typed record, never an equal-looking input.
+    pub(crate) fn origin_bytes(
+        &self,
+        origins: &crate::declaration_origins::Origins,
+    ) -> Result<usize, String> {
+        if let Some(Entry::Origins(record)) = self.0.get(crate::declaration_origins::KEY)
+            && std::ptr::eq(&record.value, origins)
+        {
+            return record.encoded_len();
+        }
+        crate::evidence_budget::serialized_len(origins).map_err(|error| error.to_string())
     }
 
     fn decode<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<T, String> {
@@ -428,6 +452,8 @@ fn collect_nulls(value: &Value, path: &str, found: &mut Vec<String>) {
 mod dependency_namespaces_tests;
 #[cfg(test)]
 mod generated_sources_tests;
+#[cfg(test)]
+mod origin_budgets_tests;
 #[cfg(test)]
 mod receivers_tests;
 #[cfg(test)]

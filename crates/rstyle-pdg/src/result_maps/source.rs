@@ -27,7 +27,7 @@ pub(crate) fn capture(
         .build
         .frontend_options
         .data::<InterfaceObservations>()?;
-    resolution.verify_transport_origins(&interface, origins)?;
+    resolution.verify_transport_origins(&interface, origins, facts)?;
 
     Ok(Some(CheckedTransportSource {
         request,

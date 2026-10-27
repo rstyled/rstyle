@@ -95,7 +95,7 @@ pub(in crate::nominal_boundary::resolution) fn capture(
         .data::<InterfaceObservations>()?;
     interface.validate()?;
     let endpoints = targets::endpoints(&interface)?;
-    resolution.verify_transport_origins(&interface, origins)?;
+    resolution.verify_transport_origins(&interface, origins, facts)?;
     let targets = targets::verify(facts, resolution, origins, &endpoints)?;
 
     let function = crate::data_frontend::source_function(facts, Some(resolution))?;

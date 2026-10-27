@@ -34,7 +34,12 @@ pub(in crate::nominal_boundary::resolution) fn capture_checked(
     verify_interface(&interface, instance)?;
     let environment = &resolution.environment;
     environment.check_input_owner(facts)?;
-    crate::declaration_origins::verify_in(&interface, origins, environment)?;
+    crate::declaration_origins::verify_in(
+        &interface,
+        origins,
+        environment,
+        &facts.build.frontend_options,
+    )?;
     let method = if crate::scalar_product_instances::forwarders::candidate(facts) {
         crate::scalar_product_instances::forwarders::source_shape(facts)?;
         None

@@ -35,7 +35,12 @@ pub(in crate::nominal_boundary::resolution) fn capture(
 
     let environment = &resolution.environment;
     environment.check_input_owner(facts)?;
-    crate::declaration_origins::verify_in(&interface, origins, environment)?;
+    crate::declaration_origins::verify_in(
+        &interface,
+        origins,
+        environment,
+        &facts.build.frontend_options,
+    )?;
     product::verify_declaration(facts, resolution, origins, instance)?;
 
     let owner = copy_products::Owner::capture(facts, environment, origins)?;

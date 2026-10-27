@@ -46,7 +46,12 @@ pub(in crate::nominal_boundary::resolution) fn verify_source(
         .build
         .frontend_options
         .data::<InterfaceObservations>()?;
-    crate::declaration_origins::verify_in(&interface, origins, &resolution.environment)?;
+    crate::declaration_origins::verify_in(
+        &interface,
+        origins,
+        &resolution.environment,
+        &facts.build.frontend_options,
+    )?;
     // Includes exact source field types and independently resolved array lengths.
     verify_declarations(resolution, origins, facts)?;
     let checker = Proof::fresh_scalar_product(facts, resolution, origins);

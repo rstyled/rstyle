@@ -123,7 +123,12 @@ fn inputs(
         .build
         .frontend_options
         .data::<InterfaceObservations>()?;
-    crate::declaration_origins::verify_in(&interface, origins, &resolution.environment)?;
+    crate::declaration_origins::verify_in(
+        &interface,
+        origins,
+        &resolution.environment,
+        &facts.build.frontend_options,
+    )?;
     verify_declarations(resolution, origins, facts)?;
     Ok(())
 }
