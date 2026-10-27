@@ -81,7 +81,6 @@ fn bounded_scalar_loops_compose_with_callers_and_alpha_peers() {
     accepted_pair(&report, "multiple_of_power_of_5_32", "alpha_predicate");
     accepted_pair(&report, "wrapper", "alpha_wrapper");
     reject_corruptions(&report);
-    reject_resealed(function(&report, "wrapper"), downgrade_policy);
 }
 
 fn accepted_pair(report: &Value, first: &str, second: &str) {
@@ -100,16 +99,20 @@ fn accepted_pair(report: &Value, first: &str, second: &str) {
 }
 
 fn reject_corruptions(report: &Value) {
-    reject_caller_corruptions(function(report, "multiple_of_power_of_5_32"));
+    let bundle = shared_evidence::wire(function(report, "pow5factor_32"));
+    // All attacks share one immutable unit; validate its positive baseline once.
+    UnitStore::from_bundle(&serde_json::to_vec(&bundle).unwrap()).unwrap();
+    reject_caller_corruptions(&bundle, function(report, "multiple_of_power_of_5_32"));
     let helper = function(report, "pow5factor_32");
     for mutation in ["debug", "unknown_debug", "overflow", "graph", "order"] {
-        reject_resealed(helper, |bundle, index| {
+        reject_resealed(&bundle, helper, |bundle, index| {
             corrupt_loop_evidence(bundle, index, mutation);
         });
     }
+    reject_resealed(&bundle, function(report, "wrapper"), downgrade_policy);
 }
 
-fn reject_caller_corruptions(caller: &Value) {
+fn reject_caller_corruptions(original: &Value, caller: &Value) {
     for mutation in [
         "panic",
         "returns",
@@ -122,7 +125,7 @@ fn reject_caller_corruptions(caller: &Value) {
         "missing_bound",
         "policy",
     ] {
-        reject_resealed(caller, |bundle, index| {
+        reject_resealed(original, caller, |bundle, index| {
             let callee = bundle["links"][index][0]["function"].as_u64().unwrap() as usize;
             let helper = bundle["certified"][callee].as_u64().unwrap() as usize;
             let summary = &mut bundle["helpers"][helper]["summary"];
@@ -203,9 +206,8 @@ fn downgrade_policy(bundle: &mut Value, index: usize) {
 }
 
 // Resealing makes every rejection exercise evidence checks, not stale byte seals.
-fn reject_resealed(entry: &Value, edit: impl FnOnce(&mut Value, usize)) {
-    let mut bundle = shared_evidence::wire(entry);
-    UnitStore::from_bundle(&serde_json::to_vec(&bundle).unwrap()).unwrap();
+fn reject_resealed(original: &Value, entry: &Value, edit: impl FnOnce(&mut Value, usize)) {
+    let mut bundle = original.clone();
     edit(&mut bundle, shared_evidence::index(entry));
     let bytes = serde_json::to_vec(&bundle).unwrap();
     let manifest = BundleManifest {

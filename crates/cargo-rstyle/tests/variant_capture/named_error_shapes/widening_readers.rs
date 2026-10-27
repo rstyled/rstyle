@@ -1,5 +1,6 @@
 //! Complete original widening bodies compose before any admission expectation.
 use super::*;
+use rstyle_pdg::unit_store::UnitAnalysis;
 use serde_json::json;
 
 const NAME: &str = "try_read_u32_as_usize";
@@ -142,8 +143,13 @@ fn original_u32_widening_composes_saved_payloads_errors_and_scoped_callbacks() {
     );
     assert_frontier(&report);
     let store = projected_store(&report);
-    strict_replay(&store, &report);
-    reject_graph(&store, shared_evidence::index(function(&report, NAME)));
+    let analysis = store.analysis();
+    strict_replay(&store, &analysis, &report);
+    reject_graph(
+        &store,
+        &analysis,
+        shared_evidence::index(function(&report, NAME)),
+    );
     reject_resealed_frontends();
     reject_source(function(&report, NAME));
 }
@@ -193,9 +199,12 @@ fn projected_store(report: &Value) -> rstyle_pdg::unit_store::UnitStore {
     store
 }
 
-fn strict_replay(store: &rstyle_pdg::unit_store::UnitStore, report: &Value) {
+fn strict_replay(
+    store: &rstyle_pdg::unit_store::UnitStore,
+    analysis: &UnitAnalysis<'_>,
+    report: &Value,
+) {
     rstyle_pdg::verification_policy::strict(|| {
-        let analysis = store.analysis();
         let imports: Vec<_> = [NAME, "same_widening"]
             .map(|name| {
                 let index = shared_evidence::index(function(report, name));
@@ -477,8 +486,11 @@ fn reject_source(entry: &Value) {
     }
 }
 
-fn reject_graph(store: &rstyle_pdg::unit_store::UnitStore, index: usize) {
-    let analysis = store.analysis();
+fn reject_graph(
+    store: &rstyle_pdg::unit_store::UnitStore,
+    analysis: &UnitAnalysis<'_>,
+    index: usize,
+) {
     let facts = analysis.function(index).unwrap();
     let original = store.pair(index).unwrap();
     for change in [

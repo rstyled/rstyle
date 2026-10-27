@@ -1,6 +1,9 @@
 //! Independent u16 blanket-selection receipts compose only through closed never errors.
 use super::*;
-use rstyle_pdg::{producer::Pair, unit_store::UnitStore};
+use rstyle_pdg::{
+    producer::Pair,
+    unit_store::{UnitAnalysis, UnitStore},
+};
 
 const U16: &str = "try_read_u16_as_usize";
 const TWIN: &str = "same_u16_widening";
@@ -115,10 +118,11 @@ fn original_u16_widening_closes_never_error_without_granting_generic_conversion(
         store.pair(extra).is_none(),
         "unreachable failure source cannot be omitted"
     );
-    check_controls(&store, positives);
-    check_mutants(&store, mutants);
-    check_graph_attacks(&store, positives[0]);
-    check_previous_u32(&store, positives[2]);
+    let analysis = store.analysis();
+    check_controls(&store, &analysis, positives);
+    check_mutants(&store, &analysis, mutants);
+    check_graph_attacks(&store, &analysis, positives[0]);
+    check_previous_u32(&store, &analysis, positives[2]);
 }
 
 fn install_attacks(raw: &UnitStore, bundle: &mut Value) -> Vec<(&'static str, usize)> {
@@ -253,9 +257,8 @@ fn mutate_never_input(facts: &mut Value) {
     closure["res"]["description"] = serde_json::to_string(&environment).unwrap().into();
 }
 
-fn check_controls(store: &UnitStore, indices: [usize; 3]) {
+fn check_controls(store: &UnitStore, analysis: &UnitAnalysis<'_>, indices: [usize; 3]) {
     rstyle_pdg::verification_policy::strict(|| {
-        let analysis = store.analysis();
         let admitted: Vec<_> = indices
             .map(|index| {
                 let facts = analysis.function(index).unwrap();
@@ -285,8 +288,7 @@ fn check_controls(store: &UnitStore, indices: [usize; 3]) {
     });
 }
 
-fn check_mutants(store: &UnitStore, mutants: Vec<(&str, usize)>) {
-    let analysis = store.analysis();
+fn check_mutants(store: &UnitStore, analysis: &UnitAnalysis<'_>, mutants: Vec<(&str, usize)>) {
     rstyle_pdg::verification_policy::strict(|| {
         for (change, index) in mutants {
             let facts = analysis.function(index).unwrap();
@@ -309,8 +311,7 @@ fn previous_profile(pair: &mut Pair) {
     pair.cfg.profile.version = previous;
 }
 
-fn check_graph_attacks(store: &UnitStore, index: usize) {
-    let analysis = store.analysis();
+fn check_graph_attacks(store: &UnitStore, analysis: &UnitAnalysis<'_>, index: usize) {
     let facts = analysis.function(index).unwrap();
     for change in ["origin", "guard", "operand", "entry", "previous-profile"] {
         let mut changed = store.pair(index).unwrap().clone();
@@ -333,8 +334,7 @@ fn check_graph_attacks(store: &UnitStore, index: usize) {
     }
 }
 
-fn check_previous_u32(store: &UnitStore, index: usize) {
-    let analysis = store.analysis();
+fn check_previous_u32(store: &UnitStore, analysis: &UnitAnalysis<'_>, index: usize) {
     let facts = analysis.function(index).unwrap();
     let mut historical = store.pair(index).unwrap().clone();
     previous_profile(&mut historical);

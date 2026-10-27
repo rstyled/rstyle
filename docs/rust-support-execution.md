@@ -2036,3 +2036,35 @@ unchecked constructor; retain full owner/derive/neighbor proof. Then connect the
 array validator and complete slice-array/error/forwarding chain. Oracle success
 is no admission gain. Evidence: `/tmp/rstyle-462-accel-oracle.json`; existing
 Data3.129 integrated gates remain unchanged.
+
+Integration462, Data3.130/159: fresh source-proved non-Copy/no-drop owners may
+return direct bounded scalar/array struct construction. Original default
+`Accel::from_bytes_unchecked` and scalar-only `RetryFailError::from_offset` admit:
+213→215/2,582; no-default151/590 unchanged, zero losses or changed prior admitted
+records. All366 strict selections pass twice-imported score1 replay and all34,330
+cross pairs preserve their33,903 historical results. Owned parameters/locals,
+updates, discards and callable transport remain excluded. No Copy authority,
+runtime SHA256 or serialized cache keys were added. Development constructors:
+2,056 native cases/zero mismatches; complete original Accel oracle remains
+657,408/zero mismatches. Evidence: `/tmp/rstyle-462-{natural,strict}-comparison.json`.
+
+CI repair distinguishes an empty nominal context on unreviewed NonZero targets
+from a certified result: both exact result resolution and whole-function
+production must reject. Real captures cover installed x86 Linux and macOS target
+libraries; native foreign execution is separate. Scalar-loop adversaries share one validated baseline while retaining all32
+changed imports. Widening fixture phases share their immutable unit analysis;
+every source, graph, transport and adversarial verification still runs.
+
+Next: complete `Accel::from_bytes` aggregate Result success and separately proved
+constructor callable, then checked prefix/min, slice-array error propagation and
+tagged forwarding for `from_slice`. Existing u8-to-usize authority suffices.
+Pause after this increment and CI fixes at the user's request; broad roadmap
+remains incomplete.
+
+Validation: all2,328 tests/5 existing skips and doctests pass; fmt/Clippy clean,
+rstyle0/8,178 and patterns0/15 unchanged ignores. Separate dfa-search-only capture
+is161/901: unchecked construction admits; both checked parsers remain excluded.
+Equal-work local scalar-loop test8.92→5.14s (all32 mutated imports retained);
+widening u32/u16 tests15.20→15.05s and9.79→9.21s. No broad CI speedup is claimed.
+Evidence: `/tmp/rstyle-462-postfix-*.log`, `/tmp/rstyle-462-perf-{before,after}.json`,
+`/tmp/rstyle-462-{frozen-comparison,dfa-search}.json`.
